@@ -1,1714 +1,1710 @@
 [
-    {
-        "model": "core.releasenote",
-        "pk": 107,
-        "fields": {
-            "title": "Beth Now Responds Instantly with Streaming",
-            "description": "Beth's responses now appear word-by-word as she thinks — no more staring at a typing indicator for several seconds. You'll see her first words within a fraction of a second, and her full response streams in naturally like a real conversation. Behind the scenes, Beth also builds her context in parallel (instead of sequentially) and uses a smarter two-layer cache to avoid redundant work. If streaming ever has an issue, the chat automatically falls back to the previous method so you never lose a message.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-28",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-28T22:00:00Z",
-            "updated_at": "2026-02-28T22:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 106,
-        "fields": {
-            "title": "Beth is Faster, Smarter, and More Reliable",
-            "description": "Your Chief of Staff got a major quality-of-life upgrade. Beth now responds noticeably faster — we eliminated redundant database queries and moved background processing out of the response path. Calendar and task times are now displayed in your local timezone (no more UTC confusion). When you ask about your day or tasks, Beth always gives you the full briefing with your actual data — never generic advice. The chat also pre-warms the server when you open it, so you're less likely to see 'could not find server' after idle periods. If the server is cold, the chat silently retries once before showing an error.",
-            "entry_type": "improvement",
-            "version": "",
-            "release_date": "2026-02-28",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-28T18:00:00Z",
-            "updated_at": "2026-02-28T18:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 105,
-        "fields": {
-            "title": "Journal Dashboard: Mood & Prompt Widgets Now Working",
-            "description": "The Journal home page got a major refresh. The 'Mood This Week' widget now correctly shows all the emotions you've selected across your entries — displayed as emoji + name (e.g., '😊 Great') so you can easily identify each one. Hover over any emotion for its full name. The 'Today's Prompt' widget now shows a daily rotating writing prompt based on your preferences. Mood and entry counts are now accurately calculated based on your entry dates.",
-            "entry_type": "fix",
-            "version": "",
-            "release_date": "2026-02-28",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-28T12:00:00Z",
-            "updated_at": "2026-02-28T12:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 104,
-        "fields": {
-            "title": "Smarter CoS: Better Context, Reasoning & Session Awareness",
-            "description": "Your Chief of Staff just got a major intelligence upgrade. CoS now has a much larger conversation memory (40 messages vs 15), tracks your page navigation to understand what you're doing, and thinks through context before responding — so when you're reading scripture and ask about the Sabbath, it talks about scripture, not your work routines. CoS also detects whether you're asking about what's on your screen vs. continuing an earlier topic. Intent recognition is now powered by GPT-4o for better understanding of what you mean. NEW: CoS now has long-term memory — it stores past conversations with semantic search, so it can naturally reference things you discussed days or weeks ago ('You mentioned last week...'). It also validates its own responses before sending them, and will automatically self-correct if it detects a context mismatch.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-25",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-25T11:15:00Z",
-            "updated_at": "2026-02-25T11:15:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 103,
-        "fields": {
-            "title": "CoS Tracks Everything on Your Calendar",
-            "description": "Your Chief of Staff now monitors and prompts on every type of calendar event — habits, goals, milestones, life events, and manual entries — not just tasks. CoS will prompt you before activities start, check in afterwards, and record your reflections. When you complete a habit, goal, or milestone (either through CoS or the app), it syncs across your calendar automatically. Clicking any calendar event now takes you directly to its edit page. The task form has also been reordered for a more natural flow: What → Notes → Recurring → Dates → Time.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-25",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-25T10:30:00Z",
-            "updated_at": "2026-02-25T10:30:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 102,
-        "fields": {
-            "title": "Daily Routine Tasks with CoS Check-ins",
-            "description": "Your daily routines (Quiet Time, Workout, etc.) can now be set up as recurring tasks with scheduled times. Tell CoS 'Add Quiet Time at 5:30am daily' and it will create a completable task that shows up on your calendar at the right time. CoS will prompt you before your routine starts, check in afterwards to ask how it went, and remember your reflections for future conversations. Your executive briefing now shows which routines you've completed and which are still pending.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-25",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-25T02:00:00Z",
-            "updated_at": "2026-02-25T02:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 101,
-        "fields": {
-            "title": "Capture: iOS Audio Downloads & Readable Transcripts",
-            "description": "Two improvements to Capture recordings: (1) The 'Save to Device' and 'Download Audio' buttons now work correctly in the iOS app — tap to save your recording to Files, AirDrop it, or share to other apps. (2) Full transcripts are now formatted with paragraph breaks at natural topic changes, making long transcripts much easier to read. No wording is changed — just cleaner formatting.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-24",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-24T23:30:00Z",
-            "updated_at": "2026-02-24T23:30:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 100,
-        "fields": {
-            "title": "Capture: Broader Audio Format Support",
-            "description": "The Capture feature now accepts a wider range of audio formats including MP4, OGG, and CAF files. This fixes an issue where recordings saved from iOS devices (which use the MP4 format) couldn't be re-uploaded via the Upload Audio File option. Downloaded recordings now also save with the correct audio extension (.m4a instead of .mp4) so your device recognizes them as audio files.",
-            "entry_type": "fix",
-            "version": "",
-            "release_date": "2026-02-24",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-24T23:00:00Z",
-            "updated_at": "2026-02-24T23:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 99,
-        "fields": {
-            "title": "Clickable Calendar Events",
-            "description": "Calendar events in the Time Command Center are now clickable. Tap any event to take action: task-linked events open the task editor, goal-linked events go to the goal page, habit-linked events go to the habit page, and manually created events open an edit form where you can update details or delete the event — all without leaving the calendar.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-24",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-24T20:30:00Z",
-            "updated_at": "2026-02-24T20:30:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 98,
-        "fields": {
-            "title": "Chief of Staff v2: Your Intelligent Daily Partner",
-            "description": "A major upgrade to your Chief of Staff. It now proactively checks in before and after your activities, learns from your reflections over time, detects patterns in your well-being (like workout fatigue or consistency drops), and suggests goals when the evidence supports them. Events are intelligently prioritized — low-priority items auto-shift around conflicts while important ones stay put. The tone adapts to your day: encouraging when you're on a streak, empathetic when things are tough, and energized before workouts. All of this runs behind the scenes with a feature flag — opt in when you're ready.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-24",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-24T16:30:00Z",
-            "updated_at": "2026-02-24T16:30:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 97,
-        "fields": {
-            "title": "Smart Conflict Detection for Your Calendar",
-            "description": "Your Chief of Staff now checks for scheduling conflicts before creating or moving events. If a time overlap is detected, you'll see exactly which events conflict and get suggested alternative time slots. Protected events like Workouts, Bible Study, Prayer, and Health appointments are automatically flagged, so your most important commitments stay safe. You always have the final say — override, reschedule, or cancel.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-24",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-24T10:00:00Z",
-            "updated_at": "2026-02-24T10:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 96,
-        "fields": {
-            "title": "Full Calendar Control via Your Chief of Staff",
-            "description": "Your Chief of Staff can now manage your entire calendar through conversation. Ask things like 'move my Wednesday meeting to Thursday', 'cancel my 2pm appointment', or 'what's on my calendar this week?' — and it handles the rest. Updates, reschedules, and cancellations are all tracked in your schedule history so nothing is ever lost.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-24",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-24T04:00:00Z",
-            "updated_at": "2026-02-24T04:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 95,
-        "fields": {
-            "title": "Sharper, More Precise Guidance",
-            "description": "Your Chief of Staff now double-checks every response before you see it, ensuring you always get clear, natural guidance without any technical jargon slipping through. If something doesn't meet quality standards, it's automatically corrected before delivery. The system also tracks its own accuracy over time and alerts the team if anything needs attention.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-23",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-23T19:30:00Z",
-            "updated_at": "2026-02-23T19:30:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 94,
-        "fields": {
-            "title": "Improved Reliability & Graceful Recovery",
-            "description": "Behind the scenes, your Chief of Staff is now more resilient. If something hiccups — a slow connection, a brief service interruption — the system handles it gracefully and keeps your data safe. You'll see a friendly status message instead of an error, and everything catches up automatically. Your commitments and schedule are always protected, even when things aren't running at full speed.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-23",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-23T18:00:00Z",
-            "updated_at": "2026-02-23T18:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 93,
-        "fields": {
-            "title": "Proactive Schedule Protection & Deadline Alerts",
-            "description": "Your Chief of Staff now watches your schedule and commitments proactively. When your load gets heavy, you'll receive specific recommendations — like blocking time for what matters most, adjusting deadlines before they become emergencies, or focusing on the most urgent items when deadlines converge. You'll also get timely reminders at 24 hours, 4 hours, and 1 hour before commitment deadlines, with easy options to confirm your plan, adjust, or close. Everything is advisory — your schedule is never changed without your say-so.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-23",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-23T17:00:00Z",
-            "updated_at": "2026-02-23T17:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 92,
-        "fields": {
-            "title": "Persistent Accountability & Recovery Tracking",
-            "description": "Your Chief of Staff now remembers your accountability level across conversations — no more silent resets. If you've been drifting, the system maintains appropriate follow-up intensity until you demonstrate sustained improvement: 7 clean days, at least 3 honored commitments, and zero missed priorities. A new behavioral trend tracker monitors whether each area of your life is improving, stable, or declining over time.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-23",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-23T15:00:00Z",
-            "updated_at": "2026-02-23T15:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 91,
-        "fields": {
-            "title": "Smarter Time & Deadline Intelligence",
-            "description": "Your Chief of Staff now requires specific times for commitments — no more silent assumptions. When you say 'I'll finish this today', it will ask 'by when specifically?' to ensure accountability is precise. A new deadline surfacing engine proactively tracks everything due in the next 24 hours, 3 days, and 7 days, with collision detection when deadlines bunch up. Protected blocks (like morning prayer) now have graduated resistance — the system will explain the conflict and suggest alternatives before allowing an override. Timezone changes automatically preserve your intended times.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-23",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-23T14:30:00Z",
-            "updated_at": "2026-02-23T14:30:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 90,
-        "fields": {
-            "title": "Learning Mode & Priority System",
-            "description": "Your Chief of Staff can now enter Learning Mode — a dedicated listening state where it learns your priorities, values, and preferences without taking any actions. A new priority weighting system lets you declare what matters most (non-negotiable, important, or flexible), and the CoS will gently hold you accountable when your behavior drifts from your declared priorities. You can also track partial progress on tasks with a progress slider.",
-            "entry_type": "new_feature",
-            "version": "",
-            "release_date": "2026-02-22",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-22T19:30:00Z",
-            "updated_at": "2026-02-22T19:30:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 89,
-        "fields": {
-            "title": "Financial Command Center — Full Suite",
-            "description": "The Owner Financial Command Center is now fully built out with 7 pages: interactive daily cost charts, per-call audit ledger with filtering, CSV data export, per-user deep-dive diagnostics, a what-if scenario simulator for cost/revenue projections, and budget guardrail monitoring with visual progress bars. All LLM call sites across the app now report cost telemetry automatically.",
-            "entry_type": "new_feature",
-            "version": "",
-            "release_date": "2026-02-22",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-22T02:30:00Z",
-            "updated_at": "2026-02-22T02:30:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 88,
-        "fields": {
-            "title": "Smarter, Faster Chief of Staff Responses",
-            "description": "Your Chief of Staff now adapts its response length to match your question — short questions get short answers, complex analysis gets the detail it deserves. A new 'Response Detail Level' setting in Settings lets you choose between Concise, Balanced, Strategic, or Deep Dive styles. Behind the scenes, responses are more reliable with automatic retry on temporary connection issues, and token usage is now tracked for every conversation.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T12:00:00Z",
-            "updated_at": "2026-02-21T12:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 87,
-        "fields": {
-            "title": "Full Engine Execution Authority — Synthetic Mode",
-            "description": "All nine intelligence engines now have Execute buttons in the Ops Command Center. Context-dependent engines (UAL, SAE, PIE, PRIE, ICQG) run in Synthetic Batch Evaluation Mode — iterating all active users and re-evaluating current system state using each engine's existing logic. No fake events are created and no raw data is altered. Synthetic engines are clearly marked with a purple 'Synthetic' badge and descriptive tooltip. This extends the manual execution capability from 4 batch-native engines to the full intelligence pipeline.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 86,
-        "fields": {
-            "title": "Per-Engine Manual Execution Controls",
-            "description": "Individual intelligence engines can now be triggered manually from the Ops Command Center. Each engine card for DBE, WIRE, DNE, and PGE now has an 'Execute' button that queues the engine for immediate background execution via Celery, with real-time status feedback showing queued, running, and completed states with execution duration. Includes idempotency guards to prevent duplicate runs, freeze detection for disabled engines, and full audit logging. This also fixes an existing issue where engine re-run buttons could fail for certain engines.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 85,
-        "fields": {
-            "title": "SAME Manual Execution Control",
-            "description": "Operators can now manually trigger a SAME monitoring cycle directly from the Ops Command Center using a new 'Execute Now' button. The button provides real-time status feedback (queued, running, completed, failed) with automatic polling, execution duration tracking, and full audit logging. An idempotency guard prevents duplicate triggers while a cycle is already running. All executions — both manual and scheduled — are now tracked in a dedicated execution log with trigger source, timing, and outcome metadata.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-        {
-        "model": "core.releasenote",
-        "pk": 84,
-        "fields": {
-            "title": "Celery + Redis Background Infrastructure",
-            "description": "The system monitoring engine (SAME) has been migrated from an in-process scheduler to a dedicated Celery worker backed by Redis. This means monitoring continues running even if the web server restarts, with automatic retry on failures, configurable timeouts, and proper task queue management. The existing database lock still prevents duplicate execution. This is infrastructure-only — no changes to monitoring behavior or the Operations Wall interface.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 83,
-        "fields": {
-            "title": "Ops Command Center Evolution — Full Intelligence OS",
-            "description": "The Operations Wall has evolved into a full Intelligence Operating System with 5 major upgrades: (1) SAME engine now runs autonomously in the background every 60 seconds — no more depending on someone having the page open. (2) A new System Integrity Index scores overall platform health 0–100 with a color-coded tile showing OPTIMAL/NOMINAL/DEGRADED/CRITICAL posture. (3) Anomalies now escalate automatically — P3 issues promote to P2 after 10 minutes, P2 to P1 after 20 minutes, with cooldown logic to prevent flapping. (4) Each engine card shows a 30-minute cadence timeline strip with expected ticks, actual runs, and highlighted missed intervals. (5) Low-severity anomalies on background engines (DBE/WIRE/DNE) can now be auto-remediated — missed runs get re-triggered and suppression caches get cleared automatically, all logged with full audit trail. 82 tests cover all new functionality.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 82,
-        "fields": {
-            "title": "Operations Wall Upgraded to Vegas v2",
-            "description": "The admin Operations Wall has been completely rebuilt with a NASA/SOC-grade dark monitoring interface. A new System Autonomous Monitoring Engine (SAME) watches all 10 intelligence engines in real-time — detecting missed runs, error spikes, suppression storms, and more — then narrates what's happening in plain English. Engine heartbeats track expected vs actual cadence, anomalies persist with full lifecycle tracking, and admin actions (re-run engine, clear caches, acknowledge alerts) are fully audited. The wall shows system posture (OK/DEGRADED/AT_RISK), engine cards with sparklines, a live watchlist, and a scrolling SOC feed. 42 new tests cover the full stack.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 81,
-        "fields": {
-            "title": "Monica's Intelligence Gets Sharper and More Self-Aware",
-            "description": "Monica's decision-making system (UAL v2.1) has been hardened with five new capabilities: she now tracks whether you've been ignoring her suggestions and adjusts accordingly (instead of nagging), avoids repeating similar nudges within hours, adapts her communication style based on your current capacity (simple and gentle when you're depleted, strategic when you have bandwidth), recognizes when persistent patterns need a different approach rather than repeating the same advice, and detects when your capacity has been volatile to dial back confident recommendations. All of this happens silently in the background — you'll just notice that Monica feels more perceptive and less repetitive.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 80,
-        "fields": {
-            "title": "Engine Diagnostics Console + Operations Wall",
-            "description": "Admin-only observability upgrade: every intelligence engine now emits trace-level diagnostics (EngineRun, EngineSpan, DecisionRecord) correlated by trace ID. The Diagnostics Console (/admin-console/diagnostics/) shows live traces, waterfall detail, and search. The Operations Wall (/admin-console/ops/) is a Vegas-themed live monitoring dashboard with engine pulse tiles, cognitive feed, anomaly detection (error bursts, suppression spikes, scenario dominance, delivery storms), and trend charts. Deep links connect the two layers. 67 tests cover the full stack.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 79,
-        "fields": {
-            "title": "Monica Now Makes One Decision, Not Ten Suggestions",
-            "description": "Monica's intelligence system now includes a Universal Arbitration Layer that evaluates all of your signals — sleep, medication, mood, schedule, relationships, goals, and more — and decides the ONE most important thing to focus on right now. Instead of listing 8 separate reminders, she now tells you a unified story: 'You're running on 5 hours of sleep with a packed schedule — today is about protection, not production.' She'll surface a maximum of 3 items and suppress competing signals, so every interaction feels decisive and human.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 78,
-        "fields": {
-            "title": "Monica Now Greets You Like a Real Chief of Staff",
-            "description": "Monica's morning greeting has been completely upgraded. She now reviews your sleep, checks if you've taken your medicine, surfaces approaching birthdays and life events, scans your journal for patterns, and presents your day as a narrative — not a data dump. If you've been away for a few days, she'll catch you up on what shifted. She also now remembers conversation topics beyond the last 15 messages through rolling memory summaries. This is the executive arrival experience — proactive, aware, and human.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 77,
-        "fields": {
-            "title": "Monica Now Proactively Checks In With You",
-            "description": "Monica is now a true Chief of Staff. She'll proactively reach out in the chat to ask about missed medicine doses, remind you to work out or journal, flag overdue tasks, warn you about busy days ahead, share pattern observations from your data, and note birthdays and anniversaries. No more waiting for you to ask — she's watching your data and speaking up when something needs your attention.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 76,
-        "fields": {
-            "title": "Apple Watch Workout Display — See Your Full Activity Data",
-            "description": "Workouts synced from your Apple Watch (like Pickleball, Running, Cycling) now display properly! Instead of showing '0 Exercises / 0 Sets', you'll see the real activity data: duration, calories burned, distance, average heart rate, and start/end times. The workout list also shows a quick summary like '45 min • 320 cal • 142 bpm'. Look for the Apple Health badge on synced workouts.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 75,
-        "fields": {
-            "title": "Password Visibility Toggle",
-            "description": "You can now tap the eye icon next to any password field to show or hide your password as you type. Available on the sign-in page, sign-up page, change password, reset password, and anywhere else you enter a password.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 74,
-        "fields": {
-            "title": "Sleep Tracking Fix — No More Fake 8-Hour Readings",
-            "description": "If you saw uniform 8.0-hour sleep entries tagged 'Apple Health' every night, those were false readings. Heart rate data from your Apple Watch was accidentally creating dummy sleep records. This has been fixed — heart rate data no longer generates fake sleep entries, and all existing dummy entries have been removed. Your sleep page will now only show real sleep data that you log manually or that comes from an actual sleep tracker.",
-            "entry_type": "fix",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 73,
-        "fields": {
-            "title": "Your Chief of Staff Can Now See All Your Health Data",
-            "description": "Previously, your Chief of Staff could only access weight, fasting, workouts, and medication data. Now Monica can see your steps, sleep, heart rate, blood pressure, glucose, blood oxygen, mobility metrics, heart rate events, audio exposure, and dietary nutrients — everything your Apple Watch and Health apps are syncing. Ask about your step count, sleep trends, heart rate, or any health metric and get real answers backed by your actual data.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 72,
-        "fields": {
-            "title": "Food Search & Barcode Scanner — Now With Real Data",
-            "description": "Food logging just got a major upgrade. Typing a food name now searches the FatSecret database of 1.9 million foods including full restaurant menus — type 'Chick-fil-a' to see the whole menu, or 'Chick-fil-a nug' to narrow it down. The barcode scanner is also more accurate: it now requires multiple consistent reads before accepting a barcode, eliminating false matches. All three search tiers are active: your saved foods first, then FatSecret's database, then AI estimation as a fallback.",
-            "entry_type": "fix",
-            "version": "",
-            "release_date": "2026-02-20",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-20T00:00:00Z",
-            "updated_at": "2026-02-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 71,
-        "fields": {
-            "title": "Extended HealthKit Integration — Your Watch Tells Us More Now",
-            "description": "Your Apple Watch and Health data now syncs 37+ data types to WLJ, up from 24. New categories include: Mobility & Gait (walking asymmetry, steadiness, speed, step length, stair performance — strong predictors of long-term health), Heart Rate Events (high/low HR alerts and irregular rhythm/AFib detection from Apple Watch), Audio Exposure (headphone and environmental noise levels for hearing health), and Dietary Nutrients (calories, protein, carbs, fat, fiber, and more — automatically pulled from food-logging apps like MyFitnessPal that sync through Apple Health). Your Chief of Staff can now detect more patterns and give you richer health insights.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-21",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-21T00:00:00Z",
-            "updated_at": "2026-02-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 70,
-        "fields": {
-            "title": "Chief of Staff Consolidation — One Interface, Zero Confusion",
-            "description": "The standalone Assistant page has been retired. Your Chief of Staff now lives exclusively in the persistent chat panel available on every page — no need to navigate away to talk to it. Today's Priorities are now a dashboard tile you can customize, reorder, and resize alongside your other tiles. All navigation has been rebranded from 'Assistant' to 'Chief of Staff' for consistency. The alignment badge and nav links now go to CoS Settings where you can manage your Chief of Staff preferences.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-20",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-20T00:00:00Z",
-            "updated_at": "2026-02-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 69,
-        "fields": {
-            "title": "A Real Introduction — Your CoS Gets to Know You First",
-            "description": "Your Chief of Staff now has a proper introduction flow. Instead of jumping straight into task management, it starts by learning about YOU — your priorities, routines, who matters most, and how you want to be held accountable. It already knows your data (weight, goals, journals, habits) and uses that to ask informed questions, not generic ones. The conversation is open-ended: come back over multiple sessions to share more, pause anytime, and finish whenever you're ready by clicking 'I'm Ready — Let's Work.' During the introduction, the CoS listens and absorbs — it won't log data or take actions until you tell it you're done getting acquainted.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-20",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-20T00:00:00Z",
-            "updated_at": "2026-02-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 65,
-        "fields": {
-            "title": "Your Chief of Staff Now Knows Your Schedule",
-            "description": "Your Chief of Staff now has full calendar awareness. When you say 'Good morning', it checks your schedule and responds like a real executive assistant — referencing upcoming events, noting if you're running behind, and proactively offering to reschedule. Calendar events appear in the CoS context with real-time status: [NOW] for in-progress, [SOON] for upcoming within the hour, and [MISSED] for events whose start time has passed. Additionally, the NLP quick-add parser now properly cleans event titles — 'Pickleball tomorrow at 6pm' correctly creates an event titled 'Pickleball' instead of 'Pickleball tomorrow at'.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-20",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-20T00:00:00Z",
-            "updated_at": "2026-02-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 64,
-        "fields": {
-            "title": "Smart Quick Links with Mobile App Deep Linking",
-            "description": "Quick Links now support mobile app deep linking. When you add a link, you can optionally set a mobile app URL (like chase:// or bofa://). On your phone, the link will try to open the app first — if it is not installed, it automatically opens the website instead. Links also now track usage, support categories (Finance, Health, Work, etc.), and include an edit button for quick updates. Set up your links in Preferences under Quick Links.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-20",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-20T00:00:00Z",
-            "updated_at": "2026-02-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 63,
-        "fields": {
-            "title": "Smarter Voice Command Recognition",
-            "description": "Your Chief of Staff now better understands a wider range of voice commands. Fitness logging ('I did 10 pushups and 20 squats'), goal setting ('I want to lose 30 pounds'), habit tracking ('completed my morning routine'), faith actions ('God answered my prayer'), and calendar scheduling all have improved recognition. Commands that involve times — like 'I ate lunch 3 hours ago' or 'I worked out this morning' — now correctly backdate the entry. Additionally, your CoS can now direct you to Medical Records, Brain Training, Capture, Scan, and Finance pages.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-20",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-20T00:00:00Z",
-            "updated_at": "2026-02-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 62,
-        "fields": {
-            "title": "Chief of Staff Calendar Scheduling Fix",
-            "description": "Fixed a bug where your Chief of Staff would schedule calendar events on the wrong date when you said 'tomorrow' or 'today'. The AI now knows the current date and correctly resolves relative dates. Calendar event examples have been improved so your CoS better understands scheduling requests.",
-            "entry_type": "fix",
-            "version": "",
-            "release_date": "2026-02-20",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-20T00:00:00Z",
-            "updated_at": "2026-02-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 61,
-        "fields": {
-            "title": "Smarter Chief of Staff After Getting to Know You",
-            "description": "Your Chief of Staff now retains the same warmth and attentiveness from the Getting to Know You conversation into everyday use. It reflects back what you share, connects your requests to what it already knows about you, and understands context before acting — the same personality, now with the ability to execute your requests.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-20",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-20T00:00:00Z",
-            "updated_at": "2026-02-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 60,
-        "fields": {
-            "title": "Calendar Manage Events Improvements",
-            "description": "The Manage Events page now has a '+ New Event' button so you can create calendar events directly. Table rows are clickable to edit, and Edit/Delete actions use compact icon buttons that stay visible without scrolling. On mobile, events display as cards with actions always accessible at the bottom of each card.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-20",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-20T00:00:00Z",
-            "updated_at": "2026-02-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 59,
-        "fields": {
-            "title": "Time Command Center",
-            "description": "Your Chief of Staff now has a unified calendar. See all your tasks, goals, and habits projected onto a single timeline with Today, 3-Day, Week, and Agenda views. Drag events to reschedule — task deadlines update automatically. The Habit Protection Layer warns you before scheduling over protected time like workouts. Smart Gap Detection suggests where to fit in execution time for items due soon. The Domain Imbalance Bar shows how your time is split across Faith, Health, Family, and Work. Quick-add events with natural language like 'Bible Study Wednesdays 6pm-8pm'.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-20",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-20T00:00:00Z",
-            "updated_at": "2026-02-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 58,
-        "fields": {
-            "title": "Always-On Chief of Staff Chat",
-            "description": "Your Chief of Staff is now always available in the right panel on every page. The side panel has been replaced with a persistent chat interface — type or speak to your CoS anytime without navigating away. When calibration is active, the chat opens automatically and starts the conversation. Switch to the Status tab to see your daily plan, drift alerts, and quick actions. On mobile, pull up the chat drawer from the bottom of any page.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-19",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-19T00:00:00Z",
-            "updated_at": "2026-02-19T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 57,
-        "fields": {
-            "title": "Chief of Staff Gets to Know You",
-            "description": "Your Chief of Staff now conducts a real getting-to-know-you conversation when you first start using it. Instead of asking one question per day over two weeks, it walks through a series of questions about your priorities, non-negotiables, preferred activities, and accountability style in a natural back-and-forth conversation. Say 'enough for now' at any time to pause, and it picks up where you left off next time.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-19",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-19T00:00:00Z",
-            "updated_at": "2026-02-19T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 51,
-        "fields": {
-            "title": "Chief of Staff Assistant",
-            "description": "Your new Life Operating System layer. Set up your Personal Operating Blueprint to define your identity-protected behaviors, life pillars, and operating style. The assistant builds a daily architecture plan each night, detects drift from your commitments, and intervenes at the right escalation level. A desktop pinned panel and mobile pull-up give you plan-at-a-glance, drift status, and quick actions throughout the day.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-18",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-18T00:00:00Z",
-            "updated_at": "2026-02-18T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 50,
-        "fields": {
-            "title": "Nutrition Log Upgrade",
-            "description": "Major upgrade to the nutrition tracker. Browse between days with date navigation arrows. Copy individual food entries, entire meals, or full days to other dates. Save frequently-eaten meals as reusable templates. See where your nutrition data comes from with source badges (FatSecret, AI, Saved, etc.). Enjoy a polished mobile experience with sticky daily totals, improved forms, and better accessibility.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-18",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-18T00:00:00Z",
-            "updated_at": "2026-02-18T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 48,
-        "fields": {
-            "title": "Body Transformation Protocol",
-            "description": "Track your body transformation journey with a complete intelligence pipeline. Set up transformation protocols (cut, bulk, recomp, maintenance), track nutrition compliance, fasting consistency, workout frequency, and strength progress. The AI monitors your transformation score across all domains and provides proactive coaching, predictions, and guidance. View your transformation dashboard with trend charts for weight, body fat, calories, protein, fasting, and workouts.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-17",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-17T00:00:00Z",
-            "updated_at": "2026-02-17T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 49,
-        "fields": {
-            "title": "Shopping Lists",
-            "description": "Create and manage shopping lists to support your nutrition and transformation goals. Add items with quantities and categories (produce, protein, dairy, grains, frozen, pantry, beverages, supplements), mark items as purchased, and track your shopping progress. Ask the AI to add items or complete them hands-free.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-17",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-17T00:00:00Z",
-            "updated_at": "2026-02-17T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 33,
-        "fields": {
-            "title": "AI Insights Inbox",
-            "description": "Your AI assistant now proactively generates insights about your health, goals, habits, scripture reading, and journaling patterns. Get notified about weight trends, approaching deadlines, broken habit streaks, and more. View all insights in your new Insights Inbox, where you can filter by status and mark them as read or dismissed.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 34,
-        "fields": {
-            "title": "Smarter AI: Time Understanding & Memory",
-            "description": "The AI assistant now understands natural language time expressions like '3 days ago', 'next Friday at 2pm', and 'last month on the 15th'. It also learns from your clarifications \u2014 the more you use it, the better it understands your preferences.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 30,
-        "fields": {
-            "title": "Goal Engine: Measurement-Driven Habits",
-            "description": "Habit goals now support four measurement types: Binary (daily check-off), Duration (timed sessions with built-in timer), Count (track repetitions), and Target (hit numeric goals). Each type gets its own logging UI, progress tracking, and analytics. Existing habits continue working unchanged. Find them under Goals > Habits.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-14",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 29,
-        "fields": {
-            "title": "Habit Streaks & Smart Insights",
-            "description": "Track your habit streaks with daily, weekly, or monthly frequency. Get smart insights when you hit milestones (7, 30, 90 days), when completion rates are unusually high or low, and when day-of-week patterns emerge. Insights can be applied or dismissed. View your streak on the habit detail page and dashboard tile.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-14",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 28,
-        "fields": {
-            "title": "Clickable Habit Calendar & Undo",
-            "description": "Click any day on your habit's progress matrix or calendar to instantly log it. Use Shift+Click for date ranges and Ctrl/Cmd+Click for multi-select. Every action shows an undo toast with an 8-second countdown so you can reverse mistakes instantly.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-14",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 27,
-        "fields": {
-            "title": "Labs & Vitals",
-            "description": "Upload lab result PDFs and get automatic parsing of blood work panels. View results with color-coded flags (normal, high, low), track trends over time with charts, and learn what each test measures with built-in education content. Find it under Health > Labs & Vitals.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-13",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-13T00:00:00Z",
-            "updated_at": "2026-02-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 26,
-        "fields": {
-            "title": "Lab Test Education",
-            "description": "Tap the info icon next to any lab test to learn what it measures, what high or low values may indicate, and what factors can influence results. Education content available for all 57 standard lab tests. Includes required medical disclaimers.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-13",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-13T00:00:00Z",
-            "updated_at": "2026-02-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 25,
-        "fields": {
-            "title": "Quick Links",
-            "description": "Save your frequently used external links (patient portal, bank login, etc.) and access them from the profile dropdown menu. Add up to 10 links in Preferences > Quick Links. Links open in a new tab.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-11",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-11T00:00:00Z",
-            "updated_at": "2026-02-11T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 24,
-        "fields": {
-            "title": "Smarter AI Assistant",
-            "description": "The AI assistant now threads conversations naturally, remembers what you discussed earlier in the chat, and gives data-driven answers instead of generic advice. It can read your recent journal entries to answer date-specific questions like 'how was I feeling last Tuesday?'",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-11",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-11T00:00:00Z",
-            "updated_at": "2026-02-11T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 23,
-        "fields": {
-            "title": "Scroll Position Preserved",
-            "description": "Pages with repeated actions (medicine doses, task checkboxes, prayer answers, water logging) no longer jump to the top after each action. Your scroll position is saved and restored automatically.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-11",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-11T00:00:00Z",
-            "updated_at": "2026-02-11T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 22,
-        "fields": {
-            "title": "New Character Study: Daniel",
-            "description": "Explore Daniel: Faith in Exile - a 12-day journey through the Book of Daniel. Study Daniel's faithfulness in Babylon, the fiery furnace, the lions' den, and prophetic visions. Available in Beginner, Intermediate, and Advanced levels. Find it under Faith > Reading Plans.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-01-21",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-01-21T00:00:00Z",
-            "updated_at": "2026-01-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 21,
-        "fields": {
-            "title": "Recurring Transactions",
-            "description": "Track subscriptions, bills, and regular income automatically. Set up recurring transactions with flexible frequencies (daily to yearly), auto-post or reminder-only modes, and view upcoming bills on your finance dashboard. Find it under Finance > Recurring.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-01-20",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-01-20T00:00:00Z",
-            "updated_at": "2026-01-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 20,
-        "fields": {
-            "title": "Sleep Tracking",
-            "description": "Track your sleep with detailed logging or quick entry. Log bedtime, wake time, quality rating, and sleep stages. View your sleep history with charts and averages. Designed for future wearable sync with Apple Health, Fitbit, and more. Find it under Health > Sleep.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-01-20",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-01-20T00:00:00Z",
-            "updated_at": "2026-01-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 19,
-        "fields": {
-            "title": "Dashboard Weather Widget",
-            "description": "Your dashboard now shows current weather conditions and a 3-day forecast. Get prominent alerts for extreme heat, cold, high winds, or severe weather. Set your location in Preferences to enable this feature.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-01-19",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-01-19T00:00:00Z",
-            "updated_at": "2026-01-19T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 18,
-        "fields": {
-            "title": "Inline Scripture in Reading Plans",
-            "description": "Scripture references in reading plans now expand inline when clicked. Read verses without leaving your current page. Click again to collapse. Uses your preferred Bible translation from settings.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-01-19",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-01-19T00:00:00Z",
-            "updated_at": "2026-01-19T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 17,
-        "fields": {
-            "title": "Menstrual Cycle Tracking",
-            "description": "Comprehensive cycle tracking with daily logging for flow, symptoms, mood, and energy. AI-powered predictions for your next period and fertile window. View cycle statistics, trends, and phase information. Auto-enabled for female users during onboarding.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-01-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-01-15T00:00:00Z",
-            "updated_at": "2026-01-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 16,
-        "fields": {
-            "title": "Dexcom CGM Integration",
-            "description": "Connect your Dexcom CGM account to automatically sync blood glucose readings. View current glucose with trend arrows, time-in-range stats, 24-hour charts, and automatic background syncing.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-01-01",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-01-01T00:00:00Z",
-            "updated_at": "2026-01-01T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 15,
-        "fields": {
-            "title": "Barcode Scanner for Food",
-            "description": "Scan food product barcodes with your phone camera for instant nutrition info. Lookup uses local database first, then AI for unknown products. Pre-fills your food entry form with all nutritional data.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-31",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-31T00:00:00Z",
-            "updated_at": "2025-12-31T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 1,
-        "fields": {
-            "title": "AI Camera Scanning",
-            "description": "Point your phone at food, medicine, documents, or workout equipment and let AI identify it and suggest actions. Supports 8 categories with smart routing to the right module.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-28",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-28T00:00:00Z",
-            "updated_at": "2025-12-28T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 2,
-        "fields": {
-            "title": "Medicine Tracking",
-            "description": "Comprehensive medicine management with daily tracker, schedules, adherence stats, refill alerts, and PRN support. One-tap check-off for doses.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-28",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-28T00:00:00Z",
-            "updated_at": "2025-12-28T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 3,
-        "fields": {
-            "title": "Nutrition & Food Tracking",
-            "description": "Log meals with macro tracking, daily summaries, and nutrition goals. Includes custom foods, meal type categorization, and eating context tracking.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-28",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-28T00:00:00Z",
-            "updated_at": "2025-12-28T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 4,
-        "fields": {
-            "title": "Enhanced Dashboard",
-            "description": "Dashboard now shows Today's Medicine Schedule with status badges, Recent Workouts with PR highlights, and Quick Stats for medicine doses and workout counts.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2025-12-28",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2025-12-28T00:00:00Z",
-            "updated_at": "2025-12-28T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 5,
-        "fields": {
-            "title": "AI Camera Source Tracking",
-            "description": "Entries created via AI Camera now show a camera badge on detail pages. Track which entries came from AI-powered scanning.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2025-12-28",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2025-12-28T00:00:00Z",
-            "updated_at": "2025-12-28T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 6,
-        "fields": {
-            "title": "Security Improvements",
-            "description": "Enhanced security with rate limiting, secure admin URL, improved cookie settings, and server-side API key handling for Bible lookups.",
-            "entry_type": "security",
-            "version": "",
-            "release_date": "2025-12-28",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2025-12-28T00:00:00Z",
-            "updated_at": "2025-12-28T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 7,
-        "fields": {
-            "title": "Onboarding Wizard",
-            "description": "New users are guided through a friendly 6-step wizard to personalize their experience - choose theme, enable modules, configure AI coaching, and set location.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-20",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-20T00:00:00Z",
-            "updated_at": "2025-12-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 8,
-        "fields": {
-            "title": "Scripture Library",
-            "description": "Save, edit, and organize your favorite Scripture verses in a personal library. Add themes and personal notes to each verse.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-18",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2025-12-18T00:00:00Z",
-            "updated_at": "2025-12-18T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 9,
-        "fields": {
-            "title": "AI Coaching Styles",
-            "description": "Choose how the AI communicates with you. Pick from 7 styles including Supportive Partner, Direct Coach, Gentle Guide, and more.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-15",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2025-12-15T00:00:00Z",
-            "updated_at": "2025-12-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 10,
-        "fields": {
-            "title": "Task Undo",
-            "description": "Accidentally marked a task complete? Now you can easily undo with a single click using the new Undo link.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2025-12-12",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2025-12-12T00:00:00Z",
-            "updated_at": "2025-12-12T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 11,
-        "fields": {
-            "title": "Fitness Tracking",
-            "description": "Track workouts, log exercises, and monitor your fitness journey with comprehensive workout logging.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-10",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-10T00:00:00Z",
-            "updated_at": "2025-12-10T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 12,
-        "fields": {
-            "title": "Journal Prompts",
-            "description": "20 curated writing prompts across 8 categories to inspire your daily reflections. Get a random prompt with one click.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-08",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2025-12-08T00:00:00Z",
-            "updated_at": "2025-12-08T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 13,
-        "fields": {
-            "title": "Life Module",
-            "description": "Manage your whole life with Projects, Tasks, Calendar, Inventory, Pets, Recipes, Maintenance logs, and Document storage.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-05",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-05T00:00:00Z",
-            "updated_at": "2025-12-05T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 14,
-        "fields": {
-            "title": "Purpose Module",
-            "description": "Set your annual direction with Word of the Year, life goals, change intentions, and seasonal reflections.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-03",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-03T00:00:00Z",
-            "updated_at": "2025-12-03T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 31,
-        "fields": {
-            "title": "Body Composition Tracking",
-            "description": "Track body fat %, lean mass, measurements, and more from gym scans or smart scales. Flexible metric storage supports unlimited measurement types. Find it under Health > Body Composition.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-14",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 32,
-        "fields": {
-            "title": "Health Insights Engine",
-            "description": "A new cross-domain insight engine analyzes patterns across weight, body composition, goals, habits, and journal entries. Generates observational insights like trends, consistency patterns, and logging gaps. Find it under Health > Insights.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-14",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 35,
-        "fields": {
-            "title": "Today's Guidance on Your Dashboard",
-            "description": "Your dashboard now shows personalized guidance items \u2014 evidence-based insights, warnings, and encouragement generated from your health trends, goal progress, and life patterns. Quickly act on suggestions, snooze them for later, or dismiss items you don't need.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "pk": 36,
-        "model": "core.releasenote",
-        "fields": {
-            "title": "Enhanced Guidance Inbox",
-            "description": "The Guidance Inbox now lets you filter by lifecycle state \u2014 view active, acknowledged, dismissed, snoozed, and acted items. Each card shows source badges, priority indicators, confidence scores for predictions, and lifecycle timestamps. Manage your guidance with inline actions directly from the inbox.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "pk": 37,
-        "model": "core.releasenote",
-        "fields": {
-            "title": "Your Current State on the Dashboard",
-            "description": "A new dashboard tile shows exactly what WLJ knows about you \u2014 your current weight, sleep, steps, goals, habits, journal activity, and faith data. All values come directly from the State Awareness Engine, giving you full transparency into the data that powers your insights and guidance.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "pk": 38,
-        "model": "core.releasenote",
-        "fields": {
-            "title": "Daily Briefing on Your Dashboard",
-            "description": "A new Daily Briefing tile summarizes the most important intelligence from your data each day. It combines insights, predictions, and guidance into one concise summary \u2014 so you can start your day informed.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "pk": 39,
-        "model": "core.releasenote",
-        "fields": {
-            "title": "Weekly Intelligence Reports",
-            "description": "A new Weekly Intelligence Report summarizes your state changes, insights, predictions, and guidance engagement over the past week. View your latest report on the dashboard or browse all historical reports.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 40,
-        "fields": {
-            "title": "Evidence & Explainability Engine",
-            "description": "Every intelligence output now has a \"Why?\" link explaining what data drove the recommendation, with evidence links and confidence assessments. See it on guidance cards, daily briefings, and weekly reports.",
-            "entry_type": "feature",
-            "version": "2026.02.15e",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T20:00:00Z",
-            "updated_at": "2026-02-15T20:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 41,
-        "fields": {
-            "title": "Intelligence Notifications",
-            "description": "WLJ now proactively delivers guidance, daily briefings, and weekly reports via an in-app notification bell. Configure quiet hours and rate limits to control when and how often you receive intelligence notifications.",
-            "entry_type": "feature",
-            "version": "2026.02.15f",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 42,
-        "fields": {
-            "title": "Intelligence Command Center",
-            "description": "A unified intelligence dashboard that brings together your current state, active guidance, daily briefing, weekly report, predictions, and delivery history \u2014 all in one place with explainability links.",
-            "entry_type": "feature",
-            "version": "2026.02.15g",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 43,
-        "fields": {
-            "title": "Intelligence Quality Gate (ICQG)",
-            "description": "Your intelligence system now includes a quality gate that reduces repetitive guidance, detects conflicting signals, and tracks usefulness metrics. Guidance repeats are suppressed for 72 hours (unless severity increases), and conflicting data points are merged into clear 'mixed signals' summaries.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 44,
-        "fields": {
-            "title": "Push Notifications for Intelligence",
-            "description": "You can now receive intelligence guidance, daily briefings, and weekly reports as push notifications on your iOS device. Enable push in the iOS app Settings, then turn on the Push toggle in your web Notification Settings. Push notifications respect your quiet hours, and critical alerts can bypass quiet hours when needed.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 45,
-        "fields": {
-            "title": "Adaptive Coaching Personas",
-            "description": "Your coaching style now intelligently adapts to your context and responsiveness. Guidance, daily briefings, and weekly reports are rendered in your chosen persona voice \u2014 with tone intensity that adjusts based on how you engage with guidance, the urgency of the message, and your current state. All 14 coaching styles are supported.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 46,
-        "fields": {
-            "title": "Intelligence Observability Dashboard",
-            "description": "Staff administrators now have access to the Intelligence Observability Dashboard, providing daily metrics snapshots on guidance effectiveness, prediction confidence, delivery performance, user engagement, system quality, and persona effectiveness. Includes 7-day trend indicators and automatic daily snapshots via the scheduler.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 47,
-        "fields": {
-            "title": "Admin Guide: System Documentation",
-            "description": "A comprehensive Admin Guide is now available in the Admin Console. It provides detailed documentation of the WLJ system architecture, all 14 intelligence engines, modules, security, deployment, and developer reference \u2014 organized across 20 sections with full technical and operational coverage.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 52,
-        "fields": {
-            "title": "Voice Conversation Mode",
-            "description": "Talk to your AI assistant hands-free. Click the microphone to start a voice conversation \u2014 the mic stays active through the full speak, AI responds, text-to-speech, speak again cycle. No more stopping and starting between each message. Works in both the Chief of Staff command mode and the chat widget. The AI responds conversationally when you speak, and you can choose your preferred text-to-speech voice.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-19",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-19T00:00:00Z",
-            "updated_at": "2026-02-19T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 53,
-        "fields": {
-            "title": "Relationship Tracking",
-            "description": "Keep important relationships healthy with automatic interaction tracking. The system learns who matters to you from your journal entries and reflections, tracks when you last connected, and gently nudges you when it has been too long. View your tracked relationships in Chief of Staff Settings with importance tiers and contact cadence targets.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-19",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-19T00:00:00Z",
-            "updated_at": "2026-02-19T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 54,
-        "fields": {
-            "title": "Workout Plans & Training Splits",
-            "description": "Organize your training with structured workout plans. Group your workout templates into named programs, assign them to specific days of the week with preferred times, and follow a consistent training split. Link plans to your transformation protocol for integrated progress tracking.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-19",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-19T00:00:00Z",
-            "updated_at": "2026-02-19T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 55,
-        "fields": {
-            "title": "Post-Event Reflection Check-ins",
-            "description": "After significant events like work meetings, social gatherings, or workouts, your Chief of Staff queues a brief morning check-in. Answer a few quick questions about how it went, capture action items, or skip if it is not relevant. Reflections appear in your command mode panel and can be toggled on or off in CoS Settings.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-19",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-19T00:00:00Z",
-            "updated_at": "2026-02-19T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 56,
-        "fields": {
-            "title": "Smart Scheduling with Conflict Detection",
-            "description": "When you create events through the AI assistant, it now checks for conflicts with your protected commitments and warns you before double-booking. Your daily capacity automatically updates and new events sync to Google Calendar if connected.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-19",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-19T00:00:00Z",
-            "updated_at": "2026-02-19T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 66,
-        "fields": {
-            "title": "Smarter Intelligence \u2014 Instant Feedback on Every Entry",
-            "description": "Your intelligence engines now respond to every action you take. Log a weight entry, complete a habit, write a journal entry, or finish a scripture reading and you\u2019ll get instant feedback \u2014 including a special first-entry celebration when you start tracking a new area. Thresholds have been removed so even small changes generate insights and predictions. The system no longer waits for weeks of data before helping you.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-20",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-20T00:00:00Z",
-            "updated_at": "2026-02-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 67,
-        "fields": {
-            "title": "Chat Timestamps & Date Grouping",
-            "description": "Every message in your Chief of Staff chat now shows the time it was sent (e.g. 2:30 PM). When scrolling back through your conversation history, date separators appear at each day boundary showing Today, Yesterday, or the full date. Makes it easy to see when each interaction happened.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-20",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-20T00:00:00Z",
-            "updated_at": "2026-02-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 68,
-        "fields": {
-            "title": "Smarter, More Conversational Chief of Staff",
-            "description": "Your Chief of Staff just got a major intelligence upgrade. Powered by GPT-4o (up from GPT-4o-mini), it now understands nuance, reads between the lines, and responds with genuine warmth instead of generic answers. The internal prompt architecture was rebuilt so personality and relationship instructions take priority over operational data. Conversations should feel noticeably more natural and perceptive.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-20",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-20T00:00:00Z",
-            "updated_at": "2026-02-20T00:00:00Z"
-        }
+  {
+    "model": "core.releasenote",
+    "pk": 106,
+    "fields": {
+      "title": "Beth is Faster, Smarter, and More Reliable",
+      "description": "Your Chief of Staff got a major quality-of-life upgrade. Beth now responds noticeably faster \u2014 we eliminated redundant database queries and moved background processing out of the response path. Calendar and task times are now displayed in your local timezone (no more UTC confusion). When you ask about your day or tasks, Beth always gives you the full briefing with your actual data \u2014 never generic advice. The chat also pre-warms the server when you open it, so you're less likely to see 'could not find server' after idle periods. If the server is cold, the chat silently retries once before showing an error.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-02-28",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-28T18:00:00Z",
+      "updated_at": "2026-02-28T18:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 105,
+    "fields": {
+      "title": "Journal Dashboard: Mood & Prompt Widgets Now Working",
+      "description": "The Journal home page got a major refresh. The 'Mood This Week' widget now correctly shows all the emotions you've selected across your entries \u2014 displayed as emoji + name (e.g., '\ud83d\ude0a Great') so you can easily identify each one. Hover over any emotion for its full name. The 'Today's Prompt' widget now shows a daily rotating writing prompt based on your preferences. Mood and entry counts are now accurately calculated based on your entry dates.",
+      "entry_type": "fix",
+      "version": "",
+      "release_date": "2026-02-28",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-28T12:00:00Z",
+      "updated_at": "2026-02-28T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 104,
+    "fields": {
+      "title": "Smarter CoS: Better Context, Reasoning & Session Awareness",
+      "description": "Your Chief of Staff just got a major intelligence upgrade. CoS now has a much larger conversation memory (40 messages vs 15), tracks your page navigation to understand what you're doing, and thinks through context before responding \u2014 so when you're reading scripture and ask about the Sabbath, it talks about scripture, not your work routines. CoS also detects whether you're asking about what's on your screen vs. continuing an earlier topic. Intent recognition is now powered by GPT-4o for better understanding of what you mean. NEW: CoS now has long-term memory \u2014 it stores past conversations with semantic search, so it can naturally reference things you discussed days or weeks ago ('You mentioned last week...'). It also validates its own responses before sending them, and will automatically self-correct if it detects a context mismatch.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-25",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-25T11:15:00Z",
+      "updated_at": "2026-02-25T11:15:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 103,
+    "fields": {
+      "title": "CoS Tracks Everything on Your Calendar",
+      "description": "Your Chief of Staff now monitors and prompts on every type of calendar event \u2014 habits, goals, milestones, life events, and manual entries \u2014 not just tasks. CoS will prompt you before activities start, check in afterwards, and record your reflections. When you complete a habit, goal, or milestone (either through CoS or the app), it syncs across your calendar automatically. Clicking any calendar event now takes you directly to its edit page. The task form has also been reordered for a more natural flow: What \u2192 Notes \u2192 Recurring \u2192 Dates \u2192 Time.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-25",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-25T10:30:00Z",
+      "updated_at": "2026-02-25T10:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 102,
+    "fields": {
+      "title": "Daily Routine Tasks with CoS Check-ins",
+      "description": "Your daily routines (Quiet Time, Workout, etc.) can now be set up as recurring tasks with scheduled times. Tell CoS 'Add Quiet Time at 5:30am daily' and it will create a completable task that shows up on your calendar at the right time. CoS will prompt you before your routine starts, check in afterwards to ask how it went, and remember your reflections for future conversations. Your executive briefing now shows which routines you've completed and which are still pending.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-25",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-25T02:00:00Z",
+      "updated_at": "2026-02-25T02:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 101,
+    "fields": {
+      "title": "Capture: iOS Audio Downloads & Readable Transcripts",
+      "description": "Two improvements to Capture recordings: (1) The 'Save to Device' and 'Download Audio' buttons now work correctly in the iOS app \u2014 tap to save your recording to Files, AirDrop it, or share to other apps. (2) Full transcripts are now formatted with paragraph breaks at natural topic changes, making long transcripts much easier to read. No wording is changed \u2014 just cleaner formatting.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-24",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-24T23:30:00Z",
+      "updated_at": "2026-02-24T23:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 100,
+    "fields": {
+      "title": "Capture: Broader Audio Format Support",
+      "description": "The Capture feature now accepts a wider range of audio formats including MP4, OGG, and CAF files. This fixes an issue where recordings saved from iOS devices (which use the MP4 format) couldn't be re-uploaded via the Upload Audio File option. Downloaded recordings now also save with the correct audio extension (.m4a instead of .mp4) so your device recognizes them as audio files.",
+      "entry_type": "fix",
+      "version": "",
+      "release_date": "2026-02-24",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-24T23:00:00Z",
+      "updated_at": "2026-02-24T23:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 99,
+    "fields": {
+      "title": "Clickable Calendar Events",
+      "description": "Calendar events in the Time Command Center are now clickable. Tap any event to take action: task-linked events open the task editor, goal-linked events go to the goal page, habit-linked events go to the habit page, and manually created events open an edit form where you can update details or delete the event \u2014 all without leaving the calendar.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-24",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-24T20:30:00Z",
+      "updated_at": "2026-02-24T20:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 98,
+    "fields": {
+      "title": "Chief of Staff v2: Your Intelligent Daily Partner",
+      "description": "A major upgrade to your Chief of Staff. It now proactively checks in before and after your activities, learns from your reflections over time, detects patterns in your well-being (like workout fatigue or consistency drops), and suggests goals when the evidence supports them. Events are intelligently prioritized \u2014 low-priority items auto-shift around conflicts while important ones stay put. The tone adapts to your day: encouraging when you're on a streak, empathetic when things are tough, and energized before workouts. All of this runs behind the scenes with a feature flag \u2014 opt in when you're ready.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-24",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-24T16:30:00Z",
+      "updated_at": "2026-02-24T16:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 97,
+    "fields": {
+      "title": "Smart Conflict Detection for Your Calendar",
+      "description": "Your Chief of Staff now checks for scheduling conflicts before creating or moving events. If a time overlap is detected, you'll see exactly which events conflict and get suggested alternative time slots. Protected events like Workouts, Bible Study, Prayer, and Health appointments are automatically flagged, so your most important commitments stay safe. You always have the final say \u2014 override, reschedule, or cancel.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-24",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-24T10:00:00Z",
+      "updated_at": "2026-02-24T10:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 96,
+    "fields": {
+      "title": "Full Calendar Control via Your Chief of Staff",
+      "description": "Your Chief of Staff can now manage your entire calendar through conversation. Ask things like 'move my Wednesday meeting to Thursday', 'cancel my 2pm appointment', or 'what's on my calendar this week?' \u2014 and it handles the rest. Updates, reschedules, and cancellations are all tracked in your schedule history so nothing is ever lost.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-24",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-24T04:00:00Z",
+      "updated_at": "2026-02-24T04:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 95,
+    "fields": {
+      "title": "Sharper, More Precise Guidance",
+      "description": "Your Chief of Staff now double-checks every response before you see it, ensuring you always get clear, natural guidance without any technical jargon slipping through. If something doesn't meet quality standards, it's automatically corrected before delivery. The system also tracks its own accuracy over time and alerts the team if anything needs attention.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-23",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-23T19:30:00Z",
+      "updated_at": "2026-02-23T19:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 94,
+    "fields": {
+      "title": "Improved Reliability & Graceful Recovery",
+      "description": "Behind the scenes, your Chief of Staff is now more resilient. If something hiccups \u2014 a slow connection, a brief service interruption \u2014 the system handles it gracefully and keeps your data safe. You'll see a friendly status message instead of an error, and everything catches up automatically. Your commitments and schedule are always protected, even when things aren't running at full speed.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-23",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-23T18:00:00Z",
+      "updated_at": "2026-02-23T18:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 93,
+    "fields": {
+      "title": "Proactive Schedule Protection & Deadline Alerts",
+      "description": "Your Chief of Staff now watches your schedule and commitments proactively. When your load gets heavy, you'll receive specific recommendations \u2014 like blocking time for what matters most, adjusting deadlines before they become emergencies, or focusing on the most urgent items when deadlines converge. You'll also get timely reminders at 24 hours, 4 hours, and 1 hour before commitment deadlines, with easy options to confirm your plan, adjust, or close. Everything is advisory \u2014 your schedule is never changed without your say-so.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-23",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-23T17:00:00Z",
+      "updated_at": "2026-02-23T17:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 92,
+    "fields": {
+      "title": "Persistent Accountability & Recovery Tracking",
+      "description": "Your Chief of Staff now remembers your accountability level across conversations \u2014 no more silent resets. If you've been drifting, the system maintains appropriate follow-up intensity until you demonstrate sustained improvement: 7 clean days, at least 3 honored commitments, and zero missed priorities. A new behavioral trend tracker monitors whether each area of your life is improving, stable, or declining over time.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-23",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-23T15:00:00Z",
+      "updated_at": "2026-02-23T15:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 91,
+    "fields": {
+      "title": "Smarter Time & Deadline Intelligence",
+      "description": "Your Chief of Staff now requires specific times for commitments \u2014 no more silent assumptions. When you say 'I'll finish this today', it will ask 'by when specifically?' to ensure accountability is precise. A new deadline surfacing engine proactively tracks everything due in the next 24 hours, 3 days, and 7 days, with collision detection when deadlines bunch up. Protected blocks (like morning prayer) now have graduated resistance \u2014 the system will explain the conflict and suggest alternatives before allowing an override. Timezone changes automatically preserve your intended times.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-23",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-23T14:30:00Z",
+      "updated_at": "2026-02-23T14:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 90,
+    "fields": {
+      "title": "Learning Mode & Priority System",
+      "description": "Your Chief of Staff can now enter Learning Mode \u2014 a dedicated listening state where it learns your priorities, values, and preferences without taking any actions. A new priority weighting system lets you declare what matters most (non-negotiable, important, or flexible), and the CoS will gently hold you accountable when your behavior drifts from your declared priorities. You can also track partial progress on tasks with a progress slider.",
+      "entry_type": "new_feature",
+      "version": "",
+      "release_date": "2026-02-22",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-22T19:30:00Z",
+      "updated_at": "2026-02-22T19:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 89,
+    "fields": {
+      "title": "Financial Command Center \u2014 Full Suite",
+      "description": "The Owner Financial Command Center is now fully built out with 7 pages: interactive daily cost charts, per-call audit ledger with filtering, CSV data export, per-user deep-dive diagnostics, a what-if scenario simulator for cost/revenue projections, and budget guardrail monitoring with visual progress bars. All LLM call sites across the app now report cost telemetry automatically.",
+      "entry_type": "new_feature",
+      "version": "",
+      "release_date": "2026-02-22",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-22T02:30:00Z",
+      "updated_at": "2026-02-22T02:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 88,
+    "fields": {
+      "title": "Smarter, Faster Chief of Staff Responses",
+      "description": "Your Chief of Staff now adapts its response length to match your question \u2014 short questions get short answers, complex analysis gets the detail it deserves. A new 'Response Detail Level' setting in Settings lets you choose between Concise, Balanced, Strategic, or Deep Dive styles. Behind the scenes, responses are more reliable with automatic retry on temporary connection issues, and token usage is now tracked for every conversation.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T12:00:00Z",
+      "updated_at": "2026-02-21T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 87,
+    "fields": {
+      "title": "Full Engine Execution Authority \u2014 Synthetic Mode",
+      "description": "All nine intelligence engines now have Execute buttons in the Ops Command Center. Context-dependent engines (UAL, SAE, PIE, PRIE, ICQG) run in Synthetic Batch Evaluation Mode \u2014 iterating all active users and re-evaluating current system state using each engine's existing logic. No fake events are created and no raw data is altered. Synthetic engines are clearly marked with a purple 'Synthetic' badge and descriptive tooltip. This extends the manual execution capability from 4 batch-native engines to the full intelligence pipeline.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 86,
+    "fields": {
+      "title": "Per-Engine Manual Execution Controls",
+      "description": "Individual intelligence engines can now be triggered manually from the Ops Command Center. Each engine card for DBE, WIRE, DNE, and PGE now has an 'Execute' button that queues the engine for immediate background execution via Celery, with real-time status feedback showing queued, running, and completed states with execution duration. Includes idempotency guards to prevent duplicate runs, freeze detection for disabled engines, and full audit logging. This also fixes an existing issue where engine re-run buttons could fail for certain engines.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 85,
+    "fields": {
+      "title": "SAME Manual Execution Control",
+      "description": "Operators can now manually trigger a SAME monitoring cycle directly from the Ops Command Center using a new 'Execute Now' button. The button provides real-time status feedback (queued, running, completed, failed) with automatic polling, execution duration tracking, and full audit logging. An idempotency guard prevents duplicate triggers while a cycle is already running. All executions \u2014 both manual and scheduled \u2014 are now tracked in a dedicated execution log with trigger source, timing, and outcome metadata.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 84,
+    "fields": {
+      "title": "Celery + Redis Background Infrastructure",
+      "description": "The system monitoring engine (SAME) has been migrated from an in-process scheduler to a dedicated Celery worker backed by Redis. This means monitoring continues running even if the web server restarts, with automatic retry on failures, configurable timeouts, and proper task queue management. The existing database lock still prevents duplicate execution. This is infrastructure-only \u2014 no changes to monitoring behavior or the Operations Wall interface.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 83,
+    "fields": {
+      "title": "Ops Command Center Evolution \u2014 Full Intelligence OS",
+      "description": "The Operations Wall has evolved into a full Intelligence Operating System with 5 major upgrades: (1) SAME engine now runs autonomously in the background every 60 seconds \u2014 no more depending on someone having the page open. (2) A new System Integrity Index scores overall platform health 0\u2013100 with a color-coded tile showing OPTIMAL/NOMINAL/DEGRADED/CRITICAL posture. (3) Anomalies now escalate automatically \u2014 P3 issues promote to P2 after 10 minutes, P2 to P1 after 20 minutes, with cooldown logic to prevent flapping. (4) Each engine card shows a 30-minute cadence timeline strip with expected ticks, actual runs, and highlighted missed intervals. (5) Low-severity anomalies on background engines (DBE/WIRE/DNE) can now be auto-remediated \u2014 missed runs get re-triggered and suppression caches get cleared automatically, all logged with full audit trail. 82 tests cover all new functionality.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 82,
+    "fields": {
+      "title": "Operations Wall Upgraded to Vegas v2",
+      "description": "The admin Operations Wall has been completely rebuilt with a NASA/SOC-grade dark monitoring interface. A new System Autonomous Monitoring Engine (SAME) watches all 10 intelligence engines in real-time \u2014 detecting missed runs, error spikes, suppression storms, and more \u2014 then narrates what's happening in plain English. Engine heartbeats track expected vs actual cadence, anomalies persist with full lifecycle tracking, and admin actions (re-run engine, clear caches, acknowledge alerts) are fully audited. The wall shows system posture (OK/DEGRADED/AT_RISK), engine cards with sparklines, a live watchlist, and a scrolling SOC feed. 42 new tests cover the full stack.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 81,
+    "fields": {
+      "title": "Monica's Intelligence Gets Sharper and More Self-Aware",
+      "description": "Monica's decision-making system (UAL v2.1) has been hardened with five new capabilities: she now tracks whether you've been ignoring her suggestions and adjusts accordingly (instead of nagging), avoids repeating similar nudges within hours, adapts her communication style based on your current capacity (simple and gentle when you're depleted, strategic when you have bandwidth), recognizes when persistent patterns need a different approach rather than repeating the same advice, and detects when your capacity has been volatile to dial back confident recommendations. All of this happens silently in the background \u2014 you'll just notice that Monica feels more perceptive and less repetitive.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 80,
+    "fields": {
+      "title": "Engine Diagnostics Console + Operations Wall",
+      "description": "Admin-only observability upgrade: every intelligence engine now emits trace-level diagnostics (EngineRun, EngineSpan, DecisionRecord) correlated by trace ID. The Diagnostics Console (/admin-console/diagnostics/) shows live traces, waterfall detail, and search. The Operations Wall (/admin-console/ops/) is a Vegas-themed live monitoring dashboard with engine pulse tiles, cognitive feed, anomaly detection (error bursts, suppression spikes, scenario dominance, delivery storms), and trend charts. Deep links connect the two layers. 67 tests cover the full stack.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 79,
+    "fields": {
+      "title": "Monica Now Makes One Decision, Not Ten Suggestions",
+      "description": "Monica's intelligence system now includes a Universal Arbitration Layer that evaluates all of your signals \u2014 sleep, medication, mood, schedule, relationships, goals, and more \u2014 and decides the ONE most important thing to focus on right now. Instead of listing 8 separate reminders, she now tells you a unified story: 'You're running on 5 hours of sleep with a packed schedule \u2014 today is about protection, not production.' She'll surface a maximum of 3 items and suppress competing signals, so every interaction feels decisive and human.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 78,
+    "fields": {
+      "title": "Monica Now Greets You Like a Real Chief of Staff",
+      "description": "Monica's morning greeting has been completely upgraded. She now reviews your sleep, checks if you've taken your medicine, surfaces approaching birthdays and life events, scans your journal for patterns, and presents your day as a narrative \u2014 not a data dump. If you've been away for a few days, she'll catch you up on what shifted. She also now remembers conversation topics beyond the last 15 messages through rolling memory summaries. This is the executive arrival experience \u2014 proactive, aware, and human.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 77,
+    "fields": {
+      "title": "Monica Now Proactively Checks In With You",
+      "description": "Monica is now a true Chief of Staff. She'll proactively reach out in the chat to ask about missed medicine doses, remind you to work out or journal, flag overdue tasks, warn you about busy days ahead, share pattern observations from your data, and note birthdays and anniversaries. No more waiting for you to ask \u2014 she's watching your data and speaking up when something needs your attention.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 76,
+    "fields": {
+      "title": "Apple Watch Workout Display \u2014 See Your Full Activity Data",
+      "description": "Workouts synced from your Apple Watch (like Pickleball, Running, Cycling) now display properly! Instead of showing '0 Exercises / 0 Sets', you'll see the real activity data: duration, calories burned, distance, average heart rate, and start/end times. The workout list also shows a quick summary like '45 min \u2022 320 cal \u2022 142 bpm'. Look for the Apple Health badge on synced workouts.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 75,
+    "fields": {
+      "title": "Password Visibility Toggle",
+      "description": "You can now tap the eye icon next to any password field to show or hide your password as you type. Available on the sign-in page, sign-up page, change password, reset password, and anywhere else you enter a password.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 74,
+    "fields": {
+      "title": "Sleep Tracking Fix \u2014 No More Fake 8-Hour Readings",
+      "description": "If you saw uniform 8.0-hour sleep entries tagged 'Apple Health' every night, those were false readings. Heart rate data from your Apple Watch was accidentally creating dummy sleep records. This has been fixed \u2014 heart rate data no longer generates fake sleep entries, and all existing dummy entries have been removed. Your sleep page will now only show real sleep data that you log manually or that comes from an actual sleep tracker.",
+      "entry_type": "fix",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 73,
+    "fields": {
+      "title": "Your Chief of Staff Can Now See All Your Health Data",
+      "description": "Previously, your Chief of Staff could only access weight, fasting, workouts, and medication data. Now Monica can see your steps, sleep, heart rate, blood pressure, glucose, blood oxygen, mobility metrics, heart rate events, audio exposure, and dietary nutrients \u2014 everything your Apple Watch and Health apps are syncing. Ask about your step count, sleep trends, heart rate, or any health metric and get real answers backed by your actual data.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 72,
+    "fields": {
+      "title": "Food Search & Barcode Scanner \u2014 Now With Real Data",
+      "description": "Food logging just got a major upgrade. Typing a food name now searches the FatSecret database of 1.9 million foods including full restaurant menus \u2014 type 'Chick-fil-a' to see the whole menu, or 'Chick-fil-a nug' to narrow it down. The barcode scanner is also more accurate: it now requires multiple consistent reads before accepting a barcode, eliminating false matches. All three search tiers are active: your saved foods first, then FatSecret's database, then AI estimation as a fallback.",
+      "entry_type": "fix",
+      "version": "",
+      "release_date": "2026-02-20",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-20T00:00:00Z",
+      "updated_at": "2026-02-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 71,
+    "fields": {
+      "title": "Extended HealthKit Integration \u2014 Your Watch Tells Us More Now",
+      "description": "Your Apple Watch and Health data now syncs 37+ data types to WLJ, up from 24. New categories include: Mobility & Gait (walking asymmetry, steadiness, speed, step length, stair performance \u2014 strong predictors of long-term health), Heart Rate Events (high/low HR alerts and irregular rhythm/AFib detection from Apple Watch), Audio Exposure (headphone and environmental noise levels for hearing health), and Dietary Nutrients (calories, protein, carbs, fat, fiber, and more \u2014 automatically pulled from food-logging apps like MyFitnessPal that sync through Apple Health). Your Chief of Staff can now detect more patterns and give you richer health insights.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-21",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-21T00:00:00Z",
+      "updated_at": "2026-02-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 70,
+    "fields": {
+      "title": "Chief of Staff Consolidation \u2014 One Interface, Zero Confusion",
+      "description": "The standalone Assistant page has been retired. Your Chief of Staff now lives exclusively in the persistent chat panel available on every page \u2014 no need to navigate away to talk to it. Today's Priorities are now a dashboard tile you can customize, reorder, and resize alongside your other tiles. All navigation has been rebranded from 'Assistant' to 'Chief of Staff' for consistency. The alignment badge and nav links now go to CoS Settings where you can manage your Chief of Staff preferences.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-20",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-20T00:00:00Z",
+      "updated_at": "2026-02-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 69,
+    "fields": {
+      "title": "A Real Introduction \u2014 Your CoS Gets to Know You First",
+      "description": "Your Chief of Staff now has a proper introduction flow. Instead of jumping straight into task management, it starts by learning about YOU \u2014 your priorities, routines, who matters most, and how you want to be held accountable. It already knows your data (weight, goals, journals, habits) and uses that to ask informed questions, not generic ones. The conversation is open-ended: come back over multiple sessions to share more, pause anytime, and finish whenever you're ready by clicking 'I'm Ready \u2014 Let's Work.' During the introduction, the CoS listens and absorbs \u2014 it won't log data or take actions until you tell it you're done getting acquainted.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-20",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-20T00:00:00Z",
+      "updated_at": "2026-02-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 65,
+    "fields": {
+      "title": "Your Chief of Staff Now Knows Your Schedule",
+      "description": "Your Chief of Staff now has full calendar awareness. When you say 'Good morning', it checks your schedule and responds like a real executive assistant \u2014 referencing upcoming events, noting if you're running behind, and proactively offering to reschedule. Calendar events appear in the CoS context with real-time status: [NOW] for in-progress, [SOON] for upcoming within the hour, and [MISSED] for events whose start time has passed. Additionally, the NLP quick-add parser now properly cleans event titles \u2014 'Pickleball tomorrow at 6pm' correctly creates an event titled 'Pickleball' instead of 'Pickleball tomorrow at'.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-20",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-20T00:00:00Z",
+      "updated_at": "2026-02-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 64,
+    "fields": {
+      "title": "Smart Quick Links with Mobile App Deep Linking",
+      "description": "Quick Links now support mobile app deep linking. When you add a link, you can optionally set a mobile app URL (like chase:// or bofa://). On your phone, the link will try to open the app first \u2014 if it is not installed, it automatically opens the website instead. Links also now track usage, support categories (Finance, Health, Work, etc.), and include an edit button for quick updates. Set up your links in Preferences under Quick Links.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-20",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-20T00:00:00Z",
+      "updated_at": "2026-02-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 63,
+    "fields": {
+      "title": "Smarter Voice Command Recognition",
+      "description": "Your Chief of Staff now better understands a wider range of voice commands. Fitness logging ('I did 10 pushups and 20 squats'), goal setting ('I want to lose 30 pounds'), habit tracking ('completed my morning routine'), faith actions ('God answered my prayer'), and calendar scheduling all have improved recognition. Commands that involve times \u2014 like 'I ate lunch 3 hours ago' or 'I worked out this morning' \u2014 now correctly backdate the entry. Additionally, your CoS can now direct you to Medical Records, Brain Training, Capture, Scan, and Finance pages.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-20",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-20T00:00:00Z",
+      "updated_at": "2026-02-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 62,
+    "fields": {
+      "title": "Chief of Staff Calendar Scheduling Fix",
+      "description": "Fixed a bug where your Chief of Staff would schedule calendar events on the wrong date when you said 'tomorrow' or 'today'. The AI now knows the current date and correctly resolves relative dates. Calendar event examples have been improved so your CoS better understands scheduling requests.",
+      "entry_type": "fix",
+      "version": "",
+      "release_date": "2026-02-20",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-20T00:00:00Z",
+      "updated_at": "2026-02-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 61,
+    "fields": {
+      "title": "Smarter Chief of Staff After Getting to Know You",
+      "description": "Your Chief of Staff now retains the same warmth and attentiveness from the Getting to Know You conversation into everyday use. It reflects back what you share, connects your requests to what it already knows about you, and understands context before acting \u2014 the same personality, now with the ability to execute your requests.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-20",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-20T00:00:00Z",
+      "updated_at": "2026-02-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 60,
+    "fields": {
+      "title": "Calendar Manage Events Improvements",
+      "description": "The Manage Events page now has a '+ New Event' button so you can create calendar events directly. Table rows are clickable to edit, and Edit/Delete actions use compact icon buttons that stay visible without scrolling. On mobile, events display as cards with actions always accessible at the bottom of each card.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-20",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-20T00:00:00Z",
+      "updated_at": "2026-02-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 59,
+    "fields": {
+      "title": "Time Command Center",
+      "description": "Your Chief of Staff now has a unified calendar. See all your tasks, goals, and habits projected onto a single timeline with Today, 3-Day, Week, and Agenda views. Drag events to reschedule \u2014 task deadlines update automatically. The Habit Protection Layer warns you before scheduling over protected time like workouts. Smart Gap Detection suggests where to fit in execution time for items due soon. The Domain Imbalance Bar shows how your time is split across Faith, Health, Family, and Work. Quick-add events with natural language like 'Bible Study Wednesdays 6pm-8pm'.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-20",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-20T00:00:00Z",
+      "updated_at": "2026-02-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 58,
+    "fields": {
+      "title": "Always-On Chief of Staff Chat",
+      "description": "Your Chief of Staff is now always available in the right panel on every page. The side panel has been replaced with a persistent chat interface \u2014 type or speak to your CoS anytime without navigating away. When calibration is active, the chat opens automatically and starts the conversation. Switch to the Status tab to see your daily plan, drift alerts, and quick actions. On mobile, pull up the chat drawer from the bottom of any page.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-19",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-19T00:00:00Z",
+      "updated_at": "2026-02-19T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 57,
+    "fields": {
+      "title": "Chief of Staff Gets to Know You",
+      "description": "Your Chief of Staff now conducts a real getting-to-know-you conversation when you first start using it. Instead of asking one question per day over two weeks, it walks through a series of questions about your priorities, non-negotiables, preferred activities, and accountability style in a natural back-and-forth conversation. Say 'enough for now' at any time to pause, and it picks up where you left off next time.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-19",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-19T00:00:00Z",
+      "updated_at": "2026-02-19T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 51,
+    "fields": {
+      "title": "Chief of Staff Assistant",
+      "description": "Your new Life Operating System layer. Set up your Personal Operating Blueprint to define your identity-protected behaviors, life pillars, and operating style. The assistant builds a daily architecture plan each night, detects drift from your commitments, and intervenes at the right escalation level. A desktop pinned panel and mobile pull-up give you plan-at-a-glance, drift status, and quick actions throughout the day.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-18",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-18T00:00:00Z",
+      "updated_at": "2026-02-18T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 50,
+    "fields": {
+      "title": "Nutrition Log Upgrade",
+      "description": "Major upgrade to the nutrition tracker. Browse between days with date navigation arrows. Copy individual food entries, entire meals, or full days to other dates. Save frequently-eaten meals as reusable templates. See where your nutrition data comes from with source badges (FatSecret, AI, Saved, etc.). Enjoy a polished mobile experience with sticky daily totals, improved forms, and better accessibility.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-18",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-18T00:00:00Z",
+      "updated_at": "2026-02-18T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 48,
+    "fields": {
+      "title": "Body Transformation Protocol",
+      "description": "Track your body transformation journey with a complete intelligence pipeline. Set up transformation protocols (cut, bulk, recomp, maintenance), track nutrition compliance, fasting consistency, workout frequency, and strength progress. The AI monitors your transformation score across all domains and provides proactive coaching, predictions, and guidance. View your transformation dashboard with trend charts for weight, body fat, calories, protein, fasting, and workouts.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-17",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-17T00:00:00Z",
+      "updated_at": "2026-02-17T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 49,
+    "fields": {
+      "title": "Shopping Lists",
+      "description": "Create and manage shopping lists to support your nutrition and transformation goals. Add items with quantities and categories (produce, protein, dairy, grains, frozen, pantry, beverages, supplements), mark items as purchased, and track your shopping progress. Ask the AI to add items or complete them hands-free.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-17",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-17T00:00:00Z",
+      "updated_at": "2026-02-17T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 33,
+    "fields": {
+      "title": "AI Insights Inbox",
+      "description": "Your AI assistant now proactively generates insights about your health, goals, habits, scripture reading, and journaling patterns. Get notified about weight trends, approaching deadlines, broken habit streaks, and more. View all insights in your new Insights Inbox, where you can filter by status and mark them as read or dismissed.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 34,
+    "fields": {
+      "title": "Smarter AI: Time Understanding & Memory",
+      "description": "The AI assistant now understands natural language time expressions like '3 days ago', 'next Friday at 2pm', and 'last month on the 15th'. It also learns from your clarifications \u2014 the more you use it, the better it understands your preferences.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 30,
+    "fields": {
+      "title": "Goal Engine: Measurement-Driven Habits",
+      "description": "Habit goals now support four measurement types: Binary (daily check-off), Duration (timed sessions with built-in timer), Count (track repetitions), and Target (hit numeric goals). Each type gets its own logging UI, progress tracking, and analytics. Existing habits continue working unchanged. Find them under Goals > Habits.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-14",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 29,
+    "fields": {
+      "title": "Habit Streaks & Smart Insights",
+      "description": "Track your habit streaks with daily, weekly, or monthly frequency. Get smart insights when you hit milestones (7, 30, 90 days), when completion rates are unusually high or low, and when day-of-week patterns emerge. Insights can be applied or dismissed. View your streak on the habit detail page and dashboard tile.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-14",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 28,
+    "fields": {
+      "title": "Clickable Habit Calendar & Undo",
+      "description": "Click any day on your habit's progress matrix or calendar to instantly log it. Use Shift+Click for date ranges and Ctrl/Cmd+Click for multi-select. Every action shows an undo toast with an 8-second countdown so you can reverse mistakes instantly.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-14",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 27,
+    "fields": {
+      "title": "Labs & Vitals",
+      "description": "Upload lab result PDFs and get automatic parsing of blood work panels. View results with color-coded flags (normal, high, low), track trends over time with charts, and learn what each test measures with built-in education content. Find it under Health > Labs & Vitals.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-13",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-13T00:00:00Z",
+      "updated_at": "2026-02-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 26,
+    "fields": {
+      "title": "Lab Test Education",
+      "description": "Tap the info icon next to any lab test to learn what it measures, what high or low values may indicate, and what factors can influence results. Education content available for all 57 standard lab tests. Includes required medical disclaimers.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-13",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-13T00:00:00Z",
+      "updated_at": "2026-02-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 25,
+    "fields": {
+      "title": "Quick Links",
+      "description": "Save your frequently used external links (patient portal, bank login, etc.) and access them from the profile dropdown menu. Add up to 10 links in Preferences > Quick Links. Links open in a new tab.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-11",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-11T00:00:00Z",
+      "updated_at": "2026-02-11T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 24,
+    "fields": {
+      "title": "Smarter AI Assistant",
+      "description": "The AI assistant now threads conversations naturally, remembers what you discussed earlier in the chat, and gives data-driven answers instead of generic advice. It can read your recent journal entries to answer date-specific questions like 'how was I feeling last Tuesday?'",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-11",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-11T00:00:00Z",
+      "updated_at": "2026-02-11T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 23,
+    "fields": {
+      "title": "Scroll Position Preserved",
+      "description": "Pages with repeated actions (medicine doses, task checkboxes, prayer answers, water logging) no longer jump to the top after each action. Your scroll position is saved and restored automatically.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-11",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-11T00:00:00Z",
+      "updated_at": "2026-02-11T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 22,
+    "fields": {
+      "title": "New Character Study: Daniel",
+      "description": "Explore Daniel: Faith in Exile - a 12-day journey through the Book of Daniel. Study Daniel's faithfulness in Babylon, the fiery furnace, the lions' den, and prophetic visions. Available in Beginner, Intermediate, and Advanced levels. Find it under Faith > Reading Plans.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-01-21",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-01-21T00:00:00Z",
+      "updated_at": "2026-01-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 21,
+    "fields": {
+      "title": "Recurring Transactions",
+      "description": "Track subscriptions, bills, and regular income automatically. Set up recurring transactions with flexible frequencies (daily to yearly), auto-post or reminder-only modes, and view upcoming bills on your finance dashboard. Find it under Finance > Recurring.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-01-20",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-01-20T00:00:00Z",
+      "updated_at": "2026-01-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 20,
+    "fields": {
+      "title": "Sleep Tracking",
+      "description": "Track your sleep with detailed logging or quick entry. Log bedtime, wake time, quality rating, and sleep stages. View your sleep history with charts and averages. Designed for future wearable sync with Apple Health, Fitbit, and more. Find it under Health > Sleep.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-01-20",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-01-20T00:00:00Z",
+      "updated_at": "2026-01-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 19,
+    "fields": {
+      "title": "Dashboard Weather Widget",
+      "description": "Your dashboard now shows current weather conditions and a 3-day forecast. Get prominent alerts for extreme heat, cold, high winds, or severe weather. Set your location in Preferences to enable this feature.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-01-19",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-01-19T00:00:00Z",
+      "updated_at": "2026-01-19T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 18,
+    "fields": {
+      "title": "Inline Scripture in Reading Plans",
+      "description": "Scripture references in reading plans now expand inline when clicked. Read verses without leaving your current page. Click again to collapse. Uses your preferred Bible translation from settings.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-01-19",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-01-19T00:00:00Z",
+      "updated_at": "2026-01-19T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 17,
+    "fields": {
+      "title": "Menstrual Cycle Tracking",
+      "description": "Comprehensive cycle tracking with daily logging for flow, symptoms, mood, and energy. AI-powered predictions for your next period and fertile window. View cycle statistics, trends, and phase information. Auto-enabled for female users during onboarding.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-01-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-01-15T00:00:00Z",
+      "updated_at": "2026-01-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 16,
+    "fields": {
+      "title": "Dexcom CGM Integration",
+      "description": "Connect your Dexcom CGM account to automatically sync blood glucose readings. View current glucose with trend arrows, time-in-range stats, 24-hour charts, and automatic background syncing.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-01-01",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 15,
+    "fields": {
+      "title": "Barcode Scanner for Food",
+      "description": "Scan food product barcodes with your phone camera for instant nutrition info. Lookup uses local database first, then AI for unknown products. Pre-fills your food entry form with all nutritional data.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-31",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-31T00:00:00Z",
+      "updated_at": "2025-12-31T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 1,
+    "fields": {
+      "title": "AI Camera Scanning",
+      "description": "Point your phone at food, medicine, documents, or workout equipment and let AI identify it and suggest actions. Supports 8 categories with smart routing to the right module.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-28",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-28T00:00:00Z",
+      "updated_at": "2025-12-28T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 2,
+    "fields": {
+      "title": "Medicine Tracking",
+      "description": "Comprehensive medicine management with daily tracker, schedules, adherence stats, refill alerts, and PRN support. One-tap check-off for doses.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-28",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-28T00:00:00Z",
+      "updated_at": "2025-12-28T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 3,
+    "fields": {
+      "title": "Nutrition & Food Tracking",
+      "description": "Log meals with macro tracking, daily summaries, and nutrition goals. Includes custom foods, meal type categorization, and eating context tracking.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-28",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-28T00:00:00Z",
+      "updated_at": "2025-12-28T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 4,
+    "fields": {
+      "title": "Enhanced Dashboard",
+      "description": "Dashboard now shows Today's Medicine Schedule with status badges, Recent Workouts with PR highlights, and Quick Stats for medicine doses and workout counts.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2025-12-28",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2025-12-28T00:00:00Z",
+      "updated_at": "2025-12-28T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 5,
+    "fields": {
+      "title": "AI Camera Source Tracking",
+      "description": "Entries created via AI Camera now show a camera badge on detail pages. Track which entries came from AI-powered scanning.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2025-12-28",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2025-12-28T00:00:00Z",
+      "updated_at": "2025-12-28T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 6,
+    "fields": {
+      "title": "Security Improvements",
+      "description": "Enhanced security with rate limiting, secure admin URL, improved cookie settings, and server-side API key handling for Bible lookups.",
+      "entry_type": "security",
+      "version": "",
+      "release_date": "2025-12-28",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2025-12-28T00:00:00Z",
+      "updated_at": "2025-12-28T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 7,
+    "fields": {
+      "title": "Onboarding Wizard",
+      "description": "New users are guided through a friendly 6-step wizard to personalize their experience - choose theme, enable modules, configure AI coaching, and set location.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-20",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-20T00:00:00Z",
+      "updated_at": "2025-12-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 8,
+    "fields": {
+      "title": "Scripture Library",
+      "description": "Save, edit, and organize your favorite Scripture verses in a personal library. Add themes and personal notes to each verse.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-18",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2025-12-18T00:00:00Z",
+      "updated_at": "2025-12-18T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 9,
+    "fields": {
+      "title": "AI Coaching Styles",
+      "description": "Choose how the AI communicates with you. Pick from 7 styles including Supportive Partner, Direct Coach, Gentle Guide, and more.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-15",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2025-12-15T00:00:00Z",
+      "updated_at": "2025-12-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 10,
+    "fields": {
+      "title": "Task Undo",
+      "description": "Accidentally marked a task complete? Now you can easily undo with a single click using the new Undo link.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2025-12-12",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2025-12-12T00:00:00Z",
+      "updated_at": "2025-12-12T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 11,
+    "fields": {
+      "title": "Fitness Tracking",
+      "description": "Track workouts, log exercises, and monitor your fitness journey with comprehensive workout logging.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-10",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-10T00:00:00Z",
+      "updated_at": "2025-12-10T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 12,
+    "fields": {
+      "title": "Journal Prompts",
+      "description": "20 curated writing prompts across 8 categories to inspire your daily reflections. Get a random prompt with one click.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-08",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2025-12-08T00:00:00Z",
+      "updated_at": "2025-12-08T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 13,
+    "fields": {
+      "title": "Life Module",
+      "description": "Manage your whole life with Projects, Tasks, Calendar, Inventory, Pets, Recipes, Maintenance logs, and Document storage.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-05",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-05T00:00:00Z",
+      "updated_at": "2025-12-05T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 14,
+    "fields": {
+      "title": "Purpose Module",
+      "description": "Set your annual direction with Word of the Year, life goals, change intentions, and seasonal reflections.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-03",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-03T00:00:00Z",
+      "updated_at": "2025-12-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 31,
+    "fields": {
+      "title": "Body Composition Tracking",
+      "description": "Track body fat %, lean mass, measurements, and more from gym scans or smart scales. Flexible metric storage supports unlimited measurement types. Find it under Health > Body Composition.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-14",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 32,
+    "fields": {
+      "title": "Health Insights Engine",
+      "description": "A new cross-domain insight engine analyzes patterns across weight, body composition, goals, habits, and journal entries. Generates observational insights like trends, consistency patterns, and logging gaps. Find it under Health > Insights.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-14",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 35,
+    "fields": {
+      "title": "Today's Guidance on Your Dashboard",
+      "description": "Your dashboard now shows personalized guidance items \u2014 evidence-based insights, warnings, and encouragement generated from your health trends, goal progress, and life patterns. Quickly act on suggestions, snooze them for later, or dismiss items you don't need.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "pk": 36,
+    "model": "core.releasenote",
+    "fields": {
+      "title": "Enhanced Guidance Inbox",
+      "description": "The Guidance Inbox now lets you filter by lifecycle state \u2014 view active, acknowledged, dismissed, snoozed, and acted items. Each card shows source badges, priority indicators, confidence scores for predictions, and lifecycle timestamps. Manage your guidance with inline actions directly from the inbox.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "pk": 37,
+    "model": "core.releasenote",
+    "fields": {
+      "title": "Your Current State on the Dashboard",
+      "description": "A new dashboard tile shows exactly what WLJ knows about you \u2014 your current weight, sleep, steps, goals, habits, journal activity, and faith data. All values come directly from the State Awareness Engine, giving you full transparency into the data that powers your insights and guidance.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "pk": 38,
+    "model": "core.releasenote",
+    "fields": {
+      "title": "Daily Briefing on Your Dashboard",
+      "description": "A new Daily Briefing tile summarizes the most important intelligence from your data each day. It combines insights, predictions, and guidance into one concise summary \u2014 so you can start your day informed.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "pk": 39,
+    "model": "core.releasenote",
+    "fields": {
+      "title": "Weekly Intelligence Reports",
+      "description": "A new Weekly Intelligence Report summarizes your state changes, insights, predictions, and guidance engagement over the past week. View your latest report on the dashboard or browse all historical reports.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 40,
+    "fields": {
+      "title": "Evidence & Explainability Engine",
+      "description": "Every intelligence output now has a \"Why?\" link explaining what data drove the recommendation, with evidence links and confidence assessments. See it on guidance cards, daily briefings, and weekly reports.",
+      "entry_type": "feature",
+      "version": "2026.02.15e",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T20:00:00Z",
+      "updated_at": "2026-02-15T20:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 41,
+    "fields": {
+      "title": "Intelligence Notifications",
+      "description": "WLJ now proactively delivers guidance, daily briefings, and weekly reports via an in-app notification bell. Configure quiet hours and rate limits to control when and how often you receive intelligence notifications.",
+      "entry_type": "feature",
+      "version": "2026.02.15f",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 42,
+    "fields": {
+      "title": "Intelligence Command Center",
+      "description": "A unified intelligence dashboard that brings together your current state, active guidance, daily briefing, weekly report, predictions, and delivery history \u2014 all in one place with explainability links.",
+      "entry_type": "feature",
+      "version": "2026.02.15g",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 43,
+    "fields": {
+      "title": "Intelligence Quality Gate (ICQG)",
+      "description": "Your intelligence system now includes a quality gate that reduces repetitive guidance, detects conflicting signals, and tracks usefulness metrics. Guidance repeats are suppressed for 72 hours (unless severity increases), and conflicting data points are merged into clear 'mixed signals' summaries.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 44,
+    "fields": {
+      "title": "Push Notifications for Intelligence",
+      "description": "You can now receive intelligence guidance, daily briefings, and weekly reports as push notifications on your iOS device. Enable push in the iOS app Settings, then turn on the Push toggle in your web Notification Settings. Push notifications respect your quiet hours, and critical alerts can bypass quiet hours when needed.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 45,
+    "fields": {
+      "title": "Adaptive Coaching Personas",
+      "description": "Your coaching style now intelligently adapts to your context and responsiveness. Guidance, daily briefings, and weekly reports are rendered in your chosen persona voice \u2014 with tone intensity that adjusts based on how you engage with guidance, the urgency of the message, and your current state. All 14 coaching styles are supported.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 46,
+    "fields": {
+      "title": "Intelligence Observability Dashboard",
+      "description": "Staff administrators now have access to the Intelligence Observability Dashboard, providing daily metrics snapshots on guidance effectiveness, prediction confidence, delivery performance, user engagement, system quality, and persona effectiveness. Includes 7-day trend indicators and automatic daily snapshots via the scheduler.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 47,
+    "fields": {
+      "title": "Admin Guide: System Documentation",
+      "description": "A comprehensive Admin Guide is now available in the Admin Console. It provides detailed documentation of the WLJ system architecture, all 14 intelligence engines, modules, security, deployment, and developer reference \u2014 organized across 20 sections with full technical and operational coverage.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 52,
+    "fields": {
+      "title": "Voice Conversation Mode",
+      "description": "Talk to your AI assistant hands-free. Click the microphone to start a voice conversation \u2014 the mic stays active through the full speak, AI responds, text-to-speech, speak again cycle. No more stopping and starting between each message. Works in both the Chief of Staff command mode and the chat widget. The AI responds conversationally when you speak, and you can choose your preferred text-to-speech voice.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-19",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-19T00:00:00Z",
+      "updated_at": "2026-02-19T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 53,
+    "fields": {
+      "title": "Relationship Tracking",
+      "description": "Keep important relationships healthy with automatic interaction tracking. The system learns who matters to you from your journal entries and reflections, tracks when you last connected, and gently nudges you when it has been too long. View your tracked relationships in Chief of Staff Settings with importance tiers and contact cadence targets.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-19",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-19T00:00:00Z",
+      "updated_at": "2026-02-19T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 54,
+    "fields": {
+      "title": "Workout Plans & Training Splits",
+      "description": "Organize your training with structured workout plans. Group your workout templates into named programs, assign them to specific days of the week with preferred times, and follow a consistent training split. Link plans to your transformation protocol for integrated progress tracking.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-19",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-19T00:00:00Z",
+      "updated_at": "2026-02-19T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 55,
+    "fields": {
+      "title": "Post-Event Reflection Check-ins",
+      "description": "After significant events like work meetings, social gatherings, or workouts, your Chief of Staff queues a brief morning check-in. Answer a few quick questions about how it went, capture action items, or skip if it is not relevant. Reflections appear in your command mode panel and can be toggled on or off in CoS Settings.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-19",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-19T00:00:00Z",
+      "updated_at": "2026-02-19T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 56,
+    "fields": {
+      "title": "Smart Scheduling with Conflict Detection",
+      "description": "When you create events through the AI assistant, it now checks for conflicts with your protected commitments and warns you before double-booking. Your daily capacity automatically updates and new events sync to Google Calendar if connected.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-19",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-19T00:00:00Z",
+      "updated_at": "2026-02-19T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 66,
+    "fields": {
+      "title": "Smarter Intelligence \u2014 Instant Feedback on Every Entry",
+      "description": "Your intelligence engines now respond to every action you take. Log a weight entry, complete a habit, write a journal entry, or finish a scripture reading and you\u2019ll get instant feedback \u2014 including a special first-entry celebration when you start tracking a new area. Thresholds have been removed so even small changes generate insights and predictions. The system no longer waits for weeks of data before helping you.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-20",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-20T00:00:00Z",
+      "updated_at": "2026-02-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 67,
+    "fields": {
+      "title": "Chat Timestamps & Date Grouping",
+      "description": "Every message in your Chief of Staff chat now shows the time it was sent (e.g. 2:30 PM). When scrolling back through your conversation history, date separators appear at each day boundary showing Today, Yesterday, or the full date. Makes it easy to see when each interaction happened.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-20",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-20T00:00:00Z",
+      "updated_at": "2026-02-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 68,
+    "fields": {
+      "title": "Smarter, More Conversational Chief of Staff",
+      "description": "Your Chief of Staff just got a major intelligence upgrade. Powered by GPT-4o (up from GPT-4o-mini), it now understands nuance, reads between the lines, and responds with genuine warmth instead of generic answers. The internal prompt architecture was rebuilt so personality and relationship instructions take priority over operational data. Conversations should feel noticeably more natural and perceptive.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-20",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-20T00:00:00Z",
+      "updated_at": "2026-02-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 107,
+    "fields": {
+      "title": "Improved Startup Reliability & Resilience",
+      "description": "The app now starts faster and more reliably. Heavy data loading has been moved out of the startup path, Redis failures are handled gracefully with automatic recovery, and all fixture data is validated before deployment to prevent configuration errors from causing outages.",
+      "entry_type": "improvement",
+      "release_date": "2026-02-28",
+      "is_published": true,
+      "learn_more_url": ""
+    }
+  }
 ]

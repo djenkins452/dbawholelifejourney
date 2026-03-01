@@ -1,23 +1,26 @@
-web: python manage.py migrate --noinput && python manage.py load_initial_data -v 0 && python manage.py recalculate_task_priorities -v 0 && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file - --timeout 300
+web: python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file - --timeout 300
 worker: celery -A config worker --loglevel=info --concurrency=2
 beat: celery -A config beat --loglevel=info
-# Updated: 2026-02-21 — Cleaned startup chain, added worker/beat entries
+# Updated: 2026-02-28 — Boot Architecture Hardening
 #
-# Web service startup (idempotent, non-destructive):
-#   - migrate: Apply pending DB migrations
-#   - load_initial_data: One-time fixture loading (tracked by DataLoadConfig, skips if done)
-#   - recalculate_task_priorities: Runs every deploy (fast, no side effects)
-#   - collectstatic: Gather static files
-#   - gunicorn: WSGI server (APScheduler for 15 jobs starts inside wsgi.py)
+# Web service startup (minimal, deterministic, safe):
+#   - migrate: Apply pending DB migrations (Django-tracked, safe)
+#   - collectstatic: Gather static files (idempotent, no DB/cache)
+#   - gunicorn: WSGI server (APScheduler starts inside wsgi.py)
+#
+# REMOVED FROM BOOT (2026-02-28):
+#   - load_initial_data: Now manual-only. Run via: python manage.py load_initial_data
+#   - recalculate_task_priorities: Now manual-only or scheduled via APScheduler
+#   These commands must NEVER run during boot. They touch DB/cache and can block deploys.
+#
+# NEVER add to startup:
+#   - load_initial_data, reload_help_content, load_danny_workout_templates,
+#     load_reading_plans, load_phase1_data, load_project_from_json,
+#     recalculate_task_priorities, or any fixture/data loading commands
 #
 # Worker service:
 #   - Celery worker consumes tasks from Redis queue
-#   - Executes run_same_cycle_task (SAME monitoring) dispatched by Beat
 #
 # Beat service:
-#   - Celery Beat schedules periodic tasks (currently: SAME every 60s)
+#   - Celery Beat schedules periodic tasks (SAME every 60s)
 #   - Must be single-instance (multiple Beats = duplicate task dispatch)
-#
-# IMPORTANT: Do NOT add reload_help_content to startup.
-# Help content is loaded by load_initial_data (one-time) and reload_help_content
-# (on-demand via CLI only). Both use update_or_create, not destructive loaddata.

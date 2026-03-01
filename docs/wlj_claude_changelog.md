@@ -9,14 +9,34 @@
 
 # WLJ Change History
 
-## 2026-02-28 — Fix task start/end time not persisting on edit
+## 2026-02-28 — Boot Architecture Hardening: Remove All Heavy Initialization from Startup
 
-**What:** Start Time and End Time fields on the task edit form were not saving. The `type="time"` HTML input requires values in `HH:MM` (24-hour) format, but Django was rendering them using the project's `TIME_FORMAT = 'g:i A'` (e.g., "2:30 PM"), which the browser couldn't parse. On re-edit, times appeared empty and re-saving cleared them.
+**What:** Complete boot path hardening after the cascading failure that took the site down for 30+ minutes. Boot now ONLY: initialize Django, connect to database, start Gunicorn. All data loading (`load_initial_data`, `recalculate_task_priorities`) removed from startup — now manual-only.
+
+**Changes:**
+1. **Procfile** — Removed `load_initial_data` and `recalculate_task_priorities` from web startup chain
+2. **SafeRedisCache rewrite** (`apps/core/cache_backend.py`) — Three-state circuit breaker (CLOSED → OPEN → HALF-OPEN), rate-limited warning logs (every 5 min)
+3. **Cache config** (`config/settings.py`) — 500ms socket timeouts (down from 3s), `DISABLE_REDIS_CACHE` env var for emergency fallback to LocMemCache, Redis target logging at startup
+4. **Health endpoint** (`apps/core/views.py`) — `/_health/` now reports Redis status: connected, circuit_open (with remaining seconds), degraded, or unavailable
+5. **Fixture validation tests** (`apps/core/tests/test_fixture_validation.py`) — 5 tests validating all fixture JSON files for structure, duplicate PKs, model existence, and required fields
+6. **validate_fixtures command** (`apps/core/management/commands/validate_fixtures.py`) — CLI tool to dry-run fixture validation without loading
+7. **Fixture data fixes** — Fixed duplicate PK 58 in `teaching_destinations.json`, added missing `help_id` to `help_topics.json` pk=83
+8. **Fixture loader reset** (`apps/core/management/commands/load_initial_data.py`) — Added reset method for teaching_destinations dedup
 
 **Files changed:**
-- `templates/life/task_form.html` — Changed `|default:''` to `|time:'H:i'` for both `scheduled_time` and `scheduled_end_time` value attributes
+- `Procfile`
+- `apps/core/cache_backend.py`
+- `config/settings.py`
+- `apps/core/views.py`
+- `apps/core/tests/test_fixture_validation.py` (new)
+- `apps/core/management/commands/validate_fixtures.py` (new)
+- `apps/help/fixtures/help_topics.json`
+- `apps/help/fixtures/teaching_destinations.json`
+- `apps/core/management/commands/load_initial_data.py`
 
-**Why:** Users setting start/end times on tasks would lose them on subsequent edits.
+**Why:** The 2026-02-28 outage was caused by a chain: fixture reset → broken release_notes pk=41/42 → NOT NULL violation → site crash. Simultaneously, outdated Railway start command ran `reload_help_content` → Redis unreachable → 30s timeouts per cache.delete() × 100 records → deploy hung indefinitely. This hardening ensures boot can never be blocked by data loading, Redis, or fixture issues again.
+
+---
 
 ## 2026-02-28 — Add circuit breaker to SafeRedisCache
 

@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Construct Redis URL from Railway component variables
+
+**What:** Construct Redis URL from individual Railway variables (`REDISHOST`, `REDISPORT`, `REDISUSER`, `REDISPASSWORD`) instead of relying on `REDIS_URL`. Removed `REDIS_PUBLIC_URL` preference and `ssl_cert_reqs` TLS option (internal connection doesn't need TLS). Startup log shows which source was used.
+
+**Files changed:**
+- `config/settings.py` — Redis URL construction from component variables
+
+**Why:** `REDIS_URL` may have incorrect format. Building from component variables ensures correct internal networking on Railway.
+
+---
+
 ## 2026-02-28 — Add temporary /_redis_test/ HTTP endpoint
 
 **What:** Temporary endpoint at `/_redis_test/` that tests Redis via cache.set/get and returns JSON with status, value, and elapsed_ms. For debugging Redis connectivity without Railway shell access.

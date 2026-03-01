@@ -1265,6 +1265,10 @@
         document.body.style.overflow = 'hidden';
         input.focus();
 
+        // Preemptive server wake — opening the drawer means the user
+        // is about to chat, so start waking Railway now.
+        if (typeof pingServerWake === 'function') pingServerWake();
+
         // Update page context indicator
         updateContextIndicator();
 
@@ -1889,6 +1893,33 @@
 
     input.addEventListener('input', function() {
         updateSendButton();
+    });
+
+    // ── Preemptive server wake-up ──────────────────────────────────
+    // Railway scales containers to zero after idle. When user starts
+    // typing, fire a silent HEAD request to wake the server so it's
+    // warm by the time they hit Send. Debounced to avoid spam.
+    let _serverPinged = false;
+    let _pingDebounce = null;
+    function pingServerWake() {
+        if (_serverPinged) return;
+        _serverPinged = true;
+        fetch('/assistant/api/chat/', { method: 'HEAD', credentials: 'same-origin' }).catch(function() {});
+        // Reset after 5 minutes so we re-ping if they idle again
+        setTimeout(function() { _serverPinged = false; }, 300000);
+    }
+
+    input.addEventListener('focus', function() {
+        // Ping on focus (user clicked/tapped the input)
+        pingServerWake();
+    });
+
+    input.addEventListener('input', function() {
+        // Also ping on first keystroke if focus didn't already trigger
+        if (!_serverPinged) {
+            clearTimeout(_pingDebounce);
+            _pingDebounce = setTimeout(pingServerWake, 100);
+        }
     });
 
     input.addEventListener('keypress', function(e) {

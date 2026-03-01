@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Preemptive Server Wake on Chat Interaction
+
+**What:** Added a preemptive server "ping" that fires when the user opens the chat drawer, focuses the input, or starts typing. A silent HEAD request to `/assistant/api/chat/` wakes Railway's container before the user hits Send. 5-minute cooldown prevents spam. This means the server is likely warm by the time the actual message is sent.
+
+**Files changed:**
+- `templates/components/chat_widget.html` — Added `pingServerWake()` function, wired to drawer open, input focus, and input keystroke events
+
+---
+
 ## 2026-02-28 — Fix Navigation False Positive + Cold Start Timeout
 
 **What:** Two bugs affecting user experience:

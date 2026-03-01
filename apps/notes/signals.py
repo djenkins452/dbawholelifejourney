@@ -4,7 +4,7 @@ Django signals for Notes search index consistency.
 Keeps tags_text, attachments_text, and search_vector in sync when:
 - Tags are added/removed from a note (m2m_changed)
 - NoteAttachments are created/deleted (post_save/post_delete)
-- Attached entities are renamed (pre_save/post_save on whitelisted models)
+- Attached entities are renamed (pre_save/post_save via registry)
 """
 
 import logging
@@ -49,86 +49,91 @@ def attachment_deleted(sender, instance, **kwargs):
 
 
 # ---------------------------------------------------------------------------
-# Entity rename signals (Phase 4B.1 Layer 2)
+# Entity rename signals (Phase 4B.1 Layer 2, refactored Phase 4B.2)
 #
-# Detects title/name changes on whitelisted attachable models and refreshes
-# the notes' attachments_text + search_vector automatically.
-#
-# Models covered: Task, Project, LifeGoal, HabitGoal, JournalEntry
-# (BibleStudyNote and CalendarEvent omitted — low rename frequency)
+# Registry-driven rename detection. Models and their display fields are
+# defined in index_registry.NOTE_INDEX_REGISTRY — adding a new model
+# there automatically wires up rename signals.
 # ---------------------------------------------------------------------------
 
-# Map of model path -> title field name for rename detection
-_RENAME_MODELS = {
-    "life.Task": "title",
-    "life.Project": "title",
-    "purpose.LifeGoal": "title",
-    "purpose.HabitGoal": "name",
-    "journal.JournalEntry": "title",
-}
-
-# Cache for old titles keyed by (model_label, pk)
-_old_titles = {}
+# Cache for old field values keyed by (model_label, pk)
+_old_field_values = {}
 
 
-def _get_rename_model_classes():
-    """Lazily import and return {model_class: title_field} mapping."""
+def _get_registry_model_classes():
+    """Lazily import models from the registry and return {model_class: config} mapping."""
     from django.apps import apps
 
+    from .index_registry import NOTE_INDEX_REGISTRY
+
     result = {}
-    for model_path, field in _RENAME_MODELS.items():
+    for model_path, config in NOTE_INDEX_REGISTRY.items():
         app_label, model_name = model_path.split(".")
         try:
             model_class = apps.get_model(app_label, model_name)
-            result[model_class] = field
+            result[model_class] = config
         except LookupError:
             pass
     return result
 
 
 def _entity_pre_save(sender, instance, **kwargs):
-    """Capture the old title before save for rename detection."""
+    """Capture old display field values before save for rename detection."""
     if not instance.pk:
         return  # new instance, no rename possible
-    model_classes = _get_rename_model_classes()
-    field_name = model_classes.get(sender)
-    if not field_name:
+    model_classes = _get_registry_model_classes()
+    config = model_classes.get(sender)
+    if not config:
         return
     try:
-        old = sender.objects.filter(pk=instance.pk).values_list(field_name, flat=True).first()
-        if old is not None:
+        display_fields = config["display_fields"]
+        old_values = (
+            sender.objects.filter(pk=instance.pk)
+            .values_list(*display_fields)
+            .first()
+        )
+        if old_values is not None:
             label = f"{sender._meta.app_label}.{sender._meta.model_name}"
-            _old_titles[(label, instance.pk)] = old
+            _old_field_values[(label, instance.pk)] = dict(
+                zip(display_fields, old_values)
+            )
     except Exception:
         pass
 
 
 def _entity_post_save(sender, instance, created, **kwargs):
-    """If the title changed, refresh notes attached to this entity."""
+    """If any display field changed, refresh notes attached to this entity."""
     if created:
         return  # new instance, no rename
-    model_classes = _get_rename_model_classes()
-    field_name = model_classes.get(sender)
-    if not field_name:
+    model_classes = _get_registry_model_classes()
+    config = model_classes.get(sender)
+    if not config:
         return
 
     label = f"{sender._meta.app_label}.{sender._meta.model_name}"
     key = (label, instance.pk)
-    old_title = _old_titles.pop(key, None)
-    if old_title is None:
+    old_values = _old_field_values.pop(key, None)
+    if old_values is None:
         return
 
-    new_title = getattr(instance, field_name, None)
-    if old_title == new_title:
-        return  # no rename
+    # Check if any display field actually changed
+    changed = False
+    for field_name, old_value in old_values.items():
+        new_value = getattr(instance, field_name, None)
+        if old_value != new_value:
+            changed = True
+            logger.info(
+                "Entity rename detected: %s #%s field '%s': '%s' -> '%s'. Refreshing notes.",
+                label, instance.pk, field_name, old_value, new_value,
+            )
+            break
 
-    # Title changed — refresh notes attached to this entity
+    if not changed:
+        return
+
+    # Display field changed — refresh notes attached to this entity
     from .services import refresh_notes_for_entity
 
-    logger.info(
-        "Entity rename detected: %s #%s '%s' -> '%s'. Refreshing notes.",
-        label, instance.pk, old_title, new_title,
-    )
     refresh_notes_for_entity(
         content_type_str=label,
         object_id=instance.pk,
@@ -136,8 +141,8 @@ def _entity_post_save(sender, instance, created, **kwargs):
 
 
 def connect_rename_signals():
-    """Connect pre_save/post_save signals for rename detection on whitelisted models."""
-    for model_class in _get_rename_model_classes():
+    """Connect pre_save/post_save signals for rename detection from registry."""
+    for model_class in _get_registry_model_classes():
         pre_save.connect(
             _entity_pre_save,
             sender=model_class,

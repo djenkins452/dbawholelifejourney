@@ -9,6 +9,40 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Notes System Phase 4B.2: Index Integrity, Registry, and Observability
+
+**What:** Replaced hard-coded rename signals with a centralized registry, added index integrity detection/repair services, a management command for integrity reporting, and admin repair actions.
+
+**Part 1 — Rename Trigger Registry:**
+- Created `apps/notes/index_registry.py` with `NOTE_INDEX_REGISTRY` dict
+- Maps model paths to display_fields config — adding a new attachable model only requires an entry here
+
+**Part 2 — Registry-Driven Signals:**
+- Refactored `apps/notes/signals.py` to use registry instead of hard-coded `_RENAME_MODELS`
+- Dynamically registers pre_save/post_save from `NOTE_INDEX_REGISTRY`
+- Supports multiple display_fields per model
+
+**Part 3 — Integrity Service Functions:**
+- `find_notes_missing_attachments_text()` — detects notes with attachments but empty text
+- `find_notes_missing_search_vector()` — detects null search vectors
+- `get_note_index_integrity_report()` — structured report dict
+- `repair_notes_missing_index()` — batch repairs missing index data
+
+**Part 4 — Integrity Report Command:**
+- `python manage.py note_index_integrity_report` — shows integrity report
+- `--repair` flag fixes detected issues
+- `--dry-run` shows what would be repaired
+
+**Part 5 — Admin Repair Actions:**
+- "Repair index for selected notes" — rebuilds tags_text + attachments_text + search_vector
+- "Refresh attachments index for selected notes" — rebuilds attachments_text + search_vector
+
+**Files created:** `apps/notes/index_registry.py`, `apps/notes/management/commands/note_index_integrity_report.py`, `apps/notes/tests/test_index_integrity.py`
+**Files modified:** `apps/notes/signals.py`, `apps/notes/services.py`, `apps/notes/admin.py`
+**Tests:** 136 total (21 new), all passing
+
+---
+
 ## 2026-03-01 — Notes System Phase 4B.1: Attachment Rename Refresh + Management Command
 
 **What:** Fixed stale attachments_text when attached entities are renamed. Added a management command for manual/scheduled refresh and auto-refresh signals for the top 5 entity models.

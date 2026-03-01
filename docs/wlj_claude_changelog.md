@@ -9,6 +9,28 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Beth Latency Elimination and Instant-Readiness Architecture
+
+**What:** Full-stack latency elimination for Beth's CoS chat system. Introduces a frontend-to-backend pre-warm pipeline that silently wakes infrastructure and pre-builds CoS context before the user sends a message, eliminating 50-150ms of non-LLM latency per request.
+
+**Architecture (12 components):**
+- **Intent-Based Pre-Warm:** Frontend fires lightweight `/assistant/api/wake/` on input focus/mobile panel open (30s cooldown)
+- **Wake Endpoint:** Ultra-lightweight endpoint warms DB connection pool, spawns background thread to pre-build CoS context
+- **Context Cache:** TTL-based (45s), user-scoped Redis cache for `cos_context` (15-20 DB queries pre-computed)
+- **Fast-Path Execution:** `send_message()` and `_generate_response()` check readiness cache before full rebuild
+- **Background Threading:** Learning extraction, correction detection, and pattern detection moved off response path
+- **Keep-Alive:** Celery Beat task (30s) refreshes context cache for active users
+- **Readiness State Tracking:** `cold → warming → ready → active` states tracked per user
+- **Observability:** Logging-based telemetry for wake/cache hit rates, context build times
+- **Django Cache Framework:** Redis backend configured (DB 1, separate from Celery), LocMemCache fallback for dev
+
+**Safety:** Cache miss falls through to existing behavior. 45s TTL prevents stale data. Prewarm is read-only (no LLM calls, no memory writes). 19 new tests verify correctness.
+
+**Files (new):** `apps/ai/readiness_cache.py`, `apps/ai/readiness_telemetry.py`, `apps/ai/tasks.py`, `apps/ai/tests/test_readiness_cache.py`
+**Files (modified):** `config/settings.py`, `apps/ai/views.py`, `apps/ai/urls.py`, `apps/ai/personal_assistant.py`, `templates/components/assistant_panel.html`
+
+---
+
 ## 2026-02-28 — Fix 5 deploy startup errors in load_initial_data
 
 **What:** Fixed 5 errors that appeared in Railway deploy logs on every deployment:

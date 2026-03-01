@@ -271,6 +271,33 @@
     }
 
     /* ================================================================
+       PRE-WARM: Silent context pre-loading
+       Fires lightweight wake call when user shows intent to chat.
+       Warms DB connections + pre-builds CoS context in background.
+       ================================================================ */
+    var _prewarmSent = false;
+    var _prewarmTimer = null;
+    var PREWARM_COOLDOWN_MS = 30000;
+
+    function firePrewarm() {
+        if (_prewarmSent || !paAccessible) return;
+        _prewarmSent = true;
+
+        fetch('/assistant/api/wake/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: '{}'
+        }).catch(function() {});
+
+        _prewarmTimer = setTimeout(function() {
+            _prewarmSent = false;
+        }, PREWARM_COOLDOWN_MS);
+    }
+
+    /* ================================================================
        TAB SWITCHING
        ================================================================ */
     function switchTab(tabName) {
@@ -307,6 +334,7 @@
         pullup.classList.toggle('expanded');
         document.body.classList.toggle('assistant-pullup-open');
         if (expanding) {
+            firePrewarm();
             loadMobileChatHistory();
         }
     }
@@ -1166,6 +1194,7 @@
        FORM HANDLERS (desktop)
        ================================================================ */
     if (chatInput) {
+        chatInput.addEventListener('focus', firePrewarm);
         chatInput.addEventListener('input', updateSendBtn);
         chatInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -1211,6 +1240,7 @@
        FORM HANDLERS (mobile)
        ================================================================ */
     if (mobileChatInput) {
+        mobileChatInput.addEventListener('focus', firePrewarm);
         mobileChatInput.addEventListener('input', function() {
             mobileSendBtn.disabled = !mobileChatInput.value.trim();
         });

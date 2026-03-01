@@ -2079,7 +2079,19 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
                 # Compute real tier — same logic as _generate_response().
                 # Cache result to avoid rebuilding in _generate_response.
-                _ecc_cos = _ecc_build_cos(self.user)
+                # Try readiness cache first (pre-warmed by wake endpoint).
+                try:
+                    from apps.ai.readiness_cache import (
+                        get_cached_cos_context as _rc_get,
+                        set_readiness_state as _rc_set_state,
+                        track_active_user as _rc_track,
+                    )
+                    _rc_set_state(self.user, 'active')
+                    _rc_track(self.user)
+                    _rc_cached = _rc_get(self.user)
+                except Exception:
+                    _rc_cached = None
+                _ecc_cos = _rc_cached if _rc_cached else _ecc_build_cos(self.user)
                 _cos_context_cache = _ecc_cos
                 _ecc_traj = _ecc_cos.get(
                     'trajectory_signals',
@@ -3270,7 +3282,25 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         # Reuse pre-computed cos_context from ECC pre-check
                         cos_context = cos_context_cache
                     else:
-                        cos_context = build_cos_context(self.user)
+                        # Try readiness cache before full rebuild
+                        try:
+                            from apps.ai.readiness_cache import get_cached_cos_context as _rc_get_ctx
+                            from apps.ai.readiness_telemetry import log_fast_path, log_full_path
+                            _rc_ctx = _rc_get_ctx(self.user)
+                        except Exception:
+                            _rc_ctx = None
+                        if _rc_ctx:
+                            cos_context = _rc_ctx
+                            try:
+                                log_fast_path(self.user.id)
+                            except Exception:
+                                pass
+                        else:
+                            cos_context = build_cos_context(self.user)
+                            try:
+                                log_full_path(self.user.id)
+                            except Exception:
+                                pass
                         # Phase 3 Tiered Activation: compute activation
                         # state from trajectory signals + user input.
                         traj_signals = cos_context.get(

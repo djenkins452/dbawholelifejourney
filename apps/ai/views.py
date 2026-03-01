@@ -223,6 +223,83 @@ class AssistantOpeningView(LoginRequiredMixin, AssistantMixin, View):
 
 
 # =============================================================================
+# PRE-WARM / READINESS
+# =============================================================================
+
+class AssistantWakeView(LoginRequiredMixin, AssistantMixin, View):
+    """
+    Ultra-lightweight wake endpoint for CoS pre-warming.
+
+    Called by frontend on input focus/keypress to:
+    1. Warm DB connection pool (single SELECT 1 query)
+    2. Pre-build cos_context in background thread if not cached
+    3. Return immediately with readiness state
+
+    Does NOT: trigger LLM calls, write messages, modify state.
+    Target response time: <10ms.
+    """
+
+    def post(self, request, *args, **kwargs):
+        import threading
+        from apps.ai.readiness_cache import (
+            get_cached_cos_context,
+            get_readiness_state,
+            prewarm_cos_context,
+            set_readiness_state,
+            track_active_user,
+            warm_db_connection,
+        )
+        from apps.ai.readiness_telemetry import log_wake_request
+
+        user = request.user
+
+        # Quick PA check — skip prewarm if PA not enabled
+        enabled, _ = self.check_personal_assistant_enabled()
+        if not enabled:
+            return JsonResponse({"status": "disabled"}, status=200)
+
+        # Warm DB connection pool
+        warm_db_connection()
+
+        # Track user as active (for keep-alive targeting)
+        track_active_user(user)
+
+        # Check if context is already cached
+        cached = get_cached_cos_context(user) is not None
+        current_state = get_readiness_state(user)
+        log_wake_request(user.id, cached)
+
+        if cached:
+            return JsonResponse({
+                "status": "ready",
+                "cached": True,
+            })
+
+        # Avoid duplicate warm-ups
+        if current_state == "warming":
+            return JsonResponse({
+                "status": "warming",
+                "cached": False,
+            })
+
+        # Spawn background thread to build + cache context
+        set_readiness_state(user, "warming")
+
+        def _prewarm_bg():
+            try:
+                prewarm_cos_context(user)
+            except Exception:
+                pass
+
+        threading.Thread(target=_prewarm_bg, daemon=True).start()
+
+        return JsonResponse({
+            "status": "warming",
+            "cached": False,
+        })
+
+
+# =============================================================================
 # CONVERSATION / CHAT
 # =============================================================================
 
@@ -321,44 +398,51 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                 image_mime_type=image_mime_type
             )
 
-            # Phase 4: Extract learning from user message (non-blocking)
-            try:
-                from apps.core.ai_learning.learning_extractor import (
-                    extract_learning, evolve_profile,
-                )
-                response_text = result.get('response', '') if isinstance(result, dict) else str(result)
-                extract_learning(request.user, message, response_text)
-                # Run profile evolution periodically (lightweight check)
-                evolve_profile(request.user)
-            except Exception:
-                pass  # Learning extraction must never break chat
+            # Phase 4: Post-response intelligence (truly non-blocking via bg thread)
+            # Learning extraction, correction detection, and pattern detection
+            # are moved off the response path to reduce latency.
+            import threading
+            _pr_user = request.user
+            _pr_message = message
+            _pr_result = result
+            _pr_conversation = conversation
 
-            # Phase 4b: Detect corrections and store them (non-blocking)
-            try:
-                from apps.ai.correction_service import detect_correction, store_correction
-                if detect_correction(message):
-                    # Get the previous assistant message to know what was corrected
-                    prev_msgs = conversation.messages.filter(
-                        role='assistant'
-                    ).order_by('-created_at')[:1]
-                    if prev_msgs:
-                        prev = prev_msgs[0]
-                        store_correction(
-                            user=request.user,
-                            user_message=message,
-                            original_response=prev.content,
-                            conversation=conversation,
-                            original_message_id=prev.id,
-                        )
-            except Exception:
-                pass  # Correction detection must never break chat
+            def _post_response_intelligence():
+                try:
+                    from apps.core.ai_learning.learning_extractor import (
+                        extract_learning, evolve_profile,
+                    )
+                    resp_text = _pr_result.get('response', '') if isinstance(_pr_result, dict) else str(_pr_result)
+                    extract_learning(_pr_user, _pr_message, resp_text)
+                    evolve_profile(_pr_user)
+                except Exception:
+                    pass
 
-            # Phase 4c: Run behavioral pattern detection (lightweight, non-blocking)
-            try:
-                from apps.ai.pattern_detector import detect_patterns
-                detect_patterns(request.user)
-            except Exception:
-                pass  # Pattern detection must never break chat
+                try:
+                    from apps.ai.correction_service import detect_correction, store_correction
+                    if detect_correction(_pr_message):
+                        prev_msgs = _pr_conversation.messages.filter(
+                            role='assistant'
+                        ).order_by('-created_at')[:1]
+                        if prev_msgs:
+                            prev = prev_msgs[0]
+                            store_correction(
+                                user=_pr_user,
+                                user_message=_pr_message,
+                                original_response=prev.content,
+                                conversation=_pr_conversation,
+                                original_message_id=prev.id,
+                            )
+                except Exception:
+                    pass
+
+                try:
+                    from apps.ai.pattern_detector import detect_patterns
+                    detect_patterns(_pr_user)
+                except Exception:
+                    pass
+
+            threading.Thread(target=_post_response_intelligence, daemon=True).start()
 
             # Handle both old string response and new dict response
             if isinstance(result, dict):

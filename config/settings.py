@@ -989,6 +989,32 @@ APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
 # Redis URL — Railway sets REDIS_URL automatically when Redis addon is attached
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
 
+# ==============================================================================
+# Django Cache Framework — CoS Readiness Cache + General Caching
+# ==============================================================================
+# Uses Redis in production (shared with Celery but separate DB).
+# Falls back to in-memory cache in development when Redis is unavailable.
+
+if not DEBUG or env("REDIS_URL", default=""):
+    # Production / CI / dev-with-Redis: use Redis DB 1 (Celery uses DB 0)
+    _cache_redis_url = REDIS_URL.rsplit("/", 1)[0] + "/1" if "/" in REDIS_URL else REDIS_URL + "/1"
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": _cache_redis_url,
+            "TIMEOUT": 300,
+            "KEY_PREFIX": "wlj",
+        },
+    }
+else:
+    # Development without Redis: in-memory cache (per-process, not shared)
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "wlj-dev",
+        },
+    }
+
 # Broker and result backend (CELERY_BROKER_URL overrides REDIS_URL if set)
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", default=REDIS_URL)
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=REDIS_URL)
@@ -1011,6 +1037,10 @@ CELERY_BEAT_SCHEDULE = {
     "run-ise-cycle-every-300-seconds": {
         "task": "apps.core.tasks.run_ise_cycle_task",
         "schedule": 300.0,  # Every 5 minutes — redundant with APScheduler
+    },
+    "cos-keepalive-every-30-seconds": {
+        "task": "apps.ai.tasks.cos_keepalive_task",
+        "schedule": 30.0,  # Keep CoS context warm for active users
     },
 }
 

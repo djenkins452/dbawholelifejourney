@@ -325,7 +325,7 @@ class AIService:
             image_mime_type: Optional MIME type of the image
             temperature: Controls randomness (0.0=deterministic, 1.0=creative).
                         Default 0.5 balances accuracy with natural conversation.
-                        Use lower (0.3) for data-heavy responses to reduce hallucination.
+                        CoS uses 0.3 for data-heavy responses and 0.5 for general chat.
             endpoint: Label for observability logging (e.g. 'cos_chat', 'journal_reflection')
             user: Optional user instance for usage logging
             conversation_history: Optional list of {"role": "user"|"assistant",

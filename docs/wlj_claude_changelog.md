@@ -9,18 +9,19 @@
 
 # WLJ Change History
 
-======================================================================
-# File: docs/wlj_claude_changelog.md
-# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Historical record of fixes, migrations, and changes
-# Owner: Danny Jenkins (admin@wholelifejourney.com)
-# Created: 2025-12-28
-# Last Updated: 2026-02-27 (COS-CX: Context Intelligence Expansion)
-# ==============================================================================
+## 2026-03-01 — Strengthen CoS anti-hallucination: honesty directive + lower temperatures
 
-# WLJ Change History
+**What:** Added a comprehensive "HONESTY OVER CONFIDENCE" section to the CoS system prompt covering all topics (not just user data), and lowered LLM temperature defaults to reduce creative hallucination. CoS will now say "I'm not sure" or "I don't know" rather than confidently stating uncertain information.
 
-<<<<<<< HEAD
+**Changes:**
+- `apps/ai/personal_assistant.py` — Added "HONESTY OVER CONFIDENCE" section to `PERSONAL_ASSISTANT_BASE_PROMPT` with rules for qualifying uncertain answers, hedging general knowledge, and expressing doubt rather than fabricating
+- `apps/ai/personal_assistant.py` — Lowered temperature from 0.65→0.5 (general chat) and 0.4→0.3 (data queries) in `_generate_response()`
+- `apps/ai/personal_assistant.py` — Lowered streaming fast-path temperature from 0.65→0.5 in `_build_fast_context()`
+- `apps/ai/services.py` — Updated docstring to reflect new temperature defaults
+
+**Why:** The existing anti-hallucination rules focused only on user data fabrication. General knowledge questions (facts, dates, trivia, medical info) had no "admit uncertainty" directive — the system prompt actually discouraged "I don't know" responses. Combined with temperature 0.65, this made CoS confidently wrong on topics it was uncertain about. Now the prompt balances confidence (when data is present) with honesty (when it isn't), and lower temperatures reduce creative confabulation.
+
+---
 ## 2026-03-01 — Anti-hallucination directives for CoS and Personal Assistant prompts
 
 **What:** Added explicit "never fabricate user data" rules to both the base personal assistant prompt and the CoS operational intelligence injection. The AI was confabulating data values (e.g. echoing "300 lbs" from the user's goal message as if it were a real lookup). New rules tell the AI to say "I don't have that data right now" instead of guessing.

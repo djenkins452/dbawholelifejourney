@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Fix: iOS crash on stair ascent/descent speed sync (incompatible HKUnit)
+
+**What:** HealthKit sync crashed with `NSInvalidArgumentException: "Attempt to convert incompatible units: m/s, count/s"` when fetching stair ascent/descent speed. The code used `HKUnit.count().unitDivided(by: .second())` (count/s) but HealthKit stores these metrics in `m/s` (meters per second). Also removed the incorrect `convertToFlightsPerMin` flag since these are velocity values, not flight count rates.
+
+**Changes:**
+- `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift` — Changed unit from `count/s` to `m/s` for both `stairAscentSpeed` and `stairDescentSpeed`; removed `convertToFlightsPerMin: true` parameter
+
+**Why:** App crashed on any device with stair speed data in HealthKit, preventing health data sync from completing.
+
 ## 2026-03-01 — Fix: CoS chat weight data — use live DB query instead of stale state cache
 
 **What:** Follow-up fix. First fix added weight from state cache (`get_state_value`), but the cache was stale/empty, causing the AI to hallucinate weight values from conversation context. Switched to direct DB query of `WeightEntry` table — same pattern used by all other vitals (HR, BP, glucose, etc.). Now includes exact weight value, date, trend (computed live from 30-day comparison), and weight goal from HealthProfile.

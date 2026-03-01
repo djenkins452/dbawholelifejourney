@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 105,
+        "fields": {
+            "title": "Journal Dashboard: Mood & Prompt Widgets Now Working",
+            "description": "The Journal home page got a major refresh. The 'Mood This Week' widget now correctly shows all the emotions you've selected across your entries — displayed as emoji + name (e.g., '😊 Great') so you can easily identify each one. Hover over any emotion for its full name. The 'Today's Prompt' widget now shows a daily rotating writing prompt based on your preferences. Mood and entry counts are now accurately calculated based on your entry dates.",
+            "entry_type": "fix",
+            "version": "",
+            "release_date": "2026-02-28",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-28T12:00:00Z",
+            "updated_at": "2026-02-28T12:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 104,
         "fields": {
             "title": "Smarter CoS: Better Context, Reasoning & Session Awareness",

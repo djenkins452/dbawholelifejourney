@@ -823,6 +823,9 @@ class Command(BaseCommand):
         # One-time: Fix scheduled tasks showing as deadline markers at 23:59
         self._fix_scheduled_task_projections(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Journal Mood & Prompt fix (PK 105 release note, help PK 3 update)
+        self._reset_journal_mood_fix_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -2721,6 +2724,38 @@ Tasks are sorted by priority (ascending) then creation date.""",
                 self.stdout.write(self.style.WARNING(
                     f'  Scheduled task fix skipped: {e}'
                 ))
+
+    def _reset_journal_mood_fix_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 105) and help_topics (PK 3 updated)
+        for Journal Mood & Prompt dashboard fix.
+        """
+        reset_tracker_name = 'reset_journal_mood_fix_2026_02_28'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for fixture_name in ['release_notes', 'help_content']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=fixture_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {fixture_name} loader for Journal Mood fix')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Journal Mood & Prompt fix (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 105 and help_topics PK 3'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset journal mood fix fixtures FAILED: {e}'))
 
     def _reset_calendar_engine_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

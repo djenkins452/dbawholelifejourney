@@ -334,14 +334,41 @@ def _build_health_and_vitals(user):
             'sleep_trend': get_state_value(user, 'health.sleep_trend', 'stable'),
             'workout_count_7d': get_state_value(user, 'fitness.workouts_7d', 0),
             'steps_avg_7d': get_state_value(user, 'health.steps_avg_7d'),
-            'weight_current': get_state_value(user, 'health.weight_current'),
-            'weight_unit': get_state_value(user, 'health.weight_unit', 'lb'),
-            'weight_trend': get_state_value(user, 'health.weight_trend'),
         }
 
-        # Weight goal from HealthProfile
+        from datetime import timedelta
+        week_ago = timezone.localdate() - timedelta(days=7)
+
+        # Weight — direct DB query (state cache can be stale)
         try:
-            from apps.health.models import HealthProfile
+            from apps.health.models import WeightEntry, HealthProfile
+            latest_weight = (
+                WeightEntry.objects.filter(user=user)
+                .order_by('-recorded_at')
+                .first()
+            )
+            if latest_weight:
+                health_signals['weight_current'] = round(float(latest_weight.value), 1)
+                health_signals['weight_unit'] = latest_weight.unit or 'lb'
+                health_signals['weight_date'] = str(latest_weight.recorded_at.date())
+                # Trend: compare to 30 days ago
+                cutoff_30d = timezone.now() - timedelta(days=30)
+                older_weight = (
+                    WeightEntry.objects.filter(user=user, recorded_at__lte=cutoff_30d)
+                    .order_by('-recorded_at')
+                    .values_list('value', flat=True)
+                    .first()
+                )
+                if older_weight is not None:
+                    diff = float(latest_weight.value) - float(older_weight)
+                    if abs(diff) < 0.5:
+                        health_signals['weight_trend'] = 'stable'
+                    elif diff > 0:
+                        health_signals['weight_trend'] = 'increasing'
+                    else:
+                        health_signals['weight_trend'] = 'decreasing'
+
+            # Weight goal from HealthProfile
             hp = HealthProfile.objects.filter(user=user).first()
             if hp and hp.has_weight_goal:
                 health_signals['weight_goal'] = float(hp.weight_goal)
@@ -354,9 +381,6 @@ def _build_health_and_vitals(user):
                     health_signals['weight_goal_on_track'] = progress.get('on_track')
         except Exception:
             pass
-
-        from datetime import timedelta
-        week_ago = timezone.localdate() - timedelta(days=7)
 
         try:
             from django.db.models import Avg, Sum
@@ -1083,11 +1107,14 @@ def format_cos_system_injection(context):
         if weight_current:
             unit = health_sig.get('weight_unit', 'lb')
             trend = health_sig.get('weight_trend')
+            weight_date = health_sig.get('weight_date')
             weight_str = f"Weight: {weight_current} {unit}"
+            if weight_date:
+                weight_str += f" (as of {weight_date})"
             if trend and trend not in ('stable', 'insufficient_data'):
-                weight_str += f" ({trend})"
+                weight_str += f", trend: {trend}"
             elif trend == 'stable':
-                weight_str += " (stable)"
+                weight_str += ", trend: stable"
             health_lines.append(weight_str)
             # Weight goal
             weight_goal = health_sig.get('weight_goal')

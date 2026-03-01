@@ -9,6 +9,16 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Copy Workout Pre-fills Name
+
+**What:** When copying a workout, the workout name (e.g., "Group A: Push + Arms") was not carried over to the new workout form. Users had to re-type it manually.
+
+**Fix:** Added `copy_from.name` to the `{% firstof %}` tag in the workout form template so the name field is pre-populated when copying.
+
+**Files:** `templates/health/fitness/workout_form.html`
+
+---
+
 ## 2026-02-28 — Fix Navigation False Positive + Cold Start Timeout
 
 **What:** Two bugs affecting user experience:

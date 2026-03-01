@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Fix task start/end time not persisting on edit
+
+**What:** Start Time and End Time fields on the task edit form were not saving. The `type="time"` HTML input requires values in `HH:MM` (24-hour) format, but Django was rendering them using the project's `TIME_FORMAT = 'g:i A'` (e.g., "2:30 PM"), which the browser couldn't parse. On re-edit, times appeared empty and re-saving cleared them.
+
+**Files changed:**
+- `templates/life/task_form.html` — Changed `|default:''` to `|time:'H:i'` for both `scheduled_time` and `scheduled_end_time` value attributes
+
+**Why:** Users setting start/end times on tasks would lose them on subsequent edits.
+
 ## 2026-02-28 — Add circuit breaker to SafeRedisCache
 
 **What:** After the first Redis timeout, the circuit breaker skips ALL Redis calls for 60 seconds. Without this, every cache operation waits 3 seconds for the timeout, causing pages to load in 30-60+ seconds when Redis is unreachable.

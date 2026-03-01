@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Fix calendar_engine test discovery ImportError
+
+**What:** GitHub CI test suite was failing with `ImportError: 'tests' module incorrectly imported` because `apps/calendar_engine/` had both a `tests.py` file and a `tests/` directory. Python's test discovery gets confused when both exist. Moved `tests.py` content into `tests/test_calendar_engine.py` and deleted the conflicting `tests.py`.
+
+**Changes:**
+- `apps/calendar_engine/tests.py` — Deleted (was conflicting with `tests/` directory)
+- `apps/calendar_engine/tests/test_calendar_engine.py` — Created with all content from the deleted `tests.py`
+
+**Why:** The dual `tests.py` + `tests/` directory caused Python's unittest loader to raise an ImportError, breaking the entire CI test suite.
+
+---
+
 ## 2026-03-01 — Strengthen CoS anti-hallucination: honesty directive + lower temperatures
 
 **What:** Added a comprehensive "HONESTY OVER CONFIDENCE" section to the CoS system prompt covering all topics (not just user data), and lowered LLM temperature defaults to reduce creative hallucination. CoS will now say "I'm not sure" or "I don't know" rather than confidently stating uncertain information.

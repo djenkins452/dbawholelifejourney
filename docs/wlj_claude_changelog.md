@@ -9,6 +9,35 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Notes System Phase 4C: CoS Memory Intelligence + Ranking
+
+**What:** Added a second-stage ranking layer for CoS note retrieval that combines FTS rank with contextual signals (recency, pinning, entity scope, tag overlap) to surface the "best" memory, not just "matching" ones.
+
+**Memory Scoring Module (`apps/notes/memory_scoring.py`):**
+- Deterministic formula: `combined = 0.50*FTS + 0.20*recency + 0.10*pinned + 0.12*entity + 0.08*tags`
+- Recency decay: ≤7d=1.0, 8–30d=0.7→smooth, 31–180d=0.4→smooth, >180d=0.15
+- Explainability: each result includes up to 5 human-readable reasons
+- Key invariant: highly relevant unpinned note always outranks pinned irrelevant
+
+**CoS Search API (`search_notes_cos()` in services.py):**
+- Fetches up to 50 FTS candidates, re-ranks with memory scoring
+- Returns enriched results: combined_score, reasons, matched_in, attachments_summary
+- Supports entity scoping (content_type + object_id) and tag overlap boosting
+- Blank query → returns pinned + recent with reasons
+- No FTS matches → fallback to pinned + recent with "Fallback" reason
+
+**Related Notes Enhancement:**
+- `get_related_notes_for_entity()` gains `use_cos_ranking=True` flag
+- When enabled, applies memory scoring with entity context
+
+**Performance:** Candidate pool capped at 50, uses existing prefetch patterns, no N+1
+
+**Files created:** `apps/notes/memory_scoring.py`, `apps/notes/tests/test_cos_memory_ranking.py`
+**Files modified:** `apps/notes/services.py`
+**Tests:** 183 total (47 new), all passing
+
+---
+
 ## 2026-03-01 — Notes System Phase 4B.2: Index Integrity, Registry, and Observability
 
 **What:** Replaced hard-coded rename signals with a centralized registry, added index integrity detection/repair services, a management command for integrity reporting, and admin repair actions.

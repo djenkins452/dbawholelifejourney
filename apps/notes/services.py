@@ -294,7 +294,9 @@ def get_note_detail(*, user, note_id):
     return _build_citation_block(note)
 
 
-def get_related_notes_for_entity(*, user, content_type, object_id, limit=50):
+def get_related_notes_for_entity(
+    *, user, content_type, object_id, limit=50, use_cos_ranking=False
+):
     """
     Fetch notes attached to a specific entity.
 
@@ -303,9 +305,11 @@ def get_related_notes_for_entity(*, user, content_type, object_id, limit=50):
         content_type: String in "app_label.model" format (e.g., "life.task").
         object_id: The primary key of the entity.
         limit: Max results (default 50).
+        use_cos_ranking: If True, apply memory intelligence scoring and
+            include combined_score + reasons in each result.
 
     Returns:
-        List of citation_block dicts.
+        List of citation_block dicts (with scoring fields if use_cos_ranking).
     """
     parts = content_type.split(".")
     if len(parts) != 2:
@@ -327,7 +331,267 @@ def get_related_notes_for_entity(*, user, content_type, object_id, limit=50):
         .order_by("-is_pinned", "-updated_at")
     )[:limit]
 
-    return [_build_citation_block(note) for note in queryset]
+    if not use_cos_ranking:
+        return [_build_citation_block(note) for note in queryset]
+
+    # CoS ranking: score each note with entity context
+    from .memory_scoring import score_note
+
+    results = []
+    notes_list = list(queryset)
+    for note in notes_list:
+        block = _build_citation_block(note)
+        att_entity_ids = _get_note_attachment_entity_ids(note)
+        scoring = score_note(
+            fts_rank=0,
+            max_fts_rank=0,
+            updated_at=note.updated_at,
+            is_pinned=note.is_pinned,
+            note_attachment_entity_ids=att_entity_ids,
+            scoped_content_type_id=ct.pk,
+            scoped_object_id=object_id,
+            note_tag_names=[t.name for t in note.tags.all()],
+            query_tags=[],
+        )
+        block["combined_score"] = scoring["combined_score"]
+        block["reasons"] = scoring["reasons"]
+        results.append(block)
+
+    # Sort by combined_score descending
+    results.sort(key=lambda r: r["combined_score"], reverse=True)
+    return results
+
+
+def _get_note_attachment_entity_ids(note):
+    """
+    Get set of (content_type_id, object_id) tuples from a note's prefetched attachments.
+    """
+    return {
+        (att.content_type_id, att.object_id) for att in note.attachments.all()
+    }
+
+
+# ---------------------------------------------------------------------------
+# CoS Memory Intelligence search (Phase 4C)
+# ---------------------------------------------------------------------------
+
+_COS_CANDIDATE_POOL = 50  # Max candidates fetched from FTS before re-ranking
+
+
+def search_notes_cos(
+    user,
+    query,
+    *,
+    limit=10,
+    content_type=None,
+    object_id=None,
+    tags=None,
+    include_deleted=False,
+):
+    """
+    CoS-focused note search with memory intelligence ranking.
+
+    Runs full-text search to get candidates, then re-ranks using the
+    memory_scoring module. Returns enriched results with combined_score
+    and explainability reasons.
+
+    Args:
+        user: The requesting user.
+        query: Search string (may be blank for pinned+recent fallback).
+        limit: Max results to return (default 10).
+        content_type: Optional entity scope, "app_label.model" format.
+        object_id: Optional entity PK (requires content_type).
+        tags: Optional list of tag name strings for overlap boosting.
+        include_deleted: If True, include soft-deleted notes.
+
+    Returns:
+        dict with "query", "scope", "results" list.
+    """
+    from .memory_scoring import score_fallback_note, score_note
+
+    query_str = (query or "").strip()
+    scope = {}
+    scoped_ct_id = None
+    scoped_object_id = None
+
+    # Resolve entity scope
+    if content_type:
+        scope["content_type"] = content_type
+        parts = content_type.split(".")
+        if len(parts) == 2:
+            try:
+                ct = ContentType.objects.get(app_label=parts[0], model=parts[1])
+                scoped_ct_id = ct.pk
+                if object_id is not None:
+                    scoped_object_id = object_id
+                    scope["object_id"] = object_id
+            except ContentType.DoesNotExist:
+                pass
+
+    if tags:
+        scope["tags"] = tags
+
+    # Base queryset
+    if include_deleted:
+        base_qs = (
+            Note.all_objects.filter(user=user)
+            .prefetch_related(
+                "tags",
+                Prefetch(
+                    "attachments",
+                    queryset=NoteAttachment.objects.select_related("content_type"),
+                ),
+            )
+        )
+    else:
+        base_qs = _base_queryset(user)
+
+    # --- Blank query: return pinned + recent with fallback reasons ---
+    if not query_str:
+        return _cos_fallback_results(
+            base_qs, limit=limit, scope=scope, query_str=""
+        )
+
+    # --- FTS search: get candidate pool ---
+    search_query = SearchQuery(query_str, search_type="websearch")
+    candidates_qs = (
+        base_qs.filter(search_vector=search_query)
+        .annotate(
+            rank=SearchRank(F("search_vector"), search_query),
+            headline=SearchHeadline(
+                "body",
+                search_query,
+                start_sel="<mark>",
+                stop_sel="</mark>",
+                max_words=35,
+                min_words=15,
+            ),
+        )
+        .order_by("-rank")
+    )
+
+    # Entity scope filter: boost attached notes but also include non-attached
+    if scoped_ct_id and scoped_object_id:
+        # Include all candidates (entity scoring handles boosting)
+        pass
+
+    candidates = list(candidates_qs[:_COS_CANDIDATE_POOL])
+
+    # --- No FTS matches: fallback to pinned + recent ---
+    if not candidates:
+        return _cos_fallback_results(
+            base_qs, limit=limit, scope=scope, query_str=query_str,
+            is_fallback=True,
+        )
+
+    # --- Score and re-rank candidates ---
+    max_fts_rank = max(
+        (getattr(c, "rank", 0) or 0 for c in candidates), default=0
+    )
+
+    query_tokens = _tokenize(query_str)
+    scored_results = []
+
+    for note in candidates:
+        fts_rank = float(getattr(note, "rank", 0) or 0)
+        headline_val = str(getattr(note, "headline", "") or "")
+        tag_names = [t.name for t in note.tags.all()]
+        att_entity_ids = _get_note_attachment_entity_ids(note)
+
+        scoring = score_note(
+            fts_rank=fts_rank,
+            max_fts_rank=float(max_fts_rank),
+            updated_at=note.updated_at,
+            is_pinned=note.is_pinned,
+            note_attachment_entity_ids=att_entity_ids,
+            scoped_content_type_id=scoped_ct_id,
+            scoped_object_id=scoped_object_id,
+            note_tag_names=tag_names,
+            query_tags=tags or [],
+        )
+
+        # Build attachment summaries
+        attachment_names = []
+        for att in note.attachments.all():
+            display = att.attachment_display()
+            if display:
+                attachment_names.append(display)
+
+        matched_in = _compute_matched_in(query_tokens, note) if query_tokens else []
+
+        scored_results.append({
+            "note_id": note.pk,
+            "display_title": note.display_title,
+            "url": note.get_absolute_url(),
+            "headline": headline_val,
+            "rank_score": fts_rank,
+            "combined_score": scoring["combined_score"],
+            "reasons": scoring["reasons"],
+            "pinned": note.is_pinned,
+            "updated_at": note.updated_at,
+            "tags": tag_names,
+            "attachments_summary": attachment_names,
+            "matched_in": matched_in,
+        })
+
+    # Sort by combined_score descending
+    scored_results.sort(key=lambda r: r["combined_score"], reverse=True)
+
+    return {
+        "query": query_str,
+        "scope": scope,
+        "results": scored_results[:limit],
+    }
+
+
+def _cos_fallback_results(base_qs, *, limit, scope, query_str, is_fallback=False):
+    """
+    Build fallback results: pinned notes first, then most recent.
+
+    Used when query is blank or FTS returns no matches.
+    """
+    from .memory_scoring import score_fallback_note
+
+    fallback_qs = base_qs.order_by("-is_pinned", "-updated_at")[:limit]
+    results = []
+
+    for note in fallback_qs:
+        tag_names = [t.name for t in note.tags.all()]
+        attachment_names = []
+        for att in note.attachments.all():
+            display = att.attachment_display()
+            if display:
+                attachment_names.append(display)
+
+        scoring = score_fallback_note(
+            updated_at=note.updated_at,
+            is_pinned=note.is_pinned,
+        )
+
+        reasons = list(scoring["reasons"])
+        if is_fallback:
+            reasons.insert(0, "Fallback: no text matches found")
+
+        results.append({
+            "note_id": note.pk,
+            "display_title": note.display_title,
+            "url": note.get_absolute_url(),
+            "headline": "",
+            "rank_score": None,
+            "combined_score": scoring["combined_score"],
+            "reasons": reasons[:5],
+            "pinned": note.is_pinned,
+            "updated_at": note.updated_at,
+            "tags": tag_names,
+            "attachments_summary": attachment_names,
+            "matched_in": [],
+        })
+
+    return {
+        "query": query_str,
+        "scope": scope,
+        "results": results,
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Enhanced Redis startup logging with masked URL
+
+**What:** Startup log now shows full masked Redis URL including protocol, user, host, port, and DB (password replaced with `***`). Example: `rediss://default:***@host.railway.app:6379/1`
+
+**Files changed:**
+- `config/settings.py` — Enhanced cache startup log formatting
+
+**Why:** Previous log only showed `host:port/db`. Need to verify protocol (`redis://` vs `rediss://`) and full connection target.
+
+---
+
 ## 2026-02-28 — Fix Redis TLS: conditional ssl_cert_reqs for rediss:// URLs
 
 **What:** Only set `ssl_cert_reqs: None` when LOCATION starts with `rediss://`. Prevents passing SSL options to non-TLS connections. OPTIONS use lowercase names (correct for Django's built-in RedisCache, not django_redis).

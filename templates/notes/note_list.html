@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}Notes - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="notes-list">
+    <nav class="breadcrumb mb-4">
+        <span>Notes</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                Notes
+                {% include "components/favorite_toggle.html" with page_title="Notes" %}
+            </h1>
+            <p class="page-subtitle">{{ total_count }} note{{ total_count|pluralize }}</p>
+        </div>
+        <a href="{% url 'notes:note_create' %}" class="btn btn-primary" data-testid="notes-add-button">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            New Note
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-bar mb-6">
+        <form method="get" class="notes-filters-form" id="notes-filters-form">
+            <div class="filter-row">
+                <input type="text" name="search" value="{{ active_filters.search }}"
+                       placeholder="Search notes..." class="form-input form-input-sm"
+                       style="max-width: 280px;">
+
+                <select name="tag" class="form-select form-select-sm" data-auto-submit>
+                    <option value="">All Tags</option>
+                    {% for tag in tags %}
+                    <option value="{{ tag.id }}" {% if active_filters.tag == tag.id|stringformat:"d" %}selected{% endif %}>
+                        {{ tag.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+
+                <select name="color" class="form-select form-select-sm" data-auto-submit>
+                    <option value="">All Colors</option>
+                    {% for value, label in color_choices %}
+                    {% if value != "default" %}
+                    <option value="{{ value }}" {% if active_filters.color == value %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+
+                <label class="filter-checkbox-label">
+                    <input type="checkbox" name="pinned" value="1"
+                           {% if active_filters.pinned == "1" %}checked{% endif %}
+                           data-auto-submit>
+                    Pinned only
+                </label>
+
+                <button type="submit" class="btn btn-sm btn-secondary">Search</button>
+
+                {% if active_filters.search or active_filters.tag or active_filters.color or active_filters.pinned %}
+                <a href="{% url 'notes:note_list' %}" class="btn btn-sm btn-ghost">Clear</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    {% if notes %}
+    <div class="notes-grid">
+        {% for note in notes %}
+        <a href="{{ note.get_absolute_url }}" class="note-card note-color-{{ note.color }}" data-testid="note-card">
+            {% if note.is_pinned %}
+            <span class="pin-indicator">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="none">
+                    <path d="M16 2l-4.5 4.5L7 4 4 7l2.5 4.5L2 16l6 6 4.5-4.5L17 20l3-3-2.5-4.5L22 8z"/>
+                </svg>
+                Pinned
+            </span>
+            {% endif %}
+            {% if note.title %}
+            <h3 class="note-title">{{ note.title }}</h3>
+            {% endif %}
+            <p class="note-body-preview">{{ note.body_preview }}</p>
+            <div class="note-meta">
+                <span class="note-date">{{ note.updated_at|timesince }} ago</span>
+                {% if note.tags.exists %}
+                <div class="note-tags">
+                    {% for tag in note.tags.all %}
+                    <span class="tag-badge" style="background: {{ tag.color }}; color: #fff;">{{ tag.name }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <nav class="pagination mt-6">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if active_filters.search %}&search={{ active_filters.search }}{% endif %}{% if active_filters.tag %}&tag={{ active_filters.tag }}{% endif %}{% if active_filters.color %}&color={{ active_filters.color }}{% endif %}{% if active_filters.pinned %}&pinned={{ active_filters.pinned }}{% endif %}" class="btn btn-sm btn-secondary">Previous</a>
+        {% endif %}
+        <span class="pagination-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if active_filters.search %}&search={{ active_filters.search }}{% endif %}{% if active_filters.tag %}&tag={{ active_filters.tag }}{% endif %}{% if active_filters.color %}&color={{ active_filters.color }}{% endif %}{% if active_filters.pinned %}&pinned={{ active_filters.pinned }}{% endif %}" class="btn btn-sm btn-secondary">Next</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto var(--space-4); display: block; color: var(--color-text-muted);">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+        </svg>
+        <p>No notes yet. Start capturing your thoughts.</p>
+        <a href="{% url 'notes:note_create' %}" class="btn btn-primary" style="margin-top: var(--space-4);">Create Your First Note</a>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.notes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-4);
+}
+.note-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    text-decoration: none;
+    color: var(--color-text);
+    transition: box-shadow var(--transition-fast) ease, transform var(--transition-fast) ease;
+    display: flex;
+    flex-direction: column;
+    min-height: 120px;
+}
+.note-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+.note-color-red { border-left: 4px solid #ef4444; }
+.note-color-orange { border-left: 4px solid #f97316; }
+.note-color-yellow { border-left: 4px solid #eab308; }
+.note-color-green { border-left: 4px solid #22c55e; }
+.note-color-blue { border-left: 4px solid #3b82f6; }
+.note-color-purple { border-left: 4px solid #a855f7; }
+.note-color-pink { border-left: 4px solid #ec4899; }
+.pin-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-2);
+}
+.note-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 var(--space-2) 0;
+    line-height: 1.3;
+}
+.note-body-preview {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    margin: 0;
+    line-height: 1.5;
+    flex: 1;
+}
+.note-meta {
+    margin-top: var(--space-3);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border);
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+.note-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}
+.tag-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+    font-size: 0.65rem;
+    font-weight: 500;
+}
+.notes-filters-form .filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+.filter-checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+.empty-state {
+    text-align: center;
+    padding: var(--space-12) var(--space-4);
+    color: var(--color-text-muted);
+}
+@media (max-width: 480px) {
+    .notes-grid {
+        grid-template-columns: 1fr;
+    }
+    .notes-filters-form .filter-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .notes-filters-form .filter-row .form-input,
+    .notes-filters-form .filter-row .form-select {
+        max-width: 100% !important;
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('notes-filters-form');
+    if (!form) return;
+    form.querySelectorAll('[data-auto-submit]').forEach(function(el) {
+        el.addEventListener('change', function() {
+            form.submit();
+        });
+    });
+});
+</script>
+{% endblock %}

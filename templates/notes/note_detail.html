@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+
+{% block title %}{{ note.display_title }} - Notes{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: var(--content-max-width);">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'notes:note_list' %}">Notes</a>
+        <span>/</span>
+        <span>{{ note.display_title|truncatewords:5 }}</span>
+    </nav>
+
+    <div class="note-detail">
+        <div class="note-detail-header">
+            <div class="note-detail-title-area">
+                {% if note.is_pinned %}
+                <span class="pin-badge">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="none">
+                        <path d="M16 2l-4.5 4.5L7 4 4 7l2.5 4.5L2 16l6 6 4.5-4.5L17 20l3-3-2.5-4.5L22 8z"/>
+                    </svg>
+                    Pinned
+                </span>
+                {% endif %}
+                <h1 class="page-title">{{ note.display_title }}</h1>
+            </div>
+            <div class="note-detail-actions">
+                <form method="post" action="{% url 'notes:note_toggle_pin' note.pk %}" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ note.get_absolute_url }}">
+                    <button type="submit" class="btn btn-sm btn-ghost" title="{% if note.is_pinned %}Unpin{% else %}Pin{% endif %}">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="{% if note.is_pinned %}currentColor{% else %}none{% endif %}" stroke="currentColor" stroke-width="2">
+                            <path d="M16 2l-4.5 4.5L7 4 4 7l2.5 4.5L2 16l6 6 4.5-4.5L17 20l3-3-2.5-4.5L22 8z"/>
+                        </svg>
+                        {% if note.is_pinned %}Unpin{% else %}Pin{% endif %}
+                    </button>
+                </form>
+                <a href="{% url 'notes:note_update' note.pk %}" class="btn btn-sm btn-secondary">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    Edit
+                </a>
+                <form method="post" action="{% url 'notes:note_delete' note.pk %}" style="display: inline;" id="delete-note-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-danger" id="delete-note-btn">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                        Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Note body -->
+        <div class="note-detail-body {% if note.color != 'default' %}note-color-{{ note.color }}{% endif %}">
+            {{ note.body|linebreaksbr }}
+        </div>
+
+        <!-- Metadata -->
+        <div class="note-detail-meta">
+            <div class="meta-row">
+                <span class="meta-label">Created</span>
+                <span class="meta-value">{{ note.created_at|date:"M j, Y g:i A" }}</span>
+            </div>
+            <div class="meta-row">
+                <span class="meta-label">Updated</span>
+                <span class="meta-value">{{ note.updated_at|date:"M j, Y g:i A" }}</span>
+            </div>
+            <div class="meta-row">
+                <span class="meta-label">Words</span>
+                <span class="meta-value">{{ note.word_count }}</span>
+            </div>
+            {% if note.color != "default" %}
+            <div class="meta-row">
+                <span class="meta-label">Color</span>
+                <span class="meta-value">
+                    <span class="color-dot color-dot-{{ note.color }}"></span>
+                    {{ note.get_color_display }}
+                </span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Tags -->
+        {% if note.tags.exists %}
+        <div class="note-detail-tags">
+            <h3 class="section-label">Tags</h3>
+            <div class="note-tags">
+                {% for tag in note.tags.all %}
+                <a href="{% url 'notes:note_list' %}?tag={{ tag.id }}" class="tag-badge" style="background: {{ tag.color }}; color: #fff;">{{ tag.name }}</a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Attachments -->
+        {% if attachments %}
+        <div class="note-detail-attachments">
+            <h3 class="section-label">Linked Entities</h3>
+            <ul class="attachment-list">
+                {% for att in attachments %}
+                <li class="attachment-item">
+                    <span class="attachment-type">{{ att.content_type.name }}</span>
+                    <span class="attachment-name">{{ att.attached_entity|default:"Deleted" }}</span>
+                    <span class="attachment-date">{{ att.created_at|date:"M j, Y" }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.note-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+.note-detail-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+.pin-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: 0.7rem;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-1);
+}
+.note-detail-body {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+    line-height: 1.7;
+    font-size: 1rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+.note-detail-body.note-color-red { border-left: 4px solid #ef4444; }
+.note-detail-body.note-color-orange { border-left: 4px solid #f97316; }
+.note-detail-body.note-color-yellow { border-left: 4px solid #eab308; }
+.note-detail-body.note-color-green { border-left: 4px solid #22c55e; }
+.note-detail-body.note-color-blue { border-left: 4px solid #3b82f6; }
+.note-detail-body.note-color-purple { border-left: 4px solid #a855f7; }
+.note-detail-body.note-color-pink { border-left: 4px solid #ec4899; }
+.note-detail-meta {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+.meta-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-1) 0;
+    font-size: 0.875rem;
+}
+.meta-label {
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+.color-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-right: var(--space-1);
+}
+.color-dot-red { background: #ef4444; }
+.color-dot-orange { background: #f97316; }
+.color-dot-yellow { background: #eab308; }
+.color-dot-green { background: #22c55e; }
+.color-dot-blue { background: #3b82f6; }
+.color-dot-purple { background: #a855f7; }
+.color-dot-pink { background: #ec4899; }
+.section-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-2);
+}
+.note-detail-tags {
+    margin-bottom: var(--space-4);
+}
+.note-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+.tag-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-decoration: none;
+}
+.note-detail-attachments {
+    margin-bottom: var(--space-4);
+}
+.attachment-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.attachment-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-2);
+    font-size: 0.875rem;
+}
+.attachment-type {
+    background: var(--color-surface);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    text-transform: capitalize;
+    flex-shrink: 0;
+}
+.attachment-name {
+    flex: 1;
+}
+.attachment-date {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+@media (max-width: 480px) {
+    .note-detail-header {
+        flex-direction: column;
+    }
+    .note-detail-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+    .note-detail-body {
+        padding: var(--space-4);
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    var deleteBtn = document.getElementById('delete-note-btn');
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', function(e) {
+            if (!confirm('Delete this note? It can be restored within 30 days.')) {
+                e.preventDefault();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

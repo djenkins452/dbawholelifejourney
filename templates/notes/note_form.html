@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Note{% else %}New Note{% endif %} - Notes{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: var(--content-max-width);">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'notes:note_list' %}">Notes</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}New Note{% endif %}</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">{% if object %}Edit Note{% else %}New Note{% endif %}</h1>
+    </div>
+
+    <form method="post" class="note-form">
+        {% csrf_token %}
+
+        {% if form.errors %}
+        <div class="form-errors mb-4">
+            <p class="form-error">Please fix the errors below.</p>
+        </div>
+        {% endif %}
+
+        <div class="form-group">
+            <label for="{{ form.title.id_for_label }}" class="form-label">Title</label>
+            {{ form.title }}
+            <p class="form-help">Optional. Auto-generated from note body if left blank.</p>
+            {% if form.title.errors %}
+            <p class="form-error">{{ form.title.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.body.id_for_label }}" class="form-label">Note</label>
+            {{ form.body }}
+            <div class="form-help" id="note-word-count"></div>
+            {% if form.body.errors %}
+            <p class="form-error">{{ form.body.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <div class="form-row">
+            <div class="form-group" style="flex: 1;">
+                <label for="{{ form.color.id_for_label }}" class="form-label">Color</label>
+                {{ form.color }}
+            </div>
+            <div class="form-group" style="flex: 0;">
+                <label class="form-label">&nbsp;</label>
+                <label class="form-checkbox-label" style="padding: var(--space-2) 0;">
+                    {{ form.is_pinned }}
+                    <span>Pin this note</span>
+                </label>
+            </div>
+        </div>
+
+        {% if form.fields.tags.queryset.exists %}
+        <div class="form-group">
+            <label class="form-label">Tags</label>
+            <div class="tag-selector">
+                {% for checkbox in form.tags %}
+                <label class="tag-option">
+                    {{ checkbox.tag }}
+                    <span class="tag-name">{{ checkbox.choice_label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Create Note{% endif %}
+            </button>
+            {% if not object %}
+            <button type="submit" name="save_another" value="1" class="btn btn-secondary">
+                Save &amp; Add Another
+            </button>
+            {% endif %}
+            <a href="{% if object %}{{ object.get_absolute_url }}{% else %}{% url 'notes:note_list' %}{% endif %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.form-row {
+    display: flex;
+    gap: var(--space-4);
+    align-items: flex-start;
+}
+.form-checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.tag-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+.tag-option {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background var(--transition-fast) ease;
+}
+.tag-option:hover {
+    background: var(--color-surface);
+}
+.tag-option input[type="checkbox"]:checked + .tag-name {
+    font-weight: 600;
+}
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+@media (max-width: 480px) {
+    .form-row {
+        flex-direction: column;
+    }
+    .form-actions {
+        flex-direction: column;
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    var bodyField = document.getElementById('{{ form.body.id_for_label }}');
+    var wordCount = document.getElementById('note-word-count');
+    if (bodyField && wordCount) {
+        function updateWordCount() {
+            var text = bodyField.value.trim();
+            var count = text ? text.split(/\s+/).length : 0;
+            wordCount.textContent = count + ' word' + (count !== 1 ? 's' : '');
+        }
+        bodyField.addEventListener('input', updateWordCount);
+        updateWordCount();
+    }
+});
+</script>
+{% endblock %}

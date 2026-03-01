@@ -9,6 +9,35 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Notes System Phase 1: Core Infrastructure
+
+**What:** Implemented a new unified Notes system (apps.notes) as Phase 1 of a multi-phase initiative to replace external note apps and serve as WLJ's long-term memory layer.
+
+**Architecture:**
+- `Note` model (UserOwnedModel) with title, body, color, pinning, tags (M2M to core.Tag), word_count
+- `NoteAttachment` model with GenericForeignKey for attaching notes to any WLJ entity (many-to-many via join table)
+- Attachable model whitelist in `utils.py` restricting attachment targets to approved models
+- Full CRUD views (list/create/detail/update/delete) + pin toggle
+- Card-grid UI with color-coded borders, tag badges, pin indicators, filters (tag/color/pinned/search)
+- Admin with inline attachments, ModuleDefinition data migration for left rail navigation
+
+**Files created:**
+- `apps/notes/__init__.py`, `apps.py`, `models.py`, `views.py`, `urls.py`, `forms.py`, `admin.py`, `utils.py`
+- `apps/notes/migrations/0001_initial.py`
+- `apps/notes/tests/test_models.py` (16 tests), `apps/notes/tests/test_views.py` (14 tests)
+- `templates/notes/note_list.html`, `note_form.html`, `note_detail.html`
+- `apps/users/migrations/0069_add_notes_module_definition.py`
+
+**Files modified:**
+- `config/settings.py` — added `apps.notes` to INSTALLED_APPS
+- `config/urls.py` — registered `/notes/` URL namespace
+
+**Why:** Phase 1 of 5 to build an executive-grade notes system integrated with every WLJ module and the CoS intelligence layer. Future phases: search engine (2/3), CoS integration (4), note-to-object conversion (5).
+
+**Tests:** 45 tests, all passing.
+
+---
+
 ## 2026-03-01 — Fix Beth streaming: textContent for immediate token rendering (Phase C2 final)
 
 **What:** Rewrote streaming response handlers in both Beth chat templates to render tokens immediately instead of buffering.

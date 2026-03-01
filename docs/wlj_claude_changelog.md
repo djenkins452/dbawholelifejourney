@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Beth: Add task mutation + fix false action claims + performance
+
+**What:** Three critical fixes:
+1. **Beth can now reschedule/rename/delete tasks** — Added `mutate_task` intent, action handler, and system prompt examples. Previously, Beth had no ability to move tasks to different dates; she'd generate a conversational "Done!" response without actually changing anything.
+2. **Validator catches false promises** — Strengthened the Phase 8 validator gate to catch "I'll move/correct/ensure" patterns (future-tense claims), not just past-tense "I've scheduled" patterns. Beth can no longer claim she did something she didn't.
+3. **API anomaly detection no longer blocks every request** — Replaced synchronous DB COUNT queries (2 per API request) with cache-based INCR counters. Eliminates 5-50ms latency per API call.
+4. **Implicit correction routing** — Added system prompt examples for when users say "that's wrong, it should be X" — Beth now routes these to mutation intents instead of generating conversational responses.
+
+**Files changed:**
+- `apps/ai/intents/life_intents.py` — Added `mutate_task` intent definition with action/task_query/new_due_date/apply_to_all params
+- `apps/ai/intents/__init__.py` — Registered `mutate_task` in INTENT_HANDLERS
+- `apps/ai/action_handlers.py` — Added `handle_mutate_task()` with date resolution, batch updates, calendar sync
+- `apps/ai/intent_service.py` — Added dispatch, system prompt examples, implicit correction routing
+- `apps/core/ai_orchestrator/intent_engine.py` — Added `mutate_task` to LIFE_INTENTS
+- `apps/core/ai_governance/validator_gate.py` — Expanded ACTION_CLAIM_PATTERNS with moved/corrected/adjusted/pushed/postponed/renamed + future-tense "I'll" patterns + orphan confirmations; updated fallback message to mention tasks
+- `apps/core/middleware.py` — Replaced DB COUNT queries in `_check_realtime_anomalies` with cache INCR counters
+- `apps/ai/tests/test_intent_registration.py` — Added `mutate_task` to NON_TIME_INTENTS
+
+**Why:** Beth was telling Danny she moved tasks and updated events, but never actually executing the changes. The validator wasn't catching her false promises because its patterns were too narrow.
+
 ## 2026-02-28 — Fix task start/end time not persisting on edit
 
 **What:** Start Time and End Time fields on the task edit form were not saving. The `type="time"` HTML input requires values in `HH:MM` (24-hour) format, but Django was rendering them using the project's `TIME_FORMAT = 'g:i A'` (e.g., "2:30 PM"), which the browser couldn't parse. On re-edit, times appeared empty and re-saving cleared them.

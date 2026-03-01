@@ -438,36 +438,42 @@ class APIRequestLoggingMiddleware:
 
     def _check_realtime_anomalies(self, request, log_entry):
         """
-        Perform real-time anomaly checks on the current request.
+        Perform real-time anomaly checks using cache-based counters.
 
-        This checks:
+        Uses cache INCR instead of DB COUNT queries for performance.
+        Only falls back to DB queries when cache thresholds are exceeded.
+
+        Checks:
         1. Burst detection: Too many requests from same IP in short window
         2. Auth failure spike: Multiple auth failures in short window
         """
-        from apps.core.models import APIRequestLog
+        from django.core.cache import cache
         from apps.core.rate_limiting import get_client_ip
         from apps.core.security_logging import log_security_event
-        from django.utils import timezone
-        from datetime import timedelta
 
         ip = get_client_ip(request)
-        now = timezone.now()
-        five_min_ago = now - timedelta(minutes=5)
 
-        # Check for burst (>50 requests in 5 minutes from same IP)
-        recent_count = APIRequestLog.objects.filter(
-            ip_address=ip,
-            created_at__gte=five_min_ago
-        ).count()
+        # --- Burst detection via cache counter (no DB query) ---
+        burst_key = f"api_burst:{ip}"
+        try:
+            burst_count = cache.get(burst_key, 0)
+            if burst_count == 0:
+                cache.set(burst_key, 1, timeout=300)  # 5-minute window
+            else:
+                try:
+                    burst_count = cache.incr(burst_key)
+                except ValueError:
+                    cache.set(burst_key, 1, timeout=300)
+                    burst_count = 1
+        except Exception:
+            burst_count = 0  # Cache unavailable — skip check
 
-        if recent_count > 50:
-            # Flag as anomaly
+        if burst_count > 50:
             log_entry.is_anomaly = True
-            log_entry.anomaly_reason = f"Burst detected: {recent_count} requests in 5 minutes"
-            log_entry.anomaly_score = min(1.0, recent_count / 100)
+            log_entry.anomaly_reason = f"Burst detected: {burst_count} requests in 5 minutes"
+            log_entry.anomaly_score = min(1.0, burst_count / 100)
             log_entry.save()
 
-            # Log security event
             log_security_event(
                 event_type='api_anomaly',
                 details={
@@ -480,18 +486,26 @@ class APIRequestLoggingMiddleware:
                 request=request
             )
 
-        # Check for auth failure spike (>5 auth failures in 5 minutes)
+        # --- Auth failure spike via cache counter (no DB query) ---
         if log_entry.status_code in [401, 403]:
-            auth_failures = APIRequestLog.objects.filter(
-                ip_address=ip,
-                status_code__in=[401, 403],
-                created_at__gte=five_min_ago
-            ).count()
+            auth_key = f"api_auth_fail:{ip}"
+            try:
+                auth_count = cache.get(auth_key, 0)
+                if auth_count == 0:
+                    cache.set(auth_key, 1, timeout=300)
+                else:
+                    try:
+                        auth_count = cache.incr(auth_key)
+                    except ValueError:
+                        cache.set(auth_key, 1, timeout=300)
+                        auth_count = 1
+            except Exception:
+                auth_count = 0
 
-            if auth_failures > 5:
+            if auth_count > 5:
                 log_entry.is_anomaly = True
-                log_entry.anomaly_reason = f"Auth failure spike: {auth_failures} failures in 5 minutes"
-                log_entry.anomaly_score = min(1.0, auth_failures / 15)
+                log_entry.anomaly_reason = f"Auth failure spike: {auth_count} failures in 5 minutes"
+                log_entry.anomaly_score = min(1.0, auth_count / 15)
                 log_entry.save()
 
                 log_security_event(

@@ -51,9 +51,9 @@ VALIDATOR_CRASH_RESPONSE = (
 )
 
 UNVERIFIABLE_ACTION_CLAIM_RESPONSE = (
-    "I wasn't able to confirm that action was completed — no backend "
-    "change was executed. Could you try rephrasing your request? "
-    "I can create, update, reschedule, or remove calendar events."
+    "I wasn't able to complete that action. Could you try rephrasing "
+    "your request? I can create, update, reschedule, or remove both "
+    "tasks and calendar events."
 )
 
 
@@ -138,17 +138,23 @@ _NUMERIC_SAFE_PATTERNS = [
 # These ONLY trigger when action_executed=False (no tool actually ran).
 _ACTION_CLAIM_PATTERNS = [
     # Checkmark confirmations: "✓ Scheduled", "✓ Removed", "✓ Confirmed"
-    re.compile(r'[✓✔☑]\s*(?:scheduled|removed|confirmed|deleted|updated|rescheduled|added|created|cancelled|canceled)', re.IGNORECASE),
-    # "I've <past-tense action>"
-    re.compile(r"\bI'?ve\s+(?:scheduled|removed|deleted|added|rescheduled|updated|confirmed|created|cancelled|canceled|set\s+that|taken\s+care)", re.IGNORECASE),
-    # "I <past-tense action> it/that/the/your"
-    re.compile(r'\bI\s+(?:scheduled|removed|deleted|added|rescheduled|updated|confirmed|created|cancelled|canceled)\s+(?:it|that|the|your|those|both|all|them)\b', re.IGNORECASE),
-    # "It's set" / "It's been scheduled/removed"
-    re.compile(r"\bit'?s\s+(?:set|been\s+(?:scheduled|removed|deleted|updated|rescheduled|added|confirmed|created))\b", re.IGNORECASE),
+    re.compile(r'[✓✔☑]\s*(?:scheduled|removed|confirmed|deleted|updated|rescheduled|moved|changed|corrected|added|created|cancelled|canceled)', re.IGNORECASE),
+    # "I've <past-tense action>" — covers all mutation verbs
+    re.compile(r"\bI'?ve\s+(?:scheduled|removed|deleted|added|rescheduled|updated|confirmed|created|cancelled|canceled|moved|changed|corrected|adjusted|pushed|postponed|renamed|set\s+that|taken\s+care|ensured)", re.IGNORECASE),
+    # "I <past-tense action> it/that/the/your" — covers all mutation verbs
+    re.compile(r'\bI\s+(?:scheduled|removed|deleted|added|rescheduled|updated|confirmed|created|cancelled|canceled|moved|changed|corrected|adjusted|pushed|postponed|renamed)\s+(?:it|that|the|your|those|both|all|them)\b', re.IGNORECASE),
+    # "I'll <action> it/that/the/your/now" — promises to act (future tense)
+    re.compile(r"\bI'?ll\s+(?:schedule|remove|delete|add|reschedule|update|confirm|create|cancel|move|change|correct|adjust|push|postpone|rename|ensure|fix)\s+(?:it|that|the|your|those|both|all|them|this|now)\b", re.IGNORECASE),
+    # "I'll <action> now" / "I'll do that now"
+    re.compile(r"\bI'?ll\s+(?:do\s+that|take\s+care\s+of\s+(?:that|it|those)|(?:update|correct|fix|change|move|ensure)\s+(?:that|it|this))\s*(?:now|right\s+away)?\b", re.IGNORECASE),
+    # "It's set" / "It's been scheduled/removed/moved"
+    re.compile(r"\bit'?s\s+(?:set|done|been\s+(?:scheduled|removed|deleted|updated|rescheduled|moved|changed|corrected|added|confirmed|created))\b", re.IGNORECASE),
     # "I took care of that" / "I took care of it"
     re.compile(r'\bI\s+took\s+care\s+of\s+(?:that|it|those)\b', re.IGNORECASE),
     # Standalone "Done" as action completion (must be near start of sentence or alone)
     re.compile(r'(?:^|[.!]\s*)Done[.!]?\s*(?:$|[A-Z])', re.MULTILINE),
+    # "Rescheduled for" / "Moved to" — orphan confirmations without subject
+    re.compile(r'\b(?:Rescheduled|Moved|Changed|Updated|Pushed|Postponed)\s+(?:for|to)\s+(?:tomorrow|today|next|monday|tuesday|wednesday|thursday|friday|saturday|sunday)', re.IGNORECASE),
 ]
 
 

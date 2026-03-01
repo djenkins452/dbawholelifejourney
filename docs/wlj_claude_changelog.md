@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Fix Beth streaming: add typing indicator and per-token debug logging (Phase C2)
+
+**What:** Fixed two issues with the Beth streaming UI:
+1. Added `showTyping()` before the streaming fetch in both `chat_widget.html` and `assistant_panel.html` — previously there was zero visual feedback between clicking send and first token arriving (3-5 second gap felt like the UI was frozen)
+2. Added `console.log("STREAM TOKEN:", ...)` per token in both templates for debugging — confirms whether tokens arrive incrementally or all at once in the browser
+
+**Files changed:**
+- `templates/components/chat_widget.html` — Added showTyping() before streaming path, added console.log per token
+- `templates/components/assistant_panel.html` — Same changes
+
+**Why:** User reported "UI is buffering and rendering only after completion" despite network tab showing incremental token delivery. The typing indicator provides immediate visual feedback during context build. Console.log confirms per-token JS execution.
+
+---
+
 ## 2026-03-01 — Add Beth latency telemetry to identify send_message bottleneck
 
 **What:** Added four timing instrumentation points to `send_message()` and `_generate_response()` to identify the source of 11-second Beth response latency. Logs emit at WARNING level with `COS` prefix for easy Railway log filtering.

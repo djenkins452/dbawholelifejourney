@@ -1509,6 +1509,7 @@
         }
 
         // Text messages use streaming endpoint
+        showTyping();
         await sendMessageStreaming(message, sendContext, savedMessage);
     }
 
@@ -1572,6 +1573,7 @@
                 for (var i = 0; i < parsed.parsed.length; i++) {
                     var evt = parsed.parsed[i];
                     if (evt.event === 'token') {
+                        console.log("STREAM TOKEN:", evt.data.content);
                         fullText += evt.data.content;
                         updateStreamingMessage(msgEl, fullText);
                     } else if (evt.event === 'done') {

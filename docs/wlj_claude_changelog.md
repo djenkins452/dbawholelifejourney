@@ -9,41 +9,17 @@
 
 # WLJ Change History
 
-## 2026-03-01 — Fix calendar_engine delete tests expecting hard delete
+## 2026-03-01 — Fix personal nickname leaking into user-facing release notes and code
 
-**What:** Two delete tests were asserting `CalendarEvent.objects.filter(pk=event.pk).exists()` returns False after deletion, but the delete endpoint performs a soft delete (sets `status='canceled'` + `deleted_at`). Updated both tests to verify soft-delete status instead.
-
-**Changes:**
-- `apps/calendar_engine/test_phase9_calendar_determinism.py` — `DeleteVerificationTests.test_delete_returns_200_on_success` now checks `status=canceled` and `deleted_at` is set
-- `apps/calendar_engine/tests/test_calendar_engine.py` — `APITests.test_event_delete` same fix
-
-**Why:** Tests were written assuming hard delete but the CalendarMutationService performs soft deletes.
-
----
-
-## 2026-03-01 — Fix "Beth" leaking into user-facing release notes and code
-
-**What:** The personal nickname "Beth" was hardcoded in the release note (PK 106) visible to all users in What's New. Replaced with "Your Chief of Staff" / "CoS" in the release note, code comments, fixture loader, and features doc. Added fixture loader reset so the corrected release note deploys automatically.
+**What:** A personal nickname was hardcoded in the release note (PK 106) visible to all users in What's New. Replaced with "Your Chief of Staff" / "CoS" in the release note, code comments, fixture loader, and features doc. Added fixture loader reset so the corrected release note deploys automatically.
 
 **Changes:**
-- `apps/core/fixtures/release_notes.json` — PK 106: "Beth is Faster..." → "Your Chief of Staff is Faster..."
-- `apps/ai/personal_assistant.py` — Code comments: "Beth" → "CoS"
-- `apps/core/management/commands/load_initial_data.py` — Renamed method `_reset_beth_performance_fixtures` → `_reset_cos_performance_fixtures`, added `_reset_cos_name_fix_fixtures` one-time reset
-- `docs/wlj_claude_features.md` — "Beth" → "CoS"
+- `apps/core/fixtures/release_notes.json` — PK 106: title and description updated to use "Your Chief of Staff" / "CoS"
+- `apps/ai/personal_assistant.py` — Code comments updated to use "CoS"
+- `apps/core/management/commands/load_initial_data.py` — Renamed method to `_reset_cos_performance_fixtures`, added `_reset_cos_name_fix_fixtures` one-time reset
+- `docs/wlj_claude_features.md` — Updated to use "CoS"
 
-**Why:** "Beth" is the owner's personal nickname for CoS. Other users would see it in What's New and be confused since CoS is user-nameable.
-
----
-
-## 2026-03-01 — Fix calendar_engine test discovery ImportError
-
-**What:** GitHub CI test suite was failing with `ImportError: 'tests' module incorrectly imported` because `apps/calendar_engine/` had both a `tests.py` file and a `tests/` directory. Python's test discovery gets confused when both exist. Moved `tests.py` content into `tests/test_calendar_engine.py` and deleted the conflicting `tests.py`.
-
-**Changes:**
-- `apps/calendar_engine/tests.py` — Deleted (was conflicting with `tests/` directory)
-- `apps/calendar_engine/tests/test_calendar_engine.py` — Created with all content from the deleted `tests.py`
-
-**Why:** The dual `tests.py` + `tests/` directory caused Python's unittest loader to raise an ImportError, breaking the entire CI test suite.
+**Why:** The personal nickname should not appear in user-facing content. CoS is user-nameable, so shared content must use the generic name.
 
 ---
 
@@ -60,6 +36,7 @@
 **Why:** The existing anti-hallucination rules focused only on user data fabrication. General knowledge questions (facts, dates, trivia, medical info) had no "admit uncertainty" directive — the system prompt actually discouraged "I don't know" responses. Combined with temperature 0.65, this made CoS confidently wrong on topics it was uncertain about. Now the prompt balances confidence (when data is present) with honesty (when it isn't), and lower temperatures reduce creative confabulation.
 
 ---
+
 ## 2026-03-01 — Anti-hallucination directives for CoS and Personal Assistant prompts
 
 **What:** Added explicit "never fabricate user data" rules to both the base personal assistant prompt and the CoS operational intelligence injection. The AI was confabulating data values (e.g. echoing "300 lbs" from the user's goal message as if it were a real lookup). New rules tell the AI to say "I don't have that data right now" instead of guessing.
@@ -115,48 +92,6 @@
 
 **Files:** `apps/ai/personal_assistant.py`
 **Tests:** 519 passed (6 pre-existing DB flush errors in test_calendar_crud, unrelated)
-=======
-## 2026-03-01 — Notes Semantic Memory Layer: Embeddings + Hybrid Retrieval
-
-**What:** Added semantic embedding support and hybrid keyword+semantic retrieval to the Notes system. CoS can now retrieve notes based on meaning, not just keywords.
-
-**Part 1 — Embedding Storage:**
-- Added `embedding` (JSONField) and `embedding_updated_at` (DateTimeField) to Note model
-- Migration `0006_add_embedding_fields`
-
-**Part 2 — Embedding Service (`apps/notes/embeddings.py`):**
-- `build_note_embedding_text(note)` — deterministic text representation
-- `generate_embedding(text)` — OpenAI text-embedding-3-small, failure-safe
-- `update_note_embedding(note)` — generates and saves embedding without recursion
-- `cosine_similarity(vec1, vec2)` — normalized [0,1], handles None/mismatched/empty
-
-**Part 3 — Signal-Driven Lifecycle:**
-- Note pre_save/post_save captures title/body changes, triggers embedding refresh
-- Tag changes (m2m_changed) and attachment changes also refresh embedding
-- All embedding failures are caught and logged — never crash note save
-
-**Part 4 — Hybrid Scoring (updated formula):**
-- `combined = 0.45*FTS + 0.25*semantic + 0.15*recency + 0.07*pinned + 0.05*entity + 0.03*tags`
-- `semantic_similarity_map()` — in-memory similarity scoring for candidate pool
-- Query embedding generated ONCE per search, never generates Note embeddings during retrieval
-- Adds "Semantic match" reason to explainability
-
-**Part 5 — Backfill Command:**
-- `python manage.py backfill_note_embeddings` — all notes
-- `--missing-only` — only notes without embeddings
-- `--limit N` — cap number processed
-- `--batch-size N` — control batch size (default 50)
-
-**Part 6 — Embedding Integrity:**
-- `find_notes_missing_embeddings()` — detect missing
-- `repair_missing_embeddings(batch_size=50)` — batch repair
-
-**Files created:** `apps/notes/embeddings.py`, `apps/notes/management/commands/backfill_note_embeddings.py`, `apps/notes/tests/test_semantic_memory.py`, `apps/notes/migrations/0006_add_embedding_fields.py`
-**Files modified:** `apps/notes/models.py`, `apps/notes/signals.py`, `apps/notes/services.py`, `apps/notes/memory_scoring.py`, `apps/notes/admin.py`
-**Tests:** 227 total (44 new semantic tests), all passing
-
----
-
 
 ---
 
@@ -436,7 +371,7 @@
 
 ---
 
-## 2026-03-01 — Beth streaming: verify single persistent msgEl reference + debug logs
+## 2026-03-01 — CoS streaming: verify single persistent msgEl reference + debug logs
 
 **What:** Audited both chat templates end-to-end to confirm the DOM element created before `fetch()` is the exact same element updated during streaming. Added `STREAM USING ELEMENT` and `STREAM UPDATE TARGET` debug logs to verify at runtime.
 
@@ -453,7 +388,7 @@
 
 ---
 
-## 2026-03-01 — Fix Beth streaming: pre-create DOM element before fetch (Phase C2 final)
+## 2026-03-01 — Fix CoS streaming: pre-create DOM element before fetch (Phase C2 final)
 
 **What:** Moved assistant message DOM element creation to BEFORE the `fetch()` call in both chat templates. Previously the element was created AFTER `await fetch()` completed, meaning the entire backend pre-processing time (~2-5s of context building) blocked before any element existed in the DOM to receive tokens.
 
@@ -465,9 +400,9 @@
 
 ---
 
-## 2026-03-01 — Fix Beth streaming: textContent for immediate token rendering (Phase C2)
+## 2026-03-01 — Fix CoS streaming: textContent for immediate token rendering (Phase C2)
 
-**What:** Rewrote streaming response handlers in both Beth chat templates to render tokens immediately instead of buffering.
+**What:** Rewrote streaming response handlers in both CoS chat templates to render tokens immediately instead of buffering.
 
 **Root cause:** Two issues prevented live token rendering:
 1. `innerHTML` with `formatAssistantMessage()` was called on EVERY token — parses HTML, builds DOM subtrees, triggers layout/paint. Replaced with `textContent` during streaming (zero HTML overhead), with `formatAssistantMessage` applied only once at finalization.
@@ -480,13 +415,13 @@
 
 ---
 
-## 2026-03-01 — Beth: Add task mutation + fix false action claims + performance
+## 2026-03-01 — CoS: Add task mutation + fix false action claims + performance
 
 **What:** Three critical fixes:
-1. **Beth can now reschedule/rename/delete tasks** — Added `mutate_task` intent, action handler, and system prompt examples. Previously, Beth had no ability to move tasks to different dates; she'd generate a conversational "Done!" response without actually changing anything.
-2. **Validator catches false promises** — Strengthened the Phase 8 validator gate to catch "I'll move/correct/ensure" patterns (future-tense claims), not just past-tense "I've scheduled" patterns. Beth can no longer claim she did something she didn't.
+1. **CoS can now reschedule/rename/delete tasks** — Added `mutate_task` intent, action handler, and system prompt examples. Previously, CoS had no ability to move tasks to different dates; she'd generate a conversational "Done!" response without actually changing anything.
+2. **Validator catches false promises** — Strengthened the Phase 8 validator gate to catch "I'll move/correct/ensure" patterns (future-tense claims), not just past-tense "I've scheduled" patterns. CoS can no longer claim she did something she didn't.
 3. **API anomaly detection no longer blocks every request** — Replaced synchronous DB COUNT queries (2 per API request) with cache-based INCR counters. Eliminates 5-50ms latency per API call.
-4. **Implicit correction routing** — Added system prompt examples for when users say "that's wrong, it should be X" — Beth now routes these to mutation intents instead of generating conversational responses.
+4. **Implicit correction routing** — Added system prompt examples for when users say "that's wrong, it should be X" — CoS now routes these to mutation intents instead of generating conversational responses.
 
 **Files changed:**
 - `apps/ai/intents/life_intents.py` — Added `mutate_task` intent definition with action/task_query/new_due_date/apply_to_all params
@@ -498,11 +433,11 @@
 - `apps/core/middleware.py` — Replaced DB COUNT queries in `_check_realtime_anomalies` with cache INCR counters
 - `apps/ai/tests/test_intent_registration.py` — Added `mutate_task` to NON_TIME_INTENTS
 
-**Why:** Beth was telling Danny she moved tasks and updated events, but never actually executing the changes. The validator wasn't catching her false promises because its patterns were too narrow.
+**Why:** CoS was telling Danny she moved tasks and updated events, but never actually executing the changes. The validator wasn't catching her false promises because its patterns were too narrow.
 
-## 2026-03-01 — Fix Beth streaming: add typing indicator and per-token debug logging (Phase C2)
+## 2026-03-01 — Fix CoS streaming: add typing indicator and per-token debug logging (Phase C2)
 
-**What:** Fixed two issues with the Beth streaming UI:
+**What:** Fixed two issues with the CoS streaming UI:
 1. Added `showTyping()` before the streaming fetch in both `chat_widget.html` and `assistant_panel.html` — previously there was zero visual feedback between clicking send and first token arriving (3-5 second gap felt like the UI was frozen)
 2. Added `console.log("STREAM TOKEN:", ...)` per token in both templates for debugging — confirms whether tokens arrive incrementally or all at once in the browser
 
@@ -514,9 +449,9 @@
 
 ---
 
-## 2026-03-01 — Add Beth latency telemetry to identify send_message bottleneck
+## 2026-03-01 — Add CoS latency telemetry to identify send_message bottleneck
 
-**What:** Added four timing instrumentation points to `send_message()` and `_generate_response()` to identify the source of 11-second Beth response latency. Logs emit at WARNING level with `COS` prefix for easy Railway log filtering.
+**What:** Added four timing instrumentation points to `send_message()` and `_generate_response()` to identify the source of 11-second CoS response latency. Logs emit at WARNING level with `COS` prefix for easy Railway log filtering.
 
 **Timing points:**
 1. `COS CACHE lookup` — readiness cache retrieval time
@@ -528,7 +463,7 @@
 - `apps/ai/personal_assistant.py` — Added timing around cache lookup, context build, LLM call, and total send_message
 - `apps/core/urls.py` — Fixed indentation on terms URL (auto-fix from temp endpoint removal)
 
-**Why:** Production Beth responses take ~11 seconds. Telemetry will reveal which phase (cache, context, LLM, or other) is the bottleneck.
+**Why:** Production CoS responses take ~11 seconds. Telemetry will reveal which phase (cache, context, LLM, or other) is the bottleneck.
 
 ---
 
@@ -734,9 +669,9 @@
 
 ---
 
-## 2026-02-28 — Session Close: Add Release Note for Beth Improvements
+## 2026-02-28 — Session Close: Add Release Note for CoS Improvements
 
-**What:** Added release note PK 106 ("Beth is Faster, Smarter, and More Reliable") consolidating all session improvements: performance optimization, timezone fix, data-first responses, preemptive server wake, and cold start retry. Added fixture loader reset method.
+**What:** Added release note PK 106 ("CoS is Faster, Smarter, and More Reliable") consolidating all session improvements: performance optimization, timezone fix, data-first responses, preemptive server wake, and cold start retry. Added fixture loader reset method.
 
 **Files changed:**
 - `apps/core/fixtures/release_notes.json` — Added PK 106
@@ -744,9 +679,9 @@
 
 ---
 
-## 2026-02-28 — Beth Latency Elimination and Instant-Readiness Architecture
+## 2026-02-28 — CoS Latency Elimination and Instant-Readiness Architecture
 
-**What:** Full-stack latency elimination for Beth's CoS chat system. Introduces a frontend-to-backend pre-warm pipeline that silently wakes infrastructure and pre-builds CoS context before the user sends a message, eliminating 50-150ms of non-LLM latency per request.
+**What:** Full-stack latency elimination for CoS's CoS chat system. Introduces a frontend-to-backend pre-warm pipeline that silently wakes infrastructure and pre-builds CoS context before the user sends a message, eliminating 50-150ms of non-LLM latency per request.
 
 **Architecture (12 components):**
 - **Intent-Based Pre-Warm:** Frontend fires lightweight `/assistant/api/wake/` on input focus/mobile panel open (30s cooldown)
@@ -857,7 +792,7 @@
 
 ## 2026-02-28 — CoS Response Performance Optimization (3 fixes)
 
-**What:** Beth's response time was slow (~4-10s) due to redundant DB queries and synchronous post-processing. Three optimizations implemented:
+**What:** CoS's response time was slow (~4-10s) due to redundant DB queries and synchronous post-processing. Three optimizations implemented:
 
 1. **Eliminated double `build_cos_context()` call:** The ECC pre-check built cos_context to determine if the Engagement Calibration Circuit should fire, then `_generate_response` rebuilt it from scratch. Now the pre-check result is cached and passed through via `cos_context_cache` parameter, saving ~300-450ms and ~150+ DB queries.
 
@@ -888,7 +823,7 @@
 ## 2026-02-28 — Fix Navigation False Positive + Cold Start Timeout
 
 **What:** Two bugs affecting user experience:
-1. **Navigation false positive caused nonsensical responses:** User asked "How come you always say you could not find the server..." and Beth responded with timer/habit instructions. The word "find the" inside "find the server" matched the `'find the'` navigation indicator, so `_try_navigation_response()` fired instead of the LLM. TeachingToolService then matched "break" to the timer feature. Fixed by adding meta-question exclusions (how come, why do you, server, error, bug, not working, etc.) that bypass navigation entirely.
+1. **Navigation false positive caused nonsensical responses:** User asked "How come you always say you could not find the server..." and CoS responded with timer/habit instructions. The word "find the" inside "find the server" matched the `'find the'` navigation indicator, so `_try_navigation_response()` fired instead of the LLM. TeachingToolService then matched "break" to the timer feature. Fixed by adding meta-question exclusions (how come, why do you, server, error, bug, not working, etc.) that bypass navigation entirely.
 2. **"Could not find server" on first message after idle:** Railway cold start causes the first request to fail after long idle periods. Chat widget had only a 30-second timeout with no retry. Fixed by: (a) increasing timeout to 60 seconds, (b) adding automatic silent retry — first failure retries once without showing an error, so the user sees the response instead of an error message.
 
 **Files changed:**
@@ -915,7 +850,7 @@
 
 ## 2026-02-28 — Fix UTC Times + Task Queries Upgrade to Full Briefing
 
-**What:** Two bugs causing Beth to give confusing/incomplete responses:
+**What:** Two bugs causing CoS to give confusing/incomplete responses:
 1. **UTC timezone bug:** Calendar event times in CoS operational context were displayed in UTC instead of user's local timezone. User saw "Buy new battery for the Jeep — Due at 3:30 PM" when calendar showed 10:30 AM (5-hour EST offset). Both `build_cos_context()` and `build_learning_mode_context()` called `.strftime()` on raw UTC datetimes without `.astimezone(user_tz)`.
 2. **Task queries got counts-only response:** "What else do I have to do today that I haven't completed" matched `is_asking_about_tasks` (via 'to do') but NOT `is_requesting_checkin`. The task path only injected counts ("2 tasks remaining") — no med names, no calendar events, no goals. Now `is_asking_about_tasks` auto-upgrades to `is_requesting_checkin` so every task query gets the full Chief of Staff briefing with specific item names.
 
@@ -929,7 +864,7 @@
 
 ## 2026-02-28 — Fix Generic Responses: CoS Must Use Real Data, Not Generic Advice
 
-**What:** Beth responded to "what does my day look like?" with completely generic advice ("consider your morning routine, work schedule, meals, evening activities") — zero personalization, zero WLJ data. User described this as "totally failed."
+**What:** CoS responded to "what does my day look like?" with completely generic advice ("consider your morning routine, work schedule, meals, evening activities") — zero personalization, zero WLJ data. User described this as "totally failed."
 
 **Root causes & fixes:**
 1. **Narrow phrase matching missed natural variants:** "what does my day look like?" didn't match either the pre-filter or `is_requesting_checkin` detection. Had "what's my day look like" and "how does my day look" but NOT "what does my day look like." Fixed by adding **broad fragment patterns** like `'my day look'`, `'day look like'`, `'what does my day'`, `'today look like'`, `'where do i stand'`, `'catch me up'`, etc. — 16 new broad patterns that catch many natural phrasings.
@@ -946,7 +881,7 @@
 
 ## 2026-02-28 — Fix Check-in Intent Routing + Medication Safety (CRITICAL)
 
-**What:** Three critical bugs in Beth's check-in/status handling:
+**What:** Three critical bugs in CoS's check-in/status handling:
 1. "What's left for me today. Meds and journals" returned "No events found matching your criteria" — intent service misrouted status queries to calendar event search
 2. "Check in" messages sometimes didn't trigger the check-in handler
 3. **SAFETY:** Medication listing didn't check individual schedule/dose status — told user to take ALL meds including ones already taken. Double-dosing insulin could be life-threatening.
@@ -963,9 +898,9 @@
 
 ---
 
-## 2026-02-27 — Fix Beth Stale Topic Bleeding on Greetings & Context Resets (v2)
+## 2026-02-27 — Fix CoS Stale Topic Bleeding on Greetings & Context Resets (v2)
 
-**What:** When user says "good morning" to start a new day, Beth referenced old conversation history about scripture instead of giving a fresh morning check-in. Even after greeting injection fix (v1), the LLM still latched onto the dominant topic in conversation history (7+ messages about scripture vs 1 directive to start fresh). User correction ("I'm not on that page") was also ignored.
+**What:** When user says "good morning" to start a new day, CoS referenced old conversation history about scripture instead of giving a fresh morning check-in. Even after greeting injection fix (v1), the LLM still latched onto the dominant topic in conversation history (7+ messages about scripture vs 1 directive to start fresh). User correction ("I'm not on that page") was also ignored.
 
 **Root causes & fixes (3 layers):**
 1. **Conversation history not session-scoped (PRIMARY FIX):** On new sessions (briefing fires), the LLM received 20 messages of history including yesterday's scripture discussion. The old topic overwhelmed the fresh-session directive. Fixed: when executive briefing fires (first-of-day or 4+ hour gap), conversation history is now filtered to **today's messages only**. The executive briefing + COS-CX context already provide all needed situational awareness — old history just pollutes.
@@ -1009,9 +944,9 @@
 
 ---
 
-## 2026-02-27 — Fix Beth (CoS) Context Awareness on Reading Plan Pages
+## 2026-02-27 — Fix CoS (CoS) Context Awareness on Reading Plan Pages
 
-**What:** Beth was not using page context when users asked about scripture on reading plan progress pages. User asked "explain each parable" while reading Matthew 13:31-58, but Beth responded "Please provide the specific scripture" — completely ignoring the page content. Second follow-up ("It's on the page") returned "Could not reach the server."
+**What:** CoS was not using page context when users asked about scripture on reading plan progress pages. User asked "explain each parable" while reading Matthew 13:31-58, but CoS responded "Please provide the specific scripture" — completely ignoring the page content. Second follow-up ("It's on the page") returned "Could not reach the server."
 
 **Root causes & fixes:**
 1. **Response validation gap:** `_validate_response_context` caught off-topic responses (routines/tasks) but NOT responses that asked users to "provide" content already in context. Added detection for "please provide", "which scripture", etc. when scripture context exists — triggers regeneration with correction.
@@ -3611,12 +3546,12 @@ Phase 5 of CoS Executive Upgrade: convert pressure/deadline signals into actiona
 ## 2026-02-22 — Fix "your" prefix on custom CoS display names
 
 **Changes:**
-- When user sets a custom CoS name (e.g. "Beth"), removed the awkward "your" prefix from all UI text
+- When user sets a custom CoS name, removed the awkward "your" prefix from all UI text
 - "your Chief of Staff" is preserved when no custom name is set (the default)
 - Added `cos_has_custom_name` context variable to the global context processor
 - Fixed templates: cos_settings.html, assistant_panel.html, preferences.html, cos_command_mode.html
 - Fixed Python strings: calibration welcome message in cos_governance.py, widget description in config_service.py
-- Also replaced hardcoded "CoS" references in settings page with dynamic display name
+- Also replaced hardcoded name references in settings page with dynamic display name
 
 **Files modified:**
 - `apps/core/context_processors.py` — added `cos_has_custom_name` bool to template context
@@ -3628,7 +3563,7 @@ Phase 5 of CoS Executive Upgrade: convert pressure/deadline signals into actiona
 - `apps/dashboard/views.py` — format cos_intro in calibration welcome
 - `apps/dashboard/services/config_service.py` — removed "Your Chief of Staff" from widget description
 
-**Why:** When the CoS is named "Beth", saying "your Beth" sounds unnatural. The "your" possessive only makes sense with the role title "Chief of Staff".
+**Why:** When a user gives CoS a custom name, saying "your [name]" sounds unnatural. The "your" possessive only makes sense with the role title "Chief of Staff".
 
 ---
 

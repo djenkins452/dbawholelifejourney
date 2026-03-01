@@ -9,6 +9,42 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Notes System Phase 3: CoS-Ready Memory Indexing
+
+**What:** Expanded the Notes search index to include tag names and attachment context, making notes a true "memory index" for CoS recall.
+
+**Changes:**
+- Added `tags_text` and `attachments_text` denormalized `TextField` on Note model
+- Search vector now indexes: title (A), body (B), tags_text (C), attachments_text (C)
+- `NoteAttachment.attachment_display()` builds stable display strings (e.g., "Project: Morning routine refinement")
+- Django signals keep index consistent: `m2m_changed` for tags, `post_save`/`post_delete` for NoteAttachments
+- Helper methods: `rebuild_tags_text()`, `rebuild_attachments_text()`, `refresh_search_index()`
+- Backfill data migration populates denormalized fields and recomputes search vectors for all existing notes
+- Searching "devotional" now finds notes tagged #devotional even if body doesn't contain the term
+- Searching "Morning routine" finds notes attached to that task entity
+- Entity display resolution uses priority chain: display_title > title > name > str(obj)
+
+**Weight choice:** Attachments use weight C (same as tags) because they represent contextual metadata, not primary content. Title (A) > body (B) > tags/attachments (C) ranking is preserved.
+
+**Known limitation:** If an attached entity's title/name is renamed, the note's `attachments_text` is not auto-updated until the attachment is re-created or a manual refresh is run. Recommendation: Phase 4 should add a periodic refresh task or a signal on entity save.
+
+**Files created:**
+- `apps/notes/signals.py` — m2m_changed + post_save/post_delete signal handlers
+- `apps/notes/migrations/0004_add_tags_text_attachments_text.py` — schema migration
+- `apps/notes/migrations/0005_backfill_tags_text_attachments_text_search_vector.py` — data backfill
+
+**Files modified:**
+- `apps/notes/models.py` — tags_text, attachments_text fields; rebuild/refresh helpers; attachment_display()
+- `apps/notes/apps.py` — ready() imports signals module
+- `apps/notes/utils.py` — improved get_entity_display_name with priority chain
+- `apps/notes/admin.py` — tags_text + attachments_text as readonly fields
+- `apps/notes/tests/test_models.py` — 13 new tests for search index consistency
+- `apps/notes/tests/test_views.py` — 4 new tests for tag/attachment search via views
+
+**Tests:** 69 total (16 new Phase 3), all passing.
+
+---
+
 ## 2026-03-01 — Notes System Phase 2: PostgreSQL Full-Text Search
 
 **What:** Added PostgreSQL full-text search with ranked results to the Notes system.

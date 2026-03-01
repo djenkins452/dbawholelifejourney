@@ -244,8 +244,8 @@ class HeartbeatCalculatorTest(TestCase):
 
     def test_heartbeat_missed_when_overdue(self):
         """Engine with very old last run should be MISSED."""
-        # UAL cadence = 300s, jitter = 120s → MISSED after 420s
-        _create_engine_run("UAL", minutes_ago=30)  # 1800s > 420s
+        # UAL cadence = 1800s (30m), jitter = 900s (15m) → MISSED after 2700s (45m)
+        _create_engine_run("UAL", minutes_ago=50)  # 3000s > 2700s
 
         from apps.core.ai_observability.heartbeat import compute_heartbeats
         heartbeats = compute_heartbeats()
@@ -257,12 +257,12 @@ class HeartbeatCalculatorTest(TestCase):
 
     def test_heartbeat_late_in_jitter_window(self):
         """Engine within jitter window should be LATE."""
-        # UAL cadence = 300s (5m), jitter = 120s
-        # Run 6 minutes ago → 360s since last run
-        # next_expected = run_time + 300s, now = run_time + 360s
-        # deadline = next_expected + 120s = run_time + 420s
-        # 360s > 300s (next_expected) but < 420s (deadline) → LATE
-        _create_engine_run("UAL", minutes_ago=6)
+        # UAL cadence = 1800s (30m), jitter = 900s (15m)
+        # Run 35 minutes ago → 2100s since last run
+        # next_expected = run_time + 1800s, now = run_time + 2100s
+        # deadline = next_expected + 900s = run_time + 2700s
+        # 2100s > 1800s (next_expected) but < 2700s (deadline) → LATE
+        _create_engine_run("UAL", minutes_ago=35)
 
         from apps.core.ai_observability.heartbeat import compute_heartbeats
         heartbeats = compute_heartbeats()
@@ -306,7 +306,7 @@ class HeartbeatCalculatorTest(TestCase):
             EngineExpectedCadence.objects.filter(engine_name="UAL").exists()
         )
         ual = EngineExpectedCadence.objects.get(engine_name="UAL")
-        self.assertEqual(ual.expected_interval_seconds, 300)
+        self.assertEqual(ual.expected_interval_seconds, 1800)
 
     def test_db_cadence_overrides_default(self):
         """Database cadence config overrides hardcoded defaults."""
@@ -971,7 +971,7 @@ class IntegrityScoreCalculationTest(TestCase):
         self.assertIn("engine_health", snapshot.components)
 
     def test_score_drops_with_p1_anomaly(self):
-        """P1 anomaly penalizes score by ~25 points."""
+        """P1 anomaly penalizes score by ~15 points."""
         for engine in ["UAL", "SAE", "PIE", "PRIE", "PGE", "ICQG", "DBE", "WIRE", "DNE"]:
             _create_engine_run(engine, minutes_ago=1)
 
@@ -987,8 +987,8 @@ class IntegrityScoreCalculationTest(TestCase):
         hbs = compute_heartbeats()
         snapshot = _compute_integrity_snapshot(hbs, timezone.now())
 
-        # Score should be reduced by P1 penalty (~25)
-        self.assertLess(snapshot.score, 80.0)
+        # Score should be reduced by P1 penalty (~15)
+        self.assertLess(snapshot.score, 90.0)
         self.assertIn(snapshot.posture, ["NOMINAL", "DEGRADED"])
 
     def test_score_drops_with_missed_engines(self):
@@ -1137,16 +1137,16 @@ class EscalationStateMachineTest(TestCase):
     """Test anomaly escalation logic."""
 
     def test_p3_promotes_to_p2_after_10_minutes(self):
-        """P3 anomaly older than 10 minutes promotes to P2."""
+        """P3 anomaly older than 30 minutes promotes to P2."""
         now = timezone.now()
         anomaly = OpsAnomaly.objects.create(
             severity="P3", anomaly_type="CONFIDENCE_VOLATILITY",
             engine_name="UAL", summary="test volatility",
             is_active=True, original_severity="P3",
         )
-        # Backdate created_at to 15 minutes ago
+        # Backdate created_at to 35 minutes ago
         OpsAnomaly.objects.filter(id=anomaly.id).update(
-            created_at=now - timedelta(minutes=15)
+            created_at=now - timedelta(minutes=35)
         )
 
         from apps.core.ai_observability.same_engine import _escalate_anomalies
@@ -1159,8 +1159,8 @@ class EscalationStateMachineTest(TestCase):
         self.assertEqual(anomaly.original_severity, "P3")
         self.assertIsNotNone(anomaly.last_escalated_at)
 
-    def test_p2_promotes_to_p1_after_20_minutes(self):
-        """P2 anomaly older than 20 minutes promotes to P1."""
+    def test_p2_promotes_to_p1_after_60_minutes(self):
+        """P2 anomaly older than 60 minutes promotes to P1."""
         now = timezone.now()
         anomaly = OpsAnomaly.objects.create(
             severity="P2", anomaly_type="ERROR_SPIKE",
@@ -1168,7 +1168,7 @@ class EscalationStateMachineTest(TestCase):
             is_active=True, original_severity="P2",
         )
         OpsAnomaly.objects.filter(id=anomaly.id).update(
-            created_at=now - timedelta(minutes=25)
+            created_at=now - timedelta(minutes=65)
         )
 
         from apps.core.ai_observability.same_engine import _escalate_anomalies
@@ -1196,7 +1196,7 @@ class EscalationStateMachineTest(TestCase):
         self.assertEqual(escalated, 0)
 
     def test_no_duplicate_escalations(self):
-        """Cooldown prevents re-escalation within 5 minutes."""
+        """Cooldown prevents re-escalation within 15 minutes."""
         now = timezone.now()
         anomaly = OpsAnomaly.objects.create(
             severity="P3", anomaly_type="CONFIDENCE_VOLATILITY",
@@ -1204,7 +1204,7 @@ class EscalationStateMachineTest(TestCase):
             is_active=True, original_severity="P3",
         )
         OpsAnomaly.objects.filter(id=anomaly.id).update(
-            created_at=now - timedelta(minutes=15)
+            created_at=now - timedelta(minutes=35)
         )
 
         from apps.core.ai_observability.same_engine import _escalate_anomalies
@@ -1227,7 +1227,7 @@ class EscalationStateMachineTest(TestCase):
             is_active=True, original_severity="P3",
         )
         OpsAnomaly.objects.filter(id=anomaly.id).update(
-            created_at=now - timedelta(minutes=15)
+            created_at=now - timedelta(minutes=35)
         )
 
         from apps.core.ai_observability.same_engine import _escalate_anomalies
@@ -1335,13 +1335,13 @@ class CadenceTimelineTest(TestCase):
     def test_cadence_includes_expected_ticks(self):
         """Cadence timeline includes expected cadence ticks."""
         _login_staff(self.client, self.staff)
-        response = self.client.get("/admin-console/ops/cadence/?engine=UAL&minutes=30")
+        response = self.client.get("/admin-console/ops/cadence/?engine=UAL&minutes=120")
         data = response.json()
 
         timeline = data["timelines"]["UAL"]
         self.assertIn("expected_ticks", timeline)
-        # UAL has 5m cadence, so in 30 min there should be ~6 ticks
-        self.assertGreaterEqual(len(timeline["expected_ticks"]), 5)
+        # UAL has 30m cadence, so in 120 min there should be ~4 ticks
+        self.assertGreaterEqual(len(timeline["expected_ticks"]), 3)
 
     def test_cadence_forbidden_for_non_staff(self):
         """Non-staff users get 403."""

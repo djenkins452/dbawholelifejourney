@@ -834,11 +834,11 @@ class OpsAnomaliesTests(TestCase):
         from apps.core.ai_observability.models import EngineRun
         from apps.core.ai_observability.ops_anomalies import _check_engine_silence
 
-        # UAL cadence is 300s. Last run 2000s ago = > 3x cadence
+        # UAL cadence is 1800s. Last run 6000s ago = > 3x cadence
         now = timezone.now()
         EngineRun.objects.create(
             trace_id="old-run", engine_name="UAL", phase=3,
-            started_at=now - timedelta(seconds=2000), duration_ms=10,
+            started_at=now - timedelta(seconds=6000), duration_ms=10,
             status="success",
         )
 

@@ -9,6 +9,28 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Recalibrate Command Center scoring for personal app usage
+
+**What:** The Intelligence Command Center was perpetually showing DEGRADED (score ~44) because the monitoring thresholds were calibrated for a high-availability production system. Request-triggered engines (UAL, SAE, PIE) had 5-minute cadence expectations, so any period of app inactivity beyond 7 minutes triggered MISSED status, which cascaded into P1 anomalies via aggressive escalation timers.
+
+**Fix:**
+- Increased UAL/SAE/PIE cadence from 5m to 30m with 15m jitter (request-triggered engines don't need 5m expectations)
+- Slowed escalation timers: P3→P2 at 30min (was 10min), P2→P1 at 60min (was 20min), cooldown 15min (was 5min)
+- Reduced penalty weights: P1 from 25→15, P2 from 10→7, P3 from 3→2 points
+- Reduced engine health max penalty from 40→30, anomaly cap from 50→40
+- Updated all related tests to match new thresholds
+
+**Files:**
+- `apps/core/ai_observability/ops_aggregates.py` — Engine cadences
+- `apps/core/ai_observability/heartbeat.py` — Jitter table
+- `apps/core/ai_observability/same_engine.py` — Escalation rules, penalty weights, integrity scoring
+- `apps/core/ai_observability/tests_diagnostics.py` — Test data adjustments
+- `apps/core/ai_observability/tests_ops_wall_v2.py` — Test threshold adjustments
+
+**Why:** The system was crying wolf — showing degraded status during normal usage patterns. Now the score accurately reflects actual system health rather than penalizing normal inactivity.
+
+---
+
 ## 2026-03-01 — Fix Notes search stealing cursor on no results
 
 **What:** Typing in the Notes search box (e.g. "horse") would trigger a debounced full-page reload after 2 characters. If "ho" returned no results, the page reloaded with the empty state and the cursor left the search box — user couldn't keep typing without re-clicking.

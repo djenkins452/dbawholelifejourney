@@ -1004,6 +1004,10 @@ if not DEBUG or env("REDIS_URL", default=""):
             "LOCATION": _cache_redis_url,
             "TIMEOUT": 300,
             "KEY_PREFIX": "wlj",
+            "OPTIONS": {
+                "socket_connect_timeout": 3,
+                "socket_timeout": 3,
+            },
         },
     }
 else:

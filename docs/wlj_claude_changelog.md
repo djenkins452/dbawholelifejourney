@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Add 3s Redis connection timeout to prevent deploy hangs
+
+**What:** Added `socket_connect_timeout: 3` and `socket_timeout: 3` to Redis cache config. Without this, each cache operation waits 30+ seconds for a timeout when Redis is unreachable, causing 100+ record fixture loads to hang for an hour.
+
+**Files changed:**
+- `config/settings.py` — Added OPTIONS with socket timeouts to CACHES config
+
+**Why:** Previous fix caught Redis errors silently, but each call still waited 30s for timeout. 100 records × 2 calls × 30s = deploy hangs for ~100 minutes.
+
+---
+
 ## 2026-02-28 — Make help model cache.delete() resilient to Redis failures
 
 **What:** Wrapped all `cache.delete()` calls in help model `save()` methods with try/except. When Redis is unreachable during deploy, the cache clear is best-effort — the DB save succeeds and the timeout doesn't crash the process. Also fixed duplicate `save()` method on HelpArticle.

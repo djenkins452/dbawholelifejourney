@@ -1461,8 +1461,12 @@
         "fields": {
             "title": "Intelligence Notifications",
             "description": "WLJ now proactively delivers guidance, daily briefings, and weekly reports via an in-app notification bell. Configure quiet hours and rate limits to control when and how often you receive intelligence notifications.",
+            "entry_type": "feature",
             "version": "2026.02.15f",
+            "release_date": "2026-02-15",
+            "is_published": true,
             "is_major": true,
+            "learn_more_url": "",
             "created_at": "2026-02-15T00:00:00Z",
             "updated_at": "2026-02-15T00:00:00Z"
         }
@@ -1473,8 +1477,12 @@
         "fields": {
             "title": "Intelligence Command Center",
             "description": "A unified intelligence dashboard that brings together your current state, active guidance, daily briefing, weekly report, predictions, and delivery history \u2014 all in one place with explainability links.",
+            "entry_type": "feature",
             "version": "2026.02.15g",
+            "release_date": "2026-02-15",
+            "is_published": true,
             "is_major": true,
+            "learn_more_url": "",
             "created_at": "2026-02-15T00:00:00Z",
             "updated_at": "2026-02-15T00:00:00Z"
         }

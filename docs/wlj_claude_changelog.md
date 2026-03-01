@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Fix release_notes.json missing fields causing site outage
+
+**What:** Release notes pk=41 and pk=42 were missing required fields (`entry_type`, `release_date`, `is_published`, `learn_more_url`), causing a not-null constraint violation on `release_date` during fixture loading. This prevented the site from starting.
+
+**Files changed:**
+- `apps/core/fixtures/release_notes.json` — Added missing fields to pk=41 and pk=42
+
+**Why:** Site was down — fixture loading failed on deploy due to incomplete release note records.
+
+---
+
 ## 2026-02-28 — Session Close: Add Release Note for Beth Improvements
 
 **What:** Added release note PK 106 ("Beth is Faster, Smarter, and More Reliable") consolidating all session improvements: performance optimization, timezone fix, data-first responses, preemptive server wake, and cold start retry. Added fixture loader reset method.

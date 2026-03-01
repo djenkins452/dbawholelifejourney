@@ -9,14 +9,14 @@
 
 # WLJ Change History
 
-## 2026-03-01 — Fix: CoS chat missing weight data in system prompt
+## 2026-03-01 — Fix: CoS chat weight data — use live DB query instead of stale state cache
 
-**What:** CoS AI assistants couldn't see user weight data — responded with "I don't have any weight entries" despite the user having many entries. Weight was collected in the state engine and assembled in `transformation_metrics` but never rendered into the system prompt injection.
+**What:** Follow-up fix. First fix added weight from state cache (`get_state_value`), but the cache was stale/empty, causing the AI to hallucinate weight values from conversation context. Switched to direct DB query of `WeightEntry` table — same pattern used by all other vitals (HR, BP, glucose, etc.). Now includes exact weight value, date, trend (computed live from 30-day comparison), and weight goal from HealthProfile.
 
 **Changes:**
-- `apps/core/ai_orchestrator/cos_context.py` — Added weight_current, weight_unit, weight_trend to health_signals dict; added weight goal data from HealthProfile; added weight + weight goal rendering in system prompt injection (before sleep/steps/HR)
+- `apps/core/ai_orchestrator/cos_context.py` — Replaced `get_state_value('health.weight_*')` with direct `WeightEntry.objects.filter(user=user).order_by('-recorded_at').first()` query; compute trend live; include weight date in prompt; pull weight goal from HealthProfile directly
 
-**Why:** Users discussing weight goals with their CoS persona got incorrect responses because the AI literally couldn't see the data. Now CoS sees current weight, trend, and goal progress.
+**Why:** State cache values were empty/stale, AI confabulated "300 lbs" from the user's goal mention. Live DB query guarantees accuracy.
 
 ---
 

@@ -8,6 +8,8 @@ Purpose: Unified notes system with entity attachment support
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVector, SearchVectorField
 from django.db import models
 from django.urls import reverse
 
@@ -61,6 +63,7 @@ class Note(UserOwnedModel):
         help_text="Pinned notes appear first in the list.",
     )
     word_count = models.PositiveIntegerField(default=0, editable=False)
+    search_vector = SearchVectorField(null=True, editable=False)
 
     class Meta:
         ordering = ["-is_pinned", "-updated_at"]
@@ -75,6 +78,10 @@ class Note(UserOwnedModel):
                 fields=["user", "color"],
                 name="notes_user_color",
             ),
+            GinIndex(
+                fields=["search_vector"],
+                name="notes_search_vector_gin",
+            ),
         ]
 
     def __str__(self):
@@ -86,6 +93,17 @@ class Note(UserOwnedModel):
         else:
             self.word_count = 0
         super().save(*args, **kwargs)
+        # Update search vector after save (separate UPDATE to avoid recursion)
+        self._update_search_vector()
+
+    def _update_search_vector(self):
+        """Rebuild the search_vector from title (A) and body (B)."""
+        Note.objects.filter(pk=self.pk).update(
+            search_vector=(
+                SearchVector("title", weight="A")
+                + SearchVector("body", weight="B")
+            )
+        )
 
     def get_absolute_url(self):
         return reverse("notes:note_detail", kwargs={"pk": self.pk})

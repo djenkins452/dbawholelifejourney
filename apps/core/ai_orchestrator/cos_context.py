@@ -959,6 +959,14 @@ def format_cos_system_injection(context):
         "their world. Act like it."
     )
     lines.append("")
+    lines.append(
+        "HONESTY RULE: ONLY state facts that appear in the data below. "
+        "If a data point is missing from this context, say 'I don't have that "
+        "data right now' — NEVER guess, estimate, or echo back a number the user "
+        "mentioned as if you looked it up. Wrong data destroys trust. "
+        "Saying 'I don't have that' is ALWAYS better than making something up."
+    )
+    lines.append("")
 
     # Language rules (what terms to avoid)
     try:

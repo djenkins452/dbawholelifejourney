@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Anti-hallucination directives for CoS and Personal Assistant prompts
+
+**What:** Added explicit "never fabricate user data" rules to both the base personal assistant prompt and the CoS operational intelligence injection. The AI was confabulating data values (e.g. echoing "300 lbs" from the user's goal message as if it were a real lookup). New rules tell the AI to say "I don't have that data right now" instead of guessing.
+
+**Changes:**
+- `apps/ai/personal_assistant.py` — Added "ABSOLUTE RULE: NEVER FABRICATE USER DATA" section with specific anti-hallucination examples (don't echo user's numbers back, don't fabricate dates/values/trends, say "I don't have that" instead)
+- `apps/core/ai_orchestrator/cos_context.py` — Added "HONESTY RULE" directive in operational intelligence header, reinforcing that only data present in context should be stated as fact
+
+**Why:** The existing prompt heavily discouraged "I don't know" responses (Trust Principle), which backfired when data was actually missing — the AI would fabricate instead of admitting the gap. Now both instincts are balanced: use real data when you have it, admit when you don't.
+
+---
+
 ## 2026-03-01 — Fix: CoS chat weight data — use live DB query instead of stale state cache
 
 **What:** Follow-up fix. First fix added weight from state cache (`get_state_value`), but the cache was stale/empty, causing the AI to hallucinate weight values from conversation context. Switched to direct DB query of `WeightEntry` table — same pattern used by all other vitals (HR, BP, glucose, etc.). Now includes exact weight value, date, trend (computed live from 30-day comparison), and weight goal from HealthProfile.

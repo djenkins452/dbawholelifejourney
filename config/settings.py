@@ -986,22 +986,11 @@ APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
 # Worker command: celery -A config worker --loglevel=info --concurrency=2
 # Beat command:   celery -A config beat --loglevel=info
 
-# Redis URL — Construct from Railway component variables (REDISHOST, REDISPORT,
-# REDISUSER, REDISPASSWORD) for reliable internal networking. Falls back to
-# REDIS_URL env var, then localhost for development.
-_redis_host = os.environ.get("REDISHOST")
-_redis_port = os.environ.get("REDISPORT", "6379")
-_redis_user = os.environ.get("REDISUSER", "default")
-_redis_password = os.environ.get("REDISPASSWORD")
-
-if _redis_host and _redis_password:
-    # Constructed from Railway component variables — most reliable
-    REDIS_URL = f"redis://{_redis_user}:{_redis_password}@{_redis_host}:{_redis_port}/0"
-    _redis_source = "REDISHOST"
-else:
-    # Fallback to REDIS_URL env var (Railway auto-set or local dev)
-    REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
-    _redis_source = "REDIS_URL"
+# Redis URL — Prefer REDIS_PUBLIC_URL (TLS/rediss://) for cache connectivity,
+# fall back to REDIS_URL (internal), then localhost for development.
+REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
+_REDIS_CACHE_BASE = os.environ.get("REDIS_PUBLIC_URL") or REDIS_URL
+_redis_source = "REDIS_PUBLIC_URL" if os.environ.get("REDIS_PUBLIC_URL") else "REDIS_URL"
 
 # ==============================================================================
 # Django Cache Framework — CoS Readiness Cache + General Caching
@@ -1024,7 +1013,7 @@ if _disable_redis:
     }
 elif not DEBUG or env("REDIS_URL", default=""):
     # Production / CI / dev-with-Redis: use Redis DB 1 (Celery uses DB 0)
-    _cache_redis_url = REDIS_URL.rsplit("/", 1)[0] + "/1" if "/" in REDIS_URL else REDIS_URL + "/1"
+    _cache_redis_url = _REDIS_CACHE_BASE.rsplit("/", 1)[0] + "/1" if "/" in _REDIS_CACHE_BASE else _REDIS_CACHE_BASE + "/1"
     CACHES = {
         "default": {
             "BACKEND": "apps.core.cache_backend.SafeRedisCache",
@@ -1036,6 +1025,7 @@ elif not DEBUG or env("REDIS_URL", default=""):
                 "socket_timeout": 0.5,
                 "retry_on_timeout": False,
                 "health_check_interval": 30,
+                "ssl_cert_reqs": None,  # Required for Railway TLS (rediss://)
             },
         },
     }

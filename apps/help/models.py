@@ -96,11 +96,8 @@ class HelpTopic(models.Model):
     def save(self, *args, **kwargs):
         self.updated_at = timezone.now()
         super().save(*args, **kwargs)
-        try:
-            cache.delete(f'help_topic_{self.context_id}')
-            cache.delete('help_topics_all')
-        except Exception:
-            pass  # Best-effort cache clear — don't crash if Redis is unreachable
+        cache.delete(f'help_topic_{self.context_id}')
+        cache.delete('help_topics_all')
 
     @classmethod
     def get_by_context(cls, context_id):
@@ -202,11 +199,8 @@ class AdminHelpTopic(models.Model):
     def save(self, *args, **kwargs):
         self.updated_at = timezone.now()
         super().save(*args, **kwargs)
-        try:
-            cache.delete(f'admin_help_topic_{self.context_id}')
-            cache.delete('admin_help_topics_all')
-        except Exception:
-            pass  # Best-effort cache clear
+        cache.delete(f'admin_help_topic_{self.context_id}')
+        cache.delete('admin_help_topics_all')
 
     @classmethod
     def get_by_context(cls, context_id):
@@ -287,10 +281,7 @@ class HelpCategory(models.Model):
     def save(self, *args, **kwargs):
         self.updated_at = timezone.now()
         super().save(*args, **kwargs)
-        try:
-            cache.delete('help_categories_active')
-        except Exception:
-            pass  # Best-effort cache clear
+        cache.delete('help_categories_active')
 
     @classmethod
     def get_active_categories(cls):
@@ -396,11 +387,8 @@ class HelpArticle(models.Model):
     def save(self, *args, **kwargs):
         self.updated_at = timezone.now()
         super().save(*args, **kwargs)
-        try:
-            cache.delete('help_articles_all')
-            cache.delete(f'help_articles_module_{self.module}')
-        except Exception:
-            pass  # Best-effort cache clear
+        cache.delete('help_articles_all')
+        cache.delete(f'help_articles_module_{self.module}')
 
     @property
     def keywords_list(self):
@@ -610,10 +598,7 @@ class TeachingDestination(models.Model):
     def save(self, *args, **kwargs):
         self.updated_at = timezone.now()
         super().save(*args, **kwargs)
-        try:
-            cache.delete('teaching_destinations_all')
-        except Exception:
-            pass  # Best-effort cache clear
+        cache.delete('teaching_destinations_all')
 
     @property
     def keywords_list(self):

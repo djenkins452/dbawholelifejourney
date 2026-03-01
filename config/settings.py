@@ -1000,7 +1000,7 @@ if not DEBUG or env("REDIS_URL", default=""):
     _cache_redis_url = REDIS_URL.rsplit("/", 1)[0] + "/1" if "/" in REDIS_URL else REDIS_URL + "/1"
     CACHES = {
         "default": {
-            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "BACKEND": "apps.core.cache_backend.SafeRedisCache",
             "LOCATION": _cache_redis_url,
             "TIMEOUT": 300,
             "KEY_PREFIX": "wlj",

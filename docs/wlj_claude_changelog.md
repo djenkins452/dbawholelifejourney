@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-28 — SafeRedisCache: site survives Redis outages
+
+**What:** Created `SafeRedisCache` backend that catches all Redis connection errors and returns cache-miss defaults instead of crashing. Every `cache.get()` returns `None`, every `cache.set()`/`cache.delete()` silently fails. The site degrades to DB-only (slower but functional) instead of crashing with 500 errors. Reverted per-method try/except wraps in help models (now handled at backend level).
+
+**Files changed:**
+- `apps/core/cache_backend.py` — New SafeRedisCache backend
+- `config/settings.py` — Switched BACKEND to SafeRedisCache
+- `apps/help/models.py` — Reverted try/except wraps (backend handles it)
+- `apps/core/models.py` — Reverted try/except wraps (backend handles it)
+
+**Why:** Redis connectivity issue was crashing every page request via context_processors → SiteConfiguration.get_solo() → cache.get() → Redis timeout → 500. Even the 500 error page crashed (infinite loop).
+
+---
+
 ## 2026-02-28 — Add 3s Redis connection timeout to prevent deploy hangs
 
 **What:** Added `socket_connect_timeout: 3` and `socket_timeout: 3` to Redis cache config. Without this, each cache operation waits 30+ seconds for a timeout when Redis is unreachable, causing 100+ record fixture loads to hang for an hour.

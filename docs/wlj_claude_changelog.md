@@ -9,6 +9,36 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Notes System Phase 2: PostgreSQL Full-Text Search
+
+**What:** Added PostgreSQL full-text search with ranked results to the Notes system.
+
+**Changes:**
+- Added `SearchVectorField` to Note model with GIN index for fast search
+- Search vector auto-populated on save with weighted fields: title (A), body (B)
+- NoteListView uses `SearchQuery`, `SearchRank`, and `SearchHeadline` for ranked results with highlighted snippets
+- Debounced search input (400ms) for near-real-time filtering
+- `websearch` query type supports natural language queries (AND/OR/NOT)
+- Created `safe_headline` template filter to safely render search highlights (XSS-safe)
+- Backfill data migration populates search vectors for all existing notes
+
+**Files created:**
+- `apps/notes/migrations/0002_note_search_vector_note_notes_search_vector_gin.py` — field + GIN index
+- `apps/notes/migrations/0003_populate_search_vector.py` — backfill data migration
+- `apps/notes/templatetags/__init__.py`, `notes_tags.py` — safe_headline filter
+
+**Files modified:**
+- `apps/notes/models.py` — SearchVectorField, GinIndex, auto-update in save()
+- `apps/notes/views.py` — Full-text search with SearchQuery/SearchRank/SearchHeadline
+- `apps/notes/admin.py` — search_vector in readonly_fields
+- `templates/notes/note_list.html` — Search UI with debounced input, headline highlighting, search-specific empty state
+- `apps/notes/tests/test_models.py` — 3 new search tests (vector populated, updates on edit, title weighted higher)
+- `apps/notes/tests/test_views.py` — 5 new search tests (matching, ranking, user isolation, no results, with filters)
+
+**Tests:** 53 tests, all passing.
+
+---
+
 ## 2026-03-01 — Notes System Phase 1: Core Infrastructure
 
 **What:** Implemented a new unified Notes system (apps.notes) as Phase 1 of a multi-phase initiative to replace external note apps and serve as WLJ's long-term memory layer.

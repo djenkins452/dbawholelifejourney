@@ -10,7 +10,8 @@ import logging
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Q
+from django.contrib.postgres.search import SearchHeadline, SearchQuery, SearchRank
+from django.db.models import F, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views import View
@@ -50,11 +51,33 @@ class NoteListView(HelpContextMixin, LoginRequiredMixin, ListView):
         if pinned == "1":
             queryset = queryset.filter(is_pinned=True)
 
-        search = self.request.GET.get("search")
+        # Full-text search with ranking
+        search = self.request.GET.get("q", "").strip()
         if search:
-            queryset = queryset.filter(
-                Q(title__icontains=search) | Q(body__icontains=search)
+            search_query = SearchQuery(search, search_type="websearch")
+            queryset = (
+                queryset.filter(search_vector=search_query)
+                .annotate(
+                    rank=SearchRank(F("search_vector"), search_query),
+                    headline=SearchHeadline(
+                        "body",
+                        search_query,
+                        start_sel="<mark>",
+                        stop_sel="</mark>",
+                        max_words=35,
+                        min_words=15,
+                    ),
+                )
+                .order_by("-rank", "-is_pinned", "-updated_at")
             )
+        else:
+            # Fallback: basic icontains for the legacy "search" param
+            legacy_search = self.request.GET.get("search", "").strip()
+            if legacy_search:
+                queryset = queryset.filter(
+                    Q(title__icontains=legacy_search)
+                    | Q(body__icontains=legacy_search)
+                )
 
         return queryset.distinct()
 
@@ -62,12 +85,15 @@ class NoteListView(HelpContextMixin, LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["tags"] = Tag.objects.filter(user=self.request.user)
         context["color_choices"] = Note.COLOR_CHOICES
+        search_q = self.request.GET.get("q", "")
         context["active_filters"] = {
             "tag": self.request.GET.get("tag", ""),
             "color": self.request.GET.get("color", ""),
             "pinned": self.request.GET.get("pinned", ""),
+            "q": search_q,
             "search": self.request.GET.get("search", ""),
         }
+        context["is_searching"] = bool(search_q)
         context["total_count"] = Note.objects.filter(user=self.request.user).count()
         return context
 

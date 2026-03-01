@@ -34,7 +34,7 @@ class NoteAdmin(admin.ModelAdmin):
     raw_id_fields = ["user"]
     date_hierarchy = "created_at"
     ordering = ["-created_at"]
-    readonly_fields = ["created_at", "updated_at", "deleted_at", "word_count"]
+    readonly_fields = ["created_at", "updated_at", "deleted_at", "word_count", "search_vector"]
     filter_horizontal = ["tags"]
     inlines = [NoteAttachmentInline]
 

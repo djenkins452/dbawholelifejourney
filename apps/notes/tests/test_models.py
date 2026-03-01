@@ -134,6 +134,58 @@ class NoteModelTest(TestCase):
         self.assertEqual(my_notes.count(), 1)
         self.assertEqual(my_notes.first().body, "My note")
 
+    def test_search_vector_populated_on_save(self):
+        """search_vector is populated after save."""
+        note = Note.objects.create(
+            user=self.user, title="DevOps Strategy", body="Kubernetes deployment plan"
+        )
+        note.refresh_from_db()
+        self.assertIsNotNone(note.search_vector)
+
+    def test_search_vector_updates_on_edit(self):
+        """search_vector updates when note body changes."""
+        note = Note.objects.create(user=self.user, body="Original content alpha")
+        note.body = "Updated content beta"
+        note.save()
+        note.refresh_from_db()
+        # Search for the new content should work
+        from django.contrib.postgres.search import SearchQuery
+
+        found = Note.objects.filter(
+            user=self.user, search_vector=SearchQuery("beta")
+        )
+        self.assertEqual(found.count(), 1)
+        # Old content should not match
+        not_found = Note.objects.filter(
+            user=self.user, search_vector=SearchQuery("alpha")
+        )
+        self.assertEqual(not_found.count(), 0)
+
+    def test_search_vector_title_weighted_higher(self):
+        """Notes matching in title rank higher than body-only matches."""
+        from django.contrib.postgres.search import SearchQuery, SearchRank
+        from django.db.models import F
+
+        Note.objects.create(
+            user=self.user,
+            title="Kubernetes",
+            body="Some general deployment notes",
+        )
+        Note.objects.create(
+            user=self.user,
+            title="General notes",
+            body="We discussed Kubernetes options",
+        )
+        query = SearchQuery("kubernetes")
+        results = (
+            Note.objects.filter(user=self.user, search_vector=query)
+            .annotate(rank=SearchRank(F("search_vector"), query))
+            .order_by("-rank")
+        )
+        self.assertEqual(results.count(), 2)
+        # Title match should rank higher
+        self.assertEqual(results.first().title, "Kubernetes")
+
 
 class NoteAttachmentModelTest(TestCase):
     """Tests for the NoteAttachment model."""

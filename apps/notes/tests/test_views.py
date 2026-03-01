@@ -112,6 +112,81 @@ class NoteListViewTest(NoteViewTestMixin, TestCase):
         self.assertTrue(notes.first().is_pinned)
 
 
+class NoteFullTextSearchViewTest(NoteViewTestMixin, TestCase):
+    """Tests for full-text search via the ?q= parameter."""
+
+    def test_fulltext_search_returns_matching_notes(self):
+        """Full-text search finds notes containing the query."""
+        Note.objects.create(
+            user=self.user, title="Kubernetes Strategy", body="Deploy to production"
+        )
+        Note.objects.create(
+            user=self.user, body="Grocery list for the week"
+        )
+        response = self.client.get(reverse("notes:note_list") + "?q=kubernetes")
+        self.assertEqual(response.status_code, 200)
+        notes = response.context["notes"]
+        self.assertEqual(len(list(notes)), 1)
+        self.assertContains(response, "Kubernetes")
+
+    def test_fulltext_search_ranks_title_higher(self):
+        """Title matches rank above body-only matches."""
+        Note.objects.create(
+            user=self.user,
+            title="DevOps pipeline",
+            body="General infrastructure notes",
+        )
+        Note.objects.create(
+            user=self.user,
+            title="Meeting notes",
+            body="We discussed the DevOps pipeline improvements",
+        )
+        response = self.client.get(reverse("notes:note_list") + "?q=devops+pipeline")
+        notes = list(response.context["notes"])
+        self.assertEqual(len(notes), 2)
+        # Title match should be first
+        self.assertEqual(notes[0].title, "DevOps pipeline")
+
+    def test_fulltext_search_respects_user_isolation(self):
+        """Full-text search only returns the current user's notes."""
+        other = User.objects.create_user(
+            email="search_other@example.com", password="testpass123"
+        )
+        Note.objects.create(user=self.user, body="Secret project notes")
+        Note.objects.create(user=other, body="Secret project info from other")
+        response = self.client.get(reverse("notes:note_list") + "?q=secret+project")
+        notes = list(response.context["notes"])
+        self.assertEqual(len(notes), 1)
+        self.assertEqual(notes[0].user, self.user)
+
+    def test_fulltext_search_no_results(self):
+        """Search with no matches returns empty list."""
+        Note.objects.create(user=self.user, body="Regular everyday note")
+        response = self.client.get(
+            reverse("notes:note_list") + "?q=zzzyyyxxx"
+        )
+        notes = list(response.context["notes"])
+        self.assertEqual(len(notes), 0)
+        self.assertTrue(response.context["is_searching"])
+
+    def test_fulltext_search_with_filters(self):
+        """Full-text search works alongside tag/color filters."""
+        tag = Tag.objects.create(user=self.user, name="work", color="#3b82f6")
+        note1 = Note.objects.create(
+            user=self.user, body="Deployment strategy for work", color="blue"
+        )
+        note1.tags.add(tag)
+        Note.objects.create(
+            user=self.user, body="Deployment strategy personal", color="green"
+        )
+        response = self.client.get(
+            reverse("notes:note_list") + f"?q=deployment&tag={tag.id}"
+        )
+        notes = list(response.context["notes"])
+        self.assertEqual(len(notes), 1)
+        self.assertEqual(notes[0].color, "blue")
+
+
 class NoteCreateViewTest(NoteViewTestMixin, TestCase):
     """Tests for creating notes."""
 

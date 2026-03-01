@@ -344,7 +344,7 @@ class SiteConfiguration(models.Model):
         super().save(*args, **kwargs)
         # Clear cache when saved
         cache.delete('site_configuration')
-    
+
     @classmethod
     def get_solo(cls):
         """

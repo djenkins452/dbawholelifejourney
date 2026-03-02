@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Fix: Celery worker fallback for pantry scan processing
+
+**What:** Celery task was dispatched to Redis but the worker service hadn't been redeployed with the new `apps.meals.tasks` module, so tasks silently failed. Added sync fallback safety nets: (1) On the confirm page GET, if session is >30s old with unprocessed uploads, processes them synchronously. (2) On the status poll endpoint, processes one upload per poll request for incremental progress. This ensures photos are always processed regardless of Celery worker state.
+
+**Files modified:**
+- `apps/meals/views.py` — PantryScanConfirmView and PantryScanStatusView now have sync fallback processing when Celery worker appears stuck
+
+---
+
 ## 2026-03-02 — Async pantry scan: Celery background processing + real-time progress
 
 **What:** Moved Vision API photo processing from synchronous (blocking the HTTP request for 30-150s) to async via Celery task. The request now returns instantly after saving images, and the confirm page polls a status endpoint every 3 seconds showing a live progress bar until processing completes, then auto-reloads with detections.

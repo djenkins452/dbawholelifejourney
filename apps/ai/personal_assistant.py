@@ -2334,6 +2334,31 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 else:
                     # Response wasn't yes/no, ask again
                     response = f"Please confirm: {intent_service._build_confirmation_message(pending['intent_type'], pending['parameters'])} (yes/no)"
+            # Then check for pending entity clarification (disambiguation)
+            elif (clarification := intent_service.get_pending_clarification(self.user)):
+                clarification_result = intent_service.resolve_clarification(
+                    self.user, message,
+                )
+                if clarification_result:
+                    response = (
+                        clarification_result.message
+                        + self._format_confirmation_detail(clarification_result)
+                    )
+                    if clarification_result.success:
+                        actions_taken.append(
+                            self._build_action_taken(clarification_result)
+                        )
+                else:
+                    # Could not resolve — re-show numbered options
+                    candidates = clarification['candidates']
+                    numbered = [
+                        f"{i + 1}. {c['title']}"
+                        for i, c in enumerate(candidates)
+                    ]
+                    response = (
+                        "I'm not sure which one you mean. "
+                        "Please choose:\n" + "\n".join(numbered)
+                    )
             else:
                 # ── Pre-filter: Check-in / status queries ──────────────────
                 # These MUST be caught BEFORE the intent service, because the
@@ -2466,6 +2491,24 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                 for action_result in orch_actions:
                                     if action_result.success:
                                         actions_taken.append(self._build_action_taken(action_result))
+
+                                # Store clarification state for any multiple_matches
+                                for ar in orch_actions:
+                                    if (ar.error == 'multiple_matches'
+                                            and ar.created_object
+                                            and ar.created_object.get('candidates')):
+                                        _match_intent = next(
+                                            (ir for ir in actionable_intents
+                                             if ir.intent_type == ar.action_type),
+                                            None,
+                                        )
+                                        if _match_intent:
+                                            intent_service.store_pending_clarification(
+                                                self.user,
+                                                intent_type=_match_intent.intent_type,
+                                                parameters=_match_intent.parameters,
+                                                candidates=ar.created_object['candidates'],
+                                            )
 
                                 # Use orchestrator enhanced response if available
                                 if orch_result.response:
@@ -4955,6 +4998,48 @@ Rules for this response:
                     except Exception:
                         pass
 
+                # ── Pending clarification check (entity disambiguation) ──
+                if not _direct_response:
+                    try:
+                        from apps.ai.intent_service import intent_service
+                        _stream_clarification = (
+                            intent_service.get_pending_clarification(self.user)
+                        )
+                        if _stream_clarification:
+                            _clar_result = (
+                                intent_service.resolve_clarification(
+                                    self.user, message,
+                                )
+                            )
+                            if _clar_result:
+                                _direct_response = (
+                                    _clar_result.message
+                                    + self._format_confirmation_detail(
+                                        _clar_result
+                                    )
+                                )
+                                if _clar_result.success:
+                                    actions_taken.append(
+                                        self._build_action_taken(_clar_result)
+                                    )
+                            else:
+                                # Re-show numbered options
+                                _cands = _stream_clarification['candidates']
+                                _numbered = [
+                                    f"{i + 1}. {c['title']}"
+                                    for i, c in enumerate(_cands)
+                                ]
+                                _direct_response = (
+                                    "I'm not sure which one you mean. "
+                                    "Please choose:\n"
+                                    + "\n".join(_numbered)
+                                )
+                    except Exception as clar_err:
+                        logger.warning(
+                            "Streaming clarification check failed: %s",
+                            clar_err, exc_info=True,
+                        )
+
                 # ── Intent recognition (mirrors send_message Phase 7) ──
                 # Run intent recognition BEFORE streaming so action
                 # requests (create task, delete event, etc.) are handled
@@ -5020,6 +5105,36 @@ Rules for this response:
                                         )
                                     )
                                 _direct_response = ' '.join(parts)
+
+                                # Store clarification state for multiple_matches
+                                for ar in orch_actions:
+                                    if (ar.error == 'multiple_matches'
+                                            and ar.created_object
+                                            and ar.created_object.get(
+                                                'candidates'
+                                            )):
+                                        _mi = next(
+                                            (ir for ir in actionable
+                                             if ir.intent_type
+                                             == ar.action_type),
+                                            None,
+                                        )
+                                        if _mi:
+                                            intent_service \
+                                                .store_pending_clarification(
+                                                    self.user,
+                                                    intent_type=(
+                                                        _mi.intent_type
+                                                    ),
+                                                    parameters=(
+                                                        _mi.parameters
+                                                    ),
+                                                    candidates=(
+                                                        ar.created_object[
+                                                            'candidates'
+                                                        ]
+                                                    ),
+                                                )
                     except Exception as intent_err:
                         logger.error(
                             "send_message_stream intent error: %s",

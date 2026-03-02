@@ -1206,6 +1206,115 @@ Examples:
         cache_key = f"pending_intent_{user.id}"
         cache.delete(cache_key)
 
+    # ── Pending Clarification (entity disambiguation) ──────────────
+
+    def store_pending_clarification(
+        self, user, intent_type: str, parameters: dict,
+        candidates: list, ttl: int = 300,
+    ):
+        """
+        Store a pending clarification (multiple-matches disambiguation).
+
+        Args:
+            user: The User model instance
+            intent_type: e.g., 'mutate_task', 'complete_task'
+            parameters: Original intent parameters (action, task_query, etc.)
+            candidates: List of dicts [{'id': int, 'title': str}, ...]
+            ttl: Time to live in seconds (default 5 minutes)
+        """
+        cache_key = f"pending_clarification_{user.id}"
+        cache.set(cache_key, {
+            'intent_type': intent_type,
+            'parameters': parameters,
+            'candidates': candidates,
+            'timestamp': timezone.now().isoformat(),
+        }, ttl)
+
+    def get_pending_clarification(self, user) -> Optional[Dict]:
+        """Retrieve a pending clarification from cache, or None."""
+        cache_key = f"pending_clarification_{user.id}"
+        return cache.get(cache_key)
+
+    def clear_pending_clarification(self, user):
+        """Clear any pending clarification for a user."""
+        cache_key = f"pending_clarification_{user.id}"
+        cache.delete(cache_key)
+
+    def resolve_clarification(self, user, response: str) -> Optional[ActionResult]:
+        """
+        Try to resolve a pending clarification from the user's response.
+
+        Matching strategy (against stored candidate titles):
+        1. Number selection: "1", "#1", "the first one", "first"
+        2. Exact case-insensitive match
+        3. Prefix match
+        4. Substring match
+
+        Returns:
+            ActionResult if resolved and executed, or None if no match.
+        """
+        pending = self.get_pending_clarification(user)
+        if not pending:
+            return None
+
+        candidates = pending['candidates']
+        response_lower = response.strip().lower()
+
+        # ── Number selection ──
+        ordinals = {
+            'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5,
+            'the first one': 1, 'the second one': 2, 'the third one': 3,
+            'the fourth one': 4, 'the fifth one': 5,
+        }
+        number = ordinals.get(response_lower)
+        if number is None:
+            # Try numeric: "1", "#1", "#2"
+            cleaned = response_lower.lstrip('#').strip()
+            if cleaned.isdigit():
+                number = int(cleaned)
+
+        if number and 1 <= number <= len(candidates):
+            matched = candidates[number - 1]
+        else:
+            matched = None
+
+            # ── Exact match ──
+            for c in candidates:
+                if c['title'].lower() == response_lower:
+                    matched = c
+                    break
+
+            # ── Prefix match ──
+            if not matched:
+                for c in candidates:
+                    if c['title'].lower().startswith(response_lower):
+                        matched = c
+                        break
+
+            # ── Substring match ──
+            if not matched:
+                for c in candidates:
+                    if response_lower in c['title'].lower():
+                        matched = c
+                        break
+
+        if matched:
+            self.clear_pending_clarification(user)
+            params = dict(pending['parameters'])
+            params['_resolved_id'] = matched['id']
+            intent_result = IntentResult(
+                intent_type=pending['intent_type'],
+                parameters=params,
+            )
+            logger.info(
+                "[CLARIFICATION] Resolved '%s' → task %s (%s) for user %s",
+                response, matched['id'], matched['title'], user.id,
+            )
+            return self.execute_intent(intent_result, user)
+
+        # No match found
+        return None
+
     def handle_confirmation_response(self, user, response: str) -> Optional[ActionResult]:
         """
         Handle user's response to a confirmation request.

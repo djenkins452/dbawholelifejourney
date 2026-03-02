@@ -153,6 +153,45 @@ class ActionHandler:
             **{f'{date_field}__date__gte': week_start}
         ).count()
 
+    def _resolve_tasks_by_query(self, query, include_completed=False):
+        """
+        Resolve tasks by query with literal-first matching.
+
+        Matching tiers (evaluated in order — first match wins):
+        1. Exact case-insensitive title match
+        2. Prefix match (title starts with query)
+        3. Substring match (title or notes contains query)
+
+        Returns:
+            (tasks_list, match_tier) — tier is 'exact', 'prefix', or 'substring'
+        """
+        from apps.life.models import Task
+
+        base_qs = Task.objects.filter(user=self.user, status='active')
+        if not include_completed:
+            base_qs = base_qs.filter(is_completed=False)
+
+        query_stripped = query.strip()
+
+        # Tier 1: Exact match
+        exact = list(base_qs.filter(title__iexact=query_stripped))
+        if exact:
+            return exact, 'exact'
+
+        # Tier 2: Prefix match
+        prefix = list(base_qs.filter(title__istartswith=query_stripped))
+        if prefix:
+            return prefix, 'prefix'
+
+        # Tier 3: Substring match (existing behavior)
+        substring = list(
+            base_qs.filter(
+                Q(title__icontains=query_stripped)
+                | Q(notes__icontains=query_stripped)
+            )
+        )
+        return substring, 'substring'
+
     def _build_confirmation(self, what, where, trend=None, risk=None):
         """
         Build a confirmation_detail dict for ActionResult.
@@ -2867,16 +2906,24 @@ class ActionHandler:
         from apps.life.models import Task
 
         try:
-            tasks = Task.objects.filter(
-                user=self.user,
-                is_completed=False,
-                status='active'
-            ).filter(
-                Q(title__icontains=task_keyword) |
-                Q(notes__icontains=task_keyword)
-            )
+            # Check for pre-resolved task ID (from clarification flow)
+            resolved_id = kwargs.get('_resolved_id')
+            if resolved_id:
+                try:
+                    tasks = [Task.objects.get(
+                        pk=resolved_id, user=self.user, status='active',
+                    )]
+                except Task.DoesNotExist:
+                    return ActionResult(
+                        success=False,
+                        message="That task no longer exists or was already completed.",
+                        error='task_not_found',
+                        action_type='complete_task',
+                    )
+            else:
+                tasks, _ = self._resolve_tasks_by_query(task_keyword)
 
-            count = tasks.count()
+            count = len(tasks)
 
             if count == 0:
                 return ActionResult(
@@ -2885,7 +2932,7 @@ class ActionHandler:
                     error='task_not_found'
                 )
             elif count == 1:
-                task = tasks.first()
+                task = tasks[0]
                 if notes:
                     task.notes = (task.notes + "\n" + notes).strip() if task.notes else notes
                     task.save(update_fields=['notes', 'updated_at'])
@@ -2907,11 +2954,14 @@ class ActionHandler:
                     )
                 )
             else:
-                titles = [f"• {t.title}" for t in tasks[:5]]
+                candidates = [{'id': t.id, 'title': t.title} for t in tasks[:5]]
+                titles = [f"• {c['title']}" for c in candidates]
                 return ActionResult(
                     success=False,
                     message=f"I found {count} tasks matching '{task_keyword}':\n" + "\n".join(titles) + "\nWhich one?",
-                    error='multiple_matches'
+                    error='multiple_matches',
+                    action_type='complete_task',
+                    created_object={'candidates': candidates},
                 )
 
         except Exception as e:
@@ -2954,17 +3004,25 @@ class ActionHandler:
         from datetime import datetime as dt
 
         try:
-            # Find matching tasks
-            qs = Task.objects.filter(
-                user=self.user,
-                is_completed=False,
-                status='active',
-            ).filter(
-                Q(title__icontains=task_query) |
-                Q(notes__icontains=task_query)
-            )
+            # Check for pre-resolved task ID (from clarification flow)
+            resolved_id = kwargs.get('_resolved_id')
+            if resolved_id:
+                try:
+                    tasks = [Task.objects.get(
+                        pk=resolved_id, user=self.user, status='active',
+                    )]
+                except Task.DoesNotExist:
+                    return ActionResult(
+                        success=False,
+                        message="That task no longer exists.",
+                        error='task_not_found',
+                        action_type='mutate_task',
+                    )
+            else:
+                # Find matching tasks with literal-first matching
+                tasks, _ = self._resolve_tasks_by_query(task_query)
 
-            count = qs.count()
+            count = len(tasks)
 
             if count == 0:
                 return ActionResult(
@@ -2975,7 +3033,8 @@ class ActionHandler:
                 )
 
             if count > 1 and not apply_to_all:
-                titles = [f"• {t.title}" for t in qs[:5]]
+                candidates = [{'id': t.id, 'title': t.title} for t in tasks[:5]]
+                titles = [f"• {c['title']}" for c in candidates]
                 return ActionResult(
                     success=False,
                     message=(
@@ -2985,9 +3044,10 @@ class ActionHandler:
                     ),
                     error='multiple_matches',
                     action_type='mutate_task',
+                    created_object={'candidates': candidates},
                 )
 
-            tasks = list(qs[:10])  # Safety limit
+            tasks = tasks[:10]  # Safety limit
 
             if action == 'delete':
                 deleted_titles = []

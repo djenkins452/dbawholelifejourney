@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Fix task entity matching + stateful clarification (prevent infinite loops)
+
+**What:** Two structural bugs in task mutation/completion: (1) `icontains` matching treated "Workout" matching "Workout" and "Post-Workout Stretch" equally — no priority for exact matches, so users got "Which one?" unnecessarily. (2) Clarification was stateless — when user responded "Workout" to "Which one?", the system re-ran global search from scratch, producing the same ambiguity → infinite loop.
+
+**Fix:** (1) New `_resolve_tasks_by_query()` with tiered literal-first matching: exact (iexact) → prefix (istartswith) → substring (icontains). Exact matches short-circuit — "Workout" matches the task titled "Workout" without ever seeing "Post-Workout Stretch". (2) Stateful clarification using Django cache (5-min TTL) following the existing `pending_confirmation` pattern. When multiple matches occur, candidates + original intent are stored. On the next turn, the user's response is matched against stored candidates (number, exact, prefix, substring) and the original action is executed via `_resolved_id` — no re-search. State clears after resolution, preventing loops.
+
+**Files modified:**
+- `apps/ai/action_handlers.py` — `_resolve_tasks_by_query()`, `_resolved_id` support, candidates in `multiple_matches` ActionResults
+- `apps/ai/intent_service.py` — 4 clarification state methods (store/get/clear/resolve)
+- `apps/ai/personal_assistant.py` — Clarification check + storage in both send_message and send_message_stream paths
+- `apps/ai/tests/test_task_matching.py` — 22 new tests
+
+**Why:** "Move Workout to tomorrow" → "Which one?" → user says "Workout" → "Which one?" — infinite loop from stateless clarification + non-deterministic substring matching.
+
+---
+
 ## 2026-03-02 — Task end_time schema parity: fix time range support for create/mutate task
 
 **What:** The Task model has `scheduled_end_time` but the AI intent schema and handlers only supported `scheduled_time` (start). Time ranges like "5pm - 6pm" silently dropped the end time. This adds `end_time` to the `create_task` schema, `new_end_time` to the `mutate_task` schema, wires both through their handlers to `scheduled_end_time`, auto-computes duration from time ranges, and updates confirmation messages to show "5:00 PM – 6:00 PM" format. Also added TIME RANGES extraction rule to the system prompt with explicit examples. Updated CLAUDE.md with AI Engineering Rules covering silent failure patterns, schema parity enforcement, and streaming/non-streaming path parity.

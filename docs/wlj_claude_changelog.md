@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Replace score with actionable insights + change nav route
+
+**What:** Removed the meaningless 0-100 score circle from the Relationships Insights page. Replaced with three actionable summary cards: "Reach Out" (stale contact count), "This Week" (active 7d count), and "Your Anchors" (top interacted names). Changed page title from "Relational Health" to "People". Simplified breadcrumb. Added "All People" and "+ Add" buttons to page header. Changed module nav entry point from person list to insights page so clicking "People" in sidebar lands on the actionable insights dashboard.
+
+**Files created:**
+- `apps/users/migrations/0075_update_relationships_nav_route.py` — Data migration to change route from person_list to insights
+
+**Files modified:**
+- `templates/relationships/insights.html` — Full rewrite: removed score circle, added 3 action cards, new title/breadcrumb, responsive CSS
+- `apps/relationships/views.py` — Removed `ctx['score']` from insights view context
+- `apps/users/fixtures/module_definitions.json` — Changed route_name to `relationships:insights`
+- `apps/core/management/commands/load_initial_data.py` — Added fixture reset for nav route change
+- `apps/relationships/tests/test_relationship_insights.py` — Updated assertion for new page title
+
+**Why:** The 0-100 score was meaningless to users ("what does 89 mean?"). The new actionable cards tell users what to do, not just track numbers. Nav landing on insights instead of list makes the module about action, not just tracking.
+
+---
+
 ## 2026-03-02 — Activate Relationships module + redesign dashboard tile
 
 **What:** Moved Relationships from "Coming Soon" to active module. Now on by default for all users, appears in desktop left rail and mobile More menu. Users can toggle it off in Preferences. Redesigned dashboard tile to match standard tile pattern (section-header, stat boxes, person list with chevrons) instead of the bespoke "Relational Health" layout with inline styles.

@@ -221,5 +221,4 @@ class RelationshipInsightsView(LoginRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         health = RelationalHealthService.compute_health(self.request.user)
         ctx['health'] = health
-        ctx['score'] = health.get('score')
         return ctx

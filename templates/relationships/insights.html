@@ -1,73 +1,110 @@
 {% extends "base.html" %}
 
-{% block title %}Relationship Insights - Whole Life Journey{% endblock %}
+{% block title %}People - Whole Life Journey{% endblock %}
 
 {% block content %}
 <div class="container">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'dashboard:home' %}">Dashboard</a>
         <span>/</span>
-        <a href="{% url 'relationships:person_list' %}">People</a>
-        <span>/</span>
-        <span>Insights</span>
+        <span>People</span>
     </nav>
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">Relationship Insights</h1>
+            <h1 class="page-title">People</h1>
             <p class="page-subtitle">{{ health.total_contacts }} contact{{ health.total_contacts|pluralize }}</p>
         </div>
         <div class="header-actions">
             <a href="{% url 'relationships:person_list' %}" class="btn btn-secondary btn-sm">All People</a>
+            <a href="{% url 'relationships:person_create' %}" class="btn btn-primary btn-sm">+ Add</a>
         </div>
     </div>
 
-    {% if score is not None %}
+    {% if health.total_contacts %}
 
-    <!-- Section 1: Interaction Overview -->
-    <section class="ri-section mb-6">
-        <div class="ri-score-banner">
-            <div class="ri-score-circle">
-                <span class="ri-score-value">{{ score }}</span>
+    <!-- Actionable Summary Cards -->
+    <div class="ri-action-cards mb-6">
+        <div class="ri-action-card {% if health.stale_30d > 0 %}ri-action-attention{% else %}ri-action-good{% endif %}">
+            <div class="ri-action-icon">
+                {% if health.stale_30d > 0 %}
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <line x1="23" y1="13" x2="17" y2="13"/>
+                </svg>
+                {% else %}
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+                {% endif %}
             </div>
-            <div class="ri-score-meta">
-                <h2 class="ri-score-label">Relational Health</h2>
-                <div class="ri-score-sub">
-                    {{ health.active_7d }} active this week &middot;
-                    {{ health.stale_30d }} need attention
+            <div class="ri-action-body">
+                <div class="ri-action-title">
+                    {% if health.stale_30d > 0 %}Reach Out{% else %}All Caught Up{% endif %}
+                </div>
+                <div class="ri-action-desc">
+                    {% if health.stale_30d > 0 %}
+                        {{ health.stale_30d }} {{ health.stale_30d|pluralize:"person hasn't,people haven't" }} heard from you in over 30 days.
+                    {% else %}
+                        You've connected with everyone recently. Nice work.
+                    {% endif %}
                 </div>
             </div>
         </div>
 
-        {% if health.insight_lines %}
+        <div class="ri-action-card">
+            <div class="ri-action-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+            </div>
+            <div class="ri-action-body">
+                <div class="ri-action-title">This Week</div>
+                <div class="ri-action-desc">
+                    {% if health.active_7d > 0 %}
+                        You connected with {{ health.active_7d }} {{ health.active_7d|pluralize:"person,people" }} in the last 7 days.
+                    {% else %}
+                        No interactions recorded this week.
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="ri-action-card">
+            <div class="ri-action-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+            </div>
+            <div class="ri-action-body">
+                <div class="ri-action-title">Your Anchors</div>
+                <div class="ri-action-desc">
+                    {% if health.top_anchor_persons %}
+                        {{ health.top_anchor_persons|join:", " }}
+                    {% else %}
+                        Start interacting to see your strongest connections.
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if health.insight_lines %}
+    <section class="ri-section mb-6">
         <div class="ri-insights-list">
             {% for line in health.insight_lines %}
                 <div class="ri-insight-line">{{ line }}</div>
             {% endfor %}
         </div>
-        {% endif %}
-
-        <div class="ri-quick-stats">
-            <div class="ri-stat">
-                <div class="ri-stat-value">{{ health.total_contacts }}</div>
-                <div class="ri-stat-label">Contacts</div>
-            </div>
-            <div class="ri-stat">
-                <div class="ri-stat-value">{{ health.active_7d }}</div>
-                <div class="ri-stat-label">Active (7d)</div>
-            </div>
-            <div class="ri-stat">
-                <div class="ri-stat-value">{{ health.stale_30d }}</div>
-                <div class="ri-stat-label">Stale (30d+)</div>
-            </div>
-            <div class="ri-stat">
-                <div class="ri-stat-value">{{ health.avg_days_between|default:"—" }}</div>
-                <div class="ri-stat-label">Avg Days Between</div>
-            </div>
-        </div>
     </section>
+    {% endif %}
 
-    <!-- Section 2: People Needing Attention -->
+    <!-- People Needing Attention -->
     {% if health.longest_no_contact %}
     <section class="ri-section mb-6">
         <h2 class="ri-section-title">People Needing Attention</h2>
@@ -104,7 +141,7 @@
     </section>
     {% endif %}
 
-    <!-- Section 3: Context Balance Analysis -->
+    <!-- Context Balance Analysis -->
     {% if health.context_distributions %}
     <section class="ri-section mb-6">
         <h2 class="ri-section-title">Context Balance</h2>
@@ -137,7 +174,7 @@
     </section>
     {% endif %}
 
-    <!-- Section 4: Top Relational Anchors -->
+    <!-- Top Relational Anchors -->
     {% if health.top_interacted %}
     <section class="ri-section mb-6">
         <h2 class="ri-section-title">Relational Anchors</h2>
@@ -197,38 +234,50 @@
     margin-bottom: var(--space-4);
 }
 
-/* Score Banner */
-.ri-score-banner {
-    display: flex;
-    align-items: center;
-    gap: var(--space-5);
-    margin-bottom: var(--space-4);
+/* Actionable Summary Cards */
+.ri-action-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
 }
-.ri-score-circle {
-    width: 72px;
-    height: 72px;
-    border-radius: 50%;
-    background: var(--color-background);
-    border: 3px solid var(--color-border);
+.ri-action-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
     display: flex;
-    align-items: center;
-    justify-content: center;
+    gap: var(--space-4);
+    align-items: flex-start;
+}
+.ri-action-card.ri-action-attention {
+    border-left: 3px solid var(--color-warning, #f59e0b);
+}
+.ri-action-card.ri-action-good {
+    border-left: 3px solid var(--color-success, #22c55e);
+}
+.ri-action-icon {
     flex-shrink: 0;
+    color: var(--color-text-muted);
 }
-.ri-score-value {
-    font-size: var(--font-size-2xl);
-    font-weight: 700;
-    color: var(--color-accent);
+.ri-action-attention .ri-action-icon {
+    color: var(--color-warning, #f59e0b);
 }
-.ri-score-label {
-    font-size: var(--font-size-lg);
+.ri-action-good .ri-action-icon {
+    color: var(--color-success, #22c55e);
+}
+.ri-action-body {
+    flex: 1;
+    min-width: 0;
+}
+.ri-action-title {
     font-weight: 600;
-    margin: 0;
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-1);
 }
-.ri-score-sub {
+.ri-action-desc {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
-    margin-top: var(--space-1);
+    line-height: 1.5;
 }
 
 /* Insight Lines */
@@ -236,7 +285,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-    margin-bottom: var(--space-5);
     padding: var(--space-3) var(--space-4);
     background: var(--color-background);
     border-radius: var(--radius-md);
@@ -246,29 +294,6 @@
     color: var(--color-text);
     padding-left: var(--space-3);
     border-left: 2px solid var(--color-accent);
-}
-
-/* Quick Stats */
-.ri-quick-stats {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: var(--space-3);
-}
-.ri-stat {
-    text-align: center;
-    padding: var(--space-3);
-    background: var(--color-background);
-    border-radius: var(--radius-md);
-}
-.ri-stat-value {
-    font-size: var(--font-size-xl);
-    font-weight: 700;
-    color: var(--color-accent);
-}
-.ri-stat-label {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-muted);
-    margin-top: var(--space-1);
 }
 
 /* Table */
@@ -390,16 +415,14 @@
 }
 
 /* Responsive */
-@media (max-width: 480px) {
-    .ri-quick-stats {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    .ri-context-grid {
+@media (max-width: 768px) {
+    .ri-action-cards {
         grid-template-columns: 1fr;
     }
-    .ri-score-banner {
-        flex-direction: column;
-        text-align: center;
+}
+@media (max-width: 480px) {
+    .ri-context-grid {
+        grid-template-columns: 1fr;
     }
 }
 </style>

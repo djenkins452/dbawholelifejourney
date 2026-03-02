@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Groups - People - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'dashboard:home' %}">Dashboard</a>
+        <span>/</span>
+        <a href="{% url 'relationships:insights' %}">People</a>
+        <span>/</span>
+        <span>Groups</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Groups</h1>
+            <p class="page-subtitle">{{ groups|length }} group{{ groups|length|pluralize }}</p>
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'relationships:group_create' %}" class="btn btn-primary btn-sm">+ New Group</a>
+        </div>
+    </div>
+
+    {% if groups %}
+    <div class="entry-list">
+        {% for group in groups %}
+        <article class="entry-card">
+            <a href="{% url 'relationships:group_detail' group.pk %}" class="entry-link">
+                <div class="entry-header">
+                    <h2 class="entry-title">{{ group.name }}</h2>
+                    <span class="badge badge-muted">{{ group.member_count }} member{{ group.member_count|pluralize }}</span>
+                </div>
+                {% if group.description %}
+                <div class="entry-meta">
+                    <span class="text-muted text-sm">{{ group.description|truncatewords:20 }}</span>
+                </div>
+                {% endif %}
+                {% if group.members.all %}
+                <div class="grp-member-preview">
+                    {% for person in group.members.all|slice:":5" %}
+                    <span class="grp-member-chip">{{ person.first_name }}</span>
+                    {% endfor %}
+                    {% if group.member_count > 5 %}
+                    <span class="grp-member-chip grp-member-more">+{{ group.member_count|add:"-5" }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </a>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+        </div>
+        <h2 class="empty-state-title">No groups yet</h2>
+        <p class="empty-state-text">
+            Create groups to organize your contacts and perform bulk actions like journaling or praying for multiple people at once.
+        </p>
+        <a href="{% url 'relationships:group_create' %}" class="btn btn-primary">Create Your First Group</a>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.grp-member-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-top: var(--space-2);
+}
+.grp-member-chip {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    background: var(--color-background);
+    padding: 2px 8px;
+    border-radius: var(--radius-full, 9999px);
+    border: 1px solid var(--color-border);
+}
+.grp-member-more {
+    font-weight: 500;
+}
+</style>
+{% endblock %}

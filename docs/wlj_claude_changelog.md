@@ -9,6 +9,29 @@
 
 # WLJ Change History
 
+## 2026-03-02 — People Groups: model, CRUD, quick-create API
+
+**What:** Added PersonGroup model for organizing contacts into named groups. Full CRUD (list, create, detail, edit, delete), soft-deletable, owner-scoped. Quick-create AJAX endpoint for Phase 3 multi-select integration. Added "Groups" link on insights page header.
+
+**Files created:**
+- `apps/relationships/migrations/0002_persongroup_and_more.py` — PersonGroup model + unique constraint
+- `templates/relationships/group_list.html` — Group list with member preview chips
+- `templates/relationships/group_form.html` — Create/edit form with checkbox member grid
+- `templates/relationships/group_detail.html` — Detail page with member list and delete confirm
+- `apps/relationships/tests/test_person_groups.py` — 27 tests covering model, views, and API
+
+**Files modified:**
+- `apps/relationships/models.py` — Added PersonGroup (SoftDeleteModel, ManyToMany to Person)
+- `apps/relationships/forms.py` — Added PersonGroupForm with duplicate name validation
+- `apps/relationships/views.py` — Added 7 group views (list, create, detail, update, delete, quick-create)
+- `apps/relationships/urls.py` — Added 6 group URL routes
+- `apps/relationships/admin.py` — Registered PersonGroupAdmin with filter_horizontal
+- `templates/relationships/insights.html` — Added "Groups" button to header actions
+
+**Tests:** 106 total (79 existing + 27 new), all passing.
+
+---
+
 ## 2026-03-02 — Replace score with actionable insights + change nav route
 
 **What:** Removed the meaningless 0-100 score circle from the Relationships Insights page. Replaced with three actionable summary cards: "Reach Out" (stale contact count), "This Week" (active 7d count), and "Your Anchors" (top interacted names). Changed page title from "Relational Health" to "People". Simplified breadcrumb. Added "All People" and "+ Add" buttons to page header. Changed module nav entry point from person list to insights page so clicking "People" in sidebar lands on the actionable insights dashboard.

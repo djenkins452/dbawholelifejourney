@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}{{ group.name }} - Groups - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'dashboard:home' %}">Dashboard</a>
+        <span>/</span>
+        <a href="{% url 'relationships:insights' %}">People</a>
+        <span>/</span>
+        <a href="{% url 'relationships:group_list' %}">Groups</a>
+        <span>/</span>
+        <span>{{ group.name }}</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{{ group.name }}</h1>
+            <p class="page-subtitle">{{ group.member_count }} member{{ group.member_count|pluralize }}</p>
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'relationships:group_update' group.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+            <form method="post" action="{% url 'relationships:group_delete' group.pk %}" class="inline-form" data-confirm-delete>
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+        </div>
+    </div>
+
+    {% if group.description %}
+    <p class="text-muted mb-4">{{ group.description }}</p>
+    {% endif %}
+
+    {% if group.members.all %}
+    <section class="grp-detail-section">
+        <h2 class="section-title mb-4">Members</h2>
+        <div class="entry-list">
+            {% for person in group.members.all %}
+            <article class="entry-card">
+                <a href="{% url 'relationships:person_detail' person.pk %}" class="entry-link">
+                    <div class="entry-header">
+                        <h2 class="entry-title">{{ person.get_display_name }}</h2>
+                        <span class="badge badge-muted">{{ person.get_relationship_type_display }}</span>
+                    </div>
+                    <div class="entry-meta">
+                        {% if person.last_interaction_date %}
+                        <span class="text-muted text-sm">
+                            Last interaction: {{ person.last_interaction_date|date:"M j, Y" }}
+                        </span>
+                        {% else %}
+                        <span class="text-muted text-sm">No interactions yet</span>
+                        {% endif %}
+                    </div>
+                </a>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% else %}
+    <div class="empty-state">
+        <h2 class="empty-state-title">No members yet</h2>
+        <p class="empty-state-text">Add members to this group to start using it for bulk actions.</p>
+        <a href="{% url 'relationships:group_update' group.pk %}" class="btn btn-primary">Add Members</a>
+    </div>
+    {% endif %}
+</div>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    var forms = document.querySelectorAll('[data-confirm-delete]');
+    forms.forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            if (!confirm('Delete this group? Members will not be affected.')) {
+                e.preventDefault();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

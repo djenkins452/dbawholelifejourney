@@ -20,8 +20,8 @@ from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView
 
-from .forms import PersonForm, QuickPersonForm
-from .models import Person
+from .forms import PersonForm, PersonGroupForm, QuickPersonForm
+from .models import Person, PersonGroup
 from .services import RelationalHealthService, RelationshipAnalyticsService
 
 logger = logging.getLogger(__name__)
@@ -204,6 +204,144 @@ class PersonQuickCreateView(LoginRequiredMixin, View):
             'name': person.get_display_name(),
             'first_name': person.first_name,
             'type': person.relationship_type,
+        }, status=201)
+
+
+# =============================================================================
+# PERSON GROUP CRUD
+# =============================================================================
+
+
+class GroupListView(LoginRequiredMixin, ListView):
+    """List all groups for the current user."""
+
+    model = PersonGroup
+    template_name = 'relationships/group_list.html'
+    context_object_name = 'groups'
+
+    def get_queryset(self):
+        return (
+            PersonGroup.objects
+            .filter(owner=self.request.user)
+            .prefetch_related('members')
+        )
+
+
+class GroupCreateView(LoginRequiredMixin, CreateView):
+    """Create a new person group."""
+
+    model = PersonGroup
+    form_class = PersonGroupForm
+    template_name = 'relationships/group_form.html'
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['selected_member_ids'] = []
+        return ctx
+
+    def form_valid(self, form):
+        form.instance.owner = self.request.user
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('relationships:group_detail', kwargs={'pk': self.object.pk})
+
+
+class GroupDetailView(LoginRequiredMixin, DetailView):
+    """View group details and members."""
+
+    model = PersonGroup
+    template_name = 'relationships/group_detail.html'
+    context_object_name = 'group'
+
+    def get_queryset(self):
+        return (
+            PersonGroup.objects
+            .filter(owner=self.request.user)
+            .prefetch_related('members')
+        )
+
+
+class GroupUpdateView(LoginRequiredMixin, UpdateView):
+    """Edit a person group."""
+
+    model = PersonGroup
+    form_class = PersonGroupForm
+    template_name = 'relationships/group_form.html'
+
+    def get_queryset(self):
+        return PersonGroup.objects.filter(owner=self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['selected_member_ids'] = list(
+            self.object.members.values_list('pk', flat=True)
+        )
+        return ctx
+
+    def get_success_url(self):
+        return reverse_lazy('relationships:group_detail', kwargs={'pk': self.object.pk})
+
+
+class GroupDeleteView(LoginRequiredMixin, View):
+    """Soft-delete a person group."""
+
+    def post(self, request, pk):
+        group = get_object_or_404(PersonGroup, pk=pk, owner=request.user)
+        group.soft_delete()
+        return redirect('relationships:group_list')
+
+
+class GroupQuickCreateView(LoginRequiredMixin, View):
+    """
+    AJAX endpoint for creating a group from multi-select.
+
+    POST /relationships/groups/quick-create/
+    Body: {"name": "...", "person_ids": [1, 2, 3]}
+    Returns JSON: {"id": 1, "name": "...", "member_count": 3}
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        name = data.get('name', '').strip()
+        if not name:
+            return JsonResponse({'error': 'Group name is required'}, status=400)
+
+        # Check for duplicate group name
+        if PersonGroup.objects.filter(owner=request.user, name__iexact=name).exists():
+            return JsonResponse({'error': f'A group named "{name}" already exists'}, status=400)
+
+        person_ids = data.get('person_ids', [])
+        if not isinstance(person_ids, list):
+            return JsonResponse({'error': 'person_ids must be a list'}, status=400)
+
+        # Validate all person IDs belong to this user
+        people = Person.objects.filter(owner=request.user, pk__in=person_ids)
+
+        group = PersonGroup.objects.create(
+            owner=request.user,
+            name=name,
+        )
+        group.members.set(people)
+
+        return JsonResponse({
+            'id': group.pk,
+            'name': group.name,
+            'member_count': group.members.count(),
         }, status=201)
 
 

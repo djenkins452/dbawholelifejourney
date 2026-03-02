@@ -4,7 +4,7 @@
 {% block title %}Setup — Meals — Whole Life Journey{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302b">
+<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302c">
 {% endblock %}
 
 {% block content %}
@@ -12,9 +12,17 @@
     {% include "meals/partials/_subnav.html" with active="dashboard" %}
 
     <div class="meals-page-header">
-        <h1>Kitchen Setup</h1>
-        <p class="section-subtitle">Complete these steps to activate meal intelligence</p>
+        <h1>Kitchen Intelligence Setup</h1>
+        <p class="section-subtitle">Initialize your household optimization engine</p>
     </div>
+
+    <!-- Preamble -->
+    {% if not activation.is_ready %}
+    <div class="setup-preamble">
+        <p class="setup-preamble-text">You're 3 minutes away from activating a household optimization engine.</p>
+        <p class="setup-preamble-sub">Once initialized, the system scores every recipe against your pantry, nutrition targets, and schedule — automatically.</p>
+    </div>
+    {% endif %}
 
     <!-- Progress Overview -->
     <div class="setup-wizard-progress">
@@ -40,7 +48,7 @@
             <h2>Step 1: Stock Your Pantry</h2>
             <span class="setup-step-count">{{ activation.pantry_count }} / {{ activation.pantry_required }} items</span>
         </div>
-        <p class="setup-step-desc">Tell us what's in your kitchen. The more we know, the better our recommendations.</p>
+        <p class="setup-step-desc">Tell us what's in your kitchen so the scoring engine can match recipes to your actual inventory.</p>
 
         <div class="setup-options-grid">
             <a href="{% url 'meals:receipts' %}" class="setup-option-card">
@@ -79,7 +87,7 @@
             <h2>Step 2: Add Recipes</h2>
             <span class="setup-step-count">{{ activation.recipe_count }} / {{ activation.recipe_required }} recipes</span>
         </div>
-        <p class="setup-step-desc">Add the meals you regularly cook. We'll score them against your pantry and health goals.</p>
+        <p class="setup-step-desc">Add the meals your household cooks. Each recipe gets scored against pantry, macros, and schedule constraints.</p>
 
         <div class="setup-options-grid">
             <a href="{% url 'life:recipe_list' %}" class="setup-option-card">
@@ -106,7 +114,7 @@
         <div class="setup-step-header">
             <h2>Step 3: Confirm Dietary Profile</h2>
         </div>
-        <p class="setup-step-desc">Review your dietary targets so we can score meals for your health goals.</p>
+        <p class="setup-step-desc">Your dietary constraints configure the scoring weights. Blood sugar protection, protein alignment, and calorie targeting all depend on this profile.</p>
 
         {% if dietary_profile %}
         <div class="setup-profile-summary">
@@ -141,15 +149,15 @@
     <div class="setup-activated">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
         <div>
-            <h3>Kitchen Intelligence Ready</h3>
-            <p>All thresholds met. Your meal intelligence is now active.</p>
+            <h3>Kitchen Intelligence Activated</h3>
+            <p>All thresholds met. Blood sugar protection, waste reduction, and dinner optimization are now active.</p>
         </div>
-        <a href="{% url 'meals:dashboard' %}" class="btn btn-primary">Go to Dashboard</a>
+        <a href="{% url 'meals:dashboard' %}" class="btn btn-primary">View Your Dashboard</a>
     </div>
     {% else %}
     <div class="setup-skip">
         <a href="{% url 'meals:dashboard' %}" class="btn btn-outline btn-sm">Skip for now</a>
-        <span class="setup-skip-note">You can continue setup anytime. Meal scoring remains inactive until thresholds are met.</span>
+        <span class="setup-skip-note">You can continue setup anytime. The intelligence engine remains dormant until minimum data thresholds are met.</span>
     </div>
     {% endif %}
 </div>

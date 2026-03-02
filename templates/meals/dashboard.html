@@ -4,7 +4,7 @@
 {% block title %}Meals — Whole Life Journey{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302b">
+<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302c">
 {% endblock %}
 
 {% block content %}
@@ -17,7 +17,7 @@
 
     {% if setup_mode %}
     <!-- ============================================================ -->
-    <!-- SETUP MODE — Below activation threshold                       -->
+    <!-- INITIALIZATION MODE — Below activation threshold              -->
     <!-- ============================================================ -->
     <div class="meals-dashboard-grid">
         <div>
@@ -31,14 +31,43 @@
                         <line x1="14" y1="1" x2="14" y2="4"/>
                     </svg>
                 </div>
-                <h2 class="setup-hero-title">Build Your Kitchen Intelligence</h2>
-                <p class="setup-hero-desc">Whole Life Journey can optimize dinner for your health, time, and budget &mdash; but first we need to understand your kitchen.</p>
+                <h2 class="setup-hero-title">Kitchen Intelligence Initialization</h2>
+                <p class="setup-hero-desc">Whole Life Journey can optimize dinner across:</p>
+
+                <div class="capability-grid">
+                    <span class="capability-tag">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                        Blood sugar protection
+                    </span>
+                    <span class="capability-tag">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        Protein alignment
+                    </span>
+                    <span class="capability-tag">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+                        Waste reduction
+                    </span>
+                    <span class="capability-tag">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        Calendar awareness
+                    </span>
+                    <span class="capability-tag">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                        Grocery efficiency
+                    </span>
+                    <span class="capability-tag">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        Family scaling
+                    </span>
+                </div>
+
+                <p class="setup-hero-requirement">To activate this capability, we need:</p>
 
                 <!-- Progress Bars -->
                 <div class="setup-progress">
                     <div class="setup-progress-item">
                         <div class="setup-progress-label">
-                            <span>Pantry Items</span>
+                            <span>Pantry Data</span>
                             <span class="setup-progress-count">{{ activation.pantry_count }} / {{ activation.pantry_required }}</span>
                         </div>
                         <div class="setup-progress-bar">
@@ -60,55 +89,90 @@
                 <div class="setup-actions">
                     <a href="{% url 'meals:setup' %}" class="btn btn-primary">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                        Guided Setup (3 Minutes)
+                        Initialize (3 Minutes)
                     </a>
                     <a href="{% url 'meals:pantry' %}" class="btn btn-outline">Add Pantry Items</a>
                     <a href="{% url 'life:recipe_list' %}" class="btn btn-outline">Import or Add Recipes</a>
                 </div>
             </div>
+
+            <!-- What Activates Next — Locked Preview Cards -->
+            <div class="preview-section">
+                <h3 class="preview-section-title">What Activates Next</h3>
+
+                <!-- Preview Card 1: Optimized Dinner -->
+                <div class="preview-card locked">
+                    <div class="preview-card-lock">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                    <div class="preview-card-header">
+                        <span class="preview-card-label">Optimized Dinner</span>
+                        <span class="preview-card-score">87</span>
+                    </div>
+                    <h4 class="preview-card-title">Chicken Stir Fry</h4>
+                    <div class="preview-card-meta">
+                        <span>Carb impact: 24g</span>
+                        <span>Uses expiring broccoli</span>
+                    </div>
+                    <div class="preview-card-meta">
+                        <span>27 min prep</span>
+                        <span>Inventory confidence 92%</span>
+                    </div>
+                </div>
+
+                <!-- Preview Card 2: Expiration Intelligence -->
+                <div class="preview-card locked">
+                    <div class="preview-card-lock">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                    <div class="preview-card-header">
+                        <span class="preview-card-label">Expiration Intelligence</span>
+                    </div>
+                    <div class="preview-card-alert">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        <span>2 items expiring this week</span>
+                    </div>
+                    <p class="preview-card-detail">Waste prevention alerts prioritize recipes that use soon-to-expire ingredients</p>
+                </div>
+
+                <!-- Preview Card 3: Grocery Optimization -->
+                <div class="preview-card locked">
+                    <div class="preview-card-lock">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                    <div class="preview-card-header">
+                        <span class="preview-card-label">Grocery Optimization</span>
+                    </div>
+                    <div class="preview-card-stats">
+                        <div class="preview-stat">
+                            <span class="preview-stat-value">$126</span>
+                            <span class="preview-stat-label">Est. weekly plan</span>
+                        </div>
+                        <div class="preview-stat">
+                            <span class="preview-stat-value">Sat</span>
+                            <span class="preview-stat-label">Next grocery trip</span>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="preview-caption">Activates once kitchen intelligence is initialized.</p>
+            </div>
         </div>
 
-        <!-- Side Panel — Setup Context -->
+        <!-- Side Panel — Initialization Context -->
         <div class="intelligence-panel">
             <div class="intel-card">
                 <div class="intel-card-header">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                    <h3 class="intel-card-title">Why Setup Matters</h3>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    <h3 class="intel-card-title">Why This Matters</h3>
                 </div>
                 <div class="intel-card-body">
                     <p style="margin: 0 0 var(--space-3); font-size: var(--font-size-sm); color: var(--color-text-muted);">
-                        Meal intelligence needs a baseline understanding of what you have and what you cook to make smart recommendations.
+                        Generic meal suggestions waste your time. This system scores every recipe against your actual kitchen inventory, dietary constraints, and schedule.
                     </p>
                     <p style="margin: 0; font-size: var(--font-size-sm); color: var(--color-text-muted);">
-                        Without enough data, suggestions would be generic and unhelpful. We'd rather wait until we can be genuinely useful.
+                        We need baseline data to produce recommendations worth acting on.
                     </p>
-                </div>
-            </div>
-
-            <div class="intel-card">
-                <div class="intel-card-header">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                    <h3 class="intel-card-title">What Unlocks</h3>
-                </div>
-                <div class="intel-card-body">
-                    <div class="setup-unlock-list">
-                        <div class="setup-unlock-item">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
-                            <span>Personalized dinner recommendations</span>
-                        </div>
-                        <div class="setup-unlock-item">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
-                            <span>Health-aligned meal scoring</span>
-                        </div>
-                        <div class="setup-unlock-item">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
-                            <span>Waste reduction via expiry tracking</span>
-                        </div>
-                        <div class="setup-unlock-item">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
-                            <span>Budget-aware meal planning</span>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -142,15 +206,15 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                     <h2 class="activation-title">Kitchen Intelligence Activated</h2>
                 </div>
-                <p class="activation-desc">We now have enough data to optimize dinner for:</p>
+                <p class="activation-desc">Your system can now:</p>
                 <div class="activation-capabilities">
-                    <span class="activation-cap">Health alignment</span>
-                    <span class="activation-cap">Time efficiency</span>
-                    <span class="activation-cap">Waste reduction</span>
-                    <span class="activation-cap">Budget awareness</span>
+                    <span class="activation-cap">Recommend dinner aligned with your macros</span>
+                    <span class="activation-cap">Protect against expiring waste</span>
+                    <span class="activation-cap">Predict grocery timing</span>
+                    <span class="activation-cap">Adjust for busy days</span>
                 </div>
                 <div class="tonight-hero-actions">
-                    <a href="{% url 'meals:suggestions' %}" class="btn btn-primary">Plan Tonight's Dinner</a>
+                    <a href="{% url 'meals:suggestions' %}" class="btn btn-primary">View Tonight's Recommendation</a>
                 </div>
             </div>
 
@@ -199,7 +263,6 @@
             {% endif %}
         </div>
 
-        <!-- Intelligence Side Panel (normal) -->
         {% include "meals/partials/_dashboard_side_panel.html" %}
     </div>
 
@@ -208,20 +271,16 @@
     <!-- NORMAL MODE — Intelligence active                             -->
     <!-- ============================================================ -->
     <div class="meals-dashboard-grid">
-        <!-- Main Content -->
         <div>
-            <!-- Tonight's Recommendation Hero -->
             {% if tonight %}
             <div class="tonight-hero">
                 <div class="tonight-hero-header">
                     <span class="tonight-hero-label">Tonight's Recommendation</span>
                     <div class="tonight-hero-score" title="Match score">{{ tonight.score|floatformat:0 }}</div>
                 </div>
-
                 <h2 class="tonight-hero-title">
                     <a href="{% url 'meals:recipe_detail' pk=tonight.recipe_id %}">{{ tonight.recipe_title }}</a>
                 </h2>
-
                 <div class="tonight-hero-meta">
                     {% if tonight.prep_time %}
                     <span class="tonight-meta-item">
@@ -239,19 +298,16 @@
                     </span>
                     {% endif %}
                 </div>
-
                 {% if tonight.nutrition %}
                 {% with nutrition=tonight.nutrition %}
                 {% include "meals/partials/_macro_bar.html" %}
                 {% endwith %}
                 {% endif %}
-
                 {% if tonight.explanation %}
                 {% with explanation=tonight.explanation factors=tonight.factors %}
                 {% include "meals/partials/_reasoning_block.html" %}
                 {% endwith %}
                 {% endif %}
-
                 <div class="tonight-hero-actions">
                     <a href="{% url 'meals:recipe_detail' pk=tonight.recipe_id %}" class="btn btn-primary">View Recipe</a>
                     <a href="{% url 'meals:suggestions' %}" class="btn btn-outline">See Alternatives</a>
@@ -274,7 +330,6 @@
             </div>
             {% endif %}
 
-            <!-- Active Plan Summary -->
             {% if active_plan %}
             <div class="intel-card" style="margin-top: var(--space-4)">
                 <div class="intel-card-header">
@@ -299,7 +354,6 @@
             {% endif %}
         </div>
 
-        <!-- Intelligence Side Panel (normal) -->
         {% include "meals/partials/_dashboard_side_panel.html" %}
     </div>
     {% endif %}

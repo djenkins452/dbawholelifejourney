@@ -217,8 +217,24 @@ class TestDashboardSetupMode(TestUserMixin, TestCase):
         """Dashboard shows setup hero when below threshold."""
         response = self.client.get(reverse("meals:dashboard"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Build Your Kitchen Intelligence")
-        self.assertContains(response, "Guided Setup")
+        self.assertContains(response, "Kitchen Intelligence Initialization")
+        self.assertContains(response, "Initialize (3 Minutes)")
+
+    def test_dashboard_setup_mode_shows_capabilities(self):
+        """Dashboard shows capability tags in setup mode."""
+        response = self.client.get(reverse("meals:dashboard"))
+        self.assertContains(response, "Blood sugar protection")
+        self.assertContains(response, "Waste reduction")
+        self.assertContains(response, "capability-tag")
+
+    def test_dashboard_setup_mode_shows_preview_cards(self):
+        """Dashboard shows locked preview cards in setup mode."""
+        response = self.client.get(reverse("meals:dashboard"))
+        self.assertContains(response, "What Activates Next")
+        self.assertContains(response, "Optimized Dinner")
+        self.assertContains(response, "Expiration Intelligence")
+        self.assertContains(response, "Grocery Optimization")
+        self.assertContains(response, "preview-card locked")
 
     def test_dashboard_setup_mode_no_dinner_suggestion(self):
         """Dashboard does NOT show dinner suggestions in setup mode."""
@@ -272,7 +288,7 @@ class TestDashboardSetupMode(TestUserMixin, TestCase):
         invalidate_activation_cache(self.user.id)
         response = self.client.get(reverse("meals:dashboard"))
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "Build Your Kitchen Intelligence")
+        self.assertNotContains(response, "Kitchen Intelligence Initialization")
 
 
 class TestSuggestionsSetupMode(TestUserMixin, TestCase):
@@ -332,7 +348,7 @@ class TestSetupWizard(TestUserMixin, TestCase):
         """Setup wizard loads successfully."""
         response = self.client.get(reverse("meals:setup"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Kitchen Setup")
+        self.assertContains(response, "Kitchen Intelligence Setup")
 
     def test_setup_shows_step_1_first(self):
         """Setup starts at step 1 (Pantry) when no data."""
@@ -378,7 +394,7 @@ class TestSetupWizard(TestUserMixin, TestCase):
             )
         invalidate_activation_cache(self.user.id)
         response = self.client.get(reverse("meals:setup"))
-        self.assertContains(response, "Kitchen Intelligence Ready")
+        self.assertContains(response, "Kitchen Intelligence Activated")
 
     def test_setup_skip_available(self):
         """Skip button available when not ready."""
@@ -406,7 +422,7 @@ class TestSoftSkipBehavior(TestUserMixin, TestCase):
         response = self.client.get(reverse("meals:dashboard"))
         self.assertEqual(response.status_code, 200)
         # Shows setup content, not an error
-        self.assertContains(response, "Build Your Kitchen Intelligence")
+        self.assertContains(response, "Kitchen Intelligence Initialization")
 
     def test_pantry_accessible_in_setup_mode(self):
         """Pantry page works during setup mode."""
@@ -417,14 +433,14 @@ class TestSoftSkipBehavior(TestUserMixin, TestCase):
         """Setup mode stays even if user navigates away and back."""
         # Visit dashboard - setup mode
         response = self.client.get(reverse("meals:dashboard"))
-        self.assertContains(response, "Build Your Kitchen Intelligence")
+        self.assertContains(response, "Kitchen Intelligence Initialization")
 
         # Visit pantry
         self.client.get(reverse("meals:pantry"))
 
         # Come back to dashboard - still setup mode
         response = self.client.get(reverse("meals:dashboard"))
-        self.assertContains(response, "Build Your Kitchen Intelligence")
+        self.assertContains(response, "Kitchen Intelligence Initialization")
 
 
 class TestCoSActivationContext(TestUserMixin, TestCase):

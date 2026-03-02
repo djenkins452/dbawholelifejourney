@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Meal Intelligence Phase 11: Power Preview & Anticipation Layer
+
+**What:** Transformed the Setup Mode dashboard from a basic "add data" prompt into a premium capability showcase. Dashboard now features "Kitchen Intelligence Initialization" hero with 6 capability tags (blood sugar protection, protein alignment, waste reduction, calendar awareness, grocery efficiency, family scaling), 3 locked preview cards showing what activates next (Optimized Dinner with mock score, Expiration Intelligence with mock alert, Grocery Optimization with mock stats), and "Why This Matters" side panel. Setup wizard upgraded with capability-unlock language and a preamble ("You're 3 minutes away from activating a household optimization engine"). All activation/post-activation messaging updated to reflect system power.
+
+**Files modified:**
+- `templates/meals/dashboard.html` — Capability grid, locked preview cards section, updated activation moment messaging
+- `templates/meals/setup.html` — Preamble banner, capability-unlock step descriptions, enhanced activation message
+- `static/css/meals.css` — ~150 lines: capability-grid, capability-tag, preview-section, preview-card, locked state, preview-card-lock/header/score/meta/alert/detail/stats, preview-stat, preview-caption, setup-preamble
+- `apps/meals/tests/test_meal_activation.py` — Updated assertions for new titles + added 2 preview card tests (capabilities, locked cards)
+- `apps/meals/tests/test_views.py` — Updated dashboard empty state assertion
+- `docs/Whats-for-Dinner.md` — Phase 11 section
+
+**Why:** Setup Mode must sell the value proposition, not just ask for data. Locked preview cards create anticipation by showing concrete examples of what the system will do once activated.
+
+---
+
 ## 2026-03-02 — Silent failure audit: eliminate swallowed exceptions in orchestration paths
 
 **What:** Production-motivated audit of all exception handling in the intent recognition, orchestration, execution, and streaming paths. The streaming ImportError bug (commit da38f536) proved that `except Exception: pass` in orchestration code can silently kill critical functionality. This audit found 23 RISKY and 3 CRITICAL silent failure patterns across 5 files.

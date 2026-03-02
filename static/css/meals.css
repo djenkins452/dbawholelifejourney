@@ -1494,6 +1494,227 @@
     color: var(--color-text-muted);
 }
 
+/* =============================================================================
+   Capability Grid — Dashboard Setup Hero
+   ============================================================================= */
+
+.capability-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    justify-content: center;
+    margin-bottom: var(--space-6);
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.capability-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+    color: var(--color-text);
+    border-radius: var(--radius-full, 999px);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.capability-tag svg {
+    color: var(--color-accent);
+    flex-shrink: 0;
+}
+
+.setup-hero-requirement {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-weight: 500;
+    margin: 0 0 var(--space-4);
+}
+
+/* =============================================================================
+   Locked Preview Cards — "What Activates Next"
+   ============================================================================= */
+
+.preview-section {
+    margin-top: var(--space-6);
+}
+
+.preview-section-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-4);
+}
+
+.preview-card {
+    position: relative;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+}
+
+.preview-card.locked {
+    opacity: 0.6;
+    pointer-events: none;
+    user-select: none;
+}
+
+.preview-card.locked::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, transparent 60%, color-mix(in srgb, var(--color-surface) 40%, transparent));
+}
+
+.preview-card-lock {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full, 999px);
+    color: var(--color-text-muted);
+    z-index: 1;
+}
+
+.preview-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
+    padding-right: var(--space-8);
+}
+
+.preview-card-label {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-accent);
+}
+
+.preview-card-score {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    color: var(--color-accent);
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+}
+
+.preview-card-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 var(--space-2);
+}
+
+.preview-card-meta {
+    display: flex;
+    gap: var(--space-4);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-1);
+}
+
+.preview-card-alert {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: rgba(245, 158, 11, 0.08);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-warning);
+    margin-bottom: var(--space-2);
+}
+
+.preview-card-alert svg {
+    flex-shrink: 0;
+    color: var(--color-warning);
+}
+
+.preview-card-detail {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin: 0;
+    line-height: 1.5;
+}
+
+.preview-card-stats {
+    display: flex;
+    gap: var(--space-6);
+}
+
+.preview-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.preview-stat-value {
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.preview-stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.preview-caption {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-align: center;
+    font-style: italic;
+    margin: var(--space-2) 0 0;
+}
+
+/* =============================================================================
+   Setup Wizard — Activation Preamble
+   ============================================================================= */
+
+.setup-preamble {
+    text-align: center;
+    padding: var(--space-6) var(--space-4);
+    margin-bottom: var(--space-6);
+    background: color-mix(in srgb, var(--color-accent) 4%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-accent) 15%, var(--color-border));
+    border-radius: var(--radius-lg);
+}
+
+.setup-preamble-text {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 var(--space-2);
+}
+
+.setup-preamble-sub {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
 /* Responsive */
 @media (max-width: 480px) {
     .setup-hero {
@@ -1502,6 +1723,15 @@
 
     .setup-actions {
         max-width: 100%;
+    }
+
+    .capability-grid {
+        gap: var(--space-1);
+    }
+
+    .capability-tag {
+        font-size: 11px;
+        padding: 4px 10px;
     }
 
     .activation-capabilities {
@@ -1528,5 +1758,14 @@
     .setup-activated .btn {
         margin-left: 0;
         width: 100%;
+    }
+
+    .preview-card-stats {
+        gap: var(--space-4);
+    }
+
+    .preview-card-meta {
+        flex-direction: column;
+        gap: var(--space-1);
     }
 }

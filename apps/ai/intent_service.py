@@ -216,7 +216,36 @@ class IntentService:
 
                 return results
             else:
-                # No function called - regular chat message
+                # No function called — check for mutation verb + domain
+                # keyword before giving up.  This is the deterministic
+                # backstop: if the user clearly wants a mutation and the
+                # domain is resolvable (from the message or conversation
+                # history), we retry with forced function calling.
+                detection = self._detect_mutation_domain(
+                    user_message, conversation_history,
+                )
+                if detection:
+                    forced_fn, verb, keyword = detection
+                    logger.info(
+                        "[MUTATION_RETRY] no_action but verb=%r "
+                        "keyword=%r → forcing %s",
+                        verb, keyword, forced_fn,
+                    )
+                    retry_results = self._retry_with_forced_mutation(
+                        _messages, forced_fn, user, user_message,
+                    )
+                    if retry_results:
+                        logger.info(
+                            "[MUTATION_RETRY] Retry succeeded: %s",
+                            [r.intent_type for r in retry_results],
+                        )
+                        return retry_results
+                    logger.warning(
+                        "[MUTATION_RETRY] Retry returned no results "
+                        "for forced %s",
+                        forced_fn,
+                    )
+
                 return [IntentResult(
                     intent_type='no_action',
                     raw_response=message.content
@@ -265,6 +294,7 @@ IMPORTANT RULES:
 3. When the user says "today", use {today_str}. When they say "tomorrow", calculate the next day from {today_str}
 4. ALWAYS resolve relative dates (today, tomorrow, next Monday, etc.) to YYYY-MM-DD format using today's date above
 5. CONTEXT RESOLUTION: When conversation history is provided, use it to resolve references like "the other one", "that event", "it", "those", "the duplicate", etc. Extract the actual entity name/details for function parameters — do NOT pass pronouns like "it" as event_query or task_query. If a previous message mentions specific events, tasks, or items, use that context to determine which entity the user is referring to and construct the appropriate function call.
+6. MUTATION OBLIGATION: When mutation verbs (remove, delete, cancel, move, change, reschedule, update, rename, edit, complete, finish) are present AND the domain context is clear (calendar event or task — either from the current message or conversation history), you MUST call the appropriate function. Never decline a mutation request when a resolvable domain is identified. If unsure which specific item, use your best inference from context for event_query or task_query.
 
 HEALTH LOGGING:
 - Heart rate: Extract BPM value. Default context to 'resting' unless specified
@@ -499,6 +529,43 @@ Examples:
         'mark', 'label', 'tag', 'categorize', 'set',
     }
 
+    # Domain-aware mutation detection for forced retry when no_action is returned.
+    # Each domain defines verbs (in the current message) and keywords
+    # (in the current message OR conversation history) that must BOTH match.
+    MUTATION_DOMAIN_MAP = {
+        'calendar': {
+            'verbs': {
+                'delete', 'remove', 'cancel', 'update', 'change',
+                'edit', 'reschedule', 'move', 'shift', 'rename',
+            },
+            'keywords': {
+                'calendar', 'event', 'meeting', 'wake up', 'reminder',
+                'appointment', 'schedule', 'scheduled',
+            },
+            'function': 'mutate_calendar_event',
+        },
+        'task_complete': {
+            'verbs': {'complete', 'finish', 'done'},
+            'keywords': {'task', 'to-do', 'todo', 'to do'},
+            'function': 'complete_task',
+        },
+        'task_mutate': {
+            'verbs': {
+                'delete', 'remove', 'edit', 'update', 'change',
+                'reschedule', 'rename',
+            },
+            'keywords': {'task', 'to-do', 'todo', 'to do'},
+            'function': 'mutate_task',
+        },
+    }
+    # Multi-word verb phrases to check beyond single-token split.
+    _MULTI_WORD_VERB_PHRASES = {
+        'mark done': 'task_complete',
+        'mark complete': 'task_complete',
+        'mark as done': 'task_complete',
+        'mark as complete': 'task_complete',
+    }
+
     def _enforce_mutation_routing(
         self, user_message: str, read_params: dict,
     ) -> Optional[dict]:
@@ -547,6 +614,134 @@ Examples:
             'intent_type': 'mutate_calendar_event',
             'parameters': mutate_params,
         }
+
+    def _detect_mutation_domain(
+        self,
+        user_message: str,
+        conversation_history: Optional[list] = None,
+    ) -> Optional[tuple]:
+        """Detect if a mutation verb + domain keyword are present.
+
+        Checks the current message for mutation verbs, then checks both
+        the current message AND conversation history for domain keywords.
+
+        Returns:
+            (forced_function_name, verb_matched, keyword_matched) or None.
+        """
+        msg_lower = user_message.lower()
+        msg_tokens = set(msg_lower.split())
+
+        # Build searchable text: current message + all conversation history content
+        all_text = msg_lower
+        if conversation_history:
+            for entry in conversation_history:
+                content = (entry.get('content') or '').lower()
+                if content:
+                    all_text += ' ' + content
+
+        # Check multi-word verb phrases first (more specific)
+        for phrase, domain_key in self._MULTI_WORD_VERB_PHRASES.items():
+            if phrase in msg_lower:
+                domain = self.MUTATION_DOMAIN_MAP.get(domain_key)
+                if domain:
+                    # Check keywords in all text
+                    for kw in domain['keywords']:
+                        if kw in all_text:
+                            return (domain['function'], phrase, kw)
+
+        # Check single-word verbs per domain
+        for domain_key, domain in self.MUTATION_DOMAIN_MAP.items():
+            matched_verb = msg_tokens.intersection(domain['verbs'])
+            if not matched_verb:
+                continue
+
+            verb = next(iter(matched_verb))
+
+            # Check keywords in all text (current message + history)
+            for kw in domain['keywords']:
+                if kw in all_text:
+                    return (domain['function'], verb, kw)
+
+        return None
+
+    def _retry_with_forced_mutation(
+        self,
+        messages: list,
+        forced_function: str,
+        user,
+        user_message: str,
+    ) -> Optional[List[IntentResult]]:
+        """Retry intent recognition with forced function calling.
+
+        When the initial call returned no_action but mutation verb + domain
+        keyword were detected, this method retries with tool_choice forcing
+        the specific function.
+
+        Returns:
+            List of IntentResult on success, or None on failure.
+        """
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=ALL_INTENT_TOOLS,
+                tool_choice={
+                    "type": "function",
+                    "function": {"name": forced_function},
+                },
+                max_tokens=500,
+                temperature=0.1,
+            )
+
+            # --- Owner Finance telemetry (best-effort) ---
+            try:
+                usage = getattr(response, 'usage', None)
+                if usage:
+                    from apps.owner_finance.services.telemetry import log_llm_usage
+                    log_llm_usage(
+                        user=user,
+                        feature='INTENT_RETRY',
+                        model_name=self.model,
+                        input_tokens=getattr(usage, 'prompt_tokens', 0),
+                        output_tokens=getattr(usage, 'completion_tokens', 0),
+                    )
+            except Exception:
+                pass
+
+            message = response.choices[0].message
+
+            if not message.tool_calls:
+                return None
+
+            results = []
+            for tool_call in message.tool_calls:
+                function_name = tool_call.function.name
+                try:
+                    parameters = json.loads(tool_call.function.arguments)
+                except json.JSONDecodeError:
+                    parameters = {}
+
+                requires_confirmation, confirmation_message = self._check_validation(
+                    function_name, parameters, user
+                )
+
+                results.append(IntentResult(
+                    intent_type=function_name,
+                    parameters=parameters,
+                    confidence=0.8,  # Slightly lower confidence for retried intents
+                    requires_confirmation=requires_confirmation,
+                    confirmation_message=confirmation_message,
+                    raw_response=message.content,
+                ))
+
+            return results if results else None
+
+        except Exception as e:
+            logger.error(
+                "[MUTATION_RETRY] Retry failed for forced %s: %s",
+                forced_function, e, exc_info=True,
+            )
+            return None
 
     def _check_validation(self, intent_type: str, parameters: dict, user) -> tuple:
         """

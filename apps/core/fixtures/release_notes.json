@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 116,
+    "fields": {
+      "title": "Meal Intelligence — Setup Mode Now Shows What's Coming",
+      "description": "The Meal Intelligence setup experience now gives you a preview of the system's full power before you activate it. The setup dashboard shows a 'Kitchen Intelligence Initialization' hero with six capability tags (blood sugar protection, protein alignment, waste reduction, calendar awareness, grocery efficiency, family scaling), three locked preview cards showing exactly what activates next (optimized dinner score, expiration alert, grocery stats), and a 'Why This Matters' side panel. The setup wizard now opens with a preamble — 'You're 3 minutes away from activating a household optimization engine' — and each step uses capability-unlock language so you know what you're building toward.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-02",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/meals/",
+      "created_at": "2026-03-02T23:00:00Z",
+      "updated_at": "2026-03-02T23:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 115,
     "fields": {
       "title": "Relationship Insights Dashboard",

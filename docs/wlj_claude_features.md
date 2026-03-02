@@ -3913,4 +3913,119 @@ A standalone Notes module that serves as the user's personal memory layer. Notes
 
 ---
 
-*Last updated: 2026-03-01*
+## Meal Intelligence — What's for Dinner?
+
+**App:** `apps/meals/`
+**URL:** `/meals/`
+**Access:** Authenticated users with Meals module enabled
+
+### Overview
+
+A complete household meal intelligence system that transforms WLJ from a nutrition tracker into a proactive kitchen command center. The system provides personalized dinner suggestions scored against real pantry inventory, nutrition goals, dietary profiles, and behavioral signals. Built across 11 phases (Phases 1–11).
+
+### Key Capabilities
+
+- **Dinner Suggestions** — 7-factor deterministic scoring engine ranks recipes against pantry coverage, nutrition alignment, prep time, recency, dietary compliance, emotional context, and decision fatigue
+- **Pantry Intelligence** — Track inventory with confidence scoring, expiration warnings, and confidence decay over time
+- **Photo Scan** — AI detects food items from fridge/pantry photos via OpenAI Vision; review sessions before confirming
+- **Receipt Upload** — Parse grocery receipt text to bulk-update pantry inventory with confidence scoring
+- **Weekly Meal Planning** — Generate optimized 7-day plans with variety enforcement, nutrition balance, and cost estimation
+- **Recipe Library** — Full recipe management with per-serving nutrition breakdown (18 nutrients), pantry gap analysis, and substitution suggestions
+- **Progressive Activation** — Setup Mode gates intelligence behind minimum data thresholds (5 pantry items, 3 recipes) to prevent low-quality first impressions
+- **Power Preview** — Setup Mode dashboard showcases locked preview cards of what activates next, 6 capability tags, and "Why This Matters" side panel
+
+### Models (11)
+
+| Model | Purpose |
+|-------|---------|
+| `Ingredient` | Canonical ingredient with category, unit defaults, nutrition |
+| `RecipeIngredient` | Ingredient-recipe join with quantity, unit, and prep notes |
+| `Household` | User's household unit with dietary profile and `meals_activated_at` |
+| `HouseholdMembership` | Links users to households with role |
+| `DietaryProfile` | Per-household dietary restrictions and preferences |
+| `PantryItem` | Pantry inventory entry with confidence score, quantity, expiration |
+| `InventoryTransaction` | Audit trail for pantry adds/uses/adjustments |
+| `MealPlan` | Weekly meal plan header |
+| `MealPlanEntry` | Single day's meal assignment within a plan |
+| `Receipt` | Grocery receipt record with parse results |
+| `ReceiptItem` | Individual line item from a parsed receipt |
+
+### Services (10)
+
+| Service | Purpose |
+|---------|---------|
+| `ingredient_parser.py` | Parse free text ("2 cups diced chicken") → structured data |
+| `unit_conversion.py` | Normalize units (cups→ml, oz→g, fractions, ranges) |
+| `ingredient_matching.py` | Match parsed names to Ingredient records (exact→alias→fuzzy) |
+| `inventory_gap.py` | Compare recipe needs vs. pantry stock with confidence decay |
+| `recipe_nutrition.py` | Aggregate 18-nutrient per-serving nutrition from FoodItem library |
+| `meal_scoring.py` | 7-factor deterministic scoring engine with transparent weights |
+| `dinner_suggestions.py` | Ranked suggestion generation with emotional/faith/finance overlays |
+| `meal_plan_generator.py` | 7-day plan generator with variety and nutrition constraints |
+| `receipt_parser.py` | Parse receipt text → ReceiptItem records with fuzzy matching |
+| `activation.py` | ActivationStatus dataclass, threshold checks, activation timestamp logic |
+
+### Pages
+
+| Page | URL | help_context_id |
+|------|-----|-----------------|
+| Dashboard | `/meals/` | `MEALS_DASHBOARD` |
+| Dinner Suggestions | `/meals/suggestions/` | `MEALS_SUGGESTIONS` |
+| Pantry | `/meals/pantry/` | `MEALS_PANTRY` |
+| Scan Sessions | `/meals/pantry/sessions/` | `MEALS_PANTRY` |
+| Weekly Plan | `/meals/plan/` | `MEALS_PLAN` |
+| Receipts | `/meals/receipts/` | `MEALS_RECEIPTS` |
+| Recipe Detail | `/meals/recipes/<id>/` | `MEALS_RECIPE_DETAIL` |
+| Setup Wizard | `/meals/setup/` | `MEALS_SETUP` |
+
+### Intelligence Engine Integration
+
+- **SAE (Scoring & Analysis Engine)** — Recipe scoring, pantry gap analysis
+- **PIE (Personalized Insights Engine)** — Fires events on meal logging, pantry updates
+- **PRIE (Predictive Intelligence Engine)** — Predicts grocery needs, meal timing
+- **PGE (Proactive Guidance Engine)** — Surfaces dinner recommendations proactively
+
+### Progressive Activation (Phase 10)
+
+Dashboard operates in one of three states:
+1. **Setup Mode** — Below activation thresholds; shows capability preview and guided wizard
+2. **Activation Moment** — Thresholds just met; confirmation screen with `meals_activated_at` timestamp
+3. **Active Mode** — Full intelligence dashboard with scored suggestions and pantry status
+
+Thresholds: 5 pantry items + 3 recipes. Controlled by `apps/meals/services/activation.py`.
+
+### Power Preview Layer (Phase 11)
+
+Setup Mode dashboard features:
+- **Hero section** — "Kitchen Intelligence Initialization" with 6 capability tags
+- **Locked preview cards** — 3 cards showing mock examples of what activates next (Optimized Dinner Score, Expiration Intelligence, Grocery Optimization)
+- **Why This Matters panel** — Side panel explaining the value proposition
+- **Setup wizard preamble** — "You're 3 minutes away from activating a household optimization engine"
+- **Capability-unlock step descriptions** — Each wizard step explains what it unlocks
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `apps/meals/models.py` | All 11 models |
+| `apps/meals/views.py` | Dashboard, Suggestions, Pantry, Plan, Receipts, Recipe, Setup views |
+| `apps/meals/urls.py` | URL routing for all meals pages |
+| `apps/meals/services/` | 10 service modules |
+| `apps/meals/services/activation.py` | Activation gating logic |
+| `templates/meals/dashboard.html` | Dashboard (Setup Mode + Active Mode) |
+| `templates/meals/setup.html` | 3-step setup wizard with capability-unlock language |
+| `templates/meals/suggestions.html` | Scored dinner suggestions list |
+| `templates/meals/partials/_dashboard_side_panel.html` | Reusable side panel partial |
+| `static/css/meals.css` | All meals styles (~600 lines) |
+| `apps/meals/migrations/` | DB migrations including meals_activated_at field |
+| `docs/Whats-for-Dinner.md` | Full phase-by-phase implementation log |
+
+### Tests
+
+- 193 tests (Phases 1–8 backend)
+- 29 activation tests (`apps/meals/tests/test_meal_activation.py`)
+- Additional view tests (`apps/meals/tests/test_views.py`)
+
+---
+
+*Last updated: 2026-03-02*

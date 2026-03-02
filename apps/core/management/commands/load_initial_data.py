@@ -857,6 +857,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Phase R2 Relationship Insights (PK 115 release note, PK 170 teaching dest)
         self._reset_relationship_insights_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Phase 11 Power Preview (PK 116 release note, PKs 106-112 help topics)
+        self._reset_meals_power_preview_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Reset module_definitions fixture to add Relationships module (PK 10)
         self._reset_relationships_module_definition_fixtures(DataLoadConfig, force, verbosity)
 
@@ -4641,3 +4644,38 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset relationships module definition fixtures FAILED: {e}'))
+
+    def _reset_meals_power_preview_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 116) and help_topics (PKs 106-112)
+        for Meal Intelligence Phase 11: Power Preview & Anticipation Layer.
+        Also reloads help_topics for all MEALS_* context IDs (MEALS_DASHBOARD,
+        MEALS_SUGGESTIONS, MEALS_PANTRY, MEALS_PLAN, MEALS_RECEIPTS,
+        MEALS_RECIPE_DETAIL, MEALS_SETUP).
+        """
+        reset_tracker_name = 'reset_meals_power_preview_2026_03_02'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for loader in ['release_notes', 'help_topics']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader} loader for Meals Power Preview (Phase 11)')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Meals Power Preview & Anticipation Layer (Phase 11)',
+                'command',
+                'One-time reset to reload release_notes PK 116, help_topics PKs 106-112 (MEALS_* contexts)'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset meals power preview fixtures FAILED: {e}'))

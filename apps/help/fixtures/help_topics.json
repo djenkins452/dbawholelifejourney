@@ -1,6 +1,118 @@
 [
   {
     "model": "help.helptopic",
+    "pk": 106,
+    "fields": {
+      "context_id": "MEALS_DASHBOARD",
+      "help_id": "meals-dashboard",
+      "title": "Meal Intelligence Dashboard",
+      "description": "Your kitchen command center for dinner recommendations and pantry status.",
+      "content": "## Meal Intelligence Dashboard\n\nYour kitchen command center. Once activated, the dashboard surfaces tonight's top dinner recommendation, expiring pantry items, grocery cycle status, and weekly nutrition insights all in one place.\n\n### Setup Mode vs. Active Mode\n\nWhen you first open Meals, you'll see the **Setup Mode** dashboard. This shows you a preview of the system's capabilities and guides you through the 3-step activation wizard. Once you have at least 5 pantry items and 3 recipes, the system activates and switches to the full intelligence view.\n\n### Active Dashboard\n\n- **Tonight's Recommendation** — Top-scored dinner based on pantry availability, nutrition goals, and prep time\n- **Expiring Soon** — Pantry items at risk of going to waste\n- **Grocery Cycle** — Days since your last grocery run\n- **Nutrition Snapshot** — Weekly macro summary\n\n### Getting Started\n\n1. Open the Setup Wizard from the dashboard\n2. Add pantry items (manually or via photo scan)\n3. Import or create 3+ recipes\n4. Confirm your dietary profile\n5. The system activates automatically when thresholds are met",
+      "app_name": "meals",
+      "order": 106,
+      "is_active": true,
+      "created_at": "2026-03-02T00:00:00Z",
+      "updated_at": "2026-03-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 107,
+    "fields": {
+      "context_id": "MEALS_SUGGESTIONS",
+      "help_id": "meals-suggestions",
+      "title": "Dinner Suggestions",
+      "description": "Get personalized dinner recommendations scored against your pantry, nutrition goals, and dietary needs.",
+      "content": "## Dinner Suggestions\n\nPersonalized dinner recommendations ranked by a 7-factor scoring engine that considers your actual pantry inventory, nutrition goals, prep time preferences, dietary restrictions, and more.\n\n### How Scoring Works\n\nEach recipe receives a composite score based on:\n\n- **Pantry Coverage** — How many ingredients you already have\n- **Nutrition Alignment** — How well the meal fits your macros and health goals\n- **Prep Time** — Matches your available time\n- **Recency** — Avoids repeating meals you've had recently\n- **Dietary Compliance** — Respects your dietary profile (vegetarian, gluten-free, etc.)\n- **Emotional Context** — Adjusts for your current wellbeing signals\n- **Decision Fatigue** — Reduces choices when your decision load is high\n\n### Filters\n\nUse the filter bar to narrow by prep time, dietary tag, or pantry coverage percentage.\n\n### Requires Activation\n\nSuggestions require at least 5 pantry items and 3 recipes. If the system isn't activated yet, you'll be redirected to the setup wizard.",
+      "app_name": "meals",
+      "order": 107,
+      "is_active": true,
+      "created_at": "2026-03-02T00:00:00Z",
+      "updated_at": "2026-03-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 108,
+    "fields": {
+      "context_id": "MEALS_PANTRY",
+      "help_id": "meals-pantry",
+      "title": "Pantry Intelligence",
+      "description": "Track your pantry inventory with confidence scoring and expiration warnings.",
+      "content": "## Pantry Intelligence\n\nYour pantry is the foundation of the Meal Intelligence system. Accurate inventory data enables better dinner suggestions, waste reduction, and grocery planning.\n\n### What You'll See\n\n- Items grouped by store section (Produce, Dairy, Meat, Pantry, Freezer, etc.)\n- **Confidence scores** — How certain the system is that each item is still in stock\n- **Expiration warnings** — Items nearing their use-by date\n- **Quantity estimates** — How much of each item you have\n\n### Adding Pantry Items\n\n- **Manual entry** — Add items one at a time with quantity and expiration date\n- **Photo scan** — Take a photo of your fridge or pantry shelf; AI detects items automatically\n- **Receipt upload** — Upload a grocery receipt to bulk-add items from your shopping trip\n\n### Confidence Decay\n\nConfidence scores decay over time as items are used. Mark items as 'used' or 'finished' to keep your inventory accurate. The system uses usage patterns to estimate depletion rates.\n\n### Scan Sessions\n\nEach photo scan creates a session where you review AI-detected items before confirming. View your scan history at Meals > Pantry > Scan Sessions.",
+      "app_name": "meals",
+      "order": 108,
+      "is_active": true,
+      "created_at": "2026-03-02T00:00:00Z",
+      "updated_at": "2026-03-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 109,
+    "fields": {
+      "context_id": "MEALS_PLAN",
+      "help_id": "meals-plan",
+      "title": "Weekly Meal Plan",
+      "description": "Generate and manage a 7-day meal plan optimized for your pantry, nutrition goals, and dietary needs.",
+      "content": "## Weekly Meal Plan\n\nPlan your dinners for the week ahead. The system generates an optimized 7-day plan based on pantry availability, nutrition goals, variety requirements, and cost estimates.\n\n### Generating a Plan\n\nTap **Generate Plan** to create a new 7-day meal plan. The system will:\n\n1. Score all available recipes against your current pantry\n2. Enforce variety (no repeated dinners within 7 days)\n3. Balance nutrition across the week\n4. Estimate cost based on missing ingredients\n\n### Customizing the Plan\n\n- Tap any day to swap the suggested meal\n- Drag to reorder (on supported devices)\n- Mark a meal as cooked to update pantry inventory automatically\n\n### Nutrition Summary\n\nThe plan view shows a weekly nutrition summary with macro totals and per-day breakdown.\n\n### Calendar Integration\n\nMeal plan entries can sync to your WLJ calendar so they appear alongside your other commitments.",
+      "app_name": "meals",
+      "order": 109,
+      "is_active": true,
+      "created_at": "2026-03-02T00:00:00Z",
+      "updated_at": "2026-03-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 110,
+    "fields": {
+      "context_id": "MEALS_RECEIPTS",
+      "help_id": "meals-receipts",
+      "title": "Receipt Upload",
+      "description": "Upload grocery receipts to automatically update your pantry inventory.",
+      "content": "## Receipt Upload\n\nUpload the text of a grocery receipt and the system will parse the items, match them to known ingredients, and update your pantry inventory — all with confidence scoring.\n\n### How It Works\n\n1. Copy the text from your receipt (or type it manually)\n2. Paste into the receipt upload form\n3. The parser identifies items, quantities, and prices\n4. Each item is matched to your ingredient database\n5. Review and confirm before items are added to your pantry\n\n### Confidence Scoring\n\nEach matched item gets a confidence score. High-confidence matches are auto-confirmed; low-confidence matches require your review. You can override any match.\n\n### Receipt History\n\nAll uploaded receipts are stored in your history with parse results, match rates, and total cost. This data feeds into your grocery cycle tracking and budget awareness.\n\n### Tips\n\n- Digital receipts from grocery apps work best\n- Include quantity and unit info when manually entering items\n- Review low-confidence matches before confirming",
+      "app_name": "meals",
+      "order": 110,
+      "is_active": true,
+      "created_at": "2026-03-02T00:00:00Z",
+      "updated_at": "2026-03-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 111,
+    "fields": {
+      "context_id": "MEALS_RECIPE_DETAIL",
+      "help_id": "meals-recipe-detail",
+      "title": "Recipe Detail",
+      "description": "View a recipe with nutrition breakdown, pantry gap analysis, and substitution suggestions.",
+      "content": "## Recipe Detail\n\nThe recipe detail page gives you a complete view of a recipe — ingredients, instructions, nutrition breakdown, pantry gap analysis, and substitution suggestions.\n\n### Nutrition Breakdown\n\nSee per-serving macros (calories, protein, carbs, fat) plus 18 micronutrients calculated from your ingredient database. Nutrition data accounts for your serving size and household size.\n\n### Pantry Gap Analysis\n\nThe gap analysis section shows:\n\n- **Have** — Ingredients you currently have in stock\n- **Need** — Ingredients you're short on or missing\n- **Confidence** — How certain the system is about each item's availability\n\n### Substitution Suggestions\n\nFor missing ingredients, the system suggests substitutes based on nutritional similarity and common culinary patterns. Each substitution shows the impact on the recipe's nutrition score.\n\n### Scoring\n\nEach recipe shows its composite intelligence score with a breakdown of contributing factors. Tap the score to see the full scoring explanation.",
+      "app_name": "meals",
+      "order": 111,
+      "is_active": true,
+      "created_at": "2026-03-02T00:00:00Z",
+      "updated_at": "2026-03-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 112,
+    "fields": {
+      "context_id": "MEALS_SETUP",
+      "help_id": "meals-setup",
+      "title": "Meal Intelligence Setup Wizard",
+      "description": "Activate Meal Intelligence in 3 steps: add pantry items, import recipes, and confirm your dietary profile.",
+      "content": "## Meal Intelligence Setup Wizard\n\nYou're 3 minutes away from activating a household optimization engine. The setup wizard walks you through the three steps needed to unlock personalized dinner recommendations.\n\n### Step 1: Add Pantry Items\n\nAdd at least 5 items to your pantry so the system knows what you have to work with. You can:\n\n- Add items manually with quantity and expiration date\n- Use the photo scan to take a picture of your fridge or pantry shelf\n- Skip this step and add items later (the system won't activate until the threshold is met)\n\n**Unlocks:** Pantry-aware dinner scoring, ingredient gap analysis, expiration warnings\n\n### Step 2: Import Recipes\n\nAdd at least 3 recipes so the system has a pool to score and suggest from. You can:\n\n- Create recipes manually with ingredients and instructions\n- Import from a URL (supported recipe sites)\n- Browse the recipe library\n\n**Unlocks:** Recipe scoring, dinner suggestions, weekly meal planning\n\n### Step 3: Confirm Your Dietary Profile\n\nSet your dietary preferences and restrictions. This data is used to filter and score recipes.\n\n- Dietary tags (vegetarian, vegan, gluten-free, dairy-free, etc.)\n- Cuisine preferences\n- Household size (affects serving calculations)\n\n**Unlocks:** Dietary-aware filtering, family-scaled serving sizes, allergen protection\n\n### Activation\n\nOnce all three thresholds are met, the system activates automatically. You'll see a confirmation screen, and the dashboard switches to the full intelligence view.",
+      "app_name": "meals",
+      "order": 112,
+      "is_active": true,
+      "created_at": "2026-03-02T00:00:00Z",
+      "updated_at": "2026-03-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
     "pk": 102,
     "fields": {
       "context_id": "NOTES_LIST",

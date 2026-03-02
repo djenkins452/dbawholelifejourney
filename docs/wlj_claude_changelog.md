@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Fix: Calendar month view events ordered by UTC instead of local time
+
+**What:** Calendar events were displayed out of chronological order because the API serialized datetimes in UTC. The JavaScript assigns events to calendar days using `substring(0,10)` on the ISO string, so UTC dates caused events to land on wrong days (e.g., "7:30pm March 2 Central" became March 3 UTC) and sort before earlier local events. Fixed by converting `start_dt`/`end_dt` to user's local timezone via `timezone.localtime()` before serialization.
+
+**Files modified:**
+- `apps/calendar_engine/views.py` — `_event_to_dict()` and `_occurrence_to_dict()` now convert to local time before `.isoformat()`
+
+---
+
 ## 2026-03-02 — Fix: process pantry photos from memory as primary path
 
 **What:** Cloudinary read-back via `image_field_to_base64()` was silently failing, causing "No items detected" despite clear photos. Switched back to in-memory processing as the primary path: view reads raw bytes from request.FILES, processes through Vision API directly (no Cloudinary round-trip). Images are saved to Cloudinary as backup only (for potential Celery retry). Celery task only dispatched for unprocessed leftovers.

@@ -30,12 +30,15 @@ from .services.projection import upsert_execution_block_for_task
 
 def _event_to_dict(event):
     """Serialize a CalendarEvent to a dict for JSON response."""
+    # Convert to local time so ISO date portion matches the user's calendar day
+    local_start = timezone.localtime(event.start_dt)
+    local_end = timezone.localtime(event.end_dt)
     return {
         'id': event.pk,
         'title': event.title,
         'description': event.description,
-        'start_dt': event.start_dt.isoformat(),
-        'end_dt': event.end_dt.isoformat(),
+        'start_dt': local_start.isoformat(),
+        'end_dt': local_end.isoformat(),
         'is_all_day': event.is_all_day,
         'event_kind': event.event_kind,
         'source_type': event.source_type,
@@ -50,12 +53,14 @@ def _event_to_dict(event):
 
 def _occurrence_to_dict(event, occ_start, occ_end):
     """Serialize a recurring occurrence to a dict."""
+    local_start = timezone.localtime(occ_start)
+    local_end = timezone.localtime(occ_end)
     return {
         'id': event.pk,
         'title': event.title,
         'description': event.description,
-        'start_dt': occ_start.isoformat(),
-        'end_dt': occ_end.isoformat(),
+        'start_dt': local_start.isoformat(),
+        'end_dt': local_end.isoformat(),
         'is_all_day': event.is_all_day,
         'event_kind': event.event_kind,
         'source_type': event.source_type,

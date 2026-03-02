@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Fix: Duplicate calendar events from recurring occurrences + DST-safe recurrence
+
+**What:** Three related calendar bugs fixed:
+1. **Duplicate events on timeline:** When a manual CalendarEvent existed on the same date as a recurring event's computed occurrence (same title), both appeared — e.g., "Bible Study" at 6 PM (correct, from direct event) AND at 7 PM (wrong, from recurring occurrence with UTC-based time shift). Added title+date deduplication in `_get_events_in_range()` so direct events take priority over recurring occurrences.
+2. **DST-unsafe recurrence computation:** `RecurrenceRule.get_occurrences()` advanced via `timedelta` on UTC datetimes, which shifts wall-clock time by 1 hour at DST boundaries. Refactored to work in the recurrence's local timezone — converts base event to local date/time, advances the date, then reconstructs aware datetimes. "6 PM every Wed" stays 6 PM regardless of CST↔CDT transitions.
+3. **Diagnostic logging:** Added temporary console.log in dashboard.html to dump raw API data for Bible Study events (id, start_dt, source_type, is_occurrence) for verification.
+
+**Files modified:**
+- `apps/calendar_engine/views.py` — `_get_events_in_range()` deduplicates recurring occurrences against direct events by title+date; `_event_to_dict()` now includes `has_recurrence`
+- `apps/calendar_engine/models.py` — `RecurrenceRule.get_occurrences()` rewritten to be DST-safe using local timezone; old `_advance()` replaced with `_advance_date()` operating on dates
+- `templates/calendar_engine/dashboard.html` — Diagnostic console.log for Bible Study events
+
+---
+
 ## 2026-03-02 — Fix: Calendar event times off by 1 hour + edit modal overflow
 
 **What:** Two calendar UI issues fixed:

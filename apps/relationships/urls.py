@@ -23,6 +23,9 @@ urlpatterns = [
     path('<int:pk>/edit/', views.PersonUpdateView.as_view(), name='person_update'),
     path('<int:pk>/delete/', views.PersonDeleteView.as_view(), name='person_delete'),
 
+    # Insights dashboard (Phase R2)
+    path('insights/', views.RelationshipInsightsView.as_view(), name='insights'),
+
     # API endpoints
     path('autocomplete/', views.PersonAutocompleteView.as_view(), name='autocomplete'),
     path('quick-create/', views.PersonQuickCreateView.as_view(), name='quick_create'),

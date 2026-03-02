@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+
+{% block title %}Relationship Insights - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'dashboard:home' %}">Dashboard</a>
+        <span>/</span>
+        <a href="{% url 'relationships:person_list' %}">People</a>
+        <span>/</span>
+        <span>Insights</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Relationship Insights</h1>
+            <p class="page-subtitle">{{ health.total_contacts }} contact{{ health.total_contacts|pluralize }}</p>
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'relationships:person_list' %}" class="btn btn-secondary btn-sm">All People</a>
+        </div>
+    </div>
+
+    {% if score is not None %}
+
+    <!-- Section 1: Interaction Overview -->
+    <section class="ri-section mb-6">
+        <div class="ri-score-banner">
+            <div class="ri-score-circle">
+                <span class="ri-score-value">{{ score }}</span>
+            </div>
+            <div class="ri-score-meta">
+                <h2 class="ri-score-label">Relational Health</h2>
+                <div class="ri-score-sub">
+                    {{ health.active_7d }} active this week &middot;
+                    {{ health.stale_30d }} need attention
+                </div>
+            </div>
+        </div>
+
+        {% if health.insight_lines %}
+        <div class="ri-insights-list">
+            {% for line in health.insight_lines %}
+                <div class="ri-insight-line">{{ line }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="ri-quick-stats">
+            <div class="ri-stat">
+                <div class="ri-stat-value">{{ health.total_contacts }}</div>
+                <div class="ri-stat-label">Contacts</div>
+            </div>
+            <div class="ri-stat">
+                <div class="ri-stat-value">{{ health.active_7d }}</div>
+                <div class="ri-stat-label">Active (7d)</div>
+            </div>
+            <div class="ri-stat">
+                <div class="ri-stat-value">{{ health.stale_30d }}</div>
+                <div class="ri-stat-label">Stale (30d+)</div>
+            </div>
+            <div class="ri-stat">
+                <div class="ri-stat-value">{{ health.avg_days_between|default:"—" }}</div>
+                <div class="ri-stat-label">Avg Days Between</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 2: People Needing Attention -->
+    {% if health.longest_no_contact %}
+    <section class="ri-section mb-6">
+        <h2 class="ri-section-title">People Needing Attention</h2>
+        <div class="ri-table-wrapper">
+            <table class="ri-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Days Since</th>
+                        <th>Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for person in health.longest_no_contact %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'relationships:person_detail' person.id %}">
+                                {{ person.display_name }}
+                            </a>
+                        </td>
+                        <td>
+                            {% if person.days_since is not None %}
+                                {{ person.days_since }}d
+                            {% else %}
+                                Never
+                            {% endif %}
+                        </td>
+                        <td class="text-muted">{{ person.relationship_type }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Section 3: Context Balance Analysis -->
+    {% if health.context_distributions %}
+    <section class="ri-section mb-6">
+        <h2 class="ri-section-title">Context Balance</h2>
+        <p class="ri-section-desc text-muted text-sm mb-4">
+            How your interactions are distributed across modules.
+            {% if health.imbalance_flags %}
+            <span class="ri-imbalance-note">{{ health.imbalance_flags|length }} imbalance{{ health.imbalance_flags|length|pluralize }} detected.</span>
+            {% endif %}
+        </p>
+
+        <div class="ri-context-grid">
+            {% for dist in health.context_distributions %}
+            <div class="ri-context-card {% if dist.person_id in imbalanced_ids %}ri-context-imbalanced{% endif %}">
+                <div class="ri-context-name">{{ dist.display_name }}</div>
+                <div class="ri-context-bars">
+                    {% for ctx, pct in dist.pct_breakdown.items %}
+                    <div class="ri-bar-row">
+                        <span class="ri-bar-label">{{ ctx }}</span>
+                        <div class="ri-bar-track">
+                            <div class="ri-bar-fill {% if pct > 70 %}ri-bar-dominant{% endif %}"
+                                 style="width: {{ pct }}%"></div>
+                        </div>
+                        <span class="ri-bar-pct">{{ pct }}%</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Section 4: Top Relational Anchors -->
+    {% if health.top_interacted %}
+    <section class="ri-section mb-6">
+        <h2 class="ri-section-title">Relational Anchors</h2>
+        <p class="ri-section-desc text-muted text-sm mb-4">
+            People with the strongest positive interaction patterns.
+        </p>
+        <div class="ri-anchors-grid">
+            {% for person in health.top_interacted %}
+            <div class="ri-anchor-card">
+                <a href="{% url 'relationships:person_detail' person.id %}" class="ri-anchor-link">
+                    <div class="ri-anchor-name">{{ person.display_name }}</div>
+                    <div class="ri-anchor-meta">
+                        <span>{{ person.interaction_count }} interactions</span>
+                        <span class="text-muted">{{ person.relationship_type }}</span>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% else %}
+    <!-- No contacts yet -->
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+        </div>
+        <h2 class="empty-state-title">No contacts yet</h2>
+        <p class="empty-state-text">
+            Add people from your life to start building relational insights.
+        </p>
+        <a href="{% url 'relationships:person_create' %}" class="btn btn-primary">Add Your First Contact</a>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+/* Relationship Insights Styles */
+.ri-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+.ri-section-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+}
+.ri-section-desc {
+    margin-bottom: var(--space-4);
+}
+
+/* Score Banner */
+.ri-score-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+    margin-bottom: var(--space-4);
+}
+.ri-score-circle {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: var(--color-background);
+    border: 3px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.ri-score-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+.ri-score-label {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0;
+}
+.ri-score-sub {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+/* Insight Lines */
+.ri-insights-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-5);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-background);
+    border-radius: var(--radius-md);
+}
+.ri-insight-line {
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    padding-left: var(--space-3);
+    border-left: 2px solid var(--color-accent);
+}
+
+/* Quick Stats */
+.ri-quick-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-3);
+}
+.ri-stat {
+    text-align: center;
+    padding: var(--space-3);
+    background: var(--color-background);
+    border-radius: var(--radius-md);
+}
+.ri-stat-value {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+.ri-stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+/* Table */
+.ri-table-wrapper {
+    overflow-x: auto;
+}
+.ri-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.ri-table th {
+    text-align: left;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+.ri-table td {
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--font-size-sm);
+}
+.ri-table a {
+    color: var(--color-accent);
+    text-decoration: none;
+    font-weight: 500;
+}
+.ri-table a:hover {
+    text-decoration: underline;
+}
+
+/* Context Balance */
+.ri-context-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-4);
+}
+.ri-context-card {
+    background: var(--color-background);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+}
+.ri-context-name {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-2);
+}
+.ri-bar-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-1);
+}
+.ri-bar-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    width: 50px;
+    flex-shrink: 0;
+}
+.ri-bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--color-border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+.ri-bar-fill {
+    height: 100%;
+    background: var(--color-accent);
+    border-radius: 3px;
+    transition: width var(--transition-base);
+}
+.ri-bar-fill.ri-bar-dominant {
+    background: var(--color-warning, #f59e0b);
+}
+.ri-bar-pct {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    width: 32px;
+    text-align: right;
+    flex-shrink: 0;
+}
+.ri-imbalance-note {
+    color: var(--color-warning, #f59e0b);
+    font-weight: 500;
+}
+
+/* Anchors */
+.ri-anchors-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--space-3);
+}
+.ri-anchor-card {
+    background: var(--color-background);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    transition: box-shadow var(--transition-fast);
+}
+.ri-anchor-card:hover {
+    box-shadow: var(--shadow-md);
+}
+.ri-anchor-link {
+    text-decoration: none;
+    color: inherit;
+}
+.ri-anchor-name {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-1);
+}
+.ri-anchor-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .ri-quick-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .ri-context-grid {
+        grid-template-columns: 1fr;
+    }
+    .ri-score-banner {
+        flex-direction: column;
+        text-align: center;
+    }
+}
+</style>
+{% endblock %}

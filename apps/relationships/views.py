@@ -18,11 +18,11 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views import View
-from django.views.generic import CreateView, DetailView, ListView, UpdateView
+from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView
 
 from .forms import PersonForm, QuickPersonForm
 from .models import Person
-from .services import RelationshipAnalyticsService
+from .services import RelationalHealthService, RelationshipAnalyticsService
 
 logger = logging.getLogger(__name__)
 
@@ -205,3 +205,21 @@ class PersonQuickCreateView(LoginRequiredMixin, View):
             'first_name': person.first_name,
             'type': person.relationship_type,
         }, status=201)
+
+
+# =============================================================================
+# RELATIONSHIP INSIGHTS (Phase R2)
+# =============================================================================
+
+
+class RelationshipInsightsView(LoginRequiredMixin, TemplateView):
+    """Full relationship insights dashboard."""
+
+    template_name = 'relationships/insights.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        health = RelationalHealthService.compute_health(self.request.user)
+        ctx['health'] = health
+        ctx['score'] = health.get('score')
+        return ctx

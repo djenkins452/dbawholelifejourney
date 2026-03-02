@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 115,
+    "fields": {
+      "title": "Relationship Insights Dashboard",
+      "description": "See how healthy your relational connections are at a glance. A new Insights page under People shows your Relational Health score (0–100), highlights people needing attention, reveals context balance across Journal, Tasks, Events, and Prayer, and identifies your relational anchors. A compact summary card on your Dashboard keeps the key numbers visible without leaving home.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-02",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/relationships/insights/",
+      "created_at": "2026-03-02T22:00:00Z",
+      "updated_at": "2026-03-02T22:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 114,
     "fields": {
       "title": "People & Relationship Intelligence",

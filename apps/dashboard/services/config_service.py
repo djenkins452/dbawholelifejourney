@@ -323,6 +323,17 @@ TILE_DEFINITIONS = {
         'mandatory': False,
         'default_order': 15,
     },
+    'relational_health': {
+        'id': 'relational_health',
+        'name': 'Relational Health',
+        'description': 'Summary of your key relationships, interaction patterns, and relational health score.',
+        'icon': 'users',
+        'module_dependency': None,  # Always available — relationships are core
+        'default_visible': True,
+        'default_size': 'medium',
+        'mandatory': False,
+        'default_order': 9,
+    },
 }
 
 

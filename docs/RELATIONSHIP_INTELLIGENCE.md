@@ -197,15 +197,117 @@ All views enforce `owner=request.user` filtering. Cross-user access returns 404.
 
 ---
 
+## Phase R2: Relationship Insights Dashboard
+
+**Status:** Complete
+**Date:** 2026-03-02
+
+### Scoring Model
+
+Deterministic health score (0–100), computed on demand with 5-minute cache:
+
+```
+Base score: 100
+
+Deductions:
+  -2 per person >45 days stale (cap -20)
+  -1 per context imbalance flag
+  -5 if no event interactions in 30 days
+
+Additions:
+  +1 per week with consistent engagement (3+ of last 4 weeks, cap +10)
+
+Final: clamped to [0, 100]
+```
+
+### Imbalance Detection
+
+A person is flagged as imbalanced when:
+- They have ≥3 total interactions
+- One context_type_label accounts for >70% of their interactions
+
+Imbalance flags include: `person_id`, `display_name`, `dominant_context`, `percentage`
+
+### Insights Page (`/relationships/insights/`)
+
+Four sections:
+1. **Interaction Overview** — Score circle, active (7d) / stale (30d+) counts, insight lines, quick stats grid
+2. **People Needing Attention** — Table of longest-no-contact persons with days since last interaction
+3. **Context Balance** — Per-person bar charts showing interaction distribution across modules, orange bars for >70%
+4. **Relational Anchors** — Top interacted persons with interaction counts and relationship types
+
+### Dashboard Tile
+
+Compact summary card (`relational_health`) registered in `config_service.py`:
+- Score circle with numerical value
+- Active / Stale counts
+- Up to 3 insight lines
+- Link to full insights page
+- Graceful handling of no-contacts state
+
+### CoS Payload
+
+The CoS context builder includes relational health in every LLM request:
+
+```python
+{
+    'relational_health': {
+        'health_score': 85,
+        'stale_relationships_count': 2,
+        'top_anchor_persons': ['Heather', 'Mom', 'Dave'],
+        'imbalance_flags': [
+            {
+                'person_id': 42,
+                'display_name': 'Dave',
+                'dominant_context': 'journal',
+                'percentage': 85
+            }
+        ]
+    }
+}
+```
+
+### Metrics Computed
+
+| Metric | Description |
+|--------|-------------|
+| `score` | Health score 0-100 (None if no contacts) |
+| `total_contacts` | Total active Person count |
+| `active_7d` | Persons with interaction in last 7 days |
+| `stale_30d` | Persons with last interaction >30 days ago |
+| `avg_days_between` | Average days between interactions across all contacts |
+| `top_interacted` | Top 5 persons by interaction count |
+| `longest_no_contact` | Top 5 persons by days since last interaction |
+| `context_distributions` | Per-person breakdown of interaction context types |
+| `imbalance_flags` | Persons with >70% interactions in one context |
+| `insight_lines` | Up to 3 human-readable insight strings |
+
+### Files Created/Modified (R2)
+
+| File | Purpose |
+|------|---------|
+| `apps/relationships/services.py` | Added RelationalHealthService |
+| `apps/relationships/views.py` | Added RelationshipInsightsView |
+| `apps/relationships/urls.py` | Added `/insights/` route |
+| `templates/relationships/insights.html` | Full insights page |
+| `templates/dashboard/tiles/relational_health.html` | Dashboard summary card |
+| `apps/dashboard/services/config_service.py` | Tile registration |
+| `templates/dashboard/home.html` | Tile include |
+| `apps/dashboard/views.py` | Context data for tile |
+| `apps/core/ai_orchestrator/cos_context.py` | CoS health payload |
+| `apps/relationships/tests/test_relationship_insights.py` | 24 tests |
+
+---
+
 ## Future Extensibility
 
-Phase R1 is the foundation. Planned future phases:
+Planned future phases:
 
-- **R2: Relationship Graph** — Visualize connection network, cluster analysis
-- **R3: Friends Night Out** — Group event planning with Person associations
-- **R4: Collaborative Events** — Multi-user event creation with shared contacts
-- **R5: Relationship Goals** — Set cadence targets, track relationship health
-- **R6: AI Nudges** — Auto-triggered reconnection suggestions based on drift
+- **R3: Relationship Graph** — Visualize connection network, cluster analysis
+- **R4: Friends Night Out** — Group event planning with Person associations
+- **R5: Collaborative Events** — Multi-user event creation with shared contacts
+- **R6: Relationship Goals** — Set cadence targets, track relationship health
+- **R7: AI Nudges** — Auto-triggered reconnection suggestions based on drift
 
 ---
 

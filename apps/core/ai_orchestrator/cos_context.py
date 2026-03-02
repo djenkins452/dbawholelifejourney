@@ -670,6 +670,29 @@ def _build_people_and_mood(user):
         logger.warning("CoS context: relationship signals unavailable: %s", e)
         result['relationship_signals'] = []
 
+    # Phase R2: Relational health score and structured payload
+    try:
+        from apps.relationships.services import RelationalHealthService
+        health = RelationalHealthService.compute_health(user)
+        result['relational_health'] = {
+            'relational_health_score': health.get('score'),
+            'stale_relationships_count': health.get('stale_relationships_count', 0),
+            'top_anchor_persons': health.get('top_anchor_persons', []),
+            'imbalance_flags': [
+                {
+                    'person': f['display_name'],
+                    'dominant_context': f['dominant_context'],
+                    'percentage': f['percentage'],
+                }
+                for f in health.get('imbalance_flags', [])
+            ],
+        }
+    except ImportError:
+        result['relational_health'] = {}
+    except Exception as e:
+        logger.warning("CoS context: relational health unavailable: %s", e)
+        result['relational_health'] = {}
+
     try:
         from apps.core.ai_state.state_engine import get_state_value
         result['mood_status'] = {
@@ -1963,15 +1986,28 @@ def _build_pressure_indicators(context):
 
 
 def _build_relational_status(context):
-    """Relationship health summary."""
+    """Relationship health summary (Phase R2 enhanced)."""
     signals = context.get('relationship_signals', [])
     drifting = [r for r in signals if r.get('drifting')]
     healthy = [r for r in signals if not r.get('drifting')]
-    return {
+
+    # Phase R2: Include health score and imbalance data
+    rh = context.get('relational_health', {})
+    status = {
         'total_tracked': len(signals),
         'drifting': [r['name'] for r in drifting[:3]],
         'healthy': [r['name'] for r in healthy[:3]],
     }
+    if rh.get('relational_health_score') is not None:
+        status['health_score'] = rh['relational_health_score']
+        status['stale_count'] = rh.get('stale_relationships_count', 0)
+        status['anchors'] = rh.get('top_anchor_persons', [])[:3]
+        if rh.get('imbalance_flags'):
+            status['imbalances'] = [
+                f"{f['person']}: {f['percentage']}% {f['dominant_context']}"
+                for f in rh['imbalance_flags'][:2]
+            ]
+    return status
 
 
 def _build_health_status(context):

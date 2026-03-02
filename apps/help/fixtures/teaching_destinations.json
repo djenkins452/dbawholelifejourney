@@ -1,6 +1,23 @@
 [
   {
     "model": "help.teachingdestination",
+    "pk": 170,
+    "fields": {
+      "destination_id": "relationships-insights",
+      "name": "Relationship Insights",
+      "path_description": "Relationships - Insights",
+      "explanation": "View your Relational Health score, see which people need attention, check context balance across modules, and identify your relational anchors.",
+      "url": "/relationships/insights/",
+      "keywords": "relationship insights, relational health, score, stale contacts, context balance, imbalance, anchors, health score",
+      "module": "relationships",
+      "sort_order": 222,
+      "is_active": true,
+      "created_at": "2026-03-02T22:00:00Z",
+      "updated_at": "2026-03-02T22:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
     "pk": 168,
     "fields": {
       "destination_id": "relationships-people",

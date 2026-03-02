@@ -188,6 +188,13 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # Finance module flag
             context["finances_enabled"] = prefs.finances_enabled
 
+            # Relational Health (Phase R2) — summary for dashboard tile
+            try:
+                from apps.relationships.services import RelationalHealthService
+                context["relational_health"] = RelationalHealthService.compute_health(user)
+            except Exception:
+                context["relational_health"] = None
+
             # New user detection for getting started tile
             # Show tile if user hasn't completed ALL onboarding steps
             getting_started = self._get_getting_started_content(user, user_data, prefs)

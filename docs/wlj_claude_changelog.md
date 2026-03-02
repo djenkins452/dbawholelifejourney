@@ -60,6 +60,31 @@
 
 ---
 
+## 2026-03-02 — CoS mutation verb retry: deterministic backstop for CRUD reliability
+
+**What:** CoS still said "I can't directly remove calendar events" even after the conversation history fix. OpenAI returned `no_action` for ambiguous pronoun references ("delete the duplicate one") despite having conversation context. The system fell through to `_generate_response()` which has no mutation authority awareness.
+
+**Fix:**
+- Added `MUTATION_DOMAIN_MAP` with structured verb/keyword/function definitions for calendar, task completion, and task mutation domains
+- Added `_detect_mutation_domain()` — dual-condition trigger requiring BOTH a mutation verb in the current message AND a domain keyword in the message or conversation history
+- Added `_retry_with_forced_mutation()` — retries OpenAI call with `tool_choice` forcing the detected function
+- Updated `recognize_intents()` to check for mutation domains before returning `no_action`, triggering forced retry when conditions are met
+- Added rule 6 (MUTATION OBLIGATION) to the intent system prompt
+- Added 13 unit tests covering the test matrix: clear mutations, ambiguous pronouns with context, conversational messages (no trigger), task completions, verb-without-domain (no trigger), and domain-in-history-only scenarios
+
+**Safety guardrails:**
+- Only triggers when BOTH verb AND domain keyword are confirmed
+- Domain keywords checked across conversation history, not just current message
+- "Delete that" with no context → no retry (no domain keyword)
+- "I hate duplicates" → no retry (no mutation verb)
+- Falls through gracefully if retry fails
+
+**Files changed:**
+- `apps/ai/intent_service.py` — MUTATION_DOMAIN_MAP, _detect_mutation_domain(), _retry_with_forced_mutation(), recognize_intents() retry logic, rule 6 in system prompt
+- `apps/ai/tests/test_update_intent_routing.py` — TestMutationDomainDetection class (13 tests)
+
+---
+
 ## 2026-03-01 — Dynamic search across all list pages
 
 **What:** Search boxes across the app required pressing Enter to search. The Notes app had a good debounced auto-search pattern (600ms delay, min 2 chars, focus retention). User wanted this applied everywhere.

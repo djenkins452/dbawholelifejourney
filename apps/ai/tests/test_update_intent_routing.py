@@ -347,3 +347,150 @@ class TestToolSchemaClarity(_IntentUserMixin, TestCase):
         self.assertIn('update', action_prop['enum'])
         # The action description should mention mutation verbs
         self.assertIn('move', action_prop['description'].lower())
+
+
+# ──────────────────────────────────────────────────────────
+# 4) Mutation domain detection (verb + keyword backstop)
+# ──────────────────────────────────────────────────────────
+
+class TestMutationDomainDetection(_IntentUserMixin, TestCase):
+    """
+    Tests for _detect_mutation_domain — the dual-condition trigger
+    that decides whether to retry intent recognition with forced
+    function calling.
+    """
+
+    def setUp(self):
+        from apps.ai.intent_service import IntentService
+        self.service = IntentService.__new__(IntentService)
+
+    # --- Test A: Clear mutation with domain keyword in message ---
+
+    def test_clear_calendar_delete(self):
+        """'Delete the Wake Up event' → detected as calendar mutation."""
+        result = self.service._detect_mutation_domain(
+            "Delete the Wake Up event", None,
+        )
+        self.assertIsNotNone(result)
+        fn, verb, keyword = result
+        self.assertEqual(fn, 'mutate_calendar_event')
+        self.assertEqual(verb, 'delete')
+        self.assertIn(keyword, ('event', 'wake up'))
+
+    def test_clear_calendar_remove(self):
+        """'Remove the meeting from my calendar' → calendar mutation."""
+        result = self.service._detect_mutation_domain(
+            "Remove the meeting from my calendar", None,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'mutate_calendar_event')
+
+    # --- Test B: Ambiguous pronoun with domain keyword in history ---
+
+    def test_pronoun_with_calendar_history(self):
+        """'Delete the duplicate one' + history mentioning event → retry."""
+        history = [
+            {"role": "user", "content": "I have duplicate Wake Up events"},
+            {"role": "assistant", "content": "You have two 5 AM Wake Up events listed."},
+        ]
+        result = self.service._detect_mutation_domain(
+            "Delete the duplicate one", history,
+        )
+        self.assertIsNotNone(result)
+        fn, verb, keyword = result
+        self.assertEqual(fn, 'mutate_calendar_event')
+        self.assertEqual(verb, 'delete')
+
+    def test_remove_other_one_with_event_history(self):
+        """'Remove the other one' + history mentioning event → retry."""
+        history = [
+            {"role": "assistant", "content": "I see a scheduled event for Monday."},
+        ]
+        result = self.service._detect_mutation_domain(
+            "Remove the other one", history,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'mutate_calendar_event')
+
+    # --- Test C: Conversational — no mutation verb ---
+
+    def test_conversational_no_verb(self):
+        """'I hate duplicates' → no retry (no mutation verb)."""
+        result = self.service._detect_mutation_domain(
+            "I hate duplicates", None,
+        )
+        self.assertIsNone(result)
+
+    def test_question_about_events(self):
+        """'What events do I have?' → no retry (no mutation verb)."""
+        result = self.service._detect_mutation_domain(
+            "What events do I have?", None,
+        )
+        self.assertIsNone(result)
+
+    # --- Test D: Task completion ---
+
+    def test_task_completion(self):
+        """'Mark the payroll task complete' → complete_task."""
+        result = self.service._detect_mutation_domain(
+            "Mark the payroll task complete", None,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'complete_task')
+
+    def test_finish_task(self):
+        """'Finish the cleanup task' → complete_task."""
+        result = self.service._detect_mutation_domain(
+            "Finish the cleanup task", None,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'complete_task')
+
+    # --- Test E: Mutation verb, no domain keyword ---
+
+    def test_verb_no_domain(self):
+        """'Delete that' → no retry (no domain keyword)."""
+        result = self.service._detect_mutation_domain(
+            "Delete that", None,
+        )
+        self.assertIsNone(result)
+
+    def test_remove_it(self):
+        """'Remove it' → no retry (no domain keyword)."""
+        result = self.service._detect_mutation_domain(
+            "Remove it", None,
+        )
+        self.assertIsNone(result)
+
+    # --- Test F: Mutation verb, domain in history only ---
+
+    def test_verb_with_task_keyword_in_history(self):
+        """'Delete that one' + history mentions task → task mutation."""
+        history = [
+            {"role": "user", "content": "Show me my tasks for today"},
+            {"role": "assistant", "content": "You have 3 tasks remaining."},
+        ]
+        result = self.service._detect_mutation_domain(
+            "Delete that one", history,
+        )
+        self.assertIsNotNone(result)
+        # Should match task_mutate since "task" is in history
+        self.assertIn(result[0], ('mutate_task', 'mutate_calendar_event'))
+
+    # --- Multi-word phrase tests ---
+
+    def test_mark_done_phrase(self):
+        """'Mark done the grocery task' → complete_task."""
+        result = self.service._detect_mutation_domain(
+            "Mark done the grocery task", None,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'complete_task')
+
+    def test_mark_complete_phrase(self):
+        """'Mark complete the project task' → complete_task."""
+        result = self.service._detect_mutation_domain(
+            "Mark complete the project task", None,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'complete_task')

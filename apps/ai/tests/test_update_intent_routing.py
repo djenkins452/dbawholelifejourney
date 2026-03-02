@@ -494,3 +494,101 @@ class TestMutationDomainDetection(_IntentUserMixin, TestCase):
         )
         self.assertIsNotNone(result)
         self.assertEqual(result[0], 'complete_task')
+
+    # --- Creation intent tests ---
+
+    def test_add_task_clear(self):
+        """'Add a task to gather tax papers' → create_task."""
+        result = self.service._detect_mutation_domain(
+            "Add a task to gather tax papers", None,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'create_task')
+
+    def test_add_task_with_time(self):
+        """'Add a task today at 5:00pm - 6:00pm to Gather Tax Papers' → create_task."""
+        result = self.service._detect_mutation_domain(
+            "Add a task today at 5:00pm - 6:00pm to Gather Tax Papers", None,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'create_task')
+
+    def test_create_task(self):
+        """'Create a task called Buy groceries' → create_task."""
+        result = self.service._detect_mutation_domain(
+            "Create a task called Buy groceries", None,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'create_task')
+
+    def test_remind_me(self):
+        """'Remind me to call the dentist' → create_task."""
+        result = self.service._detect_mutation_domain(
+            "Remind me to call the dentist", None,
+        )
+        self.assertIsNotNone(result)
+        fn, verb, keyword = result
+        self.assertEqual(fn, 'create_task')
+        self.assertEqual(verb, 'remind')
+
+    def test_add_event_to_calendar(self):
+        """'Add an event to my calendar for Friday' → create_event."""
+        result = self.service._detect_mutation_domain(
+            "Add an event to my calendar for Friday", None,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'create_event')
+
+    def test_schedule_meeting(self):
+        """'Schedule a meeting with John at 3pm' → create_event."""
+        result = self.service._detect_mutation_domain(
+            "Schedule a meeting with John at 3pm", None,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'create_event')
+
+    def test_create_appointment(self):
+        """'Create a dentist appointment for Tuesday' → create_event."""
+        result = self.service._detect_mutation_domain(
+            "Create a dentist appointment for Tuesday", None,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'create_event')
+
+    def test_book_meeting(self):
+        """'Book a meeting room for Wednesday' → create_event."""
+        result = self.service._detect_mutation_domain(
+            "Book a meeting room for Wednesday", None,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'create_event')
+
+    def test_add_no_domain_no_retry(self):
+        """'Add that' with no domain context → no retry."""
+        result = self.service._detect_mutation_domain(
+            "Add that", None,
+        )
+        self.assertIsNone(result)
+
+    def test_create_no_domain_no_retry(self):
+        """'Create something' with no domain keyword → no retry."""
+        result = self.service._detect_mutation_domain(
+            "Create something", None,
+        )
+        self.assertIsNone(result)
+
+    def test_multi_word_add_a_task_phrase(self):
+        """Multi-word phrase 'add a task' triggers create_task."""
+        result = self.service._detect_mutation_domain(
+            "Add a task for tomorrow to buy milk", None,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'create_task')
+
+    def test_multi_word_schedule_an_appointment(self):
+        """Multi-word phrase 'schedule an appointment' triggers create_event."""
+        result = self.service._detect_mutation_domain(
+            "Schedule an appointment with Dr. Smith on Monday", None,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'create_event')

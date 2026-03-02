@@ -216,18 +216,19 @@ class IntentService:
 
                 return results
             else:
-                # No function called — check for mutation verb + domain
+                # No function called — check for action verb + domain
                 # keyword before giving up.  This is the deterministic
-                # backstop: if the user clearly wants a mutation and the
-                # domain is resolvable (from the message or conversation
-                # history), we retry with forced function calling.
+                # backstop: if the user clearly wants to create, mutate,
+                # or complete something and the domain is resolvable
+                # (from the message or conversation history), we retry
+                # with forced function calling.
                 detection = self._detect_mutation_domain(
                     user_message, conversation_history,
                 )
                 if detection:
                     forced_fn, verb, keyword = detection
                     logger.info(
-                        "[MUTATION_RETRY] no_action but verb=%r "
+                        "[INTENT_RETRY] no_action but verb=%r "
                         "keyword=%r → forcing %s",
                         verb, keyword, forced_fn,
                     )
@@ -236,12 +237,12 @@ class IntentService:
                     )
                     if retry_results:
                         logger.info(
-                            "[MUTATION_RETRY] Retry succeeded: %s",
+                            "[INTENT_RETRY] Retry succeeded: %s",
                             [r.intent_type for r in retry_results],
                         )
                         return retry_results
                     logger.warning(
-                        "[MUTATION_RETRY] Retry returned no results "
+                        "[INTENT_RETRY] Retry returned no results "
                         "for forced %s",
                         forced_fn,
                     )
@@ -294,7 +295,7 @@ IMPORTANT RULES:
 3. When the user says "today", use {today_str}. When they say "tomorrow", calculate the next day from {today_str}
 4. ALWAYS resolve relative dates (today, tomorrow, next Monday, etc.) to YYYY-MM-DD format using today's date above
 5. CONTEXT RESOLUTION: When conversation history is provided, use it to resolve references like "the other one", "that event", "it", "those", "the duplicate", etc. Extract the actual entity name/details for function parameters — do NOT pass pronouns like "it" as event_query or task_query. If a previous message mentions specific events, tasks, or items, use that context to determine which entity the user is referring to and construct the appropriate function call.
-6. MUTATION OBLIGATION: When mutation verbs (remove, delete, cancel, move, change, reschedule, update, rename, edit, complete, finish) are present AND the domain context is clear (calendar event or task — either from the current message or conversation history), you MUST call the appropriate function. Never decline a mutation request when a resolvable domain is identified. If unsure which specific item, use your best inference from context for event_query or task_query.
+6. ACTION OBLIGATION: When action verbs are present AND the domain context is clear (calendar event or task — either from the current message or conversation history), you MUST call the appropriate function. This covers: (a) CREATION verbs (add, create, make, schedule, remind, book, plan) → call create_task or create_event, (b) MUTATION verbs (remove, delete, cancel, move, change, reschedule, update, rename, edit) → call mutate_calendar_event or mutate_task, (c) COMPLETION verbs (complete, finish, done, mark done) → call complete_task. Never decline an action request when a resolvable domain is identified. If unsure which specific item, use your best inference from context.
 
 HEALTH LOGGING:
 - Heart rate: Extract BPM value. Default context to 'resting' unless specified
@@ -529,11 +530,12 @@ Examples:
         'mark', 'label', 'tag', 'categorize', 'set',
     }
 
-    # Domain-aware mutation detection for forced retry when no_action is returned.
+    # Domain-aware intent detection for forced retry when no_action is returned.
     # Each domain defines verbs (in the current message) and keywords
     # (in the current message OR conversation history) that must BOTH match.
+    # Covers mutations (delete/update/complete) AND creation (add/create/schedule).
     MUTATION_DOMAIN_MAP = {
-        'calendar': {
+        'calendar_mutate': {
             'verbs': {
                 'delete', 'remove', 'cancel', 'update', 'change',
                 'edit', 'reschedule', 'move', 'shift', 'rename',
@@ -543,6 +545,25 @@ Examples:
                 'appointment', 'schedule', 'scheduled',
             },
             'function': 'mutate_calendar_event',
+        },
+        'calendar_create': {
+            'verbs': {
+                'add', 'create', 'schedule', 'book', 'plan',
+            },
+            'keywords': {
+                'calendar', 'event', 'meeting', 'appointment',
+            },
+            'function': 'create_event',
+        },
+        'task_create': {
+            'verbs': {
+                'add', 'create', 'make', 'schedule', 'remind',
+            },
+            'keywords': {
+                'task', 'to-do', 'todo', 'to do', 'reminder',
+                'remind me',
+            },
+            'function': 'create_task',
         },
         'task_complete': {
             'verbs': {'complete', 'finish', 'done'},
@@ -564,6 +585,16 @@ Examples:
         'mark complete': 'task_complete',
         'mark as done': 'task_complete',
         'mark as complete': 'task_complete',
+        'set up': 'task_create',
+        'remind me': 'task_create',
+        'add a task': 'task_create',
+        'add a reminder': 'task_create',
+        'add an event': 'calendar_create',
+        'add a meeting': 'calendar_create',
+        'add an appointment': 'calendar_create',
+        'schedule a meeting': 'calendar_create',
+        'schedule an event': 'calendar_create',
+        'schedule an appointment': 'calendar_create',
     }
 
     def _enforce_mutation_routing(

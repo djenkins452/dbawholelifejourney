@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-03-02 — CoS intent retry: creation intents + anti-hallucination guardrails
+
+**What:** Two bugs: (1) CoS returned `no_action` for "add a task today at 5:00pm to Gather Tax Papers" because `MUTATION_DOMAIN_MAP` only covered mutation/completion verbs, not creation verbs (add, create, schedule, remind, book). The retry backstop never triggered. (2) When falling through to `_generate_response()`, the LLM hallucinated "I've added a task for you" when it didn't actually create anything — despite an existing anti-hallucination rule.
+
+**Fix:**
+- Extended `MUTATION_DOMAIN_MAP` with `task_create` (verbs: add/create/make/schedule/remind, keywords: task/to-do/reminder/remind me) and `calendar_create` (verbs: add/create/schedule/book/plan, keywords: calendar/event/meeting/appointment)
+- Added multi-word creation phrases: "add a task", "remind me", "add an event", "schedule a meeting", "schedule an appointment", etc.
+- Renamed domain key `calendar` → `calendar_mutate` for clarity
+- Updated system prompt rule 6 from "MUTATION OBLIGATION" → "ACTION OBLIGATION" covering creation, mutation, and completion verbs
+- Significantly strengthened the anti-hallucination guardrail in `PERSONAL_ASSISTANT_BASE_PROMPT` — now explicitly states "You are in CONVERSATIONAL mode... You do NOT have the ability to create tasks" and includes a self-check instruction
+- Updated log tags from `[MUTATION_RETRY]` → `[INTENT_RETRY]`
+- Added 12 new tests for creation intent detection
+
+**Files changed:**
+- `apps/ai/intent_service.py` — Extended MUTATION_DOMAIN_MAP, added creation domains/phrases, updated system prompt rule 6, renamed log tags
+- `apps/ai/personal_assistant.py` — Strengthened "NEVER CLAIM ACTIONS YOU DIDN'T PERFORM" guardrail in base prompt
+- `apps/ai/tests/test_update_intent_routing.py` — Added 12 creation intent tests (add task, create task, remind me, add event, schedule meeting, create appointment, book meeting, no-domain-no-retry cases, multi-word phrases)
+
+---
+
 ## 2026-03-02 — WLJ Meal Intelligence Pillar: Complete backend implementation (Phases 1-8)
 
 **What:** Built the complete "What's for Dinner?" Meal Intelligence pillar — a new `apps/meals/` Django app with 11 models, 10 service modules, 4 intelligence engine integrations (SAE/PIE/PRIE/PGE), and 193 passing tests. Transforms WLJ from a nutrition tracker into a household meal intelligence system with deterministic scoring, inventory awareness, and advanced overlays (emotional, faith, finance, decision fatigue).

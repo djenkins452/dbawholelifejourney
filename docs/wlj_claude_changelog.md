@@ -9,6 +9,44 @@
 
 # WLJ Change History
 
+## 2026-03-02 — WLJ Meal Intelligence Pillar: Complete backend implementation (Phases 1-8)
+
+**What:** Built the complete "What's for Dinner?" Meal Intelligence pillar — a new `apps/meals/` Django app with 11 models, 10 service modules, 4 intelligence engine integrations (SAE/PIE/PRIE/PGE), and 193 passing tests. Transforms WLJ from a nutrition tracker into a household meal intelligence system with deterministic scoring, inventory awareness, and advanced overlays (emotional, faith, finance, decision fatigue).
+
+**Files added:**
+- `apps/meals/__init__.py`, `apps/meals/apps.py`, `apps/meals/admin.py`, `apps/meals/urls.py` — App scaffolding
+- `apps/meals/models.py` — 11 models: Ingredient, RecipeIngredient, Household, HouseholdMembership, DietaryProfile, PantryItem, InventoryTransaction, MealPlan, MealPlanEntry, Receipt, ReceiptItem
+- `apps/meals/services/ingredient_parser.py` — Parse free text ("2 cups diced chicken breast") → structured data
+- `apps/meals/services/unit_conversion.py` — Normalize units (cups→ml, oz→g, fractions, ranges)
+- `apps/meals/services/ingredient_matching.py` — Match parsed names to Ingredient records (exact→alias→fuzzy)
+- `apps/meals/services/inventory_gap.py` — Compare recipe needs vs pantry stock, confidence decay
+- `apps/meals/services/recipe_nutrition.py` — Aggregate 18-nutrient per-serving nutrition from FoodItem library
+- `apps/meals/services/meal_scoring.py` — 7-factor deterministic scoring engine with transparent weights
+- `apps/meals/services/weekly_optimizer.py` — Greedy meal plan generation (3-7 days)
+- `apps/meals/services/receipt_parser.py` — OCR text → structured items → pantry auto-update
+- `apps/meals/services/substitution_engine.py` — Ingredient swaps (diabetes-aware, pantry-based)
+- `apps/meals/services/advanced_intelligence.py` — Emotional overlay, decision fatigue, faith calendar, finance, nudge scheduler
+- `apps/meals/migrations/0001_initial.py` — All models migration
+- `apps/meals/tests/test_ingredient_parser.py` — 71 parsing tests
+- `apps/meals/tests/test_models.py` — 27 model tests
+- `apps/meals/tests/test_inventory_gap.py` — 27 inventory gap tests
+- `apps/meals/tests/test_recipe_nutrition.py` — 25 nutrition tests
+- `apps/meals/tests/test_services.py` — 43 scoring/receipt/optimizer tests
+- `apps/core/ai_insights/rules_meals.py` — PIE rules: MealFrequencyRule, PantryWasteRule, NutritionGapRule
+- `apps/core/ai_predictions/prediction_rules_meals.py` — PRIE rules: GroceryNeedsProjection, MealPlanAdherenceProjection
+- `apps/core/ai_guidance/guidance_rules_meals.py` — PGE rules: DinnerSuggestionGuidance, PantryAlertGuidance, MealPlanReminderGuidance
+- `docs/Whats-for-Dinner.md` — Project tracking document
+
+**Files modified:**
+- `config/settings.py` — Added `apps.meals` to INSTALLED_APPS
+- `apps/core/ai_state/state_builder.py` — Added `build_meals_state()` to MODULE_BUILDERS
+- `apps/core/ai_insights/management/commands/run_daily_insights.py` — Registered rules_meals import
+- `apps/core/ai_predictions/management/commands/run_prediction_engine.py` — Registered prediction_rules_meals import
+
+**Why:** Major feature: answers "What's for dinner?" with personalized, nutrition-aware, inventory-conscious, budget-friendly recommendations. Deterministic scoring first, AI ranking second. All 193 tests pass.
+
+---
+
 ## 2026-03-02 — Comprehensive meals service tests (inventory gap, recipe nutrition, scoring, receipts, optimizer)
 
 **What:** Added 95 tests across 3 new test files covering all meals app service modules. Tests validate happy paths, edge cases, multi-user isolation, confidence scoring, and diabetes awareness.

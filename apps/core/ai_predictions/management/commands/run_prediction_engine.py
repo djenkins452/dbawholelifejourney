@@ -13,6 +13,7 @@ import apps.core.ai_predictions.prediction_rules_bodycomp  # noqa: F401
 import apps.core.ai_predictions.prediction_rules_goals  # noqa: F401
 import apps.core.ai_predictions.prediction_rules_habits  # noqa: F401
 import apps.core.ai_predictions.prediction_rules_labs  # noqa: F401
+import apps.core.ai_predictions.prediction_rules_meals  # noqa: F401
 
 from apps.core.ai_predictions.scheduler import run_predictions_all_users
 

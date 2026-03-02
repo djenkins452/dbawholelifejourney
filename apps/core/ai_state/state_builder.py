@@ -845,6 +845,85 @@ def build_transformation_state(user):
     return state
 
 
+# ── Meals State Builder ──────────────────────────────────────────
+
+
+def build_meals_state(user):
+    """
+    Build meals state from actual database records.
+
+    Returns:
+        dict with pantry summary, active meal plans, recent meal history.
+    """
+    from apps.meals.models import (
+        DietaryProfile,
+        Household,
+        HouseholdMembership,
+        MealPlanEntry,
+        PantryItem,
+    )
+
+    now = get_current_time()
+    state = {}
+
+    # Find user's household
+    membership = (
+        HouseholdMembership.objects
+        .filter(user=user)
+        .select_related("household")
+        .first()
+    )
+
+    if not membership:
+        state["has_household"] = False
+        return state
+
+    household = membership.household
+    state["has_household"] = True
+    state["household_name"] = household.name
+    state["grocery_cycle_days"] = household.grocery_cycle_days
+
+    # Pantry summary
+    pantry_count = PantryItem.objects.filter(
+        household=household, quantity__gt=0,
+    ).count()
+    state["pantry_item_count"] = pantry_count
+
+    expiring_count = PantryItem.objects.filter(
+        household=household,
+        quantity__gt=0,
+        expiration_date_estimated__lte=(now + timedelta(days=3)).date(),
+        expiration_date_estimated__gte=now.date(),
+    ).count()
+    state["pantry_expiring_count"] = expiring_count
+
+    # Active meal plan
+    today = now.date()
+    active_entry = MealPlanEntry.objects.filter(
+        meal_plan__household=household,
+        date=today,
+        meal_type="dinner",
+    ).select_related("recipe").first()
+
+    state["has_dinner_planned"] = active_entry is not None
+    if active_entry:
+        state["dinner_recipe"] = active_entry.recipe.title
+
+    # Dietary profile
+    try:
+        profile = DietaryProfile.objects.get(user=user)
+        state["has_dietary_profile"] = True
+        state["diabetes_sensitive"] = profile.diabetes_sensitive
+        if profile.carb_limit_daily:
+            state["carb_limit_daily"] = float(profile.carb_limit_daily)
+        if profile.protein_target_daily:
+            state["protein_target_daily"] = float(profile.protein_target_daily)
+    except DietaryProfile.DoesNotExist:
+        state["has_dietary_profile"] = False
+
+    return state
+
+
 # ── Builder Registry ─────────────────────────────────────────────
 
 # Maps module names to their builder functions.
@@ -860,6 +939,7 @@ MODULE_BUILDERS = {
     "fasting": build_fasting_state,
     "fitness": build_fitness_state,
     "transformation": build_transformation_state,
+    "meals": build_meals_state,
 }
 
 

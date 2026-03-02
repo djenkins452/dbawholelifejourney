@@ -9,6 +9,40 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Task entity matching + stateful clarification
+
+**What:** When a user said "move Workout to tomorrow", the system matched both "Workout" and "Post-Workout Stretch" equally (using `icontains`), triggering a "Which one?" clarification. The user's response re-ran intent recognition from scratch — extracting the same ambiguous query — creating an infinite loop. Additionally, task time ranges like "5pm - 6pm" silently dropped the end time because `create_task` and `mutate_task` intent schemas lacked `end_time`/`new_end_time` fields.
+
+**Fix (Task Matching):**
+- Added `_resolve_tasks_by_query()` with 3-tier priority: exact (iexact) → prefix (istartswith) → substring (icontains). Exact match for "Workout" now immediately returns the task titled "Workout" without considering "Post-Workout Stretch"
+- Updated `handle_mutate_task`, `handle_complete_task`, and `handle_read_task` to use the new tiered matching
+- Added `_resolved_id` parameter support to `handle_mutate_task` and `handle_complete_task` — bypasses search entirely when resolving from clarification state
+
+**Fix (Stateful Clarification):**
+- Added 4 methods to IntentService: `store_pending_clarification()`, `get_pending_clarification()`, `clear_pending_clarification()`, `resolve_clarification()` — using Django cache with 5-min TTL
+- Resolution supports: number selection ("1"), ordinal ("the second one"), exact title match, prefix match, and substring match against stored candidates
+- Integrated clarification check in both `send_message()` (non-streaming) and `send_message_stream()` (streaming) paths
+- Multiple-match responses now include candidate IDs in `created_object` for state storage
+
+**Fix (End Time Schema Parity):**
+- Added `end_time` to `create_task` schema, `new_end_time` to `mutate_task` schema
+- Updated `handle_create_task` to parse end_time → `scheduled_end_time` with auto-duration computation
+- Updated `handle_mutate_task` to apply `new_end_time` changes
+- Added TIME RANGES rule to intent system prompt with examples
+
+**Files changed:**
+- `apps/ai/action_handlers.py` — `_resolve_tasks_by_query()`, `_resolved_id` support, candidates in `created_object`, end_time handling
+- `apps/ai/intent_service.py` — 4 clarification state methods, TIME RANGES rule in system prompt
+- `apps/ai/personal_assistant.py` — Clarification check + storage in both streaming/non-streaming paths
+- `apps/ai/intents/life_intents.py` — `end_time` and `new_end_time` schema fields
+- `apps/ai/tests/test_task_matching.py` — 22 tests for tiered matching, clarification state, resolved ID
+- `apps/ai/tests/test_task_end_time.py` — 12 tests for end_time schema and handler parity
+- `CLAUDE.md` — Added "AI Engineering Rules (REQUIRED)" section
+
+**Why:** Prevents infinite clarification loops when task names overlap. Ensures time ranges are fully captured. Establishes engineering rules to prevent future schema drift and silent failures.
+
+---
+
 ## 2026-03-02 — Elevate critical-path log levels in personal_assistant.py
 
 **What:** Nine silent `except: pass` or `logger.debug()` blocks in the personal assistant's critical path were swallowing failures invisibly. ECC pre-checks, validator gates, governance injection, CoS context assembly, executive briefing, and streaming ECC/CoS paths all logged at debug level or not at all, making production diagnosis impossible.

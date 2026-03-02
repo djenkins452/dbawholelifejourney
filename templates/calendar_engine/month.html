@@ -189,18 +189,29 @@
     function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
     function formatTime(isoStr) {
-        var d = new Date(isoStr);
-        var h = d.getHours();
-        var m = d.getMinutes();
+        // Parse directly from ISO string — server already returns user's timezone
+        var match = isoStr.match(/T(\d{2}):(\d{2})/);
+        if (!match) return '';
+        var h = parseInt(match[1], 10);
+        var m = parseInt(match[2], 10);
         var ampm = h >= 12 ? 'pm' : 'am';
         h = h % 12 || 12;
         return h + (m > 0 ? ':' + pad(m) : '') + ampm;
     }
 
     function formatFullTime(isoStr) {
-        var d = new Date(isoStr);
-        var options = { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
-        return d.toLocaleString('en-US', options);
+        // Parse directly from ISO string — server already returns user's timezone
+        var match = isoStr.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (!match) return '';
+        var dateObj = new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+        var weekday = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+        var monthName = dateObj.toLocaleDateString('en-US', { month: 'short' });
+        var day = parseInt(match[3], 10);
+        var h = parseInt(match[4], 10);
+        var m = match[5];
+        var ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12 || 12;
+        return weekday + ', ' + monthName + ' ' + day + ', ' + h + ':' + m + ' ' + ampm;
     }
 
     function todayStr() {

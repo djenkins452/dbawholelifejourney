@@ -9,7 +9,19 @@
 
 # WLJ Change History
 
-<<<<<<< HEAD
+## 2026-03-02 — Fix: Calendar event times off by 1 hour + edit modal overflow
+
+**What:** Two calendar UI issues fixed:
+1. **Time display off by ~1 hour:** JavaScript was using `new Date(isoStr).getHours()` to display event times, which re-interprets the server-provided timezone offset through the browser's local timezone. If the browser timezone differs from the user's Django timezone preference, times shift. Fixed by parsing hours/minutes directly from the ISO string (which the server already returns in the user's timezone via TimezoneMiddleware).
+2. **Edit modal overflow:** The dashboard edit modal's `max-width: 440px` was too narrow for datetime-local inputs, causing the End field to overflow. Increased to 520px and added responsive flex-direction for mobile.
+
+**Files modified:**
+- `templates/calendar_engine/dashboard.html` — `formatTime()`, `formatDateTime()`, `toLocalInput()`, hour grouping all parse ISO strings directly; modal widened to 520px; responsive flex for form row
+- `templates/calendar_engine/month.html` — `formatTime()` and `formatFullTime()` parse ISO strings directly
+- `templates/calendar_engine/manage.html` — `formatDT()` and `toLocalInput()` parse ISO strings directly
+
+---
+
 ## 2026-03-02 — Fix: Calendar month view events ordered by UTC instead of local time
 
 **What:** Calendar events were displayed out of chronological order because the API serialized datetimes in UTC. The JavaScript assigns events to calendar days using `substring(0,10)` on the ISO string, so UTC dates caused events to land on wrong days (e.g., "7:30pm March 2 Central" became March 3 UTC) and sort before earlier local events. Fixed by converting `start_dt`/`end_dt` to user's local timezone via `timezone.localtime()` before serialization.

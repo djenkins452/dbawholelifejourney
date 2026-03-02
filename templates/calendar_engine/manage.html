@@ -305,18 +305,21 @@
 
     function formatDT(isoStr) {
         if (!isoStr) return '';
-        var d = new Date(isoStr);
-        var month = String(d.getMonth()+1).padStart(2,'0');
-        var day = String(d.getDate()).padStart(2,'0');
-        var h = d.getHours();
-        var m = String(d.getMinutes()).padStart(2,'0');
+        // Parse directly from ISO string — server already returns user's timezone
+        var match = isoStr.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (!match) return '';
+        var h = parseInt(match[4], 10);
         var ampm = h >= 12 ? 'pm' : 'am';
         h = h % 12 || 12;
-        return month + '/' + day + '/' + d.getFullYear() + ' ' + h + ':' + m + ampm;
+        return match[2] + '/' + match[3] + '/' + match[1] + ' ' + h + ':' + match[5] + ampm;
     }
 
     function toLocalInput(isoStr) {
         if (!isoStr) return '';
+        // Server returns ISO with user's timezone offset — extract directly
+        var match = isoStr.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+        if (match) return match[1];
+        // Fallback for Date objects (e.g., new Date().toISOString())
         var d = new Date(isoStr);
         var y = d.getFullYear();
         var mo = String(d.getMonth()+1).padStart(2,'0');

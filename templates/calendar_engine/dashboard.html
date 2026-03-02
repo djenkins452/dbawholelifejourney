@@ -94,7 +94,8 @@
 .cal-form-label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
 .cal-form-input { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); font-size: 16px; background: var(--color-background); color: var(--color-text); box-sizing: border-box; }
 .cal-form-row { display: flex; gap: 0.75rem; }
-.cal-form-row .cal-form-group { flex: 1; }
+.cal-form-row .cal-form-group { flex: 1; min-width: 0; }
+@media (max-width: 480px) { .cal-form-row { flex-direction: column; } }
 .cal-edit-source-link { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--color-accent); margin-top: 0.5rem; text-decoration: none; }
 .cal-edit-source-link:hover { text-decoration: underline; }
 
@@ -209,7 +210,7 @@
 
 <!-- Event Edit Modal -->
 <div class="cal-modal-overlay" id="cal-event-edit-modal">
-    <div class="cal-modal" style="max-width:440px">
+    <div class="cal-modal" style="max-width:520px">
         <h3 id="cal-event-edit-title">Edit Event</h3>
         <input type="hidden" id="cal-event-edit-id" />
 
@@ -289,25 +290,25 @@
     }
 
     function formatTime(isoStr) {
-        var d = new Date(isoStr);
-        var h = d.getHours();
-        var m = d.getMinutes();
+        // Parse directly from ISO string — server already returns user's timezone
+        var match = isoStr.match(/T(\d{2}):(\d{2})/);
+        if (!match) return '';
+        var h = parseInt(match[1], 10);
+        var m = parseInt(match[2], 10);
         var ampm = h >= 12 ? 'PM' : 'AM';
         h = h % 12 || 12;
         return h + (m > 0 ? ':' + String(m).padStart(2, '0') : '') + ' ' + ampm;
     }
 
     function formatDateTime(isoStr) {
-        var d = new Date(isoStr);
-        var month = String(d.getMonth() + 1).padStart(2, '0');
-        var day = String(d.getDate()).padStart(2, '0');
-        var year = d.getFullYear();
-        var h = d.getHours();
-        var m = d.getMinutes();
+        // Parse directly from ISO string — server already returns user's timezone
+        var match = isoStr.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (!match) return '';
+        var h = parseInt(match[4], 10);
         var ampm = h >= 12 ? 'PM' : 'AM';
         h = h % 12 || 12;
-        var time = h + ':' + String(m).padStart(2, '0') + ' ' + ampm;
-        return month + '/' + day + '/' + year + ' ' + time;
+        var time = h + ':' + match[5] + ' ' + ampm;
+        return match[2] + '/' + match[3] + '/' + match[1] + ' ' + time;
     }
 
     function formatHour(hour) {
@@ -337,6 +338,10 @@
 
     function toLocalInput(isoStr) {
         if (!isoStr) return '';
+        // Server returns ISO with user's timezone offset — extract directly
+        var match = isoStr.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+        if (match) return match[1];
+        // Fallback for Date objects (e.g., new Date().toISOString())
         var d = new Date(isoStr);
         var y = d.getFullYear();
         var mo = String(d.getMonth()+1).padStart(2,'0');
@@ -358,7 +363,8 @@
 
         var hourGroups = {};
         events.forEach(function(evt) {
-            var hour = new Date(evt.start_dt).getHours();
+            var hMatch = evt.start_dt.match(/T(\d{2}):/);
+            var hour = hMatch ? parseInt(hMatch[1], 10) : new Date(evt.start_dt).getHours();
             if (!hourGroups[hour]) hourGroups[hour] = [];
             hourGroups[hour].push(evt);
         });

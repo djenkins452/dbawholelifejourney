@@ -158,6 +158,20 @@
 
 ---
 
+## 2026-03-02 — Elevate critical-path log levels in personal_assistant.py
+
+**What:** Nine silent `except: pass` or `logger.debug()` blocks in the personal assistant's critical path were swallowing failures invisibly. ECC pre-checks, validator gates, governance injection, CoS context assembly, executive briefing, and streaming ECC/CoS paths all logged at debug level or not at all, making production diagnosis impossible.
+
+**Fix:**
+- Elevated 6 `logger.debug()` calls to `logger.warning()` (with `exc_info=True`) for: ECC pre-check, governance injection, ECC detection in `_generate_response`, CoS context Layer 6, streaming CoS build, streaming ECC check
+- Elevated 1 `logger.debug()` to `logger.error()` for the outermost CoS prompt assembly catch-all (total context loss)
+- Converted 2 bare `except: pass` blocks to `except Exception as e: logger.warning(...)` for: Phase 8 validator gate, executive briefing
+- No behavior changes — only logging visibility improvements
+
+**Files:** `apps/ai/personal_assistant.py`
+
+---
+
 ## 2026-03-02 — CoS mutation verb retry: deterministic backstop for CRUD reliability
 
 **What:** CoS still said "I can't directly remove calendar events" even after the conversation history fix. OpenAI returned `no_action` for ambiguous pronoun references ("delete the duplicate one") despite having conversation context. The system fell through to `_generate_response()` which has no mutation authority awareness.

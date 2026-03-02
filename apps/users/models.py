@@ -344,9 +344,9 @@ class UserPreferences(models.Model):
         help_text="Enable Finances module for budget tracking and financial goals",
     )
     
-    # Relationships Module (Coming Soon)
+    # Relationships Module
     relationships_enabled = models.BooleanField(
-        default=False,
+        default=True,
         help_text="Enable Relationships module for tracking connections and interactions",
     )
     

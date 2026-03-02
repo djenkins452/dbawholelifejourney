@@ -9,6 +9,27 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Activate Relationships module + redesign dashboard tile
+
+**What:** Moved Relationships from "Coming Soon" to active module. Now on by default for all users, appears in desktop left rail and mobile More menu. Users can toggle it off in Preferences. Redesigned dashboard tile to match standard tile pattern (section-header, stat boxes, person list with chevrons) instead of the bespoke "Relational Health" layout with inline styles.
+
+**Files created:**
+- `apps/users/migrations/0073_add_relationships_module_definition.py` — ModuleDefinition for nav
+- `apps/users/migrations/0074_relationships_enabled_default_true.py` — Default change + backfill
+
+**Files modified:**
+- `apps/users/models.py` — Changed `relationships_enabled` default from False to True
+- `apps/users/fixtures/module_definitions.json` — Added PK 10 (Relationships/People)
+- `apps/core/context_processors.py` — Added `relationships_enabled` to template context
+- `templates/users/preferences.html` — Moved Relationships from Coming Soon to active modules
+- `templates/dashboard/tiles/relational_health.html` — Full redesign: section-header pattern, stat boxes, person list, proper CSS classes
+- `apps/dashboard/services/config_service.py` — Renamed tile from "Relational Health" to "Relationships"
+- `apps/core/management/commands/load_initial_data.py` — Added module_definitions fixture reset
+
+**Why:** Relationships module is now functional (R1 + R2 complete) and should be visible in navigation. Dashboard tile needed to match the visual pattern of other tiles (Goal Progress, Habit Goals, etc.) rather than looking like a standalone widget.
+
+---
+
 ## 2026-03-02 — Phase R2: Relationship Insights Dashboard
 
 **What:** Relationship Insights dashboard with deterministic health scoring model, full insights page, compact dashboard summary card, context balance analysis with imbalance detection, and CoS-ready structured payload.

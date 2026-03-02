@@ -110,5 +110,21 @@
       "created_at": "2026-01-25T00:00:00Z",
       "updated_at": "2026-01-25T00:00:00Z"
     }
+  },
+  {
+    "model": "users.moduledefinition",
+    "pk": 10,
+    "fields": {
+      "slug": "relationships",
+      "name": "People",
+      "description": "Track contacts, interaction history, and relational health insights",
+      "icon_svg": "<path d=\"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/>",
+      "route_name": "relationships:person_list",
+      "default_order": 45,
+      "is_active": true,
+      "preference_field": "relationships_enabled",
+      "created_at": "2026-03-02T22:00:00Z",
+      "updated_at": "2026-03-02T22:00:00Z"
+    }
   }
 ]

@@ -70,6 +70,7 @@ def theme_context(request):
         'life_enabled': True,
         'purpose_enabled': True,
         'finance_enabled': False,
+        'relationships_enabled': True,
         'capture_enabled': True,
         # AI flags - defaults
         'ai_enabled': False,
@@ -111,6 +112,7 @@ def theme_context(request):
             context['life_enabled'] = prefs.life_enabled
             context['purpose_enabled'] = prefs.purpose_enabled
             context['finance_enabled'] = prefs.finances_enabled
+            context['relationships_enabled'] = prefs.relationships_enabled
             context['capture_enabled'] = prefs.capture_enabled
             # AI toggles
             context['ai_enabled'] = prefs.ai_enabled

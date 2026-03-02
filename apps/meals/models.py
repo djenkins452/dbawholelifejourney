@@ -809,7 +809,9 @@ class PantryPhotoUpload(TimeStampedModel):
     )
     image = models.ImageField(
         upload_to="pantry_scans/%Y/%m/",
-        help_text="Photo of pantry/fridge/freezer contents",
+        null=True,
+        blank=True,
+        help_text="Photo of pantry/fridge/freezer contents (optional — processed in-memory)",
     )
     uploaded_at = models.DateTimeField(auto_now_add=True)
     processed = models.BooleanField(

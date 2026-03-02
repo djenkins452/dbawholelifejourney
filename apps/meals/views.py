@@ -963,25 +963,26 @@ class PantryScanStartView(LoginRequiredMixin, MealsHouseholdMixin, View):
             location_type=location_type,
         )
 
-        # Create uploads
-        uploads = []
+        # Read files into memory BEFORE any DB saves — avoids Cloudinary round-trip
+        file_data = []
         for f in files:
-            upload = PantryPhotoUpload.objects.create(
-                session=session,
-                image=f,
-            )
-            uploads.append(upload)
+            raw_bytes = f.read()
+            file_data.append((raw_bytes, f.content_type or "image/jpeg"))
 
-        # Process each upload through detection service
+        # Process each photo from memory through detection service
         from apps.meals.services.pantry_photo_detection import pantry_photo_detection_service
 
-        for upload in uploads:
+        for raw_bytes, content_type in file_data:
             try:
-                pantry_photo_detection_service.process_upload(upload)
+                # Create upload record without image (processed in-memory)
+                upload = PantryPhotoUpload.objects.create(session=session)
+                pantry_photo_detection_service.process_from_memory(
+                    upload, raw_bytes, content_type
+                )
             except Exception as e:
                 logger.error(
-                    "Failed to process upload %d for session %d: %s",
-                    upload.pk, session.pk, e, exc_info=True,
+                    "Failed to process photo for session %d: %s",
+                    session.pk, e, exc_info=True,
                 )
 
         # Redirect to confirmation page

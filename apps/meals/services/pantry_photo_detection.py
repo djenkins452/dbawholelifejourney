@@ -8,6 +8,7 @@ PantryPhotoDetection entries for user confirmation.
 No PantryItems are created until the user confirms detections.
 """
 
+import base64
 import json
 import logging
 from decimal import Decimal
@@ -84,6 +85,9 @@ class PantryPhotoDetectionService:
                 logger.error("Failed to initialize OpenAI client: %s", e, exc_info=True)
         return self._client
 
+    # Smaller image size for pantry photos (1024px instead of 2048px)
+    PANTRY_MAX_DIMENSION = 1024
+
     def process_upload(self, upload):
         """
         Process a single PantryPhotoUpload through Vision AI.
@@ -109,11 +113,44 @@ class PantryPhotoDetectionService:
             upload.save(update_fields=["processed", "raw_detection_json"])
             return []
 
-        # Resize for cost optimization
-        base64_data = resize_for_vision(base64_data, mime_type)
+        # Resize for cost optimization — pantry uses smaller images
+        base64_data = resize_for_vision(base64_data, mime_type, max_dim=self.PANTRY_MAX_DIMENSION)
+
+        return self._process_base64(upload, base64_data, mime_type)
+
+    def process_from_memory(self, upload, raw_bytes, content_type="image/jpeg"):
+        """
+        Process a photo from in-memory bytes (skips Cloudinary round-trip).
+
+        Args:
+            upload: PantryPhotoUpload instance (already saved, image field may be empty)
+            raw_bytes: Raw image bytes from request.FILES
+            content_type: MIME type of the image
+
+        Returns:
+            list of PantryPhotoDetection instances created
+        """
+        from apps.scan.services.image_utils import resize_for_vision
+
+        if upload.processed:
+            logger.info("Upload %d already processed, skipping", upload.pk)
+            return list(upload.detections.all())
+
+        # Convert raw bytes to base64
+        base64_data = base64.b64encode(raw_bytes).decode("utf-8")
+
+        # Resize for cost optimization — pantry uses smaller images
+        base64_data = resize_for_vision(base64_data, content_type, max_dim=self.PANTRY_MAX_DIMENSION)
+
+        return self._process_base64(upload, base64_data, content_type)
+
+    def _process_base64(self, upload, base64_data, mime_type):
+        """
+        Shared processing logic for both upload-based and in-memory processing.
+        """
+        from apps.scan.services.image_utils import compute_image_hash
 
         # Check cache (10-minute window)
-        from apps.scan.services.image_utils import compute_image_hash
         image_hash = compute_image_hash(base64_data)
         cache_key = f"pantry_detect:{image_hash}"
         cached_result = cache.get(cache_key)
@@ -301,9 +338,25 @@ class PantryPhotoDetectionService:
                         )
 
                 if not detection.matched_ingredient:
-                    detection.rejected = True
-                    detection.save(update_fields=["rejected"])
-                    continue
+                    # Auto-create ingredient from detected label — user explicitly
+                    # confirmed they want this item, so don't silently reject
+                    from apps.meals.services.ingredient_matching import get_or_create_ingredient
+                    try:
+                        ingredient = get_or_create_ingredient(detection.detected_label)
+                        detection.matched_ingredient = ingredient
+                        detection.save(update_fields=["matched_ingredient"])
+                        logger.info(
+                            "Auto-created ingredient '%s' for detection %d",
+                            ingredient.canonical_name, detection.pk,
+                        )
+                    except Exception as e:
+                        logger.error(
+                            "Failed to auto-create ingredient for detection %d: %s",
+                            detection.pk, e, exc_info=True,
+                        )
+                        detection.rejected = True
+                        detection.save(update_fields=["rejected"])
+                        continue
 
                 # Duplicate guard within same session
                 ing_id = detection.matched_ingredient_id

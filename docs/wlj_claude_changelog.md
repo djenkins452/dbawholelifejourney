@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Fix pantry scan: 0 items confirmed + 503 timeout on multi-photo upload
+
+**Bug 1 — Zero items confirmed despite selecting all:**
+- **Root cause:** When Vision AI labels (e.g., "Organic Whole Milk") didn't match any Ingredient records, detections were created with `matched_ingredient=None`. The confirmation form showed "-- No match --" in the dropdown. When user clicked Select All → Confirm, `confirm_session()` silently rejected ALL detections with no matched ingredient, resulting in 0 pantry items.
+- **Fix:** `confirm_session()` now auto-creates an Ingredient record via `get_or_create_ingredient()` when a user-confirmed detection has no matched ingredient. The user explicitly confirmed they want the item — don't silently reject it.
+
+**Bug 2 — 503 backend write error on 5-photo upload:**
+- **Root cause:** The start view uploaded all photos to Cloudinary first, then read them BACK from Cloudinary for Vision API processing. For 5 photos: 5 Cloudinary uploads + 5 Cloudinary reads + 5 Vision API calls (30s timeout each) = 200+ seconds → Railway 503 timeout.
+- **Fix:** Photos are now processed directly from in-memory request bytes — no Cloudinary round-trip. `PantryPhotoUpload.image` field is now optional (null=True). Added `process_from_memory()` service method. Reduced pantry scan image size from 2048px to 1024px (adequate for food detection, much faster).
+
+**Files modified:**
+- `apps/meals/services/pantry_photo_detection.py` — Added `process_from_memory()`, `_process_base64()`, auto-ingredient creation in `confirm_session()`
+- `apps/meals/views.py` — StartView now reads files into memory, creates upload records without images, calls `process_from_memory()`
+- `apps/meals/models.py` — PantryPhotoUpload.image now nullable
+- `apps/meals/migrations/0004_pantry_photo_image_optional.py` — Migration for nullable image
+
+**Tests:** 32 pantry scan tests passing.
+
+---
+
 ## 2026-03-02 — Phase R1: Relational Intelligence Foundation
 
 **What:** New `apps/relationships/` platform app introducing canonical Person model, cross-module @mention detection, interaction tracking with GenericForeignKey, analytics service, and CoS integration. This is platform infrastructure — not a single-feature app.

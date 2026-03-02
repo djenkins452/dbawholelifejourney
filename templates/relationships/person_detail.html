@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}{{ person.get_display_name }} - Relationships - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'dashboard:home' %}">Dashboard</a>
+        <span>/</span>
+        <a href="{% url 'relationships:person_list' %}">People</a>
+        <span>/</span>
+        <span>{{ person.get_display_name }}</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{{ person.get_display_name }}</h1>
+            <p class="page-subtitle">
+                <span class="badge badge-muted">{{ person.get_relationship_type_display }}</span>
+                {% if person.email %}
+                    <span class="text-muted text-sm">{{ person.email }}</span>
+                {% endif %}
+                {% if person.phone %}
+                    <span class="text-muted text-sm">{{ person.phone }}</span>
+                {% endif %}
+            </p>
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'relationships:person_update' person.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+            <form method="post" action="{% url 'relationships:person_delete' person.pk %}"
+                  class="inline-form" data-confirm-form>
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost btn-sm btn-danger-text">Delete</button>
+            </form>
+        </div>
+    </div>
+
+    {% if person.notes %}
+        <div class="card mb-6">
+            <p class="text-muted">{{ person.notes }}</p>
+        </div>
+    {% endif %}
+
+    <!-- Interaction Summary -->
+    <div class="stats-grid mb-6">
+        <div class="stat-card">
+            <div class="stat-value">{{ summary.total_interactions }}</div>
+            <div class="stat-label">Total Interactions</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">
+                {% if days_since is not None %}
+                    {{ days_since }}d
+                {% else %}
+                    —
+                {% endif %}
+            </div>
+            <div class="stat-label">Days Since Last</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ summary.journal_mentions }}</div>
+            <div class="stat-label">Journal</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ summary.task_mentions }}</div>
+            <div class="stat-label">Tasks</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ summary.prayer_mentions }}</div>
+            <div class="stat-label">Prayer</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ summary.event_invitations }}</div>
+            <div class="stat-label">Events</div>
+        </div>
+    </div>
+
+    <!-- Context Breakdown -->
+    {% if breakdown %}
+    <div class="card mb-6">
+        <h2 class="card-title">Interaction Breakdown</h2>
+        <div class="breakdown-list">
+            {% for ctx, count in breakdown.items %}
+                <div class="breakdown-row">
+                    <span class="breakdown-label">{{ ctx|title }}</span>
+                    <span class="breakdown-value">{{ count }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Interactions -->
+    <div class="card">
+        <h2 class="card-title">Recent Interactions</h2>
+        {% if recent_interactions %}
+            <div class="interaction-list">
+                {% for interaction in recent_interactions %}
+                    <div class="interaction-row">
+                        <span class="badge badge-sm badge-muted">{{ interaction.context_type_label }}</span>
+                        <span class="text-sm">{{ interaction.interaction_date|date:"M j, Y" }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted text-sm">No interactions recorded yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+}
+.stat-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    text-align: center;
+}
+.stat-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+.stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+.breakdown-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.breakdown-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.breakdown-row:last-child {
+    border-bottom: none;
+}
+.breakdown-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+}
+.breakdown-value {
+    font-weight: 600;
+    color: var(--color-accent);
+}
+.interaction-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.interaction-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.interaction-row:last-child {
+    border-bottom: none;
+}
+.inline-form {
+    display: inline;
+}
+.btn-danger-text {
+    color: var(--color-error);
+}
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    var forms = document.querySelectorAll('[data-confirm-form]');
+    forms.forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            if (!confirm('Are you sure you want to delete this contact?')) {
+                e.preventDefault();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

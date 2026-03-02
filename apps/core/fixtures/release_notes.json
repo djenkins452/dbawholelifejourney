@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 114,
+    "fields": {
+      "title": "People & Relationship Intelligence",
+      "description": "A new People section lets you track the important relationships in your life. Add contacts, see interaction history across Journal, Tasks, Prayer, and Events, and use @mentions to tag people in your entries. Your Chief of Staff now has relationship awareness — it knows who matters most and when you last connected.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-02",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/relationships/",
+      "created_at": "2026-03-02T15:00:00Z",
+      "updated_at": "2026-03-02T15:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 113,
     "fields": {
       "title": "Pantry Photo Intelligence — Scan Your Kitchen with AI",

@@ -125,6 +125,8 @@ urlpatterns = [
     path('intelligence/delivery/', include('apps.core.ai_delivery.urls', namespace='ai_delivery')),
     # Calendar Engine — CoS Time Command Center
     path('calendar/', include('apps.calendar_engine.urls', namespace='calendar_engine')),
+    # Relationships — Relational Intelligence Platform
+    path('relationships/', include('apps.relationships.urls', namespace='relationships')),
     # Notes (unified notes system)
     path('notes/', include('apps.notes.urls', namespace='notes')),
     # Owner Financial Command Center (superuser only)

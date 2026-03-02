@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load notes_tags %}
+{% load static %}
 
 {% block title %}{% if is_searching %}Search Results{% else %}Notes{% endif %} - Whole Life Journey{% endblock %}
 
@@ -44,7 +45,7 @@
 
     <!-- Search + Filters -->
     <div class="filters-bar mb-6">
-        <form method="get" class="notes-filters-form" id="notes-filters-form">
+        <form method="get" class="notes-filters-form" id="notes-filters-form" data-dynamic-search>
             <div class="filter-row">
                 <div class="search-input-wrapper">
                     <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
@@ -296,41 +297,5 @@
 }
 </style>
 
-<script nonce="{{ csp_nonce }}">
-document.addEventListener('DOMContentLoaded', function() {
-    var form = document.getElementById('notes-filters-form');
-    if (!form) return;
-
-    var searchInput = document.getElementById('notes-search-input');
-
-    // If returning from a search, keep focus in the search box so
-    // the user can keep typing (e.g. "ho" → "horse" without re-clicking)
-    if (searchInput && searchInput.value.length > 0) {
-        searchInput.focus();
-        // Place cursor at end of current text
-        var len = searchInput.value.length;
-        searchInput.setSelectionRange(len, len);
-    }
-
-    // Auto-submit on filter change
-    form.querySelectorAll('[data-auto-submit]').forEach(function(el) {
-        el.addEventListener('change', function() {
-            form.submit();
-        });
-    });
-
-    // Debounced search: submit after 600ms of typing pause
-    var debounceTimer;
-    if (searchInput) {
-        searchInput.addEventListener('input', function() {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(function() {
-                if (searchInput.value.length >= 2 || searchInput.value.length === 0) {
-                    form.submit();
-                }
-            }, 600);
-        });
-    }
-});
-</script>
+<script src="{% static 'js/dynamic-search.js' %}" nonce="{{ csp_nonce }}"></script>
 {% endblock %}

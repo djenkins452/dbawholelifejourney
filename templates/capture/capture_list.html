@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load capture_filters %}
+{% load static %}
 
 {% block title %}Capture - Whole Life Journey{% endblock %}
 
@@ -42,7 +43,7 @@
             {% endfor %}
         </select>
 
-        <form method="get" id="search-form" class="search-form" style="flex: 1; min-width: 200px; max-width: 300px;">
+        <form method="get" id="search-form" class="search-form" data-dynamic-search style="flex: 1; min-width: 200px; max-width: 300px;">
             <!-- Preserve category and subcategory filters when searching -->
             <input type="hidden" name="category" id="search-category-hidden" value="{{ active_category }}">
             <input type="hidden" name="subcategory" id="search-subcategory-hidden" value="{{ active_subcategory }}">
@@ -654,4 +655,5 @@
         }
     });
 </script>
+<script src="{% static 'js/dynamic-search.js' %}" nonce="{{ csp_nonce }}"></script>
 {% endblock %}

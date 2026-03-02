@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 111,
+    "fields": {
+      "title": "Dynamic Search Across All Pages",
+      "description": "Search boxes throughout the app now auto-search as you type. After a brief pause, results update automatically — no need to press Enter or click Search. This applies to Tasks, Journal, Audio Capture, Admin Task List, and Notes. Focus stays in the search box after results load so you can keep refining your query.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-03-01",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-01T23:00:00Z",
+      "updated_at": "2026-03-01T23:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 109,
     "fields": {
       "title": "Chief of Staff Now Understands Follow-Up Requests",

@@ -39,7 +39,7 @@
 
     <!-- Search Bar -->
     <div class="search-bar mb-4">
-        <form method="get" class="search-form" id="task-search-form">
+        <form method="get" class="search-form" id="task-search-form" data-dynamic-search>
             <!-- Preserve current filters -->
             <input type="hidden" name="show" value="{{ current_show }}">
             {% if current_priority %}<input type="hidden" name="priority" value="{{ current_priority }}">{% endif %}
@@ -836,4 +836,5 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <script src="{% static 'js/bulk-actions.js' %}"></script>
+<script src="{% static 'js/dynamic-search.js' %}" nonce="{{ csp_nonce }}"></script>
 {% endblock %}

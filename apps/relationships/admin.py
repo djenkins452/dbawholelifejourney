@@ -11,7 +11,7 @@ Copyright:
 
 from django.contrib import admin
 
-from .models import Mention, Person, RelationshipInteraction
+from .models import Mention, Person, PersonGroup, RelationshipInteraction
 
 
 @admin.register(Person)
@@ -30,6 +30,23 @@ class PersonAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         return Person.all_objects.all()
+
+
+@admin.register(PersonGroup)
+class PersonGroupAdmin(admin.ModelAdmin):
+    list_display = ['name', 'owner', 'member_count', 'status', 'created_at']
+    list_filter = ['status']
+    search_fields = ['name', 'owner__email']
+    raw_id_fields = ['owner']
+    readonly_fields = ['created_at', 'updated_at', 'deleted_at']
+    filter_horizontal = ['members']
+
+    def get_queryset(self, request):
+        return PersonGroup.all_objects.all()
+
+    def member_count(self, obj):
+        return obj.members.count()
+    member_count.short_description = 'Members'
 
 
 @admin.register(RelationshipInteraction)

@@ -11,7 +11,7 @@ Copyright:
 
 from django import forms
 
-from .models import Person
+from .models import Person, PersonGroup
 
 
 class PersonForm(forms.ModelForm):
@@ -71,3 +71,45 @@ class QuickPersonForm(forms.ModelForm):
             'first_name': forms.TextInput(attrs={'placeholder': 'First name'}),
             'last_name': forms.TextInput(attrs={'placeholder': 'Last name'}),
         }
+
+
+class PersonGroupForm(forms.ModelForm):
+    """Form for creating/editing a PersonGroup."""
+
+    members = forms.ModelMultipleChoiceField(
+        queryset=Person.objects.none(),
+        widget=forms.CheckboxSelectMultiple,
+        required=False,
+        label="Members",
+    )
+
+    class Meta:
+        model = PersonGroup
+        fields = ['name', 'description', 'members']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'placeholder': 'Group name',
+                'autofocus': True,
+            }),
+            'description': forms.Textarea(attrs={
+                'placeholder': 'Description (optional)',
+                'rows': 2,
+            }),
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        if user:
+            self.fields['members'].queryset = (
+                Person.objects.filter(owner=user).order_by('first_name', 'last_name')
+            )
+
+    def clean_name(self):
+        name = self.cleaned_data['name']
+        qs = PersonGroup.objects.filter(owner=self.user, name__iexact=name)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError(f'A group named "{name}" already exists.')
+        return name

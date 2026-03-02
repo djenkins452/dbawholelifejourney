@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if object %}Edit {{ object.name }}{% else %}New Group{% endif %} - People - Whole Life Journey
+{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'dashboard:home' %}">Dashboard</a>
+        <span>/</span>
+        <a href="{% url 'relationships:insights' %}">People</a>
+        <span>/</span>
+        <a href="{% url 'relationships:group_list' %}">Groups</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}New{% endif %}</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">
+            {% if object %}Edit {{ object.name }}{% else %}New Group{% endif %}
+        </h1>
+    </div>
+
+    <form method="post" class="entry-form">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="id_name" class="form-label">Group Name</label>
+            <input type="text" name="name" id="id_name"
+                   class="form-input" placeholder="Group name"
+                   value="{{ form.name.value|default:'' }}" required autofocus>
+            {% if form.name.errors %}
+                <p class="form-error">{{ form.name.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label for="id_description" class="form-label">Description</label>
+            <textarea name="description" id="id_description" class="form-textarea" rows="2"
+                      placeholder="Description (optional)">{{ form.description.value|default:'' }}</textarea>
+            {% if form.description.errors %}
+                <p class="form-error">{{ form.description.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Members</label>
+            {% if form.members.field.queryset.exists %}
+            <div class="grp-members-grid">
+                {% for person in form.members.field.queryset %}
+                <label class="grp-member-option" for="id_members_{{ forloop.counter0 }}">
+                    <input type="checkbox"
+                           name="members"
+                           value="{{ person.pk }}"
+                           id="id_members_{{ forloop.counter0 }}"
+                           {% if person.pk in selected_member_ids %}checked{% endif %}>
+                    <span class="grp-member-label">
+                        <span class="grp-member-name">{{ person.get_display_name }}</span>
+                        <span class="grp-member-type">{{ person.get_relationship_type_display }}</span>
+                    </span>
+                </label>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted text-sm">No contacts yet. <a href="{% url 'relationships:person_create' %}">Add someone first</a>.</p>
+            {% endif %}
+            {% if form.members.errors %}
+                <p class="form-error">{{ form.members.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        {% include "components/form_actions.html" with cancel_url=cancel_url|default:"/relationships/groups/" is_edit=object %}
+    </form>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.grp-members-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--space-2);
+    max-height: 400px;
+    overflow-y: auto;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-background);
+}
+.grp-member-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    min-height: 44px;
+    transition: background 0.15s ease;
+}
+.grp-member-option:hover {
+    background: var(--color-surface);
+}
+.grp-member-option input[type="checkbox"] {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+}
+.grp-member-label {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.grp-member-name {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.grp-member-type {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+@media (max-width: 480px) {
+    .grp-members-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

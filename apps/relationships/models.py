@@ -156,6 +156,66 @@ class Person(SoftDeleteModel):
 
 
 # =============================================================================
+# PERSON GROUP — Contact Groups
+# =============================================================================
+
+
+class PersonGroup(SoftDeleteModel):
+    """
+    A user-defined group of contacts.
+
+    Groups enable bulk actions (journal about, pray for) and @groupname
+    mentions that expand to all members. Owner-scoped and soft-deletable.
+    """
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='person_groups',
+        help_text="User who owns this group",
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="Group name (e.g., 'Small Group', 'Family')",
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Optional description of this group",
+    )
+    members = models.ManyToManyField(
+        Person,
+        blank=True,
+        related_name='groups',
+        help_text="People in this group",
+    )
+
+    objects = SoftDeleteManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = "Person Group"
+        verbose_name_plural = "Person Groups"
+        indexes = [
+            models.Index(fields=['owner', 'status']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['owner', 'name'],
+                condition=models.Q(status='active'),
+                name='unique_active_group_per_owner',
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def member_count(self):
+        return self.members.count()
+
+
+# =============================================================================
 # RELATIONSHIP INTERACTION — Cross-Module Interaction Tracking
 # =============================================================================
 

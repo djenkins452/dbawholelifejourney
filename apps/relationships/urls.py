@@ -23,6 +23,14 @@ urlpatterns = [
     path('<int:pk>/edit/', views.PersonUpdateView.as_view(), name='person_update'),
     path('<int:pk>/delete/', views.PersonDeleteView.as_view(), name='person_delete'),
 
+    # Group CRUD
+    path('groups/', views.GroupListView.as_view(), name='group_list'),
+    path('groups/add/', views.GroupCreateView.as_view(), name='group_create'),
+    path('groups/<int:pk>/', views.GroupDetailView.as_view(), name='group_detail'),
+    path('groups/<int:pk>/edit/', views.GroupUpdateView.as_view(), name='group_update'),
+    path('groups/<int:pk>/delete/', views.GroupDeleteView.as_view(), name='group_delete'),
+    path('groups/quick-create/', views.GroupQuickCreateView.as_view(), name='group_quick_create'),
+
     # Insights dashboard (Phase R2)
     path('insights/', views.RelationshipInsightsView.as_view(), name='insights'),
 

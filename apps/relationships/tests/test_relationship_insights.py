@@ -330,7 +330,7 @@ class InsightsViewTest(InsightsTestMixin, TestCase):
 
         response = self.client.get(reverse('relationships:insights'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Relational Health')
+        self.assertContains(response, 'People')
         self.assertContains(response, 'John Smith')
 
     def test_insights_page_empty_state(self):

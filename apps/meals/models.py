@@ -292,6 +292,11 @@ class Household(TimeStampedModel):
         default=7,
         help_text="Typical days between grocery trips",
     )
+    meals_activated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when meal intelligence met minimum activation threshold",
+    )
 
     class Meta:
         ordering = ["name"]

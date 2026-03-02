@@ -9,6 +9,34 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Meal Intelligence Phase 10: Progressive Activation & Onboarding
+
+**What:** Implemented progressive intelligence activation to prevent low-quality dinner suggestions. Dashboard operates in "Setup Mode" when below minimum data thresholds (5 pantry items, 3 recipes). Includes a guided 3-step setup wizard, activation moment confirmation, CoS context awareness, and soft-skip behavior. All scoring engines are gated behind activation checks.
+
+**Files added:**
+- `apps/meals/services/activation.py` — ActivationStatus dataclass, cached threshold checks, activation timestamp logic
+- `apps/meals/migrations/0002_add_meals_activated_at.py` — meals_activated_at field on Household
+- `templates/meals/setup.html` — 3-step wizard (pantry, recipes, dietary profile)
+- `templates/meals/partials/_dashboard_side_panel.html` — Extracted DRY side panel partial
+- `apps/meals/tests/test_meal_activation.py` — 29 activation tests
+
+**Files modified:**
+- `apps/meals/models.py` — Added meals_activated_at to Household
+- `apps/meals/views.py` — Activation gates in Dashboard + Suggestions + new MealsSetupView
+- `apps/meals/urls.py` — Added /meals/setup/ route
+- `templates/meals/dashboard.html` — Setup mode hero, activation moment, normal mode (3 states)
+- `templates/meals/suggestions.html` — Setup Required gate
+- `apps/core/ai_orchestrator/cos_context.py` — Activation state in meals context builder
+- `static/css/meals.css` — Setup mode, wizard, activation moment styles (~300 lines)
+- `apps/meals/tests/test_views.py` — Updated 2 tests for activation gate behavior
+- `apps/help/fixtures/teaching_destinations.json` — Added PK 166 (Meals Setup Wizard)
+- `apps/core/management/commands/load_initial_data.py` — Added reset method for activation fixtures
+- `docs/Whats-for-Dinner.md` — Phase 10 section
+
+**Why:** Without activation gating, new users would see empty/broken dinner suggestions with no pantry data or recipes. Setup Mode ensures a high-trust first impression with guided onboarding.
+
+---
+
 ## 2026-03-02 — CRITICAL: Fix streaming path — intent recognition completely broken
 
 **What:** All action requests via the web UI were failing silently. The streaming endpoint (`/assistant/api/chat/stream/`) — which handles ALL text messages from the web UI — had three bugs that completely killed intent recognition:

@@ -7,6 +7,8 @@ app_name = "meals"
 urlpatterns = [
     # Dashboard — Command Center
     path("", views.MealsDashboardView.as_view(), name="dashboard"),
+    # Guided Setup Wizard
+    path("setup/", views.MealsSetupView.as_view(), name="setup"),
     # Dinner Suggestions
     path("suggestions/", views.DinnerSuggestionsView.as_view(), name="suggestions"),
     # Pantry Intelligence

@@ -1,6 +1,6 @@
 # What's for Dinner? — WLJ Meal Intelligence Pillar
 
-**Status:** COMPLETE (Backend + Frontend)
+**Status:** COMPLETE (Backend + Frontend + Activation)
 **Created:** 2026-03-01
 **Last Updated:** 2026-03-02
 
@@ -374,6 +374,63 @@ Transform WLJ from a nutrition tracker into a household meal intelligence system
 - `apps/core/context_processors.py` — Added meals to CORRECT_ROUTES
 - `apps/core/ai_orchestrator/intent_engine.py` — Added MEALS_INTENTS
 - `apps/core/ai_orchestrator/cos_context.py` — Added meals context builder
+
+---
+
+## Phase 10: Progressive Intelligence Activation
+
+**Status:** COMPLETE
+**Completed:** 2026-03-02
+
+**Objective:** Enforce minimum data thresholds before enabling meal scoring. Prevent low-quality suggestions and broken first impressions. Guide users through a strategic onboarding flow.
+
+**Activation Thresholds:**
+- PantryItem count >= 5
+- Recipe count >= 3
+
+**State Diagram:**
+```
+┌─────────────┐     Threshold Met     ┌──────────────┐
+│  Setup Mode │ ──────────────────────>│ Intelligence │
+│  (blocked)  │                        │   Active     │
+└──────┬──────┘                        └──────────────┘
+       │                                      │
+       ▼                                      ▼
+ ┌───────────┐                         ┌────────────┐
+ │  Wizard   │                         │ Normal UI  │
+ │ /setup/   │                         │ Dashboard  │
+ └───────────┘                         └────────────┘
+```
+
+**Deliverables:**
+- [x] `MealActivationService` (`apps/meals/services/activation.py`) with cached threshold checks
+- [x] `meals_activated_at` timestamp on Household model
+- [x] Dashboard Setup Mode hero with progress bars and guided actions
+- [x] Activation Moment hero (shown within 30 minutes of crossing threshold)
+- [x] `MealsSetupView` 3-step wizard at `/meals/setup/`
+- [x] Suggestions page activation gate (blocks scoring below threshold)
+- [x] CoS context includes activation state (setup_needed / activated)
+- [x] Dashboard side panel extracted to partial for DRY
+- [x] Setup wizard CSS (progress indicators, option cards, step states)
+- [x] 29 activation tests (all passing)
+- [x] Soft-skip behavior: dashboard accessible but scoring blocked
+
+**Files Created:**
+- `apps/meals/services/activation.py` — ActivationStatus dataclass, get_activation_status(), cache
+- `apps/meals/migrations/0002_add_meals_activated_at.py` — meals_activated_at field
+- `templates/meals/setup.html` — 3-step wizard template
+- `templates/meals/partials/_dashboard_side_panel.html` — Extracted side panel
+- `apps/meals/tests/test_meal_activation.py` — 29 tests
+
+**Files Modified:**
+- `apps/meals/models.py` — Added meals_activated_at to Household
+- `apps/meals/views.py` — Activation gates in Dashboard + Suggestions + new MealsSetupView
+- `apps/meals/urls.py` — Added /setup/ route
+- `templates/meals/dashboard.html` — Setup mode, activation moment, normal mode states
+- `templates/meals/suggestions.html` — Setup Required gate
+- `apps/core/ai_orchestrator/cos_context.py` — Activation state in meals context
+- `static/css/meals.css` — Setup mode + wizard + activation moment styles
+- `apps/meals/tests/test_views.py` — Updated tests for activation gate behavior
 
 ---
 

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Journal - Whole Life Journey{% endblock %}
 
@@ -66,7 +67,7 @@
     
     <!-- Filters -->
     <div class="filters-bar mb-6">
-        <form method="get" class="filters-form">
+        <form method="get" class="filters-form" data-dynamic-search>
             <div class="filter-group">
                 <select name="category" class="form-select form-select-sm" data-auto-submit>
                     <option value="">All Categories</option>
@@ -476,4 +477,5 @@
     }
 }
 </style>
+<script src="{% static 'js/dynamic-search.js' %}" nonce="{{ csp_nonce }}"></script>
 {% endblock %}

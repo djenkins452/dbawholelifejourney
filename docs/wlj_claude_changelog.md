@@ -9,6 +9,35 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Dynamic search across all list pages
+
+**What:** Search boxes across the app required pressing Enter to search. The Notes app had a good debounced auto-search pattern (600ms delay, min 2 chars, focus retention). User wanted this applied everywhere.
+
+**Fix:**
+- Created shared `static/js/dynamic-search.js` — reusable debounced search module
+  - Forms opt in via `data-dynamic-search` attribute
+  - Finds `input[name="q"]` or `input[name="search"]` within the form
+  - 600ms debounce, auto-submit when ≥ 2 chars or empty (to reset)
+  - Focus retention on page reload (cursor stays at end of search input)
+  - `data-auto-submit` support for filter dropdowns/checkboxes
+- Updated 5 templates to use the shared JS:
+  - `templates/life/task_list.html` — Tasks page
+  - `templates/journal/entry_list.html` — Journal entries
+  - `templates/capture/capture_list.html` — Audio capture
+  - `templates/admin_console/admin_task_list.html` — Admin task list
+  - `templates/notes/note_list.html` — replaced inline JS with shared file
+- Calendar manage page already had client-side debounced search via API, so skipped
+
+**Files changed:**
+- `static/js/dynamic-search.js` — NEW shared module
+- `templates/life/task_list.html` — added `data-dynamic-search`, script include
+- `templates/journal/entry_list.html` — added `data-dynamic-search`, `{% load static %}`, script include
+- `templates/capture/capture_list.html` — added `{% load static %}`, script include (data-dynamic-search already added)
+- `templates/admin_console/admin_task_list.html` — added `{% load static %}`, `data-dynamic-search`, script include
+- `templates/notes/note_list.html` — added `{% load static %}`, `data-dynamic-search`, replaced 35-line inline JS with script include
+
+---
+
 ## 2026-03-01 — Recipe & "What's for Dinner?" Capability Assessment
 
 **What:** Comprehensive technical and architectural investigation of WLJ's recipe, meal planning, pantry, and household sharing capabilities. Includes competitive analysis of 10+ apps (Mealime, Paprika, Samsung Food, KitchenPal, NoWaste, Carb Manager, Eat This Much, mySugr), architecture proposal with model designs, 8-phase implementation roadmap, and risk assessment.

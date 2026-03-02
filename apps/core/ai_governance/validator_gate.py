@@ -138,23 +138,32 @@ _NUMERIC_SAFE_PATTERNS = [
 # These ONLY trigger when action_executed=False (no tool actually ran).
 _ACTION_CLAIM_PATTERNS = [
     # Checkmark confirmations: "✓ Scheduled", "✓ Removed", "✓ Confirmed"
-    re.compile(r'[✓✔☑]\s*(?:scheduled|removed|confirmed|deleted|updated|rescheduled|moved|changed|corrected|added|created|cancelled|canceled)', re.IGNORECASE),
-    # "I've <past-tense action>" — covers all mutation verbs
-    re.compile(r"\bI'?ve\s+(?:scheduled|removed|deleted|added|rescheduled|updated|confirmed|created|cancelled|canceled|moved|changed|corrected|adjusted|pushed|postponed|renamed|set\s+that|taken\s+care|ensured)", re.IGNORECASE),
-    # "I <past-tense action> it/that/the/your" — covers all mutation verbs
-    re.compile(r'\bI\s+(?:scheduled|removed|deleted|added|rescheduled|updated|confirmed|created|cancelled|canceled|moved|changed|corrected|adjusted|pushed|postponed|renamed)\s+(?:it|that|the|your|those|both|all|them)\b', re.IGNORECASE),
-    # "I'll <action> it/that/the/your/now" — promises to act (future tense)
-    re.compile(r"\bI'?ll\s+(?:schedule|remove|delete|add|reschedule|update|confirm|create|cancel|move|change|correct|adjust|push|postpone|rename|ensure|fix)\s+(?:it|that|the|your|those|both|all|them|this|now)\b", re.IGNORECASE),
-    # "I'll <action> now" / "I'll do that now"
+    re.compile(r'[✓✔☑]\s*(?:scheduled|removed|confirmed|deleted|updated|rescheduled|moved|changed|corrected|added|created|cancelled|canceled|logged|completed)', re.IGNORECASE),
+    # "I've <past-tense action>" — covers all mutation/creation verbs
+    re.compile(r"\bI'?ve\s+(?:scheduled|removed|deleted|added|rescheduled|updated|confirmed|created|cancelled|canceled|moved|changed|corrected|adjusted|pushed|postponed|renamed|logged|recorded|set\s+that|taken\s+care|ensured|gone\s+ahead)", re.IGNORECASE),
+    # "I <past-tense action> it/that/the/your/a/an" — broadened determiners
+    re.compile(r'\bI\s+(?:scheduled|removed|deleted|added|rescheduled|updated|confirmed|created|cancelled|canceled|moved|changed|corrected|adjusted|pushed|postponed|renamed|logged|recorded)\s+(?:it|that|the|your|those|both|all|them|a|an)\b', re.IGNORECASE),
+    # "I'll <action> it/that/the/your/a/an/now" — promises to act (future tense)
+    re.compile(r"\bI'?ll\s+(?:schedule|remove|delete|add|reschedule|update|confirm|create|cancel|move|change|correct|adjust|push|postpone|rename|ensure|fix|log|record)\s+(?:it|that|the|your|those|both|all|them|this|now|a|an)\b", re.IGNORECASE),
+    # "I'll <action> now" / "I'll do that now" / "I'll take care of that"
     re.compile(r"\bI'?ll\s+(?:do\s+that|take\s+care\s+of\s+(?:that|it|those)|(?:update|correct|fix|change|move|ensure)\s+(?:that|it|this))\s*(?:now|right\s+away)?\b", re.IGNORECASE),
-    # "It's set" / "It's been scheduled/removed/moved"
-    re.compile(r"\bit'?s\s+(?:set|done|been\s+(?:scheduled|removed|deleted|updated|rescheduled|moved|changed|corrected|added|confirmed|created))\b", re.IGNORECASE),
-    # "I took care of that" / "I took care of it"
-    re.compile(r'\bI\s+took\s+care\s+of\s+(?:that|it|those)\b', re.IGNORECASE),
+    # "It's set" / "It's been scheduled/removed/moved/added/created"
+    re.compile(r"\bit'?s\s+(?:set|done|been\s+(?:scheduled|removed|deleted|updated|rescheduled|moved|changed|corrected|added|confirmed|created|logged|recorded))\b", re.IGNORECASE),
+    # "I took care of that" / "That's been taken care of"
+    re.compile(r'\b(?:I\s+took\s+care\s+of|(?:that|it)'
+               r"'?s\s+been\s+taken\s+care\s+of)\b", re.IGNORECASE),
     # Standalone "Done" as action completion (must be near start of sentence or alone)
     re.compile(r'(?:^|[.!]\s*)Done[.!]?\s*(?:$|[A-Z])', re.MULTILINE),
-    # "Rescheduled for" / "Moved to" — orphan confirmations without subject
-    re.compile(r'\b(?:Rescheduled|Moved|Changed|Updated|Pushed|Postponed)\s+(?:for|to)\s+(?:tomorrow|today|next|monday|tuesday|wednesday|thursday|friday|saturday|sunday)', re.IGNORECASE),
+    # "Rescheduled for" / "Moved to" / "Added to" — orphan confirmations
+    re.compile(r'\b(?:Rescheduled|Moved|Changed|Updated|Pushed|Postponed|Added)\s+(?:for|to)\s+(?:tomorrow|today|next|your|the|monday|tuesday|wednesday|thursday|friday|saturday|sunday)', re.IGNORECASE),
+    # "I went ahead and <action>" — indirect action claims
+    re.compile(r'\bI\s+went\s+ahead\s+and\s+(?:added|created|scheduled|removed|deleted|updated|changed|moved|logged|recorded)\b', re.IGNORECASE),
+    # "You're all set" / "You're set for that" — implied action completion
+    re.compile(r"\byou'?re\s+(?:all\s+)?set\b", re.IGNORECASE),
+    # "The <entity> has been <actioned>" — passive voice action claims
+    re.compile(r'\b(?:the|your|a|an)\s+(?:task|event|appointment|meeting|entry|item|reminder)\s+(?:has|have)\s+been\s+(?:created|added|scheduled|removed|deleted|updated|rescheduled|moved|changed|logged|recorded|completed)\b', re.IGNORECASE),
+    # "I <past-tense> <entity>" without determiner — "I scheduled an appointment"
+    re.compile(r'\bI\s+(?:scheduled|created|added|logged|recorded|booked)\s+(?:a|an|the|your)\s+(?:task|event|appointment|meeting|entry|item|reminder|routine)\b', re.IGNORECASE),
 ]
 
 

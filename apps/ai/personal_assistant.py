@@ -4955,14 +4955,80 @@ Rules for this response:
                     except Exception:
                         pass
 
+                # ── Intent recognition (mirrors send_message Phase 7) ──
+                # Run intent recognition BEFORE streaming so action
+                # requests (create task, delete event, etc.) are handled
+                # by the action pipeline, not the conversational LLM.
+                if not _direct_response:
+                    try:
+                        from apps.ai.intent_service import intent_service
+                        from apps.core.ai_orchestrator.orchestrator import (
+                            enrich_and_execute,
+                            orchestrator_process,
+                        )
+
+                        # Build lean conversation history for intent context
+                        _stream_history = None
+                        try:
+                            from apps.ai.conversation.message_builder import (
+                                build_messages_from_history,
+                            )
+                            _stream_history = build_messages_from_history(
+                                conversation.messages.order_by('-created_at'),
+                                message,
+                                max_messages=5,
+                                max_content_chars=300,
+                                token_budget=800,
+                            )
+                        except Exception:
+                            pass
+
+                        intent_results = intent_service.recognize_intents(
+                            message, self.user,
+                            conversation_history=_stream_history,
+                        )
+                        actionable = [
+                            ir for ir in intent_results
+                            if ir.intent_type != 'no_action'
+                        ]
+                        if actionable:
+                            # Execute actions (non-streaming path)
+                            orch_result = orchestrator_process(
+                                actionable, self.user, message,
+                            )
+                            orch_actions = enrich_and_execute(
+                                actionable, self.user, orch_result,
+                            )
+                            parts = []
+                            for ar in orch_actions:
+                                if ar.success:
+                                    actions_taken.append(
+                                        self._build_action_taken(ar)
+                                    )
+                                parts.append(
+                                    ar.message
+                                    + self._format_confirmation_detail(ar)
+                                )
+                            _direct_response = ' '.join(parts)
+                    except Exception as intent_err:
+                        logger.error(
+                            "send_message_stream intent error: %s",
+                            intent_err, exc_info=True,
+                        )
+
                 if _direct_response:
-                    # Pre-processing produced a direct response
+                    # Pre-processing or intent produced a direct response
                     response_text = _direct_response
                     assistant_msg.content = response_text
-                    assistant_msg.save(update_fields=['content'])
+                    assistant_msg.message_type = (
+                        'action' if actions_taken else 'text'
+                    )
+                    assistant_msg.save(
+                        update_fields=['content', 'message_type']
+                    )
                     yield {'type': 'token', 'content': response_text}
                 else:
-                    # Stream from LLM
+                    # Stream from LLM (conversational — no action executed)
                     chunks = []
                     for chunk in self._generate_response_stream(
                         message, conversation,
@@ -4983,6 +5049,34 @@ Rules for this response:
                     if response_text and not assistant_msg.content:
                         assistant_msg.content = response_text
                         assistant_msg.save(update_fields=['content'])
+
+                    # ── Post-stream validator gate ──
+                    # Check for hallucinated action claims in the streamed
+                    # response.  Since tokens were already sent, we can only
+                    # update the saved message and emit a correction event.
+                    try:
+                        from apps.core.ai_governance.validator_gate import (
+                            validate_response as _stream_validate,
+                        )
+                        _sv = _stream_validate(
+                            response_text, self.user, conversation,
+                            action_executed=bool(actions_taken),
+                        )
+                        if _sv['blocked']:
+                            response_text = _sv['response']
+                            assistant_msg.content = response_text
+                            assistant_msg.save(update_fields=['content'])
+                            yield {
+                                'type': 'correction',
+                                'content': response_text,
+                            }
+                            logger.warning(
+                                "[STREAM_VALIDATOR] Blocked hallucination "
+                                "in stream: %s",
+                                _sv['violations'],
+                            )
+                    except Exception:
+                        pass
 
         except Exception as e:
             logger.error("send_message_stream error: %s", e, exc_info=True)

@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-03-02 — CoS enterprise hardening: expanded validator, streaming intent recognition
+
+**What:** Audit of master hardening prompt revealed three critical gaps: (1) Validator gate `_ACTION_CLAIM_PATTERNS` only caught 4 of 11 hallucination variants — "I added a task", "I scheduled an appointment", "You're all set", "That's been taken care of", "The task has been created", "I went ahead and added" all slipped through. (2) The streaming path (`send_message_stream`) had NO intent recognition — "add a task" went straight to the conversational LLM. (3) The streaming path had no validator gate.
+
+**Fix:**
+- Expanded `_ACTION_CLAIM_PATTERNS` from 9 to 14 patterns: added broadened determiners (a/an), `logged/recorded` verbs, "I went ahead and" prefix, "You're all/set" implied completion, passive voice "The task has been created", "I scheduled a meeting" entity patterns. Result: 11/11 hallucination variants caught, 0 false positives on legitimate responses.
+- Added full intent recognition to `send_message_stream()` — mirrors `send_message()` Phase 7 with conversation history building, intent recognition, and action execution. Actions now produce direct responses instead of falling through to LLM streaming.
+- Added post-stream validator gate that checks the assembled streaming response for hallucination. If blocked, updates the saved message and emits a `correction` SSE event.
+- Added `correction` event type handling in the streaming view.
+
+**Files changed:**
+- `apps/core/ai_governance/validator_gate.py` — Expanded _ACTION_CLAIM_PATTERNS (9→14 patterns)
+- `apps/ai/personal_assistant.py` — Added intent recognition + post-stream validator to send_message_stream()
+- `apps/ai/views.py` — Added `correction` event type to SSE streaming handler
+
+---
+
 ## 2026-03-02 — CoS intent retry: creation intents + anti-hallucination guardrails
 
 **What:** Two bugs: (1) CoS returned `no_action` for "add a task today at 5:00pm to Gather Tax Papers" because `MUTATION_DOMAIN_MAP` only covered mutation/completion verbs, not creation verbs (add, create, schedule, remind, book). The retry backstop never triggered. (2) When falling through to `_generate_response()`, the LLM hallucinated "I've added a task for you" when it didn't actually create anything — despite an existing anti-hallucination rule.

@@ -576,6 +576,14 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
                                 f"event: done\n"
                                 f"data: {json.dumps(event['data'])}\n\n"
                             )
+                        elif event['type'] == 'correction':
+                            # Post-stream validator blocked a hallucination.
+                            # Send correction event so the UI can replace
+                            # the streamed content.
+                            yield (
+                                f"event: correction\n"
+                                f"data: {json.dumps({'content': event['content']})}\n\n"
+                            )
                         elif event['type'] == 'error':
                             yield (
                                 f"event: error\n"

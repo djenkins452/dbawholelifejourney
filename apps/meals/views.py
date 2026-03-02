@@ -1036,12 +1036,37 @@ class PantryScanConfirmView(
         still_processing = total_uploads > 0 and processed_uploads < total_uploads
 
         if still_processing:
-            context["session"] = session
-            context["processing"] = True
-            context["completed"] = False
-            context["total_uploads"] = total_uploads
-            context["processed_uploads"] = processed_uploads
-            return context
+            # Safety fallback: if session is older than 30s and still unprocessed,
+            # the Celery worker likely didn't pick up the task. Process sync.
+            age_seconds = (timezone.now() - session.created_at).total_seconds()
+            if age_seconds > 30:
+                logger.warning(
+                    "Pantry scan session %d stuck after %.0fs — processing sync fallback",
+                    session.pk, age_seconds,
+                )
+                from apps.meals.services.pantry_photo_detection import pantry_photo_detection_service
+                for upload in session.uploads.filter(processed=False):
+                    try:
+                        pantry_photo_detection_service.process_upload(upload)
+                    except Exception as e:
+                        logger.error(
+                            "Sync fallback failed for upload %d: %s",
+                            upload.pk, e, exc_info=True,
+                        )
+                        upload.processed = True
+                        upload.raw_detection_json = {"error": str(e)}
+                        upload.save(update_fields=["processed", "raw_detection_json"])
+                # Re-check after sync processing
+                processed_uploads = session.uploads.filter(processed=True).count()
+                still_processing = processed_uploads < total_uploads
+
+            if still_processing:
+                context["session"] = session
+                context["processing"] = True
+                context["completed"] = False
+                context["total_uploads"] = total_uploads
+                context["processed_uploads"] = processed_uploads
+                return context
 
         detections = list(session.detections.select_related(
             "matched_ingredient", "upload"
@@ -1152,6 +1177,29 @@ class PantryScanStatusView(LoginRequiredMixin, MealsHouseholdMixin, View):
 
         total = session.uploads.count()
         processed = session.uploads.filter(processed=True).count()
+        still_unprocessed = total > 0 and processed < total
+
+        # Sync fallback: if session older than 30s and still unprocessed,
+        # Celery worker likely didn't pick up the task. Process one upload
+        # per poll request to make incremental progress without blocking too long.
+        if still_unprocessed:
+            age_seconds = (timezone.now() - session.created_at).total_seconds()
+            if age_seconds > 30:
+                next_upload = session.uploads.filter(processed=False).first()
+                if next_upload:
+                    from apps.meals.services.pantry_photo_detection import pantry_photo_detection_service
+                    try:
+                        pantry_photo_detection_service.process_upload(next_upload)
+                    except Exception as e:
+                        logger.error(
+                            "Status poll sync fallback failed for upload %d: %s",
+                            next_upload.pk, e, exc_info=True,
+                        )
+                        next_upload.processed = True
+                        next_upload.raw_detection_json = {"error": str(e)}
+                        next_upload.save(update_fields=["processed", "raw_detection_json"])
+                    # Re-count
+                    processed = session.uploads.filter(processed=True).count()
 
         return JsonResponse({
             "processing": total > 0 and processed < total,

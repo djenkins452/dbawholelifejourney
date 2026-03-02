@@ -1229,6 +1229,7 @@ class RecipeScanView(LifeAccessMixin, TemplateView):
     """
 
     template_name = "life/recipe_scan.html"
+    help_context_id = "RECIPE_SCAN"
 
 
 class RecipeScanProcessView(LifeAccessMixin, View):

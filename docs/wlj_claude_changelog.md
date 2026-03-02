@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Recipe Photo Import: documentation and help integration
+
+Completed documentation gaps found by /close audit for Recipe Photo Import feature.
+
+**Changes:**
+- Added teaching destination PK 171 for recipe scan page
+- Added help topic PK 113 (RECIPE_SCAN) with usage guide
+- Added `help_context_id = "RECIPE_SCAN"` to RecipeScanView
+- Updated features doc with Recipe Photo Import section under Life & Organization
+- Updated fixture loader reset to cover teaching_destinations and help_topics
+
+**Files Modified:**
+- `apps/help/fixtures/teaching_destinations.json` — PK 171
+- `apps/help/fixtures/help_topics.json` — PK 113
+- `apps/life/views.py` — help_context_id on RecipeScanView
+- `docs/wlj_claude_features.md` — Recipe Photo Import section, updated view/template counts
+- `apps/core/management/commands/load_initial_data.py` — updated reset method
+
+**Why:** /close audit found 3 missing documentation entries for the Recipe Photo Import feature.
+
 ## 2026-03-02 — Multi-select + bulk actions on people list
 
 **What:** Added checkboxes to each person card on the people list. When 1+ people are selected, a floating action bar slides up with three actions:

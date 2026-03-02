@@ -4719,29 +4719,30 @@ Tasks are sorted by priority (ascending) then creation date.""",
 
     def _reset_recipe_photo_import_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """
-        One-time reset to reload release_notes (PK 114)
-        for Recipe Photo Import feature.
+        One-time reset to reload release_notes (PK 114), teaching_destinations (PK 171),
+        and help_topics (PK 113) for Recipe Photo Import feature.
         """
-        reset_tracker_name = 'reset_recipe_photo_import_2026_03_02'
+        reset_tracker_name = 'reset_recipe_photo_import_docs_2026_03_02'
         try:
             if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
                 return
 
-            try:
-                config = DataLoadConfig.objects.get(loader_name='release_notes')
-                if config.is_loaded:
-                    config.is_loaded = False
-                    config.save()
-                    if verbosity >= 1:
-                        self.stdout.write('  Reset release_notes loader for Recipe Photo Import')
-            except DataLoadConfig.DoesNotExist:
-                pass
+            for loader in ['release_notes', 'teaching_destinations', 'help_topics']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader} loader for Recipe Photo Import')
+                except DataLoadConfig.DoesNotExist:
+                    pass
 
             self._mark_loader_complete(
                 DataLoadConfig, reset_tracker_name,
                 'Reset fixtures for Recipe Photo Import',
                 'command',
-                'One-time reset to reload release_notes PK 114'
+                'One-time reset to reload release_notes PK 114, teaching_destinations PK 171, help_topics PK 113'
             )
 
         except Exception as e:

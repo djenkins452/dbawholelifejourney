@@ -1,6 +1,22 @@
 [
   {
     "model": "help.helptopic",
+    "pk": 113,
+    "fields": {
+      "context_id": "RECIPE_SCAN",
+      "help_id": "recipe-scan",
+      "title": "Scan a Recipe",
+      "description": "Photograph a recipe and have AI extract the details into a new recipe entry.",
+      "content": "## Scan a Recipe\n\nUse your phone or computer camera to photograph a printed or handwritten recipe. The AI reads the text and extracts structured recipe data for you to review and save.\n\n### How It Works\n\n1. **Take a Photo** — Tap the upload area or use your camera to photograph a recipe from a cookbook, recipe card, magazine, or handwritten note\n2. **AI Extraction** — The system uses Vision AI to read and transcribe the recipe text\n3. **Review & Edit** — All extracted fields (title, ingredients, instructions, times, servings, etc.) are shown in an editable form\n4. **Save** — Confirm to create the recipe with the original photo attached\n\n### Tips for Best Results\n\n- **Good lighting** — Ensure the recipe text is well-lit and legible\n- **Flat surface** — Lay the recipe flat to avoid curved text\n- **Full recipe** — Include all parts of the recipe in the photo\n- **One recipe per photo** — Focus on a single recipe for best accuracy\n\n### Extracted Fields\n\n- Title, description, ingredients, instructions\n- Prep time, cook time, servings, difficulty\n- Category, source/attribution, notes\n- Confidence score (how certain the AI is about the extraction)\n\n### After Saving\n\nThe recipe appears in your recipe collection with the original photo. You can edit any field later from the recipe detail page.",
+      "app_name": "life",
+      "order": 113,
+      "is_active": true,
+      "created_at": "2026-03-02T23:00:00Z",
+      "updated_at": "2026-03-02T23:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
     "pk": 106,
     "fields": {
       "context_id": "MEALS_DASHBOARD",

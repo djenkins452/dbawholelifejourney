@@ -3398,7 +3398,7 @@ The life app is a comprehensive personal operations system organizing projects, 
 - **Inventory** — Household item documentation with photos, warranty tracking, condition assessment (for insurance)
 - **Maintenance log** — Home repair/maintenance history with cost, provider, follow-up scheduling
 - **Pets** — Pet profiles with medical records, vaccinations, vet visits, auto-birthday reminders
-- **Recipes** — Family recipes with prep/cook times, servings, difficulty, favorites
+- **Recipes** — Family recipes with prep/cook times, servings, difficulty, favorites, photo import via Vision AI
 - **Shopping lists** — Grocery planning with categorized items and completion tracking
 - **Documents** — File storage via Cloudinary (insurance, legal, financial, medical, etc.) with expiration tracking
 - **Google Calendar sync** — Two-way OAuth sync (import/export) with event type filters
@@ -3427,21 +3427,34 @@ The life app is a comprehensive personal operations system organizing projects, 
 - `/life/calendar/`, `/life/events/*` — Calendar and event CRUD (5 views)
 - `/life/inventory/*` — Inventory CRUD with photo management (8 views)
 - `/life/pets/*` — Pet CRUD with medical records (6 views)
-- `/life/recipes/*` — Recipe CRUD with favorites toggle (7 views)
+- `/life/recipes/*` — Recipe CRUD with favorites toggle and photo import (10 views)
 - `/life/maintenance/*` — Maintenance log CRUD (6 views)
 - `/life/documents/*` — Document CRUD with download/inline view (8 views)
 - `/life/significant-events/*` — Significant event CRUD (6 views)
 - `/life/calendar/google/*` — Google Calendar OAuth and sync (6 views)
 - `/life/gmail/*` — Gmail OAuth and inbox scanning (7 views)
 
+### Recipe Photo Import
+Photograph a printed or handwritten recipe and have Vision AI extract the details into a new recipe entry with the original photo stored alongside.
+
+- **Upload** — Camera/file picker with `capture="environment"` for mobile rear camera
+- **AI Extraction** — GPT-4o Vision API with recipe-specific OCR prompt (2048px, high detail)
+- **Review** — Side-by-side photo + editable form (stacks on mobile), all fields pre-filled
+- **Save** — Creates Recipe with original photo saved to `image` field via Cloudinary
+- **Service:** `apps/life/services/recipe_photo_import.py` — `RecipePhotoImportService`
+- **Views:** `RecipeScanView`, `RecipeScanProcessView`, `RecipeScanConfirmView`
+- **Template:** `templates/life/recipe_scan.html` — single-page AJAX experience
+- **Tests:** 20 tests in `apps/life/tests/test_recipe_scan.py`
+
 ### Key Files
 - `apps/life/models.py` — All 13 models
-- `apps/life/views.py` — 44 views spanning all features
+- `apps/life/views.py` — 47 views spanning all features
 - `apps/life/services/recurrence.py` — Complex recurrence pattern service
+- `apps/life/services/recipe_photo_import.py` — Vision AI recipe extraction from photos
 - `apps/life/services/google_calendar.py` — Google Calendar API sync
 - `apps/life/services/gmail.py` / `gmail_sync.py` / `email_processor.py` — Gmail scanning pipeline
 - `apps/life/jobs.py` — Scheduled jobs: task priority recalculation (6:00 AM), recurring task processing (6:05 AM)
-- `templates/life/` — 43 templates spanning all features
+- `templates/life/` — 44 templates spanning all features
 
 ### Tests
 - 226 tests in `apps/life/tests/`

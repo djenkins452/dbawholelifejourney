@@ -1,6 +1,23 @@
 [
   {
     "model": "help.teachingdestination",
+    "pk": 171,
+    "fields": {
+      "destination_id": "life-recipe-scan",
+      "name": "Scan a Recipe",
+      "path_description": "Organize - Recipes - Scan Recipe",
+      "explanation": "Photograph a printed or handwritten recipe and have AI extract the title, ingredients, instructions, and metadata. Review and edit the extracted data, then save the recipe with the original photo attached.",
+      "url": "/life/recipes/scan/",
+      "keywords": "recipe scan,photo recipe,scan recipe,import recipe,cookbook scan,recipe photo,OCR recipe,camera recipe,recipe card",
+      "module": "life",
+      "sort_order": 223,
+      "is_active": true,
+      "created_at": "2026-03-02T23:00:00Z",
+      "updated_at": "2026-03-02T23:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
     "pk": 170,
     "fields": {
       "destination_id": "relationships-insights",

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Dinner Suggestions — Meals — Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302a">
+{% endblock %}
+
+{% block content %}
+<div class="meals-page">
+    {% include "meals/partials/_subnav.html" with active="suggestions" %}
+
+    <div class="meals-page-header">
+        <div>
+            <h1>Dinner Suggestions</h1>
+            {% if emotional and emotional.suggestion_type != "balanced" %}
+            <p class="section-subtitle">
+                Adjusted for your mood: {{ emotional.suggestion_type }} recommendations
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not has_recipes %}
+    <div class="meals-empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
+            <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
+            <line x1="6" y1="1" x2="6" y2="4"/>
+            <line x1="10" y1="1" x2="10" y2="4"/>
+            <line x1="14" y1="1" x2="14" y2="4"/>
+        </svg>
+        <h2>No recipes to score</h2>
+        <p>Add some recipes to your collection to get personalized dinner suggestions.</p>
+        <a href="{% url 'life:recipe_list' %}" class="btn btn-primary">Add Recipes</a>
+    </div>
+    {% else %}
+
+    <!-- Optimal Tonight -->
+    {% if optimal %}
+    <div class="section-header">
+        <div>
+            <h2 class="section-title">Optimal Tonight</h2>
+            <p class="section-subtitle">Best matches based on your pantry, nutrition, and schedule</p>
+        </div>
+    </div>
+    <div class="meal-cards-grid">
+        {% for item in optimal %}
+        {% include "meals/partials/_meal_card.html" with item=item show_actions=True %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Under 20 Minutes -->
+    {% if quick %}
+    <div class="section-header" style="margin-top: var(--space-8);">
+        <div>
+            <h2 class="section-title">Under 20 Minutes</h2>
+            <p class="section-subtitle">Quick meals when time is tight</p>
+        </div>
+    </div>
+    <div class="meal-cards-grid">
+        {% for item in quick %}
+        {% include "meals/partials/_meal_card.html" with item=item show_actions=True %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Uses Expiring Items -->
+    {% if uses_expiring %}
+    <div class="section-header" style="margin-top: var(--space-8);">
+        <div>
+            <h2 class="section-title">Uses Expiring Items</h2>
+            <p class="section-subtitle">Cook these to reduce waste</p>
+        </div>
+    </div>
+    <div class="meal-cards-grid">
+        {% for item in uses_expiring %}
+        {% include "meals/partials/_meal_card.html" with item=item show_actions=True %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Requires Store Trip -->
+    {% if needs_store %}
+    <div class="section-header" style="margin-top: var(--space-8);">
+        <div>
+            <h2 class="section-title">Requires Store Trip</h2>
+            <p class="section-subtitle">Great options if you're heading to the store</p>
+        </div>
+    </div>
+    <div class="meal-cards-grid">
+        {% for item in needs_store %}
+        {% include "meals/partials/_meal_card.html" with item=item show_actions=True %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
+{% endblock %}

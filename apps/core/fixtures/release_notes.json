@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 112,
+    "fields": {
+      "title": "Meal Intelligence — Your Kitchen Command Center",
+      "description": "A complete Meal Intelligence pillar is now live. Get personalized dinner suggestions scored against your pantry, nutrition goals, and dietary needs. Track your pantry inventory with confidence scoring, plan weekly meals with a calendar view, upload grocery receipts to auto-update your pantry, and explore recipes with nutrition breakdowns, gap analysis, and substitution suggestions. Access it all from the new Meals entry in the sidebar.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-02",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/meals/",
+      "created_at": "2026-03-02T10:00:00Z",
+      "updated_at": "2026-03-02T10:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 111,
     "fields": {
       "title": "Dynamic Search Across All Pages",

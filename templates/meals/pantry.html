@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Pantry — Meals — Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302a">
+{% endblock %}
+
+{% block content %}
+<div class="meals-page">
+    {% include "meals/partials/_subnav.html" with active="pantry" %}
+
+    <div class="meals-page-header">
+        <h1>Pantry Intelligence</h1>
+        <a href="{% url 'meals:receipts' %}" class="btn btn-primary btn-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Scan Receipt
+        </a>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-card-value">{{ pantry_count }}</div>
+            <div class="stat-card-label">Items Tracked</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" style="{% if expiring_count > 0 %}color: var(--color-warning);{% endif %}">{{ expiring_count }}</div>
+            <div class="stat-card-label">Expiring Soon</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" style="{% if low_confidence_count > 0 %}color: var(--color-error);{% endif %}">{{ low_confidence_count }}</div>
+            <div class="stat-card-label">Low Confidence</div>
+        </div>
+    </div>
+
+    {% if sections %}
+    {% for section_name, items in sections %}
+    <div class="pantry-section">
+        <div class="pantry-section-header">
+            <h2 class="pantry-section-title">{{ section_name }}</h2>
+            <span class="pantry-section-count">{{ items|length }}</span>
+        </div>
+        <div class="pantry-items">
+            {% for item in items %}
+            <div class="pantry-item" data-pantry-id="{{ item.pk }}">
+                <div class="pantry-item-info">
+                    <div class="pantry-item-name">{{ item.ingredient.canonical_name|title }}</div>
+                    <div class="pantry-item-qty">{{ item.quantity|floatformat:1 }} {{ item.unit }}</div>
+                </div>
+
+                {% with confidence=item.confidence_score|floatformat:0 %}
+                <div style="width: 100px;">
+                    {% include "meals/partials/_confidence_meter.html" with confidence=confidence %}
+                </div>
+                {% endwith %}
+
+                {% if item.is_expired %}
+                {% with risk_level="expired" risk_text="Expired" %}{% include "meals/partials/_risk_badge.html" %}{% endwith %}
+                {% elif item.days_until_expiration is not None and item.days_until_expiration <= 3 %}
+                {% with risk_level="expiring" risk_text=item.days_until_expiration|stringformat:"d days" %}{% include "meals/partials/_risk_badge.html" %}{% endwith %}
+                {% endif %}
+
+                <div class="pantry-item-actions">
+                    <button type="button" class="pantry-btn" data-action="confirm" data-item-id="{{ item.pk }}" title="Confirm quantity">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                    </button>
+                    <button type="button" class="pantry-btn" data-action="used" data-item-id="{{ item.pk }}" title="Mark as used">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="meals-empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+        </svg>
+        <h2>Pantry is empty</h2>
+        <p>Scan a grocery receipt or add items manually to start tracking your pantry.</p>
+        <a href="{% url 'meals:receipts' %}" class="btn btn-primary">Scan Receipt</a>
+    </div>
+    {% endif %}
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        var action = btn.dataset.action;
+        var itemId = btn.dataset.itemId;
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')
+            ? document.querySelector('[name=csrfmiddlewaretoken]').value
+            : '{{ csrf_token }}';
+        var url;
+        if (action === 'confirm') {
+            url = '/meals/pantry/' + itemId + '/confirm/';
+        } else if (action === 'used') {
+            if (!confirm('Mark this item as fully used?')) return;
+            url = '/meals/pantry/' + itemId + '/used/';
+        } else {
+            return;
+        }
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json',
+            },
+        }).then(function(resp) {
+            if (resp.ok) {
+                if (action === 'used') {
+                    var row = btn.closest('.pantry-item');
+                    if (row) row.style.display = 'none';
+                } else if (action === 'confirm') {
+                    var meter = btn.closest('.pantry-item').querySelector('.confidence-fill');
+                    if (meter) {
+                        meter.style.width = '100%';
+                        meter.className = 'confidence-fill confidence-high';
+                    }
+                    var val = btn.closest('.pantry-item').querySelector('.confidence-value');
+                    if (val) val.textContent = '100%';
+                }
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

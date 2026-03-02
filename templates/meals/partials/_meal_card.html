@@ -1,0 +1,54 @@
+{% comment %}
+Meal Card Partial
+Displays a scored recipe recommendation card.
+
+Expected context:
+  item — dict with keys: recipe, score, nutrition, gap, availability_pct, needs_store
+  show_actions — boolean, whether to show action buttons
+{% endcomment %}
+{% load static %}
+<div class="meal-card{% if item.needs_store %} meal-card-store-needed{% endif %}">
+    <div class="meal-card-header">
+        <h3 class="meal-card-title">
+            <a href="{% url 'meals:recipe_detail' pk=item.recipe.pk %}">{{ item.recipe.title }}</a>
+        </h3>
+        <div class="meal-card-score" title="Match score: {{ item.score.total_score|floatformat:0 }}%">
+            {{ item.score.total_score|floatformat:0 }}
+        </div>
+    </div>
+
+    {% if item.nutrition %}
+    {% with nutrition=item.nutrition %}
+    {% include "meals/partials/_macro_bar.html" %}
+    {% endwith %}
+    {% endif %}
+
+    <div class="meal-card-meta">
+        {% if item.score.prep_time_minutes %}
+        <span class="meal-card-meta-item" title="Prep time">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            {{ item.score.prep_time_minutes }} min
+        </span>
+        {% endif %}
+        <span class="meal-card-meta-item{% if item.availability_pct >= 80 %} meta-good{% elif item.availability_pct >= 50 %} meta-ok{% else %} meta-low{% endif %}" title="Pantry availability">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
+            {{ item.availability_pct }}% in pantry
+        </span>
+        {% if item.needs_store %}
+        <span class="meal-card-meta-item meta-store" title="Requires grocery trip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            Store trip needed
+        </span>
+        {% endif %}
+    </div>
+
+    {% if item.score.explanation %}
+    <p class="meal-card-reason">{{ item.score.explanation|truncatewords:20 }}</p>
+    {% endif %}
+
+    {% if show_actions %}
+    <div class="meal-card-actions">
+        <a href="{% url 'meals:recipe_detail' pk=item.recipe.pk %}" class="btn btn-primary btn-sm">View Details</a>
+    </div>
+    {% endif %}
+</div>

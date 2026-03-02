@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ recipe.title }} — Meal Intelligence — Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302a">
+{% endblock %}
+
+{% block content %}
+<div class="meals-page">
+    {% include "meals/partials/_subnav.html" with active="suggestions" %}
+
+    <div class="meals-page-header">
+        <div>
+            <h1>{{ recipe.title }}</h1>
+            {% if recipe.prep_time_minutes or recipe.cook_time_minutes %}
+            <p class="section-subtitle">
+                {% if recipe.prep_time_minutes %}Prep: {{ recipe.prep_time_minutes }} min{% endif %}
+                {% if recipe.prep_time_minutes and recipe.cook_time_minutes %} &middot; {% endif %}
+                {% if recipe.cook_time_minutes %}Cook: {{ recipe.cook_time_minutes }} min{% endif %}
+            </p>
+            {% endif %}
+        </div>
+        <a href="{% url 'meals:suggestions' %}" class="btn btn-outline btn-sm">Back to Suggestions</a>
+    </div>
+
+    <div class="recipe-intel-grid">
+        <!-- Main Content -->
+        <div class="recipe-intel-main">
+            <!-- Structured Ingredients -->
+            <div class="recipe-section">
+                <h2 class="recipe-section-title">Ingredients</h2>
+                {% if structured_ingredients %}
+                <ul class="ingredient-list">
+                    {% for ri in structured_ingredients %}
+                    <li>
+                        <span class="ingredient-name">
+                            {{ ri.ingredient.canonical_name|title }}
+                            {% if ri.preparation_notes %}
+                            <span style="color: var(--color-text-muted); font-style: italic;">({{ ri.preparation_notes }})</span>
+                            {% endif %}
+                            {% if ri.is_optional %}
+                            <span style="font-size: var(--font-size-xs); color: var(--color-text-muted);">(optional)</span>
+                            {% endif %}
+                        </span>
+                        <span class="ingredient-qty">
+                            {% if ri.quantity %}{{ ri.quantity|floatformat:1 }} {{ ri.unit }}{% else %}to taste{% endif %}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% elif recipe.ingredients %}
+                <div style="white-space: pre-wrap; font-size: var(--font-size-sm); color: var(--color-text-muted);">{{ recipe.ingredients }}</div>
+                {% else %}
+                <p style="color: var(--color-text-muted); font-size: var(--font-size-sm);">No ingredients listed.</p>
+                {% endif %}
+            </div>
+
+            <!-- Instructions -->
+            {% if recipe.instructions %}
+            <div class="recipe-section">
+                <h2 class="recipe-section-title">Instructions</h2>
+                <div style="white-space: pre-wrap; font-size: var(--font-size-sm); line-height: 1.6;">{{ recipe.instructions }}</div>
+            </div>
+            {% endif %}
+
+            <!-- Inventory Gap Analysis -->
+            {% if gap_analysis and gap_analysis.gaps %}
+            <div class="recipe-section">
+                <h2 class="recipe-section-title">Pantry Gap Analysis</h2>
+                <div style="display: flex; gap: var(--space-3); margin-bottom: var(--space-3);">
+                    <div style="text-align: center;">
+                        <div style="font-size: var(--font-size-2xl); font-weight: 700; color: var(--color-text);">{{ gap_analysis.availability_score|floatformat:0 }}%</div>
+                        <div style="font-size: var(--font-size-xs); color: var(--color-text-muted);">Available</div>
+                    </div>
+                </div>
+                {% for gap in gap_analysis.gaps %}
+                <div class="intel-item">
+                    <span class="intel-item-name">{{ gap.ingredient_name|title }}</span>
+                    {% if gap.gap_type == "available" %}
+                    {% with risk_level="low" risk_text="In pantry" %}{% include "meals/partials/_risk_badge.html" %}{% endwith %}
+                    {% elif gap.gap_type == "partial" %}
+                    {% with risk_level="medium" risk_text="Partial" %}{% include "meals/partials/_risk_badge.html" %}{% endwith %}
+                    {% elif gap.gap_type == "missing" %}
+                    {% with risk_level="high" risk_text="Missing" %}{% include "meals/partials/_risk_badge.html" %}{% endwith %}
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Substitutions -->
+            {% if substitutions %}
+            <div class="recipe-section">
+                <h2 class="recipe-section-title">Substitution Suggestions</h2>
+                {% for ingredient_name, subs in substitutions.items %}
+                <div style="margin-bottom: var(--space-3);">
+                    <div style="font-size: var(--font-size-sm); font-weight: 600; margin-bottom: var(--space-2);">{{ ingredient_name|title }}</div>
+                    {% for sub in subs %}
+                    <div class="substitution-item">
+                        <span class="substitution-arrow">&rarr;</span>
+                        <span>{{ sub.name|title }}</span>
+                        <span style="font-size: var(--font-size-xs); color: var(--color-text-muted);">({{ sub.reason }})</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="recipe-intel-sidebar">
+            <!-- Nutrition -->
+            {% if nutrition %}
+            <div class="recipe-section">
+                <h2 class="recipe-section-title">Nutrition per Serving</h2>
+                {% include "meals/partials/_macro_bar.html" %}
+                {% if nutrition.diabetes_flag %}
+                <div style="margin-top: var(--space-3);">
+                    {% with risk_level="high" risk_text="High carb (diabetes)" %}{% include "meals/partials/_risk_badge.html" %}{% endwith %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Meal Score -->
+            {% if meal_score %}
+            <div class="recipe-section">
+                <h2 class="recipe-section-title">Meal Score</h2>
+                <div style="text-align: center; margin-bottom: var(--space-3);">
+                    <div class="tonight-hero-score" style="margin: 0 auto; width: 56px; height: 56px; font-size: var(--font-size-xl);">
+                        {{ meal_score.total_score|floatformat:0 }}
+                    </div>
+                </div>
+                {% with explanation=meal_score.explanation factors=meal_score.factor_scores %}
+                {% include "meals/partials/_reasoning_block.html" %}
+                {% endwith %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

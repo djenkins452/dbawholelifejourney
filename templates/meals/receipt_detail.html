@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Receipt Detail — Meals — Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302a">
+{% endblock %}
+
+{% block content %}
+<div class="meals-page">
+    {% include "meals/partials/_subnav.html" with active="receipts" %}
+
+    <div class="meals-page-header">
+        <div>
+            <h1>Receipt: {{ receipt.store|default:"Unknown Store" }}</h1>
+            <p class="section-subtitle">{{ receipt.receipt_date|date:"F d, Y" }} &middot; Total: ${{ receipt.total|floatformat:2 }}</p>
+        </div>
+        <a href="{% url 'meals:receipts' %}" class="btn btn-outline btn-sm">Back to Receipts</a>
+    </div>
+
+    <!-- Parsed Items -->
+    <div class="recipe-section">
+        <h2 class="recipe-section-title">Parsed Items ({{ items|length }})</h2>
+        {% for item in items %}
+        <div class="receipt-item-row">
+            <div class="receipt-item-name">
+                {{ item.raw_name }}
+                {% if item.ingredient %}
+                <span class="receipt-item-match">
+                    &rarr; {{ item.ingredient.canonical_name }}
+                </span>
+                {% endif %}
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-3);">
+                {% if item.match_confidence %}
+                <div style="width: 80px;">
+                    {% with confidence=item.match_confidence|floatformat:0 %}
+                    {% include "meals/partials/_confidence_meter.html" with confidence=confidence %}
+                    {% endwith %}
+                </div>
+                {% endif %}
+                {% if item.raw_price %}
+                <div class="receipt-item-price">${{ item.raw_price|floatformat:2 }}</div>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <p style="color: var(--color-text-muted); font-size: var(--font-size-sm);">No items parsed from this receipt.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

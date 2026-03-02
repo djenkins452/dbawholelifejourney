@@ -97,6 +97,13 @@ FINANCE_INTENTS = {
     "check_budget",
 }
 
+MEALS_INTENTS = {
+    "suggest_dinner",
+    "plan_meal",
+    "scan_receipt",
+    "add_pantry_item",
+}
+
 SYSTEM_INTENTS = {
     "undo_last_action",
     "edit_last_entry",
@@ -168,6 +175,8 @@ def get_intent_module(intent_type):
         return "core"
     if intent_type in FINANCE_INTENTS:
         return "finance"
+    if intent_type in MEALS_INTENTS:
+        return "meals"
     if intent_type in SYSTEM_INTENTS:
         return "core"
     return "unknown"

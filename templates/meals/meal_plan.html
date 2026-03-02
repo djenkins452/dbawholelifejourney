@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Meal Plan — Meals — Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302a">
+{% endblock %}
+
+{% block content %}
+<div class="meals-page">
+    {% include "meals/partials/_subnav.html" with active="plan" %}
+
+    <div class="meals-page-header">
+        <h1>Weekly Meal Plan</h1>
+        <form method="post" action="{% url 'meals:plan_generate' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Generate Plan
+            </button>
+        </form>
+    </div>
+
+    {% if has_plan %}
+    <div class="intel-card" style="margin-bottom: var(--space-4);">
+        <div class="intel-card-body" style="display: flex; gap: var(--space-6); flex-wrap: wrap;">
+            <div>
+                <span style="font-size: var(--font-size-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Period</span>
+                <div style="font-weight: 600; color: var(--color-text);">{{ plan.start_date|date:"M d" }} – {{ plan.end_date|date:"M d, Y" }}</div>
+            </div>
+            {% if plan.projected_cost %}
+            <div>
+                <span style="font-size: var(--font-size-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Est. Cost</span>
+                <div style="font-weight: 600; color: var(--color-text);">${{ plan.projected_cost|floatformat:2 }}</div>
+            </div>
+            {% endif %}
+            {% if plan.confidence_score %}
+            <div>
+                <span style="font-size: var(--font-size-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Confidence</span>
+                <div style="font-weight: 600; color: var(--color-text);">{{ plan.confidence_score|floatformat:0 }}%</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="plan-calendar">
+        {% for day in days %}
+        <div class="plan-day{% if day.is_today %} plan-day-today{% endif %}">
+            <div class="plan-day-header">
+                {{ day.day_name }}
+                <span class="plan-day-date">{{ day.day_short }}</span>
+            </div>
+
+            <div class="plan-meal-slot">
+                <div class="plan-meal-label">Breakfast</div>
+                {% if day.breakfast %}
+                <div class="plan-meal-name">{{ day.breakfast.recipe.title }}</div>
+                {% else %}
+                <div class="plan-meal-empty">&mdash;</div>
+                {% endif %}
+            </div>
+            <div class="plan-meal-slot">
+                <div class="plan-meal-label">Lunch</div>
+                {% if day.lunch %}
+                <div class="plan-meal-name">{{ day.lunch.recipe.title }}</div>
+                {% else %}
+                <div class="plan-meal-empty">&mdash;</div>
+                {% endif %}
+            </div>
+            <div class="plan-meal-slot">
+                <div class="plan-meal-label">Dinner</div>
+                {% if day.dinner %}
+                <div class="plan-meal-name">{{ day.dinner.recipe.title }}</div>
+                {% else %}
+                <div class="plan-meal-empty">&mdash;</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="meals-empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <h2>No active meal plan</h2>
+        <p>Generate a weekly meal plan based on your recipes, pantry, and nutrition goals.</p>
+        <form method="post" action="{% url 'meals:plan_generate' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary">Generate Meal Plan</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

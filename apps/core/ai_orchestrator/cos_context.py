@@ -825,6 +825,45 @@ def _build_recent_image_analyses(user):
         return {}
 
 
+def _build_meals_context(user):
+    """Build meal intelligence context for CoS awareness."""
+    try:
+        from apps.meals.models import HouseholdMembership, MealPlanEntry, PantryItem
+        from django.utils import timezone as tz
+
+        membership = HouseholdMembership.objects.filter(user=user).select_related("household").first()
+        if not membership:
+            return {}
+
+        household = membership.household
+        today = tz.now().date()
+
+        # Pantry summary
+        pantry_count = PantryItem.objects.filter(household=household, quantity__gt=0).count()
+        expiring = PantryItem.objects.filter(
+            household=household, quantity__gt=0,
+            expiration_date_estimated__lte=today + tz.timedelta(days=3),
+            expiration_date_estimated__gte=today,
+        ).values_list("ingredient__canonical_name", flat=True)[:5]
+
+        # Today's plan
+        dinner_entry = MealPlanEntry.objects.filter(
+            meal_plan__household=household, date=today, meal_type="dinner",
+        ).select_related("recipe").first()
+
+        return {
+            'meals_context': {
+                'pantry_items_tracked': pantry_count,
+                'expiring_soon': list(expiring),
+                'dinner_planned': dinner_entry.recipe.title if dinner_entry else None,
+                'household_name': household.name,
+            }
+        }
+    except Exception as e:
+        logger.debug("CoS context: meals unavailable: %s", e)
+        return {}
+
+
 # Registry of parallel builder functions.
 # Each takes (user, prefs) or (user,) and returns a dict of context updates.
 _PARALLEL_BUILDERS = [
@@ -838,6 +877,7 @@ _PARALLEL_BUILDERS = [
     lambda user, prefs: _build_loops_and_events(user),
     lambda user, prefs: _build_strategy_and_signals(user),
     lambda user, prefs: _build_recent_image_analyses(user),
+    lambda user, prefs: _build_meals_context(user),
 ]
 
 

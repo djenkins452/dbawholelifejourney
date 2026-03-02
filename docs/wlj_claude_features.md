@@ -1024,16 +1024,49 @@ When food is detected, the system:
    - `entry_source = 'camera'` set automatically
    - `source=ai_camera` added to URL for tracking
 
+### Comprehensive Vision AI Analysis (Added 2026-03-01)
+
+Every image uploaded anywhere in WLJ gets deep GPT-4o vision analysis via `ComprehensiveVisionService`. This is separate from the category-routing scan — it produces rich, structured analysis that persists in `ImageAnalysis` and feeds into CoS context.
+
+**Analysis Output:**
+- Summary (1-2 sentences)
+- Detailed natural-language description
+- Objects identified (JSON array)
+- Text detected (OCR)
+- Context clues and relevance tags
+- Actionable insights
+- Category mapping to WLJ modules
+
+**Integration Points:**
+- AI Chat — images in conversation get analysis persisted
+- Camera Scan — successful scans trigger additional comprehensive analysis
+- Life Module uploads — `post_save` signals on InventoryPhoto, Pet, Recipe, Document
+- Notes — image upload field with analysis display on detail page
+
+**Cost Controls:**
+- SHA-256 image hash deduplication (24-hour window)
+- Image resize to max 2048px before API call
+- Telemetry via `log_llm_usage(feature='VISION_COMPREHENSIVE')`
+- Consent gating via existing ScanConsent
+
+**CoS Integration:**
+- Last 7 days of analyses (max 10) injected into Layer 6 operational context
+- Format: `[Source] Summary #tag1 #tag2`
+
 ### Architecture
 See `docs/wlj_camera_scan_architecture.md` for full details.
 
 ### Key Files
 - `apps/scan/views.py` - ScanHomeView, ScanAnalyzeView, BarcodeLookupView, ProductLookupView, MedicineLookupView
 - `apps/scan/services/vision.py` - FatSecret + OpenAI Vision integration, `_build_actions()`
+- `apps/scan/services/comprehensive_vision.py` - ComprehensiveVisionService (GPT-4o deep analysis)
+- `apps/scan/services/image_utils.py` - Image utilities (base64, hash, resize)
 - `apps/scan/services/barcode.py` - Food barcode lookup (FatSecret → Open Food Facts → AI)
 - `apps/health/services/fatsecret.py` - FatSecret API client (search, barcode, image recognition)
 - `apps/scan/services/product_lookup.py` - Product barcode lookup service (UPC Item DB + AI)
 - `apps/scan/services/medicine_lookup.py` - Medicine barcode lookup service (FDA + RxNav + AI)
+- `apps/scan/signals.py` - Post-save signals for auto-analysis on image uploads
+- `apps/scan/models.py` - ScanLog, ScanConsent, ImageAnalysis
 - `apps/health/views.py` - FoodEntryCreateView, MedicineCreateView (accepts prefill params)
 - `apps/life/views.py` - InventoryCreateView (accepts prefill params)
 - `apps/health/models.py` - FoodItem (has barcode field), FoodEntry (SOURCE_BARCODE)

@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Comprehensive meals service tests (inventory gap, recipe nutrition, scoring, receipts, optimizer)
+
+**What:** Added 95 tests across 3 new test files covering all meals app service modules. Tests validate happy paths, edge cases, multi-user isolation, confidence scoring, and diabetes awareness.
+
+**Files added:**
+- `apps/meals/tests/test_inventory_gap.py` — 27 tests for analyze_recipe_gaps, find_pantry_expiring_soon, decay_all_pantry_confidence (availability scoring, expiration urgency, partial/missing/available gap types, pantry isolation, confidence decay, bulk update, minimum confidence floor)
+- `apps/meals/tests/test_recipe_nutrition.py` — 25 tests for calculate_recipe_nutrition, invalidate_recipe_nutrition_cache, get_recipe_macro_summary (nutrient aggregation, serving division, quantity scaling, caching, diabetes flagging, confidence ratios, unlinked ingredient warnings)
+- `apps/meals/tests/test_services.py` — 43 tests for score_recipe, rank_recipes, parse_receipt_text, match_receipt_items, generate_meal_plan (7-factor scoring, time matching, grocery avoidance, frequency penalties, receipt OCR parsing, header/footer filtering, greedy plan assignment, day clamping, recipe repetition)
+
+**Why:** The meals services had zero test coverage. These tests ensure reliability as the meal intelligence pillar grows.
+
+---
+
 ## 2026-03-01 — CoS conversation context for intent recognition + auto-task backing for calendar events
 
 **What:** Two related CoS improvements:

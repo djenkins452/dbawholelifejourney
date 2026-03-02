@@ -93,22 +93,23 @@ class IntentService:
         """Check if intent service is available."""
         return self.client is not None
 
-    def recognize_intent(self, user_message: str, user) -> IntentResult:
+    def recognize_intent(self, user_message: str, user, conversation_history: list = None) -> IntentResult:
         """
         Recognize user intent from natural language message.
 
         Args:
             user_message: The user's natural language input
             user: The User model instance
+            conversation_history: Optional list of recent message dicts for context resolution.
 
         Returns:
             IntentResult with intent_type, parameters, and confirmation needs
             Note: For single intents. Use recognize_intents() for multiple.
         """
-        results = self.recognize_intents(user_message, user)
+        results = self.recognize_intents(user_message, user, conversation_history=conversation_history)
         return results[0] if results else IntentResult(intent_type='no_action')
 
-    def recognize_intents(self, user_message: str, user) -> List[IntentResult]:
+    def recognize_intents(self, user_message: str, user, conversation_history: list = None) -> List[IntentResult]:
         """
         Recognize one or more user intents from natural language message.
 
@@ -118,6 +119,9 @@ class IntentService:
         Args:
             user_message: The user's natural language input
             user: The User model instance
+            conversation_history: Optional list of recent message dicts
+                [{"role": "user"|"assistant", "content": "..."}] for resolving
+                anaphoric references ("the other one", "that event", "it").
 
         Returns:
             List of IntentResult objects (may be empty if no intents recognized)
@@ -132,13 +136,17 @@ class IntentService:
             # not server UTC (scheduling reliability contract — Part 1).
             system_prompt = self._build_intent_system_prompt(user=user)
 
+            # Build message array with optional conversation history for
+            # anaphora resolution ("the other one", "that event", "it").
+            _messages = [{"role": "system", "content": system_prompt}]
+            if conversation_history:
+                _messages.extend(conversation_history)
+            _messages.append({"role": "user", "content": user_message})
+
             # Call OpenAI with function tools - parallel_tool_calls enabled by default
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message}
-                ],
+                messages=_messages,
                 tools=ALL_INTENT_TOOLS,
                 tool_choice="auto",
                 max_tokens=500,  # Increased for multiple tool calls
@@ -256,6 +264,7 @@ IMPORTANT RULES:
 2. Call the appropriate function based on the user's intent - not just health actions
 3. When the user says "today", use {today_str}. When they say "tomorrow", calculate the next day from {today_str}
 4. ALWAYS resolve relative dates (today, tomorrow, next Monday, etc.) to YYYY-MM-DD format using today's date above
+5. CONTEXT RESOLUTION: When conversation history is provided, use it to resolve references like "the other one", "that event", "it", "those", "the duplicate", etc. Extract the actual entity name/details for function parameters — do NOT pass pronouns like "it" as event_query or task_query. If a previous message mentions specific events, tasks, or items, use that context to determine which entity the user is referring to and construct the appropriate function call.
 
 HEALTH LOGGING:
 - Heart rate: Extract BPM value. Default context to 'resting' unless specified

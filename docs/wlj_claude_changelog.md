@@ -9,6 +9,30 @@
 
 # WLJ Change History
 
+## 2026-03-01 — CoS conversation context for intent recognition + auto-task backing for calendar events
+
+**What:** Two related CoS improvements:
+1. Intent recognition was stateless — couldn't resolve conversational references like "remove the other one" or "delete that event" because no conversation history was passed to OpenAI
+2. Calendar events could be created as orphans (source_type=none) with no backing entity, making them impossible to CRUD via the CoS
+
+**Fix:**
+- Added `conversation_history` parameter to `recognize_intents()` and `recognize_intent()` in intent_service.py
+- Updated OpenAI call to include lean conversation history (last 5 messages, 300 char limit, 800 token budget)
+- Added rule 5 (CONTEXT RESOLUTION) to intent system prompt instructing OpenAI to resolve anaphoric references
+- Updated personal_assistant.py call site to build and pass conversation history using existing `build_messages_from_history()`
+- Added `_auto_create_backing_task()` to CalendarMutationService that auto-creates a Task when a sourceless calendar event is created
+- Task signal is temporarily disconnected during creation to prevent duplicate calendar event projection
+- Wrapped in savepoint for PostgreSQL transaction safety; non-fatal on failure
+
+**Files changed:**
+- `apps/ai/intent_service.py` — conversation_history parameter, message array construction, system prompt update
+- `apps/ai/personal_assistant.py` — build lean history and pass to intent recognition
+- `apps/calendar_engine/services/calendar_mutation_service.py` — _auto_create_backing_task() method, called after SOURCE_NONE event creation
+
+**Why:** The CoS needs to CRUD anything the user asks about, including follow-up references to previously discussed entities. Calendar events without backing tasks can't be managed through the task system.
+
+---
+
 ## 2026-03-01 — Fix Notes search to use substring matching instead of full-text search
 
 **What:** Searching for "Thanks" in the Notes app returned 0 results even though a note contained "Thanksgiving". PostgreSQL full-text search with `websearch` type only matches complete word stems — "Thanks" stems to "thank" while "Thanksgiving" stems to "thanksgiv", so they don't match.

@@ -1,0 +1,30 @@
+{% comment %}
+Reasoning Block Partial
+Displays the scoring explanation with factor breakdown.
+
+Expected context:
+  explanation — Text explanation of the scoring
+  factors — Dict of factor_name: score (0-1)
+{% endcomment %}
+{% if explanation %}
+<div class="reasoning-block">
+    <div class="reasoning-header">
+        <svg class="reasoning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span class="reasoning-title">Why this recommendation</span>
+    </div>
+    <p class="reasoning-text">{{ explanation }}</p>
+    {% if factors %}
+    <div class="reasoning-factors">
+        {% for name, score in factors.items %}
+        <div class="reasoning-factor">
+            <span class="factor-name">{{ name|title }}</span>
+            <div class="factor-bar">
+                <div class="factor-fill{% if score >= 0.7 %} factor-high{% elif score >= 0.4 %} factor-medium{% else %} factor-low{% endif %}"
+                     style="width: {% widthratio score 1 100 %}%"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}

@@ -1,0 +1,28 @@
+{% comment %}
+Macro Bar Partial
+Displays a horizontal macro breakdown (carbs, protein, fat).
+
+Expected context:
+  nutrition — dict with keys: calories, carbs, protein, fat (all numeric)
+{% endcomment %}
+{% if nutrition %}
+<div class="macro-bar">
+    <div class="macro-bar-header">
+        <span class="macro-calories">{{ nutrition.calories|floatformat:0 }} cal</span>
+    </div>
+    <div class="macro-bar-track">
+        {% with total=nutrition.carbs|add:nutrition.protein|add:nutrition.fat %}
+        {% if total > 0 %}
+        <div class="macro-segment macro-carbs" style="width: {% widthratio nutrition.carbs total 100 %}%" title="Carbs: {{ nutrition.carbs|floatformat:0 }}g"></div>
+        <div class="macro-segment macro-protein" style="width: {% widthratio nutrition.protein total 100 %}%" title="Protein: {{ nutrition.protein|floatformat:0 }}g"></div>
+        <div class="macro-segment macro-fat" style="width: {% widthratio nutrition.fat total 100 %}%" title="Fat: {{ nutrition.fat|floatformat:0 }}g"></div>
+        {% endif %}
+        {% endwith %}
+    </div>
+    <div class="macro-bar-legend">
+        <span class="macro-legend-item"><span class="macro-dot macro-carbs-dot"></span>C {{ nutrition.carbs|floatformat:0 }}g</span>
+        <span class="macro-legend-item"><span class="macro-dot macro-protein-dot"></span>P {{ nutrition.protein|floatformat:0 }}g</span>
+        <span class="macro-legend-item"><span class="macro-dot macro-fat-dot"></span>F {{ nutrition.fat|floatformat:0 }}g</span>
+    </div>
+</div>
+{% endif %}

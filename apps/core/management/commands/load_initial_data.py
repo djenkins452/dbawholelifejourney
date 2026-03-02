@@ -844,6 +844,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Vision AI Analysis (PK 109)
         self._reset_vision_analysis_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Meal Intelligence UI (PK 112 release note, PKs 160-165 teaching dests)
+        self._reset_meals_intelligence_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -4436,3 +4439,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset vision analysis fixtures FAILED: {e}'))
+
+    def _reset_meals_intelligence_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for Meal Intelligence UI.
+        - release_notes PK 112
+        - teaching_destinations PKs 160-165
+        """
+        reset_tracker_name = 'reset_meals_intelligence_2026_03_02'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for loader_name in ['release_notes', 'teaching_destinations']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader_name} loader for Meal Intelligence')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Meal Intelligence UI (Mar 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 112, teaching_destinations PKs 160-165'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset meals intelligence fixtures FAILED: {e}'))

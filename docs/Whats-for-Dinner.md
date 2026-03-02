@@ -1,6 +1,6 @@
 # What's for Dinner? — WLJ Meal Intelligence Pillar
 
-**Status:** COMPLETE (Backend Services)
+**Status:** COMPLETE (Backend + Frontend)
 **Created:** 2026-03-01
 **Last Updated:** 2026-03-02
 
@@ -338,6 +338,42 @@ Transform WLJ from a nutrition tracker into a household meal intelligence system
 | Migration | Phase | Description |
 |-----------|-------|-------------|
 | `meals/0001_initial` | 1-7 | All 11 models: Ingredient, RecipeIngredient, Household, HouseholdMembership, DietaryProfile, PantryItem, InventoryTransaction, MealPlan, MealPlanEntry, Receipt, ReceiptItem |
+| `users/0071_add_meals_module_definition` | 9 | Add Meals ModuleDefinition for sidebar navigation |
+
+---
+
+## Phase 9: Frontend Implementation
+
+**Status:** COMPLETE
+**Completed:** 2026-03-02
+
+**Objective:** Build the full UI layer — views, templates, CSS, navigation, UAIO intents — so users can access the Meal Intelligence system through the web interface.
+
+**Deliverables:**
+- [x] 10 class-based views in `apps/meals/views.py` (dashboard, suggestions, pantry + 3 AJAX, plan + generate, receipts, receipt detail, recipe intelligence)
+- [x] 12 URL routes in `apps/meals/urls.py`
+- [x] 6 main templates: dashboard, suggestions, pantry, meal_plan, receipt_upload, recipe_detail
+- [x] 1 receipt detail template
+- [x] 6 partials: subnav, meal_card, confidence_meter, macro_bar, risk_badge, reasoning_block
+- [x] Comprehensive CSS (`static/css/meals.css`, ~800 lines, responsive)
+- [x] Sidebar navigation via ModuleDefinition data migration
+- [x] UAIO intents: suggest_dinner, plan_meal, scan_receipt, add_pantry_item
+- [x] CoS context builder for conversational routing
+- [x] 28 view tests (all passing)
+
+**Files Created:**
+- `apps/meals/views.py` — 10 views with MealsHouseholdMixin
+- `apps/meals/urls.py` — 12 URL patterns
+- `templates/meals/` — 7 main templates + 6 partials
+- `static/css/meals.css` — Responsive design system
+- `apps/users/migrations/0071_add_meals_module_definition.py`
+- `apps/meals/tests/test_views.py` — 28 tests
+
+**Files Modified:**
+- `config/urls.py` — Added meals URL include
+- `apps/core/context_processors.py` — Added meals to CORRECT_ROUTES
+- `apps/core/ai_orchestrator/intent_engine.py` — Added MEALS_INTENTS
+- `apps/core/ai_orchestrator/cos_context.py` — Added meals context builder
 
 ---
 

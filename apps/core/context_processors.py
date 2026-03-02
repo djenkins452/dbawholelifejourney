@@ -419,6 +419,7 @@ def navigation_modules_context(request):
             'finance': 'finance:dashboard',
             'capture': 'capture:list',
             'notes': 'notes:note_list',
+            'meals': 'meals:dashboard',
         }
 
         all_modules = []

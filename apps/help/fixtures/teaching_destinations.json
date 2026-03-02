@@ -1,6 +1,91 @@
 [
   {
     "model": "help.teachingdestination",
+    "pk": 165,
+    "fields": {
+      "destination_id": "meals-receipts",
+      "name": "Receipt Upload",
+      "path_description": "Meals > Receipts",
+      "explanation": "Upload grocery receipt text to auto-parse items, match to ingredients, and update your pantry inventory with confidence scoring.",
+      "url": "/meals/receipts/",
+      "keywords": "receipt, grocery, scan receipt, upload receipt, pantry update, receipt history",
+      "module": "meals",
+      "sort_order": 67,
+      "is_active": true,
+      "created_at": "2026-03-02T00:00:00Z",
+      "updated_at": "2026-03-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 164,
+    "fields": {
+      "destination_id": "meals-plan",
+      "name": "Weekly Meal Plan",
+      "path_description": "Meals > Plan",
+      "explanation": "View and generate a 7-day meal plan optimized for your pantry, nutrition goals, and dietary needs. Includes variety enforcement and cost estimation.",
+      "url": "/meals/plan/",
+      "keywords": "meal plan, weekly plan, plan meals, dinner plan, generate plan, calendar",
+      "module": "meals",
+      "sort_order": 66,
+      "is_active": true,
+      "created_at": "2026-03-02T00:00:00Z",
+      "updated_at": "2026-03-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 163,
+    "fields": {
+      "destination_id": "meals-pantry",
+      "name": "Pantry Intelligence",
+      "path_description": "Meals > Pantry",
+      "explanation": "Track your pantry inventory grouped by store section. See confidence scores, expiration warnings, and confirm or mark items as used.",
+      "url": "/meals/pantry/",
+      "keywords": "pantry, inventory, ingredients, stock, expiring, confidence, kitchen",
+      "module": "meals",
+      "sort_order": 65,
+      "is_active": true,
+      "created_at": "2026-03-02T00:00:00Z",
+      "updated_at": "2026-03-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 162,
+    "fields": {
+      "destination_id": "meals-suggestions",
+      "name": "Dinner Suggestions",
+      "path_description": "Meals > Suggestions",
+      "explanation": "Get personalized dinner recommendations scored against your pantry availability, nutrition goals, prep time, and dietary needs.",
+      "url": "/meals/suggestions/",
+      "keywords": "dinner, suggestions, recommend, what to cook, recipe suggestions, tonight",
+      "module": "meals",
+      "sort_order": 64,
+      "is_active": true,
+      "created_at": "2026-03-02T00:00:00Z",
+      "updated_at": "2026-03-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 160,
+    "fields": {
+      "destination_id": "meals-dashboard",
+      "name": "Meal Intelligence Dashboard",
+      "path_description": "Meals > Dashboard",
+      "explanation": "Your kitchen command center. See tonight's top recommendation, expiring items, grocery cycle status, and weekly nutrition insights all in one place.",
+      "url": "/meals/",
+      "keywords": "meals, dinner, food, kitchen, cooking, meal intelligence, what's for dinner",
+      "module": "meals",
+      "sort_order": 63,
+      "is_active": true,
+      "created_at": "2026-03-02T00:00:00Z",
+      "updated_at": "2026-03-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
     "pk": 158,
     "fields": {
       "destination_id": "notes-list",

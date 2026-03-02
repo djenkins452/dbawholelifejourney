@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Receipts — Meals — Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302a">
+{% endblock %}
+
+{% block content %}
+<div class="meals-page">
+    {% include "meals/partials/_subnav.html" with active="receipts" %}
+
+    <div class="meals-page-header">
+        <h1>Receipt Upload</h1>
+    </div>
+
+    <!-- Upload Form -->
+    <div class="receipt-form">
+        <h2 style="font-size: var(--font-size-base); font-weight: 600; margin: 0 0 var(--space-2);">Paste Receipt Text</h2>
+        <p style="font-size: var(--font-size-sm); color: var(--color-text-muted); margin: 0 0 var(--space-4);">
+            Paste your grocery receipt text below. The system will parse items, match them to ingredients, and update your pantry automatically.
+        </p>
+        <form method="post" action="{% url 'meals:receipts' %}">
+            {% csrf_token %}
+            <div class="form-group">
+                <textarea name="receipt_text" class="receipt-textarea" placeholder="WALMART SUPERCENTER&#10;03/01/2026&#10;&#10;BANANAS          $0.68&#10;CHICKEN BREAST   $7.99&#10;MILK 1GAL        $3.49&#10;...&#10;&#10;TOTAL            $45.23" required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Process Receipt</button>
+        </form>
+    </div>
+
+    <!-- Receipt History -->
+    {% if receipts %}
+    <div class="section-header">
+        <h2 class="section-title">Receipt History</h2>
+    </div>
+    <div class="receipt-history">
+        <table class="receipt-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Store</th>
+                    <th>Total</th>
+                    <th>Items</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for receipt in receipts %}
+                <tr>
+                    <td>{{ receipt.receipt_date|date:"M d, Y" }}</td>
+                    <td>{{ receipt.store|default:"Unknown" }}</td>
+                    <td>${{ receipt.total|floatformat:2 }}</td>
+                    <td>{{ receipt.items.count }}</td>
+                    <td><a href="{% url 'meals:receipt_detail' pk=receipt.pk %}" class="btn btn-outline btn-sm">View</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: var(--space-4); color: var(--color-text-muted); font-size: var(--font-size-sm);">
+        No receipts uploaded yet. Paste a receipt above to get started.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

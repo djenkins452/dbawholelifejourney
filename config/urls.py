@@ -83,6 +83,8 @@ urlpatterns = [
     path("admin-console/", include("apps.admin_console.urls")),    
     # Life
     path("life/", include("apps.life.urls")),
+    # Meals — Meal Intelligence
+    path("meals/", include("apps.meals.urls", namespace="meals")),
     # Purpose
     path('purpose/', include('apps.purpose.urls')),
     # Help System

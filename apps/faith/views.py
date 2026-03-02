@@ -492,6 +492,23 @@ class PrayerCreateView(LoginRequiredMixin, FaithRequiredMixin, CreateView):
     template_name = "faith/prayer_form.html"
     success_url = reverse_lazy("faith:prayer_list")
 
+    def get_initial(self):
+        initial = super().get_initial()
+        # Pre-fill from ?people=1,2,3
+        people_param = self.request.GET.get("people", "")
+        if people_param:
+            try:
+                from apps.relationships.models import Person
+                person_ids = [int(pid) for pid in people_param.split(",") if pid.strip().isdigit()]
+                people = Person.objects.filter(pk__in=person_ids, owner=self.request.user)
+                if people.exists():
+                    names = ", ".join(p.get_display_name() for p in people)
+                    initial["person_or_situation"] = names
+                    initial["title"] = f"Pray for {names}"
+            except Exception:
+                pass
+        return initial
+
     def form_valid(self, form):
         form.instance.user = self.request.user
         messages.success(self.request, "Prayer request added.")

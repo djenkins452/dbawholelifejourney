@@ -424,6 +424,7 @@ class MoreView(LoginRequiredMixin, TemplateView):
             'purpose': '/purpose/',
             'finance': '/finance/',
             'capture': '/capture/',
+            'meals': '/meals/',
         }
 
         modules = []

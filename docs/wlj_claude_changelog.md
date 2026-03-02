@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Fix Meals navigation: backfill migration + More page URL
+
+**What:** Meals module wasn't appearing in navigation for existing users. Two issues: (1) no backfill migration to create `UserModulePreference` records for existing users (the `initialize_for_user()` auto-sync was blocked by the 5-minute nav cache), and (2) the More page `MoreView.MODULE_URLS` hardcoded mapping was missing `meals`.
+
+**Files changed:**
+- `apps/users/migrations/0072_backfill_meals_module_prefs.py` — New data migration to create Meals `UserModulePreference` for all existing users (follows 0070 notes pattern)
+- `apps/core/views.py` — Added `'meals': '/meals/'` to `MoreView.MODULE_URLS`
+
+**Why:** Existing users with cached nav data never triggered `initialize_for_user()` to create the meals preference. The backfill migration ensures the preference exists immediately on deploy, and the More page URL mapping ensures meals appears correctly on the mobile More screen.
+
+---
+
 ## 2026-03-02 — CoS enterprise hardening: expanded validator, streaming intent recognition
 
 **What:** Audit of master hardening prompt revealed three critical gaps: (1) Validator gate `_ACTION_CLAIM_PATTERNS` only caught 4 of 11 hallucination variants — "I added a task", "I scheduled an appointment", "You're all set", "That's been taken care of", "The task has been created", "I went ahead and added" all slipped through. (2) The streaming path (`send_message_stream`) had NO intent recognition — "add a task" went straight to the conversational LLM. (3) The streaming path had no validator gate.

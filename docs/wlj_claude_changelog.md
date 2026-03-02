@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Comprehensive meals service tests (inventory gap, recipe nutrition, scoring, receipts, optimizer)
+
+**What:** Added 95 tests across 3 new test files covering all meals app service modules. Tests validate happy paths, edge cases, multi-user isolation, confidence scoring, and diabetes awareness.
+
+**Files added:**
+- `apps/meals/tests/test_inventory_gap.py` — 27 tests for analyze_recipe_gaps, find_pantry_expiring_soon, decay_all_pantry_confidence
+- `apps/meals/tests/test_recipe_nutrition.py` — 25 tests for calculate_recipe_nutrition, invalidate_recipe_nutrition_cache, get_recipe_macro_summary
+- `apps/meals/tests/test_services.py` — 43 tests for score_recipe, rank_recipes, parse_receipt_text, match_receipt_items, generate_meal_plan
+
+**Why:** The meals services had zero test coverage. These tests ensure reliability as the meal intelligence pillar grows.
+
+---
+
 ## 2026-03-01 — Dynamic search across all list pages
 
 **What:** Search boxes across the app required pressing Enter to search. The Notes app had a good debounced auto-search pattern (600ms delay, min 2 chars, focus retention). User wanted this applied everywhere.

@@ -963,29 +963,37 @@ class PantryScanStartView(LoginRequiredMixin, MealsHouseholdMixin, View):
             location_type=location_type,
         )
 
-        # Read files into memory BEFORE any DB saves — avoids Cloudinary round-trip
-        file_data = []
+        # Save upload records with images — Celery worker reads them for Vision API
         for f in files:
-            raw_bytes = f.read()
-            file_data.append((raw_bytes, f.content_type or "image/jpeg"))
-
-        # Process each photo from memory through detection service
-        from apps.meals.services.pantry_photo_detection import pantry_photo_detection_service
-
-        for raw_bytes, content_type in file_data:
             try:
-                # Create upload record without image (processed in-memory)
-                upload = PantryPhotoUpload.objects.create(session=session)
-                pantry_photo_detection_service.process_from_memory(
-                    upload, raw_bytes, content_type
-                )
+                PantryPhotoUpload.objects.create(session=session, image=f)
             except Exception as e:
                 logger.error(
-                    "Failed to process photo for session %d: %s",
+                    "Failed to save upload for session %d: %s",
                     session.pk, e, exc_info=True,
                 )
 
-        # Redirect to confirmation page
+        # Dispatch async processing via Celery
+        from apps.meals.tasks import process_pantry_scan_task
+        try:
+            process_pantry_scan_task.delay(session.pk)
+        except Exception as e:
+            # Celery broker down — fall back to sync processing
+            logger.warning(
+                "Celery dispatch failed for session %d, processing sync: %s",
+                session.pk, e,
+            )
+            from apps.meals.services.pantry_photo_detection import pantry_photo_detection_service
+            for upload in session.uploads.filter(processed=False):
+                try:
+                    pantry_photo_detection_service.process_upload(upload)
+                except Exception as proc_err:
+                    logger.error(
+                        "Sync fallback failed for upload %d: %s",
+                        upload.pk, proc_err, exc_info=True,
+                    )
+
+        # Redirect immediately — confirm page polls for completion
         from django.urls import reverse
         return redirect(reverse("meals:pantry_scan_confirm", kwargs={"session_id": session.pk}))
 
@@ -1016,9 +1024,23 @@ class PantryScanConfirmView(
         if session.completed_at:
             context["session"] = session
             context["completed"] = True
+            context["processing"] = False
             context["detections"] = session.detections.select_related(
                 "matched_ingredient", "upload"
             ).all()
+            return context
+
+        # Check if still processing (unprocessed uploads remain)
+        total_uploads = session.uploads.count()
+        processed_uploads = session.uploads.filter(processed=True).count()
+        still_processing = total_uploads > 0 and processed_uploads < total_uploads
+
+        if still_processing:
+            context["session"] = session
+            context["processing"] = True
+            context["completed"] = False
+            context["total_uploads"] = total_uploads
+            context["processed_uploads"] = processed_uploads
             return context
 
         detections = list(session.detections.select_related(
@@ -1044,6 +1066,7 @@ class PantryScanConfirmView(
 
         context["session"] = session
         context["completed"] = False
+        context["processing"] = False
         context["detections"] = detections
         context["ingredients"] = list(ingredients)
 
@@ -1111,6 +1134,31 @@ class PantryScanConfirmView(
             f"Session confidence: {session.overall_confidence:.0%}",
         )
         return redirect("meals:pantry")
+
+
+class PantryScanStatusView(LoginRequiredMixin, MealsHouseholdMixin, View):
+    """
+    JSON endpoint for polling scan session processing status.
+
+    Returns: {processing: bool, total: int, processed: int, detections_count: int}
+    """
+
+    def get(self, request, session_id):
+        household = self.get_household()
+        try:
+            session = PantryScanSession.objects.get(pk=session_id, household=household)
+        except PantryScanSession.DoesNotExist:
+            return JsonResponse({"error": "not_found"}, status=404)
+
+        total = session.uploads.count()
+        processed = session.uploads.filter(processed=True).count()
+
+        return JsonResponse({
+            "processing": total > 0 and processed < total,
+            "total": total,
+            "processed": processed,
+            "detections_count": session.detections.count(),
+        })
 
 
 class PantryScanSessionsView(

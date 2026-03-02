@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 116,
+    "fields": {
+      "title": "@Group Mentions",
+      "description": "Type @GroupName in journal entries or prayers to mention everyone in a group at once. Each member gets their own interaction record. The autocomplete dropdown now shows your groups with a people icon and member count, making it easy to tag entire groups.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-02",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/relationships/groups/",
+      "created_at": "2026-03-02T23:30:00Z",
+      "updated_at": "2026-03-02T23:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 115,
     "fields": {
       "title": "Relationship Insights Dashboard",

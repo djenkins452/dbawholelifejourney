@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-03-02 — @groupname mention support (Phase 4)
+
+**What:** Typing `@GroupName` in journal entries, prayers, or any text field with mentions now expands to all group members. Each member gets individual Mention and Interaction records. The autocomplete dropdown now shows groups (with a people icon) above individual contacts, with member count displayed.
+
+**Changes:**
+- `apps/relationships/services.py` — Added Phase 0 group expansion to `MentionParserService.parse_and_link()` + `_find_group()` class method. Case-insensitive matching, deduplication with individual mentions.
+- `apps/relationships/views.py` — Extended `PersonAutocompleteView` to return `PersonGroup` results first (with `is_group: true` flag and member count in type label), followed by individual people.
+- `templates/relationships/partials/_mention_autocomplete.html` — Updated JS to render groups with a people icon and `mention-item-group` CSS class for visual distinction.
+- `apps/relationships/tests/test_group_mentions.py` — 19 new tests: group expansion, case-insensitive matching, deduplication, empty group handling, cross-user isolation, autocomplete group results.
+
+**Tests:** 125 relationships tests passing.
+
+---
+
 ## 2026-03-02 — Multi-select + bulk actions on people list
 
 **What:** Added checkboxes to each person card on the people list. When 1+ people are selected, a floating action bar slides up with three actions:

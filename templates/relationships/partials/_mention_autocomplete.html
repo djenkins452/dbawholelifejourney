@@ -59,6 +59,16 @@ Requirements:
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
 }
+.mention-item-group .mention-item-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.mention-group-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--color-accent);
+}
 .mention-create {
     border-top: 1px solid var(--color-border);
     color: var(--color-accent);
@@ -88,6 +98,8 @@ Requirements:
         container.style.top = (rect.bottom + scrollTop + 4) + 'px';
     }
 
+    var groupIcon = '<svg class="mention-group-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+
     function showDropdown(results) {
         items = results;
         activeIndex = -1;
@@ -95,10 +107,13 @@ Requirements:
 
         results.forEach(function(person, i) {
             var div = document.createElement('div');
-            div.className = 'mention-item';
+            div.className = 'mention-item' + (person.is_group ? ' mention-item-group' : '');
             div.setAttribute('role', 'option');
             div.setAttribute('data-index', i);
-            div.innerHTML = '<span class="mention-item-name">' + escapeHtml(person.name) +
+            var nameHtml = person.is_group
+                ? groupIcon + ' ' + escapeHtml(person.name)
+                : escapeHtml(person.name);
+            div.innerHTML = '<span class="mention-item-name">' + nameHtml +
                 '</span><span class="mention-item-type">' + escapeHtml(person.type) + '</span>';
             dropdown.appendChild(div);
         });

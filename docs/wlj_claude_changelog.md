@@ -9,6 +9,16 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Add loading overlay for pantry photo scan processing
+
+**What:** Full-page loading overlay with animated spinner and step-by-step progress indicators during photo scan processing. Shows "Uploading photos" → "Detecting food items" → "Matching to ingredients" with timed transitions. Replaces the barely-visible "Scanning..." button text change.
+
+**Files modified:**
+- `templates/meals/pantry.html` — Added scan-overlay HTML, updated JS to show overlay with animated step progression
+- `static/css/meals.css` — Added overlay, spinner, step, and pulse animation styles
+
+---
+
 ## 2026-03-02 — Fix pantry scan: 0 items confirmed + 503 timeout on multi-photo upload
 
 **Bug 1 — Zero items confirmed despite selecting all:**

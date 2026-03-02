@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Multi-select + bulk actions on people list
+
+**What:** Added checkboxes to each person card on the people list. When 1+ people are selected, a floating action bar slides up with three actions:
+- **Journal** — opens new journal entry pre-filled with `@Name1 @Name2` mentions
+- **Pray** — opens new prayer request pre-filled with names in person_or_situation and title
+- **Group** — opens inline modal to name and create a group with selected people
+
+Floating action bar is responsive (stacks vertically on mobile), supports clear selection, and conditionally shows Journal/Pray buttons based on module enabled status.
+
+**Files modified:**
+- `templates/relationships/person_list.html` — Full rewrite: checkboxes, floating action bar, create-group modal, CSP-compliant JS
+- `apps/journal/views.py` — Extended `EntryCreateView.get_initial()` to handle `?people=1,2,3` with @mention pre-fill
+- `apps/faith/views.py` — Added `get_initial()` to `PrayerCreateView` for `?people=1,2,3` pre-fill
+
+**Tests:** 106 relationships tests + 147 faith tests passing.
+
+---
+
 ## 2026-03-02 — People Groups: model, CRUD, quick-create API
 
 **What:** Added PersonGroup model for organizing contacts into named groups. Full CRUD (list, create, detail, edit, delete), soft-deletable, owner-scoped. Quick-create AJAX endpoint for Phase 3 multi-select integration. Added "Groups" link on insights page header.

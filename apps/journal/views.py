@@ -353,7 +353,20 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
                     initial["category"] = prompt.category
             except JournalPrompt.DoesNotExist:
                 pass
-        
+
+        # Pre-fill body with @mentions from ?people=1,2,3
+        people_param = self.request.GET.get("people", "")
+        if people_param:
+            try:
+                from apps.relationships.models import Person
+                person_ids = [int(pid) for pid in people_param.split(",") if pid.strip().isdigit()]
+                people = Person.objects.filter(pk__in=person_ids, owner=self.request.user)
+                if people.exists():
+                    mentions = " ".join(f"@{p.get_display_name()}" for p in people)
+                    initial["body"] = mentions + " "
+            except Exception:
+                pass
+
         return initial
 
     def form_valid(self, form):

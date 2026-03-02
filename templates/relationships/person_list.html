@@ -7,7 +7,9 @@
     <nav class="breadcrumb mb-4">
         <a href="{% url 'dashboard:home' %}">Dashboard</a>
         <span>/</span>
-        <span>People</span>
+        <a href="{% url 'relationships:insights' %}">People</a>
+        <span>/</span>
+        <span>All People</span>
     </nav>
 
     <div class="page-header">
@@ -16,7 +18,8 @@
             <p class="page-subtitle">{{ people.paginator.count|default:"0" }} contact{{ people.paginator.count|pluralize }}</p>
         </div>
         <div class="header-actions">
-            <a href="{% url 'relationships:person_create' %}" class="btn btn-primary">+ Add Person</a>
+            <a href="{% url 'relationships:group_list' %}" class="btn btn-secondary btn-sm">Groups</a>
+            <a href="{% url 'relationships:person_create' %}" class="btn btn-primary btn-sm">+ Add Person</a>
         </div>
     </div>
 
@@ -46,10 +49,13 @@
     </div>
 
     {% if people %}
-        <div class="entry-list">
+        <div class="entry-list" id="people-list">
             {% for person in people %}
-                <article class="entry-card">
-                    <a href="{% url 'relationships:person_detail' person.pk %}" class="entry-link">
+                <article class="entry-card pl-entry-card" data-person-id="{{ person.pk }}" data-person-name="{{ person.get_display_name }}">
+                    <label class="pl-checkbox-wrap">
+                        <input type="checkbox" class="pl-checkbox" data-id="{{ person.pk }}">
+                    </label>
+                    <a href="{% url 'relationships:person_detail' person.pk %}" class="entry-link pl-entry-link">
                         <div class="entry-header">
                             <h2 class="entry-title">{{ person.get_display_name }}</h2>
                             <span class="badge badge-muted">{{ person.get_relationship_type_display }}</span>
@@ -71,6 +77,57 @@
                     </a>
                 </article>
             {% endfor %}
+        </div>
+
+        <!-- Floating Action Bar -->
+        <div class="pl-action-bar" id="action-bar">
+            <div class="pl-action-bar-inner">
+                <span class="pl-action-count" id="action-count">0 selected</span>
+                <div class="pl-action-buttons">
+                    {% if journal_enabled %}
+                    <button type="button" class="btn btn-secondary btn-sm" id="action-journal">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                        </svg>
+                        Journal
+                    </button>
+                    {% endif %}
+                    {% if faith_enabled %}
+                    <button type="button" class="btn btn-secondary btn-sm" id="action-pray">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2v20M7 7h10"/>
+                        </svg>
+                        Pray
+                    </button>
+                    {% endif %}
+                    <button type="button" class="btn btn-secondary btn-sm" id="action-group">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+                        </svg>
+                        Group
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="action-clear">Clear</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Group Modal -->
+        <div class="pl-modal-overlay" id="group-modal">
+            <div class="pl-modal">
+                <h3 class="pl-modal-title">Create Group</h3>
+                <div class="form-group">
+                    <label for="group-name-input" class="form-label">Group Name</label>
+                    <input type="text" id="group-name-input" class="form-input"
+                           placeholder="e.g., Small Group, Family">
+                    <p class="pl-modal-error" id="group-error"></p>
+                </div>
+                <div class="pl-modal-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" id="group-cancel">Cancel</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="group-confirm">Create</button>
+                </div>
+            </div>
         </div>
 
         <!-- Pagination -->
@@ -112,12 +169,284 @@
     {% endif %}
 </div>
 
+<style nonce="{{ csp_nonce }}">
+/* Person list multi-select */
+.pl-entry-card {
+    display: flex;
+    align-items: stretch;
+}
+.pl-checkbox-wrap {
+    display: flex;
+    align-items: center;
+    padding: 0 var(--space-3);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.pl-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: var(--color-accent);
+}
+.pl-entry-link {
+    flex: 1;
+    min-width: 0;
+}
+.pl-entry-card.selected {
+    background: var(--color-accent-light, rgba(59, 130, 246, 0.06));
+    border-color: var(--color-accent);
+}
+
+/* Floating action bar */
+.pl-action-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding: var(--space-3) var(--space-4);
+    transform: translateY(100%);
+    transition: transform 0.2s ease;
+    pointer-events: none;
+}
+.pl-action-bar.visible {
+    transform: translateY(0);
+    pointer-events: all;
+}
+.pl-action-bar-inner {
+    max-width: 600px;
+    margin: 0 auto;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3) var(--space-4);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    box-shadow: var(--shadow-lg, 0 10px 25px rgba(0,0,0,0.15));
+}
+.pl-action-count {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--color-accent);
+}
+.pl-action-buttons {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+.pl-action-buttons .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Group modal */
+.pl-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+}
+.pl-modal-overlay.open {
+    display: flex;
+}
+.pl-modal {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    width: 100%;
+    max-width: 400px;
+}
+.pl-modal-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: var(--space-4);
+}
+.pl-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+.pl-modal-error {
+    color: var(--color-danger, #ef4444);
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-1);
+    min-height: 1.2em;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .pl-action-bar-inner {
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+    .pl-action-buttons {
+        width: 100%;
+        justify-content: center;
+    }
+}
+</style>
+
 <script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
+    // Type filter auto-submit
     var typeFilter = document.getElementById('type-filter');
     if (typeFilter) {
         typeFilter.addEventListener('change', function() {
             this.closest('form').submit();
+        });
+    }
+
+    // Multi-select logic
+    var checkboxes = document.querySelectorAll('.pl-checkbox');
+    var actionBar = document.getElementById('action-bar');
+    var actionCount = document.getElementById('action-count');
+    var groupModal = document.getElementById('group-modal');
+
+    if (!checkboxes.length || !actionBar) return;
+
+    function getSelected() {
+        var ids = [];
+        checkboxes.forEach(function(cb) {
+            if (cb.checked) ids.push(cb.getAttribute('data-id'));
+        });
+        return ids;
+    }
+
+    function updateBar() {
+        var ids = getSelected();
+        var count = ids.length;
+        if (count > 0) {
+            actionBar.classList.add('visible');
+            actionCount.textContent = count + ' selected';
+        } else {
+            actionBar.classList.remove('visible');
+        }
+        // Toggle selected class on cards
+        checkboxes.forEach(function(cb) {
+            var card = cb.closest('.pl-entry-card');
+            if (card) {
+                if (cb.checked) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            }
+        });
+    }
+
+    checkboxes.forEach(function(cb) {
+        cb.addEventListener('change', updateBar);
+    });
+
+    // Clear selection
+    var clearBtn = document.getElementById('action-clear');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            checkboxes.forEach(function(cb) { cb.checked = false; });
+            updateBar();
+        });
+    }
+
+    // Journal action
+    var journalBtn = document.getElementById('action-journal');
+    if (journalBtn) {
+        journalBtn.addEventListener('click', function() {
+            var ids = getSelected();
+            if (ids.length) {
+                window.location.href = '{% url "journal:entry_create" %}?people=' + ids.join(',');
+            }
+        });
+    }
+
+    // Pray action
+    var prayBtn = document.getElementById('action-pray');
+    if (prayBtn) {
+        prayBtn.addEventListener('click', function() {
+            var ids = getSelected();
+            if (ids.length) {
+                window.location.href = '{% url "faith:prayer_create" %}?people=' + ids.join(',');
+            }
+        });
+    }
+
+    // Group action - open modal
+    var groupBtn = document.getElementById('action-group');
+    var groupCancel = document.getElementById('group-cancel');
+    var groupConfirm = document.getElementById('group-confirm');
+    var groupNameInput = document.getElementById('group-name-input');
+    var groupError = document.getElementById('group-error');
+
+    if (groupBtn && groupModal) {
+        groupBtn.addEventListener('click', function() {
+            groupModal.classList.add('open');
+            groupNameInput.value = '';
+            groupError.textContent = '';
+            groupNameInput.focus();
+        });
+
+        groupCancel.addEventListener('click', function() {
+            groupModal.classList.remove('open');
+        });
+
+        // Close on overlay click
+        groupModal.addEventListener('click', function(e) {
+            if (e.target === groupModal) {
+                groupModal.classList.remove('open');
+            }
+        });
+
+        // Enter key in input
+        groupNameInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                groupConfirm.click();
+            }
+        });
+
+        groupConfirm.addEventListener('click', function() {
+            var name = groupNameInput.value.trim();
+            if (!name) {
+                groupError.textContent = 'Please enter a group name.';
+                return;
+            }
+            groupError.textContent = '';
+            groupConfirm.disabled = true;
+            groupConfirm.textContent = 'Creating...';
+
+            var ids = getSelected().map(Number);
+
+            fetch('{% url "relationships:group_quick_create" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ name: name, person_ids: ids })
+            })
+            .then(function(resp) { return resp.json().then(function(data) { return { ok: resp.ok, data: data }; }); })
+            .then(function(result) {
+                if (result.ok) {
+                    window.location.href = '/relationships/groups/' + result.data.id + '/';
+                } else {
+                    groupError.textContent = result.data.error || 'Failed to create group.';
+                    groupConfirm.disabled = false;
+                    groupConfirm.textContent = 'Create';
+                }
+            })
+            .catch(function() {
+                groupError.textContent = 'Network error. Please try again.';
+                groupConfirm.disabled = false;
+                groupConfirm.textContent = 'Create';
+            });
         });
     }
 });

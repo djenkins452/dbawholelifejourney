@@ -1,0 +1,46 @@
+{% comment %}
+Dashboard Tile: Relational Health
+Compact summary of relational health score and top insight lines.
+Links to full relationship insights page.
+{% endcomment %}
+
+<section class="tile tile-size-{{ tile.size|default:'medium' }}" data-tile-id="relational_health">
+    <div class="tile-header">
+        <h3>Relational Health</h3>
+        <a href="{% url 'relationships:insights' %}" class="tile-action-link">View Insights &rarr;</a>
+    </div>
+
+    {% if relational_health and relational_health.score is not None %}
+    <div style="display: flex; align-items: center; gap: var(--space-4, 1rem); margin-bottom: var(--space-3, 0.75rem);">
+        <div style="width: 52px; height: 52px; border-radius: 50%; border: 2px solid var(--color-border, #e5e7eb); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <span style="font-size: 1.25rem; font-weight: 700; color: var(--color-accent, #6366f1);">
+                {{ relational_health.score }}
+            </span>
+        </div>
+        <div>
+            <div style="font-weight: 600; font-size: 0.9rem;">
+                {{ relational_health.active_7d }} active &middot; {{ relational_health.stale_30d }} stale
+            </div>
+            <div style="font-size: 0.8rem; color: var(--color-text-muted, #6b7280);">
+                {{ relational_health.total_contacts }} contact{{ relational_health.total_contacts|pluralize }}
+            </div>
+        </div>
+    </div>
+
+    {% if relational_health.insight_lines %}
+    <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+        {% for line in relational_health.insight_lines %}
+        <div style="font-size: 0.8rem; color: var(--color-text, #374151); padding-left: 0.5rem; border-left: 2px solid var(--color-accent, #6366f1);">
+            {{ line }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <p style="color: var(--color-text-muted, #6b7280); font-size: 0.85rem;">
+        Add contacts to start tracking relational health.
+        <a href="{% url 'relationships:person_create' %}">Add Person &rarr;</a>
+    </p>
+    {% endif %}
+</section>

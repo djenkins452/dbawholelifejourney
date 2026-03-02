@@ -9,6 +9,37 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Phase R2: Relationship Insights Dashboard
+
+**What:** Relationship Insights dashboard with deterministic health scoring model, full insights page, compact dashboard summary card, context balance analysis with imbalance detection, and CoS-ready structured payload.
+
+**New service:** RelationalHealthService — deterministic score calculation (base 100, deductions for stale contacts, missing events, imbalances; additions for consistent engagement), 5-minute cache, structured CoS payload
+**New view:** RelationshipInsightsView — full insights page with score banner, quick stats, people needing attention, context balance bars, relational anchors
+**New dashboard tile:** relational_health — compact summary card with score circle, active/stale counts, insight lines
+**New route:** /relationships/insights/
+**New template:** insights.html — 4-section layout with responsive grid, CSS variables, calm/non-gamified tone
+**New dashboard tile template:** tiles/relational_health.html
+
+**Files created:**
+- `templates/relationships/insights.html`
+- `templates/dashboard/tiles/relational_health.html`
+- `apps/relationships/tests/test_relationship_insights.py` (24 tests — scoring, metrics, imbalance, views, CoS payload, caching)
+
+**Files modified:**
+- `apps/relationships/services.py` — Added RelationalHealthService with compute_health(), _compute(), scoring logic
+- `apps/relationships/views.py` — Added RelationshipInsightsView
+- `apps/relationships/urls.py` — Added `/insights/` route
+- `apps/dashboard/services/config_service.py` — Added `relational_health` tile definition
+- `templates/dashboard/home.html` — Added relational_health tile include
+- `apps/dashboard/views.py` — Added relational_health context data computation
+- `apps/core/ai_orchestrator/cos_context.py` — Added relational_health CoS payload (score, stale count, anchors, imbalances)
+- `apps/core/fixtures/release_notes.json` — Added PK 115 (Relationship Insights)
+- `apps/help/fixtures/teaching_destinations.json` — Added PK 170 (Relationship Insights page)
+- `apps/core/management/commands/load_initial_data.py` — Added R2 fixture reset
+- `docs/RELATIONSHIP_INTELLIGENCE.md` — Added Phase R2 section
+
+**Why:** Users need visibility into their relational engagement patterns. The scoring model provides gentle, non-gamified feedback about connection health, while the dashboard tile surfaces key metrics without requiring navigation. CoS integration means the AI assistant now knows the user's relational health score and can reference it in conversations.
+
 ## 2026-03-02 — Phase R1: Relational Intelligence Foundation
 
 **What:** New `apps/relationships/` platform app introducing canonical Person model, cross-module @mention detection, interaction tracking with GenericForeignKey, analytics service, and CoS integration. This is platform infrastructure — not a single-feature app.

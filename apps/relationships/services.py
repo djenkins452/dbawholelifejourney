@@ -195,6 +195,281 @@ class RelationshipAnalyticsService:
 
 
 # =============================================================================
+# RELATIONAL HEALTH SERVICE (Phase R2)
+# =============================================================================
+
+
+class RelationalHealthService:
+    """
+    Computes relational health score and insight metrics.
+
+    Deterministic scoring model (base 100):
+    - Subtract 2 per person >45 days no interaction (cap -20)
+    - Subtract 1 per severe context imbalance (>70% in one context)
+    - Subtract 5 if no event interactions in 30 days
+    - Add 1 per consistent weekly interaction pattern (cap +10)
+
+    Caches result for 5 minutes per user.
+    """
+
+    # Cache TTL in seconds
+    CACHE_TTL = 300
+
+    @classmethod
+    def compute_health(cls, user):
+        """
+        Compute full relational health metrics for a user.
+
+        Returns:
+            dict with keys: score, total_contacts, active_7d, stale_30d,
+            avg_days_between, top_interacted, longest_no_contact,
+            imbalance_flags, insight_lines, stale_relationships_count,
+            top_anchor_persons
+        """
+        from django.core.cache import cache
+
+        cache_key = f'relational_health:{user.pk}'
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        result = cls._compute(user)
+        cache.set(cache_key, result, cls.CACHE_TTL)
+        return result
+
+    @classmethod
+    def _compute(cls, user):
+        from .models import Person, RelationshipInteraction
+
+        today = timezone.localdate()
+        seven_days_ago = today - datetime.timedelta(days=7)
+        thirty_days_ago = today - datetime.timedelta(days=30)
+        forty_five_days_ago = today - datetime.timedelta(days=45)
+
+        contacts = Person.objects.filter(owner=user)
+        total_contacts = contacts.count()
+
+        if total_contacts == 0:
+            return cls._empty_result()
+
+        # Contacts interacted with in last 7 days
+        active_7d_ids = set(
+            RelationshipInteraction.objects
+            .filter(user=user, interaction_date__gte=seven_days_ago)
+            .values_list('person_id', flat=True)
+            .distinct()
+        )
+        active_7d = len(active_7d_ids)
+
+        # Contacts not interacted with in 30+ days
+        stale_contacts = contacts.filter(
+            Q(last_interaction_date__lt=thirty_days_ago) |
+            Q(last_interaction_date__isnull=True)
+        )
+        stale_30d = stale_contacts.count()
+
+        # Average days between interactions (for contacts with interactions)
+        contacts_with_interactions = contacts.filter(
+            last_interaction_date__isnull=False,
+        )
+        if contacts_with_interactions.exists():
+            total_days = sum(
+                (today - p.last_interaction_date).days
+                for p in contacts_with_interactions
+            )
+            avg_days_between = round(total_days / contacts_with_interactions.count(), 1)
+        else:
+            avg_days_between = None
+
+        # Top 5 most interacted
+        top_interacted = list(
+            contacts.filter(interaction_count__gt=0)
+            .order_by('-interaction_count')[:5]
+            .values('id', 'first_name', 'last_name', 'interaction_count',
+                    'last_interaction_date', 'relationship_type')
+        )
+        for p in top_interacted:
+            p['display_name'] = f"{p['first_name']} {p['last_name']}".strip()
+
+        # Top 5 longest no-contact
+        longest_no_contact = list(
+            contacts.filter(
+                Q(last_interaction_date__isnull=False) |
+                Q(interaction_count=0)
+            )
+            .order_by('last_interaction_date')[:5]
+            .values('id', 'first_name', 'last_name', 'last_interaction_date',
+                    'relationship_type')
+        )
+        for p in longest_no_contact:
+            p['display_name'] = f"{p['first_name']} {p['last_name']}".strip()
+            if p['last_interaction_date']:
+                p['days_since'] = (today - p['last_interaction_date']).days
+            else:
+                p['days_since'] = None
+
+        # Context distribution + imbalance detection for top 10
+        top_10 = contacts.filter(interaction_count__gt=0).order_by('-interaction_count')[:10]
+        context_distributions = []
+        imbalance_flags = []
+
+        for person in top_10:
+            breakdown = RelationshipAnalyticsService.context_breakdown(person)
+            total = sum(breakdown.values())
+            if total == 0:
+                continue
+
+            pct_breakdown = {k: round(v / total * 100) for k, v in breakdown.items()}
+            dist = {
+                'person_id': person.pk,
+                'display_name': person.get_display_name(),
+                'breakdown': breakdown,
+                'pct_breakdown': pct_breakdown,
+                'total': total,
+            }
+            context_distributions.append(dist)
+
+            # Flag imbalance: >70% in one context
+            for ctx, pct in pct_breakdown.items():
+                if pct > 70 and total >= 3:
+                    imbalance_flags.append({
+                        'person_id': person.pk,
+                        'display_name': person.get_display_name(),
+                        'dominant_context': ctx,
+                        'percentage': pct,
+                    })
+
+        # Check for event interactions in last 30 days
+        has_recent_events = RelationshipInteraction.objects.filter(
+            user=user,
+            context_type_label='event',
+            interaction_date__gte=thirty_days_ago,
+        ).exists()
+
+        # Consistent weekly patterns: contacts interacted with 3+ of last 4 weeks
+        weekly_consistent_count = 0
+        for person in contacts.filter(interaction_count__gt=0):
+            weeks_with_interaction = 0
+            for week_offset in range(4):
+                week_start = today - datetime.timedelta(days=7 * (week_offset + 1))
+                week_end = today - datetime.timedelta(days=7 * week_offset)
+                has_week = RelationshipInteraction.objects.filter(
+                    person=person,
+                    user=user,
+                    interaction_date__gte=week_start,
+                    interaction_date__lt=week_end,
+                ).exists()
+                if has_week:
+                    weeks_with_interaction += 1
+            if weeks_with_interaction >= 3:
+                weekly_consistent_count += 1
+
+        # --- SCORING ---
+        score = 100
+
+        # Subtract: 2 per person >45 days stale (cap -20)
+        very_stale = contacts.filter(
+            Q(last_interaction_date__lt=forty_five_days_ago) |
+            Q(last_interaction_date__isnull=True, interaction_count=0)
+        ).count()
+        score -= min(very_stale * 2, 20)
+
+        # Subtract: 1 per imbalance flag
+        score -= len(imbalance_flags)
+
+        # Subtract: 5 if no event interactions in 30 days
+        if not has_recent_events:
+            score -= 5
+
+        # Add: 1 per consistent weekly pattern (cap +10)
+        score += min(weekly_consistent_count, 10)
+
+        score = max(0, min(100, score))
+
+        # --- INSIGHT LINES ---
+        insight_lines = cls._generate_insights(
+            stale_30d, imbalance_flags, top_interacted,
+            weekly_consistent_count, active_7d,
+        )
+
+        # Top anchor persons (highest consistent positive interaction)
+        top_anchors = [
+            p['display_name'] for p in top_interacted[:3]
+        ]
+
+        return {
+            'score': score,
+            'total_contacts': total_contacts,
+            'active_7d': active_7d,
+            'stale_30d': stale_30d,
+            'avg_days_between': avg_days_between,
+            'top_interacted': top_interacted,
+            'longest_no_contact': longest_no_contact,
+            'context_distributions': context_distributions,
+            'imbalance_flags': imbalance_flags,
+            'has_recent_events': has_recent_events,
+            'weekly_consistent_count': weekly_consistent_count,
+            'insight_lines': insight_lines,
+            'stale_relationships_count': stale_30d,
+            'top_anchor_persons': top_anchors,
+        }
+
+    @classmethod
+    def _empty_result(cls):
+        return {
+            'score': None,
+            'total_contacts': 0,
+            'active_7d': 0,
+            'stale_30d': 0,
+            'avg_days_between': None,
+            'top_interacted': [],
+            'longest_no_contact': [],
+            'context_distributions': [],
+            'imbalance_flags': [],
+            'has_recent_events': False,
+            'weekly_consistent_count': 0,
+            'insight_lines': ['Add contacts to start tracking relational health.'],
+            'stale_relationships_count': 0,
+            'top_anchor_persons': [],
+        }
+
+    @classmethod
+    def _generate_insights(cls, stale_30d, imbalance_flags, top_interacted,
+                           weekly_consistent_count, active_7d):
+        lines = []
+
+        if stale_30d > 0:
+            lines.append(
+                f"You haven't interacted with {stale_30d} "
+                f"contact{'s' if stale_30d != 1 else ''} in over 30 days."
+            )
+
+        if imbalance_flags:
+            flag = imbalance_flags[0]
+            lines.append(
+                f"Most interactions with {flag['display_name']} "
+                f"are {flag['dominant_context']}-related."
+            )
+
+        if weekly_consistent_count >= 3:
+            lines.append("Strong weekly engagement patterns.")
+
+        if active_7d >= 5:
+            lines.append(f"Active connections: {active_7d} people this week.")
+
+        if not lines:
+            if top_interacted:
+                lines.append(
+                    f"Top connection: {top_interacted[0]['display_name']} "
+                    f"({top_interacted[0]['interaction_count']} interactions)."
+                )
+            else:
+                lines.append("Start adding interactions to build insights.")
+
+        return lines[:3]  # Cap at 3 insight lines
+
+
+# =============================================================================
 # MENTION PARSER SERVICE
 # =============================================================================
 

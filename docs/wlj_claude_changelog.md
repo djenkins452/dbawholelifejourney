@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Pantry Scan UX: Select All + Duplicate Prevention
+
+**What:** Two usability improvements to the pantry photo scan confirmation page:
+1. **Select All checkbox** — Users can check all detected items at once and then uncheck the few they don't want. Includes item count display and indeterminate state.
+2. **Cross-session duplicate prevention** — Detections that match ingredients already in the user's pantry are flagged with an "Already in pantry" badge and default to unchecked. Within-session deduplication also prevents the same ingredient appearing twice across different photo uploads.
+
+**Files modified:**
+- `templates/meals/pantry_scan_confirm.html` — Select All bar, duplicate badge, default-unchecked logic, JS toggle
+- `static/css/meals.css` — Styles for select-all bar and duplicate badge
+- `apps/meals/views.py` — PantryScanConfirmView annotates detections with `already_in_pantry`
+- `apps/meals/services/pantry_photo_detection.py` — `_create_detections()` deduplicates across uploads within session
+
+---
+
 ## 2026-03-02 — Phase 12: Pantry Photo Intelligence (Session-Based)
 
 **What:** New pantry scanning feature allowing users to photograph their fridge, pantry shelf, or freezer. AI detects food items via OpenAI Vision, matches them to ingredients, and presents a guided confirmation UI. No items are auto-added — everything requires user confirmation. Includes session tracking, confidence scoring, drift modeling, and CoS integration.

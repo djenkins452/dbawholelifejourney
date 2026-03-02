@@ -1020,14 +1020,26 @@ class PantryScanConfirmView(
             ).all()
             return context
 
-        detections = session.detections.select_related(
+        detections = list(session.detections.select_related(
             "matched_ingredient", "upload"
-        ).all()
+        ).all())
 
         # Build ingredient choices for dropdown
         ingredients = Ingredient.objects.all().order_by("canonical_name").values_list(
             "id", "canonical_name"
         )
+
+        # Check which detected ingredients already exist in pantry
+        existing_ingredient_ids = set(
+            PantryItem.objects.filter(
+                household=household, quantity__gt=0,
+            ).values_list("ingredient_id", flat=True)
+        )
+        for det in detections:
+            det.already_in_pantry = (
+                det.matched_ingredient_id is not None
+                and det.matched_ingredient_id in existing_ingredient_ids
+            )
 
         context["session"] = session
         context["completed"] = False

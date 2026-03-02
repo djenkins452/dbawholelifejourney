@@ -202,6 +202,13 @@ class PantryPhotoDetectionService:
         items = raw_result.get("items", [])
         detections = []
 
+        # Track ingredient IDs already detected in this session (across all uploads)
+        existing_ingredient_ids = set(
+            upload.session.detections.exclude(
+                upload=upload,
+            ).values_list("matched_ingredient_id", flat=True)
+        )
+
         for item in items:
             label = item.get("label", "").strip()
             if not label:
@@ -209,6 +216,10 @@ class PantryPhotoDetectionService:
 
             # Match to ingredient
             match = match_ingredient_name(label)
+
+            # Skip if this ingredient was already detected in another upload for this session
+            if match.ingredient_id and match.ingredient_id in existing_ingredient_ids:
+                continue
 
             confidence = Decimal(str(min(max(item.get("confidence", 0.5), 0), 1)))
             quantity = item.get("quantity")
@@ -232,6 +243,10 @@ class PantryPhotoDetectionService:
                 unit=unit[:20] if unit else "piece",
             )
             detections.append(detection)
+
+            # Track this ingredient to prevent duplicates within this batch too
+            if match.ingredient_id:
+                existing_ingredient_ids.add(match.ingredient_id)
 
         # Bulk create for efficiency
         if detections:

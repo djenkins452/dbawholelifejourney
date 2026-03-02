@@ -61,18 +61,31 @@
         {% csrf_token %}
         <input type="hidden" name="action" value="confirm">
 
+        <div class="scan-select-all-bar">
+            <label class="select-all-label">
+                <input type="checkbox" id="select-all-checkbox">
+                <span>Select All</span>
+            </label>
+            <span class="select-all-count" id="select-count"></span>
+        </div>
+
         <div class="scan-detections-list">
             {% for detection in detections %}
             <div class="scan-detection-item" data-detection-id="{{ detection.pk }}">
                 <div class="detection-row">
                     <div class="detection-check">
                         <input type="checkbox" name="confirm_{{ detection.pk }}" id="check_{{ detection.pk }}"
-                            {% if detection.matched_ingredient and not detection.rejected %}checked{% endif %}>
+                            {% if detection.matched_ingredient and not detection.rejected and not detection.already_in_pantry %}checked{% endif %}>
                         <label for="check_{{ detection.pk }}" class="visually-hidden">Confirm {{ detection.detected_label }}</label>
                     </div>
 
                     <div class="detection-info">
-                        <div class="detection-label">{{ detection.detected_label }}</div>
+                        <div class="detection-label">
+                            {{ detection.detected_label }}
+                            {% if detection.already_in_pantry %}
+                            <span class="detection-duplicate-badge">Already in pantry</span>
+                            {% endif %}
+                        </div>
                         <div class="detection-confidence-bar">
                             <div class="confidence-fill {% if detection.confidence_score >= 0.75 %}confidence-high{% elif detection.confidence_score >= 0.5 %}confidence-medium{% else %}confidence-low{% endif %}"
                                  style="width: {{ detection.confidence_score|floatformat:0 }}%"></div>
@@ -129,10 +142,31 @@
 <script nonce="{{ csp_nonce }}">
 (function() {
     'use strict';
-    // Toggle select-all behavior
-    document.addEventListener('change', function(e) {
-        var checkbox = e.target;
-        if (!checkbox.matches('input[type="checkbox"]')) return;
+
+    var selectAllBox = document.getElementById('select-all-checkbox');
+    var countEl = document.getElementById('select-count');
+
+    function getItemCheckboxes() {
+        return document.querySelectorAll('.scan-detection-item input[type="checkbox"]');
+    }
+
+    function updateCount() {
+        var boxes = getItemCheckboxes();
+        var checked = 0;
+        for (var i = 0; i < boxes.length; i++) {
+            if (boxes[i].checked) checked++;
+        }
+        if (countEl) {
+            countEl.textContent = checked + ' of ' + boxes.length + ' selected';
+        }
+        // Sync select-all state
+        if (selectAllBox) {
+            selectAllBox.checked = boxes.length > 0 && checked === boxes.length;
+            selectAllBox.indeterminate = checked > 0 && checked < boxes.length;
+        }
+    }
+
+    function syncRowHighlight(checkbox) {
         var item = checkbox.closest('.scan-detection-item');
         if (!item) return;
         if (checkbox.checked) {
@@ -140,14 +174,34 @@
         } else {
             item.classList.remove('detection-selected');
         }
-    });
-    // Initialize selected state
-    var checks = document.querySelectorAll('.scan-detection-item input[type="checkbox"]');
-    for (var i = 0; i < checks.length; i++) {
-        if (checks[i].checked) {
-            checks[i].closest('.scan-detection-item').classList.add('detection-selected');
-        }
     }
+
+    // Select All toggle
+    if (selectAllBox) {
+        selectAllBox.addEventListener('change', function() {
+            var boxes = getItemCheckboxes();
+            for (var i = 0; i < boxes.length; i++) {
+                boxes[i].checked = selectAllBox.checked;
+                syncRowHighlight(boxes[i]);
+            }
+            updateCount();
+        });
+    }
+
+    // Individual checkbox changes
+    document.addEventListener('change', function(e) {
+        var checkbox = e.target;
+        if (!checkbox.matches('.scan-detection-item input[type="checkbox"]')) return;
+        syncRowHighlight(checkbox);
+        updateCount();
+    });
+
+    // Initialize on load
+    var checks = getItemCheckboxes();
+    for (var i = 0; i < checks.length; i++) {
+        syncRowHighlight(checks[i]);
+    }
+    updateCount();
 })();
 </script>
 {% endblock %}

@@ -2245,7 +2245,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         conversation.save(update_fields=['updated_at'])
                         return {'response': ecc_response}
             except Exception as ecc_err:
-                logger.debug("ECC pre-check skipped: %s", ecc_err)
+                logger.warning("ECC pre-check failed: %s", ecc_err, exc_info=True)
 
             # ── Phase 5C HARD SHORT-CIRCUIT ──────────────────────
             # If closure was detected (sentinel set) but a DB operation
@@ -2521,8 +2521,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         action_executed=bool(actions_taken),
                     )
                     response = validation['response']
-                except Exception:
-                    pass  # defense-in-depth; validate_response never raises
+                except Exception as e:
+                    logger.warning("Phase 8 validator gate failed: %s", e, exc_info=True)
                 # ── End Phase 8 validator gate ────────────────────────
 
         # Record calibration answer if active (advance stage for next question)
@@ -3311,7 +3311,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     if gov_instructions:
                         priority_layers.append(gov_instructions)
                 except Exception as gov_err:
-                    logger.debug("Governance injection skipped: %s", gov_err)
+                    logger.warning("Governance injection failed: %s", gov_err, exc_info=True)
 
                 # Layer 5: Learned user profile (values, identity, relationships)
                 # Injected ONCE here — removed from cos_context to avoid duplication.
@@ -3461,7 +3461,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             if _ecc_pending:
                                 cos_context['ecc_active_commitments'] = _ecc_pending
                         except Exception as ecc_err:
-                            logger.debug("ECC detection skipped: %s", ecc_err)
+                            logger.warning("ECC detection failed in _generate_response: %s", ecc_err, exc_info=True)
 
                         # ── Phase 5C HARD SHORT-CIRCUIT ──────────
                         # If closure was detected but a DB operation
@@ -3480,7 +3480,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     # so the LLM prioritizes relationship over raw data.
                     append_layers.append(cos_injection)
                 except Exception as cos_ctx_err:
-                    logger.debug("CoS context skipped: %s", cos_ctx_err)
+                    logger.warning("CoS context (Layer 6) failed: %s", cos_ctx_err, exc_info=True)
 
                 # Pending reflections (check-ins after events)
                 try:
@@ -3509,7 +3509,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 system_prompt = "\n\n".join(part for part in assembled_parts if part)
 
         except Exception as cos_err:
-            logger.debug("CoS context injection skipped: %s", cos_err)
+            logger.error("CoS prompt assembly failed (total context loss): %s", cos_err, exc_info=True)
 
         # Executive Briefing (replaces simple greeting injection)
         # Delivers morning briefing, gap detection, life events, health gates,
@@ -3528,8 +3528,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             memory = get_conversation_memory(conversation)
             if memory:
                 system_prompt += "\n\n" + memory
-        except Exception:
-            pass  # Executive briefing must never break chat
+        except Exception as e:
+            logger.warning("Executive briefing failed: %s", e)
 
         # Executive Arbitration Engine (EAE) — Phase 8
         # When enabled, EAE is the FINAL authority on what intelligence is
@@ -4891,8 +4891,8 @@ Rules for this response:
                             build_cos_context as _stream_build_cos,
                         )
                         _cos_context_cache = _stream_build_cos(self.user)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning("Streaming CoS context build failed: %s", e, exc_info=True)
 
                 # ECC check (explicit commitment contract)
                 try:
@@ -4926,8 +4926,8 @@ Rules for this response:
                         )
                         if detection_result:
                             _direct_response = detection_result
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Streaming ECC check failed: %s", e, exc_info=True)
 
                 # Check-in pre-filter — detect "what's on my plate" queries
                 # that should go to LLM (not intent service)

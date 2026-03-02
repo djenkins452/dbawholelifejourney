@@ -70,10 +70,10 @@ class TestMealsDashboardView(TestUserMixin, TestCase):
         self.assertTrue(HouseholdMembership.objects.filter(user=self.user).exists())
 
     def test_dashboard_empty_state(self):
-        """Dashboard shows empty state when no recipes exist."""
+        """Dashboard shows setup mode when below activation threshold."""
         response = self.client.get(reverse("meals:dashboard"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "No dinner suggestion yet")
+        self.assertContains(response, "Build Your Kitchen Intelligence")
 
     def test_dashboard_with_data(self):
         """Dashboard shows data when pantry items exist."""
@@ -112,11 +112,12 @@ class TestDinnerSuggestionsView(TestUserMixin, TestCase):
         self.assertTemplateUsed(response, "meals/suggestions.html")
 
     def test_suggestions_empty_state(self):
+        """Empty state shows setup required (activation gate fires first)."""
         response = self.client.get(reverse("meals:suggestions"))
-        self.assertContains(response, "No recipes to score")
+        self.assertContains(response, "Setup Required")
 
-    def test_suggestions_with_recipes(self):
-        """Suggestions page renders when user has recipes."""
+    def test_suggestions_with_recipes_below_threshold(self):
+        """Suggestions page shows setup required when below activation threshold."""
         from apps.life.models import Recipe
         Recipe.objects.create(
             user=self.user,
@@ -126,6 +127,7 @@ class TestDinnerSuggestionsView(TestUserMixin, TestCase):
         )
         response = self.client.get(reverse("meals:suggestions"))
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Setup Required")
 
 
 class TestPantryView(TestUserMixin, TestCase):

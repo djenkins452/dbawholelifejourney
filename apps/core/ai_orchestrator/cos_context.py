@@ -829,6 +829,7 @@ def _build_meals_context(user):
     """Build meal intelligence context for CoS awareness."""
     try:
         from apps.meals.models import HouseholdMembership, MealPlanEntry, PantryItem
+        from apps.meals.services.activation import get_activation_status
         from django.utils import timezone as tz
 
         membership = HouseholdMembership.objects.filter(user=user).select_related("household").first()
@@ -837,6 +838,23 @@ def _build_meals_context(user):
 
         household = membership.household
         today = tz.now().date()
+
+        # Activation check
+        activation = get_activation_status(user, household)
+
+        if not activation.is_ready:
+            return {
+                'meals_context': {
+                    'activated': False,
+                    'setup_needed': True,
+                    'pantry_count': activation.pantry_count,
+                    'pantry_required': activation.pantry_required,
+                    'recipe_count': activation.recipe_count,
+                    'recipe_required': activation.recipe_required,
+                    'setup_url': '/meals/setup/',
+                    'household_name': household.name,
+                }
+            }
 
         # Pantry summary
         pantry_count = PantryItem.objects.filter(household=household, quantity__gt=0).count()
@@ -853,6 +871,7 @@ def _build_meals_context(user):
 
         return {
             'meals_context': {
+                'activated': True,
                 'pantry_items_tracked': pantry_count,
                 'expiring_soon': list(expiring),
                 'dinner_planned': dinner_entry.recipe.title if dinner_entry else None,

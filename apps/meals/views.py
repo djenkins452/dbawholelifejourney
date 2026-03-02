@@ -109,6 +109,30 @@ class MealsDashboardView(
         dietary_profile = self.get_dietary_profile()
         today = timezone.now().date()
 
+        # Activation check — block scoring if below threshold
+        from apps.meals.services.activation import get_activation_status
+
+        activation = get_activation_status(user, household)
+        context["activation"] = activation
+
+        if not activation.is_ready:
+            # Setup mode — return minimal context
+            context["setup_mode"] = True
+            context["household"] = household
+            context["dietary_profile"] = dietary_profile
+            context["pantry_total"] = activation.pantry_count
+            context["pantry_low_confidence"] = 0
+            return context
+
+        context["setup_mode"] = False
+
+        # Check if just activated (for activation moment message)
+        if activation.activated_at and not activation.missing:
+            from datetime import timedelta as td
+
+            if timezone.now() - activation.activated_at < td(minutes=30):
+                context["just_activated"] = True
+
         # Tonight's recommendation
         tonight_recommendation = self._get_tonight_recommendation(
             household, dietary_profile
@@ -277,6 +301,17 @@ class DinnerSuggestionsView(
         user = self.request.user
         household = self.get_household()
         dietary_profile = self.get_dietary_profile()
+
+        # Activation check — block scoring if below threshold
+        from apps.meals.services.activation import get_activation_status
+
+        activation = get_activation_status(user, household)
+        context["activation"] = activation
+        if not activation.is_ready:
+            context["setup_mode"] = True
+            context["has_recipes"] = False
+            return context
+        context["setup_mode"] = False
 
         user_recipes = list(Recipe.objects.filter(user=user)[:100])
         if not user_recipes:
@@ -806,5 +841,50 @@ class RecipeIntelligenceDetailView(
                     if subs:
                         substitutions[gap.ingredient_name] = subs
         context["substitutions"] = substitutions
+
+        return context
+
+
+# =============================================================================
+# Guided Setup Wizard
+# =============================================================================
+
+
+class MealsSetupView(
+    HelpContextMixin, LoginRequiredMixin, MealsHouseholdMixin, TemplateView
+):
+    """
+    Guided setup wizard for meal intelligence activation.
+
+    Three steps:
+    1. Pantry — add items via receipt, photo, or manual entry
+    2. Recipes — add recipes via URL, image, or manual entry
+    3. Dietary Profile — confirm carb/protein targets
+    """
+
+    template_name = "meals/setup.html"
+    help_context_id = "MEALS_SETUP"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        household = self.get_household()
+
+        from apps.meals.services.activation import get_activation_status
+
+        activation = get_activation_status(user, household)
+        context["activation"] = activation
+        context["household"] = household
+
+        # Determine current step based on progress
+        if activation.pantry_count < activation.pantry_required:
+            context["current_step"] = 1
+        elif activation.recipe_count < activation.recipe_required:
+            context["current_step"] = 2
+        else:
+            context["current_step"] = 3
+
+        # Dietary profile for step 3
+        context["dietary_profile"] = self.get_dietary_profile()
 
         return context

@@ -1,6 +1,23 @@
 [
   {
     "model": "help.teachingdestination",
+    "pk": 166,
+    "fields": {
+      "destination_id": "meals-setup",
+      "name": "Meals Setup Wizard",
+      "path_description": "Meals > Setup",
+      "explanation": "Guided 3-step setup to activate meal intelligence. Add pantry items, import recipes, and confirm your dietary profile to unlock personalized dinner recommendations.",
+      "url": "/meals/setup/",
+      "keywords": "meals setup, meal activation, kitchen setup, onboarding, pantry setup, recipe import",
+      "module": "meals",
+      "sort_order": 62,
+      "is_active": true,
+      "created_at": "2026-03-02T00:00:00Z",
+      "updated_at": "2026-03-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
     "pk": 165,
     "fields": {
       "destination_id": "meals-receipts",

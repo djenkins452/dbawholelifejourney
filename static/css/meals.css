@@ -1073,3 +1073,460 @@
     font-weight: 600;
     color: var(--color-text);
 }
+
+/* =============================================================================
+   Setup Mode — Progressive Activation
+   ============================================================================= */
+
+/* Setup Hero */
+.setup-hero {
+    background: var(--color-surface);
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-8) var(--space-6);
+    text-align: center;
+}
+
+.setup-hero-icon {
+    margin-bottom: var(--space-4);
+    color: var(--color-text-muted);
+}
+
+.setup-hero-title {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-text);
+    margin: 0 0 var(--space-2);
+}
+
+.setup-hero-desc {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    max-width: 480px;
+    margin: 0 auto var(--space-6);
+    line-height: 1.6;
+}
+
+/* Progress Bars */
+.setup-progress {
+    max-width: 400px;
+    margin: 0 auto var(--space-6);
+}
+
+.setup-progress-item {
+    margin-bottom: var(--space-3);
+}
+
+.setup-progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    margin-bottom: var(--space-1);
+}
+
+.setup-progress-count {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.setup-progress-bar {
+    height: 8px;
+    background: var(--color-border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.setup-progress-fill {
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    min-width: 2px;
+}
+
+.setup-progress-fill.progress-complete {
+    background: var(--color-success, #22c55e);
+}
+
+/* Setup Actions */
+.setup-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-width: 300px;
+    margin: 0 auto;
+}
+
+/* Unlock List */
+.setup-unlock-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.setup-unlock-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.setup-unlock-item svg {
+    color: var(--color-success, #22c55e);
+    flex-shrink: 0;
+}
+
+/* =============================================================================
+   Activation Moment
+   ============================================================================= */
+
+.activation-hero {
+    border-color: var(--color-success, #22c55e);
+    border-style: solid;
+    border-width: 1px;
+}
+
+.activation-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.activation-header svg {
+    color: var(--color-success, #22c55e);
+    flex-shrink: 0;
+}
+
+.activation-title {
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    color: var(--color-text);
+    margin: 0;
+}
+
+.activation-desc {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin: 0 0 var(--space-3);
+}
+
+.activation-capabilities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.activation-cap {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-1) var(--space-3);
+    background: color-mix(in srgb, var(--color-success, #22c55e) 10%, transparent);
+    color: var(--color-text);
+    border-radius: var(--radius-full, 999px);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+
+/* =============================================================================
+   Setup Wizard (/meals/setup/)
+   ============================================================================= */
+
+/* Step Indicator Bar */
+.setup-wizard-progress {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: var(--space-8);
+    padding: var(--space-4) 0;
+}
+
+.setup-step-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.step-number {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    background: var(--color-border);
+    color: var(--color-text-muted);
+}
+
+.step-active .step-number {
+    background: var(--color-primary);
+    color: #fff;
+}
+
+.step-complete .step-number {
+    background: var(--color-success, #22c55e);
+    color: #fff;
+}
+
+.step-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+.step-active .step-label {
+    color: var(--color-primary);
+}
+
+.step-connector {
+    width: 60px;
+    height: 2px;
+    background: var(--color-border);
+    margin: 0 var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.step-connector.connector-complete {
+    background: var(--color-success, #22c55e);
+}
+
+/* Wizard Steps */
+.setup-wizard-step {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-4);
+    opacity: 0.6;
+}
+
+.setup-wizard-step.step-current {
+    opacity: 1;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.setup-step-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.setup-step-header h2 {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+}
+
+.setup-step-count {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.setup-step-desc {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin: 0 0 var(--space-4);
+}
+
+/* Option Cards */
+.setup-options-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--space-3);
+}
+
+.setup-option-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: inherit;
+    position: relative;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.setup-option-card:hover {
+    border-color: var(--color-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.setup-option-icon {
+    color: var(--color-primary);
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.setup-option-content h3 {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 var(--space-1);
+}
+
+.setup-option-content p {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin: 0;
+    line-height: 1.4;
+}
+
+.setup-option-badge {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 2px 8px;
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+    color: var(--color-primary);
+    border-radius: var(--radius-full, 999px);
+}
+
+/* Step Complete Badge */
+.setup-step-complete-badge {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+    padding: var(--space-2) var(--space-3);
+    background: color-mix(in srgb, var(--color-success, #22c55e) 10%, transparent);
+    color: var(--color-success, #22c55e);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    width: fit-content;
+}
+
+/* Profile Summary */
+.setup-profile-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.profile-stat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.profile-stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.profile-stat-value {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+/* Activation Ready */
+.setup-activated {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    background: color-mix(in srgb, var(--color-success, #22c55e) 8%, var(--color-surface));
+    border: 1px solid var(--color-success, #22c55e);
+    border-radius: var(--radius-lg);
+    margin-top: var(--space-4);
+    flex-wrap: wrap;
+}
+
+.setup-activated svg {
+    color: var(--color-success, #22c55e);
+    flex-shrink: 0;
+}
+
+.setup-activated h3 {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 var(--space-1);
+}
+
+.setup-activated p {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.setup-activated .btn {
+    margin-left: auto;
+}
+
+/* Skip Section */
+.setup-skip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    flex-wrap: wrap;
+}
+
+.setup-skip-note {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .setup-hero {
+        padding: var(--space-6) var(--space-4);
+    }
+
+    .setup-actions {
+        max-width: 100%;
+    }
+
+    .activation-capabilities {
+        justify-content: center;
+    }
+
+    .setup-wizard-progress {
+        gap: 0;
+    }
+
+    .step-connector {
+        width: 30px;
+    }
+
+    .setup-options-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .setup-activated {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .setup-activated .btn {
+        margin-left: 0;
+        width: 100%;
+    }
+}

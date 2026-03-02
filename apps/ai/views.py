@@ -290,8 +290,12 @@ class AssistantWakeView(LoginRequiredMixin, AssistantMixin, View):
         def _prewarm_bg():
             try:
                 prewarm_cos_context(user)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("CoS prewarm failed for user %s: %s", user.id, e)
+                try:
+                    set_readiness_state(user, "cold")
+                except Exception:
+                    pass
 
         threading.Thread(target=_prewarm_bg, daemon=True).start()
 
@@ -417,8 +421,8 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                     resp_text = _pr_result.get('response', '') if isinstance(_pr_result, dict) else str(_pr_result)
                     extract_learning(_pr_user, _pr_message, resp_text)
                     evolve_profile(_pr_user)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Post-response learning extraction failed: %s", e)
 
                 try:
                     from apps.ai.correction_service import detect_correction, store_correction
@@ -435,14 +439,14 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                                 conversation=_pr_conversation,
                                 original_message_id=prev.id,
                             )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Post-response correction detection failed: %s", e)
 
                 try:
                     from apps.ai.pattern_detector import detect_patterns
                     detect_patterns(_pr_user)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Post-response pattern detection failed: %s", e)
 
             threading.Thread(target=_post_response_intelligence, daemon=True).start()
 
@@ -609,22 +613,22 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
                     try:
                         from apps.ai.learning_extraction import extract_learning
                         extract_learning(request.user, message, '')
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Stream post-response learning extraction failed: %s", e)
                     # Detect corrections
                     try:
                         from apps.ai.correction_detector import detect_correction
                         detect_correction(request.user, message, conversation)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Stream post-response correction detection failed: %s", e)
                     # Detect patterns
                     try:
                         from apps.ai.pattern_detector import detect_patterns
                         detect_patterns(request.user, message, '')
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
+                    except Exception as e:
+                        logger.debug("Stream post-response pattern detection failed: %s", e)
+                except Exception as e:
+                    logger.warning("Stream post-response intelligence failed: %s", e)
 
             threading.Thread(
                 target=_post_response_intelligence, daemon=True,

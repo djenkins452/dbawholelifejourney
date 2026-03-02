@@ -234,22 +234,37 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
         # Note: Intelligence chain (SAE → PIE → PRIE) is now centralized
         # in execute_action() and fires automatically on success.
         if result and result.success:
-            learn_from_interaction(
-                user=user,
-                user_input=orchestrator_result.original_input,
-                action_result=result,
-                enriched_action=enriched,
-            )
+            try:
+                learn_from_interaction(
+                    user=user,
+                    user_input=orchestrator_result.original_input,
+                    action_result=result,
+                    enriched_action=enriched,
+                )
+            except Exception as e:
+                logger.error(
+                    "learn_from_interaction failed for %s: %s",
+                    enriched.intent_type, e, exc_info=True,
+                )
 
     # Update orchestrator result
     orchestrator_result.actions_enriched = enriched_actions
     orchestrator_result.action_results = action_results
 
     # Build enhanced response
-    orchestrator_result.response = build_response(orchestrator_result)
+    try:
+        orchestrator_result.response = build_response(orchestrator_result)
+    except Exception as e:
+        logger.error("build_response failed: %s", e, exc_info=True)
+        # Fallback: assemble from individual action messages
+        parts = [r.message for r in action_results if r and r.message]
+        orchestrator_result.response = " ".join(parts) if parts else None
 
     # Audit log
-    log_interaction(user, orchestrator_result.original_input, orchestrator_result)
+    try:
+        log_interaction(user, orchestrator_result.original_input, orchestrator_result)
+    except Exception as e:
+        logger.error("log_interaction failed: %s", e, exc_info=True)
 
     return action_results
 

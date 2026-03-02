@@ -64,8 +64,13 @@ def execute_action(user, enriched_action):
                 error='learning_mode_active',
                 action_type=enriched_action.intent_type,
             )
+    except ImportError:
+        pass  # Learning Mode module not installed — expected
     except Exception as e:
-        logger.debug("Learning mode check skipped: %s", e)
+        logger.warning(
+            "Learning Mode check failed in execution_engine "
+            "(proceeding with execution): %s", e, exc_info=True,
+        )
 
     # Step 1: Safety check
     safety_result = validate_action(enriched_action)
@@ -158,8 +163,10 @@ def _run_intelligence_chain(user, enriched_action, action_result):
             from apps.core.blueprint.architecture_engine import get_todays_plan
             # Touch today's plan to ensure it's aware of new events
             get_todays_plan(user)
+        except ImportError:
+            pass  # Architecture engine not installed
         except Exception as e:
-            logger.debug(f"CoS plan refresh skipped: {e}")
+            logger.warning("CoS plan refresh failed: %s", e, exc_info=True)
 
     # ── Step 3: Proactive Insight Engine (PIE) ───────────────────
     # PIE internally triggers PRIE (Step 3) via _trigger_predictions()

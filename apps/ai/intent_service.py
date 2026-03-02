@@ -179,7 +179,11 @@ class IntentService:
                     try:
                         parameters = json.loads(tool_call.function.arguments)
                     except json.JSONDecodeError:
-                        parameters = {}
+                        logger.warning(
+                            "Failed to parse tool call args for %s: %s",
+                            function_name, tool_call.function.arguments,
+                        )
+                        continue  # Skip malformed tool call
 
                     # --- Mutation verb enforcement ---
                     # If the LLM selected read_calendar_events but the user's
@@ -750,7 +754,11 @@ Examples:
                 try:
                     parameters = json.loads(tool_call.function.arguments)
                 except json.JSONDecodeError:
-                    parameters = {}
+                    logger.warning(
+                        "[INTENT_RETRY] Failed to parse tool call args for %s: %s",
+                        function_name, tool_call.function.arguments,
+                    )
+                    continue  # Skip malformed tool call
 
                 requires_confirmation, confirmation_message = self._check_validation(
                     function_name, parameters, user
@@ -976,8 +984,13 @@ Examples:
                     error='learning_mode_active',
                     action_type=intent_result.intent_type,
                 )
-        except Exception:
-            pass
+        except ImportError:
+            pass  # Learning Mode module not installed
+        except Exception as e:
+            logger.error(
+                "Learning Mode check failed in execute_intent "
+                "(proceeding with execution): %s", e, exc_info=True,
+            )
 
         from .action_handlers import ActionHandler
 

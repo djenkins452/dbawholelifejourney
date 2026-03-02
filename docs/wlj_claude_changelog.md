@@ -9,6 +9,48 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Silent failure audit: eliminate swallowed exceptions in orchestration paths
+
+**What:** Production-motivated audit of all exception handling in the intent recognition, orchestration, execution, and streaming paths. The streaming ImportError bug (commit da38f536) proved that `except Exception: pass` in orchestration code can silently kill critical functionality. This audit found 23 RISKY and 3 CRITICAL silent failure patterns across 5 files.
+
+**Changes (behavior-preserving — only logging + safety improvements):**
+
+1. **intent_service.py** — 3 fixes:
+   - JSON parse failures in `recognize_intents()` and `_retry_with_forced_mutation()`: changed from `except JSONDecodeError: parameters = {}` (silently wipes parameters) to `logger.warning + continue` (skips malformed tool call entirely)
+   - Learning Mode guard in `execute_intent()`: split `except Exception: pass` into `except ImportError: pass` + `except Exception: logger.error(...)` — makes non-import failures visible
+
+2. **execution_engine.py** — 2 fixes:
+   - Learning Mode gate: split from catch-all `except Exception: logger.debug` to `except ImportError: pass` + `except Exception: logger.warning` — separates expected "not installed" from unexpected failures
+   - CoS Blueprint refresh: elevated from `logger.debug` to `logger.warning` with `exc_info=True`
+
+3. **orchestrator.py** — 1 fix (3 sub-changes):
+   - `enrich_and_execute()` had ZERO exception handling — if `learn_from_interaction()`, `build_response()`, or `log_interaction()` crashed, it would abort the entire function, losing already-executed action results. Wrapped each in `try/except` with `logger.error`. `build_response()` now has a fallback that assembles from individual action messages.
+
+4. **personal_assistant.py** — 9 log level elevations (already deployed via commit 8d0ddd9a):
+   - ECC pre-check, validator gate, governance injection, ECC detection, CoS context, CoS prompt assembly, executive briefing, streaming CoS build, streaming ECC check — all elevated from `debug`/`pass` to `warning`/`error` with `exc_info=True`
+
+5. **views.py** — 4 fixes:
+   - Prewarm failure: added `logger.warning` + reset readiness state to "cold" (was stuck as "warming" forever on failure)
+   - Streaming post-response intelligence: added `logger.debug` to 3 inner blocks + `logger.warning` to outer catch-all (was completely silent double-swallow)
+   - Non-streaming post-response intelligence: same pattern — added `logger.debug` to all 3 inner blocks
+
+**What was NOT changed (intentionally):**
+- ~56 SAFE patterns (telemetry, cache warmup, background enrichment) — these are correctly intentional degradation
+- ~25 action handler inner trend lookups (`except Exception: pass`) — these are post-success enrichment that correctly never blocks the action. Low risk, high regression surface.
+- No behavior changes, no new features, no business logic changes
+
+**Files changed:**
+- `apps/ai/intent_service.py`
+- `apps/ai/personal_assistant.py` (via earlier commit)
+- `apps/ai/views.py`
+- `apps/core/ai_orchestrator/orchestrator.py`
+- `apps/core/ai_orchestrator/execution_engine.py`
+- `docs/wlj_claude_changelog.md`
+
+**Tests:** 109/109 tests pass (41 intent routing + 68 orchestrator), Django check clean, all 5 files pass syntax check.
+
+---
+
 ## 2026-03-02 — Meal Intelligence Phase 10: Progressive Activation & Onboarding
 
 **What:** Implemented progressive intelligence activation to prevent low-quality dinner suggestions. Dashboard operates in "Setup Mode" when below minimum data thresholds (5 pantry items, 3 recipes). Includes a guided 3-step setup wizard, activation moment confirmation, CoS context awareness, and soft-skip behavior. All scoring engines are gated behind activation checks.

@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Fix CI: ai_orchestrator tests.py / tests/ directory conflict
+
+**What:** CI test suite failed with `ImportError: 'tests' module incorrectly imported` because `apps/core/ai_orchestrator/` had both a `tests.py` file and a `tests/` directory. Python's test loader cannot resolve the conflict.
+
+**Changes:**
+- `apps/core/ai_orchestrator/tests.py` → moved to `apps/core/ai_orchestrator/tests/test_orchestrator.py`
+- Deleted the conflicting `tests.py` file
+
+**Why:** The `tests/` directory was added (for `test_url_resolver.py`) alongside the existing `tests.py`, creating an import collision that broke the full CI test suite.
+
+---
+
 ## 2026-03-01 — Workout schedule respect + Faith daily engagement
 
 **What:** Fixed two design issues: (1) workout check-ins asked every day regardless of schedule, (2) faith module had no concept of daily engagement beyond reading plans.

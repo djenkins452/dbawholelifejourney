@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Recipe & "What's for Dinner?" Capability Assessment
+
+**What:** Comprehensive technical and architectural investigation of WLJ's recipe, meal planning, pantry, and household sharing capabilities. Includes competitive analysis of 10+ apps (Mealime, Paprika, Samsung Food, KitchenPal, NoWaste, Carb Manager, Eat This Much, mySugr), architecture proposal with model designs, 8-phase implementation roadmap, and risk assessment.
+
+**Changes:**
+- `docs/RECIPE_CAPABILITY_ASSESSMENT.md` — Full assessment document (new)
+
+**Key Findings:**
+- Recipe model exists (apps/life) but ingredients are plain text — no nutrition linkage
+- FoodItem library is excellent (18 nutrients, 8 dietary flags, multi-source with 1.9M+ foods)
+- No food pantry, household sharing, meal planning, or dinner suggestion capability exists
+- No competitor combines diabetes-aware meal planning + pantry tracking + AI recipe suggestions
+- Recommended as Major WLJ Pillar with incremental delivery (Phases 1-3 in 6-8 weeks for standalone value)
+
+**Why:** Strategic planning for a potential new WLJ capability that would fill a competitive gap in the meal planning market, leveraging WLJ's existing health tracking, intelligence pipeline, and medical integration.
+
 ## 2026-03-01 — Fix CI: ai_orchestrator tests.py / tests/ directory conflict
 
 **What:** CI test suite failed with `ImportError: 'tests' module incorrectly imported` because `apps/core/ai_orchestrator/` had both a `tests.py` file and a `tests/` directory. Python's test loader cannot resolve the conflict.

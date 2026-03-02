@@ -52,6 +52,11 @@ urlpatterns = [
         name="pantry_scan_confirm",
     ),
     path(
+        "pantry/scan/<int:session_id>/status/",
+        views.PantryScanStatusView.as_view(),
+        name="pantry_scan_status",
+    ),
+    path(
         "pantry/sessions/",
         views.PantryScanSessionsView.as_view(),
         name="pantry_scan_sessions",

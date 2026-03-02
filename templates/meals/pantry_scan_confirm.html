@@ -4,7 +4,7 @@
 {% block title %}Confirm Scan — Pantry — Whole Life Journey{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302a">
+<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302c">
 {% endblock %}
 
 {% block content %}
@@ -16,7 +16,34 @@
         <a href="{% url 'meals:pantry' %}" class="btn btn-secondary btn-sm">Back to Pantry</a>
     </div>
 
-    {% if completed %}
+    {% if processing %}
+    <!-- Processing state — photos are being analyzed by Celery worker -->
+    <div class="scan-processing-card" id="processing-card"
+         data-status-url="{% url 'meals:pantry_scan_status' session_id=session.pk %}">
+        <div class="scan-spinner">
+            <svg viewBox="0 0 50 50" width="56" height="56">
+                <circle cx="25" cy="25" r="20" fill="none" stroke="var(--color-primary, #4f46e5)" stroke-width="4" stroke-linecap="round" stroke-dasharray="90 150" stroke-dashoffset="0">
+                    <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="1s" repeatCount="indefinite"/>
+                </circle>
+            </svg>
+        </div>
+        <h3 class="scan-overlay-title" id="processing-title">Analyzing your photos...</h3>
+        <p class="scan-overlay-detail" id="processing-detail">
+            AI is identifying food items. This usually takes 15-30 seconds.
+        </p>
+        <div class="scan-progress-bar">
+            <div class="scan-progress-fill" id="processing-progress"
+                 style="width: {% widthratio processed_uploads total_uploads 100 %}%"></div>
+        </div>
+        <p class="scan-progress-text" id="processing-count">{{ processed_uploads }} of {{ total_uploads }} photos processed</p>
+        <div class="scan-overlay-steps">
+            <div class="scan-step active">Uploading photos</div>
+            <div class="scan-step {% if processed_uploads > 0 %}active{% endif %}" id="step-detect">Detecting food items</div>
+            <div class="scan-step" id="step-match">Matching to ingredients</div>
+        </div>
+    </div>
+
+    {% elif completed %}
     <!-- Read-only summary for completed sessions -->
     <div class="scan-summary-card">
         <div class="stats-row">
@@ -143,6 +170,63 @@
 (function() {
     'use strict';
 
+    // -- Processing poll logic --
+    var processingCard = document.getElementById('processing-card');
+    if (processingCard) {
+        var statusUrl = processingCard.dataset.statusUrl;
+        var pollCount = 0;
+        var maxPolls = 60;  // 60 × 3s = 3 minutes max
+
+        function pollStatus() {
+            pollCount++;
+            if (pollCount > maxPolls) {
+                var titleEl = document.getElementById('processing-title');
+                if (titleEl) titleEl.textContent = 'Taking longer than expected...';
+                var detailEl = document.getElementById('processing-detail');
+                if (detailEl) detailEl.textContent = 'Please refresh the page in a moment.';
+                return;
+            }
+            fetch(statusUrl)
+                .then(function(resp) { return resp.json(); })
+                .then(function(data) {
+                    // Update progress bar
+                    var pct = data.total > 0 ? Math.round((data.processed / data.total) * 100) : 0;
+                    var bar = document.getElementById('processing-progress');
+                    if (bar) bar.style.width = pct + '%';
+
+                    var countEl = document.getElementById('processing-count');
+                    if (countEl) countEl.textContent = data.processed + ' of ' + data.total + ' photos processed';
+
+                    // Update step indicators
+                    if (data.processed > 0) {
+                        var stepDetect = document.getElementById('step-detect');
+                        if (stepDetect) stepDetect.classList.add('active');
+                    }
+                    if (data.processed >= data.total && data.total > 0) {
+                        var stepMatch = document.getElementById('step-match');
+                        if (stepMatch) stepMatch.classList.add('active');
+                    }
+
+                    if (!data.processing) {
+                        // Done — reload to show detections
+                        var titleEl = document.getElementById('processing-title');
+                        if (titleEl) titleEl.textContent = 'Done! Loading results...';
+                        setTimeout(function() { window.location.reload(); }, 500);
+                    } else {
+                        setTimeout(pollStatus, 3000);
+                    }
+                })
+                .catch(function() {
+                    // Network error — retry
+                    setTimeout(pollStatus, 5000);
+                });
+        }
+
+        // Start polling after a brief delay
+        setTimeout(pollStatus, 2000);
+    }
+
+    // -- Select All / confirmation logic --
     var selectAllBox = document.getElementById('select-all-checkbox');
     var countEl = document.getElementById('select-count');
 

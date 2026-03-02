@@ -9,6 +9,28 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Async pantry scan: Celery background processing + real-time progress
+
+**What:** Moved Vision API photo processing from synchronous (blocking the HTTP request for 30-150s) to async via Celery task. The request now returns instantly after saving images, and the confirm page polls a status endpoint every 3 seconds showing a live progress bar until processing completes, then auto-reloads with detections.
+
+**Flow:** Upload photos → save to Cloudinary → dispatch `process_pantry_scan_task` to Celery → redirect to confirm page → confirm page shows processing card with spinner + progress bar → JS polls `/meals/pantry/scan/<id>/status/` every 3s → auto-reloads when done.
+
+**Fallback:** If Celery broker is down, falls back to synchronous processing in the view (original behavior).
+
+**Files created:**
+- `apps/meals/tasks.py` — `process_pantry_scan_task` Celery task with 180s soft time limit, retry, timeout handling
+
+**Files modified:**
+- `apps/meals/views.py` — StartView now saves images + dispatches Celery task + redirects immediately. Added `PantryScanStatusView` JSON endpoint. ConfirmView detects `processing` state.
+- `apps/meals/urls.py` — Added `/pantry/scan/<id>/status/` route
+- `templates/meals/pantry_scan_confirm.html` — New processing state with inline progress card, spinner, progress bar, step indicators, JS polling logic
+- `static/css/meals.css` — Processing card and progress bar styles
+- `templates/meals/pantry.html` — CSS version bump
+
+**Tests:** 32 pantry scan tests passing. System check clean.
+
+---
+
 ## 2026-03-02 — Add loading overlay for pantry photo scan processing
 
 **What:** Full-page loading overlay with animated spinner and step-by-step progress indicators during photo scan processing. Shows "Uploading photos" → "Detecting food items" → "Matching to ingredients" with timed transitions. Replaces the barely-visible "Scanning..." button text change.

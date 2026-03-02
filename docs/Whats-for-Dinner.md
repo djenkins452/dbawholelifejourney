@@ -1,6 +1,6 @@
 # What's for Dinner? — WLJ Meal Intelligence Pillar
 
-**Status:** COMPLETE (Backend + Frontend + Activation)
+**Status:** COMPLETE (Backend + Frontend + Activation + Preview)
 **Created:** 2026-03-01
 **Last Updated:** 2026-03-02
 
@@ -431,6 +431,39 @@ Transform WLJ from a nutrition tracker into a household meal intelligence system
 - `apps/core/ai_orchestrator/cos_context.py` — Activation state in meals context
 - `static/css/meals.css` — Setup mode + wizard + activation moment styles
 - `apps/meals/tests/test_views.py` — Updated tests for activation gate behavior
+
+---
+
+## Phase 11: Power Preview & Anticipation Layer
+
+**Status:** COMPLETE
+**Completed:** 2026-03-02
+
+**Objective:** Transform Setup Mode from a data-collection prompt into a premium capability showcase. Create anticipation by showing locked previews of what activates after initialization.
+
+**Design Philosophy:**
+- Setup Mode should sell value, not ask for data
+- Locked preview cards demonstrate system power before activation
+- Capability-unlock language positions the system as a household optimization engine
+- Every element communicates: "This system is worth the 3-minute setup"
+
+**Deliverables:**
+- [x] "Kitchen Intelligence Initialization" hero title with 6 capability tags (blood sugar protection, protein alignment, waste reduction, calendar awareness, grocery efficiency, family scaling)
+- [x] 3 locked preview cards: Optimized Dinner (mock score 87, Chicken Stir Fry), Expiration Intelligence (mock waste alert), Grocery Optimization (mock weekly stats)
+- [x] "Why This Matters" side panel replacing generic setup explanation
+- [x] Setup wizard preamble: "You're 3 minutes away from activating a household optimization engine"
+- [x] Capability-unlock step descriptions throughout wizard
+- [x] Enhanced post-activation messaging: "Blood sugar protection, waste reduction, and dinner optimization are now active"
+- [x] CSS: capability grid, locked preview cards with gradient overlay, lock icon badges, preview stats
+- [x] 2 new tests: capability tag rendering, locked preview card rendering
+- [x] All 59 meals tests passing
+
+**Files Modified:**
+- `templates/meals/dashboard.html` — Capability grid, locked preview cards section, updated messaging
+- `templates/meals/setup.html` — Preamble, capability-unlock language, enhanced activation message
+- `static/css/meals.css` — ~150 lines for new components
+- `apps/meals/tests/test_meal_activation.py` — Updated assertions + 2 new tests
+- `apps/meals/tests/test_views.py` — Updated dashboard assertion
 
 ---
 

@@ -73,7 +73,7 @@ class TestMealsDashboardView(TestUserMixin, TestCase):
         """Dashboard shows setup mode when below activation threshold."""
         response = self.client.get(reverse("meals:dashboard"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Build Your Kitchen Intelligence")
+        self.assertContains(response, "Kitchen Intelligence Initialization")
 
     def test_dashboard_with_data(self):
         """Dashboard shows data when pantry items exist."""

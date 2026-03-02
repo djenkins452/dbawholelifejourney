@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Fix Meals navigation: backfill migration + More page URL
+
+**What:** Meals module wasn't appearing in navigation for existing users. Two issues: (1) no backfill migration to create `UserModulePreference` records for existing users (the `initialize_for_user()` auto-sync was blocked by the 5-minute nav cache), and (2) the More page `MoreView.MODULE_URLS` hardcoded mapping was missing `meals`.
+
+**Files changed:**
+- `apps/users/migrations/0072_backfill_meals_module_prefs.py` — New data migration to create Meals `UserModulePreference` for all existing users (follows 0070 notes pattern)
+- `apps/core/views.py` — Added `'meals': '/meals/'` to `MoreView.MODULE_URLS`
+
+**Why:** Existing users with cached nav data never triggered `initialize_for_user()` to create the meals preference. The backfill migration ensures the preference exists immediately on deploy, and the More page URL mapping ensures meals appears correctly on the mobile More screen.
+
+---
+
 ## 2026-03-02 — WLJ Meal Intelligence Pillar: Complete backend implementation (Phases 1-8)
 
 **What:** Built the complete "What's for Dinner?" Meal Intelligence pillar — a new `apps/meals/` Django app with 11 models, 10 service modules, 4 intelligence engine integrations (SAE/PIE/PRIE/PGE), and 193 passing tests. Transforms WLJ from a nutrition tracker into a household meal intelligence system with deterministic scoring, inventory awareness, and advanced overlays (emotional, faith, finance, decision fatigue).

@@ -9,103 +9,120 @@
 
 # WLJ Change History
 
-## 2026-03-02 — Recipe Photo Import: documentation and help integration
+## 2026-03-02 — Add "Add Task" button to calendar month view
 
-Completed documentation gaps found by /close audit for Recipe Photo Import feature.
-
-**Changes:**
-- Added teaching destination PK 171 for recipe scan page
-- Added help topic PK 113 (RECIPE_SCAN) with usage guide
-- Added `help_context_id = "RECIPE_SCAN"` to RecipeScanView
-- Updated features doc with Recipe Photo Import section under Life & Organization
-- Updated fixture loader reset to cover teaching_destinations and help_topics
-
-**Files Modified:**
-- `apps/help/fixtures/teaching_destinations.json` — PK 171
-- `apps/help/fixtures/help_topics.json` — PK 113
-- `apps/life/views.py` — help_context_id on RecipeScanView
-- `docs/wlj_claude_features.md` — Recipe Photo Import section, updated view/template counts
-- `apps/core/management/commands/load_initial_data.py` — updated reset method
-
-**Why:** /close audit found 3 missing documentation entries for the Recipe Photo Import feature.
-
-## 2026-03-02 — Multi-select + bulk actions on people list
-
-**What:** Added checkboxes to each person card on the people list. When 1+ people are selected, a floating action bar slides up with three actions:
-- **Journal** — opens new journal entry pre-filled with `@Name1 @Name2` mentions
-- **Pray** — opens new prayer request pre-filled with names in person_or_situation and title
-- **Group** — opens inline modal to name and create a group with selected people
-
-Floating action bar is responsive (stacks vertically on mobile), supports clear selection, and conditionally shows Journal/Pray buttons based on module enabled status.
+**What:** Added an "Add Task" button to the calendar month view header. Clicking it navigates to the task creation form with a `?next=` parameter that returns the user to the same month they were viewing after creating (or canceling) the task. The Cancel button in the task form now also respects the `?next` parameter instead of always going to the task list. Removed diagnostic console.log from dashboard.html.
 
 **Files modified:**
-- `templates/relationships/person_list.html` — Full rewrite: checkboxes, floating action bar, create-group modal, CSP-compliant JS
-- `apps/journal/views.py` — Extended `EntryCreateView.get_initial()` to handle `?people=1,2,3` with @mention pre-fill
-- `apps/faith/views.py` — Added `get_initial()` to `PrayerCreateView` for `?people=1,2,3` pre-fill
-
-**Tests:** 106 relationships tests + 147 faith tests passing.
+- `templates/calendar_engine/month.html` — Added "Add Task" button in header with dynamic `?next=` URL that stays in sync with current month/year
+- `templates/life/task_form.html` — Cancel button now uses `request.GET.next` when available
+- `templates/calendar_engine/dashboard.html` — Removed Bible Study diagnostic console.log
 
 ---
 
-## 2026-03-02 — People Groups: model, CRUD, quick-create API
+## 2026-03-02 — Fix: Duplicate calendar events from recurring occurrences + DST-safe recurrence
 
-**What:** Added PersonGroup model for organizing contacts into named groups. Full CRUD (list, create, detail, edit, delete), soft-deletable, owner-scoped. Quick-create AJAX endpoint for Phase 3 multi-select integration. Added "Groups" link on insights page header.
-
-**Files created:**
-- `apps/relationships/migrations/0002_persongroup_and_more.py` — PersonGroup model + unique constraint
-- `templates/relationships/group_list.html` — Group list with member preview chips
-- `templates/relationships/group_form.html` — Create/edit form with checkbox member grid
-- `templates/relationships/group_detail.html` — Detail page with member list and delete confirm
-- `apps/relationships/tests/test_person_groups.py` — 27 tests covering model, views, and API
+**What:** Three related calendar bugs fixed:
+1. **Duplicate events on timeline:** When a manual CalendarEvent existed on the same date as a recurring event's computed occurrence (same title), both appeared — e.g., "Bible Study" at 6 PM (correct, from direct event) AND at 7 PM (wrong, from recurring occurrence with UTC-based time shift). Added title+date deduplication in `_get_events_in_range()` so direct events take priority over recurring occurrences.
+2. **DST-unsafe recurrence computation:** `RecurrenceRule.get_occurrences()` advanced via `timedelta` on UTC datetimes, which shifts wall-clock time by 1 hour at DST boundaries. Refactored to work in the recurrence's local timezone — converts base event to local date/time, advances the date, then reconstructs aware datetimes. "6 PM every Wed" stays 6 PM regardless of CST↔CDT transitions.
+3. **Diagnostic logging:** Added temporary console.log in dashboard.html to dump raw API data for Bible Study events (id, start_dt, source_type, is_occurrence) for verification.
 
 **Files modified:**
-- `apps/relationships/models.py` — Added PersonGroup (SoftDeleteModel, ManyToMany to Person)
-- `apps/relationships/forms.py` — Added PersonGroupForm with duplicate name validation
-- `apps/relationships/views.py` — Added 7 group views (list, create, detail, update, delete, quick-create)
-- `apps/relationships/urls.py` — Added 6 group URL routes
-- `apps/relationships/admin.py` — Registered PersonGroupAdmin with filter_horizontal
-- `templates/relationships/insights.html` — Added "Groups" button to header actions
-
-**Tests:** 106 total (79 existing + 27 new), all passing.
+- `apps/calendar_engine/views.py` — `_get_events_in_range()` deduplicates recurring occurrences against direct events by title+date; `_event_to_dict()` now includes `has_recurrence`
+- `apps/calendar_engine/models.py` — `RecurrenceRule.get_occurrences()` rewritten to be DST-safe using local timezone; old `_advance()` replaced with `_advance_date()` operating on dates
+- `templates/calendar_engine/dashboard.html` — Diagnostic console.log for Bible Study events
 
 ---
 
-## 2026-03-02 — Replace score with actionable insights + change nav route
+## 2026-03-02 — Fix: Calendar event times off by 1 hour + edit modal overflow
 
-**What:** Removed the meaningless 0-100 score circle from the Relationships Insights page. Replaced with three actionable summary cards: "Reach Out" (stale contact count), "This Week" (active 7d count), and "Your Anchors" (top interacted names). Changed page title from "Relational Health" to "People". Simplified breadcrumb. Added "All People" and "+ Add" buttons to page header. Changed module nav entry point from person list to insights page so clicking "People" in sidebar lands on the actionable insights dashboard.
-
-**Files created:**
-- `apps/users/migrations/0075_update_relationships_nav_route.py` — Data migration to change route from person_list to insights
+**What:** Two calendar UI issues fixed:
+1. **Time display off by ~1 hour:** JavaScript was using `new Date(isoStr).getHours()` to display event times, which re-interprets the server-provided timezone offset through the browser's local timezone. If the browser timezone differs from the user's Django timezone preference, times shift. Fixed by parsing hours/minutes directly from the ISO string (which the server already returns in the user's timezone via TimezoneMiddleware).
+2. **Edit modal overflow:** The dashboard edit modal's `max-width: 440px` was too narrow for datetime-local inputs, causing the End field to overflow. Increased to 520px and added responsive flex-direction for mobile.
 
 **Files modified:**
-- `templates/relationships/insights.html` — Full rewrite: removed score circle, added 3 action cards, new title/breadcrumb, responsive CSS
-- `apps/relationships/views.py` — Removed `ctx['score']` from insights view context
-- `apps/users/fixtures/module_definitions.json` — Changed route_name to `relationships:insights`
-- `apps/core/management/commands/load_initial_data.py` — Added fixture reset for nav route change
-- `apps/relationships/tests/test_relationship_insights.py` — Updated assertion for new page title
-
-**Why:** The 0-100 score was meaningless to users ("what does 89 mean?"). The new actionable cards tell users what to do, not just track numbers. Nav landing on insights instead of list makes the module about action, not just tracking.
+- `templates/calendar_engine/dashboard.html` — `formatTime()`, `formatDateTime()`, `toLocalInput()`, hour grouping all parse ISO strings directly; modal widened to 520px; responsive flex for form row
+- `templates/calendar_engine/month.html` — `formatTime()` and `formatFullTime()` parse ISO strings directly
+- `templates/calendar_engine/manage.html` — `formatDT()` and `toLocalInput()` parse ISO strings directly
 
 ---
 
-## 2026-03-02 — Activate Relationships module + redesign dashboard tile
+## 2026-03-02 — Fix: Calendar month view events ordered by UTC instead of local time
 
-**What:** Moved Relationships from "Coming Soon" to active module. Now on by default for all users, appears in desktop left rail and mobile More menu. Users can toggle it off in Preferences. Redesigned dashboard tile to match standard tile pattern (section-header, stat boxes, person list with chevrons) instead of the bespoke "Relational Health" layout with inline styles.
-
-**Files created:**
-- `apps/users/migrations/0073_add_relationships_module_definition.py` — ModuleDefinition for nav
-- `apps/users/migrations/0074_relationships_enabled_default_true.py` — Default change + backfill
+**What:** Calendar events were displayed out of chronological order because the API serialized datetimes in UTC. The JavaScript assigns events to calendar days using `substring(0,10)` on the ISO string, so UTC dates caused events to land on wrong days (e.g., "7:30pm March 2 Central" became March 3 UTC) and sort before earlier local events. Fixed by converting `start_dt`/`end_dt` to user's local timezone via `timezone.localtime()` before serialization.
 
 **Files modified:**
-- `apps/users/models.py` — Changed `relationships_enabled` default from False to True
-- `apps/users/fixtures/module_definitions.json` — Added PK 10 (Relationships/People)
-- `apps/core/context_processors.py` — Added `relationships_enabled` to template context
-- `templates/users/preferences.html` — Moved Relationships from Coming Soon to active modules
-- `templates/dashboard/tiles/relational_health.html` — Full redesign: section-header pattern, stat boxes, person list, proper CSS classes
-- `apps/dashboard/services/config_service.py` — Renamed tile from "Relational Health" to "Relationships"
-- `apps/core/management/commands/load_initial_data.py` — Added module_definitions fixture reset
+- `apps/calendar_engine/views.py` — `_event_to_dict()` and `_occurrence_to_dict()` now convert to local time before `.isoformat()`
 
-**Why:** Relationships module is now functional (R1 + R2 complete) and should be visible in navigation. Dashboard tile needed to match the visual pattern of other tiles (Goal Progress, Habit Goals, etc.) rather than looking like a standalone widget.
+---
+
+## 2026-03-02 — Fix: process pantry photos from memory as primary path
+
+**What:** Cloudinary read-back via `image_field_to_base64()` was silently failing, causing "No items detected" despite clear photos. Switched back to in-memory processing as the primary path: view reads raw bytes from request.FILES, processes through Vision API directly (no Cloudinary round-trip). Images are saved to Cloudinary as backup only (for potential Celery retry). Celery task only dispatched for unprocessed leftovers.
+
+**Files modified:**
+- `apps/meals/views.py` — PantryScanStartView now reads files into memory, processes via `process_from_memory()`, saves to Cloudinary as backup, dispatches Celery only for unprocessed remainders
+
+---
+
+## 2026-03-02 — Fix: Celery worker fallback for pantry scan processing
+
+**What:** Celery task was dispatched to Redis but the worker service hadn't been redeployed with the new `apps.meals.tasks` module, so tasks silently failed. Added sync fallback safety nets: (1) On the confirm page GET, if session is >30s old with unprocessed uploads, processes them synchronously. (2) On the status poll endpoint, processes one upload per poll request for incremental progress. This ensures photos are always processed regardless of Celery worker state.
+
+**Files modified:**
+- `apps/meals/views.py` — PantryScanConfirmView and PantryScanStatusView now have sync fallback processing when Celery worker appears stuck
+
+---
+
+## 2026-03-02 — Async pantry scan: Celery background processing + real-time progress
+
+**What:** Moved Vision API photo processing from synchronous (blocking the HTTP request for 30-150s) to async via Celery task. The request now returns instantly after saving images, and the confirm page polls a status endpoint every 3 seconds showing a live progress bar until processing completes, then auto-reloads with detections.
+
+**Flow:** Upload photos → save to Cloudinary → dispatch `process_pantry_scan_task` to Celery → redirect to confirm page → confirm page shows processing card with spinner + progress bar → JS polls `/meals/pantry/scan/<id>/status/` every 3s → auto-reloads when done.
+
+**Fallback:** If Celery broker is down, falls back to synchronous processing in the view (original behavior).
+
+**Files created:**
+- `apps/meals/tasks.py` — `process_pantry_scan_task` Celery task with 180s soft time limit, retry, timeout handling
+
+**Files modified:**
+- `apps/meals/views.py` — StartView now saves images + dispatches Celery task + redirects immediately. Added `PantryScanStatusView` JSON endpoint. ConfirmView detects `processing` state.
+- `apps/meals/urls.py` — Added `/pantry/scan/<id>/status/` route
+- `templates/meals/pantry_scan_confirm.html` — New processing state with inline progress card, spinner, progress bar, step indicators, JS polling logic
+- `static/css/meals.css` — Processing card and progress bar styles
+- `templates/meals/pantry.html` — CSS version bump
+
+**Tests:** 32 pantry scan tests passing. System check clean.
+
+---
+
+## 2026-03-02 — Add loading overlay for pantry photo scan processing
+
+**What:** Full-page loading overlay with animated spinner and step-by-step progress indicators during photo scan processing. Shows "Uploading photos" → "Detecting food items" → "Matching to ingredients" with timed transitions. Replaces the barely-visible "Scanning..." button text change.
+
+**Files modified:**
+- `templates/meals/pantry.html` — Added scan-overlay HTML, updated JS to show overlay with animated step progression
+- `static/css/meals.css` — Added overlay, spinner, step, and pulse animation styles
+
+---
+
+## 2026-03-02 — Fix pantry scan: 0 items confirmed + 503 timeout on multi-photo upload
+
+**Bug 1 — Zero items confirmed despite selecting all:**
+- **Root cause:** When Vision AI labels (e.g., "Organic Whole Milk") didn't match any Ingredient records, detections were created with `matched_ingredient=None`. The confirmation form showed "-- No match --" in the dropdown. When user clicked Select All → Confirm, `confirm_session()` silently rejected ALL detections with no matched ingredient, resulting in 0 pantry items.
+- **Fix:** `confirm_session()` now auto-creates an Ingredient record via `get_or_create_ingredient()` when a user-confirmed detection has no matched ingredient. The user explicitly confirmed they want the item — don't silently reject it.
+
+**Bug 2 — 503 backend write error on 5-photo upload:**
+- **Root cause:** The start view uploaded all photos to Cloudinary first, then read them BACK from Cloudinary for Vision API processing. For 5 photos: 5 Cloudinary uploads + 5 Cloudinary reads + 5 Vision API calls (30s timeout each) = 200+ seconds → Railway 503 timeout.
+- **Fix:** Photos are now processed directly from in-memory request bytes — no Cloudinary round-trip. `PantryPhotoUpload.image` field is now optional (null=True). Added `process_from_memory()` service method. Reduced pantry scan image size from 2048px to 1024px (adequate for food detection, much faster).
+
+**Files modified:**
+- `apps/meals/services/pantry_photo_detection.py` — Added `process_from_memory()`, `_process_base64()`, auto-ingredient creation in `confirm_session()`
+- `apps/meals/views.py` — StartView now reads files into memory, creates upload records without images, calls `process_from_memory()`
+- `apps/meals/models.py` — PantryPhotoUpload.image now nullable
+- `apps/meals/migrations/0004_pantry_photo_image_optional.py` — Migration for nullable image
+
+**Tests:** 32 pantry scan tests passing.
 
 ---
 
@@ -168,6 +185,20 @@ Floating action bar is responsive (stacks vertically on mobile), supports clear 
 - `apps/core/management/commands/load_initial_data.py` — Added fixture reset for R1
 
 **Why:** Relational intelligence is foundational platform infrastructure. Every module (Journal, Tasks, Prayer, Events, Meals) generates relationship signals. This phase creates the canonical data model and cross-module wiring so future phases (relationship graph, collaborative planning, AI nudges) have a solid foundation.
+
+## 2026-03-02 — Pantry Scan UX: Select All + Duplicate Prevention
+
+**What:** Two usability improvements to the pantry photo scan confirmation page:
+1. **Select All checkbox** — Users can check all detected items at once and then uncheck the few they don't want. Includes item count display and indeterminate state.
+2. **Cross-session duplicate prevention** — Detections that match ingredients already in the user's pantry are flagged with an "Already in pantry" badge and default to unchecked. Within-session deduplication also prevents the same ingredient appearing twice across different photo uploads.
+
+**Files modified:**
+- `templates/meals/pantry_scan_confirm.html` — Select All bar, duplicate badge, default-unchecked logic, JS toggle
+- `static/css/meals.css` — Styles for select-all bar and duplicate badge
+- `apps/meals/views.py` — PantryScanConfirmView annotates detections with `already_in_pantry`
+- `apps/meals/services/pantry_photo_detection.py` — `_create_detections()` deduplicates across uploads within session
+
+---
 
 ## 2026-03-02 — Phase 12: Pantry Photo Intelligence (Session-Based)
 

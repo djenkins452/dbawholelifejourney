@@ -9,7 +9,26 @@
 
 # WLJ Change History
 
-<<<<<<< HEAD
+## 2026-03-02 — Feature: Recipe Photo Import (Scan Recipe from Photo)
+
+**What:** New feature allowing users to photograph a recipe (from a cookbook, card, magazine, or handwritten note) and have AI extract all recipe details. The photo is stored alongside the recipe.
+
+**Flow:** User taps "Scan Recipe" on recipe list → takes/uploads photo → AI extracts title, ingredients, instructions, times, servings, difficulty, category, source → user reviews/edits pre-filled form → saves recipe with photo.
+
+**Technical:**
+- Created `RecipePhotoImportService` in `apps/life/services/recipe_photo_import.py` — uses GPT-4o Vision API with recipe-specific OCR prompt, 2048px max resolution, `detail: high`
+- Added 3 views to `apps/life/views.py`: `RecipeScanView` (page), `RecipeScanProcessView` (AJAX processing), `RecipeScanConfirmView` (recipe creation)
+- Created `templates/life/recipe_scan.html` — single-page experience with upload, processing overlay, and review states
+- Added "Scan Recipe" button to recipe list page
+- Reuses `resize_for_vision()` from `apps/scan/services/image_utils.py`
+- In-memory processing (no Cloudinary round-trip for Vision API), photo saved to Recipe.image on confirm
+- CSP-compliant (addEventListener only), mobile-first (camera capture)
+
+**Files created:** `apps/life/services/recipe_photo_import.py`, `templates/life/recipe_scan.html`, `apps/life/tests/test_recipe_scan.py`
+**Files modified:** `apps/life/views.py`, `apps/life/urls.py`, `templates/life/recipe_list.html`
+
+---
+
 ## 2026-03-02 — Fix: Calendar event times off by 1 hour + edit modal overflow
 
 **What:** Two calendar UI issues fixed:
@@ -29,6 +48,23 @@
 
 **Files modified:**
 - `apps/calendar_engine/views.py` — `_event_to_dict()` and `_occurrence_to_dict()` now convert to local time before `.isoformat()`
+
+---
+**What:** New feature allowing users to photograph a recipe (from a cookbook, card, magazine, or handwritten note) and have AI extract all recipe details. The photo is stored alongside the recipe.
+
+**Flow:** User taps "Scan Recipe" on recipe list → takes/uploads photo → AI extracts title, ingredients, instructions, times, servings, difficulty, category, source → user reviews/edits pre-filled form → saves recipe with photo.
+
+**Technical:**
+- Created `RecipePhotoImportService` in `apps/life/services/recipe_photo_import.py` — uses GPT-4o Vision API with recipe-specific OCR prompt, 2048px max resolution, `detail: high`
+- Added 3 views to `apps/life/views.py`: `RecipeScanView` (page), `RecipeScanProcessView` (AJAX processing), `RecipeScanConfirmView` (recipe creation)
+- Created `templates/life/recipe_scan.html` — single-page experience with upload, processing overlay, and review states
+- Added "Scan Recipe" button to recipe list page
+- Reuses `resize_for_vision()` from `apps/scan/services/image_utils.py`
+- In-memory processing (no Cloudinary round-trip for Vision API), photo saved to Recipe.image on confirm
+- CSP-compliant (addEventListener only), mobile-first (camera capture)
+
+**Files created:** `apps/life/services/recipe_photo_import.py`, `templates/life/recipe_scan.html`, `apps/life/tests/test_recipe_scan.py`
+**Files modified:** `apps/life/views.py`, `apps/life/urls.py`, `templates/life/recipe_list.html`
 
 ---
 

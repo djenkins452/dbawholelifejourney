@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 117,
+    "fields": {
+      "title": "Recipe Photo Import — Scan Recipes with Your Camera",
+      "description": "Take a photo of any recipe — from a cookbook, recipe card, magazine, or handwritten note — and AI will extract the title, ingredients, instructions, cooking times, and more. Review and edit the extracted data before saving. The original photo is stored alongside your recipe for reference.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-02",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/life/recipes/scan/",
+      "created_at": "2026-03-02T23:30:00Z",
+      "updated_at": "2026-03-02T23:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 116,
     "fields": {
       "title": "Meal Intelligence — Setup Mode Now Shows What's Coming",

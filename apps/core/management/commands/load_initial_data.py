@@ -863,6 +863,12 @@ class Command(BaseCommand):
         # One-time: Reset module_definitions fixture to add Relationships module (PK 10)
         self._reset_relationships_module_definition_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset module_definitions for route change (person_list → insights)
+        self._reset_relationships_nav_route_fixtures(DataLoadConfig, force, verbosity)
+
+        # One-time: Reset release_notes for Recipe Photo Import (PK 114)
+        self._reset_recipe_photo_import_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -4645,6 +4651,37 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset relationships module definition fixtures FAILED: {e}'))
 
+    def _reset_relationships_nav_route_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload module_definitions fixture to change Relationships nav route
+        from person_list to insights.
+        """
+        reset_tracker_name = 'reset_relationships_nav_route_2026_03_02'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='module_definitions')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset module_definitions loader for Relationships nav route change')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset module_definitions for Relationships nav route',
+                'command',
+                'One-time reset to change route from person_list to insights'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset relationships nav route fixtures FAILED: {e}'))
+
     def _reset_meals_power_preview_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """
         One-time reset to reload release_notes (PK 116) and help_topics (PKs 106-112)
@@ -4679,3 +4716,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset meals power preview fixtures FAILED: {e}'))
+
+    def _reset_recipe_photo_import_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 114)
+        for Recipe Photo Import feature.
+        """
+        reset_tracker_name = 'reset_recipe_photo_import_2026_03_02'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes loader for Recipe Photo Import')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Recipe Photo Import',
+                'command',
+                'One-time reset to reload release_notes PK 114'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset recipe photo import fixtures FAILED: {e}'))

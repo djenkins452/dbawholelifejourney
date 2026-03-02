@@ -19,6 +19,69 @@
         </a>
     </div>
 
+    <!-- Phase 12: Pantry Photo Scan Buttons -->
+    <div class="scan-location-buttons">
+        <h2 class="scan-section-title">Scan Your Kitchen</h2>
+        <div class="scan-buttons-row">
+            <form method="post" action="{% url 'meals:pantry_scan' %}" enctype="multipart/form-data"
+                  class="scan-location-form" data-location="fridge">
+                {% csrf_token %}
+                <input type="hidden" name="location_type" value="fridge">
+                <input type="file" name="photos" accept="image/*" multiple class="scan-file-input"
+                       id="scan-fridge-input" aria-label="Upload fridge photos">
+                <button type="button" class="scan-location-btn" data-trigger="fridge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                        <circle cx="12" cy="13" r="4"/>
+                    </svg>
+                    <span>Scan Fridge</span>
+                </button>
+            </form>
+
+            <form method="post" action="{% url 'meals:pantry_scan' %}" enctype="multipart/form-data"
+                  class="scan-location-form" data-location="pantry">
+                {% csrf_token %}
+                <input type="hidden" name="location_type" value="pantry">
+                <input type="file" name="photos" accept="image/*" multiple class="scan-file-input"
+                       id="scan-pantry-input" aria-label="Upload pantry photos">
+                <button type="button" class="scan-location-btn" data-trigger="pantry">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                        <circle cx="12" cy="13" r="4"/>
+                    </svg>
+                    <span>Scan Pantry Shelf</span>
+                </button>
+            </form>
+
+            <form method="post" action="{% url 'meals:pantry_scan' %}" enctype="multipart/form-data"
+                  class="scan-location-form" data-location="freezer">
+                {% csrf_token %}
+                <input type="hidden" name="location_type" value="freezer">
+                <input type="file" name="photos" accept="image/*" multiple class="scan-file-input"
+                       id="scan-freezer-input" aria-label="Upload freezer photos">
+                <button type="button" class="scan-location-btn" data-trigger="freezer">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                        <circle cx="12" cy="13" r="4"/>
+                    </svg>
+                    <span>Scan Freezer</span>
+                </button>
+            </form>
+        </div>
+        <p class="scan-hint">Upload 1-5 photos per scan. AI detects items for your review before adding.</p>
+    </div>
+
+    {% if pantry_confidence and pantry_confidence.overall_confidence > 0 %}
+    <div class="pantry-confidence-bar">
+        <span class="pantry-confidence-label">Pantry Confidence:</span>
+        <div class="confidence-track">
+            <div class="confidence-fill {% if pantry_confidence.overall_confidence >= 0.75 %}confidence-high{% elif pantry_confidence.overall_confidence >= 0.50 %}confidence-medium{% else %}confidence-low{% endif %}"
+                 style="width: {{ pantry_confidence.overall_confidence|floatformat:0 }}%"></div>
+        </div>
+        <span class="pantry-confidence-value">{{ pantry_confidence.overall_confidence|floatformat:0 }}%</span>
+    </div>
+    {% endif %}
+
     <!-- Stats Row -->
     <div class="stats-row">
         <div class="stat-card">
@@ -82,8 +145,38 @@
             <line x1="3" y1="6" x2="21" y2="6"/>
         </svg>
         <h2>Pantry is empty</h2>
-        <p>Scan a grocery receipt or add items manually to start tracking your pantry.</p>
+        <p>Scan a grocery receipt or take photos of your fridge to start tracking your pantry.</p>
         <a href="{% url 'meals:receipts' %}" class="btn btn-primary">Scan Receipt</a>
+    </div>
+    {% endif %}
+
+    <!-- Phase 12: Recent Scan Sessions -->
+    {% if recent_sessions %}
+    <div class="scan-sessions-section">
+        <div class="scan-sessions-header">
+            <h2>Recent Scans</h2>
+            <a href="{% url 'meals:pantry_scan_sessions' %}" class="btn btn-secondary btn-sm">View All</a>
+        </div>
+        <div class="scan-sessions-grid">
+            {% for session in recent_sessions %}
+            <div class="scan-session-card">
+                <div class="session-header">
+                    <span class="session-title">{{ session.get_location_type_display }} Scan</span>
+                    <span class="session-date">{{ session.created_at|date:"M j" }}</span>
+                </div>
+                <div class="session-stats">
+                    <span class="session-confidence">Confidence: {{ session.overall_confidence|floatformat:0 }}%</span>
+                    <span class="session-confirmed">{{ session.items_confirmed }} confirmed</span>
+                    {% with rejected=session.items_detected|add:"-"|add:session.items_confirmed %}
+                    {% if rejected and rejected != "0" %}
+                    <span class="session-rejected">{{ rejected }} rejected</span>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+                <a href="{% url 'meals:pantry_scan_confirm' session_id=session.pk %}" class="session-details-link">View Details</a>
+            </div>
+            {% endfor %}
+        </div>
     </div>
     {% endif %}
 </div>
@@ -91,6 +184,8 @@
 <script nonce="{{ csp_nonce }}">
 (function() {
     'use strict';
+
+    // Pantry item actions (confirm/used)
     document.addEventListener('click', function(e) {
         var btn = e.target.closest('[data-action]');
         if (!btn) return;
@@ -130,6 +225,46 @@
                 }
             }
         });
+    });
+
+    // Phase 12: Scan location button handlers
+    document.addEventListener('click', function(e) {
+        var triggerBtn = e.target.closest('[data-trigger]');
+        if (!triggerBtn) return;
+        var location = triggerBtn.dataset.trigger;
+        var form = triggerBtn.closest('.scan-location-form');
+        if (!form) return;
+        var fileInput = form.querySelector('.scan-file-input');
+        if (fileInput) fileInput.click();
+    });
+
+    // Auto-submit when files are selected
+    document.addEventListener('change', function(e) {
+        if (!e.target.classList.contains('scan-file-input')) return;
+        var form = e.target.closest('.scan-location-form');
+        if (!form) return;
+        var files = e.target.files;
+        if (!files || files.length === 0) return;
+        if (files.length > 5) {
+            alert('Maximum 5 photos per scan session.');
+            e.target.value = '';
+            return;
+        }
+        // Validate file sizes
+        for (var i = 0; i < files.length; i++) {
+            if (files[i].size > 10 * 1024 * 1024) {
+                alert('File "' + files[i].name + '" exceeds the 10MB limit.');
+                e.target.value = '';
+                return;
+            }
+        }
+        // Show loading state
+        var btn = form.querySelector('.scan-location-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.querySelector('span').textContent = 'Scanning...';
+        }
+        form.submit();
     });
 })();
 </script>

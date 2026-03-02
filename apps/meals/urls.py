@@ -44,4 +44,16 @@ urlpatterns = [
         views.RecipeIntelligenceDetailView.as_view(),
         name="recipe_detail",
     ),
+    # Phase 12: Pantry Photo Scan
+    path("pantry/scan/", views.PantryScanStartView.as_view(), name="pantry_scan"),
+    path(
+        "pantry/scan/<int:session_id>/confirm/",
+        views.PantryScanConfirmView.as_view(),
+        name="pantry_scan_confirm",
+    ),
+    path(
+        "pantry/sessions/",
+        views.PantryScanSessionsView.as_view(),
+        name="pantry_scan_sessions",
+    ),
 ]

@@ -1,6 +1,6 @@
 # What's for Dinner? — WLJ Meal Intelligence Pillar
 
-**Status:** COMPLETE (Backend + Frontend + Activation + Preview)
+**Status:** COMPLETE (Backend + Frontend + Activation + Preview + Photo Intelligence)
 **Created:** 2026-03-01
 **Last Updated:** 2026-03-02
 
@@ -464,6 +464,101 @@ Transform WLJ from a nutrition tracker into a household meal intelligence system
 - `static/css/meals.css` — ~150 lines for new components
 - `apps/meals/tests/test_meal_activation.py` — Updated assertions + 2 new tests
 - `apps/meals/tests/test_views.py` — Updated dashboard assertion
+
+---
+
+---
+
+## Phase 12 — Pantry Photo Intelligence (Session-Based)
+
+**Status:** COMPLETE
+**Completed:** 2026-03-02
+
+**Objective:** Allow users to scan sections of their kitchen (fridge, pantry shelf, freezer) with photos, let AI detect food items, and confirm before adding to pantry. Session-based architecture with confidence tracking and drift modeling.
+
+### Session Architecture
+
+Each photo scan creates a `PantryScanSession` with:
+- **Location type:** fridge, pantry, freezer
+- **1-5 photo uploads** per session
+- **AI detection pipeline:** Vision AI → label extraction → ingredient matching → confidence scoring
+- **No auto-add:** All detections require user confirmation before PantryItem creation
+
+### Models
+
+| Model | Purpose |
+|-------|---------|
+| `PantryScanSession` | Session tracking: household, location, confidence, items detected/confirmed |
+| `PantryPhotoUpload` | Individual photo with raw detection JSON |
+| `PantryPhotoDetection` | Single detected item with confidence, matched ingredient, confirm/reject status |
+
+### Flow
+
+```
+Select Location → Upload 1-5 Photos → AI Detection →
+Ingredient Matching → Guided Confirmation →
+Pantry Update → Session Confidence Score
+```
+
+### Confidence Modeling
+
+- **Detection confidence:** Per-item AI confidence score (0-1)
+- **Session confidence:** Average of confirmed detection scores
+- **Drift calculation:** Overall pantry confidence decays based on:
+  - Item age (5%/day after 3 days, min 10%)
+  - Scan staleness (extra penalty if last scan >14 days ago)
+- **Status levels:** high (≥75%), moderate (≥50%), low (≥25%), critical (<25%)
+
+### Confirmation Flow
+
+- User reviews detected items with editable ingredient dropdown and quantity
+- Confirmed items → create/update PantryItem + InventoryTransaction (source="photo_scan")
+- Rejected items → ignored, no pantry modification
+- Duplicate ingredients within same session → only first confirmed
+
+### CoS Integration
+
+CoS context builder now includes:
+- `overall_pantry_confidence` — drift-adjusted confidence score
+- `days_since_last_scan` — for staleness detection
+- `items_unconfirmed` — low-confidence item count
+
+### Routes
+
+| URL | View | Purpose |
+|-----|------|---------|
+| `/meals/pantry/scan/` | `PantryScanStartView` | POST: create session + upload photos |
+| `/meals/pantry/scan/<id>/confirm/` | `PantryScanConfirmView` | GET: review, POST: confirm/cancel |
+| `/meals/pantry/sessions/` | `PantryScanSessionsView` | Session history with pagination |
+
+### Limitations
+
+- Requires OpenAI Vision API (gpt-4o)
+- Max 5 photos per session, 10MB per photo
+- Detection quality depends on photo clarity and lighting
+- No lifetime session cap
+- Nudge system structured but not yet implemented
+
+### Files Created/Modified
+
+**New files:**
+- `apps/meals/services/pantry_photo_detection.py` — Detection service + session service
+- `apps/meals/tests/test_pantry_photo_scan_sessions.py` — 32 tests
+- `templates/meals/pantry_scan_confirm.html` — Confirmation UI
+- `templates/meals/pantry_scan_sessions.html` — Session history page
+- `apps/meals/migrations/0003_phase12_pantry_photo_intelligence.py`
+
+**Modified files:**
+- `apps/meals/models.py` — 3 new models + photo_scan source choice
+- `apps/meals/views.py` — 3 new views + pantry view scan sessions
+- `apps/meals/urls.py` — 3 new routes
+- `templates/meals/pantry.html` — Scan buttons + session history section
+- `static/css/meals.css` — ~300 lines for scan components
+- `apps/core/ai_orchestrator/cos_context.py` — Pantry confidence in CoS
+
+### Test Coverage
+
+32 tests covering: session creation, detection creation, confirmation creates PantryItem, rejection does not create PantryItem, overall_confidence calculation, drift calculation, multiple sessions allowed, duplicate detection handling, ingredient overrides, transaction source validation.
 
 ---
 

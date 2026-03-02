@@ -869,6 +869,19 @@ def _build_meals_context(user):
             meal_plan__household=household, date=today, meal_type="dinner",
         ).select_related("recipe").first()
 
+        # Phase 12: Pantry scan confidence drift
+        pantry_scan_data = {}
+        try:
+            from apps.meals.services.pantry_photo_detection import pantry_scan_session_service
+            drift = pantry_scan_session_service.calculate_confidence_drift(household)
+            pantry_scan_data = {
+                'overall_pantry_confidence': drift.get('overall_confidence', 0),
+                'days_since_last_scan': drift.get('days_since_last_scan'),
+                'items_unconfirmed': drift.get('low_confidence_items', 0),
+            }
+        except Exception as e:
+            logger.debug("CoS: pantry scan data unavailable: %s", e)
+
         return {
             'meals_context': {
                 'activated': True,
@@ -876,6 +889,7 @@ def _build_meals_context(user):
                 'expiring_soon': list(expiring),
                 'dinner_planned': dinner_entry.recipe.title if dinner_entry else None,
                 'household_name': household.name,
+                **pantry_scan_data,
             }
         }
     except Exception as e:

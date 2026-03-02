@@ -497,6 +497,7 @@ class InventoryTransaction(TimeStampedModel):
         ("meal_plan", "Meal Plan Deduction"),
         ("expiration", "Expired Removal"),
         ("correction", "User Correction"),
+        ("photo_scan", "Photo Scan"),
     ]
 
     pantry_item = models.ForeignKey(
@@ -732,3 +733,167 @@ class ReceiptItem(TimeStampedModel):
 
     def __str__(self):
         return f"{self.raw_name} → {self.ingredient or 'unmatched'}"
+
+
+# =============================================================================
+# Phase 12: Pantry Photo Intelligence (Session-Based)
+# =============================================================================
+
+
+class PantryScanSession(TimeStampedModel):
+    """
+    A structured pantry scanning session.
+
+    Each session represents a single scan event for a specific kitchen location
+    (fridge, pantry shelf, or freezer). Contains 1-5 photo uploads, AI
+    detections, and tracks confirmation status.
+    """
+
+    LOCATION_CHOICES = [
+        ("fridge", "Fridge"),
+        ("pantry", "Pantry Shelf"),
+        ("freezer", "Freezer"),
+    ]
+
+    household = models.ForeignKey(
+        Household,
+        on_delete=models.CASCADE,
+        related_name="pantry_scan_sessions",
+    )
+    location_type = models.CharField(
+        max_length=10,
+        choices=LOCATION_CHOICES,
+    )
+    overall_confidence = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=Decimal("0"),
+        help_text="Average confidence of confirmed detections",
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the session was confirmed/completed",
+    )
+    items_detected = models.PositiveIntegerField(
+        default=0,
+        help_text="Total items detected by AI",
+    )
+    items_confirmed = models.PositiveIntegerField(
+        default=0,
+        help_text="Items confirmed by user",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Pantry Scan Session"
+        verbose_name_plural = "Pantry Scan Sessions"
+
+    def __str__(self):
+        loc = self.get_location_type_display()
+        dt = self.created_at.strftime("%b %d, %I:%M %p") if self.created_at else "pending"
+        return f"{loc} Scan — {dt}"
+
+
+class PantryPhotoUpload(TimeStampedModel):
+    """
+    A single photo uploaded as part of a pantry scan session.
+
+    Stores the image and raw detection output from Vision AI.
+    """
+
+    session = models.ForeignKey(
+        PantryScanSession,
+        on_delete=models.CASCADE,
+        related_name="uploads",
+    )
+    image = models.ImageField(
+        upload_to="pantry_scans/%Y/%m/",
+        help_text="Photo of pantry/fridge/freezer contents",
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    processed = models.BooleanField(
+        default=False,
+        help_text="Whether Vision AI has processed this image",
+    )
+    raw_detection_json = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Raw detection output from Vision AI",
+    )
+
+    class Meta:
+        ordering = ["uploaded_at"]
+        verbose_name = "Pantry Photo Upload"
+        verbose_name_plural = "Pantry Photo Uploads"
+
+    def __str__(self):
+        return f"Photo {self.pk} for {self.session}"
+
+
+class PantryPhotoDetection(TimeStampedModel):
+    """
+    A single detected food item from a pantry photo.
+
+    Represents an AI-detected item that requires user confirmation
+    before being added to the pantry inventory.
+    """
+
+    session = models.ForeignKey(
+        PantryScanSession,
+        on_delete=models.CASCADE,
+        related_name="detections",
+    )
+    upload = models.ForeignKey(
+        PantryPhotoUpload,
+        on_delete=models.CASCADE,
+        related_name="detections",
+    )
+    detected_label = models.CharField(
+        max_length=200,
+        help_text="Label as detected by Vision AI",
+    )
+    matched_ingredient = models.ForeignKey(
+        Ingredient,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="photo_detections",
+        help_text="Matched canonical ingredient (editable by user)",
+    )
+    confidence_score = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=Decimal("0"),
+        help_text="AI confidence in detection (0-1)",
+    )
+    suggested_quantity = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="AI-suggested quantity",
+    )
+    unit = models.CharField(
+        max_length=20,
+        blank=True,
+        default="piece",
+        help_text="Suggested unit for the quantity",
+    )
+    confirmed = models.BooleanField(
+        default=False,
+        help_text="User confirmed this detection",
+    )
+    rejected = models.BooleanField(
+        default=False,
+        help_text="User rejected this detection",
+    )
+
+    class Meta:
+        ordering = ["-confidence_score"]
+        verbose_name = "Pantry Photo Detection"
+        verbose_name_plural = "Pantry Photo Detections"
+
+    def __str__(self):
+        status = "confirmed" if self.confirmed else ("rejected" if self.rejected else "pending")
+        return f"{self.detected_label} ({status})"

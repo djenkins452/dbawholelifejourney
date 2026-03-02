@@ -9,6 +9,39 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Phase 12: Pantry Photo Intelligence (Session-Based)
+
+**What:** New pantry scanning feature allowing users to photograph their fridge, pantry shelf, or freezer. AI detects food items via OpenAI Vision, matches them to ingredients, and presents a guided confirmation UI. No items are auto-added — everything requires user confirmation. Includes session tracking, confidence scoring, drift modeling, and CoS integration.
+
+**New models:** PantryScanSession, PantryPhotoUpload, PantryPhotoDetection
+**New service:** PantryPhotoDetectionService, PantryScanSessionService (confidence drift)
+**New views:** PantryScanStartView, PantryScanConfirmView, PantryScanSessionsView
+**New routes:** /meals/pantry/scan/, /meals/pantry/scan/<id>/confirm/, /meals/pantry/sessions/
+**New templates:** pantry_scan_confirm.html, pantry_scan_sessions.html
+
+**Files created:**
+- `apps/meals/services/pantry_photo_detection.py`
+- `apps/meals/tests/test_pantry_photo_scan_sessions.py` (32 tests)
+- `templates/meals/pantry_scan_confirm.html`
+- `templates/meals/pantry_scan_sessions.html`
+- `apps/meals/migrations/0003_phase12_pantry_photo_intelligence.py`
+
+**Files modified:**
+- `apps/meals/models.py` — 3 new models, photo_scan source choice on InventoryTransaction
+- `apps/meals/views.py` — 3 new views, pantry view updated with scan sessions and confidence
+- `apps/meals/urls.py` — 3 new routes
+- `templates/meals/pantry.html` — Scan location buttons, confidence bar, session history section
+- `static/css/meals.css` — ~300 lines for scan UI components (responsive)
+- `apps/core/ai_orchestrator/cos_context.py` — Pantry confidence data in CoS context
+- `apps/core/fixtures/release_notes.json` — PK 113
+- `apps/help/fixtures/teaching_destinations.json` — PK 167
+- `apps/core/management/commands/load_initial_data.py` — Fixture reset method
+- `docs/Whats-for-Dinner.md` — Phase 12 documentation
+
+**Tests:** 32 new tests, all 284 meals tests passing. System check clean.
+
+---
+
 ## 2026-03-02 — Fix task entity matching + stateful clarification (prevent infinite loops)
 
 **What:** Two structural bugs in task mutation/completion: (1) `icontains` matching treated "Workout" matching "Workout" and "Post-Workout Stretch" equally — no priority for exact matches, so users got "Which one?" unnecessarily. (2) Clarification was stateless — when user responded "Workout" to "Which one?", the system re-ran global search from scratch, producing the same ambiguity → infinite loop.

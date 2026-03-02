@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Confirm Scan — Pantry — Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302a">
+{% endblock %}
+
+{% block content %}
+<div class="meals-page">
+    {% include "meals/partials/_subnav.html" with active="pantry" %}
+
+    <div class="meals-page-header">
+        <h1>{{ session.get_location_type_display }} Scan — {{ session.created_at|date:"M j, g:i A" }}</h1>
+        <a href="{% url 'meals:pantry' %}" class="btn btn-secondary btn-sm">Back to Pantry</a>
+    </div>
+
+    {% if completed %}
+    <!-- Read-only summary for completed sessions -->
+    <div class="scan-summary-card">
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-card-value">{{ session.items_detected }}</div>
+                <div class="stat-card-label">Detected</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-value">{{ session.items_confirmed }}</div>
+                <div class="stat-card-label">Confirmed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-value">{{ session.overall_confidence|floatformat:0 }}%</div>
+                <div class="stat-card-label">Confidence</div>
+            </div>
+        </div>
+
+        <div class="scan-detections-list">
+            {% for detection in detections %}
+            <div class="scan-detection-item {% if detection.confirmed %}detection-confirmed{% elif detection.rejected %}detection-rejected{% endif %}">
+                <div class="detection-label">{{ detection.detected_label }}</div>
+                <div class="detection-meta">
+                    {% if detection.matched_ingredient %}
+                    <span class="detection-ingredient">{{ detection.matched_ingredient.canonical_name|title }}</span>
+                    {% endif %}
+                    <span class="detection-confidence">{{ detection.confidence_score|floatformat:0 }}%</span>
+                    <span class="detection-status {% if detection.confirmed %}status-confirmed{% else %}status-rejected{% endif %}">
+                        {% if detection.confirmed %}Confirmed{% else %}Rejected{% endif %}
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% else %}
+    <!-- Active confirmation form -->
+    {% if detections %}
+    <p class="scan-instructions">Review detected items below. Confirm the ones you want to add to your pantry. You can adjust quantities and ingredient matches before confirming.</p>
+
+    <form method="post" action="{% url 'meals:pantry_scan_confirm' session_id=session.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="confirm">
+
+        <div class="scan-detections-list">
+            {% for detection in detections %}
+            <div class="scan-detection-item" data-detection-id="{{ detection.pk }}">
+                <div class="detection-row">
+                    <div class="detection-check">
+                        <input type="checkbox" name="confirm_{{ detection.pk }}" id="check_{{ detection.pk }}"
+                            {% if detection.matched_ingredient and not detection.rejected %}checked{% endif %}>
+                        <label for="check_{{ detection.pk }}" class="visually-hidden">Confirm {{ detection.detected_label }}</label>
+                    </div>
+
+                    <div class="detection-info">
+                        <div class="detection-label">{{ detection.detected_label }}</div>
+                        <div class="detection-confidence-bar">
+                            <div class="confidence-fill {% if detection.confidence_score >= 0.75 %}confidence-high{% elif detection.confidence_score >= 0.5 %}confidence-medium{% else %}confidence-low{% endif %}"
+                                 style="width: {{ detection.confidence_score|floatformat:0 }}%"></div>
+                        </div>
+                        <span class="detection-confidence-text">{{ detection.confidence_score|floatformat:0 }}% confidence</span>
+                    </div>
+
+                    <div class="detection-fields">
+                        <div class="detection-field">
+                            <label for="ingredient_{{ detection.pk }}" class="detection-field-label">Ingredient</label>
+                            <select name="ingredient_{{ detection.pk }}" id="ingredient_{{ detection.pk }}" class="detection-select">
+                                <option value="">-- No match --</option>
+                                {% for ing_id, ing_name in ingredients %}
+                                <option value="{{ ing_id }}" {% if detection.matched_ingredient_id == ing_id %}selected{% endif %}>
+                                    {{ ing_name|title }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="detection-field detection-field-qty">
+                            <label for="quantity_{{ detection.pk }}" class="detection-field-label">Qty</label>
+                            <input type="number" name="quantity_{{ detection.pk }}" id="quantity_{{ detection.pk }}"
+                                   value="{{ detection.suggested_quantity|default:'1' }}"
+                                   min="0.1" step="0.1" class="detection-input">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="scan-actions">
+            <button type="submit" class="btn btn-primary">Confirm Selected Items</button>
+            <button type="submit" name="action" value="cancel" class="btn btn-secondary">Cancel Session</button>
+        </div>
+    </form>
+
+    {% else %}
+    <div class="meals-empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="15" y1="9" x2="9" y2="15"/>
+            <line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+        <h2>No items detected</h2>
+        <p>The AI couldn't identify any food items in your photos. Try taking clearer photos with better lighting.</p>
+        <a href="{% url 'meals:pantry' %}" class="btn btn-primary">Back to Pantry</a>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+    // Toggle select-all behavior
+    document.addEventListener('change', function(e) {
+        var checkbox = e.target;
+        if (!checkbox.matches('input[type="checkbox"]')) return;
+        var item = checkbox.closest('.scan-detection-item');
+        if (!item) return;
+        if (checkbox.checked) {
+            item.classList.add('detection-selected');
+        } else {
+            item.classList.remove('detection-selected');
+        }
+    });
+    // Initialize selected state
+    var checks = document.querySelectorAll('.scan-detection-item input[type="checkbox"]');
+    for (var i = 0; i < checks.length; i++) {
+        if (checks[i].checked) {
+            checks[i].closest('.scan-detection-item').classList.add('detection-selected');
+        }
+    }
+})();
+</script>
+{% endblock %}

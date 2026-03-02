@@ -40,6 +40,9 @@ from .models import (
     MealPlan,
     MealPlanEntry,
     PantryItem,
+    PantryPhotoDetection,
+    PantryPhotoUpload,
+    PantryScanSession,
     Receipt,
     ReceiptItem,
     RecipeIngredient,
@@ -475,6 +478,15 @@ class PantryView(
             confidence_score__lt=Decimal("0.5")
         ).count()
 
+        # Phase 12: Recent scan sessions
+        from apps.meals.services.pantry_photo_detection import pantry_scan_session_service
+
+        context["recent_sessions"] = pantry_scan_session_service.get_recent_sessions(
+            household, limit=5
+        )
+        drift = pantry_scan_session_service.calculate_confidence_drift(household)
+        context["pantry_confidence"] = drift
+
         return context
 
 
@@ -886,5 +898,246 @@ class MealsSetupView(
 
         # Dietary profile for step 3
         context["dietary_profile"] = self.get_dietary_profile()
+
+        return context
+
+
+# =============================================================================
+# Phase 12: Pantry Photo Scan Views
+# =============================================================================
+
+MAX_PHOTOS_PER_SESSION = 5
+MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024  # 10MB
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic"}
+
+
+class PantryScanStartView(LoginRequiredMixin, MealsHouseholdMixin, View):
+    """
+    Start a new pantry scan session and process uploaded photos.
+
+    POST: Create session with location_type, upload 1-5 images,
+    process through Vision AI, redirect to confirmation page.
+    """
+
+    def post(self, request):
+        household = self.get_household()
+        location_type = request.POST.get("location_type", "").strip()
+
+        # Validate location type
+        valid_locations = [c[0] for c in PantryScanSession.LOCATION_CHOICES]
+        if location_type not in valid_locations:
+            return JsonResponse(
+                {"status": "error", "message": "Invalid location type"},
+                status=400,
+            )
+
+        # Validate files
+        files = request.FILES.getlist("photos")
+        if not files:
+            return JsonResponse(
+                {"status": "error", "message": "No photos uploaded"},
+                status=400,
+            )
+        if len(files) > MAX_PHOTOS_PER_SESSION:
+            return JsonResponse(
+                {"status": "error", "message": f"Maximum {MAX_PHOTOS_PER_SESSION} photos per session"},
+                status=400,
+            )
+
+        # Validate each file
+        for f in files:
+            if f.size > MAX_UPLOAD_SIZE_BYTES:
+                return JsonResponse(
+                    {"status": "error", "message": f"File '{f.name}' exceeds 10MB limit"},
+                    status=400,
+                )
+            if f.content_type not in ALLOWED_IMAGE_TYPES:
+                return JsonResponse(
+                    {"status": "error", "message": f"File '{f.name}' is not a supported image type"},
+                    status=400,
+                )
+
+        # Create session
+        session = PantryScanSession.objects.create(
+            household=household,
+            location_type=location_type,
+        )
+
+        # Create uploads
+        uploads = []
+        for f in files:
+            upload = PantryPhotoUpload.objects.create(
+                session=session,
+                image=f,
+            )
+            uploads.append(upload)
+
+        # Process each upload through detection service
+        from apps.meals.services.pantry_photo_detection import pantry_photo_detection_service
+
+        for upload in uploads:
+            try:
+                pantry_photo_detection_service.process_upload(upload)
+            except Exception as e:
+                logger.error(
+                    "Failed to process upload %d for session %d: %s",
+                    upload.pk, session.pk, e, exc_info=True,
+                )
+
+        # Redirect to confirmation page
+        from django.urls import reverse
+        return redirect(reverse("meals:pantry_scan_confirm", kwargs={"session_id": session.pk}))
+
+
+class PantryScanConfirmView(
+    HelpContextMixin, LoginRequiredMixin, MealsHouseholdMixin, TemplateView
+):
+    """
+    Display detections for user confirmation.
+
+    GET: Show detections with editable fields.
+    POST: Confirm selected detections, create PantryItems.
+    """
+
+    template_name = "meals/pantry_scan_confirm.html"
+    help_context_id = "MEALS_PANTRY"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        household = self.get_household()
+        session_id = self.kwargs["session_id"]
+
+        session = get_object_or_404(
+            PantryScanSession, pk=session_id, household=household
+        )
+
+        # If already completed, show read-only summary
+        if session.completed_at:
+            context["session"] = session
+            context["completed"] = True
+            context["detections"] = session.detections.select_related(
+                "matched_ingredient", "upload"
+            ).all()
+            return context
+
+        detections = session.detections.select_related(
+            "matched_ingredient", "upload"
+        ).all()
+
+        # Build ingredient choices for dropdown
+        ingredients = Ingredient.objects.all().order_by("canonical_name").values_list(
+            "id", "canonical_name"
+        )
+
+        context["session"] = session
+        context["completed"] = False
+        context["detections"] = detections
+        context["ingredients"] = list(ingredients)
+
+        return context
+
+    def post(self, request, session_id):
+        household = self.get_household()
+        session = get_object_or_404(
+            PantryScanSession, pk=session_id, household=household
+        )
+
+        if session.completed_at:
+            messages.warning(request, "This scan session has already been completed.")
+            return redirect("meals:pantry")
+
+        action = request.POST.get("action", "confirm")
+
+        if action == "cancel":
+            from apps.meals.services.pantry_photo_detection import pantry_photo_detection_service
+            pantry_photo_detection_service.cancel_session(session)
+            messages.info(request, "Scan session cancelled.")
+            return redirect("meals:pantry")
+
+        # Collect confirmed detection IDs
+        confirmed_ids = []
+        quantities = {}
+        ingredient_overrides = {}
+
+        for key, value in request.POST.items():
+            if key.startswith("confirm_") and value == "on":
+                try:
+                    det_id = int(key.replace("confirm_", ""))
+                    confirmed_ids.append(det_id)
+                except ValueError:
+                    continue
+
+            if key.startswith("quantity_"):
+                try:
+                    det_id = int(key.replace("quantity_", ""))
+                    quantities[det_id] = Decimal(str(value))
+                except (ValueError, TypeError):
+                    continue
+
+            if key.startswith("ingredient_"):
+                try:
+                    det_id = int(key.replace("ingredient_", ""))
+                    ing_id = int(value)
+                    ingredient_overrides[det_id] = ing_id
+                except (ValueError, TypeError):
+                    continue
+
+        if not confirmed_ids:
+            messages.warning(request, "No items selected for confirmation.")
+            return redirect("meals:pantry_scan_confirm", session_id=session.pk)
+
+        from apps.meals.services.pantry_photo_detection import pantry_photo_detection_service
+
+        created, updated = pantry_photo_detection_service.confirm_session(
+            session, confirmed_ids, quantities, ingredient_overrides,
+        )
+
+        messages.success(
+            request,
+            f"Pantry updated: {created} new items, {updated} items updated. "
+            f"Session confidence: {session.overall_confidence:.0%}",
+        )
+        return redirect("meals:pantry")
+
+
+class PantryScanSessionsView(
+    HelpContextMixin, LoginRequiredMixin, MealsHouseholdMixin, TemplateView
+):
+    """
+    List all pantry scan sessions with pagination.
+    """
+
+    template_name = "meals/pantry_scan_sessions.html"
+    help_context_id = "MEALS_PANTRY"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        household = self.get_household()
+
+        sessions = PantryScanSession.objects.filter(
+            household=household,
+        ).order_by("-created_at")
+
+        # Simple pagination (10 per page)
+        page = self.request.GET.get("page", 1)
+        try:
+            page = max(1, int(page))
+        except (ValueError, TypeError):
+            page = 1
+
+        per_page = 10
+        total = sessions.count()
+        start = (page - 1) * per_page
+        end = start + per_page
+
+        context["sessions"] = sessions[start:end]
+        context["current_page"] = page
+        context["total_pages"] = max(1, (total + per_page - 1) // per_page)
+        context["has_next"] = end < total
+        context["has_prev"] = page > 1
+
+        # Confidence drift
+        from apps.meals.services.pantry_photo_detection import pantry_scan_session_service
+        context["pantry_confidence"] = pantry_scan_session_service.calculate_confidence_drift(household)
 
         return context

@@ -4,7 +4,7 @@
 {% block title %}Pantry — Meals — Whole Life Journey{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302a">
+<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302b">
 {% endblock %}
 
 {% block content %}
@@ -179,6 +179,25 @@
         </div>
     </div>
     {% endif %}
+    <!-- Scan Processing Overlay -->
+    <div class="scan-overlay" id="scan-overlay" style="display:none;">
+        <div class="scan-overlay-content">
+            <div class="scan-spinner">
+                <svg viewBox="0 0 50 50" width="56" height="56">
+                    <circle cx="25" cy="25" r="20" fill="none" stroke="var(--color-primary, #4f46e5)" stroke-width="4" stroke-linecap="round" stroke-dasharray="90 150" stroke-dashoffset="0">
+                        <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="1s" repeatCount="indefinite"/>
+                    </circle>
+                </svg>
+            </div>
+            <h3 class="scan-overlay-title" id="scan-overlay-title">Analyzing your photos...</h3>
+            <p class="scan-overlay-detail" id="scan-overlay-detail">AI is identifying food items. This may take 15-30 seconds.</p>
+            <div class="scan-overlay-steps" id="scan-overlay-steps">
+                <div class="scan-step active" id="step-upload">Uploading photos</div>
+                <div class="scan-step" id="step-detect">Detecting food items</div>
+                <div class="scan-step" id="step-match">Matching to ingredients</div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script nonce="{{ csp_nonce }}">
@@ -258,12 +277,40 @@
                 return;
             }
         }
-        // Show loading state
-        var btn = form.querySelector('.scan-location-btn');
-        if (btn) {
-            btn.disabled = true;
-            btn.querySelector('span').textContent = 'Scanning...';
+        // Show loading overlay
+        var overlay = document.getElementById('scan-overlay');
+        if (overlay) {
+            overlay.style.display = 'flex';
+            // Animate steps over time
+            var steps = ['step-upload', 'step-detect', 'step-match'];
+            var idx = 0;
+            var titles = [
+                'Uploading photos...',
+                'Detecting food items...',
+                'Matching to ingredients...'
+            ];
+            var details = [
+                'Preparing ' + files.length + ' photo' + (files.length > 1 ? 's' : '') + ' for analysis.',
+                'AI is scanning for food items. This may take 15-30 seconds.',
+                'Almost done — matching detected items to your ingredient list.'
+            ];
+            var stepInterval = setInterval(function() {
+                idx++;
+                if (idx < steps.length) {
+                    var el = document.getElementById(steps[idx]);
+                    if (el) el.classList.add('active');
+                    var titleEl = document.getElementById('scan-overlay-title');
+                    var detailEl = document.getElementById('scan-overlay-detail');
+                    if (titleEl) titleEl.textContent = titles[idx];
+                    if (detailEl) detailEl.textContent = details[idx];
+                } else {
+                    clearInterval(stepInterval);
+                }
+            }, 8000);
         }
+        // Disable button
+        var btn = form.querySelector('.scan-location-btn');
+        if (btn) btn.disabled = true;
         form.submit();
     });
 })();

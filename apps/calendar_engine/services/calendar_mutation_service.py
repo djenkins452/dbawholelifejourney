@@ -364,6 +364,17 @@ class CalendarMutationService:
         # Post-commit hooks (outside transaction)
         cos_context = self._run_post_scheduling(event)
 
+        # Auto-create backing Task for sourceless events so every calendar
+        # entry has a tangible CRUD entity behind it.
+        if not reused and event.source_type == CalendarEvent.SOURCE_NONE:
+            try:
+                self._auto_create_backing_task(event)
+            except Exception as e:
+                logger.warning(
+                    "Auto-task creation failed for CalendarEvent pk=%s: %s",
+                    event.pk, e,
+                )
+
         return MutationResult(
             success=True,
             event=event,
@@ -371,6 +382,64 @@ class CalendarMutationService:
             conflict_warning=cos_context.get('conflict_warning'),
             pressure_note=cos_context.get('pressure_note'),
             gcal_synced=cos_context.get('gcal_synced', False),
+        )
+
+    def _auto_create_backing_task(self, event):
+        """Auto-create a backing Task for a sourceless calendar event.
+
+        Ensures every calendar entry has a tangible CRUD entity.  Only called
+        when ``event.source_type == SOURCE_NONE``.
+
+        The Task post_save signal normally calls ``upsert_from_task()`` which
+        would create a *second* CalendarEvent.  We disconnect the signal for
+        the duration of the create, then update the event's source fields so
+        the link is established without duplication.
+        """
+        from zoneinfo import ZoneInfo
+
+        from django.db.models.signals import post_save
+
+        from apps.life.models import Task
+        from apps.life.signals import handle_task_saved
+
+        # Extract date in user's local timezone
+        due_date = None
+        scheduled_time = None
+        if event.start_dt:
+            try:
+                user_tz = ZoneInfo(self.user.preferences.timezone_iana)
+                local_start = event.start_dt.astimezone(user_tz)
+            except Exception:
+                local_start = event.start_dt
+            due_date = local_start.date()
+            if not event.is_all_day:
+                scheduled_time = local_start.time()
+
+        # Wrap in savepoint so failures don't abort the outer transaction
+        # (PostgreSQL aborts the entire transaction on IntegrityError).
+        with transaction.atomic():
+            # Disconnect task signal to prevent duplicate calendar event
+            post_save.disconnect(handle_task_saved, sender=Task)
+            try:
+                task = Task.objects.create(
+                    user=self.user,
+                    title=event.title,
+                    notes=event.description or "",
+                    due_date=due_date,
+                    scheduled_time=scheduled_time,
+                    is_completed=False,
+                )
+            finally:
+                post_save.connect(handle_task_saved, sender=Task)
+
+        # Link the event back to the new task (outside savepoint)
+        event.source_type = CalendarEvent.SOURCE_TASK
+        event.source_id = str(task.pk)
+        event.save(update_fields=['source_type', 'source_id'])
+
+        logger.info(
+            "Auto-created backing Task pk=%s for CalendarEvent pk=%s (user=%s)",
+            task.pk, event.pk, self.user.id,
         )
 
     # ------------------------------------------------------------------ #

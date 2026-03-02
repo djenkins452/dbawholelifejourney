@@ -2387,8 +2387,21 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         cos_context_cache=_cos_context_cache,
                     )
                 else:
+                    # Build lean conversation history for intent context
+                    # resolution (anaphora: "the other one", "that event", "it").
+                    from apps.ai.conversation.message_builder import build_messages_from_history
+                    _intent_history = build_messages_from_history(
+                        conversation.messages.order_by('-created_at'),
+                        message,
+                        max_messages=5,
+                        max_content_chars=300,
+                        token_budget=800,
+                    )
+
                     # Try to recognize intents (supports multiple)
-                    intent_results = intent_service.recognize_intents(message, self.user)
+                    intent_results = intent_service.recognize_intents(
+                        message, self.user, conversation_history=_intent_history,
+                    )
 
                     # Filter out no_action results
                     actionable_intents = [ir for ir in intent_results if ir.intent_type != 'no_action']

@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 118,
+    "fields": {
+      "title": "Smarter Task Matching & Time Range Support",
+      "description": "Your Chief of Staff is now much better at finding the right task when names overlap. Saying 'complete Workout' now correctly targets the task titled 'Workout' instead of also matching 'Post-Workout Stretch'. When multiple tasks match, you can pick by number or name, and your selection is resolved instantly without re-searching. You can also now schedule tasks with time ranges — saying 'add a task at 5pm to 6pm' captures both the start and end time.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-03-02",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-02T12:00:00Z",
+      "updated_at": "2026-03-02T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 117,
     "fields": {
       "title": "Recipe Photo Import — Scan Recipes with Your Camera",

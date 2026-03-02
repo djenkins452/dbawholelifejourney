@@ -869,6 +869,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Recipe Photo Import (PK 114)
         self._reset_recipe_photo_import_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for task matching + time range support (PK 118)
+        self._reset_task_matching_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -4747,3 +4750,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset recipe photo import fixtures FAILED: {e}'))
+
+    def _reset_task_matching_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for task matching + time range support.
+        - release_notes PK 118 (Smarter Task Matching & Time Range Support)
+        """
+        reset_tracker_name = 'reset_task_matching_2026_03_02'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes loader for task matching')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for task matching (Mar 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 118'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset task matching fixtures FAILED: {e}'))

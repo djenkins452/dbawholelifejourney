@@ -2745,6 +2745,16 @@ The CoS has a relationship-building introduction flow before it starts managing 
 - **Key files:** `apps/core/blueprint/cos_governance.py` (calibration engine, `build_calibration_system_injection()`, `_gather_user_snapshot()`), `apps/ai/personal_assistant.py` (`_is_calibration_active()`, `_try_calibration_intents()`), `templates/components/cos_command_mode.html` (banner)
 - After calibration, the system continues with relationship-deepening questions. Learned profile data (values, sacred items, goals) is injected into the system prompt for personalization.
 
+### Task Entity Matching & Stateful Clarification *(Mar 2026)*
+Deterministic task resolution with stateful disambiguation:
+- **3-tier literal-first matching:** Exact (iexact) → Prefix (istartswith) → Substring (icontains). "Workout" matches the task titled "Workout" before ever considering "Post-Workout Stretch".
+- **Stateful clarification:** When multiple tasks match, candidate IDs are stored in Django cache (5-min TTL). User's follow-up resolves against stored candidates — no re-search, no infinite loop.
+- **Resolution methods:** Number selection ("1"), ordinal ("the second one"), exact title, prefix, or substring match against candidates.
+- **`_resolved_id` bypass:** After resolution, the handler fetches the task by PK directly — deterministic, zero ambiguity.
+- **Time range support:** Tasks can be created/updated with start and end times ("5pm - 6pm"). Duration auto-computed from the time range.
+- **Key files:** `apps/ai/action_handlers.py` (`_resolve_tasks_by_query()`), `apps/ai/intent_service.py` (clarification state methods)
+- **Tests:** 22 in `apps/ai/tests/test_task_matching.py`, 12 in `apps/ai/tests/test_task_end_time.py`
+
 ### Post-Event Reflection Loops
 After significant events, the system queues a brief morning reflection check-in. Users answer a few questions about how the event went and capture action items.
 

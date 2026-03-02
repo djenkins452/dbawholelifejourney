@@ -398,6 +398,8 @@ LIFE/TASKS:
 - "remind me to buy groceries" → create_task(title="Buy groceries")
 - "add a task today at 10am to buy new battery for the Jeep" → create_task(title="Buy new battery for the Jeep", due_date="today", scheduled_time="10:00")
 - "add task to file taxes by Friday at 3pm" → create_task(title="File taxes", due_date="friday", scheduled_time="15:00")
+- "add a task today at 5pm - 6pm to Gather Tax Papers" → create_task(title="Gather Tax Papers", due_date="today", scheduled_time="17:00", end_time="18:00")
+- "task from 2pm to 3:30pm tomorrow: Team sync" → create_task(title="Team sync", due_date="tomorrow", scheduled_time="14:00", end_time="15:30")
 - "I finished the laundry task" → complete_task(task_keyword="laundry")
 - "what time is my jeep task?" → read_task(task_keyword="jeep")
 - "show me my tasks for today" → read_task(date_filter="today")
@@ -413,6 +415,7 @@ When the user says move, reschedule, push, postpone, change, rename, update, or 
 - "move those two tasks to tomorrow" → mutate_task(action="update", task_query="office", new_due_date="tomorrow", apply_to_all=true)
 - "push the grocery task to next week" → mutate_task(action="update", task_query="grocery", new_due_date="next week")
 - "move my desk task to tomorrow afternoon" → mutate_task(action="update", task_query="desk", new_due_date="tomorrow", new_scheduled_time="13:00")
+- "change my tax task to 3pm - 4pm" → mutate_task(action="update", task_query="tax", new_scheduled_time="15:00", new_end_time="16:00")
 - "reschedule the battery task to Friday" → mutate_task(action="update", task_query="battery", new_due_date="friday")
 - "rename my call task to 'Call Mom back'" → mutate_task(action="update", task_query="call", new_title="Call Mom back")
 - "delete the laundry task" → mutate_task(action="delete", task_query="laundry")
@@ -426,6 +429,11 @@ IMPLICIT TASK CORRECTIONS — when the user says a task has wrong details or con
 - "you didn't actually move them" → mutate_task(action="update", task_query=<from context>, new_due_date=<from prior context>, apply_to_all=true)
 - "they are still showing today" → infer the user wanted them moved; use prior context to determine the target date
 When the user reports that a previous action didn't work ("you didn't do it", "still showing", "it's still wrong"), re-execute the action — do NOT just apologize.
+
+TIME RANGES — when a user provides a time range (e.g., "5pm - 6pm", "from 2:00 to 3:30", "10am to 11am"):
+- For tasks: extract BOTH times as scheduled_time (start) and end_time (end) in HH:MM 24-hour format
+- For events: extract BOTH as start_time and end_time
+- NEVER drop the end time — if the user gives a range, ALWAYS include both scheduled_time/start_time AND end_time
 
 IMPORTANT — task vs routine vs event:
 - "add a task at 10am" → create_task with scheduled_time (one-time task at specific time)

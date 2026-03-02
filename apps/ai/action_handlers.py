@@ -2579,7 +2579,8 @@ class ActionHandler:
     def handle_create_task(self, title: str, notes: str = "", due_date: str = None,
                            priority: str = None, effort: str = "small",
                            project_name: str = None, scheduled_time: str = None,
-                           duration_minutes: int = None, **kwargs) -> ActionResult:
+                           duration_minutes: int = None, end_time: str = None,
+                           **kwargs) -> ActionResult:
         """
         Create a new task.
 
@@ -2592,6 +2593,7 @@ class ActionHandler:
             project_name: Name of project to associate
             scheduled_time: Specific time in HH:MM format (e.g., '10:00')
             duration_minutes: Duration in minutes when scheduled_time is set
+            end_time: End time in HH:MM format (e.g., '18:00') for time ranges
         """
         from apps.life.models import Task, Project
         from datetime import datetime as dt, timedelta
@@ -2635,6 +2637,22 @@ class ActionHandler:
                     status='active'
                 ).first()
 
+            # Parse end_time (HH:MM format)
+            parsed_end_time = None
+            if end_time:
+                try:
+                    parsed_end_time = dt.strptime(end_time, '%H:%M').time()
+                except ValueError:
+                    pass
+
+            # Auto-compute duration from time range if both start and end provided
+            if parsed_time and parsed_end_time and not duration_minutes:
+                from datetime import timedelta
+                start_tmp = dt.combine(self._get_user_today(), parsed_time)
+                end_tmp = dt.combine(self._get_user_today(), parsed_end_time)
+                if end_tmp > start_tmp:
+                    duration_minutes = int((end_tmp - start_tmp).total_seconds() / 60)
+
             task_kwargs = dict(
                 user=self.user,
                 title=title,
@@ -2645,6 +2663,8 @@ class ActionHandler:
             )
             if parsed_time:
                 task_kwargs['scheduled_time'] = parsed_time
+                if parsed_end_time:
+                    task_kwargs['scheduled_end_time'] = parsed_end_time
                 if duration_minutes:
                     task_kwargs['estimated_duration_minutes'] = duration_minutes
 
@@ -2652,7 +2672,14 @@ class ActionHandler:
 
             # Task priority is auto-calculated from due date
 
-            time_str = f" at {parsed_time.strftime('%I:%M %p').lstrip('0')}" if parsed_time else ""
+            if parsed_time and parsed_end_time:
+                start_str = parsed_time.strftime('%I:%M %p').lstrip('0')
+                end_str = parsed_end_time.strftime('%I:%M %p').lstrip('0')
+                time_str = f" at {start_str} – {end_str}"
+            elif parsed_time:
+                time_str = f" at {parsed_time.strftime('%I:%M %p').lstrip('0')}"
+            else:
+                time_str = ""
             due_str = f" (due {parsed_due.strftime('%b %d')}{time_str})" if parsed_due else ""
             project_str = f" in {project.title}" if project else ""
 
@@ -2901,6 +2928,7 @@ class ActionHandler:
         task_query: str,
         new_due_date: str = None,
         new_scheduled_time: str = None,
+        new_end_time: str = None,
         new_title: str = None,
         new_notes: str = None,
         new_effort: str = None,
@@ -2915,6 +2943,7 @@ class ActionHandler:
             task_query: Keywords to find the task(s)
             new_due_date: New due date (natural language or YYYY-MM-DD)
             new_scheduled_time: New scheduled time in HH:MM format
+            new_end_time: New end time in HH:MM format
             new_title: New title if renaming
             new_notes: New notes
             new_effort: New effort level
@@ -3025,6 +3054,19 @@ class ActionHandler:
                             action_type='mutate_task',
                         )
 
+                # Parse new end time
+                parsed_end_time = None
+                if new_end_time:
+                    try:
+                        parsed_end_time = dt.strptime(new_end_time, '%H:%M').time()
+                    except ValueError:
+                        return ActionResult(
+                            success=False,
+                            message=f"I couldn't understand the end time '{new_end_time}'. Use HH:MM format (e.g., '18:00').",
+                            error='invalid_time',
+                            action_type='mutate_task',
+                        )
+
                 # Apply updates
                 updated_titles = []
                 changes_desc = []
@@ -3038,6 +3080,10 @@ class ActionHandler:
                     if parsed_time is not None:
                         task.scheduled_time = parsed_time
                         update_fields.append('scheduled_time')
+
+                    if parsed_end_time is not None:
+                        task.scheduled_end_time = parsed_end_time
+                        update_fields.append('scheduled_end_time')
 
                     if new_title:
                         task.title = new_title
@@ -3071,6 +3117,9 @@ class ActionHandler:
                             if parsed_time is not None:
                                 ce.start_time = parsed_time
                                 cal_updates.append('start_time')
+                            if parsed_end_time is not None:
+                                ce.end_time = parsed_end_time
+                                cal_updates.append('end_time')
                             if new_title:
                                 ce.title = new_title
                                 cal_updates.append('title')
@@ -3085,8 +3134,15 @@ class ActionHandler:
                 # Build change description
                 if parsed_due is not None:
                     changes_desc.append(f"due {parsed_due.strftime('%b %d')}")
-                if parsed_time is not None:
+                if parsed_time is not None and parsed_end_time is not None:
+                    changes_desc.append(
+                        f"at {parsed_time.strftime('%I:%M %p').lstrip('0')} – "
+                        f"{parsed_end_time.strftime('%I:%M %p').lstrip('0')}"
+                    )
+                elif parsed_time is not None:
                     changes_desc.append(f"at {parsed_time.strftime('%I:%M %p').lstrip('0')}")
+                elif parsed_end_time is not None:
+                    changes_desc.append(f"end time {parsed_end_time.strftime('%I:%M %p').lstrip('0')}")
                 if new_title:
                     changes_desc.append(f"renamed to '{new_title}'")
                 if new_effort:

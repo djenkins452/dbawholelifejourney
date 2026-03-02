@@ -154,6 +154,27 @@ After ANY changes (code, docs, or config), do ALL of the following **automatical
 
 ---
 
+## AI Engineering Rules (REQUIRED)
+
+These rules prevent the silent-failure and schema-drift bugs that have caused production outages.
+
+**Exception Handling — Never Swallow Errors:**
+- **NEVER** use `except Exception: pass` on critical paths (intent recognition, execution, safety gates). This hides real errors and causes silent functional loss.
+- **Separate `ImportError` from `Exception`:** Use `except ImportError: pass` for optional modules (expected), then `except Exception: logger.error(...)` for real errors (must be visible).
+- **Fail-closed safety gates:** Safety gates (Learning Mode, validator) that catch all exceptions and `pass` fail *open* — they silently bypass the safety check. Always log and re-raise or return a safe default.
+- **Log level matters in production:** `logger.debug()` is invisible in production. Critical-path failures need `logger.warning()` or `logger.error()` with `exc_info=True`.
+
+**Schema Parity — Model ↔ Intent ↔ Handler:**
+- When a Django model has a user-settable field, the AI intent schema (`apps/ai/intents/`) and the action handler (`apps/ai/action_handlers.py`) MUST both support that field.
+- When adding a field to a model, also add it to: (1) the OpenAI function schema, (2) the handler method signature and logic, (3) the system prompt examples.
+- When modifying intent schemas, verify the handler accepts the new parameter and maps it to the correct model field name (e.g., schema `end_time` → model `scheduled_end_time`).
+- Time range patterns ("5pm - 6pm") must extract BOTH start and end times — never silently drop one.
+
+**Streaming vs Non-Streaming Parity:**
+- The web UI uses two paths: `/api/chat/` (non-streaming) and `/api/chat/stream/` (SSE streaming). Both must call the same orchestrator pipeline. Any fix to one path must be verified on the other.
+
+---
+
 ## Reference Docs (Read On-Demand)
 
 | Doc | When to Read |

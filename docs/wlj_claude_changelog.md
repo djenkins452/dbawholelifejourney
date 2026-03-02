@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Task end_time schema parity: fix time range support for create/mutate task
+
+**What:** The Task model has `scheduled_end_time` but the AI intent schema and handlers only supported `scheduled_time` (start). Time ranges like "5pm - 6pm" silently dropped the end time. This adds `end_time` to the `create_task` schema, `new_end_time` to the `mutate_task` schema, wires both through their handlers to `scheduled_end_time`, auto-computes duration from time ranges, and updates confirmation messages to show "5:00 PM – 6:00 PM" format. Also added TIME RANGES extraction rule to the system prompt with explicit examples. Updated CLAUDE.md with AI Engineering Rules covering silent failure patterns, schema parity enforcement, and streaming/non-streaming path parity.
+
+**Files modified:**
+- `CLAUDE.md` — New "AI Engineering Rules" section: exception handling, schema parity, streaming parity
+- `apps/ai/intents/life_intents.py` — Added `end_time` to create_task schema, `new_end_time` to mutate_task schema
+- `apps/ai/action_handlers.py` — `handle_create_task()`: accept `end_time`, parse → `scheduled_end_time`, auto-compute duration, show range in message. `handle_mutate_task()`: accept `new_end_time`, parse, apply to task + calendar sync, show in change description
+- `apps/ai/intent_service.py` — Added TIME RANGES rule + 4 examples (2 create_task, 1 mutate_task time range patterns)
+- `apps/ai/tests/test_task_end_time.py` — 12 new tests: schema parity (3), create_task with time range (5), mutate_task end_time (3), model-schema parity assertion (1)
+
+**Why:** "Add a task today at 5:00pm - 6:00pm to Gather Tax Papers" was silently losing the end time because of schema drift — the model had `scheduled_end_time` but the intent system didn't know about it.
+
+---
+
 ## 2026-03-02 — Meal Intelligence Phase 11: Power Preview & Anticipation Layer
 
 **What:** Transformed the Setup Mode dashboard from a basic "add data" prompt into a premium capability showcase. Dashboard now features "Kitchen Intelligence Initialization" hero with 6 capability tags (blood sugar protection, protein alignment, waste reduction, calendar awareness, grocery efficiency, family scaling), 3 locked preview cards showing what activates next (Optimized Dinner with mock score, Expiration Intelligence with mock alert, Grocery Optimization with mock stats), and "Why This Matters" side panel. Setup wizard upgraded with capability-unlock language and a preamble ("You're 3 minutes away from activating a household optimization engine"). All activation/post-activation messaging updated to reflect system power.

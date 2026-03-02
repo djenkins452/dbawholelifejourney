@@ -59,7 +59,11 @@ LIFE_INTENT_TOOLS = [
                     },
                     "duration_minutes": {
                         "type": "integer",
-                        "description": "Estimated duration in minutes (default 30). Used when scheduled_time is provided."
+                        "description": "Estimated duration in minutes (default 30). Used when scheduled_time is provided. Ignored if end_time is provided."
+                    },
+                    "end_time": {
+                        "type": "string",
+                        "description": "End time in HH:MM 24-hour format (e.g., '18:00'). Use when user specifies a time range like '5pm - 6pm' or '10:00 to 11:30'. If provided, duration is computed automatically from scheduled_time and end_time."
                     }
                 },
                 "required": ["title"]
@@ -205,6 +209,10 @@ LIFE_INTENT_TOOLS = [
                         "type": "string",
                         "enum": ["quick", "small", "medium", "large"],
                         "description": "New effort level.",
+                    },
+                    "new_end_time": {
+                        "type": "string",
+                        "description": "New end time in HH:MM 24-hour format.",
                     },
                     "apply_to_all": {
                         "type": "boolean",

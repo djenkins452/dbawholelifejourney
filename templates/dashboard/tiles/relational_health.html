@@ -1,46 +1,156 @@
 {% comment %}
-Dashboard Tile: Relational Health
-Compact summary of relational health score and top insight lines.
-Links to full relationship insights page.
+Dashboard Tile: Relationships
+Shows relationship summary — active contacts, people needing attention,
+and quick stats. Matches standard tile layout pattern.
 {% endcomment %}
 
-<section class="tile tile-size-{{ tile.size|default:'medium' }}" data-tile-id="relational_health">
-    <div class="tile-header">
-        <h3>Relational Health</h3>
-        <a href="{% url 'relationships:insights' %}" class="tile-action-link">View Insights &rarr;</a>
+{% if relationships_enabled %}
+<section class="relationships-tile tile-size-{{ tile.size|default:'medium' }}" data-tile-id="relational_health">
+    <div class="section-header">
+        <h2 class="section-title">Relationships</h2>
+        <a href="{% url 'relationships:insights' %}" class="section-link">Insights</a>
     </div>
 
     {% if relational_health and relational_health.score is not None %}
-    <div style="display: flex; align-items: center; gap: var(--space-4, 1rem); margin-bottom: var(--space-3, 0.75rem);">
-        <div style="width: 52px; height: 52px; border-radius: 50%; border: 2px solid var(--color-border, #e5e7eb); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-            <span style="font-size: 1.25rem; font-weight: 700; color: var(--color-accent, #6366f1);">
-                {{ relational_health.score }}
-            </span>
+    <div class="rht-stats">
+        <div class="rht-stat">
+            <span class="rht-stat-value">{{ relational_health.total_contacts }}</span>
+            <span class="rht-stat-label">Contact{{ relational_health.total_contacts|pluralize }}</span>
         </div>
-        <div>
-            <div style="font-weight: 600; font-size: 0.9rem;">
-                {{ relational_health.active_7d }} active &middot; {{ relational_health.stale_30d }} stale
-            </div>
-            <div style="font-size: 0.8rem; color: var(--color-text-muted, #6b7280);">
-                {{ relational_health.total_contacts }} contact{{ relational_health.total_contacts|pluralize }}
-            </div>
+        <div class="rht-stat">
+            <span class="rht-stat-value">{{ relational_health.active_7d }}</span>
+            <span class="rht-stat-label">Active (7d)</span>
+        </div>
+        <div class="rht-stat">
+            <span class="rht-stat-value">{{ relational_health.stale_30d }}</span>
+            <span class="rht-stat-label">Need Attention</span>
         </div>
     </div>
 
-    {% if relational_health.insight_lines %}
-    <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-        {% for line in relational_health.insight_lines %}
-        <div style="font-size: 0.8rem; color: var(--color-text, #374151); padding-left: 0.5rem; border-left: 2px solid var(--color-accent, #6366f1);">
-            {{ line }}
-        </div>
+    {% if relational_health.longest_no_contact %}
+    <div class="rht-list">
+        {% for person in relational_health.longest_no_contact|slice:":3" %}
+        <a href="{% url 'relationships:person_detail' person.id %}" class="rht-person">
+            <div class="rht-person-content">
+                <span class="rht-person-name">{{ person.display_name }}</span>
+                <span class="rht-person-meta">
+                    {% if person.days_since is not None %}{{ person.days_since }}d ago{% else %}Never contacted{% endif %}
+                    · {{ person.relationship_type }}
+                </span>
+            </div>
+            <svg class="rht-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
         {% endfor %}
     </div>
     {% endif %}
 
     {% else %}
-    <p style="color: var(--color-text-muted, #6b7280); font-size: 0.85rem;">
-        Add contacts to start tracking relational health.
-        <a href="{% url 'relationships:person_create' %}">Add Person &rarr;</a>
-    </p>
+    <div class="rht-empty">
+        <p class="rht-empty-text">Add contacts to start tracking your relationships.</p>
+        <a href="{% url 'relationships:person_create' %}" class="rht-empty-link">Add Person &rarr;</a>
+    </div>
     {% endif %}
 </section>
+
+<style>
+.rht-stats {
+    display: flex;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.rht-stat {
+    flex: 1;
+    text-align: center;
+    padding: var(--space-2) var(--space-1);
+    background: var(--color-bg);
+    border-radius: var(--radius-sm);
+}
+
+.rht-stat-value {
+    display: block;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.rht-stat-label {
+    display: block;
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-text-muted);
+    margin-top: 2px;
+}
+
+.rht-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.rht-person {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-bg);
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    color: var(--color-text);
+    transition: background 0.15s ease;
+}
+
+.rht-person:hover {
+    background: var(--color-border);
+}
+
+.rht-person-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.rht-person-name {
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rht-person-meta {
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-text-muted);
+}
+
+.rht-arrow {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+}
+
+.rht-empty {
+    padding: var(--space-4) var(--space-2);
+    text-align: center;
+}
+
+.rht-empty-text {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.rht-empty-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.rht-empty-link:hover {
+    text-decoration: underline;
+}
+</style>
+{% endif %}

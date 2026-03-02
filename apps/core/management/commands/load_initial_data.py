@@ -857,6 +857,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Phase R2 Relationship Insights (PK 115 release note, PK 170 teaching dest)
         self._reset_relationship_insights_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset module_definitions fixture to add Relationships module (PK 10)
+        self._reset_relationships_module_definition_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -4608,3 +4611,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset relationship insights fixtures FAILED: {e}'))
+
+    def _reset_relationships_module_definition_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload module_definitions fixture to add Relationships module (PK 10).
+        """
+        reset_tracker_name = 'reset_relationships_module_def_2026_03_02'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='module_definitions')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset module_definitions loader for Relationships module')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset module_definitions for Relationships module',
+                'command',
+                'One-time reset to reload module_definitions with PK 10 (Relationships/People)'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset relationships module definition fixtures FAILED: {e}'))

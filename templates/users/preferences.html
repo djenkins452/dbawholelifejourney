@@ -312,6 +312,23 @@
                         <div class="toggle-option">
                             <div class="toggle-info">
                                 <div class="module-header">
+                                    <span class="module-icon">👥</span>
+                                    <h4>People</h4>
+                                    <span class="module-status status-active" data-module-status="relationships_enabled">Active</span>
+                                </div>
+                                <p class="text-muted text-sm">
+                                    Track meaningful connections, interaction history, relational health insights, and nurture relationships.
+                                </p>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" name="relationships_enabled" {% if form.relationships_enabled.value %}checked{% endif %}>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="toggle-option">
+                            <div class="toggle-info">
+                                <div class="module-header">
                                     <span class="module-icon">🎙️</span>
                                     <h4>Capture</h4>
                                     <span class="module-status status-active" data-module-status="capture_enabled">Active</span>
@@ -345,23 +362,6 @@
                             </div>
                             <label class="toggle-switch">
                                 <input type="checkbox" name="finances_enabled" disabled>
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-
-                        <div class="toggle-option disabled">
-                            <div class="toggle-info">
-                                <div class="module-header">
-                                    <span class="module-icon">👥</span>
-                                    <h4>Relationships</h4>
-                                    <span class="module-status status-coming">Coming Soon</span>
-                                </div>
-                                <p class="text-muted text-sm">
-                                    Track meaningful connections, remember important dates, and nurture relationships.
-                                </p>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" name="relationships_enabled" disabled>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>

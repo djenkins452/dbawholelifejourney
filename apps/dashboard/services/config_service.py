@@ -325,8 +325,8 @@ TILE_DEFINITIONS = {
     },
     'relational_health': {
         'id': 'relational_health',
-        'name': 'Relational Health',
-        'description': 'Summary of your key relationships, interaction patterns, and relational health score.',
+        'name': 'Relationships',
+        'description': 'Summary of your key relationships, contacts needing attention, and interaction stats.',
         'icon': 'users',
         'module_dependency': None,  # Always available — relationships are core
         'default_visible': True,

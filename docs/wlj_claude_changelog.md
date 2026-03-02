@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Add "Add Task" button to calendar month view
+
+**What:** Added an "Add Task" button to the calendar month view header. Clicking it navigates to the task creation form with a `?next=` parameter that returns the user to the same month they were viewing after creating (or canceling) the task. The Cancel button in the task form now also respects the `?next` parameter instead of always going to the task list. Removed diagnostic console.log from dashboard.html.
+
+**Files modified:**
+- `templates/calendar_engine/month.html` — Added "Add Task" button in header with dynamic `?next=` URL that stays in sync with current month/year
+- `templates/life/task_form.html` — Cancel button now uses `request.GET.next` when available
+- `templates/calendar_engine/dashboard.html` — Removed Bible Study diagnostic console.log
+
+---
+
 ## 2026-03-02 — Fix: Duplicate calendar events from recurring occurrences + DST-safe recurrence
 
 **What:** Three related calendar bugs fixed:

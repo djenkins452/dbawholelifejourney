@@ -244,7 +244,7 @@
                 <button type="submit" class="btn btn-primary" data-testid="task-save-button">
                     {% if object %}Save Changes{% else %}Create Task{% endif %}
                 </button>
-                <a href="{% url 'life:task_list' %}" class="btn btn-ghost" data-testid="task-cancel-button">Cancel</a>
+                <a href="{% if request.GET.next %}{{ request.GET.next }}{% else %}{% url 'life:task_list' %}{% endif %}" class="btn btn-ghost" data-testid="task-cancel-button">Cancel</a>
                 {% if object %}
                 <a href="{% url 'life:task_delete' object.pk %}" class="btn btn-ghost text-error ml-auto">Delete</a>
                 {% endif %}

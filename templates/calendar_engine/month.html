@@ -120,6 +120,7 @@
             <button class="cal-today-btn" id="cal-today-btn">Today</button>
         </div>
         <div class="cal-header-right">
+            <a href="{% url 'life:task_create' %}?next=/calendar/month/?year={{ year }}&amp;month={{ month }}" id="cal-add-task-btn" style="font-size:0.875rem;padding:0.375rem 0.75rem;border:1px solid var(--color-accent);border-radius:var(--radius-lg);color:var(--color-accent);text-decoration:none;margin-right:0.5rem;white-space:nowrap">+ Add Task</a>
             <a href="{% url 'calendar_engine:manage' %}" style="font-size:0.875rem;color:var(--color-accent);text-decoration:none;margin-right:0.5rem">Manage Events</a>
             <div class="cal-view-toggles">
                 <a href="{% url 'calendar_engine:dashboard' %}" class="cal-view-btn">Timeline</a>
@@ -335,6 +336,12 @@
 
         weeksEl.innerHTML = html;
         document.getElementById('cal-month-label').textContent = monthName(currentYear, currentMonth);
+
+        // Keep "Add Task" button return URL in sync with current month
+        var addBtn = document.getElementById('cal-add-task-btn');
+        if (addBtn) {
+            addBtn.href = '/life/tasks/new/?next=' + encodeURIComponent('/calendar/month/?year=' + currentYear + '&month=' + currentMonth);
+        }
     }
 
     // ── Load Month Data ──

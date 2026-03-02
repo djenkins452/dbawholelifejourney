@@ -1208,12 +1208,116 @@ class RecipeDeleteView(LifeAccessMixin, DeleteView):
 
 class RecipeToggleFavoriteView(LifeAccessMixin, View):
     """Toggle recipe favorite status."""
-    
+
     def post(self, request, pk):
         recipe = get_object_or_404(Recipe, pk=pk, user=request.user)
         recipe.is_favorite = not recipe.is_favorite
         recipe.save(update_fields=['is_favorite', 'updated_at'])
         return redirect('life:recipe_detail', pk=pk)
+
+
+# =============================================================================
+# Recipe Photo Import
+# =============================================================================
+
+class RecipeScanView(LifeAccessMixin, TemplateView):
+    """
+    Recipe photo import page.
+
+    Upload a photo of a recipe → AI extracts details → review/edit → save.
+    Single-page experience with JS-toggled upload and review states.
+    """
+
+    template_name = "life/recipe_scan.html"
+
+
+class RecipeScanProcessView(LifeAccessMixin, View):
+    """
+    AJAX endpoint: process uploaded recipe photo through Vision AI.
+
+    POST with multipart form data containing a 'photo' file.
+    Returns JSON with extracted recipe fields.
+    """
+
+    def post(self, request):
+        photo = request.FILES.get("photo")
+        if not photo:
+            return JsonResponse({"error": "No photo provided."}, status=400)
+
+        # Validate file size (10MB max)
+        if photo.size > 10 * 1024 * 1024:
+            return JsonResponse({"error": "Photo exceeds 10MB limit."}, status=400)
+
+        # Validate file type
+        allowed_types = {"image/jpeg", "image/png", "image/webp", "image/heic"}
+        content_type = photo.content_type or "image/jpeg"
+        if content_type not in allowed_types:
+            return JsonResponse(
+                {"error": "Unsupported image type. Use JPEG, PNG, or WebP."},
+                status=400,
+            )
+
+        # Read into memory and process
+        raw_bytes = photo.read()
+
+        from apps.life.services.recipe_photo_import import recipe_photo_import_service
+
+        result = recipe_photo_import_service.extract_from_bytes(raw_bytes, content_type)
+
+        if "error" in result:
+            return JsonResponse({"error": result["error"]}, status=422)
+
+        return JsonResponse({"status": "ok", "recipe": result})
+
+
+class RecipeScanConfirmView(LifeAccessMixin, View):
+    """
+    Create Recipe from scanned and user-reviewed data.
+
+    POST with form fields + original photo from request.FILES.
+    Creates Recipe, saves photo as image field, redirects to detail page.
+    """
+
+    def post(self, request):
+        title = request.POST.get("title", "").strip()
+        if not title:
+            messages.error(request, "Recipe title is required.")
+            return redirect("life:recipe_scan")
+
+        recipe = Recipe(
+            user=request.user,
+            title=title,
+            description=request.POST.get("description", "").strip(),
+            ingredients=request.POST.get("ingredients", "").strip(),
+            instructions=request.POST.get("instructions", "").strip(),
+            category=request.POST.get("category", "").strip(),
+            difficulty=request.POST.get("difficulty", "").strip(),
+            source=request.POST.get("source", "").strip(),
+            notes=request.POST.get("notes", "").strip(),
+        )
+
+        # Handle numeric fields
+        for field in ("prep_time_minutes", "cook_time_minutes", "servings"):
+            val = request.POST.get(field, "").strip()
+            if val:
+                try:
+                    int_val = int(val)
+                    if int_val > 0:
+                        setattr(recipe, field, int_val)
+                except (ValueError, TypeError):
+                    pass
+
+        # Save the photo as the recipe image
+        photo = request.FILES.get("photo")
+        if photo:
+            recipe.image = photo
+
+        recipe.save()
+
+        messages.success(
+            request, f'Recipe "{recipe.title}" imported from photo!'
+        )
+        return redirect("life:recipe_detail", pk=recipe.pk)
 
 
 # =============================================================================

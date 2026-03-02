@@ -1,0 +1,664 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Recipe - Organize{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Organize</a>
+        <span>/</span>
+        <a href="{% url 'life:recipe_list' %}">Recipes</a>
+        <span>/</span>
+        <span>Scan Recipe</span>
+    </nav>
+
+    <!-- Upload State -->
+    <div id="upload-state">
+        <div class="form-page">
+            <div class="form-header">
+                <h1 class="page-title">Scan a Recipe</h1>
+                <p class="page-subtitle">Take a photo of a recipe from a cookbook, card, or magazine and AI will extract the details.</p>
+            </div>
+
+            <div class="scan-upload-section">
+                <div class="scan-upload-area" id="upload-area">
+                    <input type="file" id="recipe-photo-input" accept="image/*" capture="environment"
+                           class="scan-file-hidden" aria-label="Upload recipe photo">
+
+                    <!-- Placeholder (shown before photo selected) -->
+                    <div class="scan-upload-placeholder" id="upload-placeholder">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                            <circle cx="12" cy="13" r="4"/>
+                        </svg>
+                        <p class="scan-upload-text">Tap to take a photo or choose from gallery</p>
+                        <p class="scan-upload-hint">JPEG, PNG, or WebP. Max 10MB.</p>
+                    </div>
+
+                    <!-- Preview (shown after photo selected) -->
+                    <div class="scan-upload-preview" id="upload-preview" style="display:none;">
+                        <img id="preview-img" alt="Recipe preview" class="scan-preview-image">
+                    </div>
+                </div>
+
+                <div class="scan-upload-actions">
+                    <button type="button" id="choose-photo-btn" class="btn btn-secondary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                            <circle cx="12" cy="13" r="4"/>
+                        </svg>
+                        Choose Photo
+                    </button>
+                    <button type="button" id="scan-btn" class="btn btn-primary" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                        Scan Recipe
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Processing Overlay -->
+    <div class="scan-overlay" id="scan-overlay" style="display:none;">
+        <div class="scan-overlay-content">
+            <div class="scan-spinner">
+                <svg viewBox="0 0 50 50" width="56" height="56">
+                    <circle cx="25" cy="25" r="20" fill="none" stroke="var(--color-accent, #4f46e5)" stroke-width="4"
+                            stroke-linecap="round" stroke-dasharray="90 150" stroke-dashoffset="0">
+                        <animateTransform attributeName="transform" type="rotate"
+                                          from="0 25 25" to="360 25 25" dur="1s" repeatCount="indefinite"/>
+                    </circle>
+                </svg>
+            </div>
+            <h3 class="scan-overlay-title" id="scan-overlay-title">Reading your recipe...</h3>
+            <p class="scan-overlay-detail" id="scan-overlay-detail">AI is extracting the recipe text. This takes 10-20 seconds.</p>
+            <div class="scan-overlay-steps">
+                <div class="scan-step active" id="step-upload">Uploading photo</div>
+                <div class="scan-step" id="step-extract">Reading recipe text</div>
+                <div class="scan-step" id="step-structure">Structuring recipe data</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error State -->
+    <div id="error-state" style="display:none;">
+        <div class="form-page">
+            <div class="scan-error-card">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--color-error)" stroke-width="1.5" width="48" height="48">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="15" y1="9" x2="9" y2="15"/>
+                    <line x1="9" y1="9" x2="15" y2="15"/>
+                </svg>
+                <h2 id="error-title">Could not read recipe</h2>
+                <p id="error-detail">Try a clearer photo with better lighting.</p>
+                <button type="button" id="retry-btn" class="btn btn-primary">Try Again</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Review State -->
+    <div id="review-state" style="display:none;">
+        <form method="post" action="{% url 'life:recipe_scan_confirm' %}" enctype="multipart/form-data" id="review-form">
+            {% csrf_token %}
+            <input type="file" name="photo" id="hidden-photo" style="display:none;">
+
+            <div class="recipe-scan-layout">
+                <!-- Photo sidebar -->
+                <div class="scan-photo-sidebar">
+                    <img id="review-photo" alt="Scanned recipe" class="scan-review-image">
+                    <div class="scan-confidence-row">
+                        <span class="scan-confidence-label">AI Confidence:</span>
+                        <span class="scan-confidence-value" id="confidence-value">—</span>
+                    </div>
+                </div>
+
+                <!-- Extracted recipe form -->
+                <div class="form-page scan-form-page">
+                    <div class="form-header">
+                        <h1 class="page-title">Review Extracted Recipe</h1>
+                        <p class="page-subtitle">Edit any fields before saving.</p>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-group">
+                            <label for="id_title" class="form-label">Recipe Title</label>
+                            <input type="text" name="title" id="id_title" class="form-input" required
+                                   placeholder="Recipe title">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_description" class="form-label">Description</label>
+                            <textarea name="description" id="id_description" class="form-textarea" rows="2"
+                                      placeholder="Brief description..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h2 class="form-section-title">Ingredients</h2>
+                        <div class="form-group">
+                            <label for="id_ingredients" class="form-label">Ingredients</label>
+                            <textarea name="ingredients" id="id_ingredients" class="form-textarea" rows="8" required
+                                      placeholder="One ingredient per line"></textarea>
+                            <p class="form-help">One ingredient per line</p>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h2 class="form-section-title">Instructions</h2>
+                        <div class="form-group">
+                            <label for="id_instructions" class="form-label">Instructions</label>
+                            <textarea name="instructions" id="id_instructions" class="form-textarea" rows="10" required
+                                      placeholder="Step by step instructions..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h2 class="form-section-title">Details</h2>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="id_prep_time_minutes" class="form-label">Prep Time (minutes)</label>
+                                <input type="number" name="prep_time_minutes" id="id_prep_time_minutes"
+                                       class="form-input" min="0" placeholder="15">
+                            </div>
+                            <div class="form-group">
+                                <label for="id_cook_time_minutes" class="form-label">Cook Time (minutes)</label>
+                                <input type="number" name="cook_time_minutes" id="id_cook_time_minutes"
+                                       class="form-input" min="0" placeholder="30">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="id_servings" class="form-label">Servings</label>
+                                <input type="number" name="servings" id="id_servings"
+                                       class="form-input" min="1" placeholder="4">
+                            </div>
+                            <div class="form-group">
+                                <label for="id_difficulty" class="form-label">Difficulty</label>
+                                <select name="difficulty" id="id_difficulty" class="form-select">
+                                    <option value="">Not specified</option>
+                                    <option value="easy">Easy</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="hard">Hard</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_category" class="form-label">Category</label>
+                            <input type="text" name="category" id="id_category" class="form-input"
+                                   placeholder="e.g., Breakfast, Dinner, Dessert"
+                                   list="category-list">
+                            <datalist id="category-list">
+                                <option value="Breakfast">
+                                <option value="Lunch">
+                                <option value="Dinner">
+                                <option value="Dessert">
+                                <option value="Appetizer">
+                                <option value="Snack">
+                                <option value="Beverage">
+                                <option value="Side Dish">
+                                <option value="Holiday">
+                            </datalist>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h2 class="form-section-title">Source</h2>
+                        <div class="form-group">
+                            <label for="id_source" class="form-label">Source</label>
+                            <input type="text" name="source" id="id_source" class="form-input"
+                                   placeholder="e.g., Grandma's cookbook, Food Network">
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-group">
+                            <label for="id_notes" class="form-label">Personal Notes</label>
+                            <textarea name="notes" id="id_notes" class="form-textarea" rows="3"
+                                      placeholder="Your variations, tips, memories..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            Save Recipe
+                        </button>
+                        <button type="button" id="rescan-btn" class="btn btn-secondary">Rescan</button>
+                        <a href="{% url 'life:recipe_list' %}" class="btn btn-ghost">Cancel</a>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+/* Breadcrumb */
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+/* Form page */
+.form-page {
+    max-width: 700px;
+}
+.form-header {
+    margin-bottom: var(--space-6);
+}
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+.form-section-title {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-4) 0;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+@media (max-width: 640px) {
+    .form-row { grid-template-columns: 1fr; }
+}
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* Upload area */
+.scan-upload-section {
+    margin-top: var(--space-4);
+}
+.scan-upload-area {
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color 0.2s;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.scan-upload-area:hover {
+    border-color: var(--color-accent);
+}
+.scan-file-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+}
+.scan-upload-placeholder {
+    text-align: center;
+    padding: var(--space-8) var(--space-4);
+    color: var(--color-text-muted);
+}
+.scan-upload-placeholder svg {
+    margin-bottom: var(--space-3);
+    opacity: 0.5;
+}
+.scan-upload-text {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-2) 0;
+}
+.scan-upload-hint {
+    font-size: var(--font-size-xs);
+    margin: 0;
+    opacity: 0.7;
+}
+.scan-upload-preview {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+    padding: var(--space-3);
+}
+.scan-preview-image {
+    max-width: 100%;
+    max-height: 400px;
+    object-fit: contain;
+    border-radius: var(--radius-md);
+}
+.scan-upload-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    justify-content: center;
+}
+
+/* Processing overlay */
+.scan-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+}
+.scan-overlay-content {
+    background: var(--color-background);
+    border-radius: var(--radius-xl, 16px);
+    padding: var(--space-8) var(--space-6);
+    width: 90%;
+    max-width: 380px;
+    text-align: center;
+}
+.scan-spinner {
+    margin-bottom: var(--space-4);
+}
+.scan-overlay-title {
+    font-size: var(--font-size-lg);
+    margin: 0 0 var(--space-2) 0;
+}
+.scan-overlay-detail {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-5) 0;
+}
+.scan-overlay-steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    text-align: left;
+}
+.scan-step {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    opacity: 0.5;
+    transition: all 0.3s;
+}
+.scan-step.active {
+    opacity: 1;
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    font-weight: 600;
+}
+
+/* Error card */
+.scan-error-card {
+    text-align: center;
+    padding: var(--space-8) var(--space-4);
+}
+.scan-error-card svg {
+    margin-bottom: var(--space-4);
+}
+.scan-error-card h2 {
+    margin: 0 0 var(--space-2) 0;
+}
+.scan-error-card p {
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-6) 0;
+}
+
+/* Review layout */
+.recipe-scan-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: var(--space-6);
+    align-items: start;
+}
+@media (max-width: 768px) {
+    .recipe-scan-layout {
+        grid-template-columns: 1fr;
+    }
+}
+.scan-photo-sidebar {
+    position: sticky;
+    top: var(--space-4);
+}
+.scan-review-image {
+    width: 100%;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+}
+.scan-confidence-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+}
+.scan-confidence-label {
+    color: var(--color-text-muted);
+}
+.scan-confidence-value {
+    font-weight: 600;
+    color: var(--color-accent);
+}
+.scan-form-page {
+    max-width: none;
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+
+    var photoInput = document.getElementById('recipe-photo-input');
+    var scanBtn = document.getElementById('scan-btn');
+    var chooseBtn = document.getElementById('choose-photo-btn');
+    var uploadArea = document.getElementById('upload-area');
+    var uploadState = document.getElementById('upload-state');
+    var reviewState = document.getElementById('review-state');
+    var errorState = document.getElementById('error-state');
+    var overlay = document.getElementById('scan-overlay');
+    var selectedFile = null;
+    var stepTimers = [];
+
+    // Click upload area or choose button → open file picker
+    uploadArea.addEventListener('click', function() {
+        photoInput.click();
+    });
+    chooseBtn.addEventListener('click', function() {
+        photoInput.click();
+    });
+
+    // File selected → show preview
+    photoInput.addEventListener('change', function() {
+        if (!this.files || !this.files[0]) return;
+        selectedFile = this.files[0];
+
+        // Validate size
+        if (selectedFile.size > 10 * 1024 * 1024) {
+            alert('Photo exceeds 10MB limit.');
+            this.value = '';
+            selectedFile = null;
+            return;
+        }
+
+        // Show preview
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('preview-img').src = e.target.result;
+            document.getElementById('upload-preview').style.display = 'flex';
+            document.getElementById('upload-placeholder').style.display = 'none';
+        };
+        reader.readAsDataURL(selectedFile);
+        scanBtn.disabled = false;
+    });
+
+    // Scan button → upload and process via AJAX
+    scanBtn.addEventListener('click', function() {
+        if (!selectedFile) return;
+
+        // Show overlay
+        overlay.style.display = 'flex';
+        scanBtn.disabled = true;
+
+        // Reset step indicators
+        var allSteps = document.querySelectorAll('.scan-step');
+        for (var i = 0; i < allSteps.length; i++) {
+            allSteps[i].classList.remove('active');
+        }
+        document.getElementById('step-upload').classList.add('active');
+
+        // Animate steps
+        stepTimers = [
+            setTimeout(function() {
+                document.getElementById('step-extract').classList.add('active');
+                document.getElementById('scan-overlay-title').textContent = 'Reading recipe text...';
+                document.getElementById('scan-overlay-detail').textContent = 'AI is extracting ingredients and instructions.';
+            }, 3000),
+            setTimeout(function() {
+                document.getElementById('step-structure').classList.add('active');
+                document.getElementById('scan-overlay-title').textContent = 'Structuring recipe data...';
+                document.getElementById('scan-overlay-detail').textContent = 'Almost done — organizing the extracted information.';
+            }, 10000)
+        ];
+
+        // Send via AJAX
+        var formData = new FormData();
+        formData.append('photo', selectedFile);
+
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        var headers = {};
+        if (csrfToken) {
+            headers['X-CSRFToken'] = csrfToken.value;
+        }
+
+        fetch('{% url "life:recipe_scan_process" %}', {
+            method: 'POST',
+            headers: headers,
+            body: formData
+        })
+        .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, data: data}; }); })
+        .then(function(result) {
+            overlay.style.display = 'none';
+            stepTimers.forEach(clearTimeout);
+
+            if (!result.ok || result.data.error) {
+                showError(result.data.error || 'Failed to process photo.');
+                return;
+            }
+
+            // Populate review form
+            populateForm(result.data.recipe);
+
+            // Set photo preview in review state
+            document.getElementById('review-photo').src = document.getElementById('preview-img').src;
+
+            // Attach the file to the hidden input
+            try {
+                var dt = new DataTransfer();
+                dt.items.add(selectedFile);
+                document.getElementById('hidden-photo').files = dt.files;
+            } catch (e) {
+                // DataTransfer not supported in older browsers — fallback
+                // The photo won't be saved but recipe data will still work
+            }
+
+            // Switch states
+            uploadState.style.display = 'none';
+            errorState.style.display = 'none';
+            reviewState.style.display = 'block';
+            window.scrollTo(0, 0);
+        })
+        .catch(function() {
+            overlay.style.display = 'none';
+            stepTimers.forEach(clearTimeout);
+            showError('Network error. Please check your connection and try again.');
+        });
+    });
+
+    function showError(message) {
+        document.getElementById('error-detail').textContent = message;
+        uploadState.style.display = 'none';
+        reviewState.style.display = 'none';
+        errorState.style.display = 'block';
+        scanBtn.disabled = false;
+    }
+
+    function resetToUpload() {
+        errorState.style.display = 'none';
+        reviewState.style.display = 'none';
+        uploadState.style.display = 'block';
+        scanBtn.disabled = !selectedFile;
+    }
+
+    function populateForm(recipe) {
+        var textFields = ['title', 'description', 'ingredients', 'instructions',
+                          'source', 'notes', 'category'];
+        textFields.forEach(function(field) {
+            var el = document.getElementById('id_' + field);
+            if (el && recipe[field]) {
+                el.value = recipe[field];
+            }
+        });
+
+        var numFields = ['prep_time_minutes', 'cook_time_minutes', 'servings'];
+        numFields.forEach(function(field) {
+            var el = document.getElementById('id_' + field);
+            if (el && recipe[field] != null) {
+                el.value = recipe[field];
+            }
+        });
+
+        // Difficulty select
+        var diffEl = document.getElementById('id_difficulty');
+        if (diffEl && recipe.difficulty) {
+            diffEl.value = recipe.difficulty;
+        }
+
+        // Confidence display
+        var confEl = document.getElementById('confidence-value');
+        if (confEl && recipe.confidence != null) {
+            var pct = Math.round(recipe.confidence * 100);
+            confEl.textContent = pct + '%';
+            if (pct >= 80) {
+                confEl.style.color = 'var(--color-success, #10b981)';
+            } else if (pct >= 50) {
+                confEl.style.color = 'var(--color-warning, #f59e0b)';
+            } else {
+                confEl.style.color = 'var(--color-error, #ef4444)';
+            }
+        }
+    }
+
+    // Retry button
+    document.getElementById('retry-btn').addEventListener('click', resetToUpload);
+
+    // Rescan button
+    document.getElementById('rescan-btn').addEventListener('click', function() {
+        // Reset file input and preview
+        photoInput.value = '';
+        selectedFile = null;
+        document.getElementById('upload-preview').style.display = 'none';
+        document.getElementById('upload-placeholder').style.display = 'block';
+        scanBtn.disabled = true;
+        resetToUpload();
+    });
+})();
+</script>
+{% endblock %}

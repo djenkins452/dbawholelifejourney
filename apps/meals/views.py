@@ -963,37 +963,47 @@ class PantryScanStartView(LoginRequiredMixin, MealsHouseholdMixin, View):
             location_type=location_type,
         )
 
-        # Save upload records with images — Celery worker reads them for Vision API
+        # Read files into memory and process directly — avoids Cloudinary round-trip
+        # which has been unreliable for Vision API reads.
+        from apps.meals.services.pantry_photo_detection import pantry_photo_detection_service
+
         for f in files:
+            raw_bytes = f.read()
+            content_type = f.content_type or "image/jpeg"
+
             try:
-                PantryPhotoUpload.objects.create(session=session, image=f)
+                # Create upload record (save image to Cloudinary as backup only)
+                f.seek(0)
+                upload = PantryPhotoUpload.objects.create(session=session, image=f)
+            except Exception as e:
+                # Cloudinary save failed — create record without image
+                logger.warning(
+                    "Cloudinary save failed for session %d, creating without image: %s",
+                    session.pk, e,
+                )
+                upload = PantryPhotoUpload.objects.create(session=session)
+
+            # Process from in-memory bytes — this is the primary path
+            try:
+                pantry_photo_detection_service.process_from_memory(
+                    upload, raw_bytes, content_type
+                )
             except Exception as e:
                 logger.error(
-                    "Failed to save upload for session %d: %s",
+                    "Failed to process photo for session %d: %s",
                     session.pk, e, exc_info=True,
                 )
 
-        # Dispatch async processing via Celery
-        from apps.meals.tasks import process_pantry_scan_task
-        try:
-            process_pantry_scan_task.delay(session.pk)
-        except Exception as e:
-            # Celery broker down — fall back to sync processing
-            logger.warning(
-                "Celery dispatch failed for session %d, processing sync: %s",
-                session.pk, e,
-            )
-            from apps.meals.services.pantry_photo_detection import pantry_photo_detection_service
-            for upload in session.uploads.filter(processed=False):
-                try:
-                    pantry_photo_detection_service.process_upload(upload)
-                except Exception as proc_err:
-                    logger.error(
-                        "Sync fallback failed for upload %d: %s",
-                        upload.pk, proc_err, exc_info=True,
-                    )
+        # If any uploads still unprocessed, dispatch Celery as backup
+        unprocessed_count = session.uploads.filter(processed=False).count()
+        if unprocessed_count > 0:
+            from apps.meals.tasks import process_pantry_scan_task
+            try:
+                process_pantry_scan_task.delay(session.pk)
+            except Exception:
+                pass  # Confirm page fallback will handle it
 
-        # Redirect immediately — confirm page polls for completion
+        # Redirect to confirmation page
         from django.urls import reverse
         return redirect(reverse("meals:pantry_scan_confirm", kwargs={"session_id": session.pk}))
 

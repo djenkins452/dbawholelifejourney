@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Fix: process pantry photos from memory as primary path
+
+**What:** Cloudinary read-back via `image_field_to_base64()` was silently failing, causing "No items detected" despite clear photos. Switched back to in-memory processing as the primary path: view reads raw bytes from request.FILES, processes through Vision API directly (no Cloudinary round-trip). Images are saved to Cloudinary as backup only (for potential Celery retry). Celery task only dispatched for unprocessed leftovers.
+
+**Files modified:**
+- `apps/meals/views.py` — PantryScanStartView now reads files into memory, processes via `process_from_memory()`, saves to Cloudinary as backup, dispatches Celery only for unprocessed remainders
+
+---
+
 ## 2026-03-02 — Fix: Celery worker fallback for pantry scan processing
 
 **What:** Celery task was dispatched to Redis but the worker service hadn't been redeployed with the new `apps.meals.tasks` module, so tasks silently failed. Added sync fallback safety nets: (1) On the confirm page GET, if session is >30s old with unprocessed uploads, processes them synchronously. (2) On the status poll endpoint, processes one upload per poll request for incremental progress. This ensures photos are always processed regardless of Celery worker state.

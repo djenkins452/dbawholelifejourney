@@ -8,6 +8,8 @@ Only metadata about the scan is logged for analytics and debugging.
 import uuid
 
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from apps.core.models import TimeStampedModel
@@ -214,3 +216,102 @@ class ScanConsent(TimeStampedModel):
 
     def __str__(self):
         return f"Scan consent for {self.user.email}"
+
+
+class ImageAnalysis(TimeStampedModel):
+    """
+    Comprehensive AI analysis of any image in the WLJ ecosystem.
+
+    Stores rich analysis results that feed into CoS context and are
+    searchable across the app. Images can come from any source: AI chat,
+    camera scan, life module uploads, notes, etc.
+
+    Privacy: No raw image data is stored. Only the analysis results.
+    """
+
+    SOURCE_CHOICES = [
+        ('chat', 'AI Chat'),
+        ('scan', 'Camera Scan'),
+        ('inventory', 'Inventory Photo'),
+        ('pet', 'Pet Photo'),
+        ('recipe', 'Recipe Image'),
+        ('project', 'Project Cover'),
+        ('document', 'Document'),
+        ('note', 'Note Image'),
+        ('medical', 'Medical Document'),
+    ]
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('analyzing', 'Analyzing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='image_analyses',
+    )
+
+    # Source tracking via GenericForeignKey
+    source_type = models.CharField(max_length=20, choices=SOURCE_CHOICES)
+    content_type = models.ForeignKey(
+        ContentType, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    object_id = models.PositiveIntegerField(null=True, blank=True)
+    source_object = GenericForeignKey('content_type', 'object_id')
+
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='pending', db_index=True,
+    )
+
+    # Deduplication
+    image_hash = models.CharField(
+        max_length=64, blank=True, db_index=True,
+        help_text="SHA-256 hash for dedup",
+    )
+
+    # Analysis results
+    summary = models.TextField(blank=True, help_text="1-2 sentence summary")
+    detailed_description = models.TextField(
+        blank=True, help_text="Rich natural-language analysis",
+    )
+    category = models.CharField(
+        max_length=30, blank=True, help_text="Best-fit WLJ category",
+    )
+    confidence = models.FloatField(null=True, blank=True)
+    objects_identified = models.JSONField(default=list, blank=True)
+    text_detected = models.TextField(blank=True)
+    context_clues = models.TextField(blank=True)
+    relevance_tags = models.JSONField(default=list, blank=True)
+    actionable_insights = models.JSONField(default=list, blank=True)
+    raw_response = models.JSONField(default=dict, blank=True)
+
+    # Performance metadata
+    processing_time_ms = models.PositiveIntegerField(null=True, blank=True)
+    model_used = models.CharField(max_length=50, blank=True)
+    input_tokens = models.PositiveIntegerField(null=True, blank=True)
+    output_tokens = models.PositiveIntegerField(null=True, blank=True)
+
+    # Denormalized search text
+    search_text = models.TextField(
+        blank=True, editable=False,
+        help_text="Combined text from all analysis fields for search",
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Image Analysis'
+        verbose_name_plural = 'Image Analyses'
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['user', 'source_type', '-created_at']),
+            models.Index(fields=['status', '-created_at']),
+            models.Index(fields=['content_type', 'object_id']),
+        ]
+
+    def __str__(self):
+        return f"Analysis {self.pk} [{self.source_type}] {self.summary[:60]}"

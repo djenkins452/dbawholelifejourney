@@ -4406,28 +4406,31 @@ Tasks are sorted by priority (ascending) then creation date.""",
 
     def _reset_vision_analysis_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """
-        One-time reset to reload release_notes for Vision AI Analysis (PK 109).
+        One-time reset to reload fixtures for Vision AI Analysis.
+        - release_notes PK 109
+        - help_topics PK 103-105 (updated with image upload info)
         """
         reset_tracker_name = 'reset_vision_analysis_2026_03_02'
         try:
             if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
                 return
 
-            try:
-                config = DataLoadConfig.objects.get(loader_name='release_notes')
-                if config.is_loaded:
-                    config.is_loaded = False
-                    config.save()
-                    if verbosity >= 1:
-                        self.stdout.write('  Reset release_notes loader for Vision AI Analysis')
-            except DataLoadConfig.DoesNotExist:
-                pass
+            for loader_name in ['release_notes', 'help_topics']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader_name} loader for Vision AI Analysis')
+                except DataLoadConfig.DoesNotExist:
+                    pass
 
             self._mark_loader_complete(
                 DataLoadConfig, reset_tracker_name,
                 'Reset fixtures for Vision AI Analysis (Mar 2026)',
                 'command',
-                'One-time reset to reload release_notes PK 109'
+                'One-time reset to reload release_notes PK 109, help_topics PK 103-105'
             )
 
         except Exception as e:

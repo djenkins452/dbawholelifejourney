@@ -9,46 +9,17 @@
 
 # WLJ Change History
 
-## 2026-03-02 — People Groups: model, CRUD, quick-create API
+## 2026-03-02 — Fix: Duplicate calendar events from recurring occurrences + DST-safe recurrence
 
-**What:** Added PersonGroup model for organizing contacts into named groups. Full CRUD (list, create, detail, edit, delete), soft-deletable, owner-scoped. Quick-create AJAX endpoint for Phase 3 multi-select integration. Added "Groups" link on insights page header.
-
-**Files created:**
-- `apps/relationships/migrations/0002_persongroup_and_more.py` — PersonGroup model + unique constraint
-- `templates/relationships/group_list.html` — Group list with member preview chips
-- `templates/relationships/group_form.html` — Create/edit form with checkbox member grid
-- `templates/relationships/group_detail.html` — Detail page with member list and delete confirm
-- `apps/relationships/tests/test_person_groups.py` — 27 tests covering model, views, and API
+**What:** Three related calendar bugs fixed:
+1. **Duplicate events on timeline:** When a manual CalendarEvent existed on the same date as a recurring event's computed occurrence (same title), both appeared — e.g., "Bible Study" at 6 PM (correct, from direct event) AND at 7 PM (wrong, from recurring occurrence with UTC-based time shift). Added title+date deduplication in `_get_events_in_range()` so direct events take priority over recurring occurrences.
+2. **DST-unsafe recurrence computation:** `RecurrenceRule.get_occurrences()` advanced via `timedelta` on UTC datetimes, which shifts wall-clock time by 1 hour at DST boundaries. Refactored to work in the recurrence's local timezone — converts base event to local date/time, advances the date, then reconstructs aware datetimes. "6 PM every Wed" stays 6 PM regardless of CST↔CDT transitions.
+3. **Diagnostic logging:** Added temporary console.log in dashboard.html to dump raw API data for Bible Study events (id, start_dt, source_type, is_occurrence) for verification.
 
 **Files modified:**
-- `apps/relationships/models.py` — Added PersonGroup (SoftDeleteModel, ManyToMany to Person)
-- `apps/relationships/forms.py` — Added PersonGroupForm with duplicate name validation
-- `apps/relationships/views.py` — Added 7 group views (list, create, detail, update, delete, quick-create)
-- `apps/relationships/urls.py` — Added 6 group URL routes
-- `apps/relationships/admin.py` — Registered PersonGroupAdmin with filter_horizontal
-- `templates/relationships/insights.html` — Added "Groups" button to header actions
-
-**Tests:** 106 total (79 existing + 27 new), all passing.
-
----
-
-## 2026-03-02 — Feature: Recipe Photo Import (Scan Recipe from Photo)
-
-**What:** New feature allowing users to photograph a recipe (from a cookbook, card, magazine, or handwritten note) and have AI extract all recipe details. The photo is stored alongside the recipe.
-
-**Flow:** User taps "Scan Recipe" on recipe list → takes/uploads photo → AI extracts title, ingredients, instructions, times, servings, difficulty, category, source → user reviews/edits pre-filled form → saves recipe with photo.
-
-**Technical:**
-- Created `RecipePhotoImportService` in `apps/life/services/recipe_photo_import.py` — uses GPT-4o Vision API with recipe-specific OCR prompt, 2048px max resolution, `detail: high`
-- Added 3 views to `apps/life/views.py`: `RecipeScanView` (page), `RecipeScanProcessView` (AJAX processing), `RecipeScanConfirmView` (recipe creation)
-- Created `templates/life/recipe_scan.html` — single-page experience with upload, processing overlay, and review states
-- Added "Scan Recipe" button to recipe list page
-- Reuses `resize_for_vision()` from `apps/scan/services/image_utils.py`
-- In-memory processing (no Cloudinary round-trip for Vision API), photo saved to Recipe.image on confirm
-- CSP-compliant (addEventListener only), mobile-first (camera capture)
-
-**Files created:** `apps/life/services/recipe_photo_import.py`, `templates/life/recipe_scan.html`, `apps/life/tests/test_recipe_scan.py`
-**Files modified:** `apps/life/views.py`, `apps/life/urls.py`, `templates/life/recipe_list.html`
+- `apps/calendar_engine/views.py` — `_get_events_in_range()` deduplicates recurring occurrences against direct events by title+date; `_event_to_dict()` now includes `has_recurrence`
+- `apps/calendar_engine/models.py` — `RecurrenceRule.get_occurrences()` rewritten to be DST-safe using local timezone; old `_advance()` replaced with `_advance_date()` operating on dates
+- `templates/calendar_engine/dashboard.html` — Diagnostic console.log for Bible Study events
 
 ---
 
@@ -71,23 +42,6 @@
 
 **Files modified:**
 - `apps/calendar_engine/views.py` — `_event_to_dict()` and `_occurrence_to_dict()` now convert to local time before `.isoformat()`
-
----
-**What:** New feature allowing users to photograph a recipe (from a cookbook, card, magazine, or handwritten note) and have AI extract all recipe details. The photo is stored alongside the recipe.
-
-**Flow:** User taps "Scan Recipe" on recipe list → takes/uploads photo → AI extracts title, ingredients, instructions, times, servings, difficulty, category, source → user reviews/edits pre-filled form → saves recipe with photo.
-
-**Technical:**
-- Created `RecipePhotoImportService` in `apps/life/services/recipe_photo_import.py` — uses GPT-4o Vision API with recipe-specific OCR prompt, 2048px max resolution, `detail: high`
-- Added 3 views to `apps/life/views.py`: `RecipeScanView` (page), `RecipeScanProcessView` (AJAX processing), `RecipeScanConfirmView` (recipe creation)
-- Created `templates/life/recipe_scan.html` — single-page experience with upload, processing overlay, and review states
-- Added "Scan Recipe" button to recipe list page
-- Reuses `resize_for_vision()` from `apps/scan/services/image_utils.py`
-- In-memory processing (no Cloudinary round-trip for Vision API), photo saved to Recipe.image on confirm
-- CSP-compliant (addEventListener only), mobile-first (camera capture)
-
-**Files created:** `apps/life/services/recipe_photo_import.py`, `templates/life/recipe_scan.html`, `apps/life/tests/test_recipe_scan.py`
-**Files modified:** `apps/life/views.py`, `apps/life/urls.py`, `templates/life/recipe_list.html`
 
 ---
 
@@ -158,27 +112,6 @@
 - `apps/meals/migrations/0004_pantry_photo_image_optional.py` — Migration for nullable image
 
 **Tests:** 32 pantry scan tests passing.
-
----
-
-## 2026-03-02 — Activate Relationships module + redesign dashboard tile
-
-**What:** Moved Relationships from "Coming Soon" to active module. Now on by default for all users, appears in desktop left rail and mobile More menu. Users can toggle it off in Preferences. Redesigned dashboard tile to match standard tile pattern (section-header, stat boxes, person list with chevrons) instead of the bespoke "Relational Health" layout with inline styles.
-
-**Files created:**
-- `apps/users/migrations/0073_add_relationships_module_definition.py` — ModuleDefinition for nav
-- `apps/users/migrations/0074_relationships_enabled_default_true.py` — Default change + backfill
-
-**Files modified:**
-- `apps/users/models.py` — Changed `relationships_enabled` default from False to True
-- `apps/users/fixtures/module_definitions.json` — Added PK 10 (Relationships/People)
-- `apps/core/context_processors.py` — Added `relationships_enabled` to template context
-- `templates/users/preferences.html` — Moved Relationships from Coming Soon to active modules
-- `templates/dashboard/tiles/relational_health.html` — Full redesign: section-header pattern, stat boxes, person list, proper CSS classes
-- `apps/dashboard/services/config_service.py` — Renamed tile from "Relational Health" to "Relationships"
-- `apps/core/management/commands/load_initial_data.py` — Added module_definitions fixture reset
-
-**Why:** Relationships module is now functional (R1 + R2 complete) and should be visible in navigation. Dashboard tile needed to match the visual pattern of other tiles (Goal Progress, Habit Goals, etc.) rather than looking like a standalone widget.
 
 ---
 

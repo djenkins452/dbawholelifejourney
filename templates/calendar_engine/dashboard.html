@@ -356,6 +356,23 @@
         document.getElementById('cal-date-label').textContent = label || 'Today';
         eventsCache = events || [];
 
+        // ── DIAGNOSTIC: dump raw API data for Bible Study events ──
+        (events || []).forEach(function(evt) {
+            if (evt.title && evt.title.toLowerCase().indexOf('bible') !== -1) {
+                console.log('──── BIBLE STUDY EVENT ────');
+                console.log('  id:', evt.id);
+                console.log('  RAW start_dt:', evt.start_dt);
+                console.log('  RAW end_dt:', evt.end_dt);
+                console.log('  source_type:', evt.source_type);
+                console.log('  source_id:', evt.source_id);
+                console.log('  event_kind:', evt.event_kind);
+                console.log('  is_occurrence:', evt.is_occurrence || false);
+                console.log('  regex T-match:', evt.start_dt.match(/T(\d{2}):(\d{2})/));
+                console.log('  formatTime result:', formatTime(evt.start_dt));
+                console.log('──────────────────────────');
+            }
+        });
+
         if (!events || events.length === 0) {
             container.innerHTML = '<div class="cal-empty-state">No events scheduled. Use Quick Add to create one!</div>';
             return;

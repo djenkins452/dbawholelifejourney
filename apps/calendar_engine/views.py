@@ -48,6 +48,7 @@ def _event_to_dict(event):
         'domain': event.domain.name if event.domain else None,
         'domain_color': event.domain.color if event.domain else '#6b7280',
         'duration_minutes': event.duration_minutes,
+        'has_recurrence': hasattr(event, 'recurrence') and event.recurrence is not None,
     }
 
 
@@ -76,6 +77,9 @@ def _occurrence_to_dict(event, occ_start, occ_end):
 
 def _get_events_in_range(user, range_start, range_end):
     """Get all events (including recurring occurrences) in a date range."""
+    import logging
+    logger = logging.getLogger(__name__)
+
     # Direct events
     direct = CalendarEvent.objects.filter(
         user=user,
@@ -85,6 +89,16 @@ def _get_events_in_range(user, range_start, range_end):
     ).select_related('domain')
 
     result = [_event_to_dict(e) for e in direct]
+
+    # Build a set of (title_lower, date_str) from direct events for
+    # deduplication against recurring occurrences.  When a manually-created
+    # or source-projected event already exists on a given day, a recurring
+    # occurrence for the same title on the same day is redundant.
+    direct_title_dates = set()
+    for evt_dict in result:
+        title_lower = evt_dict['title'].strip().lower()
+        date_str = evt_dict['start_dt'][:10]  # YYYY-MM-DD from ISO
+        direct_title_dates.add((title_lower, date_str))
 
     # Recurring event occurrences
     recurring = CalendarEvent.objects.filter(
@@ -98,7 +112,18 @@ def _get_events_in_range(user, range_start, range_end):
     for event in recurring:
         occurrences = event.recurrence.get_occurrences(range_start, range_end)
         for occ_start, occ_end in occurrences:
-            result.append(_occurrence_to_dict(event, occ_start, occ_end))
+            occ_dict = _occurrence_to_dict(event, occ_start, occ_end)
+            # Skip if a direct event already covers this title+date
+            occ_title = occ_dict['title'].strip().lower()
+            occ_date = occ_dict['start_dt'][:10]
+            if (occ_title, occ_date) in direct_title_dates:
+                logger.debug(
+                    "Skipping recurring occurrence '%s' on %s — "
+                    "direct event already exists",
+                    occ_dict['title'], occ_date,
+                )
+                continue
+            result.append(occ_dict)
 
     # Sort by start time
     result.sort(key=lambda e: e['start_dt'])

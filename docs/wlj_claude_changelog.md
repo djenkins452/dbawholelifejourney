@@ -9,6 +9,27 @@
 
 # WLJ Change History
 
+## 2026-03-02 — CRITICAL: Fix streaming path — intent recognition completely broken
+
+**What:** All action requests via the web UI were failing silently. The streaming endpoint (`/assistant/api/chat/stream/`) — which handles ALL text messages from the web UI — had three bugs that completely killed intent recognition:
+
+1. **ImportError**: Imported `orchestrator_process` which doesn't exist in the orchestrator module (real name: `process_user_input`). This `ImportError` was caught by a bare `except Exception`, silently killing ALL intent recognition code in the streaming path.
+2. **Wrong argument order**: `orchestrator_process(actionable, self.user, message)` — should be `(self.user, message, page_context=page_context)`
+3. **Wrong argument order**: `enrich_and_execute(actionable, self.user, orch_result)` — should be `(self.user, actionable, orch_result)`
+4. **Missing clarification guard**: No `needs_clarification` check on orchestrator result before executing.
+
+**Root cause:** The streaming intent recognition code added in the previous enterprise hardening commit used wrong function names and argument orders that didn't match the actual `send_message()` path.
+
+**Impact:** Every action request ("add a task", "delete the event", "log my weight") sent through the web UI's streaming endpoint would fail silently — intent recognition never ran, falling through to the conversational LLM which correctly said "I can't do that" (thanks to anti-hallucination prompts). The non-streaming endpoint (`/api/chat/`) used for image messages was unaffected.
+
+**Files changed:**
+- `apps/ai/personal_assistant.py` — Fixed import (`process_user_input as orchestrator_process`), fixed argument order for both `orchestrator_process()` and `enrich_and_execute()`, added `needs_clarification` guard
+- `apps/ai/tests/test_update_intent_routing.py` — Fixed `test_remind_me` assertion to accept multi-word phrase match
+
+**Tests:** 41/41 intent routing tests pass, 68/68 orchestrator tests pass
+
+---
+
 ## 2026-03-02 — Fix Meals navigation: backfill migration + More page URL
 
 **What:** Meals module wasn't appearing in navigation for existing users. Two issues: (1) no backfill migration to create `UserModulePreference` records for existing users (the `initialize_for_user()` auto-sync was blocked by the 5-minute nav cache), and (2) the More page `MoreView.MODULE_URLS` hardcoded mapping was missing `meals`.

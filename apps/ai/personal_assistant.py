@@ -4963,8 +4963,8 @@ Rules for this response:
                     try:
                         from apps.ai.intent_service import intent_service
                         from apps.core.ai_orchestrator.orchestrator import (
+                            process_user_input as orchestrator_process,
                             enrich_and_execute,
-                            orchestrator_process,
                         )
 
                         # Build lean conversation history for intent context
@@ -4992,24 +4992,34 @@ Rules for this response:
                             if ir.intent_type != 'no_action'
                         ]
                         if actionable:
-                            # Execute actions (non-streaming path)
+                            # Execute via orchestrator pipeline
                             orch_result = orchestrator_process(
-                                actionable, self.user, message,
+                                self.user, message,
+                                page_context=page_context,
                             )
-                            orch_actions = enrich_and_execute(
-                                actionable, self.user, orch_result,
-                            )
-                            parts = []
-                            for ar in orch_actions:
-                                if ar.success:
-                                    actions_taken.append(
-                                        self._build_action_taken(ar)
-                                    )
-                                parts.append(
-                                    ar.message
-                                    + self._format_confirmation_detail(ar)
+
+                            # If orchestrator needs clarification, ask user
+                            if orch_result.needs_clarification:
+                                _direct_response = (
+                                    orch_result.clarification_question
                                 )
-                            _direct_response = ' '.join(parts)
+                            else:
+                                orch_actions = enrich_and_execute(
+                                    self.user, actionable, orch_result,
+                                )
+                                parts = []
+                                for ar in orch_actions:
+                                    if ar.success:
+                                        actions_taken.append(
+                                            self._build_action_taken(ar)
+                                        )
+                                    parts.append(
+                                        ar.message
+                                        + self._format_confirmation_detail(
+                                            ar
+                                        )
+                                    )
+                                _direct_response = ' '.join(parts)
                     except Exception as intent_err:
                         logger.error(
                             "send_message_stream intent error: %s",

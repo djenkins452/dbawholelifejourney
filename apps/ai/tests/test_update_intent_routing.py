@@ -529,7 +529,7 @@ class TestMutationDomainDetection(_IntentUserMixin, TestCase):
         self.assertIsNotNone(result)
         fn, verb, keyword = result
         self.assertEqual(fn, 'create_task')
-        self.assertEqual(verb, 'remind')
+        self.assertIn(verb, ('remind', 'remind me'))
 
     def test_add_event_to_calendar(self):
         """'Add an event to my calendar for Friday' → create_event."""

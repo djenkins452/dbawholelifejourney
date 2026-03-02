@@ -1,6 +1,40 @@
 [
   {
     "model": "help.teachingdestination",
+    "pk": 168,
+    "fields": {
+      "destination_id": "relationships-people",
+      "name": "People",
+      "path_description": "Relationships - People",
+      "explanation": "View and manage your contacts. See interaction history, analytics, and relationship insights for the important people in your life.",
+      "url": "/relationships/",
+      "keywords": "people, contacts, relationships, person, friend, family, spouse, coworker, church, mentor, interactions",
+      "module": "relationships",
+      "sort_order": 220,
+      "is_active": true,
+      "created_at": "2026-03-02T15:00:00Z",
+      "updated_at": "2026-03-02T15:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 169,
+    "fields": {
+      "destination_id": "relationships-add-person",
+      "name": "Add Person",
+      "path_description": "Relationships - Add Person",
+      "explanation": "Add a new contact to your People directory. Track their name, relationship type, email, phone, and notes.",
+      "url": "/relationships/add/",
+      "keywords": "add person, new contact, create person, add friend, add family",
+      "module": "relationships",
+      "sort_order": 221,
+      "is_active": true,
+      "created_at": "2026-03-02T15:00:00Z",
+      "updated_at": "2026-03-02T15:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
     "pk": 166,
     "fields": {
       "destination_id": "meals-setup",

@@ -9,6 +9,35 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Phase R1: Relational Intelligence Foundation
+
+**What:** New `apps/relationships/` platform app introducing canonical Person model, cross-module @mention detection, interaction tracking with GenericForeignKey, analytics service, and CoS integration. This is platform infrastructure — not a single-feature app.
+
+**New models:** Person (owner-scoped contacts with soft delete), RelationshipInteraction (GenericFK to any module), Mention (GenericFK @mention linkage)
+**New services:** RelationshipAnalyticsService (metrics, summaries, top-interacted), MentionParserService (@mention + bare name detection)
+**New signals:** post_save handlers on JournalEntry, Task, PrayerRequest, MealPlan, LifeEvent for automatic mention extraction
+**New views:** PersonListView, PersonCreateView, PersonDetailView, PersonUpdateView, PersonDeleteView, PersonAutocompleteView, PersonQuickCreateView
+**New routes:** /relationships/, /relationships/add/, /relationships/<pk>/, /relationships/<pk>/edit/, /relationships/<pk>/delete/, /relationships/autocomplete/, /relationships/quick-create/
+**New templates:** person_list.html, person_form.html, person_detail.html, partials/_mention_autocomplete.html
+
+**Files created:**
+- `apps/relationships/__init__.py`, `apps.py`, `models.py`, `services.py`, `signals.py`, `views.py`, `urls.py`, `forms.py`, `admin.py`
+- `apps/relationships/migrations/0001_initial.py`
+- `apps/relationships/tests/test_relationships_core.py` (55 tests)
+- `templates/relationships/person_list.html`, `person_form.html`, `person_detail.html`
+- `templates/relationships/partials/_mention_autocomplete.html`
+- `docs/RELATIONSHIP_INTELLIGENCE.md`
+
+**Files modified:**
+- `config/settings.py` — Added `apps.relationships` to INSTALLED_APPS
+- `config/urls.py` — Added `/relationships/` route
+- `apps/core/ai_orchestrator/cos_context.py` — Updated `_build_people_and_mood()` to use new Person model with analytics
+- `apps/core/fixtures/release_notes.json` — Added PK 114 (People & Relationship Intelligence)
+- `apps/help/fixtures/teaching_destinations.json` — Added PK 168-169 (People, Add Person)
+- `apps/core/management/commands/load_initial_data.py` — Added fixture reset for R1
+
+**Why:** Relational intelligence is foundational platform infrastructure. Every module (Journal, Tasks, Prayer, Events, Meals) generates relationship signals. This phase creates the canonical data model and cross-module wiring so future phases (relationship graph, collaborative planning, AI nudges) have a solid foundation.
+
 ## 2026-03-02 — Phase 12: Pantry Photo Intelligence (Session-Based)
 
 **What:** New pantry scanning feature allowing users to photograph their fridge, pantry shelf, or freezer. AI detects food items via OpenAI Vision, matches them to ingredients, and presents a guided confirmation UI. No items are auto-added — everything requires user confirmation. Includes session tracking, confidence scoring, drift modeling, and CoS integration.

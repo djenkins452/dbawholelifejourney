@@ -627,23 +627,47 @@ def _build_people_and_mood(user):
     result = {}
 
     try:
-        from apps.core.ai_relationships.models import Relationship
-        relationships = Relationship.objects.filter(
-            user=user, importance_tier__lte=2,
-        ).select_related("person")[:5]
+        # Phase R1: Use new canonical Person model for relationship signals
+        from apps.relationships.models import Person
+        from apps.relationships.services import RelationshipAnalyticsService
+
+        top_people = RelationshipAnalyticsService.top_interacted(user, limit=10)
         rel_signals = []
-        for rel in relationships:
-            days_since = None
-            if rel.last_interaction:
-                days_since = (timezone.now() - rel.last_interaction).days
+        for person in top_people:
+            days_since = RelationshipAnalyticsService.days_since_last_interaction(person)
+            breakdown = RelationshipAnalyticsService.context_breakdown(person)
             rel_signals.append({
-                'name': rel.person.display_name if rel.person else 'Unknown',
-                'tier': rel.importance_tier,
+                'name': person.get_display_name(),
+                'relationship_type': person.relationship_type,
                 'days_since_contact': days_since,
                 'drifting': days_since is not None and days_since > 14,
+                'interaction_count': person.interaction_count,
+                'context_distribution': breakdown,
             })
         result['relationship_signals'] = rel_signals
-    except Exception:
+    except ImportError:
+        # Fallback to legacy ai_relationships if new app not available
+        try:
+            from apps.core.ai_relationships.models import Relationship
+            relationships = Relationship.objects.filter(
+                user=user, importance_tier__lte=2,
+            ).select_related("person")[:5]
+            rel_signals = []
+            for rel in relationships:
+                days_since = None
+                if rel.last_interaction:
+                    days_since = (timezone.now() - rel.last_interaction).days
+                rel_signals.append({
+                    'name': rel.person.display_name if rel.person else 'Unknown',
+                    'tier': rel.importance_tier,
+                    'days_since_contact': days_since,
+                    'drifting': days_since is not None and days_since > 14,
+                })
+            result['relationship_signals'] = rel_signals
+        except Exception:
+            result['relationship_signals'] = []
+    except Exception as e:
+        logger.warning("CoS context: relationship signals unavailable: %s", e)
         result['relationship_signals'] = []
 
     try:

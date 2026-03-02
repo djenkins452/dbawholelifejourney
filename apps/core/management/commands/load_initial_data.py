@@ -851,6 +851,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Phase 12 Pantry Photo Intelligence (PK 113 release note, PK 167 teaching dest)
         self._reset_pantry_photo_intelligence_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Phase R1 Relational Intelligence (PK 114 release note, PK 168-169 teaching dest)
+        self._reset_relationship_intelligence_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -4538,3 +4541,35 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset pantry photo intelligence fixtures FAILED: {e}'))
+
+    def _reset_relationship_intelligence_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 114) and teaching_destinations (PK 168-169)
+        for Phase R1 Relational Intelligence.
+        """
+        reset_tracker_name = 'reset_relationship_intelligence_2026_03_02'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for loader in ['release_notes', 'teaching_destinations']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader} loader for Relational Intelligence')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Relational Intelligence (Phase R1)',
+                'command',
+                'One-time reset to reload release_notes PK 114, teaching_destinations PK 168-169'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset relationship intelligence fixtures FAILED: {e}'))

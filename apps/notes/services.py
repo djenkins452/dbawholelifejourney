@@ -17,7 +17,7 @@ import string
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.search import SearchHeadline, SearchQuery, SearchRank
 from django.db import models
-from django.db.models import F, Prefetch
+from django.db.models import F, Prefetch, Q
 
 from .models import Note, NoteAttachment
 from .utils import resolve_entity_url
@@ -212,8 +212,6 @@ def search_notes(
         if ct_filters:
             from functools import reduce
             from operator import or_
-
-            from django.db.models import Q
 
             ct_q = reduce(or_, [Q(attachments__content_type__in=ct_qs) for ct_qs in ct_filters])
             queryset = queryset.filter(ct_q)

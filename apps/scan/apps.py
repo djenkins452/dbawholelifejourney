@@ -9,3 +9,6 @@ class ScanConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'apps.scan'
     verbose_name = 'Camera Scan'
+
+    def ready(self):
+        import apps.scan.signals  # noqa: F401

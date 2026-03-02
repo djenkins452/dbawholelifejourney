@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 109,
+    "fields": {
+      "title": "AI Vision Analysis — Every Image Gets a Deep Look",
+      "description": "Upload an image anywhere in WLJ and the AI will comprehensively analyze it — identifying objects, reading text, describing the scene, and extracting actionable insights. Works in AI chat, camera scan, notes (new image upload!), inventory photos, and more. Your Chief of Staff now has visual context from recent images, so it can reference what you've scanned or photographed when giving advice.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-01",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/notes/",
+      "created_at": "2026-03-01T22:00:00Z",
+      "updated_at": "2026-03-01T22:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 108,
     "fields": {
       "title": "Notes — Your Personal Memory Layer",

@@ -21,7 +21,7 @@ from apps.core.views import SaveAddAnotherMixin
 from apps.help.mixins import HelpContextMixin
 
 from .forms import NoteForm
-from .models import Note
+from .models import Note, NoteImage
 
 logger = logging.getLogger(__name__)
 
@@ -101,8 +101,13 @@ class NoteCreateView(
 
     def form_valid(self, form):
         form.instance.user = self.request.user
+        response = super().form_valid(form)
+        # Handle optional image upload
+        image_file = form.cleaned_data.get("image")
+        if image_file:
+            NoteImage.objects.create(note=self.object, image=image_file)
         messages.success(self.request, "Note created.")
-        return super().form_valid(form)
+        return response
 
 
 class NoteDetailView(HelpContextMixin, LoginRequiredMixin, DetailView):
@@ -121,6 +126,20 @@ class NoteDetailView(HelpContextMixin, LoginRequiredMixin, DetailView):
         context["attachments"] = (
             self.object.attachments.select_related("content_type").all()
         )
+        context["note_images"] = self.object.images.all()
+        # Load image analyses for this note's images
+        from apps.scan.models import ImageAnalysis
+        from django.contrib.contenttypes.models import ContentType
+        note_image_ct = ContentType.objects.get_for_model(NoteImage)
+        image_ids = list(self.object.images.values_list("id", flat=True))
+        context["image_analyses"] = {
+            a.object_id: a
+            for a in ImageAnalysis.objects.filter(
+                content_type=note_image_ct,
+                object_id__in=image_ids,
+                status="completed",
+            )
+        } if image_ids else {}
         return context
 
 
@@ -141,8 +160,12 @@ class NoteUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         return kwargs
 
     def form_valid(self, form):
+        response = super().form_valid(form)
+        image_file = form.cleaned_data.get("image")
+        if image_file:
+            NoteImage.objects.create(note=self.object, image=image_file)
         messages.success(self.request, "Note updated.")
-        return super().form_valid(form)
+        return response
 
 
 class NoteDeleteView(LoginRequiredMixin, View):

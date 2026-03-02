@@ -789,6 +789,42 @@ def _build_strategy_and_signals(user):
     return result
 
 
+def _build_recent_image_analyses(user):
+    """Build recent image analysis context for CoS injection."""
+    import datetime
+
+    from django.utils import timezone
+
+    try:
+        from apps.scan.models import ImageAnalysis
+
+        lookback = timezone.now() - datetime.timedelta(days=7)
+        analyses = ImageAnalysis.objects.filter(
+            user=user,
+            status='completed',
+            created_at__gte=lookback,
+        ).order_by('-created_at')[:10]
+
+        if not analyses:
+            return {}
+
+        return {
+            'recent_image_analyses': [
+                {
+                    'summary': a.summary,
+                    'category': a.category,
+                    'source': a.get_source_type_display(),
+                    'when': a.created_at.isoformat(),
+                    'tags': a.relevance_tags[:5] if a.relevance_tags else [],
+                }
+                for a in analyses
+            ]
+        }
+    except Exception as e:
+        logger.debug("CoS context: image analyses unavailable: %s", e)
+        return {}
+
+
 # Registry of parallel builder functions.
 # Each takes (user, prefs) or (user,) and returns a dict of context updates.
 _PARALLEL_BUILDERS = [
@@ -801,6 +837,7 @@ _PARALLEL_BUILDERS = [
     lambda user, prefs: _build_people_and_mood(user),
     lambda user, prefs: _build_loops_and_events(user),
     lambda user, prefs: _build_strategy_and_signals(user),
+    lambda user, prefs: _build_recent_image_analyses(user),
 ]
 
 
@@ -1436,6 +1473,19 @@ def format_cos_system_injection(context):
 
         except Exception:
             pass  # CX block must never break CoS
+
+    # Recent image analyses — visual context from uploaded images
+    image_analyses = context.get('recent_image_analyses', [])
+    if image_analyses:
+        lines.append("")
+        lines.append(
+            "RECENT IMAGE CONTEXT (reference when user asks about photos or related items):"
+        )
+        for ia in image_analyses:
+            tags_str = ""
+            if ia.get('tags'):
+                tags_str = " " + " ".join(f"#{t}" for t in ia['tags'][:3])
+            lines.append(f"  - [{ia['source']}] {ia['summary']}{tags_str}")
 
     lines.append("")
     lines.append("=== END SITUATIONAL AWARENESS ===")

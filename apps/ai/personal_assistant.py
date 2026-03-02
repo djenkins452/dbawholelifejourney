@@ -2060,7 +2060,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             image_expires_at = timezone.now() + timedelta(hours=72)
 
         # Save user message (with optional image)
-        AssistantMessage.objects.create(
+        user_msg = AssistantMessage.objects.create(
             conversation=conversation,
             role='user',
             content=message,
@@ -2069,6 +2069,22 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             image_mime_type=image_mime_type or '',
             image_expires_at=image_expires_at
         )
+
+        # Comprehensive vision analysis — persist structured analysis for CoS
+        if image_data and image_mime_type:
+            try:
+                from apps.scan.services.comprehensive_vision import comprehensive_vision_service
+                from apps.scan.services.image_utils import clean_base64
+                clean_img, _ = clean_base64(image_data)
+                comprehensive_vision_service.analyze(
+                    image_base64=clean_img,
+                    mime_type=image_mime_type,
+                    user=self.user,
+                    source_type='chat',
+                    source_object=user_msg,
+                )
+            except Exception as e:
+                logger.warning("Comprehensive vision analysis failed: %s", e)
 
         response = ""
         actions_taken = []

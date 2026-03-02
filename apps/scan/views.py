@@ -335,6 +335,20 @@ class ScanAnalyzeView(LoginRequiredMixin, View):
                     processing_time_ms=processing_time_ms
                 )
 
+            # Comprehensive vision analysis — deep analysis for CoS context
+            if not result.error:
+                try:
+                    from apps.scan.services.comprehensive_vision import comprehensive_vision_service
+                    comprehensive_vision_service.analyze(
+                        image_base64=clean_base64,
+                        mime_type=f"image/{image_format}",
+                        user=user,
+                        source_type='scan',
+                        source_object=scan_log,
+                    )
+                except Exception as e:
+                    logger.warning("Comprehensive vision analysis failed: %s", e)
+
             # Store image in session for potential attachment to created items
             # This allows the scanned image to be saved to inventory/etc.
             # Session will auto-expire, and image is only stored temporarily

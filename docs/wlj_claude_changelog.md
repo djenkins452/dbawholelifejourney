@@ -46,6 +46,52 @@
 
 ---
 
+## 2026-03-01 — Comprehensive Vision AI Analysis for All Image Uploads
+
+**What:** Added a unified vision analysis system that gives "Claude-level" comprehensive image understanding for any image uploaded anywhere in the WLJ ecosystem. Previously, only the camera scan had vision AI (narrow 12-category routing), and chat images were analyzed inline but never persisted or indexed.
+
+**New infrastructure:**
+- `ImageAnalysis` model (`apps/scan/models.py`) — stores rich analysis results (summary, detailed description, objects identified, text detected, context clues, relevance tags, actionable insights) linked to any source via GenericFK
+- `ComprehensiveVisionService` (`apps/scan/services/comprehensive_vision.py`) — GPT-4o vision API with comprehensive analysis prompt, dedup via SHA-256 hash, telemetry logging
+- `image_utils.py` — image normalization utilities (base64 conversion, hash, resize, format detection)
+- `NoteImage` model (`apps/notes/models.py`) — image attachments for notes
+
+**Integration points:**
+- **AI Chat** — images sent in conversation now get comprehensive analysis persisted to `ImageAnalysis`
+- **Camera Scan** — successful scans trigger additional comprehensive analysis alongside existing category routing
+- **Life module uploads** — `post_save` signals on InventoryPhoto, Pet, Recipe, Document auto-trigger analysis
+- **Notes** — new image upload field on note create/edit forms; images displayed with analysis on detail page
+
+**CoS integration:**
+- New `_build_recent_image_analyses()` parallel builder in cos_context.py
+- Last 7 days of analyses (max 10) injected into Layer 6 operational context
+- Format: `[Source] Summary #tag1 #tag2`
+
+**Files created:**
+- `apps/scan/services/comprehensive_vision.py`
+- `apps/scan/services/image_utils.py`
+- `apps/scan/signals.py`
+- `apps/scan/migrations/0002_add_image_analysis.py`
+- `apps/notes/migrations/0007_add_note_image.py`
+
+**Files modified:**
+- `apps/scan/models.py` — added ImageAnalysis model
+- `apps/scan/admin.py` — registered ImageAnalysisAdmin
+- `apps/scan/apps.py` — connected signals
+- `apps/scan/services/__init__.py` — exported ComprehensiveVisionService
+- `apps/scan/views.py` — wired comprehensive analysis into ScanAnalyzeView
+- `apps/ai/personal_assistant.py` — wired comprehensive analysis into send_message()
+- `apps/notes/models.py` — added NoteImage model
+- `apps/notes/forms.py` — added image upload field
+- `apps/notes/views.py` — handle image upload in create/update, display in detail
+- `apps/core/ai_orchestrator/cos_context.py` — added image analysis builder + injection
+- `templates/notes/note_form.html` — multipart form + image field
+- `templates/notes/note_detail.html` — image display + analysis results
+
+**Why:** User wants comprehensive AI understanding of every uploaded image, not just food/medicine categorization. Analysis results feed into CoS so the AI assistant has visual context awareness.
+
+---
+
 ## 2026-03-01 — Fix Notes search to use substring matching instead of full-text search
 
 **What:** Searching for "Thanks" in the Notes app returned 0 results even though a note contained "Thanksgiving". PostgreSQL full-text search with `websearch` type only matches complete word stems — "Thanks" stems to "thank" while "Thanksgiving" stems to "thanksgiv", so they don't match.

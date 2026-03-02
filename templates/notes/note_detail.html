@@ -59,6 +59,32 @@
             {{ note.body|linebreaksbr }}
         </div>
 
+        <!-- Images -->
+        {% if note_images %}
+        <div class="note-detail-images">
+            <h3 class="section-label">Images</h3>
+            {% for img in note_images %}
+            <div class="note-image-card">
+                <img src="{{ img.image.url }}" alt="{{ img.caption|default:'Note image' }}" class="note-image-preview" loading="lazy">
+                {% if img.caption %}<p class="note-image-caption">{{ img.caption }}</p>{% endif %}
+                {% with analysis=image_analyses|dictsort:"pk" %}
+                {% endwith %}
+                {% if image_analyses %}
+                {% for img_id, analysis in image_analyses.items %}
+                {% if img_id == img.pk %}
+                <div class="image-analysis-box">
+                    <p class="analysis-summary"><strong>AI Analysis:</strong> {{ analysis.summary }}</p>
+                    {% if analysis.text_detected %}<p class="analysis-detail"><strong>Text detected:</strong> {{ analysis.text_detected|truncatewords:50 }}</p>{% endif %}
+                    {% if analysis.relevance_tags %}<div class="analysis-tags">{% for tag in analysis.relevance_tags %}<span class="analysis-tag">#{{ tag }}</span>{% endfor %}</div>{% endif %}
+                </div>
+                {% endif %}
+                {% endfor %}
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <!-- Metadata -->
         <div class="note-detail-meta">
             <div class="meta-row">
@@ -210,6 +236,47 @@
     font-size: 0.75rem;
     font-weight: 500;
     text-decoration: none;
+}
+.note-detail-images {
+    margin-bottom: var(--space-6);
+}
+.note-image-card {
+    margin-bottom: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+.note-image-preview {
+    width: 100%;
+    max-height: 500px;
+    object-fit: contain;
+    background: var(--color-surface);
+    display: block;
+}
+.note-image-caption {
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    border-top: 1px solid var(--color-border);
+    margin: 0;
+}
+.image-analysis-box {
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    font-size: 0.875rem;
+}
+.image-analysis-box p {
+    margin: 0 0 var(--space-2) 0;
+}
+.analysis-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}
+.analysis-tag {
+    font-size: 0.75rem;
+    color: var(--color-accent);
 }
 .note-detail-attachments {
     margin-bottom: var(--space-4);

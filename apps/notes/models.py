@@ -251,3 +251,22 @@ class NoteAttachment(models.Model):
             return f"{verbose}: {display}"
         except Exception:
             return ""
+
+
+class NoteImage(models.Model):
+    """Image attached to a note for AI vision analysis."""
+
+    note = models.ForeignKey(
+        Note, on_delete=models.CASCADE, related_name='images',
+    )
+    image = models.ImageField(upload_to='notes/images/%Y/%m/')
+    caption = models.CharField(max_length=200, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+        verbose_name = 'Note Image'
+        verbose_name_plural = 'Note Images'
+
+    def __str__(self):
+        return f"Image on Note {self.note_id}"

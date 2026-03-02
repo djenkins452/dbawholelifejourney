@@ -50,6 +50,12 @@ class NoteForm(forms.ModelForm):
             ),
         }
 
+    image = forms.ImageField(
+        required=False,
+        widget=forms.ClearableFileInput(attrs={"class": "form-input", "accept": "image/*"}),
+        help_text="Attach an image (analyzed with AI vision)",
+    )
+
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = user

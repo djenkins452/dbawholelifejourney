@@ -20,6 +20,21 @@
         </h1>
     </div>
 
+    <!-- Import from Phone button — only visible in iOS native app, only on Add (not Edit) -->
+    {% if not object %}
+    <div id="import-from-phone-container" style="display: none;">
+        <button type="button" id="import-from-phone-btn" class="btn btn-outline"
+                style="margin-bottom: var(--space-4); display: inline-flex; align-items: center; gap: 8px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2z"/>
+                <line x1="12" y1="18" x2="12" y2="18.01"/>
+            </svg>
+            Import from Phone Contacts
+        </button>
+    </div>
+    {% endif %}
+
     <form method="post" class="entry-form">
         {% csrf_token %}
 
@@ -110,4 +125,25 @@
     }
 }
 </style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    // Show "Import from Phone" button only inside the native iOS app
+    if (window.wljNative && window.wljNative.isNativeApp) {
+        var container = document.getElementById('import-from-phone-container');
+        if (container) {
+            container.style.display = 'block';
+        }
+    }
+
+    var btn = document.getElementById('import-from-phone-btn');
+    if (btn) {
+        btn.addEventListener('click', function() {
+            if (window.wljNative && window.wljNative.importContact) {
+                window.wljNative.importContact();
+            }
+        });
+    }
+})();
+</script>
 {% endblock %}

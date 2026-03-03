@@ -39,6 +39,9 @@ struct ContentView: View {
             .sheet(isPresented: $appState.showSettings) {
                 SettingsView()
             }
+            .sheet(isPresented: $appState.showContactImport) {
+                ContactImportView()
+            }
         }
     }
 }

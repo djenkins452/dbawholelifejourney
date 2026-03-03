@@ -87,6 +87,14 @@ struct MainWebView: UIViewRepresentable {
                 name: .pushNotificationDeepLink,
                 object: nil
             )
+
+            // Listen for contact import completions to reload WebView
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handleContactImported),
+                name: .contactImported,
+                object: nil
+            )
         }
 
         deinit {
@@ -101,6 +109,15 @@ struct MainWebView: UIViewRepresentable {
                 return
             }
             webView?.load(URLRequest(url: url))
+        }
+
+        // MARK: - Contact Import Reload
+
+        @objc private func handleContactImported() {
+            // Navigate to the relationships page to show the newly imported contact
+            if let url = URL(string: "https://wholelifejourney.com/relationships/") {
+                webView?.load(URLRequest(url: url))
+            }
         }
 
         // MARK: - Pull-to-Refresh
@@ -168,6 +185,9 @@ struct MainWebView: UIViewRepresentable {
                 openSettings: function() {
                     window.webkit.messageHandlers.wljBridge.postMessage({action: 'openSettings'});
                 },
+                importContact: function() {
+                    window.webkit.messageHandlers.wljBridge.postMessage({action: 'importContact'});
+                },
                 logout: function() {
                     window.webkit.messageHandlers.wljBridge.postMessage({action: 'logout'});
                 },
@@ -194,6 +214,10 @@ struct MainWebView: UIViewRepresentable {
             case "openSettings":
                 DispatchQueue.main.async {
                     self.parent.appState.showSettings = true
+                }
+            case "importContact":
+                DispatchQueue.main.async {
+                    self.parent.appState.showContactImport = true
                 }
             case "logout":
                 DispatchQueue.main.async {

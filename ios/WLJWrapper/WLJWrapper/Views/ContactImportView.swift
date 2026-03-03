@@ -106,7 +106,10 @@ struct ContactImportView: View {
                     .padding(.top, 4)
             }
 
-            Button("Done") { dismiss() }
+            Button("Done") {
+                    NotificationCenter.default.post(name: .contactImported, object: nil)
+                    dismiss()
+                }
                 .font(.headline)
                 .frame(maxWidth: .infinity)
                 .padding()

@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Wire iOS contact import into web UI via JS bridge
+
+**What:** Connected the native iOS contact picker to the web Add Person page via the WKWebView JS bridge. When a user visits Relationships → Add Person inside the iOS app, an "Import from Phone Contacts" button now appears. Tapping it triggers the native iOS contact picker. After a successful import, the WebView automatically navigates back to the relationships list to show the new contact.
+
+**Changes:**
+- `ios/WLJWrapper/WLJWrapper/Views/MainWebView.swift` — Added `importContact` function to injected JS bridge (`window.wljNative.importContact`), added `importContact` case to bridge message handler, added `contactImported` notification listener to reload WebView to relationships page after import.
+- `ios/WLJWrapper/WLJWrapper/Views/ContentView.swift` — Added `.sheet(isPresented: $appState.showContactImport)` for presenting ContactImportView.
+- `ios/WLJWrapper/WLJWrapper/App/WLJWrapperApp.swift` — Added `@Published var showContactImport: Bool` to AppState.
+- `ios/WLJWrapper/WLJWrapper/Views/ContactImportView.swift` — Posts `contactImported` notification on successful import before dismissing.
+- `ios/WLJWrapper/WLJWrapper/Services/PushNotificationManager.swift` — Added `Notification.Name.contactImported` constant.
+- `templates/relationships/person_form.html` — Added "Import from Phone Contacts" button (hidden by default, shown only when `window.wljNative.isNativeApp` is true). CSP-compliant with `addEventListener`.
+
+**Why:** Completes the full user flow: web Add Person page → native contact picker → backend API → WebView reload. Without this wiring, the contact import feature existed but wasn't accessible from the UI.
+
+---
+
 ## 2026-03-03 — Refresh page context on input focus instead of every send
 
 **What:** Moved page context refresh from `sendMessage()` to the input `focus` event. When the user clicks/taps the text box, `getPageContext()` runs — capturing fresh DOM state (expanded scriptures, etc.) at the moment the user intends to type, rather than on every message send.

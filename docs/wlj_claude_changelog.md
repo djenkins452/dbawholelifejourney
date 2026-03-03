@@ -9,15 +9,20 @@
 
 # WLJ Change History
 
-## 2026-03-03 — Fix CoS not using scripture context on reading plan pages
+## 2026-03-03 — Fix CoS not using scripture context on reading plan pages (v2)
 
-**What:** When a user was on a Bible reading plan page and asked CoS "Help me understand this scripture better," CoS asked the user to share the scripture instead of using the page context. Two issues: (1) page context was cached once when the chat drawer opened and never refreshed, so scripture text loaded after drawer open was missed; (2) the fallback instruction when scripture text wasn't available was too weak and the AI ignored it.
+**What:** CoS repeatedly asked "Please share the specific scripture" when the user was on a reading plan page with Matthew 16:1-28 visible. The root cause was that scripture context was only in the system prompt (easily ignored by the AI in a long prompt). Fixed with a three-layer approach:
 
 **Changes:**
-- `templates/components/chat_widget.html` — Changed `getPageContext()` to always refresh on every message send instead of only when null. Previously cached from drawer open, missing any content loaded afterward (like expanded scripture passages).
-- `apps/ai/personal_assistant.py` — Strengthened the fallback instruction when scripture text isn't in the DOM but references are known. Changed from passive "use your knowledge" to emphatic "CRITICAL: You ALREADY KNOW which scripture... NEVER ask the user to share."
+- `templates/components/chat_widget.html` — Always refresh `getPageContext()` on every message send (not just on drawer open).
+- `apps/ai/personal_assistant.py` — Three fixes:
+  1. **User prompt injection** (most impactful): Scripture references are now injected directly into the user prompt (e.g., `[SCRIPTURE CONTEXT: reading Matthew 16:1-28]`) right next to the user's message. This is impossible for the AI to miss, unlike system prompt instructions buried among 20+ other sections.
+  2. **Server-side database lookup**: If JavaScript fails to capture scripture references from the DOM, the backend looks up the `UserReadingPlan` and `ReadingPlanDay` from the database using the URL. No JS dependency.
+  3. **Pre-loaded scripture text**: If `ReadingPlanDay.scripture_content` has pre-loaded text, it's included in the prompt so the AI can give verse-by-verse breakdowns.
+  4. **Token limit boost**: Scripture breakdown requests ("break it down", "explain", "understand") get 1200 tokens minimum.
+  5. **Strengthened system prompt fallback**: Changed from passive "use your knowledge" to emphatic "CRITICAL/NEVER" language.
 
-**Why:** The stale context cache meant the AI never saw the scripture text even when it was visible on screen. The weak fallback meant even when the AI knew the references, it still asked the user to provide them.
+**Why:** The AI was ignoring scripture context buried deep in a massive system prompt. Injecting it into the user prompt where it's adjacent to the actual question makes it unmissable.
 
 ## 2026-03-02 — iOS native contact import ("Import from Phone")
 

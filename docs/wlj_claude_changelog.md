@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Fix task restore date filter (UTC timezone bug)
+
+**What:** The v1 task restore used `deleted_at__date=2026-03-02` but `deleted_at` is stored in UTC. Beth deleted tasks at ~7:14 PM Central = ~1:14 AM UTC March 3, so the date filter missed all of them. Fixed to use a datetime range (March 2-4 UTC) and new v2 tracker name so it re-runs on deploy.
+
+**Changes:**
+- `apps/core/management/commands/load_initial_data.py` — Fixed `_restore_beth_deleted_tasks()`: changed from date filter to UTC datetime range, new tracker `restore_beth_deleted_tasks_2026_03_02_v2`.
+
+---
+
 ## 2026-03-02 — Safety engine: block task deletion without explicit delete verb
 
 **What:** Added a hard safety gate in the execution pipeline that blocks task deletion unless the user's original message contains an explicit delete verb (delete, remove, cancel, get rid of, trash, erase). This prevents the AI from interpreting ambiguous phrases like "don't show those", "hide completed", or "I already did those" as delete requests. The gate operates at the safety engine level (before execution), so it blocks ALL deletion paths regardless of how the AI routes the intent.

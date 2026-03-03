@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Add missing migration for Task Meta ordering change
+
+**What:** CI failing because `makemigrations --check --dry-run` detected that the Task model's `ordering` Meta option was changed (added `scheduled_time`) but no migration existed.
+**Root cause:** Commit `8a98bd59` changed the ordering in `apps/life/models.py` but didn't generate a migration.
+**Changes:** Created `apps/life/migrations/0017_alter_task_options.py` to capture the Meta options change.
+
+---
+
 ## 2026-03-03 — Increase More button inset from screen edge
 
 **What:** More button in bottom nav still too close to right edge for reliable tapping.

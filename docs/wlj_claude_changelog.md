@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Refresh page context on input focus instead of every send
+
+**What:** Moved page context refresh from `sendMessage()` to the input `focus` event. When the user clicks/taps the text box, `getPageContext()` runs — capturing fresh DOM state (expanded scriptures, etc.) at the moment the user intends to type, rather than on every message send.
+
+**Changes:**
+- `templates/components/chat_widget.html` — Added `getPageContext()` call in the input `focus` listener. Reverted `sendMessage()` to use cached context (with null fallback).
+
+**Why:** More efficient — DOM traversal happens once when the user engages, not on every send. Context is already captured by the time they hit enter.
+
 ## 2026-03-03 — Fix CoS not using scripture context on reading plan pages (v2)
 
 **What:** CoS repeatedly asked "Please share the specific scripture" when the user was on a reading plan page with Matthew 16:1-28 visible. The root cause was that scripture context was only in the system prompt (easily ignored by the AI in a long prompt). Fixed with a three-layer approach:

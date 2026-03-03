@@ -4411,10 +4411,19 @@ Rules for voice responses:
 
         # Build the user prompt, noting if image(s) are attached
         _img_count = len(all_images) if all_images else (1 if image_data and image_mime_type else 0)
+        _vision_instruction = (
+            "You CAN see and analyze images — you have full vision capability. "
+            "Read ALL visible text, numbers, labels, and data from the image(s). "
+            "If it shows health metrics (weight, BMI, body fat %, muscle mass, etc.), "
+            "report the specific numbers you see and provide observations: trends, "
+            "changes, what's improving, what needs attention. Be specific with data — "
+            "e.g., 'Your weight is 285 lbs, down from 295 five days ago — that's a 3.4% decrease.' "
+            "This is data reading and observation, not medical advice."
+        )
         if _img_count > 1:
-            image_note = f"\n\n[The user has attached {_img_count} images. Please carefully analyze ALL images and respond to them along with their message. Describe what you see in each image and provide relevant insights.]"
+            image_note = f"\n\n[The user has attached {_img_count} images. {_vision_instruction} Analyze each image and synthesize insights across all of them.]"
         elif _img_count == 1:
-            image_note = "\n\n[The user has attached an image. Please analyze and respond to it along with their message.]"
+            image_note = f"\n\n[The user has attached an image. {_vision_instruction}]"
         else:
             image_note = ""
 

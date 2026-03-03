@@ -38,7 +38,7 @@ struct ContactImportView: View {
                 }
             }
             .sheet(isPresented: $showPicker) {
-                ContactPickerView(pickedContact: $pickedContact)
+                ContactPickerView(pickedContact: $pickedContact, onCancel: { showPicker = false })
             }
             .onChange(of: pickedContact) { _, contact in
                 if let contact = contact {

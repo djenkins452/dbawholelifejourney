@@ -422,7 +422,7 @@ struct APIErrorResponse: Codable {
 
 /// Result from a successful contact pick via the iOS native contact picker.
 /// Defined here (not in ContactImportManager) so APIClient compiles independently.
-struct PickedContact {
+struct PickedContact: Equatable {
     let firstName: String
     let lastName: String
     let phone: String?

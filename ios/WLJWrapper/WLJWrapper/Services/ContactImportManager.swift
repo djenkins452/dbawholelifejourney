@@ -15,7 +15,7 @@ import SwiftUI
 /// from the single contact the user selects.
 struct ContactPickerView: UIViewControllerRepresentable {
     @Binding var pickedContact: PickedContact?
-    @Environment(\.dismiss) private var dismiss
+    var onCancel: () -> Void
 
     func makeUIViewController(context: Context) -> CNContactPickerViewController {
         let picker = CNContactPickerViewController()
@@ -49,7 +49,7 @@ struct ContactPickerView: UIViewControllerRepresentable {
         }
 
         func contactPickerDidCancel(_ picker: CNContactPickerViewController) {
-            parent.dismiss()
+            parent.onCancel()
         }
     }
 }

@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Contact import from vCard (Phase 5)
+
+**What:** Users can now import contacts from their phone's contact list by uploading a .vcf (vCard) file. The import page includes drag-and-drop file upload, a results summary (imported/skipped/errors), and help instructions for iPhone, Android, and Google Contacts. Deduplicates by case-insensitive first+last name. Supports vCard 2.1, 3.0, and 4.0 formats.
+
+**Changes:**
+- `apps/relationships/services.py` — Added `ContactImportService` with `import_vcf()`, `_parse_vcf()`, `_extract_value()`, and `_get_existing_names()` methods.
+- `apps/relationships/forms.py` — Added `ContactImportForm` (FileField, .vcf validation, 10MB max).
+- `apps/relationships/views.py` — Added `ContactImportView` (GET=upload form, POST=parse and import).
+- `apps/relationships/urls.py` — Added `import/` route.
+- `templates/relationships/import_contacts.html` — New template with drag-and-drop upload, results display, help instructions.
+- `templates/relationships/person_list.html` — Added "Import" link in header.
+- `templates/relationships/insights.html` — Added "Import" link in header.
+- `apps/relationships/tests/test_contact_import.py` — 28 new tests: parsing, dedup, import service, view GET/POST, link presence.
+
+**Tests:** 153 relationships tests passing.
+
+---
+
 ## 2026-03-02 — @groupname mention support (Phase 4)
 
 **What:** Typing `@GroupName` in journal entries, prayers, or any text field with mentions now expands to all group members. Each member gets individual Mention and Interaction records. The autocomplete dropdown now shows groups (with a people icon) above individual contacts, with member count displayed.

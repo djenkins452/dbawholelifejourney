@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+
+{% block title %}Import Contacts - People - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'dashboard:home' %}">Dashboard</a>
+        <span>/</span>
+        <a href="{% url 'relationships:insights' %}">People</a>
+        <span>/</span>
+        <span>Import Contacts</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Import Contacts</h1>
+            <p class="page-subtitle">Upload contacts from your phone</p>
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'relationships:person_list' %}" class="btn btn-secondary btn-sm">All People</a>
+        </div>
+    </div>
+
+    {% if result %}
+    <!-- Import Results -->
+    <div class="ci-results mb-6">
+        <div class="ci-results-summary">
+            <div class="ci-stat ci-stat-imported">
+                <div class="ci-stat-number">{{ result.imported_count }}</div>
+                <div class="ci-stat-label">Imported</div>
+            </div>
+            <div class="ci-stat ci-stat-skipped">
+                <div class="ci-stat-number">{{ result.skipped_count }}</div>
+                <div class="ci-stat-label">Skipped (duplicates)</div>
+            </div>
+            {% if result.error_count %}
+            <div class="ci-stat ci-stat-errors">
+                <div class="ci-stat-number">{{ result.error_count }}</div>
+                <div class="ci-stat-label">Errors</div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if result.imported %}
+        <div class="ci-result-section">
+            <h3 class="ci-result-heading">Imported</h3>
+            <div class="ci-result-list">
+                {% for person in result.imported %}
+                    <span class="ci-result-chip ci-chip-imported">{{ person.name }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if result.skipped %}
+        <div class="ci-result-section">
+            <h3 class="ci-result-heading">Skipped (already exist)</h3>
+            <div class="ci-result-list">
+                {% for person in result.skipped %}
+                    <span class="ci-result-chip ci-chip-skipped">{{ person.name }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if result.errors %}
+        <div class="ci-result-section">
+            <h3 class="ci-result-heading">Errors</h3>
+            <div class="ci-result-list">
+                {% for err in result.errors %}
+                    <span class="ci-result-chip ci-chip-error">{{ err.raw }}: {{ err.reason }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="ci-result-actions">
+            <a href="{% url 'relationships:person_list' %}" class="btn btn-primary btn-sm">View All People</a>
+            <a href="{% url 'relationships:contact_import' %}" class="btn btn-secondary btn-sm">Import More</a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Upload Form -->
+    <div class="ci-upload-section">
+        <form method="post" enctype="multipart/form-data" class="ci-form" id="import-form">
+            {% csrf_token %}
+            <div class="ci-upload-area" id="upload-area">
+                <div class="ci-upload-icon">
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                </div>
+                <p class="ci-upload-text">Drop your .vcf file here or click to browse</p>
+                <p class="ci-upload-hint">.vcf (vCard) files only, up to 10MB</p>
+                {{ form.file }}
+                <div class="ci-file-info" id="file-info" style="display:none;">
+                    <span class="ci-file-name" id="file-name"></span>
+                    <span class="ci-file-size" id="file-size"></span>
+                </div>
+            </div>
+            {% if form.file.errors %}
+            <div class="form-error">{{ form.file.errors.0 }}</div>
+            {% endif %}
+            <button type="submit" class="btn btn-primary btn-lg ci-submit-btn" id="submit-btn" disabled>
+                Import Contacts
+            </button>
+        </form>
+    </div>
+
+    <!-- Help Section -->
+    <div class="ci-help">
+        <h3 class="ci-help-title">How to export contacts from your phone</h3>
+
+        <div class="ci-help-section">
+            <h4 class="ci-help-subtitle">iPhone</h4>
+            <ol class="ci-help-steps">
+                <li>Open the <strong>Contacts</strong> app</li>
+                <li>Tap <strong>Lists</strong> (top left) and select <strong>All Contacts</strong></li>
+                <li>Tap the <strong>⋯</strong> menu (top right) → <strong>Select All</strong></li>
+                <li>Tap <strong>Share</strong> → choose <strong>Share as vCard</strong></li>
+                <li>Send it to yourself via AirDrop, email, or Messages</li>
+                <li>Open the .vcf file on this device and upload it here</li>
+            </ol>
+        </div>
+
+        <div class="ci-help-section">
+            <h4 class="ci-help-subtitle">Android</h4>
+            <ol class="ci-help-steps">
+                <li>Open the <strong>Contacts</strong> app</li>
+                <li>Tap <strong>Fix & manage</strong> (bottom) → <strong>Export to file</strong></li>
+                <li>Choose the account to export and tap <strong>Export</strong></li>
+                <li>The .vcf file will be saved to your Downloads folder</li>
+                <li>Transfer the file to this device and upload it here</li>
+            </ol>
+        </div>
+
+        <div class="ci-help-section">
+            <h4 class="ci-help-subtitle">Google Contacts</h4>
+            <ol class="ci-help-steps">
+                <li>Go to <strong>contacts.google.com</strong></li>
+                <li>Select the contacts you want to export (or select all)</li>
+                <li>Click <strong>Export</strong> → choose <strong>vCard</strong> format</li>
+                <li>Upload the downloaded .vcf file here</li>
+            </ol>
+        </div>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+/* Contact Import Styles */
+.ci-upload-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+.ci-upload-area {
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-8) var(--space-6);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.ci-upload-area:hover,
+.ci-upload-area.dragover {
+    border-color: var(--color-accent);
+    background: var(--color-accent-light, rgba(59, 130, 246, 0.04));
+}
+.ci-upload-icon {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+.ci-upload-text {
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    color: var(--color-text);
+    margin-bottom: var(--space-1);
+}
+.ci-upload-hint {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+.ci-upload-area input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+}
+.ci-file-info {
+    margin-top: var(--space-3);
+    font-size: var(--font-size-sm);
+}
+.ci-file-name {
+    font-weight: 600;
+    color: var(--color-accent);
+}
+.ci-file-size {
+    color: var(--color-text-muted);
+    margin-left: var(--space-2);
+}
+.ci-submit-btn {
+    display: block;
+    width: 100%;
+    margin-top: var(--space-4);
+}
+
+/* Results */
+.ci-results {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+.ci-results-summary {
+    display: flex;
+    gap: var(--space-6);
+    margin-bottom: var(--space-5);
+}
+.ci-stat {
+    text-align: center;
+}
+.ci-stat-number {
+    font-size: var(--font-size-2xl, 1.75rem);
+    font-weight: 700;
+    line-height: 1;
+}
+.ci-stat-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+.ci-stat-imported .ci-stat-number { color: var(--color-success, #22c55e); }
+.ci-stat-skipped .ci-stat-number { color: var(--color-text-muted); }
+.ci-stat-errors .ci-stat-number { color: var(--color-danger, #ef4444); }
+
+.ci-result-section {
+    margin-bottom: var(--space-4);
+}
+.ci-result-heading {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+}
+.ci-result-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+.ci-result-chip {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full, 9999px);
+}
+.ci-chip-imported {
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--color-success, #22c55e);
+}
+.ci-chip-skipped {
+    background: var(--color-background);
+    color: var(--color-text-muted);
+}
+.ci-chip-error {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--color-danger, #ef4444);
+}
+.ci-result-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+/* Help section */
+.ci-help {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+.ci-help-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: var(--space-5);
+}
+.ci-help-section {
+    margin-bottom: var(--space-5);
+}
+.ci-help-section:last-child {
+    margin-bottom: 0;
+}
+.ci-help-subtitle {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+}
+.ci-help-steps {
+    margin: 0;
+    padding-left: var(--space-5);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    line-height: 1.8;
+}
+.ci-help-steps strong {
+    color: var(--color-text);
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .ci-results-summary {
+        flex-direction: column;
+        gap: var(--space-3);
+        align-items: flex-start;
+    }
+    .ci-stat {
+        display: flex;
+        align-items: baseline;
+        gap: var(--space-2);
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    var uploadArea = document.getElementById('upload-area');
+    var fileInput = uploadArea ? uploadArea.querySelector('input[type="file"]') : null;
+    var submitBtn = document.getElementById('submit-btn');
+    var fileInfo = document.getElementById('file-info');
+    var fileName = document.getElementById('file-name');
+    var fileSize = document.getElementById('file-size');
+
+    if (!uploadArea || !fileInput || !submitBtn) return;
+
+    // Click to browse
+    uploadArea.addEventListener('click', function(e) {
+        if (e.target !== fileInput) {
+            fileInput.click();
+        }
+    });
+
+    // File selected
+    fileInput.addEventListener('change', function() {
+        updateFileInfo(this.files);
+    });
+
+    // Drag and drop
+    uploadArea.addEventListener('dragenter', function(e) {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+    uploadArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+    });
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        if (e.dataTransfer.files.length) {
+            fileInput.files = e.dataTransfer.files;
+            updateFileInfo(e.dataTransfer.files);
+        }
+    });
+
+    function updateFileInfo(files) {
+        if (files && files.length > 0) {
+            var f = files[0];
+            fileName.textContent = f.name;
+            fileSize.textContent = formatSize(f.size);
+            fileInfo.style.display = 'block';
+            submitBtn.disabled = false;
+        } else {
+            fileInfo.style.display = 'none';
+            submitBtn.disabled = true;
+        }
+    }
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // Disable button on submit to prevent double-click
+    var form = document.getElementById('import-form');
+    if (form) {
+        form.addEventListener('submit', function() {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Importing...';
+        });
+    }
+});
+</script>
+{% endblock %}

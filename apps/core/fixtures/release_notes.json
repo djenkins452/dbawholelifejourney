@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 120,
+    "fields": {
+      "title": "Contact Import from Phone",
+      "description": "Import contacts from your phone by uploading a vCard (.vcf) file. Supports exports from iPhone, Android, and Google Contacts. Automatically deduplicates against existing contacts and shows a clear summary of what was imported, skipped, or had errors.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-02",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/relationships/import/",
+      "created_at": "2026-03-03T00:15:00Z",
+      "updated_at": "2026-03-03T00:15:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 116,
     "fields": {
       "title": "@Group Mentions",

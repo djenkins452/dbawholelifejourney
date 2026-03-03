@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Fix API logging TypeError on None cache returns
+
+**What:** Production error: `API logging failed: '>' not supported between instances of 'NoneType' and 'int'`
+**Root cause:** `SafeRedisCache.incr()` returns `None` when the Redis circuit breaker is open or on exception. The anomaly detection code in `APIRequestLoggingMiddleware._check_realtime_anomalies()` then compared `None > 50`, causing a TypeError.
+**Fix:** Added `or 0` guards on all `cache.get()` and `cache.incr()` calls in the burst detection and auth failure spike counters, ensuring comparisons always operate on integers.
+**Files:** `apps/core/middleware.py`
+
+---
+
 ## 2026-03-03 — Add missing migration for Task Meta ordering change
 
 **What:** CI failing because `makemigrations --check --dry-run` detected that the Task model's `ordering` Meta option was changed (added `scheduled_time`) but no migration existed.

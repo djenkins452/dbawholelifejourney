@@ -456,12 +456,13 @@ class APIRequestLoggingMiddleware:
         # --- Burst detection via cache counter (no DB query) ---
         burst_key = f"api_burst:{ip}"
         try:
-            burst_count = cache.get(burst_key, 0)
+            burst_count = cache.get(burst_key, 0) or 0
             if burst_count == 0:
                 cache.set(burst_key, 1, timeout=300)  # 5-minute window
+                burst_count = 1
             else:
                 try:
-                    burst_count = cache.incr(burst_key)
+                    burst_count = cache.incr(burst_key) or 0
                 except ValueError:
                     cache.set(burst_key, 1, timeout=300)
                     burst_count = 1
@@ -490,12 +491,13 @@ class APIRequestLoggingMiddleware:
         if log_entry.status_code in [401, 403]:
             auth_key = f"api_auth_fail:{ip}"
             try:
-                auth_count = cache.get(auth_key, 0)
+                auth_count = cache.get(auth_key, 0) or 0
                 if auth_count == 0:
                     cache.set(auth_key, 1, timeout=300)
+                    auth_count = 1
                 else:
                     try:
-                        auth_count = cache.incr(auth_key)
+                        auth_count = cache.incr(auth_key) or 0
                     except ValueError:
                         cache.set(auth_key, 1, timeout=300)
                         auth_count = 1

@@ -4435,9 +4435,10 @@ Rules for voice responses:
         reasoning_instruction = """
 Before responding, silently reason through these steps (do NOT include this reasoning in your response):
 1. What is the user's current context? (page they're viewing, time of day, recent session activity)
-2. What are they most likely asking about — the page content, their data, or a previous conversation topic?
-3. What data or context do I have that's directly relevant?
-4. What should I NOT talk about? (avoid mixing unrelated topics — don't mention routines when they're asking about scripture, don't discuss scripture when they're asking about tasks)
+2. Is the user sharing a feeling, expressing gratitude, being vulnerable, or making a personal reflection? If YES — respond to the EMOTION first. Acknowledge it warmly. Do NOT re-explain or re-summarize content you already gave them.
+3. If they ARE asking a question — what are they most likely asking about? The page content, their data, or a previous conversation topic?
+4. What data or context do I have that's directly relevant?
+5. What should I NOT talk about? (avoid mixing unrelated topics — don't mention routines when they're asking about scripture, don't discuss scripture when they're asking about tasks, and don't repeat an explanation when they're expressing how they feel about it)
 Then give your response."""
 
         # =============================================================
@@ -4524,7 +4525,7 @@ Rules for this response:
 - Answer directly. Lead with the data when you have it.
 {rules_block}
 {style_nudge}- Be conversational and natural — speak like someone who knows this person
-- If they're sharing something personal, engage with it genuinely before moving to action
+- If they're sharing a feeling, expressing gratitude, or being vulnerable — respond to THAT. Don't re-explain what you just told them. A simple "I'm glad that helped" or "that's completely normal" is better than repeating content.
 - If following up on previous conversation, build on it naturally"""
 
         # Dynamic token limit keyed to response mode
@@ -4739,9 +4740,10 @@ Rules for this response:
         reasoning_instruction = """
 Before responding, silently reason through these steps (do NOT include this reasoning in your response):
 1. What is the user's current context? (page they're viewing, time of day, recent session activity)
-2. What are they most likely asking about — the page content, their data, or a previous conversation topic?
-3. What data or context do I have that's directly relevant?
-4. What should I NOT talk about? (avoid mixing unrelated topics — don't mention routines when they're asking about scripture, don't discuss scripture when they're asking about tasks)
+2. Is the user sharing a feeling, expressing gratitude, being vulnerable, or making a personal reflection? If YES — respond to the EMOTION first. Acknowledge it warmly. Do NOT re-explain or re-summarize content you already gave them.
+3. If they ARE asking a question — what are they most likely asking about? The page content, their data, or a previous conversation topic?
+4. What data or context do I have that's directly relevant?
+5. What should I NOT talk about? (avoid mixing unrelated topics — don't mention routines when they're asking about scripture, don't discuss scripture when they're asking about tasks, and don't repeat an explanation when they're expressing how they feel about it)
 Then give your response."""
 
         # --- h2) Page context injection (reading plan scripture, etc.)
@@ -4817,7 +4819,7 @@ Rules for this response:
 - Answer directly. Lead with the data when you have it.
 {rules_block}
 {style_nudge}- Be conversational and natural — speak like someone who knows this person
-- If they're sharing something personal, engage with it genuinely before moving to action
+- If they're sharing a feeling, expressing gratitude, or being vulnerable — respond to THAT. Don't re-explain what you just told them. A simple "I'm glad that helped" or "that's completely normal" is better than repeating content.
 - If following up on previous conversation, build on it naturally"""
 
         mode_tokens = {'brief': 400, 'adaptive': 800, 'deep': 1200}

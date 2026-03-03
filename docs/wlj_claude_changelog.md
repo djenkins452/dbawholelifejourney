@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Improve CoS emotional/relational awareness
+
+**What:** When a user expressed vulnerability ("I just can't understand it the way it's written") and gratitude ("You helped a lot"), CoS re-explained the scripture instead of acknowledging the feeling. The reasoning steps and response rules didn't account for emotional/relational messages.
+
+**Changes:**
+- `apps/ai/personal_assistant.py` — Updated reasoning instruction (both fast and full paths) to add step 2: "Is the user sharing a feeling, expressing gratitude, or being vulnerable? If YES — respond to the EMOTION first. Do NOT re-explain." Updated response rules to explicitly say "don't re-explain what you just told them" when user is expressing gratitude or vulnerability.
+
+**Why:** CoS treated every message containing a scripture keyword as a question about scripture, even when the user was simply reflecting on how the explanation made them feel.
+
 ## 2026-03-03 — Fix fast-path streaming missing ALL page context
 
 **What:** The streaming chat path (`_build_fast_context`) had ZERO page context handling — no scripture injection, no page title, nothing. This was the actual root cause of CoS asking "which scripture?" since all chat widget messages use the streaming path. The `_generate_response` fixes only applied to the non-streaming (fallback) path.

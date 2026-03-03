@@ -542,12 +542,15 @@ class AutocompleteEndpointTest(RelationshipsTestMixin, TestCase):
         data = json.loads(response.content)
         self.assertEqual(len(data), 1)
 
-    def test_empty_query_returns_empty(self):
+    def test_empty_query_returns_recent_contacts(self):
+        """Empty query returns recent contacts (for bare @ trigger)."""
         response = self.client.get(
             reverse('relationships:autocomplete') + '?q=',
         )
         data = json.loads(response.content)
-        self.assertEqual(len(data), 0)
+        # Should return the user's contacts ordered by updated_at
+        self.assertGreater(len(data), 0)
+        self.assertFalse(data[0]['is_group'])
 
     def test_no_cross_user_results(self):
         user2 = self.create_user(email='user2@example.com')

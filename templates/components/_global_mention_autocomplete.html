@@ -1,0 +1,436 @@
+{% comment %}
+Global @mention autocomplete — auto-attaches to ALL textareas and chat inputs.
+
+Included once in base.html for authenticated users.
+Uses MutationObserver to handle dynamically added fields (HTMX, modals).
+Opt out a specific field with: data-no-mention attribute.
+
+Replaces the per-field partial: relationships/partials/_mention_autocomplete.html
+{% endcomment %}
+
+<style nonce="{{ csp_nonce }}">
+.mention-autocomplete {
+    position: absolute;
+    z-index: 1050;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    max-height: 200px;
+    overflow-y: auto;
+    min-width: 200px;
+    max-width: 300px;
+    display: none;
+}
+.mention-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    transition: background var(--transition-fast);
+}
+.mention-item:hover,
+.mention-item.active {
+    background: var(--color-surface);
+}
+.mention-item-name {
+    font-weight: 500;
+    color: var(--color-text);
+}
+.mention-item-type {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-left: var(--space-2);
+}
+.mention-item-group .mention-item-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.mention-group-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--color-accent);
+}
+.mention-create {
+    border-top: 1px solid var(--color-border);
+    color: var(--color-accent);
+    font-weight: 500;
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+
+    var DEBOUNCE_MS = 150;
+    var AUTOCOMPLETE_URL = '/relationships/autocomplete/';
+    var QUICK_CREATE_URL = '/relationships/quick-create/';
+    var CHAT_INPUT_IDS = ['assistant-input', 'ap-chat-input', 'mobile-chat-input'];
+    var SKIP_TYPES = ['password', 'hidden', 'number', 'date', 'time',
+                      'datetime-local', 'color', 'range', 'file',
+                      'checkbox', 'radio', 'email', 'url'];
+
+    var GROUP_ICON = '<svg class="mention-group-icon" viewBox="0 0 24 24" width="14" height="14" ' +
+        'fill="none" stroke="currentColor" stroke-width="2">' +
+        '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>' +
+        '<circle cx="9" cy="7" r="4"/>' +
+        '<path d="M23 21v-2a4 4 0 0 0-3-3.87"/>' +
+        '<path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+
+    // Track all active instances so we can close others when one opens
+    var instances = [];
+
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function getCsrfToken() {
+        var cookie = document.cookie.split(';').find(function(c) {
+            return c.trim().startsWith('csrftoken=');
+        });
+        return cookie ? cookie.split('=')[1] : '';
+    }
+
+    // =========================================================================
+    // MentionAutocomplete — one instance per field
+    // =========================================================================
+
+    function MentionAutocomplete(field) {
+        this.field = field;
+        this.container = null;
+        this.dropdown = null;
+        this.items = [];
+        this.activeIndex = -1;
+        this.mentionStart = -1;
+        this.searchTimeout = null;
+        this.isOpen = false;
+
+        this._init();
+        instances.push(this);
+    }
+
+    MentionAutocomplete.prototype._init = function() {
+        this.field.dataset.mentionInit = 'true';
+
+        // Create dropdown container in document.body for correct positioning
+        this.container = document.createElement('div');
+        this.container.className = 'mention-autocomplete';
+        this.container.setAttribute('role', 'listbox');
+        this.container.setAttribute('aria-label', 'People suggestions');
+
+        this.dropdown = document.createElement('div');
+        this.dropdown.className = 'mention-dropdown';
+        this.container.appendChild(this.dropdown);
+        document.body.appendChild(this.container);
+
+        this._bindEvents();
+    };
+
+    MentionAutocomplete.prototype._bindEvents = function() {
+        var self = this;
+
+        this.field.addEventListener('input', function() { self._onInput(); });
+
+        // Capture phase so we intercept Enter before chat widget handlers
+        this.field.addEventListener('keydown', function(e) { self._onKeydown(e); }, true);
+
+        this.dropdown.addEventListener('click', function(e) { self._onDropdownClick(e); });
+
+        document.addEventListener('click', function(e) {
+            if (self.isOpen && !self.container.contains(e.target) && e.target !== self.field) {
+                self._hide();
+            }
+        });
+    };
+
+    MentionAutocomplete.prototype._onInput = function() {
+        if (!this.field.isConnected) { this._cleanup(); return; }
+
+        var pos = this.field.selectionStart;
+        var text = this.field.value;
+
+        // Search backwards for the @ that started this mention
+        var searchBack = pos - 1;
+        while (searchBack >= 0 && text[searchBack] !== '@' &&
+               text[searchBack] !== ' ' && text[searchBack] !== '\n' &&
+               text[searchBack] !== '\t') {
+            searchBack--;
+        }
+
+        if (searchBack >= 0 && text[searchBack] === '@') {
+            // Only trigger if @ is at start or preceded by whitespace
+            if (searchBack === 0 || /\s/.test(text[searchBack - 1])) {
+                this.mentionStart = searchBack;
+                var query = text.substring(searchBack + 1, pos);
+                this._debouncedFetch(query);
+                return;
+            }
+        }
+
+        this._hide();
+    };
+
+    MentionAutocomplete.prototype._onKeydown = function(e) {
+        if (!this.isOpen) return; // Let event propagate normally
+
+        var allItems = this.dropdown.querySelectorAll('.mention-item');
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            e.stopPropagation();
+            this.activeIndex = Math.min(this.activeIndex + 1, allItems.length - 1);
+            this._updateActive(allItems);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            e.stopPropagation();
+            this.activeIndex = Math.max(this.activeIndex - 1, 0);
+            this._updateActive(allItems);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
+            if (this.activeIndex >= 0 && this.activeIndex < allItems.length) {
+                var selected = allItems[this.activeIndex];
+                if (selected.getAttribute('data-action') === 'create') {
+                    this._promptCreate();
+                } else {
+                    this._selectItem(this.activeIndex);
+                }
+            } else {
+                this._hide();
+            }
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            this._hide();
+        }
+    };
+
+    MentionAutocomplete.prototype._onDropdownClick = function(e) {
+        var item = e.target.closest('.mention-item');
+        if (!item) return;
+
+        if (item.getAttribute('data-action') === 'create') {
+            this._promptCreate();
+        } else {
+            var idx = parseInt(item.getAttribute('data-index'), 10);
+            this._selectItem(idx);
+        }
+    };
+
+    MentionAutocomplete.prototype._debouncedFetch = function(query) {
+        var self = this;
+        clearTimeout(this.searchTimeout);
+        this.searchTimeout = setTimeout(function() {
+            self._fetchResults(query);
+        }, DEBOUNCE_MS);
+    };
+
+    MentionAutocomplete.prototype._fetchResults = function(query) {
+        var self = this;
+        fetch(AUTOCOMPLETE_URL + '?q=' + encodeURIComponent(query), {
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.length > 0 || query.length >= 0) {
+                self._show(data);
+            } else {
+                self._hide();
+            }
+        })
+        .catch(function() { self._hide(); });
+    };
+
+    MentionAutocomplete.prototype._show = function(results) {
+        // Close all other open instances
+        instances.forEach(function(inst) {
+            if (inst !== this && inst.isOpen) inst._hide();
+        }, this);
+
+        this.items = results;
+        this.activeIndex = -1;
+        this.dropdown.innerHTML = '';
+
+        var self = this;
+        results.forEach(function(person, i) {
+            var div = document.createElement('div');
+            div.className = 'mention-item' + (person.is_group ? ' mention-item-group' : '');
+            div.setAttribute('role', 'option');
+            div.setAttribute('data-index', i);
+            var nameHtml = person.is_group
+                ? GROUP_ICON + ' ' + escapeHtml(person.name)
+                : escapeHtml(person.name);
+            div.innerHTML = '<span class="mention-item-name">' + nameHtml +
+                '</span><span class="mention-item-type">' + escapeHtml(person.type) + '</span>';
+            self.dropdown.appendChild(div);
+        });
+
+        // "Create new" option
+        var createDiv = document.createElement('div');
+        createDiv.className = 'mention-item mention-create';
+        createDiv.setAttribute('data-action', 'create');
+        createDiv.innerHTML = '<span class="mention-item-name">+ Create new person</span>';
+        this.dropdown.appendChild(createDiv);
+
+        this._positionDropdown();
+        this.container.style.display = 'block';
+        this.isOpen = true;
+    };
+
+    MentionAutocomplete.prototype._hide = function() {
+        this.container.style.display = 'none';
+        this.isOpen = false;
+        this.items = [];
+        this.activeIndex = -1;
+        this.mentionStart = -1;
+        clearTimeout(this.searchTimeout);
+    };
+
+    MentionAutocomplete.prototype._positionDropdown = function() {
+        var rect = this.field.getBoundingClientRect();
+        var scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        var scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+        this.container.style.left = (rect.left + scrollLeft) + 'px';
+        this.container.style.top = (rect.bottom + scrollTop + 4) + 'px';
+
+        // Flip above if not enough space below
+        this.container.style.display = 'block';
+        var cRect = this.container.getBoundingClientRect();
+        if (cRect.bottom > window.innerHeight) {
+            this.container.style.top = (rect.top + scrollTop - cRect.height - 4) + 'px';
+        }
+        // Constrain horizontally
+        if (cRect.right > window.innerWidth) {
+            this.container.style.left = Math.max(0, window.innerWidth - cRect.width - 8 + scrollLeft) + 'px';
+        }
+    };
+
+    MentionAutocomplete.prototype._selectItem = function(index) {
+        if (index >= 0 && index < this.items.length) {
+            this._insertMention(this.items[index].name);
+        }
+    };
+
+    MentionAutocomplete.prototype._insertMention = function(name) {
+        var field = this.field;
+        var text = field.value;
+        var before = text.substring(0, this.mentionStart);
+        var after = text.substring(field.selectionStart);
+        field.value = before + '@' + name + ' ' + after;
+        var newPos = this.mentionStart + name.length + 2;
+        field.setSelectionRange(newPos, newPos);
+        field.focus();
+
+        // Trigger input event so char counters, autosave, etc. update
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+
+        this._hide();
+    };
+
+    MentionAutocomplete.prototype._promptCreate = function() {
+        var self = this;
+        var name = prompt('Enter the person\'s first name:');
+        if (!name) { this._hide(); return; }
+        var lastName = prompt('Last name (optional):') || '';
+
+        fetch(QUICK_CREATE_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                first_name: name.trim(),
+                last_name: lastName.trim(),
+                relationship_type: 'other'
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.name) {
+                self._insertMention(data.name);
+            }
+        })
+        .catch(function(e) {
+            console.error('Failed to create person:', e);
+            self._hide();
+        });
+    };
+
+    MentionAutocomplete.prototype._updateActive = function(allItems) {
+        allItems.forEach(function(el, i) {
+            el.classList.toggle('active', i === this.activeIndex);
+        }, this);
+    };
+
+    MentionAutocomplete.prototype._cleanup = function() {
+        this._hide();
+        if (this.container.parentNode) {
+            this.container.parentNode.removeChild(this.container);
+        }
+        var idx = instances.indexOf(this);
+        if (idx !== -1) instances.splice(idx, 1);
+    };
+
+    // =========================================================================
+    // Auto-discovery
+    // =========================================================================
+
+    function isEligible(el) {
+        if (el.dataset.mentionInit === 'true') return false;
+        if (el.hasAttribute('data-no-mention')) return false;
+        if (el.tagName === 'TEXTAREA') return true;
+        if (el.tagName === 'INPUT') {
+            if (SKIP_TYPES.indexOf(el.type) !== -1) return false;
+            // Only attach to chat inputs by ID for input[type=text]
+            if (CHAT_INPUT_IDS.indexOf(el.id) !== -1) return true;
+        }
+        return false;
+    }
+
+    function attachAll() {
+        // All textareas
+        var textareas = document.querySelectorAll('textarea');
+        for (var i = 0; i < textareas.length; i++) {
+            if (isEligible(textareas[i])) new MentionAutocomplete(textareas[i]);
+        }
+        // Chat inputs
+        for (var j = 0; j < CHAT_INPUT_IDS.length; j++) {
+            var el = document.getElementById(CHAT_INPUT_IDS[j]);
+            if (el && isEligible(el)) new MentionAutocomplete(el);
+        }
+    }
+
+    // Initial attach
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', attachAll);
+    } else {
+        attachAll();
+    }
+
+    // Observe DOM for dynamically added fields (HTMX swaps, modals)
+    var scanTimeout = null;
+    var observer = new MutationObserver(function(mutations) {
+        var needsScan = false;
+        for (var i = 0; i < mutations.length; i++) {
+            if (mutations[i].addedNodes.length > 0) { needsScan = true; break; }
+        }
+        if (needsScan) {
+            clearTimeout(scanTimeout);
+            scanTimeout = setTimeout(attachAll, 100);
+        }
+    });
+
+    observer.observe(document.body || document.documentElement, {
+        childList: true,
+        subtree: true
+    });
+})();
+</script>

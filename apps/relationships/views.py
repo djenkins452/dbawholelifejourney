@@ -145,12 +145,28 @@ class PersonAutocompleteView(LoginRequiredMixin, View):
 
     def get(self, request):
         q = request.GET.get('q', '').strip()
-        if len(q) < 1:
-            return JsonResponse([], safe=False)
 
         from django.db.models import Q
 
         results = []
+
+        if len(q) < 1:
+            # No query — return recent contacts so bare "@" is useful
+            recent = (
+                Person.objects
+                .filter(owner=request.user)
+                .order_by('-updated_at')
+                [:10]
+            )
+            for p in recent:
+                results.append({
+                    'id': p.pk,
+                    'name': p.get_display_name(),
+                    'first_name': p.first_name,
+                    'type': p.relationship_type,
+                    'is_group': False,
+                })
+            return JsonResponse(results, safe=False)
 
         # Groups matching the query (shown first)
         groups = (

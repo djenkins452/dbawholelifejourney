@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Global @mention autocomplete across all text fields
+
+**What:** Wired the @mention autocomplete to every textarea and chat input in the app. Typing `@` in any text field now triggers a dropdown showing matching contacts and groups, with keyboard navigation, click-to-select, and inline person creation. Previously the autocomplete component existed but was not included in any template.
+
+**Changes:**
+- `templates/components/_global_mention_autocomplete.html` — **New.** Global autocomplete component with `MentionAutocomplete` class, auto-discovery via `MutationObserver`, capture-phase keydown for chat Enter key conflict resolution, email address protection, and orphan cleanup.
+- `templates/base.html` — Added `{% include %}` for authenticated users after chat widget.
+- `apps/relationships/views.py` — `PersonAutocompleteView.get()` now returns up to 10 recent contacts for empty queries (bare `@` trigger) instead of an empty array.
+- `apps/relationships/tests/test_relationships_core.py` — Updated test to match new empty-query behavior.
+- `templates/relationships/partials/_mention_autocomplete.html` — Added deprecation notice (superseded by global component).
+
+---
+
 ## 2026-03-02 — Require confirmation before any task deletion
 
 **What:** CoS now ALWAYS asks for confirmation before deleting any task. No automatic deletes. The flow is: user says "delete X" → CoS shows what will be deleted and asks "are you sure?" → user confirms → task is deleted. This works through three layers: (1) the intent schema has a `delete_confirmed` parameter, (2) the action handler returns a confirmation prompt if `delete_confirmed` is not set, (3) the safety engine allows confirmed follow-ups through.

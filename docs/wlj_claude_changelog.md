@@ -9,6 +9,32 @@
 
 # WLJ Change History
 
+## 2026-03-03 — State-Aware Morning Automation & Contextual Task Engine
+
+**What:** Six-part enhancement to make CoS behave as a true life operating system companion — chronological task ordering, executive briefing in fast path, proactive nudging for all activities, wake-up auto-completion, cross-module task auto-completion, and accomplishment-aware check-ins.
+
+**Changes:**
+1. **Task ordering** — Tasks now sort by `scheduled_time` within priority groups (Wake Up 5:00 → Prayer 5:15 → Bible Reading 5:30)
+2. **Executive briefing in fast path** — Morning greeting/briefing now fires on streaming path (was missing entirely)
+3. **Proactive nudging** — Pending CoS prompts (meds, workouts, pickleball, etc.) injected into chat flow
+4. **Wake Up auto-complete** — First CoS interaction of the day auto-marks "Wake Up" task complete
+5. **Cross-module auto-completion** — Completing Bible reading → marks "Bible Reading" task done; logging workout → marks "Workout" done; taking medicine → marks "Medicine" done
+6. **Accomplishment check-ins** — CoS celebrates completed tasks before shifting to what's next
+
+**Files modified:**
+- `apps/life/models.py` — Task Meta ordering with `scheduled_time`
+- `apps/life/views.py` — TaskListView queryset ordering with `F().asc(nulls_last=True)`
+- `apps/life/services/routine_service.py` — Added `auto_complete_routine_task()` utility
+- `apps/ai/personal_assistant.py` — Executive briefing + CoS prompts in fast path, enhanced reasoning instruction
+- `apps/ai/executive_briefing.py` — Wake Up auto-complete, accomplishment-first instructions
+- `apps/cos/services/prompt_service.py` — Added `get_pending_prompt_injection()` for chat flow
+- `apps/faith/views.py` — Bible reading → auto-complete routine task hook
+- `apps/health/views.py` — Workout + medicine → auto-complete routine task hooks
+
+**Why:** User expected CoS to order tasks chronologically, auto-complete tasks on detected activity, proactively nudge about upcoming events, and celebrate accomplishments. Most infrastructure existed but wasn't wired together.
+
+---
+
 ## 2026-03-03 — Add proactive schedule awareness to CoS conversations
 
 **What:** CoS had schedule/calendar data in its system prompt (events tagged [SOON], [NOW], [MISSED]) but never proactively mentioned upcoming or missed items during active conversations. User expected "your workout starts in 7 minutes" or "your 5:15 prayer time passed" but got nothing.

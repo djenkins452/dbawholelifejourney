@@ -398,6 +398,53 @@ class CosPromptService:
 
         return totals
 
+    # ── Chat flow injection ────────────────────────────────
+
+    @staticmethod
+    def get_pending_prompt_injection(user) -> str:
+        """
+        Build a system prompt injection for pending/upcoming CoS prompts.
+
+        Injected into both streaming fast-path and full-path so CoS can
+        naturally mention upcoming activities when the user interacts.
+
+        Returns:
+            str — formatted injection, or "" if nothing pending.
+        """
+        now = dj_timezone.now()
+        # Look ahead 30 minutes for upcoming prompts + all overdue
+        lookahead = now + dt.timedelta(minutes=30)
+
+        pending = CosPromptSchedule.objects.filter(
+            user=user,
+            status=CosPromptSchedule.STATUS_PENDING,
+            scheduled_for__lte=lookahead,
+        ).select_related("content_type").order_by("scheduled_for")[:5]
+
+        if not pending:
+            return ""
+
+        lines = ["--- PENDING ACTIVITY PROMPTS ---"]
+        for prompt in pending:
+            delta_seconds = (prompt.scheduled_for - now).total_seconds()
+            minutes_until = delta_seconds / 60
+            if minutes_until <= 0:
+                tag = "[DUE NOW]"
+            elif minutes_until <= 15:
+                tag = "[SOON]"
+            else:
+                tag = f"[in ~{int(minutes_until)} min]"
+
+            activity_label = prompt.activity_type.replace("_", " ").title()
+            lines.append(f"  {tag} {activity_label}: {prompt.prompt_text[:150]}")
+
+        lines.append(
+            "Weave these naturally into conversation. Don't list them — "
+            "mention the most urgent one as a friendly nudge."
+        )
+        lines.append("--- END PENDING PROMPTS ---")
+        return "\n".join(lines)
+
     # ── Private helpers ───────────────────────────────────
 
     def _deliver_via_dne(self, prompt: CosPromptSchedule):

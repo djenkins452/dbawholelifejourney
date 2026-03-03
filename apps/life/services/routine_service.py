@@ -175,3 +175,47 @@ class RoutineTaskService:
                 "Failed to trigger reflection for task %s: %s",
                 task.pk, e,
             )
+
+    @staticmethod
+    def auto_complete_routine_task(user, keyword):
+        """
+        Auto-complete today's routine task matching the given keyword.
+
+        Used for cross-module completion: when a user completes a Bible
+        reading, logs a workout, or takes medicine, the corresponding
+        routine task is auto-completed.
+
+        Args:
+            user: Django User instance
+            keyword: Case-insensitive keyword to match against task title
+                     (e.g., "Bible", "Workout", "Medicine")
+
+        Returns:
+            Task instance if completed, None otherwise.
+        """
+        try:
+            from apps.core.utils import get_user_today
+            from apps.life.models import Task
+
+            today = get_user_today(user)
+            task = Task.objects.filter(
+                user=user,
+                is_routine=True,
+                is_completed=False,
+                due_date=today,
+                title__icontains=keyword,
+            ).first()
+
+            if task:
+                task.mark_complete()
+                logger.debug(
+                    "Auto-completed routine task '%s' for user=%s (keyword=%s)",
+                    task.title, user.id, keyword,
+                )
+                return task
+        except Exception as e:
+            logger.warning(
+                "Auto-complete routine task failed for user=%s keyword=%s: %s",
+                user.id, keyword, e,
+            )
+        return None

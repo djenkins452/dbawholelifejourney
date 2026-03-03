@@ -112,6 +112,22 @@ def build_executive_briefing(user, conversation) -> str:
         conversation.metadata = metadata
         conversation.save(update_fields=['metadata'])
 
+        # Auto-complete "Wake Up" routine task on first-of-day interaction
+        if is_first_of_day:
+            try:
+                from apps.life.models import Task
+                wake_task = Task.objects.filter(
+                    user=user, is_routine=True, is_completed=False,
+                    due_date=today, title__icontains='wake up',
+                ).first()
+                if wake_task:
+                    wake_task.mark_complete()
+                    logger.debug(
+                        "Auto-completed 'Wake Up' task for user=%s", user.email
+                    )
+            except Exception as e:
+                logger.debug("Wake Up auto-complete failed: %s", e)
+
         sections = []
         sections.append("--- EXECUTIVE BRIEFING ---")
 
@@ -157,7 +173,12 @@ def build_executive_briefing(user, conversation) -> str:
             "Do NOT present it as a bullet list or data dump. "
             "Present the day as a narrative — like a real Chief of Staff "
             "briefing their executive over coffee. "
-            "Prioritize health gates first (meds, etc.), then events and "
+            "IMPORTANT: Lead with accomplishments first! Celebrate what "
+            "they've already done today before shifting to what's ahead. "
+            "Say something like 'You've been on fire today' or 'You've "
+            "already knocked out X, Y, and Z — that's solid.' "
+            "Then transition to what's next and what needs attention. "
+            "Prioritize health gates (meds, etc.), then events and "
             "relationships, then the day overview. "
             "End by inviting the user to shape their day: "
             "'What needs to move today?' or similar."
@@ -589,12 +610,14 @@ def _build_health_gate_section(user, today) -> str:
         if completed_routines:
             lines.append(
                 f"Routines Completed: {', '.join(completed_routines)}. "
-                "Acknowledge this."
+                "Celebrate this warmly! Don't list each one — summarize "
+                "with energy (e.g., 'You've already knocked out your "
+                "morning routine!')."
             )
         if pending_routines:
             lines.append(
-                f"Routines Pending: {', '.join(pending_routines)} "
-                "not yet done today."
+                f"Routines Still Ahead: {', '.join(pending_routines)}. "
+                "Mention these as what's coming up, not as things they missed."
             )
     except Exception:
         pass

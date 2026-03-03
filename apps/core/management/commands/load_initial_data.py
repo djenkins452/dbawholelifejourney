@@ -899,6 +899,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for state-aware morning automation (PK 126)
         self._reset_morning_automation_release_note(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for CoS deterministic coaching upgrade (PK 127)
+        self._reset_cos_deterministic_coaching_release_note(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5167,3 +5170,31 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset morning automation release note FAILED: {e}'))
+
+    def _reset_cos_deterministic_coaching_release_note(self, DataLoadConfig, force=False, verbosity=1):
+        """One-time reset to reload release_notes for CoS deterministic coaching upgrade (PK 127)."""
+        reset_tracker_name = 'reset_cos_deterministic_coaching_2026_03_03'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes loader for CoS deterministic coaching release note')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for CoS deterministic coaching release note',
+                'command',
+                'One-time reset to reload release_notes PK 127'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset CoS deterministic coaching release note FAILED: {e}'))

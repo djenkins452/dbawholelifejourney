@@ -2835,6 +2835,44 @@ Full-stack latency elimination so CoS feels instant and responsive:
 - **Key files:** `apps/ai/readiness_cache.py`, `apps/ai/readiness_telemetry.py`, `apps/ai/tasks.py`
 - **Tests:** 19 in `apps/ai/tests/test_readiness_cache.py`
 
+### Deterministic Proactive Intelligence *(Mar 2026)*
+Complete behavioral model upgrade replacing advisory prompt language with deterministic, enforceable rules:
+
+**Daily Orientation (Session Mode Detection):**
+- `_detect_session_mode(user)` in `cos_context.py` checks last `AssistantMessage` timestamp
+- Returns `daily_brief` (first interaction today or 4+ hours gap) or `light` (mid-session)
+- SESSION MODE directive injected into every operational intelligence block
+- Daily brief requires all 5 elements: completed actions by name, outstanding count, most time-sensitive item, ONE recommended action with A/B/C options, one execution question
+- Natural conversational tone enforced — no markdown headers, no bullet-heavy formatting
+
+**Non-Negotiable Detection & Priority Hierarchy:**
+- Auto-classifies: medication timing, workout consistency (2+ missed), 48hr deadlines, identity anchors (prayer, Scripture, core health)
+- Strict priority ordering: Non-negotiable risk → Deadline proximity → Long-term impact → Quick momentum
+- Non-negotiables always outrank momentum tasks
+
+**A/B/C Execution Options:**
+- Every recommendation includes: A) Do it now, B) Move to specific time, C) Defer for today
+- Override learning loop: accept immediately, classify reason (energy/timing/strategic), adapt future weighting
+
+**Executive Brief + Deep Dive:**
+- Default for data discussions: concise snapshot (trend, signal, risk, focus) + "Type Deep Dive"
+- Deep Dive on request: 7-element framework (trend, signal vs noise, root cause, risk, projection, action plan, strategic question)
+
+**Drift Override:**
+- Suspends light mode when consistency violations detected (workout gaps, medication misses, repeated deferment, sentiment decline)
+- Names pattern explicitly, states consequence, offers A/B/C reset
+
+**Adaptive Coaching Modes:**
+- 3 modes: SUPPORTIVE (strain/discouragement), ANALYTICAL (data review), CHALLENGER (drift/identity risk)
+- Auto-selected based on domain, emotional tone, and trend direction via `CosToneService`
+
+**Consistency Protection:**
+- `detect_consistency_violations()` in `CosPatternService` with 4 detectors: workout, medication, gaps, sentiment
+- Violations injected as CONSISTENCY ALERTS in system prompt
+- Triggers immediate intervention regardless of session mode
+
+**Key files:** `apps/ai/personal_assistant.py` (`COS_PROACTIVE_INTELLIGENCE_PROMPT`), `apps/core/ai_orchestrator/cos_context.py` (`_detect_session_mode`, `_build_daily_scan_brief`), `apps/cos/services/tone_service.py`, `apps/cos/services/pattern_service.py`, `apps/cos/services/prompt_service.py`, `apps/cos/services/prompt_templates.py`
+
 ---
 
 ## Voice Conversation Mode

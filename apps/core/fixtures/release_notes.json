@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 127,
+    "fields": {
+      "title": "Smarter Chief of Staff: Decisive Coaching with Quick Actions",
+      "description": "Your Chief of Staff just got a major intelligence upgrade. Morning briefings now feel like a natural conversation \u2014 you\u2019ll hear about your wins, outstanding tasks, and the single most important thing to focus on, with quick A/B/C options to act immediately, schedule for later, or defer. CoS now automatically detects non-negotiables (medication timing, workout consistency, hard deadlines) and prioritizes them first. When you override a recommendation, CoS learns from your choice and adapts. Data discussions start with a sharp executive snapshot \u2014 type \u2018Deep Dive\u2019 anytime for the full strategic breakdown. And if drift is detected, CoS intervenes directly with a reset plan instead of waiting for you to ask.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-03",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-03-03T22:00:00Z",
+      "updated_at": "2026-03-03T22:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 126,
     "fields": {
       "title": "Smarter Morning Routine: Auto-Completion & Proactive Nudges",

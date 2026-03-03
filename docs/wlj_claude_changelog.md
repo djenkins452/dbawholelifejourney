@@ -24,6 +24,58 @@
 
 ---
 
+## 2026-03-03 — Deterministic CoS Priority & Proactivity Enforcement Model
+
+- **What:** Replaced all soft/advisory behavioral language in the CoS system prompt with deterministic, enforceable rules. Added non-negotiable detection, strict priority hierarchy, A/B/C execution options, override learning loop, and prohibited behavior list.
+- **Why:** Prior prompt versions used advisory language ("you should", "consider", "try to") which the LLM could ignore. This patch makes every behavioral rule deterministic.
+- **Changes:**
+  - **`apps/ai/personal_assistant.py`** — Complete rewrite of `COS_PROACTIVE_INTELLIGENCE_PROMPT` into 8 deterministic sections: Context Scan, Non-Negotiable Detection (medication/workout/deadlines/identity anchors) with strict priority hierarchy, Priority Presentation with A/B/C execution options, Override Learning Loop, Executive Brief + Deep Dive, Drift Override, Post-Event Follow-Up, and Prohibited Behavior list. Rewrote Daily Orientation section with mandatory 5-element validation and A/B/C format examples.
+- **Files:** `apps/ai/personal_assistant.py`
+- **Tests:** 437 CoS + 135 phase4 + 61 personal assistant tests passed.
+
+## 2026-03-03 — Implement invisible structured Daily Orientation with session mode
+
+- **What:** Added session mode detection (DAILY ORIENTATION vs LIGHT) and enforced natural conversational formatting. Daily brief delivered once per day or after 4+ hours of inactivity, then switches to light mode.
+- **Why:** Full structured briefings every message felt like talking to a dashboard engine instead of a thoughtful, aware partner.
+- **Changes:**
+  - **`apps/core/ai_orchestrator/cos_context.py`** — Added `_detect_session_mode(user)` that checks last `AssistantMessage` timestamp. Returns `daily_brief` if first interaction today or 4+ hours gap, `light` otherwise. Injects SESSION MODE directive into operational intelligence block.
+  - **`apps/ai/personal_assistant.py`** — Replaced structured "MANDATORY BRIEFING" with "INVISIBLE STRUCTURED BRIEF" enforcing natural tone, no markdown headers, no bullet-heavy formatting.
+- **Files:** `apps/ai/personal_assistant.py`, `apps/core/ai_orchestrator/cos_context.py`
+- **Tests:** 437 CoS + 135 phase4 + 61 personal assistant tests passed.
+
+## 2026-03-03 — Add Executive Brief + Deep Dive two-tier analysis mode
+
+- **What:** Replaced flat Universal Analysis Framework with two-tier response system. Default: concise Executive Brief. Full analysis available on-demand via "Deep Dive".
+- **Why:** Full 6-element framework was too heavy for every data interaction. Users need sharp insight first with option to go deeper.
+- **Changes:**
+  - **`apps/ai/personal_assistant.py`** — Replaced `UNIVERSAL ANALYSIS FRAMEWORK` with `EXECUTIVE BRIEF + DEEP DIVE MODE`. Executive Brief: 4-line snapshot (Trend, Signal, Risk, Focus) + strategic question + "Type Deep Dive" prompt. Deep Dive: full 7-element framework triggered on request.
+- **Files:** `apps/ai/personal_assistant.py`
+- **Tests:** 437 CoS + 61 personal assistant tests passed.
+
+## 2026-03-03 — Enforce mandatory daily scan on CoS greeting/short messages
+
+- **What:** Patched CoS system prompt and context injection to enforce proactive daily scan briefing on every interaction, especially greetings. Prevents generic "How can I help?" responses.
+- **Why:** CoS was defaulting to generic assistant behavior on "Hello" instead of delivering mandatory daily scan briefing.
+- **Changes:**
+  - **`apps/ai/personal_assistant.py`** — Added hard enforcement rule: messages under 20 chars or greetings MUST trigger full scan. Added forbidden phrases. Rewrote "OPENING A NEW CONVERSATION" with mandatory 5-part briefing structure.
+  - **`apps/core/ai_orchestrator/cos_context.py`** — Modified `_build_daily_scan_brief()` to always emit scan brief even when no data exists.
+- **Files:** `apps/ai/personal_assistant.py`, `apps/core/ai_orchestrator/cos_context.py`
+- **Tests:** 437 CoS + 135 phase4 tests passed.
+
+## 2026-03-03 — CoS Proactive Intelligence & Adaptive Coaching Upgrade
+
+- **What:** Major 6-part upgrade to the Chief of Staff intelligence system: daily context scanning, adaptive coaching modes, universal analysis framework, consistency protection, frictionless confirmation, and trigger-aware event handling.
+- **Why:** Transform CoS from reactive assistant to proactive life operating system.
+- **Changes:**
+  - `apps/ai/personal_assistant.py` — Added `COS_PROACTIVE_INTELLIGENCE_PROMPT` with all behavioral directives
+  - `apps/cos/services/tone_service.py` — Added 3 coaching modes (SUPPORTIVE/ANALYTICAL/CHALLENGER) with automatic selection
+  - `apps/core/ai_orchestrator/cos_context.py` — Added `_build_daily_scan_brief()`, coaching mode injection, consistency violation alerts
+  - `apps/cos/services/prompt_templates.py` — Added trigger event detection, A/B/C templates, overdue habit templates
+  - `apps/cos/services/prompt_service.py` — Added `schedule_trigger_aware_prompts()`, `schedule_overdue_habit_prompts()`, `handle_abc_response()`
+  - `apps/cos/services/pattern_service.py` — Added `detect_consistency_violations()` with 4 violation detectors
+- **Files:** 6 files across apps/ai, apps/cos, apps/core
+- **Tests:** 437 CoS + 135 phase4 tests passed.
+
 ## 2026-03-03 — Fix contact import 502 error (null notes/relationship_type)
 
 **What:** iOS contact import failed with a 502 error. `_serialize_person()` returned `null` for `notes` and `relationship_type` when unset, but Swift's `ImportedPerson` struct expects non-optional `String` values. JSONDecoder failed on `null`, surfacing as a 502.

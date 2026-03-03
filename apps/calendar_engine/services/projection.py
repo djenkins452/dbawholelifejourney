@@ -101,7 +101,14 @@ def upsert_from_task(task):
     Updates if task date changed; deletes if task has no due_date.
     Tasks with scheduled_time are routed to upsert_from_routine_task()
     to get time-specific execution blocks instead of 23:59 deadline markers.
+
+    If the task has been soft-deleted, removes all its calendar events.
     """
+    # Soft-deleted tasks should not have calendar events
+    if getattr(task, 'status', 'active') == 'deleted':
+        delete_task_events(task)
+        return None
+
     # Any task with a scheduled_time gets a time-specific execution block
     if task.scheduled_time:
         # Clean up any stale deadline marker (may exist from before this fix)

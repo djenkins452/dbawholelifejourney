@@ -875,6 +875,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Contact Import (PK 120)
         self._reset_contact_import_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Restore Beth's tasks that AI incorrectly deleted on 2026-03-02
+        self._restore_beth_deleted_tasks(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -4814,3 +4817,68 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset contact import fixtures FAILED: {e}'))
+
+    def _restore_beth_deleted_tasks(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time: Restore tasks incorrectly deleted by AI on 2026-03-02.
+
+        The AI misinterpreted "you shouldn't show everything" (a display preference)
+        as "delete all these tasks" and soft-deleted Beth's tasks. This restores them.
+        """
+        tracker_name = 'restore_beth_deleted_tasks_2026_03_02'
+        try:
+            if self._is_loader_complete(DataLoadConfig, tracker_name):
+                return
+
+            from apps.life.models import Task
+            from django.utils import timezone as tz
+            import datetime
+
+            # Find Beth's user account
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            try:
+                beth = User.objects.get(email='heatherljenkins@gmail.com')
+            except User.DoesNotExist:
+                if verbosity >= 1:
+                    self.stdout.write('  Beth user not found, skipping task restore')
+                self._mark_loader_complete(
+                    DataLoadConfig, tracker_name,
+                    'Restore Beth deleted tasks (user not found)',
+                    'command', 'User not found'
+                )
+                return
+
+            # Find tasks soft-deleted on 2026-03-02 (the day the AI incorrectly deleted them)
+            delete_date = datetime.date(2026, 3, 2)
+            deleted_tasks = Task.all_objects.filter(
+                user=beth,
+                status='deleted',
+                deleted_at__date=delete_date,
+            )
+
+            restored_count = 0
+            for task in deleted_tasks:
+                task.restore()
+                restored_count += 1
+                if verbosity >= 1:
+                    self.stdout.write(f'  Restored task: {task.title}')
+
+            if verbosity >= 1:
+                if restored_count > 0:
+                    self.stdout.write(self.style.SUCCESS(
+                        f'  Restored {restored_count} incorrectly deleted tasks for Beth'
+                    ))
+                else:
+                    self.stdout.write('  No deleted tasks found for Beth on 2026-03-02')
+
+            self._mark_loader_complete(
+                DataLoadConfig, tracker_name,
+                'Restore Beth deleted tasks (2026-03-02)',
+                'command',
+                f'Restored {restored_count} tasks incorrectly deleted by AI'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Restore Beth tasks FAILED: {e}'))

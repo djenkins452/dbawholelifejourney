@@ -3050,6 +3050,23 @@ class ActionHandler:
             tasks = tasks[:10]  # Safety limit
 
             if action == 'delete':
+                # Safety: batch delete (>2 tasks) requires explicit apply_to_all
+                if len(tasks) > 2 and not apply_to_all:
+                    candidates = [{'id': t.id, 'title': t.title} for t in tasks[:5]]
+                    titles = [f"• {c['title']}" for c in candidates]
+                    return ActionResult(
+                        success=False,
+                        message=(
+                            f"I found {len(tasks)} tasks matching '{task_query}':\n"
+                            + "\n".join(titles)
+                            + "\nThat's a lot of tasks to delete. Which one did you mean? "
+                            "Or say 'delete all of them' to confirm."
+                        ),
+                        error='multiple_matches',
+                        action_type='mutate_task',
+                        created_object={'candidates': candidates},
+                    )
+
                 deleted_titles = []
                 for task in tasks:
                     task.soft_delete()

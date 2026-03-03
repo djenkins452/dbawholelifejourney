@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Fix AI mass-deleting tasks instead of filtering
+
+**What:** The AI incorrectly interpreted "you shouldn't show everything" (a display preference about completed tasks) as "delete all these tasks" and soft-deleted 7 of Beth's tasks. Root cause: the system had no concept of "hide completed" vs "delete" — the AI only knew delete/remove verbs. Three fixes applied:
+
+**Changes:**
+- `apps/ai/intent_service.py` — Added CRITICAL DELETE SAFETY prompt instructions: "don't show me those" / "hide completed" / "you shouldn't show everything" are DISPLAY preferences, NOT delete requests. Only use delete when user explicitly says "delete" or "remove" by name.
+- `apps/ai/action_handlers.py` — Added batch delete safety: deleting >2 tasks now requires explicit `apply_to_all` confirmation, preventing accidental mass-deletion.
+- `apps/calendar_engine/services/projection.py` — `upsert_from_task()` now checks for soft-deleted tasks and cleans up their calendar events, fixing orphaned events after task deletion.
+- `apps/core/management/commands/load_initial_data.py` — One-time restore of Beth's tasks soft-deleted on 2026-03-02.
+
+**Why:** The AI had no guardrail against interpreting ambiguous display preferences as destructive delete operations. The batch delete handler also allowed deleting multiple tasks without sufficient confirmation.
+
+**Tests:** 97 AI tests passing, 315 life tests passing.
+
+---
+
 ## 2026-03-02 — Contact import from vCard (Phase 5)
 
 **What:** Users can now import contacts from their phone's contact list by uploading a .vcf (vCard) file. The import page includes drag-and-drop file upload, a results summary (imported/skipped/errors), and help instructions for iPhone, Android, and Google Contacts. Deduplicates by case-insensitive first+last name. Supports vCard 2.1, 3.0, and 4.0 formats.

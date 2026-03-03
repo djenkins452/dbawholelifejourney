@@ -664,3 +664,180 @@ class MentionParserService:
             'lifeevent': 'event',
         }
         return mapping.get(model_name, 'other')
+
+
+# =============================================================================
+# CONTACT IMPORT SERVICE (Phase 5)
+# =============================================================================
+
+
+class ContactImportService:
+    """
+    Parses vCard (.vcf) files and creates Person records.
+
+    Supports standard vCard 2.1, 3.0, and 4.0 exports from
+    iPhone (Contacts → Select All → Share → vCard) and Android.
+
+    Deduplicates by case-insensitive first_name + last_name match.
+    """
+
+    @classmethod
+    def import_vcf(cls, user, file_content):
+        """
+        Parse a vCard file and create Person records.
+
+        Args:
+            user: User instance (owner of contacts)
+            file_content: str — full text of the .vcf file
+
+        Returns:
+            dict with keys: imported, skipped, errors, details
+        """
+        from .models import Person
+
+        contacts = cls._parse_vcf(file_content)
+        existing = cls._get_existing_names(user)
+
+        imported = []
+        skipped = []
+        errors = []
+
+        for contact in contacts:
+            first_name = contact.get('first_name', '').strip()
+            last_name = contact.get('last_name', '').strip()
+
+            if not first_name and not last_name:
+                errors.append({'raw': contact.get('raw_name', '(empty)'), 'reason': 'No name found'})
+                continue
+
+            # Deduplicate by case-insensitive name
+            name_key = (first_name.lower(), last_name.lower())
+            if name_key in existing:
+                skipped.append({
+                    'name': f"{first_name} {last_name}".strip(),
+                    'reason': 'Already exists',
+                })
+                continue
+
+            try:
+                person = Person.objects.create(
+                    owner=user,
+                    first_name=first_name,
+                    last_name=last_name,
+                    email=contact.get('email', ''),
+                    phone=contact.get('phone', ''),
+                    relationship_type='other',
+                )
+                imported.append({
+                    'id': person.pk,
+                    'name': person.get_display_name(),
+                })
+                existing.add(name_key)
+            except Exception as e:
+                logger.error(
+                    "ContactImport: Failed to create person %s %s: %s",
+                    first_name, last_name, e, exc_info=True,
+                )
+                errors.append({
+                    'raw': f"{first_name} {last_name}".strip(),
+                    'reason': str(e),
+                })
+
+        logger.info(
+            "ContactImport: user=%s imported=%d skipped=%d errors=%d",
+            user.email, len(imported), len(skipped), len(errors),
+        )
+
+        return {
+            'imported': imported,
+            'skipped': skipped,
+            'errors': errors,
+            'imported_count': len(imported),
+            'skipped_count': len(skipped),
+            'error_count': len(errors),
+        }
+
+    @classmethod
+    def _parse_vcf(cls, content):
+        """
+        Parse vCard text into a list of contact dicts.
+
+        Each dict has: first_name, last_name, email, phone, raw_name.
+        Handles vCard 2.1, 3.0, and 4.0 formats.
+        """
+        contacts = []
+        current = None
+
+        for line in content.splitlines():
+            line = line.strip()
+
+            if line.upper() == 'BEGIN:VCARD':
+                current = {
+                    'first_name': '',
+                    'last_name': '',
+                    'email': '',
+                    'phone': '',
+                    'raw_name': '',
+                }
+                continue
+
+            if line.upper() == 'END:VCARD':
+                if current:
+                    # Fallback: if N: wasn't parsed but FN: was, split FN
+                    if not current['first_name'] and not current['last_name'] and current['raw_name']:
+                        parts = current['raw_name'].split(None, 1)
+                        current['first_name'] = parts[0] if parts else ''
+                        current['last_name'] = parts[1] if len(parts) > 1 else ''
+                    contacts.append(current)
+                current = None
+                continue
+
+            if current is None:
+                continue
+
+            # N: (structured name) — N:Last;First;Middle;Prefix;Suffix
+            if line.upper().startswith('N:') or line.upper().startswith('N;'):
+                value = cls._extract_value(line)
+                parts = value.split(';')
+                current['last_name'] = parts[0].strip() if len(parts) > 0 else ''
+                current['first_name'] = parts[1].strip() if len(parts) > 1 else ''
+
+            # FN: (formatted name) — fallback
+            elif line.upper().startswith('FN:') or line.upper().startswith('FN;'):
+                current['raw_name'] = cls._extract_value(line)
+
+            # TEL: — take first phone number
+            elif line.upper().startswith('TEL') and ':' in line:
+                if not current['phone']:
+                    current['phone'] = cls._extract_value(line).strip()
+
+            # EMAIL: — take first email
+            elif line.upper().startswith('EMAIL') and ':' in line:
+                if not current['email']:
+                    current['email'] = cls._extract_value(line).strip()
+
+        return contacts
+
+    @staticmethod
+    def _extract_value(line):
+        """
+        Extract value from a vCard line, handling property parameters.
+
+        E.g., 'TEL;TYPE=CELL:+1234567890' → '+1234567890'
+              'N:Smith;John;;;' → 'Smith;John;;;'
+        """
+        # Split on first colon (property:value)
+        idx = line.index(':')
+        return line[idx + 1:]
+
+    @classmethod
+    def _get_existing_names(cls, user):
+        """
+        Build a set of (first_lower, last_lower) for existing contacts.
+        """
+        from .models import Person
+
+        existing = set()
+        for p in Person.objects.filter(owner=user).values_list('first_name', 'last_name'):
+            existing.add((p[0].lower(), p[1].lower()))
+        return existing

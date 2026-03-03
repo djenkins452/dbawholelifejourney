@@ -20,9 +20,9 @@ from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView
 
-from .forms import PersonForm, PersonGroupForm, QuickPersonForm
+from .forms import ContactImportForm, PersonForm, PersonGroupForm, QuickPersonForm
 from .models import Person, PersonGroup
-from .services import RelationalHealthService, RelationshipAnalyticsService
+from .services import ContactImportService, RelationalHealthService, RelationshipAnalyticsService
 
 logger = logging.getLogger(__name__)
 
@@ -379,3 +379,44 @@ class RelationshipInsightsView(LoginRequiredMixin, TemplateView):
         health = RelationalHealthService.compute_health(self.request.user)
         ctx['health'] = health
         return ctx
+
+
+# =============================================================================
+# CONTACT IMPORT (Phase 5)
+# =============================================================================
+
+
+class ContactImportView(LoginRequiredMixin, TemplateView):
+    """Upload a vCard (.vcf) file to import contacts."""
+
+    template_name = 'relationships/import_contacts.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        if 'form' not in ctx:
+            ctx['form'] = ContactImportForm()
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        form = ContactImportForm(request.POST, request.FILES)
+        if not form.is_valid():
+            return self.render_to_response(self.get_context_data(form=form))
+
+        uploaded_file = form.cleaned_data['file']
+
+        # Read file content, handling encoding
+        try:
+            content = uploaded_file.read().decode('utf-8')
+        except UnicodeDecodeError:
+            try:
+                uploaded_file.seek(0)
+                content = uploaded_file.read().decode('latin-1')
+            except Exception:
+                form.add_error('file', 'Could not read file. Please ensure it is a valid vCard file.')
+                return self.render_to_response(self.get_context_data(form=form))
+
+        result = ContactImportService.import_vcf(request.user, content)
+
+        ctx = self.get_context_data(form=ContactImportForm())
+        ctx['result'] = result
+        return self.render_to_response(ctx)

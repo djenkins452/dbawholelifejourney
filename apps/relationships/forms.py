@@ -113,3 +113,25 @@ class PersonGroupForm(forms.ModelForm):
         if qs.exists():
             raise forms.ValidationError(f'A group named "{name}" already exists.')
         return name
+
+
+class ContactImportForm(forms.Form):
+    """Form for uploading a vCard (.vcf) file to import contacts."""
+
+    file = forms.FileField(
+        label="Contacts File",
+        help_text="Upload a .vcf (vCard) file exported from your phone's Contacts app",
+        widget=forms.FileInput(attrs={
+            "accept": ".vcf",
+            "class": "form-input",
+        }),
+    )
+
+    def clean_file(self):
+        f = self.cleaned_data.get("file")
+        if f:
+            if not f.name.lower().endswith(".vcf"):
+                raise forms.ValidationError("Only .vcf (vCard) files are supported.")
+            if f.size > 10 * 1024 * 1024:
+                raise forms.ValidationError("File too large. Maximum size is 10MB.")
+        return f

@@ -34,6 +34,9 @@ urlpatterns = [
     # Insights dashboard (Phase R2)
     path('insights/', views.RelationshipInsightsView.as_view(), name='insights'),
 
+    # Contact import (Phase 5)
+    path('import/', views.ContactImportView.as_view(), name='contact_import'),
+
     # API endpoints
     path('autocomplete/', views.PersonAutocompleteView.as_view(), name='autocomplete'),
     path('quick-create/', views.PersonQuickCreateView.as_view(), name='quick_create'),

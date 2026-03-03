@@ -5350,24 +5350,67 @@ class RestoreDeletedTasksAPIView(APIRateLimitMixin, View):
         from django.utils import timezone as tz
         import datetime
 
-        # Diagnose mode: show all tasks (any status) for debugging
+        # Diagnose mode: show all tasks + recurring templates + calendar events
         diagnose = request.GET.get('diagnose', '').lower() == 'true'
         if diagnose:
             all_tasks = Task.all_objects.filter(user=user).order_by('-updated_at')[:50]
+
+            # Also check recurring task templates
+            from apps.life.models import RecurringTask
+            recurring = []
+            try:
+                recurring_qs = RecurringTask.all_objects.filter(user=user).order_by('-updated_at')[:30]
+                recurring = [
+                    {
+                        'id': r.id,
+                        'title': r.title,
+                        'status': r.status,
+                        'is_active': getattr(r, 'is_active_flag', r.status == 'active'),
+                        'scheduled_time': str(r.scheduled_time) if hasattr(r, 'scheduled_time') and r.scheduled_time else None,
+                        'updated_at': str(r.updated_at),
+                    }
+                    for r in recurring_qs
+                ]
+            except Exception as e:
+                recurring = [{'error': str(e)}]
+
+            # Check calendar events for today
+            from apps.calendar_engine.models import CalendarEvent
+            import datetime
+            today = datetime.date.today()
+            cal_events = CalendarEvent.objects.filter(
+                user=user,
+                start_dt__date=today,
+            ).order_by('start_dt')[:30]
+
             return JsonResponse({
                 'diagnose': True,
-                'total': all_tasks.count(),
+                'tasks_total': all_tasks.count(),
                 'tasks': [
                     {
                         'id': t.id,
                         'title': t.title,
                         'status': t.status,
                         'is_completed': t.is_completed,
+                        'is_routine': getattr(t, 'is_routine', False),
                         'due_date': str(t.due_date) if t.due_date else None,
                         'deleted_at': str(t.deleted_at) if t.deleted_at else None,
                         'updated_at': str(t.updated_at),
                     }
                     for t in all_tasks
+                ],
+                'recurring_templates': recurring,
+                'todays_calendar_events': [
+                    {
+                        'id': e.id,
+                        'title': e.title,
+                        'event_kind': e.event_kind,
+                        'source_type': e.source_type,
+                        'source_id': e.source_id,
+                        'start_dt': str(e.start_dt),
+                        'status': e.status,
+                    }
+                    for e in cal_events
                 ],
             })
 

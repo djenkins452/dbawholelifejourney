@@ -5355,24 +5355,23 @@ class RestoreDeletedTasksAPIView(APIRateLimitMixin, View):
         if diagnose:
             all_tasks = Task.all_objects.filter(user=user).order_by('-updated_at')[:50]
 
-            # Also check recurring task templates
-            from apps.life.models import RecurringTask
-            recurring = []
-            try:
-                recurring_qs = RecurringTask.all_objects.filter(user=user).order_by('-updated_at')[:30]
-                recurring = [
-                    {
-                        'id': r.id,
-                        'title': r.title,
-                        'status': r.status,
-                        'is_active': getattr(r, 'is_active_flag', r.status == 'active'),
-                        'scheduled_time': str(r.scheduled_time) if hasattr(r, 'scheduled_time') and r.scheduled_time else None,
-                        'updated_at': str(r.updated_at),
-                    }
-                    for r in recurring_qs
-                ]
-            except Exception as e:
-                recurring = [{'error': str(e)}]
+            # Check routine tasks (is_routine=True, which are the recurring templates)
+            routine_tasks = Task.all_objects.filter(
+                user=user, is_routine=True
+            ).order_by('-updated_at')[:30]
+            recurring = [
+                {
+                    'id': r.id,
+                    'title': r.title,
+                    'status': r.status,
+                    'is_completed': r.is_completed,
+                    'scheduled_time': str(r.scheduled_time) if r.scheduled_time else None,
+                    'due_date': str(r.due_date) if r.due_date else None,
+                    'deleted_at': str(r.deleted_at) if r.deleted_at else None,
+                    'updated_at': str(r.updated_at),
+                }
+                for r in routine_tasks
+            ]
 
             # Check calendar events for today
             from apps.calendar_engine.models import CalendarEvent

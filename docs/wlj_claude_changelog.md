@@ -9,6 +9,16 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Enforce mandatory daily scan on CoS greeting/short messages
+
+- **What:** Patched the CoS system prompt and context injection to enforce the proactive daily scan briefing on every interaction, especially greetings and short messages. Prevents generic "How can I help?" responses.
+- **Why:** CoS was defaulting to generic assistant behavior when the user opened with "Hello" instead of delivering the mandatory daily scan briefing with completed/outstanding/risk data.
+- **Changes:**
+  - **`apps/ai/personal_assistant.py`** — Strengthened `COS_PROACTIVE_INTELLIGENCE_PROMPT` with hard enforcement rule: messages under 20 chars or greetings MUST trigger full scan structure. Added explicit forbidden phrases ("How can I help?", "What would you like to focus on?"). Rewrote "OPENING A NEW CONVERSATION" section with mandatory 5-part briefing structure (greeting → wins → gaps → risk → question).
+  - **`apps/core/ai_orchestrator/cos_context.py`** — Modified `_build_daily_scan_brief()` to always emit a scan brief even when no data exists, preventing LLM fallback to generic behavior. Empty state now shows "(no items logged yet)" with a directive to check detailed operational data.
+- **Files:** `apps/ai/personal_assistant.py`, `apps/core/ai_orchestrator/cos_context.py`, `docs/wlj_claude_changelog.md`
+- **Tests:** 437 CoS tests + 135 phase4 tests passed.
+
 ## 2026-03-03 — Add fixture file fallback for help topic API
 
 - **What:** Added a direct fixture file fallback to `HelpTopicAPIView`. When a help topic isn't found in the database, the API now reads directly from the `help_topics.json` fixture file and serves the content.

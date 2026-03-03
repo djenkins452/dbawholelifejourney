@@ -4824,8 +4824,12 @@ Tasks are sorted by priority (ascending) then creation date.""",
 
         The AI misinterpreted "you shouldn't show everything" (a display preference)
         as "delete all these tasks" and soft-deleted Beth's tasks. This restores them.
+
+        Note: deleted_at is stored in UTC. Beth deleted at ~7:14 PM Central (March 2)
+        which is ~1:14 AM UTC March 3, so we search both dates.
         """
-        tracker_name = 'restore_beth_deleted_tasks_2026_03_02'
+        # v2 tracker — v1 ran with wrong date filter and found 0 tasks
+        tracker_name = 'restore_beth_deleted_tasks_2026_03_02_v2'
         try:
             if self._is_loader_complete(DataLoadConfig, tracker_name):
                 return
@@ -4849,12 +4853,21 @@ Tasks are sorted by priority (ascending) then creation date.""",
                 )
                 return
 
-            # Find tasks soft-deleted on 2026-03-02 (the day the AI incorrectly deleted them)
-            delete_date = datetime.date(2026, 3, 2)
+            # Search March 2-3 UTC to cover the timezone gap
+            # (7 PM Central on March 2 = 1 AM UTC March 3)
+            start_utc = tz.make_aware(
+                datetime.datetime(2026, 3, 2, 0, 0),
+                datetime.timezone.utc,
+            )
+            end_utc = tz.make_aware(
+                datetime.datetime(2026, 3, 4, 0, 0),
+                datetime.timezone.utc,
+            )
             deleted_tasks = Task.all_objects.filter(
                 user=beth,
                 status='deleted',
-                deleted_at__date=delete_date,
+                deleted_at__gte=start_utc,
+                deleted_at__lt=end_utc,
             )
 
             restored_count = 0
@@ -4870,11 +4883,11 @@ Tasks are sorted by priority (ascending) then creation date.""",
                         f'  Restored {restored_count} incorrectly deleted tasks for Beth'
                     ))
                 else:
-                    self.stdout.write('  No deleted tasks found for Beth on 2026-03-02')
+                    self.stdout.write('  No deleted tasks found for Beth on 2026-03-02/03')
 
             self._mark_loader_complete(
                 DataLoadConfig, tracker_name,
-                'Restore Beth deleted tasks (2026-03-02)',
+                'Restore Beth deleted tasks (2026-03-02 v2)',
                 'command',
                 f'Restored {restored_count} tasks incorrectly deleted by AI'
             )

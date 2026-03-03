@@ -1189,7 +1189,20 @@ def _build_daily_scan_brief(context):
         has_content = True
 
     if not has_content:
-        return ""
+        # Always emit a scan brief — even if empty, signal that the scan ran
+        # and no items were found. This prevents the LLM from falling back
+        # to generic assistant behavior on greeting messages.
+        brief_lines.append(
+            "COMPLETED: (no items logged yet today)"
+        )
+        brief_lines.append(
+            "OUTSTANDING: (no scheduled items found)"
+        )
+        brief_lines.append(
+            "Note: Use the detailed operational data below to brief the user. "
+            "Check health signals, calendar, and medication data for anything "
+            "noteworthy even if it's not in this summary."
+        )
 
     brief_lines.append("--- END SCAN BRIEF ---")
     return '\n'.join(brief_lines)

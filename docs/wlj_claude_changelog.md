@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Fix multi-image in production template (assistant_panel.html)
+
+**What:** The initial multi-image changes were made to `chat_widget.html` but production uses `assistant_panel.html` (with `ap-` prefixed IDs). Applied identical multi-image changes to the production template and CSS.
+
+**Files:** `templates/components/assistant_panel.html`, `static/css/assistant-panel.css`
+
+---
+
+## 2026-03-03 — Multi-image support for CoS chat (up to 5 images per message)
+
+**What:** Users could only attach 1 image per CoS message, making it impossible to share multiple screenshots (e.g., InBody health charts) for combined analysis.
+
+**Files:** `apps/ai/models.py`, `apps/ai/views.py`, `apps/ai/personal_assistant.py`, `apps/ai/services.py`, `templates/components/chat_widget.html`, `apps/ai/migrations/0025_messageimage.py`
+
+---
+
 ## 2026-03-03 — State-Aware Morning Automation & Contextual Task Engine
 
 **What:** Six-part enhancement to make CoS behave as a true life operating system companion — chronological task ordering, executive briefing in fast path, proactive nudging for all activities, wake-up auto-completion, cross-module task auto-completion, and accomplishment-aware check-ins.

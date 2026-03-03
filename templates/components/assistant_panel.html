@@ -52,20 +52,14 @@
             </div>
 
             <div class="ap-chat-input-area">
-                {# Image Preview #}
+                {# Multi-Image Preview Strip #}
                 <div id="ap-attachment-preview" class="ap-attachment-preview" style="display: none;">
-                    <img id="ap-preview-image" class="ap-preview-image" alt="Attached image">
-                    <button type="button" id="ap-remove-attachment" class="ap-remove-attachment" title="Remove">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                    </button>
+                    <div id="ap-preview-strip" class="ap-preview-strip"></div>
                 </div>
 
                 <form id="ap-chat-form" class="ap-chat-form" data-testid="cos-chat-form">
                     {% csrf_token %}
-                    <input type="file" id="ap-file-input" accept="image/jpeg,image/png,image/gif,image/webp" hidden>
+                    <input type="file" id="ap-file-input" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden>
 
                     <button type="button" id="ap-attach-btn" class="ap-attach-btn" title="Attach image">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -242,8 +236,7 @@
     var attachBtn = document.getElementById('ap-attach-btn');
     var fileInput = document.getElementById('ap-file-input');
     var attachmentPreview = document.getElementById('ap-attachment-preview');
-    var previewImage = document.getElementById('ap-preview-image');
-    var removeAttachBtn = document.getElementById('ap-remove-attachment');
+    var previewStrip = document.getElementById('ap-preview-strip');
 
     /* ---- DOM refs (mobile) ---- */
     var mobileChatMessages = document.getElementById('mobile-chat-messages');
@@ -253,7 +246,8 @@
 
     /* ---- State ---- */
     var hasMessages = false;
-    var attachedImage = null; // { data: base64, mimeType: string }
+    var attachedImages = []; // Array of { data: base64, mimeType: string, dataUrl: string }
+    var MAX_IMAGES = 5;
     var calibrationAutoStarted = false;
     var lastDisplayedDate = null; // Track for date separator headers
     var apHistorySyncDone = false; // One-time post-load sync guard
@@ -428,8 +422,10 @@
     /* ================================================================
        CHAT MESSAGES
        ================================================================ */
-    function addMessage(container, content, isUser, scroll, imageDataUrl, msgData) {
+    function addMessage(container, content, isUser, scroll, imageDataUrls, msgData) {
         if (typeof scroll === 'undefined') scroll = true;
+        // Normalize: accept string, array, or null
+        if (imageDataUrls && typeof imageDataUrls === 'string') imageDataUrls = [imageDataUrls];
 
         // Resolve timestamp: from API data, or now for live messages
         var msgDate = null;
@@ -482,12 +478,20 @@
                 msg.appendChild(usedDiv);
             }
         } else {
-            if (imageDataUrl) {
-                var imgEl = document.createElement('img');
-                imgEl.src = imageDataUrl;
-                imgEl.className = 'ap-chat-message-image';
-                msg.appendChild(imgEl);
-                if (content && content !== '(Image attached)') {
+            if (imageDataUrls && imageDataUrls.length > 0) {
+                var gridCss = imageDataUrls.length > 1
+                    ? 'display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;margin-bottom:8px;'
+                    : 'margin-bottom:8px;';
+                var gridEl = document.createElement('div');
+                gridEl.style.cssText = gridCss;
+                for (var ii = 0; ii < imageDataUrls.length; ii++) {
+                    var imgEl = document.createElement('img');
+                    imgEl.src = imageDataUrls[ii];
+                    imgEl.className = 'ap-chat-message-image';
+                    gridEl.appendChild(imgEl);
+                }
+                msg.appendChild(gridEl);
+                if (content && content !== '(Images attached)' && content !== '(Image attached)') {
                     var textEl = document.createElement('div');
                     textEl.textContent = content;
                     msg.appendChild(textEl);
@@ -740,9 +744,11 @@
        SEND MESSAGE — streaming for text, non-streaming for images
        ================================================================ */
     function sendMessage(message, container, inputEl, btnEl, imageOverride) {
-        var sentImage = imageOverride || attachedImage;
-        var imageDataUrl = sentImage
-            ? 'data:' + sentImage.mimeType + ';base64,' + sentImage.data
+        var sentImages = imageOverride || attachedImages.slice();
+        // Normalize single-image override to array
+        if (sentImages && !Array.isArray(sentImages)) sentImages = [sentImages];
+        var imageDataUrls = sentImages && sentImages.length > 0
+            ? sentImages.map(function(img) { return img.dataUrl || ('data:' + img.mimeType + ';base64,' + img.data); })
             : null;
 
         inputEl.value = '';
@@ -753,12 +759,12 @@
         var empty = container.querySelector('.ap-chat-empty');
         if (empty) empty.remove();
 
-        addMessage(container, message || '(Image attached)', true, true, imageDataUrl);
+        addMessage(container, message || '(Images attached)', true, true, imageDataUrls);
 
         // Image messages use non-streaming endpoint
-        if (sentImage) {
+        if (sentImages && sentImages.length > 0) {
             showTyping(container);
-            apSendNonStreaming(message, container, btnEl, inputEl, sentImage);
+            apSendNonStreaming(message, container, btnEl, inputEl, sentImages);
             return;
         }
 
@@ -881,18 +887,20 @@
     }
 
     // Non-streaming fallback (also used for image messages)
-    function apSendNonStreaming(message, container, btnEl, inputEl, sentImage) {
+    function apSendNonStreaming(message, container, btnEl, inputEl, sentImages) {
         var fetchOpts;
-        if (sentImage) {
+        if (sentImages && sentImages.length > 0) {
             var formData = new FormData();
             formData.append('message', message);
             formData.append('page_context', JSON.stringify(getFullPageContext()));
-            var byteString = atob(sentImage.data);
-            var ab = new ArrayBuffer(byteString.length);
-            var ia = new Uint8Array(ab);
-            for (var i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
-            var blob = new Blob([ab], { type: sentImage.mimeType });
-            formData.append('image', blob, 'attachment.png');
+            for (var i = 0; i < sentImages.length; i++) {
+                var byteString = atob(sentImages[i].data);
+                var ab = new ArrayBuffer(byteString.length);
+                var ia = new Uint8Array(ab);
+                for (var j = 0; j < byteString.length; j++) ia[j] = byteString.charCodeAt(j);
+                var blob = new Blob([ab], { type: sentImages[i].mimeType });
+                formData.append('images', blob, 'image_' + i + '.png');
+            }
             fetchOpts = {
                 method: 'POST',
                 headers: { 'X-CSRFToken': getCsrfToken() },
@@ -966,7 +974,7 @@
                         data.messages.forEach(function(msg) {
                             if (!msg.content || !msg.content.trim()) return;
                             addMessage(container, msg.content, msg.role === 'user', false,
-                                msg.image_data_url || null, msg);
+                                msg.image_data_urls || (msg.image_data_url ? [msg.image_data_url] : null), msg);
                         });
                     });
                     return;
@@ -1070,26 +1078,84 @@
     }
 
     /* ================================================================
-       IMAGE ATTACHMENT
+       MULTI-IMAGE ATTACHMENT (up to 5 images)
        ================================================================ */
     function handleImageFile(file) {
+        if (attachedImages.length >= MAX_IMAGES) {
+            alert('Maximum ' + MAX_IMAGES + ' images per message.');
+            return;
+        }
         var validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
         if (validTypes.indexOf(file.type) === -1) { alert('Please select JPEG, PNG, GIF, or WebP'); return; }
-        if (file.size > 5 * 1024 * 1024) { alert('Image too large (5MB max)'); return; }
+        if (file.size > 5 * 1024 * 1024) { alert('Image too large (5MB max per image)'); return; }
         var reader = new FileReader();
         reader.onload = function(e) {
-            attachedImage = { data: e.target.result.split(',')[1], mimeType: file.type };
-            previewImage.src = e.target.result;
-            attachmentPreview.style.display = 'flex';
-            attachBtn.classList.add('has-attachment');
+            attachedImages.push({
+                data: e.target.result.split(',')[1],
+                mimeType: file.type,
+                dataUrl: e.target.result
+            });
+            renderImagePreviews();
             updateSendBtn();
         };
         reader.readAsDataURL(file);
     }
 
+    function handleImageFiles(files) {
+        var remaining = MAX_IMAGES - attachedImages.length;
+        var count = Math.min(files.length, remaining);
+        if (files.length > remaining) {
+            alert('You can attach up to ' + MAX_IMAGES + ' images. Adding first ' + remaining + '.');
+        }
+        for (var i = 0; i < count; i++) {
+            handleImageFile(files[i]);
+        }
+    }
+
+    function removeImage(index) {
+        attachedImages.splice(index, 1);
+        renderImagePreviews();
+        updateSendBtn();
+    }
+
+    function renderImagePreviews() {
+        if (!previewStrip) return;
+        previewStrip.innerHTML = '';
+        if (attachedImages.length === 0) {
+            if (attachmentPreview) attachmentPreview.style.display = 'none';
+            if (attachBtn) attachBtn.classList.remove('has-attachment');
+            if (fileInput) fileInput.value = '';
+            return;
+        }
+        if (attachmentPreview) attachmentPreview.style.display = 'flex';
+        if (attachBtn) attachBtn.classList.add('has-attachment');
+        for (var i = 0; i < attachedImages.length; i++) {
+            var thumb = document.createElement('div');
+            thumb.className = 'ap-preview-thumb';
+            var img = document.createElement('img');
+            img.src = attachedImages[i].dataUrl;
+            img.alt = 'Image ' + (i + 1);
+            thumb.appendChild(img);
+            var removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'ap-remove-attachment';
+            removeBtn.title = 'Remove image';
+            removeBtn.setAttribute('data-index', i);
+            removeBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+            thumb.appendChild(removeBtn);
+            previewStrip.appendChild(thumb);
+        }
+        if (attachedImages.length > 1) {
+            var countEl = document.createElement('span');
+            countEl.className = 'ap-image-count';
+            countEl.textContent = attachedImages.length + '/' + MAX_IMAGES;
+            previewStrip.appendChild(countEl);
+        }
+    }
+
     function clearAttachment() {
-        attachedImage = null;
-        if (previewImage) previewImage.src = '';
+        attachedImages = [];
+        if (previewStrip) previewStrip.innerHTML = '';
         if (attachmentPreview) attachmentPreview.style.display = 'none';
         if (attachBtn) attachBtn.classList.remove('has-attachment');
         if (fileInput) fileInput.value = '';
@@ -1097,7 +1163,7 @@
     }
 
     function updateSendBtn() {
-        if (sendBtn) sendBtn.disabled = !chatInput.value.trim() && !attachedImage;
+        if (sendBtn) sendBtn.disabled = !chatInput.value.trim() && attachedImages.length === 0;
     }
 
     /* ================================================================
@@ -1395,7 +1461,7 @@
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 var msg = chatInput.value.trim();
-                if (msg || attachedImage) sendMessage(msg, chatMessages, chatInput, sendBtn);
+                if (msg || attachedImages.length > 0) sendMessage(msg, chatMessages, chatInput, sendBtn);
             }
         });
         chatInput.addEventListener('paste', function(e) {
@@ -1416,13 +1482,21 @@
         chatForm.addEventListener('submit', function(e) {
             e.preventDefault();
             var msg = chatInput.value.trim();
-            if (msg || attachedImage) sendMessage(msg, chatMessages, chatInput, sendBtn);
+            if (msg || attachedImages.length > 0) sendMessage(msg, chatMessages, chatInput, sendBtn);
         });
     }
 
     if (attachBtn) attachBtn.addEventListener('click', function() { fileInput.click(); });
-    if (fileInput) fileInput.addEventListener('change', function() { if (fileInput.files[0]) handleImageFile(fileInput.files[0]); });
-    if (removeAttachBtn) removeAttachBtn.addEventListener('click', clearAttachment);
+    if (fileInput) fileInput.addEventListener('change', function() {
+        if (fileInput.files && fileInput.files.length > 0) handleImageFiles(fileInput.files);
+    });
+    if (previewStrip) previewStrip.addEventListener('click', function(e) {
+        var btn = e.target.closest('.ap-remove-attachment');
+        if (btn) {
+            var index = parseInt(btn.getAttribute('data-index'), 10);
+            removeImage(index);
+        }
+    });
 
     if (voiceBtn) {
         voiceBtn.addEventListener('click', function() {

@@ -490,3 +490,203 @@ class SyncStatusTests(TestCase):
         data = response.json()
         self.assertIsNone(data["last_sync"])
         self.assertIsNone(data["metrics_synced"]["steps"])
+
+
+class ContactImportTests(TestCase):
+    """Test single-contact import from iOS contact picker."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            email="test@example.com",
+            password="testpass123",
+        )
+        self.device = MobileDevice.objects.create(
+            user=self.user,
+            device_id="test-device-uuid",
+        )
+        self.token, self.raw_token = MobileAPIToken.create_token(
+            user=self.user,
+            device=self.device,
+        )
+
+    def _auth_headers(self):
+        return {"HTTP_AUTHORIZATION": f"Bearer {self.raw_token}"}
+
+    def _post_contact(self, data, **extra_headers):
+        headers = {**self._auth_headers(), **extra_headers}
+        return self.client.post(
+            "/api/mobile/contacts/import/",
+            data=json.dumps(data),
+            content_type="application/json",
+            **headers,
+        )
+
+    def test_import_creates_person(self):
+        """Importing a new contact creates a Person."""
+        response = self._post_contact({
+            "first_name": "Heather",
+            "last_name": "Jenkins",
+            "phone": "555-123-4567",
+            "email": "heather@email.com",
+        })
+
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(data["status"], "created")
+        self.assertEqual(data["person"]["first_name"], "Heather")
+        self.assertEqual(data["person"]["last_name"], "Jenkins")
+        self.assertEqual(data["person"]["phone"], "555-123-4567")
+        self.assertEqual(data["person"]["email"], "heather@email.com")
+        self.assertEqual(data["person"]["relationship_type"], "other")
+
+        # Verify Person exists in DB
+        from apps.relationships.models import Person
+        person = Person.objects.get(id=data["person"]["id"])
+        self.assertEqual(person.owner, self.user)
+        self.assertEqual(person.first_name, "Heather")
+
+    def test_import_deduplicates(self):
+        """Importing a duplicate returns the existing Person."""
+        from apps.relationships.models import Person
+        existing = Person.objects.create(
+            owner=self.user,
+            first_name="Heather",
+            last_name="Jenkins",
+            phone="555-000-0000",
+            relationship_type="family",
+        )
+
+        response = self._post_contact({
+            "first_name": "Heather",
+            "last_name": "Jenkins",
+            "phone": "555-123-4567",
+            "email": "heather@email.com",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], "existing")
+        self.assertEqual(data["person"]["id"], existing.id)
+        # Should NOT overwrite existing data
+        self.assertEqual(data["person"]["phone"], "555-000-0000")
+        self.assertEqual(data["person"]["relationship_type"], "family")
+
+    def test_import_dedup_case_insensitive(self):
+        """Deduplication is case-insensitive."""
+        from apps.relationships.models import Person
+        existing = Person.objects.create(
+            owner=self.user,
+            first_name="heather",
+            last_name="jenkins",
+        )
+
+        response = self._post_contact({
+            "first_name": "HEATHER",
+            "last_name": "JENKINS",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], "existing")
+        self.assertEqual(data["person"]["id"], existing.id)
+
+    def test_import_first_name_only(self):
+        """Can import a contact with only a first name."""
+        response = self._post_contact({
+            "first_name": "Madonna",
+        })
+
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(data["person"]["first_name"], "Madonna")
+        self.assertEqual(data["person"]["last_name"], "")
+
+    def test_import_requires_first_name(self):
+        """Import fails without first_name."""
+        response = self._post_contact({
+            "last_name": "Jenkins",
+        })
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("first_name", data["error"])
+
+    def test_import_rejects_invalid_email(self):
+        """Import fails with invalid email."""
+        response = self._post_contact({
+            "first_name": "Heather",
+            "email": "not-an-email",
+        })
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("email", data["error"].lower())
+
+    def test_import_requires_auth(self):
+        """Import endpoint requires Bearer token."""
+        response = self.client.post(
+            "/api/mobile/contacts/import/",
+            data=json.dumps({"first_name": "Test"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_import_rejects_invalid_token(self):
+        """Import endpoint rejects invalid Bearer token."""
+        response = self.client.post(
+            "/api/mobile/contacts/import/",
+            data=json.dumps({"first_name": "Test"}),
+            content_type="application/json",
+            HTTP_AUTHORIZATION="Bearer invalid-token",
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_import_rejects_invalid_json(self):
+        """Import endpoint rejects invalid JSON body."""
+        response = self.client.post(
+            "/api/mobile/contacts/import/",
+            data="not json",
+            content_type="application/json",
+            **self._auth_headers(),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Invalid JSON", response.json()["error"])
+
+    def test_import_user_isolation(self):
+        """User A cannot see User B's contacts in dedup check."""
+        from apps.relationships.models import Person
+        other_user = User.objects.create_user(
+            email="other@example.com",
+            password="testpass123",
+        )
+        Person.objects.create(
+            owner=other_user,
+            first_name="Heather",
+            last_name="Jenkins",
+        )
+
+        # Same name but different owner — should create, not dedup
+        response = self._post_contact({
+            "first_name": "Heather",
+            "last_name": "Jenkins",
+        })
+
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(data["status"], "created")
+
+    def test_import_optional_fields_nullable(self):
+        """Phone and email are optional and can be omitted."""
+        response = self._post_contact({
+            "first_name": "John",
+            "last_name": "Doe",
+        })
+
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(data["person"]["phone"], "")
+        self.assertEqual(data["person"]["email"], "")

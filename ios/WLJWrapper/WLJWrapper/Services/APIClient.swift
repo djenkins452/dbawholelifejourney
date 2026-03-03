@@ -236,6 +236,47 @@ class APIClient {
         let (_, _) = try await session.data(for: request)
     }
 
+    // MARK: - Contact Import
+
+    /// Import a single contact picked from the iOS contact picker.
+    /// Returns the created or existing Person from the backend.
+    func importContact(_ contact: PickedContact) async throws -> ContactImportResponse {
+        guard let token = KeychainManager.shared.getAPIToken() else {
+            throw APIError.notAuthenticated
+        }
+
+        let url = URL(string: "\(baseURL)/api/mobile/contacts/import/")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let body = ContactImportRequest(
+            firstName: contact.firstName,
+            lastName: contact.lastName,
+            phone: contact.phone,
+            email: contact.email
+        )
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        switch httpResponse.statusCode {
+        case 200, 201:
+            return try JSONDecoder().decode(ContactImportResponse.self, from: data)
+        case 401:
+            KeychainManager.shared.deleteAPIToken()
+            throw APIError.notAuthenticated
+        default:
+            let error = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+            throw APIError.serverError(error?.message ?? "Contact import failed (\(httpResponse.statusCode))")
+        }
+    }
+
     // MARK: - Token Revocation
 
     /// Revoke the current API token (logout).
@@ -375,6 +416,49 @@ struct DeviceInfo: Codable {
 struct APIErrorResponse: Codable {
     let error: String
     let message: String
+}
+
+// MARK: - Contact Import Types
+
+struct ContactImportRequest: Codable {
+    let firstName: String
+    let lastName: String
+    let phone: String?
+    let email: String?
+
+    enum CodingKeys: String, CodingKey {
+        case firstName = "first_name"
+        case lastName = "last_name"
+        case phone
+        case email
+    }
+}
+
+struct ContactImportResponse: Codable {
+    let status: String  // "created" or "existing"
+    let person: ImportedPerson
+}
+
+struct ImportedPerson: Codable {
+    let id: Int
+    let firstName: String
+    let lastName: String
+    let displayName: String
+    let email: String
+    let phone: String
+    let relationshipType: String
+    let notes: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case firstName = "first_name"
+        case lastName = "last_name"
+        case displayName = "display_name"
+        case email
+        case phone
+        case relationshipType = "relationship_type"
+        case notes
+    }
 }
 
 // MARK: - API Errors

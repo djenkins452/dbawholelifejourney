@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 123,
+    "fields": {
+      "title": "Import Contacts from Your Phone (iOS)",
+      "description": "Add contacts to WLJ directly from your phone's contact list. Tap 'Import from Phone' when adding a new person, pick a contact, and their name, phone number, and email are filled in automatically. No double-keying \u2014 you set the relationship type and notes after import. One contact at a time, fully intentional.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-02",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/relationships/",
+      "created_at": "2026-03-03T02:00:00Z",
+      "updated_at": "2026-03-03T02:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 122,
     "fields": {
       "title": "@Mention Autocomplete Everywhere",

@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Safety engine: block task deletion without explicit delete verb
+
+**What:** Added a hard safety gate in the execution pipeline that blocks task deletion unless the user's original message contains an explicit delete verb (delete, remove, cancel, get rid of, trash, erase). This prevents the AI from interpreting ambiguous phrases like "don't show those", "hide completed", or "I already did those" as delete requests. The gate operates at the safety engine level (before execution), so it blocks ALL deletion paths regardless of how the AI routes the intent.
+
+**Changes:**
+- `apps/core/ai_orchestrator/safety_engine.py` — Added `_DELETE_VERBS` regex and delete-intent verification in `validate_action()`. If `mutate_task(action="delete")` is requested but the user's original message lacks an explicit delete verb, the action is blocked with a friendly clarification message.
+
+**Why:** The system prompt guardrails alone rely on the AI model following instructions. This is a code-level enforcement that can't be bypassed by model hallucination — the safety engine runs before execution and checks the user's actual words.
+
+**Tests:** 17/17 test cases pass (13 regex tests + 4 safety engine integration tests).
+
+---
+
 ## 2026-03-02 — Fix AI mass-deleting tasks instead of filtering
 
 **What:** The AI incorrectly interpreted "you shouldn't show everything" (a display preference about completed tasks) as "delete all these tasks" and soft-deleted 7 of Beth's tasks. Root cause: the system had no concept of "hide completed" vs "delete" — the AI only knew delete/remove verbs. Three fixes applied:

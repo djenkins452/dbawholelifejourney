@@ -5,6 +5,7 @@ Validates actions before execution. Requires clarification if uncertain.
 """
 
 import logging
+import re
 from datetime import timedelta
 
 from apps.core.time.system_clock import get_current_time
@@ -16,6 +17,12 @@ MAX_BACKDATE_DAYS = 365
 
 # Maximum days in the future for scheduled actions
 MAX_FUTURE_DAYS = 365
+
+# Words that explicitly signal delete intent (case-insensitive)
+_DELETE_VERBS = re.compile(
+    r'\b(delete|remove|cancel|get rid of|trash|erase)\b',
+    re.IGNORECASE,
+)
 
 
 class SafetyResult:
@@ -37,6 +44,7 @@ def validate_action(enriched_action):
     - Resolved timestamps are within reasonable bounds
     - Required parameters are present
     - No obviously invalid values
+    - Delete actions require explicit delete language in user message
 
     Args:
         enriched_action: EnrichedAction from action_router.
@@ -45,6 +53,28 @@ def validate_action(enriched_action):
         SafetyResult (is_safe=True if OK to proceed).
     """
     params = enriched_action.parameters
+
+    # ── Delete-intent verification ────────────────────────────
+    # Block task deletion unless the user's original message contains
+    # an explicit delete verb. Prevents the AI from interpreting
+    # "don't show those" or "hide completed" as "delete".
+    if (enriched_action.intent_type == 'mutate_task'
+            and params.get('action') == 'delete'):
+        original = enriched_action.original_input or ''
+        if not _DELETE_VERBS.search(original):
+            logger.warning(
+                "Delete-intent blocked: user said %r but no explicit delete verb found",
+                original[:200],
+            )
+            return SafetyResult(
+                is_safe=False,
+                reason="delete_not_explicit",
+                user_message=(
+                    "I wasn't sure if you wanted to delete those tasks. "
+                    "If you'd like to remove a task, just say "
+                    "\"delete [task name]\" and I'll take care of it."
+                ),
+            )
 
     # Check timestamp bounds if time was resolved
     if params.get("_time_resolved") and "recorded_at" in params:

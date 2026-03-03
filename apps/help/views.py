@@ -7,6 +7,8 @@ Contains:
 """
 
 import json
+import logging
+import os
 import markdown
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -72,6 +74,27 @@ class HelpTopicAPIView(View):
             if fallback_context and fallback_context != context_id:
                 topic = HelpTopic.get_by_context(fallback_context)
 
+        # Last resort: read directly from the fixture file
+        # Try the exact context_id first, then the module fallback
+        if topic is None:
+            fixture_data = self._load_from_fixture(context_id)
+            if not fixture_data:
+                fallback_context = self._get_fallback_context(context_id)
+                if fallback_context and fallback_context != context_id:
+                    fixture_data = self._load_from_fixture(fallback_context)
+            if fixture_data:
+                md = markdown.Markdown(extensions=['extra', 'nl2br', 'sane_lists'])
+                return JsonResponse({
+                    'found': True,
+                    'context_id': fixture_data['context_id'],
+                    'help_id': fixture_data.get('help_id', ''),
+                    'title': fixture_data['title'],
+                    'description': fixture_data.get('description', ''),
+                    'content': md.convert(fixture_data.get('content', '')),
+                    'app_name': fixture_data.get('app_name', ''),
+                    'related': []
+                })
+
         if topic is None:
             return JsonResponse({
                 'found': False,
@@ -116,6 +139,39 @@ class HelpTopicAPIView(View):
         for prefix, fallback in self.MODULE_FALLBACKS.items():
             if context_id.startswith(prefix):
                 return fallback
+
+    # In-memory cache for fixture data (loaded once per worker)
+    _fixture_cache = None
+
+    @classmethod
+    def _load_from_fixture(cls, context_id):
+        """
+        Fallback: read help topic directly from the fixture JSON file.
+
+        Used when a topic exists in the fixture file but hasn't been loaded
+        into the database yet (e.g., first deploy after adding new topics).
+        Data is cached in memory to avoid repeated file reads.
+        """
+        logger = logging.getLogger(__name__)
+        if cls._fixture_cache is None:
+            fixture_path = os.path.join(
+                settings.BASE_DIR, 'apps', 'help', 'fixtures', 'help_topics.json'
+            )
+            try:
+                with open(fixture_path, 'r') as f:
+                    raw = json.load(f)
+                cls._fixture_cache = {
+                    entry['fields']['context_id']: entry['fields']
+                    for entry in raw
+                    if entry.get('model') == 'help.helptopic'
+                    and entry.get('fields', {}).get('is_active', True)
+                }
+                logger.info(f'Help fixture fallback: loaded {len(cls._fixture_cache)} topics from file')
+            except Exception as e:
+                logger.warning(f'Help fixture fallback: failed to read fixture file: {e}')
+                cls._fixture_cache = {}
+
+        return cls._fixture_cache.get(context_id)
         return None
 
 

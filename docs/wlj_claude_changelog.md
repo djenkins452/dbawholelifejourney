@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Add fixture file fallback for help topic API
+
+- **What:** Added a direct fixture file fallback to `HelpTopicAPIView`. When a help topic isn't found in the database, the API now reads directly from the `help_topics.json` fixture file and serves the content.
+- **Why:** Fixture loader timing issues meant newly-added help topics (meals, medical, relationships, billing, etc.) weren't reliably reaching the production database. This fallback ensures help content is ALWAYS available regardless of whether the fixture loaded.
+- **How:** The `_load_from_fixture()` class method lazily loads and caches the entire fixture file in worker memory on first use. Subsequent lookups are instant (dict lookup). Falls through to the module fallback chain before returning "Help Not Available".
+- **Files:** `apps/help/views.py` — Added `_load_from_fixture()` method and fixture fallback in `get()`
+
+---
+
 ## 2026-03-03 — Fix fixture loader deploy-lag: add second-pass reload after resets
 
 - **What:** Added a second fixture loading pass at the end of `handle()` in `load_initial_data.py` to catch any fixtures that were reset by one-time methods.

@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Add proactive schedule awareness to CoS conversations
+
+**What:** CoS had schedule/calendar data in its system prompt (events tagged [SOON], [NOW], [MISSED]) but never proactively mentioned upcoming or missed items during active conversations. User expected "your workout starts in 7 minutes" or "your 5:15 prayer time passed" but got nothing.
+
+**Changes:**
+- `apps/ai/personal_assistant.py` — Added reasoning step 5 (both fast and full paths): "Check the schedule/calendar data: Is anything tagged [SOON], [NOW], or [MISSED]? If YES — weave a brief, natural mention into your response." Includes example phrasing to keep it conversational, not lecture-like.
+
+**Why:** The schedule data was already in the context — CoS just wasn't instructed to use it proactively. Now it checks for time-sensitive items on every response and mentions them naturally.
+
 ## 2026-03-03 — Improve CoS emotional/relational awareness
 
 **What:** When a user expressed vulnerability ("I just can't understand it the way it's written") and gratitude ("You helped a lot"), CoS re-explained the scripture instead of acknowledging the feeling. The reasoning steps and response rules didn't account for emotional/relational messages.

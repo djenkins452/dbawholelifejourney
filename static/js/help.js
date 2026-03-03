@@ -44,12 +44,13 @@ function openHelpModal(event) {
         return;
     }
 
-    // Get context from the clicked button, or fall back to first help-trigger
+    // Get context from the clicked button, or fall back to first element with help context.
     // Note: event.target.closest() must be checked BEFORE event.currentTarget,
     // because delegated click handlers set currentTarget to document (always truthy),
     // which would bypass the actual button's data-help-context attribute.
-    let trigger = event?.target?.closest('[data-help-context]') || event?.currentTarget;
+    let trigger = event?.target?.closest('[data-help-context]');
     if (!trigger || !trigger.dataset?.helpContext) {
+        // Fall back to finding any element with help context on the page
         trigger = document.querySelector('[data-help-context]');
     }
 

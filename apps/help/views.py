@@ -54,6 +54,13 @@ class HelpTopicAPIView(View):
         'ASSISTANT_': 'ASSISTANT_HOME',
         'FINANCE_': 'FINANCE_HOME',
         'CAPTURE_': 'CAPTURE_HOME',
+        'MEALS_': 'MEALS_DASHBOARD',
+        'MEDICAL_': 'MEDICAL_LABS_SUMMARY',
+        'RELATIONSHIPS_': 'RELATIONSHIPS_PEOPLE',
+        'BILLING_': 'BILLING_SETTINGS',
+        'CORE_': 'DASHBOARD_HOME',
+        'SMS_': 'SMS_HISTORY',
+        'NOTES_': 'NOTES_HOME',
     }
 
     def get(self, request, context_id):

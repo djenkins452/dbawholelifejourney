@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-03-03 — CRITICAL: Fix help modal always showing generic content instead of page-specific help
+
+- **What:** Fixed a bug where the help modal showed "Navigating Your Whole Life Journey" (the GENERAL fallback) on every single page instead of the page-specific help topic.
+- **Root cause:** In `help.js`, the `openHelpModal()` function checked `event.currentTarget` before `event.target.closest('[data-help-context]')`. Since the click handler is delegated on `document`, `event.currentTarget` is always `document` (truthy), so `event.target.closest()` was never evaluated. The actual button's `data-help-context` attribute was never read.
+- **Fix:** Reversed the priority — now checks `event.target.closest('[data-help-context]')` first, then falls back to `event.currentTarget`. Also added a check that the trigger has `dataset.helpContext` before using it.
+- **Also:** Added 7 missing module fallback prefixes to `MODULE_FALLBACKS` in help API view (MEALS_, MEDICAL_, RELATIONSHIPS_, BILLING_, CORE_, SMS_, NOTES_).
+- **Files:**
+  - `static/js/help.js` — Fixed trigger element resolution in `openHelpModal()`
+  - `apps/help/views.py` — Added missing module fallback prefixes
+
+---
+
 ## 2026-03-03 — Comprehensive context-aware help system review
 
 - **What:** Added HelpContextMixin and help_context_id to all user-facing views across 6 apps that were missing context-aware help. Created 32 new help topics and 3 new teaching destinations.

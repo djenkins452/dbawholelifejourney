@@ -1,6 +1,38 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 126,
+    "fields": {
+      "title": "Smarter Morning Routine: Auto-Completion & Proactive Nudges",
+      "description": "Your morning routine just got smarter. Tasks now display in chronological order (Wake Up \u2192 Prayer \u2192 Bible Reading \u2192 Workout). When you interact with Beth for the first time each day, your Wake Up task is automatically marked complete. Completing a Bible reading marks your Bible Reading task done. Logging a workout checks off your Workout task. Taking medication completes your Medicine task. Beth also proactively nudges you about upcoming activities and celebrates your accomplishments before mentioning what\u2019s next.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-03T20:00:00Z",
+      "updated_at": "2026-03-03T20:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 125,
+    "fields": {
+      "title": "Share Up to 5 Images at Once with Chief of Staff",
+      "description": "You can now attach up to 5 images in a single CoS message \u2014 perfect for sharing health charts, InBody screenshots, or progress photos all at once. CoS analyzes every image together and gives you a combined, data-driven response with specific numbers and trends. Select multiple files from the picker (Cmd+click or Shift+click), or paste images one at a time.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-03T18:00:00Z",
+      "updated_at": "2026-03-03T18:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 124,
     "fields": {
       "title": "Context-Aware Help on Every Page",

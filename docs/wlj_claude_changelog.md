@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Fix fixture loader deploy-lag: add second-pass reload after resets
+
+- **What:** Added a second fixture loading pass at the end of `handle()` in `load_initial_data.py` to catch any fixtures that were reset by one-time methods.
+- **Root cause:** The one-time reset methods (e.g., `_reset_meals_power_preview_fixtures`) set `is_loaded=False` AFTER the main fixture loading loop had already finished. This meant reset fixtures only loaded on the NEXT deploy, causing a deploy-lag. Help topics for meals (PKs 106-112) and all other recently-added fixtures were never loaded because the reset always ran too late.
+- **Fix:** After all one-time resets complete, re-iterate the FIXTURE_LOADERS list. Any loader that was reset to `is_loaded=False` by a one-time method is immediately reloaded from the JSON fixture file in the same deploy.
+- **Files:** `apps/core/management/commands/load_initial_data.py`
+
+---
+
 ## 2026-03-03 — CRITICAL: Fix help modal always showing generic content instead of page-specific help
 
 - **What:** Fixed a bug where the help modal showed "Navigating Your Whole Life Journey" (the GENERAL fallback) on every single page instead of the page-specific help topic.

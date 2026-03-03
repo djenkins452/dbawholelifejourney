@@ -78,8 +78,8 @@
             {% endfor %}
         </select>
         
-        <form method="get" class="search-form">
-            <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search logs..." class="form-input form-input-sm">
+        <form method="get" class="search-form" data-dynamic-search>
+            <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search logs..." class="form-input form-input-sm" data-no-mention>
         </form>
     </div>
     
@@ -402,4 +402,5 @@
 </style>
 
 <script src="{% static 'js/bulk-actions.js' %}"></script>
+<script src="{% static 'js/dynamic-search.js' %}" nonce="{{ csp_nonce }}"></script>
 {% endblock %}

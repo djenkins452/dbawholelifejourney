@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}People - Relationships - Whole Life Journey{% endblock %}
 
@@ -26,14 +27,14 @@
 
     <!-- Filters -->
     <div class="filters-bar mb-6">
-        <form method="get" class="filters-form">
+        <form method="get" class="filters-form" data-dynamic-search>
             <div class="filter-group">
                 <input type="text" name="q" class="form-input form-input-sm"
                        placeholder="Search by name..."
-                       value="{{ search_query }}">
+                       value="{{ search_query }}" data-no-mention>
             </div>
             <div class="filter-group">
-                <select name="type" class="form-select form-select-sm" id="type-filter">
+                <select name="type" class="form-select form-select-sm" id="type-filter" data-auto-submit>
                     <option value="">All Types</option>
                     {% for value, label in relationship_types %}
                         <option value="{{ value }}" {% if current_type == value %}selected{% endif %}>
@@ -42,7 +43,6 @@
                     {% endfor %}
                 </select>
             </div>
-            <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
             {% if search_query or current_type %}
                 <a href="{% url 'relationships:person_list' %}" class="btn btn-ghost btn-sm">Clear</a>
             {% endif %}
@@ -296,16 +296,9 @@
 }
 </style>
 
+<script src="{% static 'js/dynamic-search.js' %}" nonce="{{ csp_nonce }}"></script>
 <script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
-    // Type filter auto-submit
-    var typeFilter = document.getElementById('type-filter');
-    if (typeFilter) {
-        typeFilter.addEventListener('change', function() {
-            this.closest('form').submit();
-        });
-    }
-
     // Multi-select logic
     var checkboxes = document.querySelectorAll('.pl-checkbox');
     var actionBar = document.getElementById('action-bar');

@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Add dynamic keystroke search to all list pages
+
+**What:** Five list pages had static search requiring a button click or Enter key. Added dynamic search (600ms debounce, auto-submit on keystroke) using the existing `dynamic-search.js` reusable script. Now all search inputs across the app behave consistently — results filter as the user types.
+
+**Changes:**
+- `templates/relationships/person_list.html` — Added `data-dynamic-search` to form, `data-auto-submit` to type select, `data-no-mention` to search input, removed Filter button, removed manual type auto-submit JS, included `dynamic-search.js`.
+- `templates/life/recipe_list.html` — Added `data-dynamic-search` to search form, `data-no-mention` to input, included `dynamic-search.js`.
+- `templates/life/inventory_list.html` — Added `data-dynamic-search` to search form, `data-no-mention` to input, included `dynamic-search.js`.
+- `templates/life/maintenance_list.html` — Added `data-dynamic-search` to search form, `data-no-mention` to input, included `dynamic-search.js`.
+- `templates/life/document_list.html` — Added `data-dynamic-search` to search form, `data-no-mention` to input, included `dynamic-search.js`.
+
+**Why:** Search should be dynamic on every page — type and see results instantly, not click a button. The pattern was already in use on 5 other pages; these 5 were missed.
+
+---
+
 ## 2026-03-03 — Wire iOS contact import into web UI via JS bridge
 
 **What:** Connected the native iOS contact picker to the web Add Person page via the WKWebView JS bridge. When a user visits Relationships → Add Person inside the iOS app, an "Import from Phone Contacts" button now appears. Tapping it triggers the native iOS contact picker. After a successful import, the WebView automatically navigates back to the relationships list to show the new contact.

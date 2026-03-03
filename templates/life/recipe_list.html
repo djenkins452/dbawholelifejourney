@@ -42,8 +42,8 @@
         <a href="?category={{ cat }}" class="filter-btn {% if request.GET.category == cat %}active{% endif %}">{{ cat }}</a>
         {% endfor %}
         
-        <form method="get" class="search-form ml-auto">
-            <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search recipes..." class="form-input form-input-sm">
+        <form method="get" class="search-form ml-auto" data-dynamic-search>
+            <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search recipes..." class="form-input form-input-sm" data-no-mention>
         </form>
     </div>
     
@@ -318,4 +318,5 @@
 </style>
 
 <script src="{% static 'js/bulk-actions.js' %}"></script>
+<script src="{% static 'js/dynamic-search.js' %}" nonce="{{ csp_nonce }}"></script>
 {% endblock %}

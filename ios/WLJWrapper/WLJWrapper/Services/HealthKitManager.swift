@@ -2205,7 +2205,7 @@ class HealthKitManager {
                 )
 
                 query.initialResultsHandler = { _, results, error in
-                    if let error = error {
+                    if error != nil {
                         // Don't fail the whole sync for missing nutrient types
                         continuation.resume(returning: [])
                         return

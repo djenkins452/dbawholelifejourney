@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Add Executive Brief + Deep Dive two-tier analysis mode
+
+- **What:** Replaced the flat Universal Analysis Framework with a two-tier response system for data-heavy interactions. Default response is now a concise Executive Brief; full analysis available on-demand via "Deep Dive".
+- **Why:** Full structured analysis (6-element framework) was too heavy for every data interaction. Users need a sharp insight first with the option to go deeper.
+- **Changes:**
+  - **`apps/ai/personal_assistant.py`** — Replaced `UNIVERSAL ANALYSIS FRAMEWORK` section in `COS_PROACTIVE_INTELLIGENCE_PROMPT` with `EXECUTIVE BRIEF + DEEP DIVE MODE`. Executive Brief defaults to 4-line snapshot (Trend Direction, Strongest Positive Signal, Primary Risk, Immediate Focus) + strategic question + "Type 'Deep Dive'" prompt. Deep Dive triggers full 7-element framework (Trend, Signal vs Noise, Root Cause, Risk, Forward Projection, Action Plan, Strategic Question).
+- **Files:** `apps/ai/personal_assistant.py`, `docs/wlj_claude_changelog.md`
+- **Tests:** 437 CoS + 61 personal assistant tests passed.
+
 ## 2026-03-03 — Enforce mandatory daily scan on CoS greeting/short messages
 
 - **What:** Patched the CoS system prompt and context injection to enforce the proactive daily scan briefing on every interaction, especially greetings and short messages. Prevents generic "How can I help?" responses.

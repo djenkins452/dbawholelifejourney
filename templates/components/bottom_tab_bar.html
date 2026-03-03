@@ -9,7 +9,7 @@
         <span class="bottom-tab-label">Home</span>
     </a>
 
-    <!-- Dynamic modules from user preferences (up to 4) -->
+    <!-- Dynamic modules from user preferences (up to 3, for 5 total with Home + More) -->
     {% for module in nav_modules %}
     <a href="{{ module.url }}" class="bottom-tab {% if request.resolver_match.app_name == module.slug %}active{% endif %}">
         <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

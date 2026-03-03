@@ -358,14 +358,14 @@ def navigation_modules_context(request):
     Add navigation module data to template context for mobile bottom nav and desktop left rail.
 
     Provides:
-    - nav_modules: List of module dicts for mobile bottom nav (up to 4 enabled modules)
+    - nav_modules: List of module dicts for mobile bottom nav (up to 3 enabled modules)
     - desktop_rail_modules: List of module dicts for desktop left rail (up to 8 enabled modules)
     - all_user_modules: All user module preferences (for More screen)
-    - overflow_modules: Enabled modules beyond the first 4 (for mobile More screen)
+    - overflow_modules: Enabled modules beyond the first 3 (for mobile More screen)
     - desktop_overflow_modules: Enabled modules beyond the first 8 (for desktop More screen)
 
-    Mobile bottom nav shows: Home + first 4 enabled modules + More
-    Desktop left rail shows: Home + first 8 enabled modules + More
+    Mobile bottom nav shows: Home + first 3 enabled modules + More (5 total for comfortable touch targets)
+    Desktop left rail shows: Home + all enabled modules + More
 
     Performance: Uses caching to minimize database queries. Cache is invalidated when
     user updates module preferences.
@@ -456,14 +456,14 @@ def navigation_modules_context(request):
         # Get enabled modules for navigation
         enabled_modules = [m for m in all_modules if m['is_enabled']]
 
-        # Mobile bottom nav: first 4 enabled modules
-        context['nav_modules'] = enabled_modules[:4]
+        # Mobile bottom nav: first 3 enabled modules (5 total with Home + More)
+        context['nav_modules'] = enabled_modules[:3]
 
         # Desktop left rail: ALL enabled modules (no limit)
         context['desktop_rail_modules'] = enabled_modules
 
-        # Overflow = enabled modules beyond the first 4 (mobile More screen)
-        context['overflow_modules'] = enabled_modules[4:] if len(enabled_modules) > 4 else []
+        # Overflow = enabled modules beyond the first 3 (mobile More screen)
+        context['overflow_modules'] = enabled_modules[3:] if len(enabled_modules) > 3 else []
 
         # Desktop overflow = empty since all modules are in the rail now
         context['desktop_overflow_modules'] = []

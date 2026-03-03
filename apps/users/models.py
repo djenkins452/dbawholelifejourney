@@ -1813,7 +1813,7 @@ class UserModulePreference(models.Model):
 
     The bottom navigation bar shows:
     - Home (always first)
-    - Up to 4 enabled modules in user's order
+    - Up to 3 enabled modules in user's order
     - More (always last)
     """
 

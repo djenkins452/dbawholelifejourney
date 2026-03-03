@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Mobile bottom nav: reduce to 5 tabs for better touch targets
+
+**What:** The mobile bottom navigation had 6 items (Home + 4 modules + More), making tabs too cramped on small screens. The More button near the right edge was nearly untappable on some devices.
+
+**Changes:**
+- `apps/core/context_processors.py` — Reduced `nav_modules` slice from `[:4]` to `[:3]`, overflow from `[4:]` to `[3:]`
+- `static/css/main.css` — Reduced per-tab horizontal padding, added `flex: 1` for equal distribution
+- `templates/components/bottom_tab_bar.html` — Updated comment
+- `templates/users/preferences.html` — Updated user-facing text (4 → 3)
+- `apps/users/models.py` — Updated docstring
+
+**Why:** 6 items at 375px width left insufficient touch target space, especially for edge items. 5 items (Home + 3 modules + More) gives each tab ~75px — well above the 44px minimum.
+
+---
+
 ## 2026-03-03 — Fix contact import 502 error (null notes/relationship_type)
 
 **What:** iOS contact import failed with a 502 error. `_serialize_person()` returned `null` for `notes` and `relationship_type` when unset, but Swift's `ImportedPerson` struct expects non-optional `String` values. JSONDecoder failed on `null`, surfacing as a 502.

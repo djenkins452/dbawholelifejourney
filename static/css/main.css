@@ -1691,23 +1691,24 @@ a:hover {
     align-items: center;
     justify-content: center;
     gap: var(--space-1);
-    padding: var(--space-1) var(--space-3);
+    padding: var(--space-1) var(--space-2);
     color: var(--color-text-muted);
     text-decoration: none;
     border-radius: var(--radius-md);
     transition: color var(--transition-fast);
-    min-width: 60px;
+    min-width: 48px;
     min-height: 44px; /* Minimum touch target */
     -webkit-tap-highlight-color: transparent;
+    flex: 1; /* Equal space distribution across all tabs */
 }
 
 /* Edge tabs need extra padding for reliable tapping near screen edges */
 .bottom-tab:first-child {
-    padding-left: var(--space-4);
+    padding-left: var(--space-3);
 }
 
 .bottom-tab:last-child {
-    padding-right: var(--space-4);
+    padding-right: var(--space-3);
 }
 
 .bottom-tab:hover,

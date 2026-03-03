@@ -22,6 +22,35 @@ struct MainWebView: UIViewRepresentable {
         let contentController = WKUserContentController()
         contentController.add(context.coordinator, name: "wljBridge")
 
+        // Inject JS bridge at document start so it's available before page scripts run.
+        // Without this, page scripts that check window.wljNative on load would find it
+        // undefined because the didFinish injection hasn't fired yet.
+        let bridgeScript = WKUserScript(
+            source: """
+            window.wljNative = {
+                requestHealthSync: function() {
+                    window.webkit.messageHandlers.wljBridge.postMessage({action: 'healthSync'});
+                },
+                requestExchangeCode: function() {
+                    window.webkit.messageHandlers.wljBridge.postMessage({action: 'requestExchangeCode'});
+                },
+                openSettings: function() {
+                    window.webkit.messageHandlers.wljBridge.postMessage({action: 'openSettings'});
+                },
+                importContact: function() {
+                    window.webkit.messageHandlers.wljBridge.postMessage({action: 'importContact'});
+                },
+                logout: function() {
+                    window.webkit.messageHandlers.wljBridge.postMessage({action: 'logout'});
+                },
+                isNativeApp: true
+            };
+            """,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+        contentController.addUserScript(bridgeScript)
+
         // Configure web view
         let config = WKWebViewConfiguration()
         config.userContentController = contentController

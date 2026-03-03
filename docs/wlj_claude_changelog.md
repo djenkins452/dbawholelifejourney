@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Fix JS bridge race condition hiding Import from Phone button
+
+**What:** The "Import from Phone Contacts" button on the Add Person page was never visible in the iOS app. The template checks `window.wljNative.isNativeApp` on load, but the bridge was injected in the `didFinish` navigation delegate — which fires *after* all page scripts have already run. So `window.wljNative` was always undefined at check time.
+
+**Changes:**
+- `ios/WLJWrapper/WLJWrapper/Views/MainWebView.swift` — Added the JS bridge as a `WKUserScript` with `injectionTime: .atDocumentStart` so `window.wljNative` exists before any page scripts run. Kept the `didFinish` injection as a fallback for SPA-style navigations.
+
+**Why:** Race condition — bridge injected too late for page scripts to detect the native app.
+
+---
+
 ## 2026-03-03 — Improve CoS image analysis prompt for data-rich health images
 
 **What:** Updated the vision instruction in `_generate_response` to explicitly tell the LLM it has full vision capability and should read all visible text, numbers, and data from images. Provides example format for health metric observations.

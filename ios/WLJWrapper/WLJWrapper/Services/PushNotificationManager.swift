@@ -127,4 +127,8 @@ extension Notification.Name {
     /// Posted when user taps a push notification with an action_url.
     /// UserInfo contains ["action_url": String] for deep-link navigation.
     static let pushNotificationDeepLink = Notification.Name("pushNotificationDeepLink")
+
+    /// Posted when a contact is successfully imported from the native contact picker.
+    /// The WebView should reload the relationships page.
+    static let contactImported = Notification.Name("contactImported")
 }

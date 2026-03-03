@@ -65,6 +65,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 class AppState: ObservableObject {
     @Published var isAuthenticated: Bool = false
     @Published var showSettings: Bool = false
+    @Published var showContactImport: Bool = false
     @Published var lastSyncDate: Date?
     @Published var healthKitAuthorized: Bool = false
 

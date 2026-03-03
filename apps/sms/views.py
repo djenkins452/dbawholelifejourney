@@ -371,6 +371,7 @@ def sms_history(request):
         'notifications': notifications,
         'grouped_notifications': grouped,
         'user_timezone': request.user.preferences.timezone_iana,
+        'help_context_id': 'SMS_HISTORY',
     }
 
     return render(request, 'sms/history.html', context)

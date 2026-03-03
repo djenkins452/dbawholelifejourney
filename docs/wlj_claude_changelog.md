@@ -9,6 +9,30 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Comprehensive context-aware help system review
+
+- **What:** Added HelpContextMixin and help_context_id to all user-facing views across 6 apps that were missing context-aware help. Created 32 new help topics and 3 new teaching destinations.
+- **Why:** Many pages added since the help system was built had no context-aware help coverage, meaning users tapping the help button got generic content instead of page-specific guidance.
+- **Apps updated:**
+  - **capture** (3 views): CaptureRecordView, CaptureListView, CaptureDetailView
+  - **core** (4 views): MoreView, FavoritesHubView, WhatsNewListView, NotificationListView
+  - **medical** (7 views): LabUploadView, ImportDetailView, LabsSummaryView, ResultDetailView, PanelDetailView, DocumentDetailView, TestTrendView
+  - **relationships** (10 views): PersonListView, PersonCreateView, PersonDetailView, PersonUpdateView, GroupListView, GroupCreateView, GroupDetailView, GroupUpdateView, RelationshipInsightsView, ContactImportView
+  - **billing** (8 function views): select_plan, checkout_success, billing_settings, submit_suggestion, payout_preferences, credit_history, trial_expired, faith_only_upgrade
+  - **sms** (1 function view): sms_history
+- **Files modified:**
+  - `apps/capture/views.py` — Added HelpContextMixin + help_context_id to 3 views
+  - `apps/core/views.py` — Added HelpContextMixin + help_context_id to 4 views
+  - `apps/medical/views.py` — Added HelpContextMixin + help_context_id to 7 views
+  - `apps/relationships/views.py` — Added HelpContextMixin + help_context_id to 10 views
+  - `apps/billing/views.py` — Added help_context_id to 8 function-based view contexts
+  - `apps/sms/views.py` — Added help_context_id to 1 function-based view context
+  - `apps/help/fixtures/help_topics.json` — Added 32 new help topic entries (PKs 114-145)
+  - `apps/help/fixtures/teaching_destinations.json` — Added 3 new teaching destination entries (PKs 172-174)
+  - `apps/core/management/commands/load_initial_data.py` — Added fixture loader reset for help system review
+
+---
+
 ## 2026-03-03 — Fix multi-image in production template (assistant_panel.html)
 
 **What:** The initial multi-image changes were made to `chat_widget.html` but production uses `assistant_panel.html` (with `ap-` prefixed IDs). Applied identical multi-image changes to the production template and CSS.

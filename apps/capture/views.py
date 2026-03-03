@@ -28,11 +28,12 @@ from .cloudinary_storage import (
     CloudinaryStorageError,
 )
 from apps.core.utils import user_log_id
+from apps.help.mixins import HelpContextMixin
 
 logger = logging.getLogger(__name__)
 
 
-class CaptureRecordView(LoginRequiredMixin, TemplateView):
+class CaptureRecordView(LoginRequiredMixin, HelpContextMixin, TemplateView):
     """
     Browser-based audio recording interface.
 
@@ -41,6 +42,7 @@ class CaptureRecordView(LoginRequiredMixin, TemplateView):
     """
 
     template_name = "capture/capture_record.html"
+    help_context_id = "CAPTURE_RECORD"
 
 
 class CaptureUploadView(LoginRequiredMixin, View):
@@ -273,7 +275,7 @@ class CaptureUploadView(LoginRequiredMixin, View):
         })
 
 
-class CaptureListView(LoginRequiredMixin, ListView):
+class CaptureListView(LoginRequiredMixin, HelpContextMixin, ListView):
     """
     List all capture entries for the current user.
 
@@ -284,6 +286,7 @@ class CaptureListView(LoginRequiredMixin, ListView):
     model = CaptureEntry
     template_name = "capture/capture_list.html"
     context_object_name = "entries"
+    help_context_id = "CAPTURE_HOME"
     paginate_by = 20
 
     def get_queryset(self):
@@ -351,7 +354,7 @@ class CaptureListView(LoginRequiredMixin, ListView):
         return context
 
 
-class CaptureDetailView(LoginRequiredMixin, DetailView):
+class CaptureDetailView(LoginRequiredMixin, HelpContextMixin, DetailView):
     """
     Display a single capture entry with its summary and audio player.
 
@@ -362,6 +365,7 @@ class CaptureDetailView(LoginRequiredMixin, DetailView):
 
     model = CaptureEntry
     template_name = "capture/capture_detail.html"
+    help_context_id = "CAPTURE_DETAIL"
     context_object_name = "entry"
 
     def get_queryset(self):

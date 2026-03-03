@@ -31,6 +31,7 @@ from .models import (
     MedicalDocument,
 )
 from .services.importer import ingest_lab_pdf
+from apps.help.mixins import HelpContextMixin
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +50,11 @@ class MedicalAccessMixin(LoginRequiredMixin):
 # Upload
 # =============================================================================
 
-class LabUploadView(MedicalAccessMixin, TemplateView):
+class LabUploadView(MedicalAccessMixin, HelpContextMixin, TemplateView):
     """Upload a lab PDF and run ingestion."""
 
     template_name = "medical/upload.html"
+    help_context_id = "MEDICAL_UPLOAD"
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -89,10 +91,11 @@ class LabUploadView(MedicalAccessMixin, TemplateView):
 # Import Results
 # =============================================================================
 
-class ImportDetailView(MedicalAccessMixin, DetailView):
+class ImportDetailView(MedicalAccessMixin, HelpContextMixin, DetailView):
     """Show import batch results: counts, errors, imported results."""
 
     template_name = "medical/import_detail.html"
+    help_context_id = "MEDICAL_IMPORT_DETAIL"
     context_object_name = "batch"
 
     def get_queryset(self):
@@ -158,7 +161,7 @@ class ImportErrorCSVView(MedicalAccessMixin, View):
 # Labs Summary
 # =============================================================================
 
-class LabsSummaryView(MedicalAccessMixin, ListView):
+class LabsSummaryView(MedicalAccessMixin, HelpContextMixin, ListView):
     """
     Labs & Vitals summary page.
 
@@ -167,6 +170,7 @@ class LabsSummaryView(MedicalAccessMixin, ListView):
     """
 
     template_name = "medical/labs_summary.html"
+    help_context_id = "MEDICAL_LABS_SUMMARY"
     context_object_name = "results"
     paginate_by = 50
 
@@ -252,10 +256,11 @@ class LabsSummaryView(MedicalAccessMixin, ListView):
 # Detail Views
 # =============================================================================
 
-class ResultDetailView(MedicalAccessMixin, DetailView):
+class ResultDetailView(MedicalAccessMixin, HelpContextMixin, DetailView):
     """Single lab result detail."""
 
     template_name = "medical/result_detail.html"
+    help_context_id = "MEDICAL_RESULT_DETAIL"
     context_object_name = "result"
 
     def get_queryset(self):
@@ -309,10 +314,11 @@ class EducationDetailView(MedicalAccessMixin, DetailView):
         return self.render_to_response(context)
 
 
-class PanelDetailView(MedicalAccessMixin, DetailView):
+class PanelDetailView(MedicalAccessMixin, HelpContextMixin, DetailView):
     """Panel detail — shows all results in a panel."""
 
     template_name = "medical/panel_detail.html"
+    help_context_id = "MEDICAL_PANEL_DETAIL"
     context_object_name = "panel"
 
     def get_queryset(self):
@@ -326,10 +332,11 @@ class PanelDetailView(MedicalAccessMixin, DetailView):
         return ctx
 
 
-class DocumentDetailView(MedicalAccessMixin, DetailView):
+class DocumentDetailView(MedicalAccessMixin, HelpContextMixin, DetailView):
     """Medical document detail."""
 
     template_name = "medical/document_detail.html"
+    help_context_id = "MEDICAL_DOCUMENT_DETAIL"
     context_object_name = "document"
 
     def get_queryset(self):
@@ -381,10 +388,11 @@ class DocumentRenameView(MedicalAccessMixin, View):
         return self.request.META.get("REMOTE_ADDR")
 
 
-class TestTrendView(MedicalAccessMixin, TemplateView):
+class TestTrendView(MedicalAccessMixin, HelpContextMixin, TemplateView):
     """Single test trend view — values over time."""
 
     template_name = "medical/test_trend.html"
+    help_context_id = "MEDICAL_TEST_TREND"
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)

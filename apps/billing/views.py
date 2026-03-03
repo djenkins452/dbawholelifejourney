@@ -60,6 +60,7 @@ def select_plan(request):
         'promo_code': promo_code,
         'referral_code': referral_code,
         'stripe_public_key': settings.STRIPE_PUBLIC_KEY,
+        'help_context_id': 'BILLING_SELECT_PLAN',
     }
 
     return render(request, 'billing/select_plan.html', context)
@@ -136,6 +137,7 @@ def checkout_success(request):
 
     return render(request, 'billing/checkout_success.html', {
         'profile': get_or_create_billing_profile(request.user),
+        'help_context_id': 'BILLING_CHECKOUT_SUCCESS',
     })
 
 
@@ -191,6 +193,7 @@ def billing_settings(request):
         'referral_count': referral_count,
         'paying_referrals': paying_referrals,
         'stripe_public_key': settings.STRIPE_PUBLIC_KEY,
+        'help_context_id': 'BILLING_SETTINGS',
     }
 
     return render(request, 'billing/billing_settings.html', context)
@@ -282,6 +285,7 @@ def submit_suggestion(request):
     return render(request, 'billing/submit_suggestion.html', {
         'form': form,
         'suggestions_remaining': max(0, 3 - recent_count),
+        'help_context_id': 'BILLING_SUGGESTION',
     })
 
 
@@ -323,6 +327,7 @@ def payout_preferences(request):
     return render(request, 'billing/payout_preferences.html', {
         'form': form,
         'profile': profile,
+        'help_context_id': 'BILLING_PAYOUT',
     })
 
 
@@ -340,6 +345,7 @@ def credit_history(request):
     return render(request, 'billing/credit_history.html', {
         'transactions': transactions,
         'profile': get_or_create_billing_profile(request.user),
+        'help_context_id': 'BILLING_CREDIT_HISTORY',
     })
 
 
@@ -366,6 +372,7 @@ def trial_expired(request):
         'is_student_eligible': eligible_tier == BillingProfile.TIER_STUDENT,
         'trial_ended': profile.trial_ends_at,
         'stripe_public_key': settings.STRIPE_PUBLIC_KEY,
+        'help_context_id': 'BILLING_TRIAL_EXPIRED',
     }
 
     return render(request, 'billing/trial_expired.html', context)
@@ -426,6 +433,7 @@ def faith_only_upgrade(request):
         'eligible_tier': eligible_tier,
         'is_student_eligible': eligible_tier == BillingProfile.TIER_STUDENT,
         'stripe_public_key': settings.STRIPE_PUBLIC_KEY,
+        'help_context_id': 'BILLING_FAITH_UPGRADE',
     }
 
     return render(request, 'billing/faith_only_upgrade.html', context)

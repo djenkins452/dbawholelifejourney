@@ -20,6 +20,7 @@ from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView
 
+from apps.help.mixins import HelpContextMixin
 from .forms import ContactImportForm, PersonForm, PersonGroupForm, QuickPersonForm
 from .models import Person, PersonGroup
 from .services import ContactImportService, RelationalHealthService, RelationshipAnalyticsService
@@ -32,9 +33,10 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
-class PersonListView(LoginRequiredMixin, ListView):
+class PersonListView(LoginRequiredMixin, HelpContextMixin, ListView):
     model = Person
     template_name = 'relationships/person_list.html'
+    help_context_id = "RELATIONSHIPS_PEOPLE"
     context_object_name = 'people'
     paginate_by = 25
 
@@ -59,10 +61,11 @@ class PersonListView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class PersonCreateView(LoginRequiredMixin, CreateView):
+class PersonCreateView(LoginRequiredMixin, HelpContextMixin, CreateView):
     model = Person
     form_class = PersonForm
     template_name = 'relationships/person_form.html'
+    help_context_id = "RELATIONSHIPS_PERSON_CREATE"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -77,9 +80,10 @@ class PersonCreateView(LoginRequiredMixin, CreateView):
         return reverse_lazy('relationships:person_list')
 
 
-class PersonDetailView(LoginRequiredMixin, DetailView):
+class PersonDetailView(LoginRequiredMixin, HelpContextMixin, DetailView):
     model = Person
     template_name = 'relationships/person_detail.html'
+    help_context_id = "RELATIONSHIPS_PERSON_DETAIL"
     context_object_name = 'person'
 
     def get_queryset(self):
@@ -102,10 +106,11 @@ class PersonDetailView(LoginRequiredMixin, DetailView):
         return ctx
 
 
-class PersonUpdateView(LoginRequiredMixin, UpdateView):
+class PersonUpdateView(LoginRequiredMixin, HelpContextMixin, UpdateView):
     model = Person
     form_class = PersonForm
     template_name = 'relationships/person_form.html'
+    help_context_id = "RELATIONSHIPS_PERSON_EDIT"
 
     def get_queryset(self):
         return Person.objects.filter(owner=self.request.user)
@@ -247,11 +252,12 @@ class PersonQuickCreateView(LoginRequiredMixin, View):
 # =============================================================================
 
 
-class GroupListView(LoginRequiredMixin, ListView):
+class GroupListView(LoginRequiredMixin, HelpContextMixin, ListView):
     """List all groups for the current user."""
 
     model = PersonGroup
     template_name = 'relationships/group_list.html'
+    help_context_id = "RELATIONSHIPS_GROUPS"
     context_object_name = 'groups'
 
     def get_queryset(self):
@@ -262,12 +268,13 @@ class GroupListView(LoginRequiredMixin, ListView):
         )
 
 
-class GroupCreateView(LoginRequiredMixin, CreateView):
+class GroupCreateView(LoginRequiredMixin, HelpContextMixin, CreateView):
     """Create a new person group."""
 
     model = PersonGroup
     form_class = PersonGroupForm
     template_name = 'relationships/group_form.html'
+    help_context_id = "RELATIONSHIPS_GROUP_CREATE"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -287,11 +294,12 @@ class GroupCreateView(LoginRequiredMixin, CreateView):
         return reverse_lazy('relationships:group_detail', kwargs={'pk': self.object.pk})
 
 
-class GroupDetailView(LoginRequiredMixin, DetailView):
+class GroupDetailView(LoginRequiredMixin, HelpContextMixin, DetailView):
     """View group details and members."""
 
     model = PersonGroup
     template_name = 'relationships/group_detail.html'
+    help_context_id = "RELATIONSHIPS_GROUP_DETAIL"
     context_object_name = 'group'
 
     def get_queryset(self):
@@ -302,12 +310,13 @@ class GroupDetailView(LoginRequiredMixin, DetailView):
         )
 
 
-class GroupUpdateView(LoginRequiredMixin, UpdateView):
+class GroupUpdateView(LoginRequiredMixin, HelpContextMixin, UpdateView):
     """Edit a person group."""
 
     model = PersonGroup
     form_class = PersonGroupForm
     template_name = 'relationships/group_form.html'
+    help_context_id = "RELATIONSHIPS_GROUP_EDIT"
 
     def get_queryset(self):
         return PersonGroup.objects.filter(owner=self.request.user)
@@ -385,10 +394,11 @@ class GroupQuickCreateView(LoginRequiredMixin, View):
 # =============================================================================
 
 
-class RelationshipInsightsView(LoginRequiredMixin, TemplateView):
+class RelationshipInsightsView(LoginRequiredMixin, HelpContextMixin, TemplateView):
     """Full relationship insights dashboard."""
 
     template_name = 'relationships/insights.html'
+    help_context_id = "RELATIONSHIPS_INSIGHTS"
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -402,10 +412,11 @@ class RelationshipInsightsView(LoginRequiredMixin, TemplateView):
 # =============================================================================
 
 
-class ContactImportView(LoginRequiredMixin, TemplateView):
+class ContactImportView(LoginRequiredMixin, HelpContextMixin, TemplateView):
     """Upload a vCard (.vcf) file to import contacts."""
 
     template_name = 'relationships/import_contacts.html'
+    help_context_id = "RELATIONSHIPS_CONTACT_IMPORT"
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)

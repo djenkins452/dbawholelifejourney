@@ -887,6 +887,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for iOS Contact Import (PK 123)
         self._reset_ios_contact_import_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset help_topics + teaching_destinations for context-aware help system review
+        self._reset_context_aware_help_system_review(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -4997,3 +5000,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset iOS contact import fixtures FAILED: {e}'))
+
+    def _reset_context_aware_help_system_review(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload help_topics (PKs 114-145) and teaching_destinations
+        (PKs 172-174) for comprehensive context-aware help system review.
+        Adds help coverage to capture, core, medical, relationships, billing, and sms modules.
+        """
+        reset_tracker_name = 'reset_context_aware_help_review_2026_03_03'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for fixture_name in ['help_topics', 'teaching_destinations']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=fixture_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {fixture_name} loader for context-aware help system review')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for context-aware help system review',
+                'command',
+                'One-time reset to reload help_topics PKs 114-145 and teaching_destinations PKs 172-174'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset context-aware help system review FAILED: {e}'))

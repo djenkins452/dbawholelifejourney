@@ -53,6 +53,7 @@ from django.views.generic import ListView, TemplateView
 from django.contrib import messages
 
 from .models import FavoritePage, PageView, ReleaseNote, UserReleaseNoteView
+from apps.help.mixins import HelpContextMixin
 
 logger = logging.getLogger(__name__)
 
@@ -405,12 +406,13 @@ class LoginPreviewView(TemplateView):
     template_name = "account/login_preview7.html"
 
 
-class MoreView(LoginRequiredMixin, TemplateView):
+class MoreView(LoginRequiredMixin, HelpContextMixin, TemplateView):
     """
     More screen - shows all enabled modules as tiles plus quick links.
     """
 
     template_name = "core/more.html"
+    help_context_id = "CORE_MORE"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -451,12 +453,13 @@ class MoreView(LoginRequiredMixin, TemplateView):
         return context
 
 
-class FavoritesHubView(LoginRequiredMixin, TemplateView):
+class FavoritesHubView(LoginRequiredMixin, HelpContextMixin, TemplateView):
     """
     Favorites hub - shows user's favorited pages as a tile grid.
     """
 
     template_name = "core/favorites_hub.html"
+    help_context_id = "CORE_FAVORITES"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -560,7 +563,7 @@ class WhatsNewDismissView(LoginRequiredMixin, View):
         return JsonResponse({'success': True})
 
 
-class WhatsNewListView(LoginRequiredMixin, ListView):
+class WhatsNewListView(LoginRequiredMixin, HelpContextMixin, ListView):
     """
     Full page view of all release notes.
 
@@ -570,6 +573,7 @@ class WhatsNewListView(LoginRequiredMixin, ListView):
 
     model = ReleaseNote
     template_name = 'core/whats_new_list.html'
+    help_context_id = "CORE_WHATS_NEW"
     context_object_name = 'release_notes'
     paginate_by = 20
 
@@ -1163,13 +1167,14 @@ class Report404View(View):
 # =============================================================================
 
 
-class NotificationListView(LoginRequiredMixin, ListView):
+class NotificationListView(LoginRequiredMixin, HelpContextMixin, ListView):
     """
     Full page notification center.
 
     Shows all notifications with filtering and mark-as-read functionality.
     """
     template_name = 'core/notifications.html'
+    help_context_id = "CORE_NOTIFICATIONS"
     context_object_name = 'notifications'
     paginate_by = 25
 

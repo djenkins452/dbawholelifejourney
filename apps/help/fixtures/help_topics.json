@@ -1783,5 +1783,517 @@
       "created_at": "2026-02-19T00:00:00Z",
       "updated_at": "2026-02-19T00:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 114,
+    "fields": {
+      "context_id": "CAPTURE_RECORD",
+      "help_id": "capture-record",
+      "title": "Record Audio",
+      "description": "Record audio directly in your browser using your device's microphone.",
+      "content": "## Record Audio\n\nCapture thoughts, ideas, meetings, or reflections by recording audio directly in your browser.\n\n### How to Record\n\n1. **Tap Record** \u2014 Grant microphone permission when prompted\n2. **Speak** \u2014 Record for up to 60 minutes\n3. **Stop & Upload** \u2014 Your recording is automatically uploaded and queued for transcription\n\n### What Happens Next\n\nAfter uploading, the system transcribes your audio using AI and generates a structured summary (BLUF format). You'll receive a notification when processing is complete.\n\n### Tips\n\n- Use a quiet environment for best transcription accuracy\n- Speak clearly and at a natural pace\n- If the upload fails, your recording is backed up locally and can be retried\n- Supported formats: WebM (browser recording), MP3, M4A, WAV, OGG",
+      "app_name": "capture",
+      "order": 114,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 115,
+    "fields": {
+      "context_id": "CAPTURE_DETAIL",
+      "help_id": "capture-detail",
+      "title": "Capture Detail",
+      "description": "View your audio capture with its AI-generated transcript and summary.",
+      "content": "## Capture Detail\n\nView the full details of a single audio capture including the AI-generated transcript and structured summary.\n\n### What You'll See\n\n- **Audio Player** \u2014 Listen to your original recording\n- **BLUF Summary** \u2014 Bottom Line Up Front structured summary with key points, action items, and insights\n- **Full Transcript** \u2014 Complete text transcription of the audio\n- **Metadata** \u2014 Title, date, duration, category, and processing status\n\n### Actions\n\n- **Edit Title** \u2014 Rename the capture for easier searching\n- **Change Category** \u2014 Organize captures by type (meeting, idea, reflection, etc.)\n- **Download PDF** \u2014 Export the transcript and summary as a formatted PDF\n- **Email** \u2014 Send the capture details to your email\n- **Delete** \u2014 Remove the capture (can be undone)",
+      "app_name": "capture",
+      "order": 115,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 116,
+    "fields": {
+      "context_id": "CORE_MORE",
+      "help_id": "core-more",
+      "title": "More Menu",
+      "description": "Access all your enabled modules and quick links from one place.",
+      "content": "## More Menu\n\nThe More screen gives you quick access to all your enabled modules and frequently used pages.\n\n### Modules\n\nAll your active modules are displayed as tiles. Tap any tile to jump directly to that module's home page. Modules shown here are based on your preferences \u2014 you can enable or disable modules from Settings.\n\n### Quick Links\n\nBelow the modules, you'll find your personalized quick links for fast navigation to your most-used pages.",
+      "app_name": "core",
+      "order": 116,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 117,
+    "fields": {
+      "context_id": "CORE_FAVORITES",
+      "help_id": "core-favorites",
+      "title": "Favorites",
+      "description": "View and manage your favorited pages for quick access.",
+      "content": "## Favorites\n\nYour favorited pages displayed as a tile grid for quick navigation.\n\n### How to Favorite a Page\n\nOn any page in the app, tap the star icon in the top bar to add it to your favorites. Tap again to remove it.\n\n### Using Favorites\n\n- Favorites appear in the navigation menu for quick access\n- This hub shows all your favorited pages as visual tiles\n- Tap any tile to jump directly to that page\n\n### Tips\n\n- Favorite your most-used pages for faster navigation\n- The favorites menu in the navigation bar shows your top favorites plus most-visited pages",
+      "app_name": "core",
+      "order": 117,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 118,
+    "fields": {
+      "context_id": "CORE_WHATS_NEW",
+      "help_id": "core-whats-new",
+      "title": "What's New",
+      "description": "See the latest features, improvements, and fixes added to Whole Life Journey.",
+      "content": "## What's New\n\nStay up to date with all the latest changes to Whole Life Journey. This page shows the complete history of release notes including new features, enhancements, bug fixes, and improvements.\n\n### Release Types\n\n- **New Features** \u2014 Brand new capabilities added to the app\n- **Enhancements** \u2014 Improvements to existing features\n- **Fixes** \u2014 Bug fixes and reliability improvements\n- **Security** \u2014 Security updates and improvements\n\n### Notifications\n\nWhen new features are released, you'll see a badge on the What's New icon. Viewing this page marks all current releases as seen.",
+      "app_name": "core",
+      "order": 118,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 119,
+    "fields": {
+      "context_id": "CORE_NOTIFICATIONS",
+      "help_id": "core-notifications",
+      "title": "Notification Center",
+      "description": "View and manage all your notifications in one place.",
+      "content": "## Notification Center\n\nYour central hub for all notifications from across the app.\n\n### Notification Types\n\n- **Intelligence** \u2014 AI-generated insights, guidance, and weekly reports\n- **Reminders** \u2014 Medicine reminders, habit check-ins, event alerts\n- **System** \u2014 Account updates, feature announcements, maintenance notices\n\n### Managing Notifications\n\n- **Mark as Read** \u2014 Tap a notification to mark it as read\n- **Mark All Read** \u2014 Use the button at the top to clear all unread notifications\n- **Filter** \u2014 Filter by type to focus on specific notification categories\n\n### Notification Preferences\n\nCustomize which notifications you receive and how you receive them (in-app, push, SMS) from Settings > Preferences.",
+      "app_name": "core",
+      "order": 119,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 120,
+    "fields": {
+      "context_id": "MEDICAL_UPLOAD",
+      "help_id": "medical-upload",
+      "title": "Upload Lab Results",
+      "description": "Upload lab result PDFs for automatic parsing and tracking.",
+      "content": "## Upload Lab Results\n\nUpload your lab result PDFs and the system will automatically extract, categorize, and track your results over time.\n\n### How It Works\n\n1. **Upload PDF** \u2014 Select a lab result PDF from your device\n2. **AI Extraction** \u2014 The system reads and parses all test results from the document\n3. **Review** \u2014 See extracted results with reference ranges and flags\n4. **Track** \u2014 Results are saved and tracked over time for trend analysis\n\n### Supported Formats\n\n- PDF lab reports from any medical provider\n- Blood work, metabolic panels, lipid panels, CBC, and more\n- The AI handles various lab report formats and layouts\n\n### After Upload\n\nView your import results to see what was extracted. Any results outside normal ranges are highlighted. Visit the Labs Summary to see all your results over time.",
+      "app_name": "medical",
+      "order": 120,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 121,
+    "fields": {
+      "context_id": "MEDICAL_IMPORT_DETAIL",
+      "help_id": "medical-import-detail",
+      "title": "Import Results",
+      "description": "Review the results of a lab PDF import including extracted values and any errors.",
+      "content": "## Import Results\n\nAfter uploading a lab PDF, this page shows you exactly what was extracted.\n\n### What You'll See\n\n- **Success Count** \u2014 Number of test results successfully extracted\n- **Error Count** \u2014 Any values that couldn't be parsed\n- **Results List** \u2014 Each extracted test with its value, unit, reference range, and abnormal flag\n- **Error Details** \u2014 If any rows failed, see why and what the raw data was\n\n### Actions\n\n- Click any result to see its full detail page\n- Download error rows as CSV for review\n- Re-upload if the extraction missed results",
+      "app_name": "medical",
+      "order": 121,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 122,
+    "fields": {
+      "context_id": "MEDICAL_LABS_SUMMARY",
+      "help_id": "medical-labs-summary",
+      "title": "Labs & Vitals Summary",
+      "description": "View all your lab results with abnormal flagging, filtering, and trend tracking.",
+      "content": "## Labs & Vitals Summary\n\nYour complete lab results history in one place.\n\n### Sections\n\n- **Abnormal Results** \u2014 Results outside normal reference ranges, shown first for quick attention\n- **All Results** \u2014 Complete history with search and filter options\n\n### Features\n\n- **Filter** \u2014 Search by test name, filter by panel, date range, or abnormal status\n- **Trends** \u2014 Click any test name to see its values charted over time\n- **Reference Ranges** \u2014 Each result shows the normal range for comparison\n- **Education** \u2014 Learn what each test measures and why it matters\n\n### Uploading New Results\n\nUse the Upload button to add new lab result PDFs at any time.",
+      "app_name": "medical",
+      "order": 122,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 123,
+    "fields": {
+      "context_id": "MEDICAL_RESULT_DETAIL",
+      "help_id": "medical-result-detail",
+      "title": "Lab Result Detail",
+      "description": "View a single lab result with its value, reference range, trend, and educational context.",
+      "content": "## Lab Result Detail\n\nDetailed view of a single lab test result.\n\n### What You'll See\n\n- **Test Name & Value** \u2014 The measured value with its unit\n- **Reference Range** \u2014 Normal range for comparison\n- **Status** \u2014 Whether the result is normal, high, low, or critical\n- **Historical Trend** \u2014 Your past results for this test plotted over time\n- **Education** \u2014 What this test measures, why it matters, and what affects it\n\n### Context\n\n- Which panel this result belongs to\n- Which import/document it came from\n- Date the sample was collected",
+      "app_name": "medical",
+      "order": 123,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 124,
+    "fields": {
+      "context_id": "MEDICAL_PANEL_DETAIL",
+      "help_id": "medical-panel-detail",
+      "title": "Lab Panel Detail",
+      "description": "View all results within a lab panel grouped together.",
+      "content": "## Lab Panel Detail\n\nView all the test results that belong to a single lab panel (e.g., Complete Blood Count, Metabolic Panel, Lipid Panel).\n\n### What You'll See\n\n- **Panel Name** \u2014 The type of panel\n- **All Results** \u2014 Every test in the panel with values, reference ranges, and flags\n- **Abnormal Highlights** \u2014 Out-of-range results are visually flagged\n\n### Navigation\n\nClick any individual result to see its full detail page with historical trends and educational content.",
+      "app_name": "medical",
+      "order": 124,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 125,
+    "fields": {
+      "context_id": "MEDICAL_DOCUMENT_DETAIL",
+      "help_id": "medical-document-detail",
+      "title": "Medical Document",
+      "description": "View an uploaded medical document with its extracted data and associated results.",
+      "content": "## Medical Document\n\nView details of an uploaded medical document including the original PDF and all results extracted from it.\n\n### What You'll See\n\n- **Document Info** \u2014 Upload date, file name, and source\n- **Extracted Results** \u2014 All lab results parsed from this document\n- **Import History** \u2014 Processing details and any errors encountered\n\n### Actions\n\n- View the original PDF\n- Rename the document for easier identification\n- Delete the document and its associated results",
+      "app_name": "medical",
+      "order": 125,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 126,
+    "fields": {
+      "context_id": "MEDICAL_TEST_TREND",
+      "help_id": "medical-test-trend",
+      "title": "Lab Test Trend",
+      "description": "Track how a specific lab test value has changed over time.",
+      "content": "## Lab Test Trend\n\nView the historical trend of a specific lab test across all your uploads.\n\n### What You'll See\n\n- **Trend Chart** \u2014 Your values plotted over time with the reference range shown as a band\n- **All Results** \u2014 Every recorded value for this test with dates and status\n- **Direction** \u2014 Whether the trend is improving, worsening, or stable\n\n### Why Trends Matter\n\nSingle lab values only tell part of the story. Trends reveal whether your health markers are moving in the right direction over time, even if individual readings are within range.",
+      "app_name": "medical",
+      "order": 126,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 127,
+    "fields": {
+      "context_id": "RELATIONSHIPS_PEOPLE",
+      "help_id": "relationships-people",
+      "title": "People & Relationships",
+      "description": "Manage the people in your life and track your relationships.",
+      "content": "## People & Relationships\n\nKeep track of the important people in your life. Add contacts, organize them into groups, and let the system help you nurture your relationships.\n\n### Features\n\n- **People List** \u2014 All your contacts with search and filter by relationship type\n- **Relationship Types** \u2014 Family, friend, colleague, mentor, and more\n- **Groups** \u2014 Organize people into custom groups\n- **Insights** \u2014 AI-powered relationship health analysis\n\n### Adding People\n\nAdd people manually or import contacts from your phone (iOS). Each person can have contact details, birthday, relationship type, and notes.\n\n### @Mentions\n\nMention people in journal entries, tasks, and notes using @name. The system tracks these mentions to build a picture of your social connections.",
+      "app_name": "relationships",
+      "order": 127,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 128,
+    "fields": {
+      "context_id": "RELATIONSHIPS_PERSON_CREATE",
+      "help_id": "relationships-person-create",
+      "title": "Add Person",
+      "description": "Add a new person to your contacts.",
+      "content": "## Add Person\n\nAdd someone to your people list.\n\n### Fields\n\n- **Name** \u2014 First and last name (first name required)\n- **Relationship Type** \u2014 How you know this person (family, friend, colleague, etc.)\n- **Contact Info** \u2014 Email, phone number\n- **Birthday** \u2014 Optional, enables birthday reminders\n- **Notes** \u2014 Any additional context about this person\n\n### After Adding\n\nThe person appears in your People list and becomes available for @mentions across the app. If you added a birthday, it will appear in your calendar.",
+      "app_name": "relationships",
+      "order": 128,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 129,
+    "fields": {
+      "context_id": "RELATIONSHIPS_PERSON_DETAIL",
+      "help_id": "relationships-person-detail",
+      "title": "Person Detail",
+      "description": "View a person's profile including contact info, interactions, and relationship insights.",
+      "content": "## Person Detail\n\nView the full profile of a person in your life.\n\n### What You'll See\n\n- **Profile** \u2014 Name, relationship type, contact information, and birthday\n- **Interaction History** \u2014 Recent mentions in journal entries, tasks, and notes\n- **Groups** \u2014 Which groups this person belongs to\n- **Notes** \u2014 Your personal notes about this person\n\n### Actions\n\n- **Edit** \u2014 Update their information\n- **Delete** \u2014 Remove this person from your contacts",
+      "app_name": "relationships",
+      "order": 129,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 130,
+    "fields": {
+      "context_id": "RELATIONSHIPS_PERSON_EDIT",
+      "help_id": "relationships-person-edit",
+      "title": "Edit Person",
+      "description": "Update a person's contact details and relationship information.",
+      "content": "## Edit Person\n\nUpdate the details for someone in your people list. All fields from the original add form are available for editing.",
+      "app_name": "relationships",
+      "order": 130,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 131,
+    "fields": {
+      "context_id": "RELATIONSHIPS_GROUPS",
+      "help_id": "relationships-groups",
+      "title": "People Groups",
+      "description": "Organize your contacts into groups for easier management and group mentions.",
+      "content": "## People Groups\n\nOrganize your people into custom groups.\n\n### How Groups Work\n\n- Create groups like \"Family\", \"Work Team\", \"Small Group\", \"Neighbors\", etc.\n- Add any person to one or more groups\n- Use @group_name to mention everyone in a group at once\n\n### Creating a Group\n\n1. Tap **New Group**\n2. Enter a group name\n3. Select members from your people list\n4. Save\n\n### Using Groups\n\n- Filter your people list by group\n- @Mention an entire group in journal entries or notes\n- View group-level relationship insights",
+      "app_name": "relationships",
+      "order": 131,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 132,
+    "fields": {
+      "context_id": "RELATIONSHIPS_GROUP_CREATE",
+      "help_id": "relationships-group-create",
+      "title": "Create Group",
+      "description": "Create a new group to organize your contacts.",
+      "content": "## Create Group\n\nCreate a new group to organize people in your life.\n\n### Fields\n\n- **Name** \u2014 A descriptive name for the group\n- **Description** \u2014 Optional notes about this group's purpose\n- **Members** \u2014 Select people to add to this group\n\nAfter creating, use @group_name to mention all members at once.",
+      "app_name": "relationships",
+      "order": 132,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 133,
+    "fields": {
+      "context_id": "RELATIONSHIPS_GROUP_DETAIL",
+      "help_id": "relationships-group-detail",
+      "title": "Group Detail",
+      "description": "View a group's members and manage group membership.",
+      "content": "## Group Detail\n\nView and manage a people group.\n\n### What You'll See\n\n- **Group Name & Description**\n- **Members** \u2014 All people in this group with quick links to their profiles\n- **Member Count** \u2014 Total number of members\n\n### Actions\n\n- **Edit** \u2014 Update group name, description, or members\n- **Delete** \u2014 Remove the group (does not delete the people in it)",
+      "app_name": "relationships",
+      "order": 133,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 134,
+    "fields": {
+      "context_id": "RELATIONSHIPS_GROUP_EDIT",
+      "help_id": "relationships-group-edit",
+      "title": "Edit Group",
+      "description": "Update a group's name, description, and members.",
+      "content": "## Edit Group\n\nUpdate the details and membership of a people group. Add or remove members, change the group name, or update the description.",
+      "app_name": "relationships",
+      "order": 134,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 135,
+    "fields": {
+      "context_id": "RELATIONSHIPS_INSIGHTS",
+      "help_id": "relationships-insights",
+      "title": "Relationship Insights",
+      "description": "AI-powered analysis of your relationship patterns and social connections.",
+      "content": "## Relationship Insights\n\nGet AI-powered insights into your relationships and social connections.\n\n### What You'll See\n\n- **Connection Frequency** \u2014 How often you interact with different people based on mentions\n- **Relationship Health** \u2014 Which relationships are thriving and which may need attention\n- **Network Visualization** \u2014 See your social connections mapped out\n- **Suggestions** \u2014 Recommendations for nurturing neglected relationships\n\n### How It Works\n\nThe system analyzes your journal entries, tasks, calendar events, and notes to understand your interaction patterns. More data means more accurate insights.\n\n### Privacy\n\nAll analysis is private to you. Your relationship data is never shared.",
+      "app_name": "relationships",
+      "order": 135,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 136,
+    "fields": {
+      "context_id": "RELATIONSHIPS_CONTACT_IMPORT",
+      "help_id": "relationships-contact-import",
+      "title": "Import Contacts",
+      "description": "Import contacts from a vCard file or your phone's address book.",
+      "content": "## Import Contacts\n\nBring your existing contacts into Whole Life Journey.\n\n### Import Methods\n\n- **vCard (.vcf) Upload** \u2014 Upload a vCard file exported from your phone or email client\n- **iOS Contact Import** \u2014 On the iOS app, import directly from your phone's address book\n\n### What Gets Imported\n\n- First and last name\n- Email address\n- Phone number\n- Birthday (if available)\n\n### After Import\n\nImported contacts appear in your People list. You can then set relationship types, add them to groups, and start @mentioning them across the app.",
+      "app_name": "relationships",
+      "order": 136,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 137,
+    "fields": {
+      "context_id": "BILLING_SELECT_PLAN",
+      "help_id": "billing-select-plan",
+      "title": "Choose Your Plan",
+      "description": "View available subscription plans and choose the one that fits your needs.",
+      "content": "## Choose Your Plan\n\nSelect a subscription plan to continue using Whole Life Journey after your free trial.\n\n### Available Plans\n\nPlans are tailored based on your age. Student pricing is available for users under 25.\n\n### Features\n\n- All plans include full access to every module\n- Monthly and annual billing options\n- Cancel anytime from Billing Settings\n\n### Promo Codes\n\nIf you have a promo code, enter it during checkout for a discount.",
+      "app_name": "billing",
+      "order": 137,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 138,
+    "fields": {
+      "context_id": "BILLING_CHECKOUT_SUCCESS",
+      "help_id": "billing-checkout-success",
+      "title": "Subscription Active",
+      "description": "Your subscription is now active. Welcome to Whole Life Journey!",
+      "content": "## Subscription Active\n\nCongratulations! Your subscription is now active and you have full access to all Whole Life Journey features.\n\n### Next Steps\n\n- Explore the Dashboard to see your personalized overview\n- Set up your modules in Settings > Preferences\n- Talk to your Chief of Staff for personalized guidance",
+      "app_name": "billing",
+      "order": 138,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 139,
+    "fields": {
+      "context_id": "BILLING_SETTINGS",
+      "help_id": "billing-settings-page",
+      "title": "Billing & Subscription",
+      "description": "Manage your subscription, view billing history, and update payment methods.",
+      "content": "## Billing & Subscription\n\nManage your Whole Life Journey subscription from this page.\n\n### What You Can Do\n\n- **View Plan** \u2014 See your current plan, billing cycle, and next payment date\n- **Update Payment** \u2014 Change your payment method via the Stripe customer portal\n- **Cancel** \u2014 Cancel your subscription (you'll retain access until the end of your billing period)\n- **Referrals** \u2014 View your referral stats and earned credits\n- **Credits** \u2014 See your credit balance and transaction history\n\n### Need Help?\n\nContact support if you have billing questions or need a refund.",
+      "app_name": "billing",
+      "order": 139,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 140,
+    "fields": {
+      "context_id": "BILLING_SUGGESTION",
+      "help_id": "billing-suggestion",
+      "title": "Feature Suggestion",
+      "description": "Submit a feature suggestion to help improve Whole Life Journey.",
+      "content": "## Feature Suggestion\n\nWe value your feedback! Submit feature suggestions to help shape the future of Whole Life Journey.\n\n### How It Works\n\n1. Describe the feature you'd like to see\n2. Submit your suggestion\n3. The team reviews all suggestions regularly\n\n### Limits\n\nYou can submit up to 3 suggestions per week to keep the queue manageable.",
+      "app_name": "billing",
+      "order": 140,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 141,
+    "fields": {
+      "context_id": "BILLING_PAYOUT",
+      "help_id": "billing-payout",
+      "title": "Payout Preferences",
+      "description": "Configure how you receive referral payouts and earned credits.",
+      "content": "## Payout Preferences\n\nConfigure how you receive payouts from referral credits and other earned rewards.\n\n### Options\n\n- Set your preferred payout method\n- View your current balance\n- Track payout history",
+      "app_name": "billing",
+      "order": 141,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 142,
+    "fields": {
+      "context_id": "BILLING_CREDIT_HISTORY",
+      "help_id": "billing-credit-history",
+      "title": "Credit History",
+      "description": "View your credit transaction history including referral rewards and usage.",
+      "content": "## Credit History\n\nView your complete credit transaction history.\n\n### Transaction Types\n\n- **Referral Rewards** \u2014 Credits earned when someone you referred subscribes\n- **Applied Credits** \u2014 Credits used toward your subscription\n- **Promotional Credits** \u2014 Credits from special promotions\n\n### Balance\n\nYour current credit balance is shown at the top. Credits are automatically applied to your next billing cycle.",
+      "app_name": "billing",
+      "order": 142,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 143,
+    "fields": {
+      "context_id": "BILLING_TRIAL_EXPIRED",
+      "help_id": "billing-trial-expired",
+      "title": "Trial Expired",
+      "description": "Your free trial has ended. Subscribe to continue using all features.",
+      "content": "## Trial Expired\n\nYour free trial of Whole Life Journey has ended. Subscribe to continue using all features.\n\n### Your Data is Safe\n\nAll your data is preserved. Once you subscribe, everything will be right where you left it.\n\n### Plan Options\n\nChoose a plan that works for you. Student pricing is available for users under 25.",
+      "app_name": "billing",
+      "order": 143,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 144,
+    "fields": {
+      "context_id": "BILLING_FAITH_UPGRADE",
+      "help_id": "billing-faith-upgrade",
+      "title": "Upgrade from Faith Only",
+      "description": "Upgrade from the Faith Only plan to access all Whole Life Journey features.",
+      "content": "## Upgrade from Faith Only\n\nYou're currently on the Faith Only plan. Upgrade to get access to all Whole Life Journey features.\n\n### What You'll Gain\n\n- Health tracking (fitness, nutrition, sleep, vitals, and more)\n- Life organization (tasks, calendar, documents, inventory)\n- AI Chief of Staff with full intelligence features\n- Journal, Purpose & Goals, Finance, and all other modules\n\n### Your Faith Data\n\nAll your faith module data is preserved. Upgrading simply unlocks additional modules.",
+      "app_name": "billing",
+      "order": 144,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 145,
+    "fields": {
+      "context_id": "SMS_HISTORY",
+      "help_id": "sms-history",
+      "title": "SMS History",
+      "description": "View your SMS notification history grouped by date.",
+      "content": "## SMS History\n\nView all SMS notifications sent to your phone, grouped by date.\n\n### What You'll See\n\n- **Date Groups** \u2014 Notifications organized by the day they were sent\n- **Message Content** \u2014 The text of each notification\n- **Status** \u2014 Whether the message was delivered, pending, or failed\n- **Type** \u2014 What triggered the notification (reminder, insight, alert, etc.)\n\n### SMS Settings\n\nConfigure your SMS notification preferences from Settings > Preferences. You can enable/disable different notification types and set quiet hours.",
+      "app_name": "sms",
+      "order": 145,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
   }
 ]

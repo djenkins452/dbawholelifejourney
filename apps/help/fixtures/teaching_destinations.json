@@ -2864,5 +2864,56 @@
       "created_at": "2026-03-02T14:00:00Z",
       "updated_at": "2026-03-02T14:00:00Z"
     }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 172,
+    "fields": {
+      "destination_id": "capture-detail",
+      "name": "Capture Detail",
+      "path_description": "Capture - Detail",
+      "explanation": "View a single audio capture with its AI transcript, structured summary, audio player, and metadata. Download as PDF or email the capture.",
+      "url": "/capture/<id>/",
+      "keywords": "capture detail,transcript,audio detail,recording detail,capture summary,BLUF",
+      "module": "capture",
+      "sort_order": 220,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 173,
+    "fields": {
+      "destination_id": "relationships-groups-list",
+      "name": "People Groups",
+      "path_description": "Relationships - Groups",
+      "explanation": "Organize your contacts into custom groups. Use @group mentions to reference everyone in a group.",
+      "url": "/relationships/groups/",
+      "keywords": "groups,people groups,contact groups,organize contacts,team,family group",
+      "module": "relationships",
+      "sort_order": 221,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 174,
+    "fields": {
+      "destination_id": "relationships-import-contacts",
+      "name": "Import Contacts",
+      "path_description": "Relationships - Import",
+      "explanation": "Import contacts from a vCard (.vcf) file or your phone's address book to quickly populate your people list.",
+      "url": "/relationships/import/",
+      "keywords": "import contacts,vcard,vcf,phone contacts,address book import,contact import",
+      "module": "relationships",
+      "sort_order": 222,
+      "is_active": true,
+      "created_at": "2026-03-03T00:00:00Z",
+      "updated_at": "2026-03-03T00:00:00Z"
+    }
   }
 ]

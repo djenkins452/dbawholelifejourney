@@ -4120,10 +4120,13 @@ Use this to understand the user's current flow and intent. If they navigated fro
                         # use its training knowledge of these specific passages.
                         refs = ', '.join(page_content['scriptures'])
                         content_description += (
-                            f"- Scripture text not available in context, but the user is "
-                            f"reading: {refs}. Use your knowledge of these Bible passages "
-                            f"to answer their questions. Do NOT ask them to provide the "
-                            f"scripture — you know which passages they are reading.\n"
+                            f"- The user is currently reading: {refs}\n"
+                            f"- CRITICAL: You ALREADY KNOW which scripture the user is reading "
+                            f"(listed above). When they say 'this scripture', 'break it down', "
+                            f"'help me understand', etc., they mean {refs}. "
+                            f"You MUST answer using your knowledge of {refs}. "
+                            f"NEVER ask the user to share or provide the scripture — "
+                            f"you know exactly what they are reading.\n"
                         )
                     if page_content.get('context_summary'):
                         content_description += f"- Context (who/when/setting): {page_content['context_summary'][:400]}...\n" if len(page_content.get('context_summary', '')) > 400 else f"- Context: {page_content['context_summary']}\n"

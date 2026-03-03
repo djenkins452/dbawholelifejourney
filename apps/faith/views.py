@@ -1410,6 +1410,14 @@ class MarkDayCompleteView(LoginRequiredMixin, FaithRequiredMixin, View):
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
         fire_intelligence(request.user, "faith", progress.id, "complete_reading")
 
+        # Auto-complete matching routine task (Bible Reading, Quiet Time)
+        try:
+            from apps.life.services.routine_service import RoutineTaskService
+            RoutineTaskService.auto_complete_routine_task(request.user, "Bible")
+            RoutineTaskService.auto_complete_routine_task(request.user, "Quiet Time")
+        except Exception:
+            pass
+
         messages.success(request, f"Day {progress.plan_day.day_number} complete!")
 
         # Check if plan is now complete

@@ -9,37 +9,29 @@
 
 # WLJ Change History
 
-## 2026-03-03 — Multi-image support for CoS chat (up to 5 images per message)
+## 2026-03-03 — State-Aware Morning Automation & Contextual Task Engine
 
-**What:** Users could only attach 1 image per CoS message, making it impossible to share multiple screenshots (e.g., InBody health charts) for combined analysis. Also, referring to a previous image in a follow-up message resulted in "I'm unable to view images" because images aren't re-sent in conversation history.
-
-**Changes:**
-- **New model:** `MessageImage` (FK to `AssistantMessage`) — stores additional images per message with order, expiry, and base64 data
-- **Frontend (`chat_widget.html`):** Replaced single-image attachment with multi-image support:
-  - File input accepts `multiple` files
-  - Preview strip with thumbnails (up to 5) and per-image remove buttons
-  - Image grid display in chat messages
-  - Paste handler appends to array instead of replacing
-  - FormData sends all images as `images` field (backward compat with `image`)
-- **Backend (`views.py`):** Accept `request.FILES.getlist('images')` with per-file validation (5MB, JPEG/PNG/GIF/WebP). Falls back to singular `image` key for backward compat.
-- **Personal assistant (`personal_assistant.py`):** Saves additional images to `MessageImage` table. Runs comprehensive vision analysis on ALL images. Passes `all_images` list through to `_generate_response` and `_call_api`. Dynamic image-count-aware prompt note and token budget boost for multi-image.
-- **Services (`services.py`):** `_call_api()` builds multi-image content array for OpenAI Vision API (multiple `image_url` content parts in single message).
-- **History endpoint:** Returns `image_data_urls` array alongside legacy `image_data_url` for multi-image display on history load.
-
-**Files:** `apps/ai/models.py`, `apps/ai/views.py`, `apps/ai/personal_assistant.py`, `apps/ai/services.py`, `templates/components/chat_widget.html`, `apps/ai/migrations/0025_messageimage.py`
-
-**Why:** User needed to share 4 InBody health chart screenshots at once for CoS analysis. Single-image limit forced awkward 1-at-a-time workflow with broken context between messages.
-
----
-
-## 2026-03-03 — Fix People list floating action bar hidden behind mobile tab bar
-
-**What:** The People list checkboxes worked but the floating action bar (with Group, Journal, Pray buttons) was invisible on mobile because it sat behind the bottom tab bar. Both had `z-index: 100` and `position: fixed; bottom: 0`. Users could check boxes but never saw the action buttons.
+**What:** Six-part enhancement to make CoS behave as a true life operating system companion — chronological task ordering, executive briefing in fast path, proactive nudging for all activities, wake-up auto-completion, cross-module task auto-completion, and accomplishment-aware check-ins.
 
 **Changes:**
-- `templates/relationships/person_list.html` — Bumped action bar z-index to 101, added mobile-only bottom padding (`calc(var(--space-3) + 70px + env(safe-area-inset-bottom))`) to clear the tab bar, set `pointer-events: none` on outer bar with `pointer-events: all` on inner content so clicks pass through to tab bar below, enlarged checkbox touch target to 44x44px (Apple HIG minimum).
+1. **Task ordering** — Tasks now sort by `scheduled_time` within priority groups (Wake Up 5:00 → Prayer 5:15 → Bible Reading 5:30)
+2. **Executive briefing in fast path** — Morning greeting/briefing now fires on streaming path (was missing entirely)
+3. **Proactive nudging** — Pending CoS prompts (meds, workouts, pickleball, etc.) injected into chat flow
+4. **Wake Up auto-complete** — First CoS interaction of the day auto-marks "Wake Up" task complete
+5. **Cross-module auto-completion** — Completing Bible reading → marks "Bible Reading" task done; logging workout → marks "Workout" done; taking medicine → marks "Medicine" done
+6. **Accomplishment check-ins** — CoS celebrates completed tasks before shifting to what's next
 
-**Why:** Users reported checkboxes "just exist" with no way to act on selections — the action bar was rendering but hidden underneath the tab bar on mobile.
+**Files modified:**
+- `apps/life/models.py` — Task Meta ordering with `scheduled_time`
+- `apps/life/views.py` — TaskListView queryset ordering with `F().asc(nulls_last=True)`
+- `apps/life/services/routine_service.py` — Added `auto_complete_routine_task()` utility
+- `apps/ai/personal_assistant.py` — Executive briefing + CoS prompts in fast path, enhanced reasoning instruction
+- `apps/ai/executive_briefing.py` — Wake Up auto-complete, accomplishment-first instructions
+- `apps/cos/services/prompt_service.py` — Added `get_pending_prompt_injection()` for chat flow
+- `apps/faith/views.py` — Bible reading → auto-complete routine task hook
+- `apps/health/views.py` — Workout + medicine → auto-complete routine task hooks
+
+**Why:** User expected CoS to order tasks chronologically, auto-complete tasks on detected activity, proactively nudge about upcoming events, and celebrate accomplishments. Most infrastructure existed but wasn't wired together.
 
 ---
 

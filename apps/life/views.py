@@ -331,9 +331,14 @@ class TaskListView(HelpContextMixin, LifeAccessMixin, ListView):
             When(priority='someday', then=Value(3)),
             default=Value(4),
         )
+        from django.db.models import F
         return queryset.select_related('project').annotate(
             priority_order=priority_order
-        ).order_by('is_completed', 'priority_order', 'due_date', '-created_at')
+        ).order_by(
+            'is_completed', 'priority_order',
+            F('scheduled_time').asc(nulls_last=True),
+            'due_date', '-created_at',
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

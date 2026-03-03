@@ -1481,6 +1481,14 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
         messages.success(request, "Workout logged!")
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
         fire_intelligence(request.user, "health", workout.id, "log_workout")
+
+        # Auto-complete matching routine task
+        try:
+            from apps.life.services.routine_service import RoutineTaskService
+            RoutineTaskService.auto_complete_routine_task(request.user, "Workout")
+        except Exception:
+            pass
+
         return redirect("health:workout_detail", pk=workout.pk)
 
 
@@ -2963,6 +2971,14 @@ class MedicineTakeView(LoginRequiredMixin, View):
 
         # Mark as taken (with scheduled time or current time)
         log.mark_taken(taken_at=taken_at)
+
+        # Auto-complete matching routine task
+        try:
+            from apps.life.services.routine_service import RoutineTaskService
+            RoutineTaskService.auto_complete_routine_task(request.user, "Medicine")
+            RoutineTaskService.auto_complete_routine_task(request.user, "Medication")
+        except Exception:
+            pass
 
         # Decrease supply if tracked
         if medicine.current_supply is not None and medicine.current_supply > 0:

@@ -3612,6 +3612,15 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         except Exception as e:
             logger.warning("Executive briefing failed: %s", e)
 
+        # Pending CoS prompts (proactive nudging)
+        try:
+            from apps.cos.services.prompt_service import CosPromptService
+            prompt_injection = CosPromptService.get_pending_prompt_injection(self.user)
+            if prompt_injection:
+                system_prompt += "\n\n" + prompt_injection
+        except Exception:
+            pass
+
         # Executive Arbitration Engine (EAE) — Phase 8
         # When enabled, EAE is the FINAL authority on what intelligence is
         # surfaced. It replaces UAL's narrative injection with a budgeted,
@@ -4466,7 +4475,8 @@ Before responding, silently reason through these steps (do NOT include this reas
 2. Is the user sharing a feeling, expressing gratitude, being vulnerable, or making a personal reflection? If YES — respond to the EMOTION first. Acknowledge it warmly. Do NOT re-explain or re-summarize content you already gave them.
 3. If they ARE asking a question — what are they most likely asking about? The page content, their data, or a previous conversation topic?
 4. What data or context do I have that's directly relevant?
-5. Check the schedule/calendar data: Is anything tagged [SOON] (starting within ~15 min), [NOW] (happening right now), or [MISSED] (was supposed to happen but wasn't completed)? If YES — weave a brief, natural mention into your response (e.g., "By the way, your workout starts in about 7 minutes" or "I also noticed your 5:15 prayer time passed — want to fit that in?"). Don't lecture — just a friendly heads-up.
+4b. Check today's accomplishments: Has the user completed tasks or routines today? If YES — acknowledge their progress warmly BEFORE discussing what's next. Don't list every completed item — summarize with energy (e.g., "You've been crushing it today" or "You've already knocked out several things"). Then naturally transition to what's still ahead.
+5. Check the schedule/calendar data: Is anything tagged [SOON] (starting within ~15 min), [NOW] (happening right now), or [MISSED] (was supposed to happen but wasn't completed)? Are there any PENDING ACTIVITY PROMPTS due? If YES — weave a brief, natural mention into your response (e.g., "By the way, your medication is due in about 20 minutes" or "I also noticed your 5:15 prayer time passed — want to fit that in?"). Don't lecture — just a friendly heads-up.
 6. What should I NOT talk about? (avoid mixing unrelated topics — don't mention routines when they're asking about scripture, don't discuss scripture when they're asking about tasks, and don't repeat an explanation when they're expressing how they feel about it)
 Then give your response."""
 
@@ -4733,6 +4743,24 @@ Rules for this response:
         except Exception:
             pass
 
+        # --- f2) Executive briefing (first-of-day or gap re-entry)
+        try:
+            from apps.ai.executive_briefing import build_executive_briefing
+            briefing = build_executive_briefing(self.user, conversation)
+            if briefing:
+                system_prompt += "\n\n" + briefing
+        except Exception:
+            pass
+
+        # --- f3) Pending CoS prompts (proactive nudging)
+        try:
+            from apps.cos.services.prompt_service import CosPromptService
+            prompt_injection = CosPromptService.get_pending_prompt_injection(self.user)
+            if prompt_injection:
+                system_prompt += "\n\n" + prompt_injection
+        except Exception:
+            pass
+
         # --- g) Conversation history (~20-50ms)
         conversation_history = None
         try:
@@ -4777,7 +4805,8 @@ Before responding, silently reason through these steps (do NOT include this reas
 2. Is the user sharing a feeling, expressing gratitude, being vulnerable, or making a personal reflection? If YES — respond to the EMOTION first. Acknowledge it warmly. Do NOT re-explain or re-summarize content you already gave them.
 3. If they ARE asking a question — what are they most likely asking about? The page content, their data, or a previous conversation topic?
 4. What data or context do I have that's directly relevant?
-5. Check the schedule/calendar data: Is anything tagged [SOON] (starting within ~15 min), [NOW] (happening right now), or [MISSED] (was supposed to happen but wasn't completed)? If YES — weave a brief, natural mention into your response (e.g., "By the way, your workout starts in about 7 minutes" or "I also noticed your 5:15 prayer time passed — want to fit that in?"). Don't lecture — just a friendly heads-up.
+4b. Check today's accomplishments: Has the user completed tasks or routines today? If YES — acknowledge their progress warmly BEFORE discussing what's next. Don't list every completed item — summarize with energy (e.g., "You've been crushing it today" or "You've already knocked out several things"). Then naturally transition to what's still ahead.
+5. Check the schedule/calendar data: Is anything tagged [SOON] (starting within ~15 min), [NOW] (happening right now), or [MISSED] (was supposed to happen but wasn't completed)? Are there any PENDING ACTIVITY PROMPTS due? If YES — weave a brief, natural mention into your response (e.g., "By the way, your medication is due in about 20 minutes" or "I also noticed your 5:15 prayer time passed — want to fit that in?"). Don't lecture — just a friendly heads-up.
 6. What should I NOT talk about? (avoid mixing unrelated topics — don't mention routines when they're asking about scripture, don't discuss scripture when they're asking about tasks, and don't repeat an explanation when they're expressing how they feel about it)
 Then give your response."""
 

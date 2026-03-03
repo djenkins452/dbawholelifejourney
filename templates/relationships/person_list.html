@@ -50,33 +50,33 @@
     </div>
 
     {% if people %}
-        <div class="entry-list" id="people-list">
+        <div class="pl-grid" id="people-list">
             {% for person in people %}
-                <article class="entry-card pl-entry-card" data-person-id="{{ person.pk }}" data-person-name="{{ person.get_display_name }}">
-                    <label class="pl-checkbox-wrap">
+                <div class="pl-card" data-person-id="{{ person.pk }}" data-person-name="{{ person.get_display_name }}">
+                    <label class="pl-card-check">
                         <input type="checkbox" class="pl-checkbox" data-id="{{ person.pk }}">
                     </label>
-                    <a href="{% url 'relationships:person_detail' person.pk %}" class="entry-link pl-entry-link">
-                        <div class="entry-header">
-                            <h2 class="entry-title">{{ person.get_display_name }}</h2>
-                            <span class="badge badge-muted">{{ person.get_relationship_type_display }}</span>
+                    <a href="{% url 'relationships:person_detail' person.pk %}" class="pl-card-link">
+                        <div class="pl-card-avatar pl-avatar-{{ person.relationship_type|default:'other' }}">
+                            {{ person.first_name|make_list|first|default:"?" }}{{ person.last_name|make_list|first|default:"" }}
                         </div>
-                        <div class="entry-meta">
-                            {% if person.last_interaction_date %}
-                                <span class="text-muted text-sm">
-                                    Last interaction: {{ person.last_interaction_date|date:"M j, Y" }}
-                                </span>
-                            {% else %}
-                                <span class="text-muted text-sm">No interactions yet</span>
-                            {% endif %}
+                        <div class="pl-card-body">
+                            <h3 class="pl-card-name">{{ person.get_display_name }}</h3>
+                            <span class="pl-card-type">{{ person.get_relationship_type_display }}</span>
+                        </div>
+                        <div class="pl-card-stats">
                             {% if person.interaction_count %}
-                                <span class="text-muted text-sm">
-                                    {{ person.interaction_count }} interaction{{ person.interaction_count|pluralize }}
-                                </span>
+                            <span class="pl-stat-value">{{ person.interaction_count }}</span>
+                            <span class="pl-stat-label">interaction{{ person.interaction_count|pluralize }}</span>
+                            {% endif %}
+                            {% if person.last_interaction_date %}
+                            <span class="pl-stat-date">{{ person.last_interaction_date|timesince }} ago</span>
+                            {% else %}
+                            <span class="pl-stat-date pl-stat-none">No interactions</span>
                             {% endif %}
                         </div>
                     </a>
-                </article>
+                </div>
             {% endfor %}
         </div>
 
@@ -121,7 +121,7 @@
                 <div class="form-group">
                     <label for="group-name-input" class="form-label">Group Name</label>
                     <input type="text" id="group-name-input" class="form-input"
-                           placeholder="e.g., Small Group, Family">
+                           placeholder="e.g., Small Group, Family" data-no-mention>
                     <p class="pl-modal-error" id="group-error"></p>
                 </div>
                 <div class="pl-modal-actions">
@@ -171,40 +171,139 @@
 </div>
 
 <style nonce="{{ csp_nonce }}">
-/* Person list multi-select */
-.pl-entry-card {
-    display: flex;
-    align-items: stretch;
+/* People tile grid */
+.pl-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--space-4);
 }
-.pl-checkbox-wrap {
+.pl-card {
+    position: relative;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+.pl-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+}
+.pl-card.selected {
+    background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface));
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+/* Checkbox tucked in top-left corner — 44x44 touch target */
+.pl-card-check {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    cursor: pointer;
     display: flex;
     align-items: center;
-    padding: 0 var(--space-3);
-    cursor: pointer;
-    flex-shrink: 0;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
 }
 .pl-checkbox {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     cursor: pointer;
     accent-color: var(--color-accent);
+    border-radius: var(--radius-sm);
 }
-.pl-entry-link {
+
+/* Card link fills entire card */
+.pl-card-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    padding-left: 48px;
+    text-decoration: none;
+    color: inherit;
+    min-height: 80px;
+}
+
+/* Avatar */
+.pl-card-avatar {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.pl-avatar-spouse   { background: #e91e63; }
+.pl-avatar-family   { background: #7c3aed; }
+.pl-avatar-friend   { background: #2563eb; }
+.pl-avatar-coworker { background: #0891b2; }
+.pl-avatar-church   { background: #059669; }
+.pl-avatar-mentor   { background: #d97706; }
+.pl-avatar-other    { background: #6b7280; }
+
+/* Card body */
+.pl-card-body {
     flex: 1;
     min-width: 0;
 }
-.pl-entry-card.selected {
-    background: var(--color-accent-light, rgba(59, 130, 246, 0.06));
-    border-color: var(--color-accent);
+.pl-card-name {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.pl-card-type {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: capitalize;
 }
 
-/* Floating action bar */
+/* Stats column */
+.pl-card-stats {
+    flex-shrink: 0;
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+.pl-stat-value {
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    color: var(--color-accent);
+    line-height: 1;
+}
+.pl-stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+.pl-stat-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+.pl-stat-none {
+    font-style: italic;
+}
+
+/* Floating action bar — sits above the bottom tab bar */
 .pl-action-bar {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 100;
+    z-index: 101;
     padding: var(--space-3) var(--space-4);
     transform: translateY(100%);
     transition: transform 0.2s ease;
@@ -212,6 +311,8 @@
 }
 .pl-action-bar.visible {
     transform: translateY(0);
+}
+.pl-action-bar-inner {
     pointer-events: all;
 }
 .pl-action-bar-inner {
@@ -284,7 +385,19 @@
 }
 
 /* Responsive */
+@media (max-width: 768px) {
+    /* Position action bar above the bottom tab bar on mobile */
+    .pl-action-bar {
+        padding-bottom: calc(var(--space-3) + 70px + env(safe-area-inset-bottom, 0px));
+    }
+}
 @media (max-width: 480px) {
+    .pl-grid {
+        grid-template-columns: 1fr;
+    }
+    .pl-card-stats {
+        display: none;
+    }
     .pl-action-bar-inner {
         flex-direction: column;
         gap: var(--space-2);
@@ -326,7 +439,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         // Toggle selected class on cards
         checkboxes.forEach(function(cb) {
-            var card = cb.closest('.pl-entry-card');
+            var card = cb.closest('.pl-card');
             if (card) {
                 if (cb.checked) {
                     card.classList.add('selected');

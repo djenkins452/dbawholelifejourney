@@ -50,6 +50,15 @@
     </div>
 
     {% if people %}
+        <!-- Select All bar -->
+        <div class="pl-select-bar">
+            <label class="pl-select-all-label">
+                <input type="checkbox" id="select-all">
+                <span>Select All</span>
+            </label>
+            <span class="pl-select-info" id="select-info"></span>
+        </div>
+
         <div class="pl-grid" id="people-list">
             {% for person in people %}
                 <div class="pl-card" data-person-id="{{ person.pk }}" data-person-name="{{ person.get_display_name }}">
@@ -297,6 +306,33 @@
     font-style: italic;
 }
 
+/* Select All bar */
+.pl-select-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+    padding: var(--space-2) 0;
+}
+.pl-select-all-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    min-height: 44px;
+}
+.pl-select-all-label:hover {
+    color: var(--color-text);
+}
+.pl-select-info {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    font-weight: 600;
+}
+
 /* Floating action bar — sits above the bottom tab bar */
 .pl-action-bar {
     position: fixed;
@@ -311,9 +347,7 @@
 }
 .pl-action-bar.visible {
     transform: translateY(0);
-}
-.pl-action-bar-inner {
-    pointer-events: all;
+    pointer-events: auto;
 }
 .pl-action-bar-inner {
     max-width: 600px;
@@ -412,8 +446,10 @@
 <script src="{% static 'js/dynamic-search.js' %}" nonce="{{ csp_nonce }}"></script>
 <script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
-    // Multi-select logic
-    var checkboxes = document.querySelectorAll('.pl-checkbox');
+    // Multi-select logic — only card checkboxes (not select-all)
+    var checkboxes = document.querySelectorAll('.pl-card .pl-checkbox');
+    var selectAll = document.getElementById('select-all');
+    var selectInfo = document.getElementById('select-info');
     var actionBar = document.getElementById('action-bar');
     var actionCount = document.getElementById('action-count');
     var groupModal = document.getElementById('group-modal');
@@ -431,12 +467,27 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateBar() {
         var ids = getSelected();
         var count = ids.length;
+        var total = checkboxes.length;
+
+        // Show/hide floating action bar
         if (count > 0) {
             actionBar.classList.add('visible');
             actionCount.textContent = count + ' selected';
         } else {
             actionBar.classList.remove('visible');
         }
+
+        // Update select-all checkbox state
+        if (selectAll) {
+            selectAll.checked = count > 0 && count === total;
+            selectAll.indeterminate = count > 0 && count < total;
+        }
+
+        // Update info text next to Select All
+        if (selectInfo) {
+            selectInfo.textContent = count > 0 ? count + ' of ' + total + ' selected' : '';
+        }
+
         // Toggle selected class on cards
         checkboxes.forEach(function(cb) {
             var card = cb.closest('.pl-card');
@@ -454,11 +505,21 @@ document.addEventListener('DOMContentLoaded', function() {
         cb.addEventListener('change', updateBar);
     });
 
+    // Select All toggle
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            var shouldCheck = selectAll.checked;
+            checkboxes.forEach(function(cb) { cb.checked = shouldCheck; });
+            updateBar();
+        });
+    }
+
     // Clear selection
     var clearBtn = document.getElementById('action-clear');
     if (clearBtn) {
         clearBtn.addEventListener('click', function() {
             checkboxes.forEach(function(cb) { cb.checked = false; });
+            if (selectAll) selectAll.checked = false;
             updateBar();
         });
     }

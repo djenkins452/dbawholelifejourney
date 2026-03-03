@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Fix People list action bar and add Select All
+
+**What:** Fixed the floating action bar (Group, Journal, Pray buttons) that wasn't responding to checkbox selections. The `.visible` CSS class only set `transform: translateY(0)` but never overrode `pointer-events: none` from the base rule. Also merged duplicate `.pl-action-bar-inner` CSS rules. Added a "Select All" checkbox above the grid with indeterminate state support and a "X of Y selected" counter.
+
+**Changes:**
+- `templates/relationships/person_list.html` — Added `pointer-events: auto` to `.pl-action-bar.visible`, merged duplicate `.pl-action-bar-inner` rules, added Select All checkbox HTML/CSS/JS with indeterminate state, updated checkbox selector to `.pl-card .pl-checkbox` to exclude Select All, added info counter next to Select All.
+
+**Why:** Users could check individual contacts but the action bar was non-interactive due to missing `pointer-events: auto` on the visible state. Select All was requested for bulk operations.
+
+---
+
 ## 2026-03-03 — Comprehensive context-aware help system review
 
 - **What:** Added HelpContextMixin and help_context_id to all user-facing views across 6 apps that were missing context-aware help. Created 32 new help topics and 3 new teaching destinations.

@@ -8,13 +8,7 @@
 import ContactsUI
 import SwiftUI
 
-/// Result from a successful contact pick.
-struct PickedContact {
-    let firstName: String
-    let lastName: String
-    let phone: String?
-    let email: String?
-}
+// PickedContact is defined in APIClient.swift so both files compile independently.
 
 /// Bridges CNContactPickerViewController into SwiftUI.
 /// Presents the native iOS contact picker and extracts name/phone/email

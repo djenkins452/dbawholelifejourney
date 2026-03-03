@@ -420,6 +420,15 @@ struct APIErrorResponse: Codable {
 
 // MARK: - Contact Import Types
 
+/// Result from a successful contact pick via the iOS native contact picker.
+/// Defined here (not in ContactImportManager) so APIClient compiles independently.
+struct PickedContact {
+    let firstName: String
+    let lastName: String
+    let phone: String?
+    let email: String?
+}
+
 struct ContactImportRequest: Codable {
     let firstName: String
     let lastName: String

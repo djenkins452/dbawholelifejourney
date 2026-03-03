@@ -742,15 +742,91 @@ class AssistantMessage(models.Model):
 
     @property
     def has_image(self):
-        """Check if this message has an attached image."""
-        return bool(self.image_data and self.image_mime_type)
+        """Check if this message has any attached image(s) — legacy or multi."""
+        if self.image_data and self.image_mime_type:
+            return True
+        return self.images.exists()
 
     @property
     def image_data_url(self):
-        """Get the full data URL for the image (for display in img src)."""
-        if self.has_image:
+        """Get the full data URL for the first image (backward compat)."""
+        if self.image_data and self.image_mime_type:
             return f"data:{self.image_mime_type};base64,{self.image_data}"
+        first = self.images.first()
+        if first:
+            return first.image_data_url
         return None
+
+    @property
+    def all_image_data_urls(self):
+        """Get data URLs for all attached images (legacy + multi)."""
+        urls = []
+        # Legacy single-image field
+        if self.image_data and self.image_mime_type:
+            urls.append(f"data:{self.image_mime_type};base64,{self.image_data}")
+        # Multi-image related objects
+        for img in self.images.all():
+            urls.append(img.image_data_url)
+        return urls
+
+    @property
+    def all_images(self):
+        """Get all image data as list of (base64, mime_type) tuples."""
+        images = []
+        if self.image_data and self.image_mime_type:
+            images.append((self.image_data, self.image_mime_type))
+        for img in self.images.all():
+            images.append((img.image_data, img.image_mime_type))
+        return images
+
+
+class MessageImage(models.Model):
+    """
+    Individual image attachment for an AssistantMessage.
+
+    Supports multiple images per message (up to 5).
+    Each image is stored as base64-encoded data with its MIME type.
+    Images auto-expire after 72 hours to manage storage.
+    """
+    message = models.ForeignKey(
+        AssistantMessage,
+        on_delete=models.CASCADE,
+        related_name='images'
+    )
+    image_data = models.TextField(
+        help_text="Base64 encoded image data"
+    )
+    image_mime_type = models.CharField(
+        max_length=50,
+        help_text="MIME type of the image (e.g., 'image/png')"
+    )
+    image_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the image data should be auto-deleted (72 hours after creation)"
+    )
+    order = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Order of the image in the message (0-based)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'created_at']
+        verbose_name = "Message Image"
+        verbose_name_plural = "Message Images"
+        indexes = [
+            models.Index(fields=['message', 'order']),
+            models.Index(fields=['image_expires_at']),
+        ]
+
+    def __str__(self):
+        return f"Image {self.order} for message {self.message_id}"
+
+    @property
+    def image_data_url(self):
+        """Get the full data URL for display in img src."""
+        return f"data:{self.image_mime_type};base64,{self.image_data}"
 
 
 class UserStateSnapshot(models.Model):

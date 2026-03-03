@@ -2019,7 +2019,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         conversation: AssistantConversation = None,
         page_context: dict = None,
         image_data: str = None,
-        image_mime_type: str = None
+        image_mime_type: str = None,
+        images_list: list = None,
     ) -> dict:
         """
         Send a message to the assistant and get a response.
@@ -2060,10 +2061,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
         # Calculate image expiration (72 hours from now)
         image_expires_at = None
-        if image_data and image_mime_type:
+        has_any_images = bool(image_data and image_mime_type) or bool(images_list)
+        if has_any_images:
             image_expires_at = timezone.now() + timedelta(hours=72)
 
-        # Save user message (with optional image)
+        # Save user message (first image in legacy fields for backward compat)
         user_msg = AssistantMessage.objects.create(
             conversation=conversation,
             role='user',
@@ -2074,19 +2076,36 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             image_expires_at=image_expires_at
         )
 
+        # Save additional images (2nd+) to MessageImage table
+        if images_list:
+            from .models import MessageImage
+            for idx, (img_data, img_mime) in enumerate(images_list):
+                MessageImage.objects.create(
+                    message=user_msg,
+                    image_data=img_data,
+                    image_mime_type=img_mime,
+                    image_expires_at=image_expires_at,
+                    order=idx,
+                )
+
+        # Build consolidated list of all images for API calls
+        # This combines legacy single image + multi-image records
+        all_images = user_msg.all_images  # List of (base64, mime_type) tuples
+
         # Comprehensive vision analysis — persist structured analysis for CoS
-        if image_data and image_mime_type:
+        if all_images:
             try:
                 from apps.scan.services.comprehensive_vision import comprehensive_vision_service
                 from apps.scan.services.image_utils import clean_base64
-                clean_img, _ = clean_base64(image_data)
-                comprehensive_vision_service.analyze(
-                    image_base64=clean_img,
-                    mime_type=image_mime_type,
-                    user=self.user,
-                    source_type='chat',
-                    source_object=user_msg,
-                )
+                for img_b64, img_mime in all_images:
+                    clean_img, _ = clean_base64(img_b64)
+                    comprehensive_vision_service.analyze(
+                        image_base64=clean_img,
+                        mime_type=img_mime,
+                        user=self.user,
+                        source_type='chat',
+                        source_object=user_msg,
+                    )
             except Exception as e:
                 logger.warning("Comprehensive vision analysis failed: %s", e)
 
@@ -2312,6 +2331,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         image_data=image_data,
                         image_mime_type=image_mime_type,
                         cos_context_cache=_cos_context_cache,
+                        all_images=all_images,
                     )
             # Then check for pending data visibility confirmation
             elif self._handle_data_visibility_confirmation(message, conversation):
@@ -2414,6 +2434,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         image_data=image_data,
                         image_mime_type=image_mime_type,
                         cos_context_cache=_cos_context_cache,
+                        all_images=all_images,
                     )
                 else:
                     # Build lean conversation history for intent context
@@ -2535,6 +2556,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                 image_data=image_data,
                                 image_mime_type=image_mime_type,
                                 cos_context_cache=_cos_context_cache,
+                                all_images=all_images,
                             )
                             response += "\n\n" + bug_report_ack
                         else:
@@ -2551,6 +2573,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                     image_data=image_data,
                                     image_mime_type=image_mime_type,
                                     cos_context_cache=_cos_context_cache,
+                                    all_images=all_images,
                                 )
 
                         # Check for feature requests ("I wish", "I want") and notify admin
@@ -2694,8 +2717,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             result['action_taken'] = actions_taken[0] if len(actions_taken) == 1 else None
             result['actions_taken'] = actions_taken
 
-        # Include flag if user message had an image
-        if image_data and image_mime_type:
+        # Include flag if user message had image(s)
+        if has_any_images:
             result['user_message_has_image'] = True
 
         logger.warning("COS TOTAL send_message took %.1f ms", (_t.monotonic() - _t_total_start) * 1000)
@@ -3233,6 +3256,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         image_mime_type: str = None,
         cos_context_cache: dict = None,
         _return_context_only: bool = False,
+        all_images: list = None,
     ) -> str:
         """Generate AI response to user message using coaching style.
 
@@ -3244,16 +3268,17 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         calendar events, especially during greetings. It provides task/priority
         information when relevant or when the user asks for it.
 
-        Supports image attachments for OpenAI Vision processing.
+        Supports image attachments for OpenAI Vision processing (up to 5).
 
         Args:
             message: User's message
             conversation: The conversation object
             page_context: Optional dict with 'url', 'module', 'page_title' for context-aware responses
-            image_data: Optional base64-encoded image data
+            image_data: Optional base64-encoded image data (first/legacy image)
             image_mime_type: Optional MIME type of the image (e.g., 'image/png')
             _return_context_only: If True, return assembled prompt context dict
                 instead of calling the LLM. Used by _generate_response_stream().
+            all_images: Optional list of (base64, mime_type) tuples for multi-image
         """
         # Get conversation history - 40 messages for deep conversational threading
         # More history means CoS can follow topic changes and reference earlier context
@@ -4384,8 +4409,11 @@ Rules for voice responses:
         # Get user's first name for natural conversation
         user_name = self.user.first_name or self.user.get_short_name() or ""
 
-        # Build the user prompt, noting if an image is attached
-        if image_data and image_mime_type:
+        # Build the user prompt, noting if image(s) are attached
+        _img_count = len(all_images) if all_images else (1 if image_data and image_mime_type else 0)
+        if _img_count > 1:
+            image_note = f"\n\n[The user has attached {_img_count} images. Please carefully analyze ALL images and respond to them along with their message. Describe what you see in each image and provide relevant insights.]"
+        elif _img_count == 1:
             image_note = "\n\n[The user has attached an image. Please analyze and respond to it along with their message.]"
         else:
             image_note = ""
@@ -4543,6 +4571,10 @@ Rules for this response:
         ):
             max_tokens = max(max_tokens, 1200)
 
+        # Multi-image analysis needs more tokens for thorough per-image response
+        if _img_count > 1:
+            max_tokens = max(max_tokens, 1200)
+
         # Temperature: warm enough for natural conversation, lower for data accuracy
         has_personal_data = personal_data_result.get('has_data', False)
         temperature = 0.3 if (has_personal_data or is_analysis or is_asking_about_tasks) else 0.5
@@ -4573,6 +4605,7 @@ Rules for this response:
                 endpoint='cos_chat',
                 user=self.user,
                 conversation_history=conversation_history,
+                all_images=all_images,
             ) or self._get_fallback_response(message)
             logger.warning("COS LLM call took %.1f ms", (_t_llm.monotonic() - _t_llm_start) * 1000)
 

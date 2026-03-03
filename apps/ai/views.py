@@ -33,7 +33,7 @@ from apps.help.mixins import HelpContextMixin
 
 from .models import (
     AssistantConversation, AssistantMessage, DailyPriority,
-    ReflectionPromptQueue
+    MessageImage, ReflectionPromptQueue,
 )
 from .personal_assistant import get_personal_assistant
 from .trend_tracking import get_trend_tracker
@@ -341,7 +341,7 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
             content_type = request.content_type or ''
 
             if 'multipart/form-data' in content_type:
-                # Multipart form data (with potential image)
+                # Multipart form data (with potential images)
                 message = request.POST.get('message', '').strip()
                 page_context_str = request.POST.get('page_context', '{}')
                 try:
@@ -349,30 +349,39 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                 except json.JSONDecodeError:
                     page_context = {}
 
-                # Handle image upload
-                image_data = None
-                image_mime_type = None
-                if 'image' in request.FILES:
-                    image_file = request.FILES['image']
+                # Handle multiple image uploads (up to 5)
+                images_list = []  # List of (base64_data, mime_type) tuples
+                image_files = request.FILES.getlist('images')
+                # Backward compat: also check singular 'image' key
+                if not image_files and 'image' in request.FILES:
+                    image_files = [request.FILES['image']]
 
-                    # Validate file size
+                if len(image_files) > 5:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Maximum 5 images per message',
+                    }, status=400)
+
+                for image_file in image_files:
                     if image_file.size > self.MAX_IMAGE_SIZE:
                         return JsonResponse({
                             'success': False,
-                            'error': 'Image too large (max 5MB)',
+                            'error': f'Image too large (max 5MB): {image_file.name}',
                         }, status=400)
 
-                    # Validate MIME type
                     if image_file.content_type not in self.ALLOWED_IMAGE_TYPES:
                         return JsonResponse({
                             'success': False,
                             'error': f'Invalid image type. Allowed: {", ".join(self.ALLOWED_IMAGE_TYPES)}',
                         }, status=400)
 
-                    # Read and encode image as base64
                     image_bytes = image_file.read()
-                    image_data = base64.b64encode(image_bytes).decode('utf-8')
-                    image_mime_type = image_file.content_type
+                    image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+                    images_list.append((image_b64, image_file.content_type))
+
+                # Backward compat: first image also set as image_data/image_mime_type
+                image_data = images_list[0][0] if images_list else None
+                image_mime_type = images_list[0][1] if images_list else None
 
             else:
                 # JSON body (traditional request)
@@ -381,6 +390,9 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                 page_context = data.get('page_context', {})
                 image_data = data.get('image_data')  # Already base64 encoded
                 image_mime_type = data.get('image_mime_type')
+                images_list = []
+                if image_data and image_mime_type:
+                    images_list = [(image_data, image_mime_type)]
 
             if not message:
                 return JsonResponse({
@@ -401,7 +413,8 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                 conversation,
                 page_context=page_context,
                 image_data=image_data,
-                image_mime_type=image_mime_type
+                image_mime_type=image_mime_type,
+                images_list=images_list if len(images_list) > 1 else None,
             )
 
             # Phase 4: Post-response intelligence (truly non-blocking via bg thread)
@@ -671,32 +684,30 @@ class ConversationHistoryView(LoginRequiredMixin, AssistantMixin, View):
             else:
                 conversation = AssistantConversation.get_or_create_active(request.user)
 
-            messages = conversation.messages.order_by('created_at').values(
-                'id', 'role', 'content', 'message_type', 'created_at', 'was_helpful',
-                'image_data', 'image_mime_type', 'quick_replies', 'quick_reply_used',
-                'is_proactive'
-            )
+            messages = conversation.messages.order_by('created_at').prefetch_related('images')
 
             # Process messages to include image data URLs and quick replies
             messages_list = []
             for msg in messages:
                 msg_data = {
-                    'id': msg['id'],
-                    'role': msg['role'],
-                    'content': msg['content'],
-                    'message_type': msg['message_type'],
-                    'created_at': msg['created_at'],
-                    'was_helpful': msg['was_helpful'],
-                    'is_proactive': msg.get('is_proactive', False),
+                    'id': msg.id,
+                    'role': msg.role,
+                    'content': msg.content,
+                    'message_type': msg.message_type,
+                    'created_at': msg.created_at,
+                    'was_helpful': msg.was_helpful,
+                    'is_proactive': getattr(msg, 'is_proactive', False),
                 }
-                # Add image data URL if present
-                if msg.get('image_data') and msg.get('image_mime_type'):
-                    msg_data['image_data_url'] = f"data:{msg['image_mime_type']};base64,{msg['image_data']}"
+                # Collect all image data URLs (legacy + multi-image)
+                image_urls = msg.all_image_data_urls
+                if image_urls:
+                    msg_data['image_data_url'] = image_urls[0]  # backward compat
+                    msg_data['image_data_urls'] = image_urls     # multi-image
                 # Add quick replies if present and not already used
-                if msg.get('quick_replies') and not msg.get('quick_reply_used'):
-                    msg_data['quick_replies'] = msg['quick_replies']
-                elif msg.get('quick_reply_used'):
-                    msg_data['quick_reply_used'] = msg['quick_reply_used']
+                if msg.quick_replies and not msg.quick_reply_used:
+                    msg_data['quick_replies'] = msg.quick_replies
+                elif msg.quick_reply_used:
+                    msg_data['quick_reply_used'] = msg.quick_reply_used
                 messages_list.append(msg_data)
 
             # Add calibration state for chat auto-start

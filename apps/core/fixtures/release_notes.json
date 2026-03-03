@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 124,
+    "fields": {
+      "title": "Share Up to 5 Images at Once with Chief of Staff",
+      "description": "You can now attach up to 5 images in a single CoS message \u2014 perfect for sharing health charts, screenshots, or progress photos all at once. CoS will analyze every image together and give you a combined, context-aware response. Select multiple files from the picker, or paste images one at a time.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-03T12:00:00Z",
+      "updated_at": "2026-03-03T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 123,
     "fields": {
       "title": "Import Contacts from Your Phone (iOS)",

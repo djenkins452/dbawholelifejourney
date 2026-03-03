@@ -310,18 +310,19 @@ class AIService:
         endpoint: str = 'general',
         user=None,
         conversation_history: list = None,
+        all_images: list = None,
     ) -> Optional[str]:
         """
         Make an API call to OpenAI with retry, backoff, and observability.
 
         Supports image attachments for Vision processing when image_data
-        and image_mime_type are provided.
+        and image_mime_type are provided, or multiple images via all_images.
 
         Args:
             system_prompt: The system prompt
             user_prompt: The user's message
             max_tokens: Maximum tokens for response
-            image_data: Optional base64-encoded image data
+            image_data: Optional base64-encoded image data (single/legacy)
             image_mime_type: Optional MIME type of the image
             temperature: Controls randomness (0.0=deterministic, 1.0=creative).
                         Default 0.5 balances accuracy with natural conversation.
@@ -332,6 +333,7 @@ class AIService:
                         "content": "..."} dicts representing prior conversation turns.
                         When provided, these are inserted between the system prompt
                         and the final user message for proper conversational threading.
+            all_images: Optional list of (base64, mime_type) tuples for multi-image
 
         Returns:
             The AI response content or None if unavailable
@@ -340,8 +342,19 @@ class AIService:
             logger.warning("AI service not available - no API key configured")
             return None
 
-        # Build the user message content once
-        if image_data and image_mime_type:
+        # Build the user message content — supports multiple images
+        if all_images and len(all_images) > 0:
+            logger.debug("Sending vision request with %d images", len(all_images))
+            user_content = [{"type": "text", "text": user_prompt}]
+            for img_b64, img_mime in all_images:
+                user_content.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{img_mime};base64,{img_b64}",
+                        "detail": "auto"
+                    }
+                })
+        elif image_data and image_mime_type:
             logger.debug(f"Sending vision request with image ({image_mime_type}, {len(image_data)} chars base64)")
             user_content = [
                 {"type": "text", "text": user_prompt},
@@ -396,7 +409,7 @@ class AIService:
                     elapsed=elapsed,
                 )
 
-                if image_data and image_mime_type:
+                if (image_data and image_mime_type) or all_images:
                     logger.debug(f"Vision response (first 200 chars): {result[:200]}")
                 return result
 

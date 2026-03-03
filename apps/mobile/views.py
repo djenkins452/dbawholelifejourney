@@ -2759,6 +2759,6 @@ def _serialize_person(person):
         "display_name": person.get_display_name(),
         "email": person.email or "",
         "phone": person.phone or "",
-        "relationship_type": person.relationship_type,
-        "notes": person.notes,
+        "relationship_type": person.relationship_type or "",
+        "notes": person.notes or "",
     }

@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Fix contact import 502 error (null notes/relationship_type)
+
+**What:** iOS contact import failed with a 502 error. `_serialize_person()` returned `null` for `notes` and `relationship_type` when unset, but Swift's `ImportedPerson` struct expects non-optional `String` values. JSONDecoder failed on `null`, surfacing as a 502.
+
+**Changes:**
+- `apps/mobile/views.py` — Added `or ""` to `notes` and `relationship_type` fields in `_serialize_person()`, matching the pattern already used for `email` and `phone`.
+
+**Why:** Same null-safety pattern (`or ""`) was applied to email/phone but missed for notes/relationship_type.
+
+---
+
 ## 2026-03-03 — Fix JS bridge race condition hiding Import from Phone button
 
 **What:** The "Import from Phone Contacts" button on the Add Person page was never visible in the iOS app. The template checks `window.wljNative.isNativeApp` on load, but the bridge was injected in the `didFinish` navigation delegate — which fires *after* all page scripts have already run. So `window.wljNative` was always undefined at check time.

@@ -51,19 +51,19 @@ def process_bulk_recipe_import(self, session_id):
         logger.error("Bulk recipe import session %d not found", session_id)
         return {"status": "error", "reason": "session_not_found"}
 
-    session.status = 'processing'
+    session.import_status = 'processing'
     session.celery_task_id = task_id
-    session.save(update_fields=['status', 'celery_task_id', 'updated_at'])
+    session.save(update_fields=['import_status', 'celery_task_id', 'updated_at'])
 
-    pending_photos = list(session.photos.filter(status='pending'))
+    pending_photos = list(session.photos.filter(photo_status='pending'))
     processed_count = 0
     error_count = 0
 
     try:
         for i, photo in enumerate(pending_photos):
             # Mark as processing
-            photo.status = 'processing'
-            photo.save(update_fields=['status', 'updated_at'])
+            photo.photo_status = 'processing'
+            photo.save(update_fields=['photo_status', 'updated_at'])
 
             try:
                 # Read image bytes from storage
@@ -87,18 +87,18 @@ def process_bulk_recipe_import(self, session_id):
                 )
 
                 if "error" in result:
-                    photo.status = 'failed'
+                    photo.photo_status = 'failed'
                     photo.error_message = result["error"]
                     photo.save(update_fields=[
-                        'status', 'error_message', 'updated_at',
+                        'photo_status', 'error_message', 'updated_at',
                     ])
                     error_count += 1
                 else:
-                    photo.status = 'extracted'
+                    photo.photo_status = 'extracted'
                     photo.extracted_data = result
                     photo.confidence = result.get('confidence', 0.5)
                     photo.save(update_fields=[
-                        'status', 'extracted_data', 'confidence', 'updated_at',
+                        'photo_status', 'extracted_data', 'confidence', 'updated_at',
                     ])
                     processed_count += 1
 
@@ -107,9 +107,9 @@ def process_bulk_recipe_import(self, session_id):
                     "Failed to process bulk import photo %d in session %d: %s",
                     photo.pk, session_id, e, exc_info=True,
                 )
-                photo.status = 'failed'
+                photo.photo_status = 'failed'
                 photo.error_message = str(e)
-                photo.save(update_fields=['status', 'error_message', 'updated_at'])
+                photo.save(update_fields=['photo_status', 'error_message', 'updated_at'])
                 error_count += 1
 
             # Update session progress
@@ -129,14 +129,16 @@ def process_bulk_recipe_import(self, session_id):
             session_id, processed_count, len(pending_photos),
         )
         # Mark remaining pending photos as failed
-        session.photos.filter(status__in=['pending', 'processing']).update(
-            status='failed',
+        session.photos.filter(photo_status__in=['pending', 'processing']).update(
+            photo_status='failed',
             error_message='Processing timed out',
         )
-        remaining = session.photos.filter(status='failed', error_message='Processing timed out').count()
+        remaining = session.photos.filter(
+            photo_status='failed', error_message='Processing timed out'
+        ).count()
         session.failed_count = error_count + remaining
-        session.status = 'completed'
-        session.save(update_fields=['failed_count', 'status', 'updated_at'])
+        session.import_status = 'completed'
+        session.save(update_fields=['failed_count', 'import_status', 'updated_at'])
         return {
             "status": "timeout",
             "session_id": session_id,
@@ -145,8 +147,8 @@ def process_bulk_recipe_import(self, session_id):
         }
 
     # Mark session completed
-    session.status = 'completed'
-    session.save(update_fields=['status', 'updated_at'])
+    session.import_status = 'completed'
+    session.save(update_fields=['import_status', 'updated_at'])
 
     duration = time.monotonic() - start
     logger.info(

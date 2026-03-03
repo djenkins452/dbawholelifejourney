@@ -53,17 +53,17 @@
     <!-- Photo cards grid -->
     <div class="bulk-review-grid" id="photo-grid">
         {% for photo in photos %}
-        <div class="bulk-photo-card" data-photo-id="{{ photo.pk }}" data-status="{{ photo.status }}">
+        <div class="bulk-photo-card" data-photo-id="{{ photo.pk }}" data-status="{{ photo.photo_status }}">
             <div class="bulk-photo-image">
                 {% if photo.image %}
                 <img src="{{ photo.image.url }}" alt="{{ photo.original_filename }}" loading="lazy">
                 {% endif %}
-                <div class="bulk-photo-status-badge status-{{ photo.status }}">
-                    {{ photo.get_status_display }}
+                <div class="bulk-photo-status-badge status-{{ photo.photo_status }}">
+                    {{ photo.get_photo_status_display }}
                 </div>
             </div>
             <div class="bulk-photo-info">
-                {% if photo.status == 'extracted' %}
+                {% if photo.photo_status == 'extracted' %}
                     <h3 class="bulk-photo-title">{{ photo.extracted_data.title|default:"Untitled" }}</h3>
                     {% if photo.extracted_data.category %}
                     <p class="bulk-photo-category">{{ photo.extracted_data.category }}</p>
@@ -79,12 +79,12 @@
                     <div class="bulk-photo-actions">
                         <button type="button" class="btn btn-primary btn-sm confirm-single-btn" data-photo-id="{{ photo.pk }}">Confirm</button>
                     </div>
-                {% elif photo.status == 'confirmed' %}
+                {% elif photo.photo_status == 'confirmed' %}
                     <h3 class="bulk-photo-title">{{ photo.extracted_data.title|default:"Untitled" }}</h3>
                     <p class="bulk-photo-saved">Saved to recipes</p>
-                {% elif photo.status == 'failed' %}
+                {% elif photo.photo_status == 'failed' %}
                     <p class="bulk-photo-error">{{ photo.error_message|truncatewords:15 }}</p>
-                {% elif photo.status == 'pending' or photo.status == 'processing' %}
+                {% elif photo.photo_status == 'pending' or photo.photo_status == 'processing' %}
                     <div class="bulk-photo-processing">
                         <div class="mini-spinner"></div>
                         <span>Processing...</span>

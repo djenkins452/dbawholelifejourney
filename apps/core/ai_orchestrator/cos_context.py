@@ -1208,6 +1208,55 @@ def _build_daily_scan_brief(context):
     return '\n'.join(brief_lines)
 
 
+def _detect_session_mode(user):
+    """
+    Detect whether the user needs a Daily Brief or Light interaction mode.
+
+    Returns 'daily_brief' if:
+      - First CoS interaction of the day, OR
+      - 4+ hours since the last assistant message
+
+    Returns 'light' otherwise.
+    """
+    try:
+        from apps.ai.models import AssistantMessage
+        from django.utils import timezone as dj_tz
+        import datetime as _dt
+
+        now = dj_tz.now()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # Find the most recent assistant message for this user
+        last_msg = (
+            AssistantMessage.objects
+            .filter(
+                conversation__user=user,
+                role='assistant',
+            )
+            .order_by('-created_at')
+            .values_list('created_at', flat=True)
+            .first()
+        )
+
+        if last_msg is None:
+            # No prior messages ever — definitely a daily brief
+            return 'daily_brief'
+
+        if last_msg < today_start:
+            # Last message was before today — first interaction of the day
+            return 'daily_brief'
+
+        hours_since = (now - last_msg).total_seconds() / 3600
+        if hours_since >= 4:
+            # 4+ hours since last interaction
+            return 'daily_brief'
+
+        return 'light'
+    except Exception:
+        # Default to daily_brief if detection fails — it's the safer option
+        return 'daily_brief'
+
+
 def format_cos_system_injection(context):
     """
     Format the CoS context as a system prompt injection string.
@@ -1268,8 +1317,34 @@ def format_cos_system_injection(context):
         lines.append(scan_brief)
         lines.append("")
 
-    # ── COACHING MODE (adaptive mode for this interaction) ──
+    # ── SESSION MODE (daily_brief vs light interaction) ──
     _cos_user = context.get('_user')
+    if _cos_user:
+        try:
+            _session_mode = _detect_session_mode(_cos_user)
+            if _session_mode == 'daily_brief':
+                lines.append(
+                    "SESSION MODE: DAILY ORIENTATION. "
+                    "This is the first interaction today or 4+ hours have passed. "
+                    "Deliver the full Daily Brief naturally: acknowledge progress, "
+                    "state outstanding items, identify the most time-sensitive thing, "
+                    "suggest one priority focus, and ask one high-leverage question. "
+                    "After this message, switch to LIGHT mode for the rest of the session."
+                )
+            else:
+                lines.append(
+                    "SESSION MODE: LIGHT. "
+                    "The daily brief has already been delivered this session. "
+                    "Respond conversationally — answer questions directly, "
+                    "weave in awareness naturally, but do NOT repeat the full orientation. "
+                    "Exception: if a consistency violation or drift pattern is detected, "
+                    "intervene regardless of session mode."
+                )
+            lines.append("")
+        except Exception:
+            pass
+
+    # ── COACHING MODE (adaptive mode for this interaction) ──
     if _cos_user:
         try:
             from apps.cos.services.tone_service import CosToneService

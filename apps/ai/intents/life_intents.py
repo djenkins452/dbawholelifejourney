@@ -222,6 +222,15 @@ LIFE_INTENT_TOOLS = [
                             "Default false (single task only)."
                         ),
                     },
+                    "delete_confirmed": {
+                        "type": "boolean",
+                        "description": (
+                            "For delete actions ONLY. Set to true ONLY after the user has "
+                            "explicitly confirmed they want to delete the task (e.g., 'yes', "
+                            "'go ahead', 'confirm'). NEVER set this to true on the first call — "
+                            "always let the system prompt the user for confirmation first."
+                        ),
+                    },
                 },
                 "required": ["action", "task_query"],
             },

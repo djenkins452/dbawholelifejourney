@@ -24,6 +24,12 @@ _DELETE_VERBS = re.compile(
     re.IGNORECASE,
 )
 
+# Words that confirm a previous delete request (used after confirmation prompt)
+_CONFIRM_WORDS = re.compile(
+    r'\b(yes|yeah|yep|confirm|go ahead|do it|sure|ok)\b',
+    re.IGNORECASE,
+)
+
 
 class SafetyResult:
     """Result of safety validation."""
@@ -56,12 +62,14 @@ def validate_action(enriched_action):
 
     # ── Delete-intent verification ────────────────────────────
     # Block task deletion unless the user's original message contains
-    # an explicit delete verb. Prevents the AI from interpreting
-    # "don't show those" or "hide completed" as "delete".
+    # an explicit delete verb OR is a confirmation of a previous delete prompt.
     if (enriched_action.intent_type == 'mutate_task'
             and params.get('action') == 'delete'):
         original = enriched_action.original_input or ''
-        if not _DELETE_VERBS.search(original):
+        is_confirmed_follow_up = (
+            params.get('delete_confirmed') and _CONFIRM_WORDS.search(original)
+        )
+        if not _DELETE_VERBS.search(original) and not is_confirmed_follow_up:
             logger.warning(
                 "Delete-intent blocked: user said %r but no explicit delete verb found",
                 original[:200],

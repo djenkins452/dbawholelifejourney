@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Require confirmation before any task deletion
+
+**What:** CoS now ALWAYS asks for confirmation before deleting any task. No automatic deletes. The flow is: user says "delete X" → CoS shows what will be deleted and asks "are you sure?" → user confirms → task is deleted. This works through three layers: (1) the intent schema has a `delete_confirmed` parameter, (2) the action handler returns a confirmation prompt if `delete_confirmed` is not set, (3) the safety engine allows confirmed follow-ups through.
+
+**Changes:**
+- `apps/ai/intents/life_intents.py` — Added `delete_confirmed` boolean parameter to `mutate_task` schema.
+- `apps/ai/action_handlers.py` — Delete handler now returns confirmation prompt on first call; only executes when `delete_confirmed=true`.
+- `apps/ai/intent_service.py` — Added DELETE CONFIRMATION FLOW instructions to system prompt.
+- `apps/core/ai_orchestrator/safety_engine.py` — Added `_CONFIRM_WORDS` pattern; safety engine allows confirmed delete follow-ups ("yes", "go ahead") through the delete-verb gate.
+
+---
+
 ## 2026-03-02 — Add restore-deleted-tasks API endpoint
 
 **What:** Added an admin API endpoint to directly restore soft-deleted tasks without waiting for the startup chain. Callable via `GET /admin-console/api/claude/restore-deleted-tasks/?user_email=...&start=YYYY-MM-DD&end=YYYY-MM-DD`. Supports `dry_run=true` for previewing. Authenticated via X-Claude-API-Key.

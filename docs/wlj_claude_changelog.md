@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Add dynamic keystroke search to all list pages
+
+**What:** Five list pages had static search requiring a button click or Enter key. Added dynamic search (600ms debounce, auto-submit on keystroke) using the existing `dynamic-search.js` reusable script. Now all search inputs across the app behave consistently — results filter as the user types.
+
+**Changes:**
+- `templates/relationships/person_list.html` — Added `data-dynamic-search` to form, `data-auto-submit` to type select, `data-no-mention` to search input, removed Filter button, removed manual type auto-submit JS, included `dynamic-search.js`.
+- `templates/life/recipe_list.html` — Added `data-dynamic-search` to search form, `data-no-mention` to input, included `dynamic-search.js`.
+- `templates/life/inventory_list.html` — Added `data-dynamic-search` to search form, `data-no-mention` to input, included `dynamic-search.js`.
+- `templates/life/maintenance_list.html` — Added `data-dynamic-search` to search form, `data-no-mention` to input, included `dynamic-search.js`.
+- `templates/life/document_list.html` — Added `data-dynamic-search` to search form, `data-no-mention` to input, included `dynamic-search.js`.
+
+**Why:** Search should be dynamic on every page — type and see results instantly, not click a button. The pattern was already in use on 5 other pages; these 5 were missed.
+
+---
+
 ## 2026-03-03 — Fix fast-path streaming missing ALL page context
 
 **What:** The streaming chat path (`_build_fast_context`) had ZERO page context handling — no scripture injection, no page title, nothing. This was the actual root cause of CoS asking "which scripture?" since all chat widget messages use the streaming path. The `_generate_response` fixes only applied to the non-streaming (fallback) path.

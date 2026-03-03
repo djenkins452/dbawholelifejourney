@@ -9,6 +9,16 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Add restore-deleted-tasks API endpoint
+
+**What:** Added an admin API endpoint to directly restore soft-deleted tasks without waiting for the startup chain. Callable via `GET /admin-console/api/claude/restore-deleted-tasks/?user_email=...&start=YYYY-MM-DD&end=YYYY-MM-DD`. Supports `dry_run=true` for previewing. Authenticated via X-Claude-API-Key.
+
+**Changes:**
+- `apps/admin_console/views.py` — Added `RestoreDeletedTasksAPIView` with email, date range filtering, and dry-run mode.
+- `apps/admin_console/urls.py` — Added route for the restore endpoint.
+
+---
+
 ## 2026-03-02 — Fix task restore date filter (UTC timezone bug)
 
 **What:** The v1 task restore used `deleted_at__date=2026-03-02` but `deleted_at` is stored in UTC. Beth deleted tasks at ~7:14 PM Central = ~1:14 AM UTC March 3, so the date filter missed all of them. Fixed to use a datetime range (March 2-4 UTC) and new v2 tracker name so it re-runs on deploy.

@@ -172,6 +172,7 @@ urlpatterns = [
     path("api/claude/ready-tasks/", views.ReadyTasksAPIView.as_view(), name="api_claude_ready_tasks"),
     path("api/claude/tasks/<int:pk>/status/", views.UpdateTaskStatusAPIView.as_view(), name="api_claude_task_status"),
     path("api/claude/process-emails/", views.ProcessEmailsAPIView.as_view(), name="api_claude_process_emails"),
+    path("api/claude/restore-deleted-tasks/", views.RestoreDeletedTasksAPIView.as_view(), name="api_claude_restore_tasks"),
 
     # Test Results Ingest API (local → production sync)
     path("api/test-results/ingest/", views.TestResultIngestAPIView.as_view(), name="api_test_results_ingest"),

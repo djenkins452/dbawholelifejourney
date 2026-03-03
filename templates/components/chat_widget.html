@@ -1508,10 +1508,9 @@
         const sentImage = attachedImage;
         clearAttachment();
 
-        // Use current page context (already captured when drawer opened)
-        if (!currentPageContext) {
-            currentPageContext = getPageContext();
-        }
+        // Always refresh page context before sending — the page state may have
+        // changed since the drawer opened (e.g., user expanded a scripture passage)
+        currentPageContext = getPageContext();
 
         // Tag voice input so AI responds conversationally
         var sendContext = Object.assign({}, currentPageContext || {});

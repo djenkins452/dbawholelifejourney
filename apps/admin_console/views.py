@@ -5307,3 +5307,89 @@ class TestResultIngestAPIView(APIRateLimitMixin, View):
             {'status': 'success', 'id': ui_run.pk},
             status=201,
         )
+
+
+class RestoreDeletedTasksAPIView(APIRateLimitMixin, View):
+    """
+    One-time API endpoint to restore tasks incorrectly deleted by AI.
+    Authenticated via X-Claude-API-Key header.
+
+    GET /admin-console/api/claude/restore-deleted-tasks/?user_email=...&start=YYYY-MM-DD&end=YYYY-MM-DD
+    Optional: ?dry_run=true to preview without restoring.
+    """
+
+    rate_limit_requests_per_hour = 10
+    rate_limit_key_prefix = 'admin_api_restore_tasks'
+
+    def get(self, request):
+        from django.conf import settings
+        from apps.core.rate_limiting import secure_compare_api_key
+
+        api_key = request.headers.get('X-Claude-API-Key', '')
+        if not settings.CLAUDE_API_KEY:
+            return JsonResponse({'error': 'CLAUDE_API_KEY not configured'}, status=500)
+        if not secure_compare_api_key(api_key, settings.CLAUDE_API_KEY):
+            return JsonResponse({'error': 'Invalid or missing API key.'}, status=401)
+
+        user_email = request.GET.get('user_email', '')
+        start_date = request.GET.get('start', '')
+        end_date = request.GET.get('end', '')
+        dry_run = request.GET.get('dry_run', '').lower() == 'true'
+
+        if not user_email:
+            return JsonResponse({'error': 'user_email parameter required'}, status=400)
+
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        try:
+            user = User.objects.get(email=user_email)
+        except User.DoesNotExist:
+            return JsonResponse({'error': f'User {user_email} not found'}, status=404)
+
+        from apps.life.models import Task
+        from django.utils import timezone as tz
+        import datetime
+
+        # Build filter
+        qs = Task.all_objects.filter(user=user, status='deleted')
+
+        if start_date:
+            try:
+                start_dt = tz.make_aware(
+                    datetime.datetime.strptime(start_date, '%Y-%m-%d'),
+                    datetime.timezone.utc,
+                )
+                qs = qs.filter(deleted_at__gte=start_dt)
+            except ValueError:
+                return JsonResponse({'error': f'Invalid start date: {start_date}'}, status=400)
+
+        if end_date:
+            try:
+                end_dt = tz.make_aware(
+                    datetime.datetime.strptime(end_date, '%Y-%m-%d'),
+                    datetime.timezone.utc,
+                ) + datetime.timedelta(days=1)
+                qs = qs.filter(deleted_at__lt=end_dt)
+            except ValueError:
+                return JsonResponse({'error': f'Invalid end date: {end_date}'}, status=400)
+
+        tasks = list(qs)
+        task_info = [{'id': t.id, 'title': t.title, 'deleted_at': str(t.deleted_at)} for t in tasks]
+
+        if dry_run:
+            return JsonResponse({
+                'dry_run': True,
+                'found': len(tasks),
+                'tasks': task_info,
+            })
+
+        restored = []
+        for task in tasks:
+            task.restore()
+            restored.append({'id': task.id, 'title': task.title})
+
+        return JsonResponse({
+            'success': True,
+            'restored': len(restored),
+            'tasks': restored,
+        })

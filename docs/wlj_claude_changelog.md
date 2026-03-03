@@ -9,6 +9,16 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Implement invisible structured Daily Orientation with session mode
+
+- **What:** Added session mode detection (DAILY ORIENTATION vs LIGHT) and enforced natural conversational formatting for all CoS responses. Daily brief is delivered once per day or after 4+ hours of inactivity, then switches to light mode.
+- **Why:** Full structured briefings every message felt like talking to a dashboard engine. The orientation should feel like a thoughtful, aware partner — natural flowing prose, not markdown headers and bullet lists.
+- **Changes:**
+  - **`apps/core/ai_orchestrator/cos_context.py`** — Added `_detect_session_mode(user)` function that checks the user's last `AssistantMessage` timestamp. Returns `daily_brief` if first interaction today or 4+ hours since last message, `light` otherwise. Injects `SESSION MODE: DAILY ORIENTATION` or `SESSION MODE: LIGHT` directive into the operational intelligence block.
+  - **`apps/ai/personal_assistant.py`** — Replaced structured "OPENING A NEW CONVERSATION — MANDATORY BRIEFING" section with "DAILY ORIENTATION — INVISIBLE STRUCTURED BRIEF" that enforces natural tone. Added formatting rules: no markdown headers (##, ###), no visible template markers, no bullet-heavy formatting, must read like a natural executive coaching conversation. Updated "DAILY CONTEXT SCAN" to respect session mode and added drift override rule.
+- **Files:** `apps/ai/personal_assistant.py`, `apps/core/ai_orchestrator/cos_context.py`, `docs/wlj_claude_changelog.md`
+- **Tests:** 437 CoS + 135 phase4 + 61 personal assistant tests passed.
+
 ## 2026-03-03 — Add Executive Brief + Deep Dive two-tier analysis mode
 
 - **What:** Replaced the flat Universal Analysis Framework with a two-tier response system for data-heavy interactions. Default response is now a concise Executive Brief; full analysis available on-demand via "Deep Dive".

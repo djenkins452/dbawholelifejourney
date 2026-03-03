@@ -9,43 +9,12 @@
 
 # WLJ Change History
 
-## 2026-03-03 — Deterministic CoS Priority & Proactivity Enforcement Model
+## 2026-03-03 — /close doc audit: add release note + features doc update for help system
 
-- **What:** Replaced all soft/advisory behavioral language in the CoS system prompt with deterministic, enforceable rules. Added non-negotiable detection, strict priority hierarchy, A/B/C execution options, override learning loop, and prohibited behavior list.
-- **Why:** Prior prompt versions used advisory language ("you should", "consider", "try to") which the LLM could ignore. This patch makes every behavioral rule deterministic — either the response includes the required elements or it's invalid.
-- **Changes:**
-  - **`apps/ai/personal_assistant.py`** — Complete rewrite of `COS_PROACTIVE_INTELLIGENCE_PROMPT` into 8 deterministic sections: (1) Context Scan with session mode awareness, (2) Non-Negotiable Detection with auto-classification (medication timing, workout consistency, 48hr deadlines, identity anchors) and strict priority hierarchy, (3) Priority Presentation Format with A/B/C execution options on every recommendation, (4) Override Learning Loop (accept → classify → adapt, no debate), (5) Executive Brief + Deep Dive two-tier analysis, (6) Drift Override that suspends light mode with A/B/C reset options, (7) Post-Event Follow-Up with A/B/C structured responses, (8) Prohibited Behavior list (generic praise, vague suggestions, multiple competing recommendations, excessive explanation, markdown headers). Also rewrote the Daily Orientation section in the base prompt with mandatory 5-element validation and reference examples showing correct A/B/C format.
-- **Files:** `apps/ai/personal_assistant.py`, `docs/wlj_claude_changelog.md`
-- **Tests:** 437 CoS + 135 phase4 + 61 personal assistant tests passed.
+- **What:** Added release note PK 124 for context-aware help enhancement. Updated features doc with fixture file fallback description. Added fixture loader reset for release_notes.
+- **Files:** `apps/core/fixtures/release_notes.json` (PK 124), `docs/wlj_claude_features.md`, `apps/core/management/commands/load_initial_data.py`
 
-## 2026-03-03 — Implement invisible structured Daily Orientation with session mode
-
-- **What:** Added session mode detection (DAILY ORIENTATION vs LIGHT) and enforced natural conversational formatting for all CoS responses. Daily brief is delivered once per day or after 4+ hours of inactivity, then switches to light mode.
-- **Why:** Full structured briefings every message felt like talking to a dashboard engine. The orientation should feel like a thoughtful, aware partner — natural flowing prose, not markdown headers and bullet lists.
-- **Changes:**
-  - **`apps/core/ai_orchestrator/cos_context.py`** — Added `_detect_session_mode(user)` function that checks the user's last `AssistantMessage` timestamp. Returns `daily_brief` if first interaction today or 4+ hours since last message, `light` otherwise. Injects `SESSION MODE: DAILY ORIENTATION` or `SESSION MODE: LIGHT` directive into the operational intelligence block.
-  - **`apps/ai/personal_assistant.py`** — Replaced structured "OPENING A NEW CONVERSATION — MANDATORY BRIEFING" section with "DAILY ORIENTATION — INVISIBLE STRUCTURED BRIEF" that enforces natural tone. Added formatting rules: no markdown headers (##, ###), no visible template markers, no bullet-heavy formatting, must read like a natural executive coaching conversation. Updated "DAILY CONTEXT SCAN" to respect session mode and added drift override rule.
-- **Files:** `apps/ai/personal_assistant.py`, `apps/core/ai_orchestrator/cos_context.py`, `docs/wlj_claude_changelog.md`
-- **Tests:** 437 CoS + 135 phase4 + 61 personal assistant tests passed.
-
-## 2026-03-03 — Add Executive Brief + Deep Dive two-tier analysis mode
-
-- **What:** Replaced the flat Universal Analysis Framework with a two-tier response system for data-heavy interactions. Default response is now a concise Executive Brief; full analysis available on-demand via "Deep Dive".
-- **Why:** Full structured analysis (6-element framework) was too heavy for every data interaction. Users need a sharp insight first with the option to go deeper.
-- **Changes:**
-  - **`apps/ai/personal_assistant.py`** — Replaced `UNIVERSAL ANALYSIS FRAMEWORK` section in `COS_PROACTIVE_INTELLIGENCE_PROMPT` with `EXECUTIVE BRIEF + DEEP DIVE MODE`. Executive Brief defaults to 4-line snapshot (Trend Direction, Strongest Positive Signal, Primary Risk, Immediate Focus) + strategic question + "Type 'Deep Dive'" prompt. Deep Dive triggers full 7-element framework (Trend, Signal vs Noise, Root Cause, Risk, Forward Projection, Action Plan, Strategic Question).
-- **Files:** `apps/ai/personal_assistant.py`, `docs/wlj_claude_changelog.md`
-- **Tests:** 437 CoS + 61 personal assistant tests passed.
-
-## 2026-03-03 — Enforce mandatory daily scan on CoS greeting/short messages
-
-- **What:** Patched the CoS system prompt and context injection to enforce the proactive daily scan briefing on every interaction, especially greetings and short messages. Prevents generic "How can I help?" responses.
-- **Why:** CoS was defaulting to generic assistant behavior when the user opened with "Hello" instead of delivering the mandatory daily scan briefing with completed/outstanding/risk data.
-- **Changes:**
-  - **`apps/ai/personal_assistant.py`** — Strengthened `COS_PROACTIVE_INTELLIGENCE_PROMPT` with hard enforcement rule: messages under 20 chars or greetings MUST trigger full scan structure. Added explicit forbidden phrases ("How can I help?", "What would you like to focus on?"). Rewrote "OPENING A NEW CONVERSATION" section with mandatory 5-part briefing structure (greeting → wins → gaps → risk → question).
-  - **`apps/core/ai_orchestrator/cos_context.py`** — Modified `_build_daily_scan_brief()` to always emit a scan brief even when no data exists, preventing LLM fallback to generic behavior. Empty state now shows "(no items logged yet)" with a directive to check detailed operational data.
-- **Files:** `apps/ai/personal_assistant.py`, `apps/core/ai_orchestrator/cos_context.py`, `docs/wlj_claude_changelog.md`
-- **Tests:** 437 CoS tests + 135 phase4 tests passed.
+---
 
 ## 2026-03-03 — Add fixture file fallback for help topic API
 

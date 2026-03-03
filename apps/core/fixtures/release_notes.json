@@ -3,8 +3,8 @@
     "model": "core.releasenote",
     "pk": 124,
     "fields": {
-      "title": "Share Up to 5 Images at Once with Chief of Staff",
-      "description": "You can now attach up to 5 images in a single CoS message \u2014 perfect for sharing health charts, screenshots, or progress photos all at once. CoS will analyze every image together and give you a combined, context-aware response. Select multiple files from the picker, or paste images one at a time.",
+      "title": "Context-Aware Help on Every Page",
+      "description": "The help button (?) now shows page-specific guidance everywhere in the app \u2014 Meals, Medical, Relationships, Billing, Capture, Notifications, Favorites, and more. 32 new help topics were added covering what each page does and how to use it. Previously, most pages showed generic navigation help instead of specific content.",
       "entry_type": "enhancement",
       "version": "",
       "release_date": "2026-03-03",

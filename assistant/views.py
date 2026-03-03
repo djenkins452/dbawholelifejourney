@@ -156,7 +156,7 @@ def process_assistant_message(
     # Step 2: Extract date from message if there's date context
     since_date = None
     if intent['has_date_context']:
-        since_date = extract_date_from_message(message)
+        since_date = extract_date_from_message(message, user=user)
 
     # Step 3: Query personal data based on detected intent
     # Filter data_types to only those we have query methods for

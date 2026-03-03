@@ -45,12 +45,34 @@ The version key format is: personal_data_version:{user_id}:{data_type}
 The data cache key format is: personal_data:{user_id}:{data_type}:v{version}:{date}
 """
 
+import logging
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from django.core.cache import cache
 from django.db.models import Avg, Count, Sum
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
+
+
+def _to_date(value: Optional[datetime]) -> Optional[date]:
+    """
+    Convert a datetime to a date for safe DateField comparisons.
+
+    When filtering Django DateField columns, passing a timezone-aware datetime
+    can cause incorrect comparisons: PostgreSQL casts the DateField value to
+    timestamp at midnight UTC, while the datetime may represent midnight in a
+    different timezone (e.g., CST). This mismatch causes date >= queries to
+    miss same-day records.
+
+    Always use this helper when filtering DateField with a since_date parameter.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    return value
 
 
 # Cache TTL for personal data queries (5 minutes)
@@ -318,7 +340,7 @@ class PersonalDataService:
 
         # Apply date filter if provided
         if since_date:
-            queryset = queryset.filter(entry_date__gte=since_date)
+            queryset = queryset.filter(entry_date__gte=_to_date(since_date))
 
         # Check if any entries exist
         if not queryset.exists():
@@ -460,7 +482,7 @@ class PersonalDataService:
 
         # Apply date filter if provided
         if since_date:
-            queryset = queryset.filter(scheduled_date__gte=since_date)
+            queryset = queryset.filter(scheduled_date__gte=_to_date(since_date))
 
         # Check if any entries exist
         if not queryset.exists():
@@ -551,7 +573,7 @@ class PersonalDataService:
 
         # Apply date filter if provided
         if since_date:
-            queryset = queryset.filter(logged_date__gte=since_date)
+            queryset = queryset.filter(logged_date__gte=_to_date(since_date))
 
         # Check if any entries exist
         if not queryset.exists():
@@ -991,7 +1013,7 @@ class PersonalDataService:
 
         # Apply date filter if provided
         if since_date:
-            queryset = queryset.filter(entry_date__gte=since_date)
+            queryset = queryset.filter(entry_date__gte=_to_date(since_date))
 
         # Check if any entries exist
         if not queryset.exists():
@@ -1289,9 +1311,13 @@ class PersonalDataService:
         queryset = WorkoutSession.objects.filter(user=self.user)
 
         if since_date:
-            queryset = queryset.filter(date__gte=since_date)
+            queryset = queryset.filter(date__gte=_to_date(since_date))
 
         if not queryset.exists():
+            logger.info(
+                "get_workout_data: no workouts found for user %s since %s",
+                self.user.id, since_date,
+            )
             return None
 
         count = queryset.count()
@@ -1542,7 +1568,7 @@ class PersonalDataService:
         queryset = StepsEntry.objects.filter(user=self.user)
 
         if since_date:
-            queryset = queryset.filter(logged_date__gte=since_date)
+            queryset = queryset.filter(logged_date__gte=_to_date(since_date))
 
         if not queryset.exists():
             return None
@@ -1597,7 +1623,7 @@ class PersonalDataService:
         queryset = SleepEntry.objects.filter(user=self.user)
 
         if since_date:
-            queryset = queryset.filter(sleep_date__gte=since_date)
+            queryset = queryset.filter(sleep_date__gte=_to_date(since_date))
 
         if not queryset.exists():
             return None
@@ -1651,7 +1677,7 @@ class PersonalDataService:
         queryset = MobilityEntry.objects.filter(user=self.user)
 
         if since_date:
-            queryset = queryset.filter(metric_date__gte=since_date)
+            queryset = queryset.filter(metric_date__gte=_to_date(since_date))
 
         if not queryset.exists():
             return None
@@ -1756,7 +1782,7 @@ class PersonalDataService:
         queryset = AudioExposureEntry.objects.filter(user=self.user)
 
         if since_date:
-            queryset = queryset.filter(metric_date__gte=since_date)
+            queryset = queryset.filter(metric_date__gte=_to_date(since_date))
 
         if not queryset.exists():
             return None
@@ -1811,7 +1837,7 @@ class PersonalDataService:
         queryset = DietaryNutrientEntry.objects.filter(user=self.user)
 
         if since_date:
-            queryset = queryset.filter(metric_date__gte=since_date)
+            queryset = queryset.filter(metric_date__gte=_to_date(since_date))
 
         if not queryset.exists():
             return None
@@ -2156,7 +2182,7 @@ class PersonalDataService:
         try:
             from apps.health.models import WorkoutSession
             qs = WorkoutSession.objects.filter(
-                user=self.user, date__gte=since_date
+                user=self.user, date__gte=_to_date(since_date)
             )
             if qs.exists():
                 agg = qs.aggregate(

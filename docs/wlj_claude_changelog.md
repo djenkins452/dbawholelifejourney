@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Deterministic CoS Priority & Proactivity Enforcement Model
+
+- **What:** Replaced all soft/advisory behavioral language in the CoS system prompt with deterministic, enforceable rules. Added non-negotiable detection, strict priority hierarchy, A/B/C execution options, override learning loop, and prohibited behavior list.
+- **Why:** Prior prompt versions used advisory language ("you should", "consider", "try to") which the LLM could ignore. This patch makes every behavioral rule deterministic — either the response includes the required elements or it's invalid.
+- **Changes:**
+  - **`apps/ai/personal_assistant.py`** — Complete rewrite of `COS_PROACTIVE_INTELLIGENCE_PROMPT` into 8 deterministic sections: (1) Context Scan with session mode awareness, (2) Non-Negotiable Detection with auto-classification (medication timing, workout consistency, 48hr deadlines, identity anchors) and strict priority hierarchy, (3) Priority Presentation Format with A/B/C execution options on every recommendation, (4) Override Learning Loop (accept → classify → adapt, no debate), (5) Executive Brief + Deep Dive two-tier analysis, (6) Drift Override that suspends light mode with A/B/C reset options, (7) Post-Event Follow-Up with A/B/C structured responses, (8) Prohibited Behavior list (generic praise, vague suggestions, multiple competing recommendations, excessive explanation, markdown headers). Also rewrote the Daily Orientation section in the base prompt with mandatory 5-element validation and reference examples showing correct A/B/C format.
+- **Files:** `apps/ai/personal_assistant.py`, `docs/wlj_claude_changelog.md`
+- **Tests:** 437 CoS + 135 phase4 + 61 personal assistant tests passed.
+
 ## 2026-03-03 — Implement invisible structured Daily Orientation with session mode
 
 - **What:** Added session mode detection (DAILY ORIENTATION vs LIGHT) and enforced natural conversational formatting for all CoS responses. Daily brief is delivered once per day or after 4+ hours of inactivity, then switches to light mode.

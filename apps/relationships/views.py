@@ -149,6 +149,26 @@ class PersonAutocompleteView(LoginRequiredMixin, View):
             return JsonResponse([], safe=False)
 
         from django.db.models import Q
+
+        results = []
+
+        # Groups matching the query (shown first)
+        groups = (
+            PersonGroup.objects
+            .filter(owner=request.user, name__icontains=q)
+            .prefetch_related('members')
+            [:5]
+        )
+        for g in groups:
+            count = g.members.count()
+            results.append({
+                'id': g.pk,
+                'name': g.name,
+                'type': f'group · {count} member{"s" if count != 1 else ""}',
+                'is_group': True,
+            })
+
+        # People matching the query
         people = (
             Person.objects
             .filter(owner=request.user)
@@ -159,16 +179,15 @@ class PersonAutocompleteView(LoginRequiredMixin, View):
             )
             [:10]
         )
-
-        results = [
-            {
+        for p in people:
+            results.append({
                 'id': p.pk,
                 'name': p.get_display_name(),
                 'first_name': p.first_name,
                 'type': p.relationship_type,
-            }
-            for p in people
-        ]
+                'is_group': False,
+            })
+
         return JsonResponse(results, safe=False)
 
 

@@ -496,6 +496,7 @@ class MentionParserService:
         Parse text for @mentions and create Mention + Interaction records.
 
         Also detects bare name references (without @) for known contacts.
+        Supports @groupname to expand to all group members.
 
         Args:
             user: User instance
@@ -506,7 +507,7 @@ class MentionParserService:
         Returns:
             list of created Mention instances
         """
-        from .models import Mention, Person
+        from .models import Mention, Person, PersonGroup
 
         if not text or not text.strip():
             return []
@@ -524,7 +525,27 @@ class MentionParserService:
         text_lower = text.lower()
         matched_person_ids = set()
 
-        # Phase 1: @mention pattern matching
+        # Phase 0: @groupname expansion
+        # Check if any @mention matches a group name; if so, expand to all members
+        groups = PersonGroup.objects.filter(owner=user).prefetch_related('members')
+        for match in cls.MENTION_PATTERN.finditer(text):
+            name = match.group(1) or match.group(2)
+            group = cls._find_group(groups, name)
+            if group:
+                for person in group.members.all():
+                    if person.pk not in matched_person_ids:
+                        matched_person_ids.add(person.pk)
+                        mention = cls._create_mention(person, ct, source_obj.pk)
+                        if mention:
+                            mentions_created.append(mention)
+                            RelationshipAnalyticsService.record_interaction(
+                                person=person,
+                                user=user,
+                                context_type_label=context_type_label,
+                                source_obj=source_obj,
+                            )
+
+        # Phase 1: @mention pattern matching (for individual names)
         for match in cls.MENTION_PATTERN.finditer(text):
             name = match.group(1) or match.group(2)
             person = cls._find_person(people, name)
@@ -576,6 +597,26 @@ class MentionParserService:
             )
 
         return mentions_created
+
+    @classmethod
+    def _find_group(cls, groups_qs, name):
+        """
+        Find a group by name (case-insensitive).
+
+        Args:
+            groups_qs: QuerySet of PersonGroup (already filtered by owner)
+            name: The mention name to match
+
+        Returns:
+            PersonGroup instance or None
+        """
+        name_lower = name.strip().lower()
+
+        for group in groups_qs:
+            if group.name.lower() == name_lower:
+                return group
+
+        return None
 
     @classmethod
     def _find_person(cls, people_qs, name):

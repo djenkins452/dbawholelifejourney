@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Fix bulk import status field shadowing SoftDeleteModel
+
+**What:** `RecipeBulkImportSession.status` and `RecipeBulkImportPhoto.status` shadowed `SoftDeleteModel.status`, causing the `SoftDeleteManager` (which filters `status="active"`) to hide all bulk import records. Renamed to `import_status` and `photo_status` respectively.
+**Root cause:** SoftDeleteModel uses `status` field with default `"active"`. Our models declared their own `status` with values like `"uploading"` and `"pending"`, overriding the parent's field. The SoftDeleteManager then filtered them out as non-active.
+**Files:** `apps/life/models.py`, `apps/life/tasks.py`, `apps/life/views.py`, `templates/life/recipe_bulk_review.html`, migration 0019
+
+---
+
 ## 2026-03-03 — Add Recipes tab to Meals subnav
 
 **What:** Added a "Recipes" tab to the Meals top navigation bar between Meal Plan and Receipts.

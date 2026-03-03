@@ -1964,16 +1964,16 @@ class RecipeBulkImportSession(UserOwnedModel):
     user reviews extracted recipes → confirms to create Recipe objects.
     """
 
-    STATUS_CHOICES = [
+    IMPORT_STATUS_CHOICES = [
         ('uploading', 'Uploading'),
         ('processing', 'Processing'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
     ]
 
-    status = models.CharField(
+    import_status = models.CharField(
         max_length=20,
-        choices=STATUS_CHOICES,
+        choices=IMPORT_STATUS_CHOICES,
         default='uploading',
     )
     total_photos = models.PositiveIntegerField(default=0)
@@ -1987,11 +1987,11 @@ class RecipeBulkImportSession(UserOwnedModel):
         verbose_name = "Recipe Bulk Import Session"
 
     def __str__(self):
-        return f"Bulk Import #{self.pk} ({self.status}, {self.processed_count}/{self.total_photos})"
+        return f"Bulk Import #{self.pk} ({self.import_status}, {self.processed_count}/{self.total_photos})"
 
     @property
     def is_processing(self):
-        return self.status == 'processing'
+        return self.import_status == 'processing'
 
     @property
     def progress_percent(self):
@@ -2007,7 +2007,7 @@ class RecipeBulkImportPhoto(UserOwnedModel):
     Tracks upload → processing → extraction → confirmation lifecycle.
     """
 
-    STATUS_CHOICES = [
+    PHOTO_STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('processing', 'Processing'),
         ('extracted', 'Extracted'),
@@ -2022,9 +2022,9 @@ class RecipeBulkImportPhoto(UserOwnedModel):
     )
     image = models.ImageField(upload_to='life/recipe_bulk_imports/')
     original_filename = models.CharField(max_length=255, blank=True)
-    status = models.CharField(
+    photo_status = models.CharField(
         max_length=20,
-        choices=STATUS_CHOICES,
+        choices=PHOTO_STATUS_CHOICES,
         default='pending',
     )
     extracted_data = models.JSONField(
@@ -2048,4 +2048,4 @@ class RecipeBulkImportPhoto(UserOwnedModel):
         verbose_name = "Recipe Bulk Import Photo"
 
     def __str__(self):
-        return f"Photo #{self.pk} ({self.status}) - {self.original_filename}"
+        return f"Photo #{self.pk} ({self.photo_status}) - {self.original_filename}"

@@ -1385,7 +1385,7 @@ class RecipeBulkUploadProcessView(LifeAccessMixin, View):
                 session=session,
                 image=photo,
                 original_filename=photo.name or "",
-                status='pending',
+                photo_status='pending',
             )
             saved_count += 1
 
@@ -1398,8 +1398,8 @@ class RecipeBulkUploadProcessView(LifeAccessMixin, View):
             return redirect("life:recipe_bulk_upload")
 
         session.total_photos = saved_count
-        session.status = 'processing'
-        session.save(update_fields=['total_photos', 'status', 'updated_at'])
+        session.import_status = 'processing'
+        session.save(update_fields=['total_photos', 'import_status', 'updated_at'])
 
         # Dispatch Celery task
         from apps.life.tasks import process_bulk_recipe_import
@@ -1426,11 +1426,11 @@ class RecipeBulkReviewView(LifeAccessMixin, DetailView):
         ctx = super().get_context_data(**kwargs)
         session = self.object
         ctx['photos'] = session.photos.all().select_related('recipe')
-        ctx['extracted_photos'] = session.photos.filter(status='extracted')
-        ctx['confirmed_photos'] = session.photos.filter(status='confirmed')
-        ctx['failed_photos'] = session.photos.filter(status='failed')
+        ctx['extracted_photos'] = session.photos.filter(photo_status='extracted')
+        ctx['confirmed_photos'] = session.photos.filter(photo_status='confirmed')
+        ctx['failed_photos'] = session.photos.filter(photo_status='failed')
         ctx['pending_photos'] = session.photos.filter(
-            status__in=['pending', 'processing']
+            photo_status__in=['pending', 'processing']
         )
         return ctx
 
@@ -1451,7 +1451,7 @@ class RecipeBulkStatusView(LifeAccessMixin, View):
             return JsonResponse({"error": "Session not found"}, status=404)
 
         photos = list(session.photos.values(
-            'pk', 'status', 'original_filename', 'confidence', 'error_message',
+            'pk', 'photo_status', 'original_filename', 'confidence', 'error_message',
         ))
 
         # Include extracted_data title for display
@@ -1463,8 +1463,12 @@ class RecipeBulkStatusView(LifeAccessMixin, View):
             else:
                 p['image_url'] = ''
 
+        # Remap photo_status → status for JS compatibility
+        for p in photos:
+            p['status'] = p.pop('photo_status')
+
         return JsonResponse({
-            "status": session.status,
+            "status": session.import_status,
             "total": session.total_photos,
             "processed": session.processed_count,
             "failed": session.failed_count,
@@ -1500,7 +1504,7 @@ class RecipeBulkConfirmView(LifeAccessMixin, View):
             return JsonResponse({"error": "No photos specified"}, status=400)
 
         photos = session.photos.filter(
-            pk__in=photo_ids, status='extracted'
+            pk__in=photo_ids, photo_status='extracted'
         )
 
         created = []
@@ -1538,9 +1542,9 @@ class RecipeBulkConfirmView(LifeAccessMixin, View):
 
             recipe.save()
 
-            photo.status = 'confirmed'
+            photo.photo_status = 'confirmed'
             photo.recipe = recipe
-            photo.save(update_fields=['status', 'recipe', 'updated_at'])
+            photo.save(update_fields=['photo_status', 'recipe', 'updated_at'])
 
             created.append({
                 'photo_id': photo.pk,
@@ -1549,7 +1553,7 @@ class RecipeBulkConfirmView(LifeAccessMixin, View):
             })
 
         # Update session confirmed count
-        session.confirmed_count = session.photos.filter(status='confirmed').count()
+        session.confirmed_count = session.photos.filter(photo_status='confirmed').count()
         session.save(update_fields=['confirmed_count', 'updated_at'])
 
         return JsonResponse({
@@ -1572,7 +1576,7 @@ class RecipeBulkConfirmAllView(LifeAccessMixin, View):
         except RecipeBulkImportSession.DoesNotExist:
             return JsonResponse({"error": "Session not found"}, status=404)
 
-        photos = session.photos.filter(status='extracted')
+        photos = session.photos.filter(photo_status='extracted')
         created_count = 0
 
         for photo in photos:
@@ -1607,12 +1611,12 @@ class RecipeBulkConfirmAllView(LifeAccessMixin, View):
 
             recipe.save()
 
-            photo.status = 'confirmed'
+            photo.photo_status = 'confirmed'
             photo.recipe = recipe
-            photo.save(update_fields=['status', 'recipe', 'updated_at'])
+            photo.save(update_fields=['photo_status', 'recipe', 'updated_at'])
             created_count += 1
 
-        session.confirmed_count = session.photos.filter(status='confirmed').count()
+        session.confirmed_count = session.photos.filter(photo_status='confirmed').count()
         session.save(update_fields=['confirmed_count', 'updated_at'])
 
         return JsonResponse({

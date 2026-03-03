@@ -1508,9 +1508,10 @@
         const sentImage = attachedImage;
         clearAttachment();
 
-        // Always refresh page context before sending — the page state may have
-        // changed since the drawer opened (e.g., user expanded a scripture passage)
-        currentPageContext = getPageContext();
+        // Use page context captured on input focus (or drawer open as fallback)
+        if (!currentPageContext) {
+            currentPageContext = getPageContext();
+        }
 
         // Tag voice input so AI responds conversationally
         var sendContext = Object.assign({}, currentPageContext || {});
@@ -2131,6 +2132,10 @@
     input.addEventListener('focus', function() {
         // Ping on focus (user clicked/tapped the input)
         pingServerWake();
+        // Refresh page context — the page state may have changed since the
+        // drawer opened (e.g., user expanded a scripture passage). Capturing
+        // on focus means context is fresh when the user starts typing.
+        currentPageContext = getPageContext();
     });
 
     input.addEventListener('input', function() {

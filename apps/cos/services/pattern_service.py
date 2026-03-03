@@ -670,6 +670,254 @@ class CosPatternService:
 
         return results
 
+    # ── Consistency Protection (Part 6 — Proactive Intelligence) ──
+
+    def detect_consistency_violations(self, days=14):
+        """
+        Detect active consistency violations that require immediate intervention.
+
+        Unlike detect_all_patterns() which is a comprehensive analysis,
+        this method focuses on URGENT, same-day-actionable violations:
+        1. Multiple missed workouts in a row (3+ days)
+        2. Medication inconsistency (< 70% adherence in last 7 days)
+        3. Activity gaps growing (previously active type gone silent)
+        4. Declining sentiment streaks (3+ consecutive negative days)
+
+        Returns a list of violation dicts with escalation metadata:
+        {
+            "violation_type": str,
+            "severity": "immediate",
+            "pattern": str (human-readable description),
+            "consequence": str (what happens if this continues),
+            "reset_action": str (concrete same-day action),
+            "evidence": dict,
+        }
+        """
+        violations = []
+        today = dj_timezone.now().date()
+
+        # 1. Multiple missed workouts
+        violations.extend(
+            self._check_workout_consistency(days, today)
+        )
+
+        # 2. Medication inconsistency
+        violations.extend(
+            self._check_medication_consistency(today)
+        )
+
+        # 3. Activity gaps growing
+        violations.extend(
+            self._check_growing_gaps(days, today)
+        )
+
+        # 4. Declining sentiment streaks
+        violations.extend(
+            self._check_sentiment_decline(days, today)
+        )
+
+        return violations
+
+    def _check_workout_consistency(self, days, today):
+        """Check for multiple consecutive missed workout days."""
+        violations = []
+        try:
+            # Check reflections for workout activity
+            workout_refs = CosReflection.objects.filter(
+                user=self.user,
+                activity_type="workout",
+                activity_date__gte=today - dt.timedelta(days=days),
+            ).values_list("activity_date", flat=True).distinct()
+
+            workout_dates = set(workout_refs)
+            if not workout_dates:
+                return violations
+
+            # Count consecutive days without a workout (from today backward)
+            missed_streak = 0
+            for i in range(days):
+                check_date = today - dt.timedelta(days=i)
+                if check_date not in workout_dates:
+                    missed_streak += 1
+                else:
+                    break
+
+            if missed_streak >= 3:
+                violations.append({
+                    "violation_type": "missed_workouts",
+                    "severity": "immediate",
+                    "pattern": (
+                        f"No workout logged in the last {missed_streak} days. "
+                        "You were previously active."
+                    ),
+                    "consequence": (
+                        "Consistency gaps compound — 3 missed days makes "
+                        "day 4 easier to skip. Momentum erodes fast."
+                    ),
+                    "reset_action": (
+                        "Do something physical today, even 15 minutes. "
+                        "A walk counts. The goal is to not let the gap grow."
+                    ),
+                    "evidence": {
+                        "missed_days": missed_streak,
+                        "last_workout": (
+                            (today - dt.timedelta(days=missed_streak)).isoformat()
+                            if missed_streak < days else "unknown"
+                        ),
+                    },
+                })
+        except Exception as e:
+            logger.debug("Workout consistency check failed: %s", e)
+
+        return violations
+
+    def _check_medication_consistency(self, today):
+        """Check for medication adherence issues."""
+        violations = []
+        try:
+            from apps.health.models import MedicationLog
+            week_start = today - dt.timedelta(days=7)
+
+            # Get scheduled vs taken
+            scheduled = MedicationLog.objects.filter(
+                user=self.user,
+                date__gte=week_start,
+                date__lte=today,
+            ).count()
+            taken = MedicationLog.objects.filter(
+                user=self.user,
+                date__gte=week_start,
+                date__lte=today,
+                taken=True,
+            ).count()
+
+            if scheduled > 0:
+                adherence = (taken / scheduled) * 100
+                if adherence < 70:
+                    violations.append({
+                        "violation_type": "medication_inconsistency",
+                        "severity": "immediate",
+                        "pattern": (
+                            f"Medication adherence at {adherence:.0f}% this week "
+                            f"({taken}/{scheduled} doses taken)."
+                        ),
+                        "consequence": (
+                            "Inconsistent medication can reduce effectiveness "
+                            "and disrupt treatment plans."
+                        ),
+                        "reset_action": (
+                            "Take any due medications right now. "
+                            "Set a phone alarm for your next dose."
+                        ),
+                        "evidence": {
+                            "adherence_pct": round(adherence),
+                            "taken": taken,
+                            "scheduled": scheduled,
+                            "period_days": 7,
+                        },
+                    })
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug("Medication consistency check failed: %s", e)
+
+        return violations
+
+    def _check_growing_gaps(self, days, today):
+        """Check for activity types that are going silent."""
+        violations = []
+        try:
+            gap_patterns = self._detect_activity_gap(days, today)
+            for pattern in gap_patterns:
+                if pattern.get("confidence", 0) >= MEDIUM_CONFIDENCE:
+                    type_label = pattern["activity_type"].replace("_", " ")
+                    violations.append({
+                        "violation_type": "growing_gap",
+                        "severity": "immediate",
+                        "pattern": (
+                            f"Your {type_label} activity has gone silent. "
+                            f"You had {pattern['evidence']['prior_count']} "
+                            f"reflections before, but none in the last "
+                            f"{pattern['evidence']['gap_days']} days."
+                        ),
+                        "consequence": (
+                            "Activity gaps tend to widen. The longer you wait, "
+                            "the harder it is to restart."
+                        ),
+                        "reset_action": (
+                            f"Do one small {type_label} activity today — "
+                            f"even 5 minutes. Break the gap."
+                        ),
+                        "evidence": pattern["evidence"],
+                    })
+        except Exception as e:
+            logger.debug("Growing gaps check failed: %s", e)
+
+        return violations
+
+    def _check_sentiment_decline(self, days, today):
+        """Check for declining sentiment streaks."""
+        violations = []
+        try:
+            trend = self._reflection_svc.get_sentiment_trend(days=days)
+            if not trend:
+                return violations
+
+            direction = trend.get("direction", "stable")
+            neg_count = trend.get("negative_count", 0)
+
+            if direction == "declining" and neg_count >= 3:
+                violations.append({
+                    "violation_type": "sentiment_decline",
+                    "severity": "immediate",
+                    "pattern": (
+                        f"Your reflections have been negative for "
+                        f"{neg_count} consecutive days. Something's off."
+                    ),
+                    "consequence": (
+                        "Sustained negative sentiment often leads to "
+                        "avoidance behavior and broader drift."
+                    ),
+                    "reset_action": (
+                        "Name one thing you can control today and do it. "
+                        "Or — what's one thing that went right recently?"
+                    ),
+                    "evidence": {
+                        "negative_days": neg_count,
+                        "trend": direction,
+                    },
+                })
+        except Exception as e:
+            logger.debug("Sentiment decline check failed: %s", e)
+
+        return violations
+
+    def format_consistency_violations_for_injection(self, violations):
+        """
+        Format consistency violations as a system prompt injection block.
+
+        This is injected into the CoS context so the LLM proactively
+        addresses these violations in conversation.
+
+        Returns:
+            str — formatted injection block, or "" if no violations.
+        """
+        if not violations:
+            return ""
+
+        lines = ["--- CONSISTENCY ALERTS (intervene immediately) ---"]
+        for v in violations[:3]:  # Cap at 3 to avoid overwhelming
+            lines.append(f"  PATTERN: {v['pattern']}")
+            lines.append(f"  CONSEQUENCE: {v['consequence']}")
+            lines.append(f"  RESET: {v['reset_action']}")
+            lines.append("")
+        lines.append(
+            "Address the most critical alert when the user interacts. "
+            "Be direct — name the pattern, state the consequence, offer the reset."
+        )
+        lines.append("--- END CONSISTENCY ALERTS ---")
+        return "\n".join(lines)
+
     # ── PIE Integration (optional) ─────────────────────────
 
     def fire_patterns_to_pie(self, patterns):

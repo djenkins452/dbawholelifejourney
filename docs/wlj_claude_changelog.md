@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-03-03 — CoS Proactive Intelligence & Adaptive Coaching Upgrade
+
+- **What:** Major upgrade to the Chief of Staff (CoS) intelligence system implementing 6-part proactive intelligence: daily context scanning, adaptive coaching modes, universal analysis framework, consistency protection, frictionless confirmation, and trigger-aware event handling.
+- **Why:** Transform CoS from a reactive assistant to a proactive life operating system that scans the day, detects gaps, anticipates risk, reinforces wins, and intervenes before drift compounds.
+- **Changes:**
+  - **Part 1 — Daily Context Scan:** Added `_build_daily_scan_brief()` to `cos_context.py` that generates a structured COMPLETED/OUTSTANDING/TIME-SENSITIVE/RISK FLAGS summary injected into every LLM interaction.
+  - **Part 2 — Proactive Risk Anticipation:** Added trigger event detection in `prompt_templates.py` (social, dining, travel events) with pre-event strategy suggestions and structured A/B/C post-event follow-up.
+  - **Part 3 — Frictionless Confirmation:** Added `schedule_overdue_habit_prompts()` and `handle_abc_response()` to `prompt_service.py` for one-tap habit/medication confirmation (Yes/No/Moving it).
+  - **Part 4 — Adaptive Coaching Mode Selection:** Added 3 coaching modes (SUPPORTIVE/ANALYTICAL/CHALLENGER) to `tone_service.py` with automatic selection based on domain, emotional tone, and trend direction. Injected into every LLM interaction via `cos_context.py`.
+  - **Part 5 — Universal Analysis Framework:** Added 6-element framework (trend, signal/noise, root cause, risk, actions, question) to the system prompt for structured data-driven responses.
+  - **Part 6 — Consistency Protection:** Added `detect_consistency_violations()` to `pattern_service.py` with same-day intervention for missed workouts, medication gaps, activity gaps, and sentiment decline. Injected as CONSISTENCY ALERTS in the LLM context.
+- **Files modified:**
+  - `apps/ai/personal_assistant.py` — Added `COS_PROACTIVE_INTELLIGENCE_PROMPT` with all behavioral directives; wired into `build_personal_assistant_prompt()`
+  - `apps/cos/services/tone_service.py` — Added `COACHING_MODES`, `DOMAIN_KEYWORDS`, `EMOTIONAL_TONE_KEYWORDS`; added `select_coaching_mode()`, `build_coaching_mode_injection()`, `detect_domain()`, `get_available_coaching_modes()`
+  - `apps/core/ai_orchestrator/cos_context.py` — Added `_build_daily_scan_brief()`; integrated coaching mode injection and consistency violation alerts into `format_cos_system_injection()`
+  - `apps/cos/services/prompt_templates.py` — Added trigger event detection, A/B/C post-event templates, overdue habit/medication templates, and ABC follow-up response templates
+  - `apps/cos/services/prompt_service.py` — Added `schedule_trigger_aware_prompts()`, `schedule_overdue_habit_prompts()`, `handle_abc_response()`
+  - `apps/cos/services/pattern_service.py` — Added `detect_consistency_violations()`, `format_consistency_violations_for_injection()`, and 4 violation detectors (workout, medication, gaps, sentiment)
+- **Tests:** 437 CoS tests + 135 phase4 tests passed.
+
 ## 2026-03-03 — Fix fixture loader deploy-lag: add second-pass reload after resets
 
 - **What:** Added a second fixture loading pass at the end of `handle()` in `load_initial_data.py` to catch any fixtures that were reset by one-time methods.

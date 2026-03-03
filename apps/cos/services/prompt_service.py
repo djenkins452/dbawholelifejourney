@@ -348,6 +348,277 @@ class CosPromptService:
 
         return {"success": True, "captured": bool(follow_up_text)}
 
+    # ── Trigger-Aware Scheduling ─────────────────────────
+
+    def schedule_trigger_aware_prompts(
+        self,
+        source_object,
+        activity_type: Optional[str] = None,
+        occurrence_date=None,
+        override_start_dt=None,
+        override_end_dt=None,
+    ) -> List[CosPromptSchedule]:
+        """
+        Schedule prompts with trigger event detection.
+
+        If the event matches a trigger pattern (social, dining, travel),
+        uses trigger-aware templates that include strategy suggestions
+        and structured A/B/C follow-up.
+
+        Falls back to standard scheduling for non-trigger events.
+        """
+        from apps.cos.services.prompt_templates import (
+            detect_trigger_event,
+            get_pre_event_trigger_template,
+            get_post_event_trigger_template,
+            render_template as render_tmpl,
+        )
+
+        title = getattr(source_object, "title", "Activity")
+        is_trigger = detect_trigger_event(title)
+
+        if not is_trigger:
+            # Standard scheduling for non-trigger events
+            return self.schedule_prompts_for_event(
+                source_object=source_object,
+                activity_type=activity_type,
+                occurrence_date=occurrence_date,
+                override_start_dt=override_start_dt,
+                override_end_dt=override_end_dt,
+            )
+
+        # Trigger-aware scheduling with enhanced templates
+        start_dt = override_start_dt or getattr(source_object, "start_dt", None)
+        end_dt = override_end_dt or getattr(source_object, "end_dt", None)
+
+        if not start_dt:
+            return []
+
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(source_object)
+        created = []
+        lead = 120  # 2 hours pre-event for trigger events
+
+        # Pre-event trigger prompt
+        if start_dt > dj_timezone.now():
+            scheduled_for = start_dt - dt.timedelta(minutes=lead)
+            if scheduled_for > dj_timezone.now():
+                existing = CosPromptSchedule.objects.filter(
+                    user=self.user,
+                    content_type=ct,
+                    object_id=source_object.pk,
+                    timing=CosPromptSchedule.TIMING_PRE,
+                    status=CosPromptSchedule.STATUS_PENDING,
+                    occurrence_date=occurrence_date,
+                ).exists()
+                if not existing:
+                    template = get_pre_event_trigger_template()
+                    prompt_text = render_tmpl(
+                        template, title=title, lead_minutes=lead,
+                    )
+                    pre_prompt = CosPromptSchedule.objects.create(
+                        user=self.user,
+                        content_type=ct,
+                        object_id=source_object.pk,
+                        timing=CosPromptSchedule.TIMING_PRE,
+                        scheduled_for=scheduled_for,
+                        lead_minutes=lead,
+                        activity_type=activity_type or "social",
+                        prompt_text=prompt_text,
+                        occurrence_date=occurrence_date,
+                        metadata={"trigger_event": True},
+                    )
+                    created.append(pre_prompt)
+
+        # Post-event A/B/C prompt
+        if end_dt:
+            delay = 60  # 1 hour post-event for trigger events
+            scheduled_for = end_dt + dt.timedelta(minutes=delay)
+            existing = CosPromptSchedule.objects.filter(
+                user=self.user,
+                content_type=ct,
+                object_id=source_object.pk,
+                timing=CosPromptSchedule.TIMING_POST,
+                status=CosPromptSchedule.STATUS_PENDING,
+                occurrence_date=occurrence_date,
+            ).exists()
+            if not existing:
+                template = get_post_event_trigger_template()
+                prompt_text = render_tmpl(template, title=title)
+                post_prompt = CosPromptSchedule.objects.create(
+                    user=self.user,
+                    content_type=ct,
+                    object_id=source_object.pk,
+                    timing=CosPromptSchedule.TIMING_POST,
+                    scheduled_for=scheduled_for,
+                    lead_minutes=0,
+                    activity_type=activity_type or "social",
+                    prompt_text=prompt_text,
+                    occurrence_date=occurrence_date,
+                    metadata={"trigger_event": True, "abc_response": True},
+                )
+                created.append(post_prompt)
+
+        return created
+
+    # ── Overdue Habit Detection ───────────────────────────
+
+    def schedule_overdue_habit_prompts(self) -> List[CosPromptSchedule]:
+        """
+        Detect overdue daily habits and schedule frictionless confirmation prompts.
+
+        Scans for habits that should have been completed by now but haven't
+        been marked. Creates one-tap confirmation prompts.
+
+        Returns:
+            List of created CosPromptSchedule instances.
+        """
+        from apps.cos.services.prompt_templates import (
+            get_overdue_habit_template,
+            get_overdue_medication_template,
+            render_template as render_tmpl,
+        )
+
+        created = []
+        now = dj_timezone.now()
+
+        # Check for overdue calendar events (habits/tasks that should be done)
+        try:
+            from apps.calendar_engine.models import CalendarEvent
+            from django.contrib.contenttypes.models import ContentType
+
+            today = now.date()
+            overdue_events = CalendarEvent.objects.filter(
+                user=self.user,
+                start_dt__date=today,
+                end_dt__lt=now,
+                status=CalendarEvent.STATUS_SCHEDULED,
+                source_type__in=[
+                    CalendarEvent.SOURCE_HABIT,
+                    CalendarEvent.SOURCE_TASK,
+                ],
+            ).exclude(
+                # Skip events that already have pending prompts
+                pk__in=CosPromptSchedule.objects.filter(
+                    user=self.user,
+                    status=CosPromptSchedule.STATUS_PENDING,
+                    metadata__contains='"overdue_check"',
+                ).values_list("object_id", flat=True)
+            )[:5]  # Limit to 5 to avoid prompt fatigue
+
+            ct = ContentType.objects.get_for_model(CalendarEvent)
+            for event in overdue_events:
+                # Check if we already prompted for this today
+                already_prompted = CosPromptSchedule.objects.filter(
+                    user=self.user,
+                    content_type=ct,
+                    object_id=event.pk,
+                    occurrence_date=today,
+                    metadata__contains='"overdue_check"',
+                ).exists()
+                if already_prompted:
+                    continue
+
+                template = get_overdue_habit_template()
+                prompt_text = render_tmpl(template, title=event.title)
+
+                prompt = CosPromptSchedule.objects.create(
+                    user=self.user,
+                    content_type=ct,
+                    object_id=event.pk,
+                    timing=CosPromptSchedule.TIMING_POST,
+                    scheduled_for=now,
+                    lead_minutes=0,
+                    activity_type=detect_activity_type(event.title),
+                    prompt_text=prompt_text,
+                    occurrence_date=today,
+                    metadata={"overdue_check": True, "abc_response": True},
+                )
+                created.append(prompt)
+        except Exception as e:
+            logger.warning(
+                "Overdue habit detection failed for user %s: %s",
+                self.user.id, e,
+            )
+
+        return created
+
+    # ── A/B/C Response Handler ────────────────────────────
+
+    def handle_abc_response(
+        self,
+        prompt_id: int,
+        choice: str,
+        response_text: str = "",
+    ) -> Dict:
+        """
+        Handle a structured A/B/C response to a trigger event or overdue habit.
+
+        Args:
+            prompt_id: The prompt being responded to.
+            choice: "A", "B", or "C"
+            response_text: Optional additional text from user.
+
+        Returns:
+            Dict with response status and follow-up message.
+        """
+        from apps.cos.services.prompt_templates import get_abc_follow_up
+
+        try:
+            prompt = CosPromptSchedule.objects.get(
+                pk=prompt_id, user=self.user,
+            )
+        except CosPromptSchedule.DoesNotExist:
+            return {"success": False, "error": "Prompt not found"}
+
+        is_trigger = (prompt.metadata or {}).get("trigger_event", False)
+        is_overdue = (prompt.metadata or {}).get("overdue_check", False)
+
+        positive = choice.upper() == "A"
+        prompt.mark_responded(positive=positive, text=response_text)
+
+        result = {
+            "success": True,
+            "prompt_id": prompt.pk,
+            "choice": choice.upper(),
+            "follow_up": None,
+        }
+
+        if is_trigger:
+            follow_up_text = get_abc_follow_up(choice.upper(), "trigger_event")
+            result["follow_up"] = {
+                "type": "coaching_response",
+                "text": follow_up_text,
+            }
+            # Capture reflection
+            if response_text:
+                self._capture_reflection_from_response(prompt, response_text)
+
+        elif is_overdue:
+            if choice.upper() == "A":
+                # Mark the source event as completed
+                try:
+                    from apps.cos.services.completion_service import CosCompletionService
+                    CosCompletionService.handle_completion_from_prompt(prompt)
+                except Exception as e:
+                    logger.warning("Completion routing failed: %s", e)
+                result["follow_up"] = {
+                    "type": "confirmation",
+                    "text": get_abc_follow_up("A", "overdue_habit"),
+                }
+            elif choice.upper() == "B":
+                result["follow_up"] = {
+                    "type": "reschedule_prompt",
+                    "text": get_abc_follow_up("B_prompt", "overdue_habit"),
+                }
+            elif choice.upper() == "C":
+                result["follow_up"] = {
+                    "type": "reschedule_prompt",
+                    "text": get_abc_follow_up("C_prompt", "overdue_habit"),
+                }
+
+        return result
+
     # ── Static delivery runner ────────────────────────────
 
     @staticmethod

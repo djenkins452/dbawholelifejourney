@@ -269,6 +269,137 @@ def get_post_delay_minutes(activity_type: str) -> int:
     )
 
 
+# ──────────────────────────────────────────────────────────
+# Trigger-aware pre-event templates (social/travel/dining)
+# ──────────────────────────────────────────────────────────
+
+TRIGGER_EVENT_TYPES = {"social", "dining", "travel", "party", "gathering"}
+
+TRIGGER_EVENT_PATTERNS = {
+    "social": [
+        "dinner", "lunch", "brunch", "party", "gathering", "happy hour",
+        "get-together", "cookout", "bbq", "barbecue", "reception",
+        "celebration", "birthday", "anniversary",
+    ],
+    "dining": [
+        "restaurant", "dining out", "eating out", "buffet", "food truck",
+        "takeout", "fast food",
+    ],
+    "travel": [
+        "travel", "trip", "flight", "road trip", "vacation", "hotel",
+        "airport", "conference",
+    ],
+}
+
+PRE_EVENT_TRIGGER_TEMPLATE = (
+    "Quick heads up — you have \"{title}\" coming up in {lead_minutes} minutes. "
+    "This type of event can disrupt your routine. "
+    "What's your plan going in? Here are a few strategies:\n"
+    "1. Set a clear boundary before you go (e.g., \"I'll eat before\" or \"one drink max\")\n"
+    "2. Keep your next commitment visible — know what's after this\n"
+    "3. Give yourself a specific end time"
+)
+
+POST_EVENT_TRIGGER_TEMPLATE = (
+    "How did \"{title}\" go?\n"
+    "A) Stayed disciplined\n"
+    "B) Partial win\n"
+    "C) Slipped"
+)
+
+# ──────────────────────────────────────────────────────────
+# Frictionless confirmation templates (overdue habits)
+# ──────────────────────────────────────────────────────────
+
+OVERDUE_HABIT_TEMPLATE = (
+    "I don't see \"{title}\" completed yet. Did you get to it?\n"
+    "A) Yes\n"
+    "B) No\n"
+    "C) Moving it"
+)
+
+OVERDUE_MEDICATION_TEMPLATE = (
+    "Your medication \"{title}\" hasn't been marked as taken yet. Did you take it?\n"
+    "A) Yes\n"
+    "B) No\n"
+    "C) Moving it"
+)
+
+# ──────────────────────────────────────────────────────────
+# A/B/C response follow-up templates
+# ──────────────────────────────────────────────────────────
+
+ABC_RESPONSE_TEMPLATES = {
+    "trigger_event": {
+        "A": (
+            "That's the person you're becoming. Staying disciplined when "
+            "it would have been easy not to — that's identity reinforcement. "
+            "Keep building on this."
+        ),
+        "B": (
+            "Partial wins count. What's one thing you'd do differently "
+            "next time? Small adjustments compound."
+        ),
+        "C": (
+            "One event doesn't define your trajectory. What happened? "
+            "Let's identify the lesson and reset right now — "
+            "the next decision is a clean slate."
+        ),
+    },
+    "overdue_habit": {
+        "A": "Got it, marked complete. Keeping the chain going.",
+        "B_prompt": "When will you get to it today?",
+        "C_prompt": "What time works better?",
+    },
+}
+
+
+def detect_trigger_event(title: str) -> bool:
+    """Check if an event title matches a trigger event pattern."""
+    title_lower = title.strip().lower()
+    for patterns in TRIGGER_EVENT_PATTERNS.values():
+        for pattern in patterns:
+            if pattern in title_lower:
+                return True
+    return False
+
+
+def get_trigger_category(title: str) -> str:
+    """Get the trigger category for an event. Returns '' if not a trigger."""
+    title_lower = title.strip().lower()
+    for category, patterns in TRIGGER_EVENT_PATTERNS.items():
+        for pattern in patterns:
+            if pattern in title_lower:
+                return category
+    return ""
+
+
+def get_pre_event_trigger_template() -> str:
+    """Get the trigger-aware pre-event template."""
+    return PRE_EVENT_TRIGGER_TEMPLATE
+
+
+def get_post_event_trigger_template() -> str:
+    """Get the A/B/C post-event trigger template."""
+    return POST_EVENT_TRIGGER_TEMPLATE
+
+
+def get_overdue_habit_template() -> str:
+    """Get the overdue habit confirmation template."""
+    return OVERDUE_HABIT_TEMPLATE
+
+
+def get_overdue_medication_template() -> str:
+    """Get the overdue medication confirmation template."""
+    return OVERDUE_MEDICATION_TEMPLATE
+
+
+def get_abc_follow_up(response_type: str, category: str = "trigger_event") -> str:
+    """Get the follow-up text for an A/B/C response."""
+    templates = ABC_RESPONSE_TEMPLATES.get(category, {})
+    return templates.get(response_type, "")
+
+
 def render_template(template: str, **kwargs) -> str:
     """Render a prompt template with variables. Missing vars left as-is."""
     try:

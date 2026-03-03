@@ -52,6 +52,8 @@ from .models import (
     Pet,
     PetRecord,
     Recipe,
+    RecipeBulkImportSession,
+    RecipeBulkImportPhoto,
     Document,
     SignificantEvent,
 )
@@ -1324,6 +1326,300 @@ class RecipeScanConfirmView(LifeAccessMixin, View):
             request, f'Recipe "{recipe.title}" imported from photo!'
         )
         return redirect("life:recipe_detail", pk=recipe.pk)
+
+
+# =============================================================================
+# Recipe Bulk Import
+# =============================================================================
+
+class RecipeBulkUploadView(LifeAccessMixin, TemplateView):
+    """
+    Bulk recipe photo upload page.
+
+    Multi-file picker that saves photos → starts Celery task → redirects to review.
+    """
+
+    template_name = "life/recipe_bulk_upload.html"
+    help_context_id = "RECIPE_BULK_IMPORT"
+
+
+class RecipeBulkUploadProcessView(LifeAccessMixin, View):
+    """
+    POST endpoint: receive multiple recipe photos, create session, kick off Celery.
+
+    Saves photos to RecipeBulkImportPhoto records, then dispatches
+    the background processing task.
+    """
+
+    def post(self, request):
+        photos = request.FILES.getlist("photos")
+        if not photos:
+            messages.error(request, "No photos selected.")
+            return redirect("life:recipe_bulk_upload")
+
+        if len(photos) > 50:
+            messages.error(request, "Maximum 50 photos per batch.")
+            return redirect("life:recipe_bulk_upload")
+
+        allowed_types = {"image/jpeg", "image/png", "image/webp", "image/heic"}
+
+        # Create session
+        session = RecipeBulkImportSession.objects.create(
+            user=request.user,
+            total_photos=0,
+        )
+
+        saved_count = 0
+        for photo in photos:
+            # Validate size (10MB max)
+            if photo.size > 10 * 1024 * 1024:
+                continue
+
+            # Validate type
+            content_type = photo.content_type or "image/jpeg"
+            if content_type not in allowed_types:
+                continue
+
+            RecipeBulkImportPhoto.objects.create(
+                user=request.user,
+                session=session,
+                image=photo,
+                original_filename=photo.name or "",
+                status='pending',
+            )
+            saved_count += 1
+
+        if saved_count == 0:
+            session.delete()
+            messages.error(
+                request,
+                "No valid photos found. Use JPEG, PNG, or WebP under 10MB."
+            )
+            return redirect("life:recipe_bulk_upload")
+
+        session.total_photos = saved_count
+        session.status = 'processing'
+        session.save(update_fields=['total_photos', 'status', 'updated_at'])
+
+        # Dispatch Celery task
+        from apps.life.tasks import process_bulk_recipe_import
+        process_bulk_recipe_import.delay(session.pk)
+
+        return redirect("life:recipe_bulk_review", session_id=session.pk)
+
+
+class RecipeBulkReviewView(LifeAccessMixin, DetailView):
+    """
+    Review page for a bulk import session.
+
+    Shows processing progress and extracted recipes for review/confirmation.
+    """
+
+    template_name = "life/recipe_bulk_review.html"
+    context_object_name = "session"
+    pk_url_kwarg = "session_id"
+
+    def get_queryset(self):
+        return RecipeBulkImportSession.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        session = self.object
+        ctx['photos'] = session.photos.all().select_related('recipe')
+        ctx['extracted_photos'] = session.photos.filter(status='extracted')
+        ctx['confirmed_photos'] = session.photos.filter(status='confirmed')
+        ctx['failed_photos'] = session.photos.filter(status='failed')
+        ctx['pending_photos'] = session.photos.filter(
+            status__in=['pending', 'processing']
+        )
+        return ctx
+
+
+class RecipeBulkStatusView(LifeAccessMixin, View):
+    """
+    AJAX endpoint: returns current processing progress for a session.
+
+    Polled by the review page JS to update progress bar.
+    """
+
+    def get(self, request, session_id):
+        try:
+            session = RecipeBulkImportSession.objects.get(
+                pk=session_id, user=request.user
+            )
+        except RecipeBulkImportSession.DoesNotExist:
+            return JsonResponse({"error": "Session not found"}, status=404)
+
+        photos = list(session.photos.values(
+            'pk', 'status', 'original_filename', 'confidence', 'error_message',
+        ))
+
+        # Include extracted_data title for display
+        for p in photos:
+            photo_obj = session.photos.get(pk=p['pk'])
+            p['title'] = photo_obj.extracted_data.get('title', '') if photo_obj.extracted_data else ''
+            if photo_obj.image:
+                p['image_url'] = photo_obj.image.url
+            else:
+                p['image_url'] = ''
+
+        return JsonResponse({
+            "status": session.status,
+            "total": session.total_photos,
+            "processed": session.processed_count,
+            "failed": session.failed_count,
+            "confirmed": session.confirmed_count,
+            "progress_percent": session.progress_percent,
+            "photos": photos,
+        })
+
+
+class RecipeBulkConfirmView(LifeAccessMixin, View):
+    """
+    POST endpoint: confirm one or more extracted recipes.
+
+    Creates Recipe objects from the extracted data and original photos.
+    Accepts JSON body with photo_ids list, or a single photo_id.
+    """
+
+    def post(self, request, session_id):
+        try:
+            session = RecipeBulkImportSession.objects.get(
+                pk=session_id, user=request.user
+            )
+        except RecipeBulkImportSession.DoesNotExist:
+            return JsonResponse({"error": "Session not found"}, status=404)
+
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+        photo_ids = data.get('photo_ids', [])
+        if not photo_ids:
+            return JsonResponse({"error": "No photos specified"}, status=400)
+
+        photos = session.photos.filter(
+            pk__in=photo_ids, status='extracted'
+        )
+
+        created = []
+        for photo in photos:
+            ext = photo.extracted_data
+            if not ext or not ext.get('title'):
+                continue
+
+            recipe = Recipe(
+                user=request.user,
+                title=ext.get('title', ''),
+                description=ext.get('description', ''),
+                ingredients=ext.get('ingredients', ''),
+                instructions=ext.get('instructions', ''),
+                category=ext.get('category', ''),
+                difficulty=ext.get('difficulty', ''),
+                source=ext.get('source', ''),
+                notes=ext.get('notes', ''),
+            )
+
+            # Numeric fields
+            for field in ('prep_time_minutes', 'cook_time_minutes', 'servings'):
+                val = ext.get(field)
+                if val is not None:
+                    try:
+                        int_val = int(val)
+                        if int_val > 0:
+                            setattr(recipe, field, int_val)
+                    except (ValueError, TypeError):
+                        pass
+
+            # Copy the uploaded image as the recipe image
+            if photo.image:
+                recipe.image = photo.image
+
+            recipe.save()
+
+            photo.status = 'confirmed'
+            photo.recipe = recipe
+            photo.save(update_fields=['status', 'recipe', 'updated_at'])
+
+            created.append({
+                'photo_id': photo.pk,
+                'recipe_id': recipe.pk,
+                'title': recipe.title,
+            })
+
+        # Update session confirmed count
+        session.confirmed_count = session.photos.filter(status='confirmed').count()
+        session.save(update_fields=['confirmed_count', 'updated_at'])
+
+        return JsonResponse({
+            "status": "ok",
+            "created": created,
+            "confirmed_total": session.confirmed_count,
+        })
+
+
+class RecipeBulkConfirmAllView(LifeAccessMixin, View):
+    """
+    POST endpoint: confirm ALL extracted recipes in a session at once.
+    """
+
+    def post(self, request, session_id):
+        try:
+            session = RecipeBulkImportSession.objects.get(
+                pk=session_id, user=request.user
+            )
+        except RecipeBulkImportSession.DoesNotExist:
+            return JsonResponse({"error": "Session not found"}, status=404)
+
+        photos = session.photos.filter(status='extracted')
+        created_count = 0
+
+        for photo in photos:
+            ext = photo.extracted_data
+            if not ext or not ext.get('title'):
+                continue
+
+            recipe = Recipe(
+                user=request.user,
+                title=ext.get('title', ''),
+                description=ext.get('description', ''),
+                ingredients=ext.get('ingredients', ''),
+                instructions=ext.get('instructions', ''),
+                category=ext.get('category', ''),
+                difficulty=ext.get('difficulty', ''),
+                source=ext.get('source', ''),
+                notes=ext.get('notes', ''),
+            )
+
+            for field in ('prep_time_minutes', 'cook_time_minutes', 'servings'):
+                val = ext.get(field)
+                if val is not None:
+                    try:
+                        int_val = int(val)
+                        if int_val > 0:
+                            setattr(recipe, field, int_val)
+                    except (ValueError, TypeError):
+                        pass
+
+            if photo.image:
+                recipe.image = photo.image
+
+            recipe.save()
+
+            photo.status = 'confirmed'
+            photo.recipe = recipe
+            photo.save(update_fields=['status', 'recipe', 'updated_at'])
+            created_count += 1
+
+        session.confirmed_count = session.photos.filter(status='confirmed').count()
+        session.save(update_fields=['confirmed_count', 'updated_at'])
+
+        return JsonResponse({
+            "status": "ok",
+            "created_count": created_count,
+            "confirmed_total": session.confirmed_count,
+        })
 
 
 # =============================================================================

@@ -1,0 +1,497 @@
+{% extends "base.html" %}
+
+{% block title %}Review Bulk Import - Organize{% endblock %}
+
+{% block content %}
+<div class="container"
+     data-session-id="{{ session.pk }}"
+     data-status-url="{% url 'life:recipe_bulk_status' session_id=session.pk %}"
+     data-confirm-url="{% url 'life:recipe_bulk_confirm' session_id=session.pk %}"
+     data-confirm-all-url="{% url 'life:recipe_bulk_confirm_all' session_id=session.pk %}"
+     id="bulk-review-container">
+
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Organize</a>
+        <span>/</span>
+        <a href="{% url 'life:recipe_list' %}">Recipes</a>
+        <span>/</span>
+        <span>Bulk Import Review</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Review Imported Recipes</h1>
+            <p class="page-subtitle" id="status-text">
+                {% if session.is_processing %}
+                    Processing {{ session.total_photos }} photos...
+                {% else %}
+                    {{ session.total_photos }} photos processed
+                {% endif %}
+            </p>
+        </div>
+        <div class="page-header-actions" id="header-actions" style="display:none;">
+            <button type="button" id="confirm-all-btn" class="btn btn-primary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Confirm All
+            </button>
+        </div>
+    </div>
+
+    <!-- Progress bar (shown during processing) -->
+    <div class="bulk-progress-section" id="progress-section">
+        <div class="bulk-progress-bar">
+            <div class="bulk-progress-fill" id="progress-fill" style="width: {{ session.progress_percent }}%"></div>
+        </div>
+        <div class="bulk-progress-stats">
+            <span id="progress-text">{{ session.processed_count }} of {{ session.total_photos }} processed</span>
+            <span id="progress-percent">{{ session.progress_percent }}%</span>
+        </div>
+    </div>
+
+    <!-- Photo cards grid -->
+    <div class="bulk-review-grid" id="photo-grid">
+        {% for photo in photos %}
+        <div class="bulk-photo-card" data-photo-id="{{ photo.pk }}" data-status="{{ photo.status }}">
+            <div class="bulk-photo-image">
+                {% if photo.image %}
+                <img src="{{ photo.image.url }}" alt="{{ photo.original_filename }}" loading="lazy">
+                {% endif %}
+                <div class="bulk-photo-status-badge status-{{ photo.status }}">
+                    {{ photo.get_status_display }}
+                </div>
+            </div>
+            <div class="bulk-photo-info">
+                {% if photo.status == 'extracted' %}
+                    <h3 class="bulk-photo-title">{{ photo.extracted_data.title|default:"Untitled" }}</h3>
+                    {% if photo.extracted_data.category %}
+                    <p class="bulk-photo-category">{{ photo.extracted_data.category }}</p>
+                    {% endif %}
+                    {% if photo.confidence %}
+                    <div class="bulk-photo-confidence">
+                        <span class="confidence-label">Confidence:</span>
+                        <span class="confidence-value {% if photo.confidence >= 0.8 %}high{% elif photo.confidence >= 0.5 %}medium{% else %}low{% endif %}">
+                            {{ photo.confidence|floatformat:0 }}%
+                        </span>
+                    </div>
+                    {% endif %}
+                    <div class="bulk-photo-actions">
+                        <button type="button" class="btn btn-primary btn-sm confirm-single-btn" data-photo-id="{{ photo.pk }}">Confirm</button>
+                    </div>
+                {% elif photo.status == 'confirmed' %}
+                    <h3 class="bulk-photo-title">{{ photo.extracted_data.title|default:"Untitled" }}</h3>
+                    <p class="bulk-photo-saved">Saved to recipes</p>
+                {% elif photo.status == 'failed' %}
+                    <p class="bulk-photo-error">{{ photo.error_message|truncatewords:15 }}</p>
+                {% elif photo.status == 'pending' or photo.status == 'processing' %}
+                    <div class="bulk-photo-processing">
+                        <div class="mini-spinner"></div>
+                        <span>Processing...</span>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Done section -->
+    <div class="bulk-done-section" id="done-section" style="display:none;">
+        <a href="{% url 'life:recipe_list' %}" class="btn btn-primary">View All Recipes</a>
+        <a href="{% url 'life:recipe_bulk_upload' %}" class="btn btn-secondary">Import More</a>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+.breadcrumb a { color: var(--color-accent); }
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+}
+.page-header-actions {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+/* Progress */
+.bulk-progress-section {
+    margin-bottom: var(--space-6);
+}
+.bulk-progress-bar {
+    height: 8px;
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+.bulk-progress-fill {
+    height: 100%;
+    background: var(--color-accent);
+    border-radius: var(--radius-md);
+    transition: width 0.5s ease;
+}
+.bulk-progress-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-top: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+/* Photo grid */
+.bulk-review-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+.bulk-photo-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+.bulk-photo-card[data-status="confirmed"] {
+    border-color: var(--color-success, #10b981);
+}
+.bulk-photo-card[data-status="failed"] {
+    border-color: var(--color-error);
+    opacity: 0.7;
+}
+
+.bulk-photo-image {
+    position: relative;
+    height: 160px;
+    overflow: hidden;
+    background: var(--color-surface);
+}
+.bulk-photo-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.bulk-photo-status-badge {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.status-pending, .status-processing {
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    color: var(--color-accent);
+}
+.status-extracted {
+    background: color-mix(in srgb, var(--color-success, #10b981) 20%, transparent);
+    color: var(--color-success, #10b981);
+}
+.status-confirmed {
+    background: var(--color-success, #10b981);
+    color: white;
+}
+.status-failed {
+    background: color-mix(in srgb, var(--color-error) 20%, transparent);
+    color: var(--color-error);
+}
+
+.bulk-photo-info {
+    padding: var(--space-3);
+}
+.bulk-photo-title {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-1) 0;
+    line-height: 1.3;
+}
+.bulk-photo-category {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-2) 0;
+}
+.bulk-photo-confidence {
+    font-size: var(--font-size-xs);
+    margin-bottom: var(--space-2);
+}
+.confidence-label { color: var(--color-text-muted); }
+.confidence-value.high { color: var(--color-success, #10b981); font-weight: 600; }
+.confidence-value.medium { color: var(--color-warning, #f59e0b); font-weight: 600; }
+.confidence-value.low { color: var(--color-error); font-weight: 600; }
+
+.bulk-photo-actions {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+.btn-sm {
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--font-size-sm);
+}
+
+.bulk-photo-saved {
+    font-size: var(--font-size-sm);
+    color: var(--color-success, #10b981);
+    margin: 0;
+    font-weight: 600;
+}
+.bulk-photo-error {
+    font-size: var(--font-size-sm);
+    color: var(--color-error);
+    margin: 0;
+}
+.bulk-photo-processing {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+/* Mini spinner */
+.mini-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Done section */
+.bulk-done-section {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: center;
+    padding: var(--space-6) 0;
+}
+
+@media (max-width: 480px) {
+    .bulk-review-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: var(--space-3);
+    }
+    .bulk-photo-image { height: 120px; }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+
+    var container = document.getElementById('bulk-review-container');
+    var sessionId = container.getAttribute('data-session-id');
+    var statusUrl = container.getAttribute('data-status-url');
+    var confirmUrl = container.getAttribute('data-confirm-url');
+    var confirmAllUrl = container.getAttribute('data-confirm-all-url');
+    var progressFill = document.getElementById('progress-fill');
+    var progressText = document.getElementById('progress-text');
+    var progressPercent = document.getElementById('progress-percent');
+    var progressSection = document.getElementById('progress-section');
+    var headerActions = document.getElementById('header-actions');
+    var statusText = document.getElementById('status-text');
+    var doneSection = document.getElementById('done-section');
+    var photoGrid = document.getElementById('photo-grid');
+    var pollTimer = null;
+    var isProcessing = {{ session.is_processing|yesno:"true,false" }};
+
+    function getCsrfToken() {
+        var cookie = document.cookie.split(';').find(function(c) {
+            return c.trim().startsWith('csrftoken=');
+        });
+        return cookie ? cookie.split('=')[1] : '';
+    }
+
+    // Poll for status updates during processing
+    function pollStatus() {
+        fetch(statusUrl)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                // Update progress
+                progressFill.style.width = data.progress_percent + '%';
+                progressText.textContent = (data.processed + data.failed) + ' of ' + data.total + ' processed';
+                progressPercent.textContent = data.progress_percent + '%';
+
+                if (data.failed > 0) {
+                    progressText.textContent += ' (' + data.failed + ' failed)';
+                }
+
+                // Update individual photo cards
+                updatePhotoCards(data.photos);
+
+                // Check if done processing
+                if (data.status === 'completed' || data.status === 'failed') {
+                    isProcessing = false;
+                    clearInterval(pollTimer);
+                    statusText.textContent = data.total + ' photos processed';
+
+                    // Show confirm all button if there are extracted recipes
+                    var extractedCount = data.photos.filter(function(p) { return p.status === 'extracted'; }).length;
+                    if (extractedCount > 0) {
+                        headerActions.style.display = 'flex';
+                    }
+                    doneSection.style.display = 'flex';
+                }
+            })
+            .catch(function() {
+                // Silently retry on next interval
+            });
+    }
+
+    function updatePhotoCards(photos) {
+        photos.forEach(function(p) {
+            var card = document.querySelector('[data-photo-id="' + p.pk + '"]');
+            if (!card) return;
+
+            var currentStatus = card.getAttribute('data-status');
+            if (currentStatus === p.status) return;  // No change
+            if (currentStatus === 'confirmed') return;  // Don't downgrade
+
+            card.setAttribute('data-status', p.status);
+
+            // Update badge
+            var badge = card.querySelector('.bulk-photo-status-badge');
+            if (badge) {
+                badge.className = 'bulk-photo-status-badge status-' + p.status;
+                var labels = {pending: 'Pending', processing: 'Processing', extracted: 'Extracted', confirmed: 'Confirmed', failed: 'Failed'};
+                badge.textContent = labels[p.status] || p.status;
+            }
+
+            // Update info section
+            var info = card.querySelector('.bulk-photo-info');
+            if (!info) return;
+
+            if (p.status === 'extracted') {
+                var confClass = 'medium';
+                if (p.confidence >= 80) confClass = 'high';
+                else if (p.confidence < 50) confClass = 'low';
+
+                info.innerHTML =
+                    '<h3 class="bulk-photo-title">' + escapeHtml(p.title || 'Untitled') + '</h3>' +
+                    (p.confidence ? '<div class="bulk-photo-confidence"><span class="confidence-label">Confidence: </span><span class="confidence-value ' + confClass + '">' + Math.round(p.confidence * 100) + '%</span></div>' : '') +
+                    '<div class="bulk-photo-actions"><button type="button" class="btn btn-primary btn-sm confirm-single-btn" data-photo-id="' + p.pk + '">Confirm</button></div>';
+            } else if (p.status === 'failed') {
+                info.innerHTML = '<p class="bulk-photo-error">' + escapeHtml(p.error_message || 'Processing failed') + '</p>';
+            } else if (p.status === 'processing') {
+                info.innerHTML = '<div class="bulk-photo-processing"><div class="mini-spinner"></div><span>Processing...</span></div>';
+            }
+        });
+    }
+
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Confirm single photo
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.confirm-single-btn');
+        if (!btn) return;
+
+        var photoId = parseInt(btn.getAttribute('data-photo-id'));
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        fetch(confirmUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken(),
+            },
+            body: JSON.stringify({ photo_ids: [photoId] }),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'ok' && data.created.length > 0) {
+                var card = document.querySelector('[data-photo-id="' + photoId + '"]');
+                if (card) {
+                    card.setAttribute('data-status', 'confirmed');
+                    var badge = card.querySelector('.bulk-photo-status-badge');
+                    if (badge) {
+                        badge.className = 'bulk-photo-status-badge status-confirmed';
+                        badge.textContent = 'Confirmed';
+                    }
+                    var info = card.querySelector('.bulk-photo-info');
+                    if (info) {
+                        info.innerHTML =
+                            '<h3 class="bulk-photo-title">' + escapeHtml(data.created[0].title) + '</h3>' +
+                            '<p class="bulk-photo-saved">Saved to recipes</p>';
+                    }
+                }
+                updateConfirmAllVisibility();
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = 'Confirm';
+        });
+    });
+
+    // Confirm All
+    var confirmAllBtn = document.getElementById('confirm-all-btn');
+    confirmAllBtn.addEventListener('click', function() {
+        confirmAllBtn.disabled = true;
+        confirmAllBtn.textContent = 'Saving all...';
+
+        fetch(confirmAllUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken(),
+            },
+            body: JSON.stringify({}),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'ok') {
+                // Refresh to show updated state
+                window.location.reload();
+            }
+        })
+        .catch(function() {
+            confirmAllBtn.disabled = false;
+            confirmAllBtn.textContent = 'Confirm All';
+        });
+    });
+
+    function updateConfirmAllVisibility() {
+        var extracted = document.querySelectorAll('[data-status="extracted"]');
+        if (extracted.length === 0) {
+            headerActions.style.display = 'none';
+        }
+    }
+
+    // Start polling if still processing
+    if (isProcessing) {
+        pollTimer = setInterval(pollStatus, 3000);
+        pollStatus();  // Initial fetch
+    } else {
+        // Already done, show actions
+        var extractedCards = document.querySelectorAll('[data-status="extracted"]');
+        if (extractedCards.length > 0) {
+            headerActions.style.display = 'flex';
+        }
+        doneSection.style.display = 'flex';
+    }
+})();
+</script>
+{% endblock %}

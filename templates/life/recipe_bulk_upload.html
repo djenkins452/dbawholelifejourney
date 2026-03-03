@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}Bulk Import Recipes - Organize{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Organize</a>
+        <span>/</span>
+        <a href="{% url 'life:recipe_list' %}">Recipes</a>
+        <span>/</span>
+        <span>Bulk Import</span>
+    </nav>
+
+    <div class="form-page">
+        <div class="form-header">
+            <h1 class="page-title">Bulk Import Recipes</h1>
+            <p class="page-subtitle">Upload up to 50 recipe photos at once. AI will extract recipe details from each photo in the background.</p>
+        </div>
+
+        <form method="post" action="{% url 'life:recipe_bulk_upload_process' %}" enctype="multipart/form-data" id="bulk-upload-form">
+            {% csrf_token %}
+
+            <div class="bulk-upload-section">
+                <div class="bulk-upload-area" id="upload-area">
+                    <input type="file" id="bulk-photo-input" name="photos" accept="image/*" multiple
+                           class="scan-file-hidden" aria-label="Upload recipe photos">
+
+                    <!-- Drop zone placeholder -->
+                    <div class="bulk-upload-placeholder" id="upload-placeholder">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <p class="bulk-upload-text">Tap to select photos or drag & drop</p>
+                        <p class="bulk-upload-hint">JPEG, PNG, or WebP. Max 10MB each. Up to 50 photos.</p>
+                    </div>
+                </div>
+
+                <!-- Selected files preview -->
+                <div class="bulk-preview-grid" id="preview-grid" style="display:none;"></div>
+
+                <div class="bulk-file-count" id="file-count" style="display:none;">
+                    <span id="count-text">0 photos selected</span>
+                    <button type="button" id="clear-btn" class="btn btn-ghost btn-sm">Clear All</button>
+                </div>
+
+                <div class="bulk-upload-actions">
+                    <button type="button" id="choose-btn" class="btn btn-secondary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        Choose Photos
+                    </button>
+                    <button type="submit" id="upload-btn" class="btn btn-primary" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                        Start Import
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+/* Breadcrumb */
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.form-page {
+    max-width: 700px;
+}
+.form-header {
+    margin-bottom: var(--space-6);
+}
+
+/* Upload area */
+.bulk-upload-section {
+    margin-top: var(--space-4);
+}
+.bulk-upload-area {
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color 0.2s;
+    min-height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.bulk-upload-area:hover,
+.bulk-upload-area.drag-over {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+}
+.scan-file-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+}
+.bulk-upload-placeholder {
+    text-align: center;
+    padding: var(--space-8) var(--space-4);
+    color: var(--color-text-muted);
+}
+.bulk-upload-placeholder svg {
+    margin-bottom: var(--space-3);
+    opacity: 0.5;
+}
+.bulk-upload-text {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-2) 0;
+}
+.bulk-upload-hint {
+    font-size: var(--font-size-xs);
+    margin: 0;
+    opacity: 0.7;
+}
+
+/* Preview grid */
+.bulk-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+.bulk-preview-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+}
+.bulk-preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.bulk-preview-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+}
+
+.bulk-file-count {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.bulk-upload-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    justify-content: center;
+}
+
+.btn-sm {
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-xs);
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+
+    var fileInput = document.getElementById('bulk-photo-input');
+    var uploadArea = document.getElementById('upload-area');
+    var chooseBtn = document.getElementById('choose-btn');
+    var uploadBtn = document.getElementById('upload-btn');
+    var clearBtn = document.getElementById('clear-btn');
+    var previewGrid = document.getElementById('preview-grid');
+    var fileCount = document.getElementById('file-count');
+    var countText = document.getElementById('count-text');
+    var selectedFiles = [];
+
+    // Click to open file picker
+    uploadArea.addEventListener('click', function() {
+        fileInput.click();
+    });
+    chooseBtn.addEventListener('click', function() {
+        fileInput.click();
+    });
+
+    // Drag and drop
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadArea.classList.add('drag-over');
+    });
+    uploadArea.addEventListener('dragleave', function() {
+        uploadArea.classList.remove('drag-over');
+    });
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('drag-over');
+        if (e.dataTransfer.files.length) {
+            addFiles(e.dataTransfer.files);
+        }
+    });
+
+    // File input change
+    fileInput.addEventListener('change', function() {
+        if (this.files && this.files.length) {
+            addFiles(this.files);
+        }
+    });
+
+    function addFiles(fileList) {
+        var allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
+        var maxSize = 10 * 1024 * 1024;
+
+        for (var i = 0; i < fileList.length; i++) {
+            var file = fileList[i];
+            if (selectedFiles.length >= 50) break;
+            if (file.size > maxSize) continue;
+            if (allowedTypes.indexOf(file.type || 'image/jpeg') === -1 && file.type !== '') continue;
+            selectedFiles.push(file);
+        }
+
+        updatePreview();
+    }
+
+    function updatePreview() {
+        previewGrid.innerHTML = '';
+
+        if (selectedFiles.length === 0) {
+            previewGrid.style.display = 'none';
+            fileCount.style.display = 'none';
+            uploadBtn.disabled = true;
+            document.getElementById('upload-placeholder').style.display = 'block';
+            return;
+        }
+
+        document.getElementById('upload-placeholder').style.display = 'none';
+        previewGrid.style.display = 'grid';
+        fileCount.style.display = 'flex';
+        countText.textContent = selectedFiles.length + ' photo' + (selectedFiles.length === 1 ? '' : 's') + ' selected';
+        uploadBtn.disabled = false;
+
+        selectedFiles.forEach(function(file, idx) {
+            var item = document.createElement('div');
+            item.className = 'bulk-preview-item';
+
+            var img = document.createElement('img');
+            img.alt = file.name;
+            var reader = new FileReader();
+            reader.onload = function(e) { img.src = e.target.result; };
+            reader.readAsDataURL(file);
+            item.appendChild(img);
+
+            var removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'bulk-preview-remove';
+            removeBtn.textContent = '\u00d7';
+            removeBtn.setAttribute('data-idx', idx);
+            removeBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                selectedFiles.splice(parseInt(this.getAttribute('data-idx')), 1);
+                updatePreview();
+            });
+            item.appendChild(removeBtn);
+
+            previewGrid.appendChild(item);
+        });
+    }
+
+    // Clear all
+    clearBtn.addEventListener('click', function() {
+        selectedFiles = [];
+        fileInput.value = '';
+        updatePreview();
+    });
+
+    // On form submit, build a DataTransfer with selected files
+    document.getElementById('bulk-upload-form').addEventListener('submit', function(e) {
+        if (selectedFiles.length === 0) {
+            e.preventDefault();
+            return;
+        }
+
+        // Replace the file input's files with our tracked array
+        try {
+            var dt = new DataTransfer();
+            selectedFiles.forEach(function(f) { dt.items.add(f); });
+            fileInput.files = dt.files;
+        } catch (err) {
+            // If DataTransfer not supported, the original input files are used
+        }
+
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = 'Uploading...';
+    });
+})();
+</script>
+{% endblock %}

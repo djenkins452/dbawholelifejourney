@@ -21,7 +21,7 @@ def _make_aware(dt: datetime, reference: datetime) -> datetime:
     return dt
 
 
-def extract_date_from_message(message: str, reference_date: Optional[datetime] = None) -> Optional[datetime]:
+def extract_date_from_message(message: str, reference_date: Optional[datetime] = None, user=None) -> Optional[datetime]:
     """
     Extract a date reference from a natural language message.
 
@@ -35,6 +35,9 @@ def extract_date_from_message(message: str, reference_date: Optional[datetime] =
         message: The user's message string to analyze.
         reference_date: Optional reference date for relative calculations.
                        Defaults to current date/time if not provided.
+        user: Optional user object for timezone-correct "today" resolution.
+              When provided, uses the user's configured timezone instead of
+              relying on Django middleware timezone activation.
 
     Returns:
         A datetime object representing the extracted date, or None if
@@ -53,10 +56,19 @@ def extract_date_from_message(message: str, reference_date: Optional[datetime] =
     if not message or not isinstance(message, str):
         return None
 
-    # Use reference_date or current date with timezone awareness
-    # timezone.localtime() returns current time in the project's configured timezone
-    # This ensures "today" means the user's today, not UTC today
-    now = reference_date or timezone.localtime(timezone.now())
+    # Use reference_date, or resolve "now" in the user's timezone.
+    # Prefer the user's configured timezone over timezone.localtime()
+    # which depends on middleware activation and falls back to UTC.
+    if reference_date:
+        now = reference_date
+    elif user:
+        try:
+            from apps.core.utils import get_user_now
+            now = get_user_now(user)
+        except Exception:
+            now = timezone.localtime(timezone.now())
+    else:
+        now = timezone.localtime(timezone.now())
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     message_lower = message.lower()

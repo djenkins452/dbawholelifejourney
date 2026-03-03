@@ -9,6 +9,29 @@
 
 # WLJ Change History
 
+## 2026-03-02 — Fix: Beth can't see today's workout data in chat
+
+**What:** Fixed a bug where the AI assistant (Beth) couldn't retrieve workout data for "today" queries, even though workouts were clearly visible on the fitness page. The root cause was a datetime/date type mismatch in the personal data query pipeline.
+
+**Root cause:** The `extract_date_from_message()` function returns a timezone-aware `datetime` (e.g., `2026-03-02 00:00:00 CST`), but workout data is stored in a `DateField` (plain date). When PostgreSQL compares a DateField against a timezone-aware datetime, it casts the date to midnight UTC — causing `2026-03-02 00:00:00 UTC >= 2026-03-02 06:00:00 UTC` to evaluate as FALSE, silently dropping today's results.
+
+**Fix:**
+1. Added `_to_date()` helper in `data_service.py` that converts datetime → date before filtering any DateField column
+2. Applied `_to_date()` to all 12 DateField-based filters across workout, journal, food, medication, steps, sleep, mobility, audio exposure, and dietary nutrient queries
+3. Updated `extract_date_from_message()` to accept an optional `user` parameter — uses `get_user_now(user)` for timezone-correct "today" resolution instead of relying on Django middleware timezone activation
+4. Added diagnostic logging when workout queries return empty to aid future debugging
+
+**Files modified:**
+- `assistant/data_service.py` — Added `_to_date()` helper, applied to all DateField filters, added logging
+- `assistant/date_parser.py` — Added `user` param to `extract_date_from_message()` for timezone-safe date resolution
+- `assistant/views.py` — Pass user to `extract_date_from_message()` call
+- `assistant/tests/test_views.py` — Updated test assertion for new function signature
+- `docs/wlj_claude_changelog.md` — This entry
+
+**Why:** User reported Beth saying "You haven't logged any workouts today" despite two workouts (Push + Arms, Walking) being visible on the fitness page. This affected all DateField-based data queries in the assistant pipeline.
+
+---
+
 ## 2026-03-02 — People Groups: model, CRUD, quick-create API
 
 **What:** Added PersonGroup model for organizing contacts into named groups. Full CRUD (list, create, detail, edit, delete), soft-deletable, owner-scoped. Quick-create AJAX endpoint for Phase 3 multi-select integration. Added "Groups" link on insights page header.

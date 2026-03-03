@@ -266,8 +266,8 @@ class TestProcessAssistantMessageDateExtraction(unittest.TestCase):
 
         process_assistant_message(user, message)
 
-        # Verify extract_date_from_message was called
-        mock_extract.assert_called_once_with(message)
+        # Verify extract_date_from_message was called with user
+        mock_extract.assert_called_once_with(message, user=user)
 
         # Verify query_by_intent was called with the extracted date
         mock_service.query_by_intent.assert_called_once()

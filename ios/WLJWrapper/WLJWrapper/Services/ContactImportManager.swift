@@ -49,7 +49,7 @@ struct ContactPickerView: UIViewControllerRepresentable {
         }
 
         func contactPickerDidCancel(_ picker: CNContactPickerViewController) {
-            parent.parent.dismiss()
+            parent.dismiss()
         }
     }
 }

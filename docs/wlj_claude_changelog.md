@@ -9,6 +9,37 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Improve CoS image analysis prompt for data-rich health images
+
+**What:** Updated the vision instruction in `_generate_response` to explicitly tell the LLM it has full vision capability and should read all visible text, numbers, and data from images. Provides example format for health metric observations.
+
+**Files:** `apps/ai/personal_assistant.py`
+
+---
+
+## 2026-03-03 — Fix multi-image in production template (assistant_panel.html)
+
+**What:** Initial multi-image changes were made to `chat_widget.html` but production uses `assistant_panel.html` (with `ap-` prefixed IDs). Applied identical multi-image changes to the production template and CSS.
+
+**Files:** `templates/components/assistant_panel.html`, `static/css/assistant-panel.css`
+
+---
+
+## 2026-03-03 — Multi-image support for CoS chat (up to 5 images per message)
+
+**What:** Users could only attach 1 image per CoS message. Now supports up to 5 images per message with multi-select file picker, thumbnail preview strip, and combined Vision API analysis.
+
+**Changes:**
+- New `MessageImage` model (FK to AssistantMessage) for storing additional images
+- Frontend: `multiple` file input, preview strip with per-image remove, image grid display
+- Backend: `request.FILES.getlist('images')`, per-file validation, multi-image FormData
+- OpenAI: Multiple `image_url` content parts in single Vision API call
+- History: Returns `image_data_urls` array for multi-image display
+
+**Files:** `apps/ai/models.py`, `apps/ai/views.py`, `apps/ai/personal_assistant.py`, `apps/ai/services.py`, `templates/components/chat_widget.html`, `templates/components/assistant_panel.html`, `static/css/assistant-panel.css`, `apps/ai/migrations/0025_messageimage.py`
+
+---
+
 ## 2026-03-03 — /close doc audit: add release note + features doc update for help system
 
 - **What:** Added release note PK 124 for context-aware help enhancement. Updated features doc with fixture file fallback description. Added fixture loader reset for release_notes.

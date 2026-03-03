@@ -908,6 +908,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Select All + batch contact import (PK 129, 130)
         self._reset_select_all_batch_import_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Bulk Recipe Photo Import (PK 131)
+        self._reset_bulk_recipe_import_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5267,3 +5270,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset select all + batch import fixtures FAILED: {e}'))
+
+    def _reset_bulk_recipe_import_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 131) for Bulk Recipe Photo Import.
+        """
+        reset_tracker_name = 'reset_bulk_recipe_import_2026_03_03'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes loader for Bulk Recipe Photo Import')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Bulk Recipe Photo Import',
+                'command',
+                'One-time reset to reload release_notes PK 131'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset bulk recipe import fixtures FAILED: {e}'))

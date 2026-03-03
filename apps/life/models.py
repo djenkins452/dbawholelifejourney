@@ -1950,3 +1950,102 @@ class ShoppingItem(UserOwnedModel):
 
     def __str__(self):
         return f"{self.name} ({self.quantity})" if self.quantity else self.name
+
+
+# =============================================================================
+# Recipe Bulk Import
+# =============================================================================
+
+class RecipeBulkImportSession(UserOwnedModel):
+    """
+    A batch session for importing multiple recipe photos at once.
+
+    User uploads N photos → Celery processes each through Vision AI →
+    user reviews extracted recipes → confirms to create Recipe objects.
+    """
+
+    STATUS_CHOICES = [
+        ('uploading', 'Uploading'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='uploading',
+    )
+    total_photos = models.PositiveIntegerField(default=0)
+    processed_count = models.PositiveIntegerField(default=0)
+    failed_count = models.PositiveIntegerField(default=0)
+    confirmed_count = models.PositiveIntegerField(default=0)
+    celery_task_id = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Recipe Bulk Import Session"
+
+    def __str__(self):
+        return f"Bulk Import #{self.pk} ({self.status}, {self.processed_count}/{self.total_photos})"
+
+    @property
+    def is_processing(self):
+        return self.status == 'processing'
+
+    @property
+    def progress_percent(self):
+        if self.total_photos == 0:
+            return 0
+        return round((self.processed_count + self.failed_count) * 100 / self.total_photos)
+
+
+class RecipeBulkImportPhoto(UserOwnedModel):
+    """
+    A single photo within a bulk import session.
+
+    Tracks upload → processing → extraction → confirmation lifecycle.
+    """
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('extracted', 'Extracted'),
+        ('confirmed', 'Confirmed'),
+        ('failed', 'Failed'),
+    ]
+
+    session = models.ForeignKey(
+        RecipeBulkImportSession,
+        on_delete=models.CASCADE,
+        related_name='photos',
+    )
+    image = models.ImageField(upload_to='life/recipe_bulk_imports/')
+    original_filename = models.CharField(max_length=255, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+    )
+    extracted_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Recipe fields extracted by Vision AI",
+    )
+    confidence = models.FloatField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+    recipe = models.ForeignKey(
+        Recipe,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='bulk_import_photo',
+        help_text="The Recipe created when user confirms this photo",
+    )
+
+    class Meta:
+        ordering = ['created_at']
+        verbose_name = "Recipe Bulk Import Photo"
+
+    def __str__(self):
+        return f"Photo #{self.pk} ({self.status}) - {self.original_filename}"

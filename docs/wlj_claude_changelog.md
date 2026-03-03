@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Bulk Recipe Photo Import
+
+**What:** New feature allowing upload of up to 50 recipe photos at once, with background Celery processing through Vision AI. Photos are uploaded, saved to storage, then each is processed asynchronously. A review page with live progress polling lets the user review extracted recipes and confirm individually or all at once.
+
+**Changes:**
+- `apps/life/models.py` — Added `RecipeBulkImportSession` and `RecipeBulkImportPhoto` models
+- `apps/life/tasks.py` — New Celery task `process_bulk_recipe_import` with rate-limiting, timeout handling
+- `apps/life/views.py` — 6 new views: upload page, upload processor, review page, status polling API, confirm API, confirm-all API
+- `apps/life/urls.py` — 6 new URL routes under `recipes/bulk/`
+- `templates/life/recipe_bulk_upload.html` — Multi-file drag-and-drop upload UI with preview grid
+- `templates/life/recipe_bulk_review.html` — Review page with progress bar, photo cards, confirm/confirm-all
+- `templates/life/recipe_list.html` — Added "Bulk Import" button to recipe list header
+- `apps/life/migrations/0018_recipebulkimportsession_recipebulkimportphoto.py` — New migration
+- `apps/core/fixtures/release_notes.json` — Added PK 131 release note
+- `apps/core/management/commands/load_initial_data.py` — Added fixture loader reset
+
+**Why:** User has ~40 recipe photos to import. One-at-a-time flow is tedious. This provides a "drop photos → walk away → come back and confirm" workflow.
+
+---
+
 ## 2026-03-03 — Add missing migration for Task Meta ordering change
 
 **What:** CI failing because `makemigrations --check --dry-run` detected that the Task model's `ordering` Meta option was changed (added `scheduled_time`) but no migration existed.

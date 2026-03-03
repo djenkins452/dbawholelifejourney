@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 131,
+    "fields": {
+      "title": "Bulk Recipe Photo Import",
+      "description": "Import up to 50 recipe photos at once. Upload your photos, and AI processes each one in the background \u2014 extracting titles, ingredients, instructions, and more. Review all extracted recipes on a single page with live progress tracking, then confirm individually or all at once. Find the new \u201cBulk Import\u201d button on the Recipes page.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-03",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/life/recipes/bulk/",
+      "created_at": "2026-03-03T19:50:00Z",
+      "updated_at": "2026-03-03T19:50:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 128,
     "fields": {
       "title": "People & Groups: New Tile Card Design",

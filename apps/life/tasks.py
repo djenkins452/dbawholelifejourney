@@ -1,0 +1,163 @@
+"""
+Celery tasks for Life module async processing.
+
+Handles bulk recipe photo import through Vision AI.
+"""
+
+import logging
+import time
+
+from celery import shared_task
+from celery.exceptions import SoftTimeLimitExceeded
+
+logger = logging.getLogger(__name__)
+
+
+@shared_task(
+    bind=True,
+    name="apps.life.tasks.process_bulk_recipe_import",
+    max_retries=1,
+    default_retry_delay=10,
+    soft_time_limit=1800,  # 30 minutes — generous for ~40 photos
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def process_bulk_recipe_import(self, session_id):
+    """
+    Process all pending photos in a bulk recipe import session.
+
+    For each photo:
+    1. Read image bytes from storage
+    2. Call recipe_photo_import_service.extract_from_bytes()
+    3. Store extracted recipe JSON on the photo record
+    4. Update session progress counters
+
+    Includes 2-second delay between API calls to avoid rate limiting.
+    """
+    from apps.life.models import RecipeBulkImportSession
+    from apps.life.services.recipe_photo_import import recipe_photo_import_service
+
+    task_id = self.request.id or "local"
+    start = time.monotonic()
+
+    logger.info(
+        "Bulk recipe import starting (session=%d, task_id=%s)",
+        session_id, task_id,
+    )
+
+    try:
+        session = RecipeBulkImportSession.objects.get(pk=session_id)
+    except RecipeBulkImportSession.DoesNotExist:
+        logger.error("Bulk recipe import session %d not found", session_id)
+        return {"status": "error", "reason": "session_not_found"}
+
+    session.status = 'processing'
+    session.celery_task_id = task_id
+    session.save(update_fields=['status', 'celery_task_id', 'updated_at'])
+
+    pending_photos = list(session.photos.filter(status='pending'))
+    processed_count = 0
+    error_count = 0
+
+    try:
+        for i, photo in enumerate(pending_photos):
+            # Mark as processing
+            photo.status = 'processing'
+            photo.save(update_fields=['status', 'updated_at'])
+
+            try:
+                # Read image bytes from storage
+                photo.image.open('rb')
+                raw_bytes = photo.image.read()
+                photo.image.close()
+
+                # Determine content type from extension
+                name = photo.image.name.lower()
+                if name.endswith('.png'):
+                    content_type = 'image/png'
+                elif name.endswith('.webp'):
+                    content_type = 'image/webp'
+                elif name.endswith('.heic'):
+                    content_type = 'image/heic'
+                else:
+                    content_type = 'image/jpeg'
+
+                result = recipe_photo_import_service.extract_from_bytes(
+                    raw_bytes, content_type
+                )
+
+                if "error" in result:
+                    photo.status = 'failed'
+                    photo.error_message = result["error"]
+                    photo.save(update_fields=[
+                        'status', 'error_message', 'updated_at',
+                    ])
+                    error_count += 1
+                else:
+                    photo.status = 'extracted'
+                    photo.extracted_data = result
+                    photo.confidence = result.get('confidence', 0.5)
+                    photo.save(update_fields=[
+                        'status', 'extracted_data', 'confidence', 'updated_at',
+                    ])
+                    processed_count += 1
+
+            except Exception as e:
+                logger.error(
+                    "Failed to process bulk import photo %d in session %d: %s",
+                    photo.pk, session_id, e, exc_info=True,
+                )
+                photo.status = 'failed'
+                photo.error_message = str(e)
+                photo.save(update_fields=['status', 'error_message', 'updated_at'])
+                error_count += 1
+
+            # Update session progress
+            session.processed_count = processed_count
+            session.failed_count = error_count
+            session.save(update_fields=[
+                'processed_count', 'failed_count', 'updated_at',
+            ])
+
+            # Rate-limit delay between API calls (skip after last photo)
+            if i < len(pending_photos) - 1:
+                time.sleep(2)
+
+    except SoftTimeLimitExceeded:
+        logger.warning(
+            "Bulk recipe import timed out (session=%d, processed=%d/%d)",
+            session_id, processed_count, len(pending_photos),
+        )
+        # Mark remaining pending photos as failed
+        session.photos.filter(status__in=['pending', 'processing']).update(
+            status='failed',
+            error_message='Processing timed out',
+        )
+        remaining = session.photos.filter(status='failed', error_message='Processing timed out').count()
+        session.failed_count = error_count + remaining
+        session.status = 'completed'
+        session.save(update_fields=['failed_count', 'status', 'updated_at'])
+        return {
+            "status": "timeout",
+            "session_id": session_id,
+            "processed": processed_count,
+            "total": len(pending_photos),
+        }
+
+    # Mark session completed
+    session.status = 'completed'
+    session.save(update_fields=['status', 'updated_at'])
+
+    duration = time.monotonic() - start
+    logger.info(
+        "Bulk recipe import complete (session=%d, processed=%d, errors=%d, %.1fs)",
+        session_id, processed_count, error_count, duration,
+    )
+
+    return {
+        "status": "ok",
+        "session_id": session_id,
+        "processed": processed_count,
+        "errors": error_count,
+        "duration_seconds": round(duration, 2),
+    }

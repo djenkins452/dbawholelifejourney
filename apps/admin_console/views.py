@@ -5350,6 +5350,27 @@ class RestoreDeletedTasksAPIView(APIRateLimitMixin, View):
         from django.utils import timezone as tz
         import datetime
 
+        # Diagnose mode: show all tasks (any status) for debugging
+        diagnose = request.GET.get('diagnose', '').lower() == 'true'
+        if diagnose:
+            all_tasks = Task.all_objects.filter(user=user).order_by('-updated_at')[:50]
+            return JsonResponse({
+                'diagnose': True,
+                'total': all_tasks.count(),
+                'tasks': [
+                    {
+                        'id': t.id,
+                        'title': t.title,
+                        'status': t.status,
+                        'is_completed': t.is_completed,
+                        'due_date': str(t.due_date) if t.due_date else None,
+                        'deleted_at': str(t.deleted_at) if t.deleted_at else None,
+                        'updated_at': str(t.updated_at),
+                    }
+                    for t in all_tasks
+                ],
+            })
+
         # Build filter
         qs = Task.all_objects.filter(user=user, status='deleted')
 

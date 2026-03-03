@@ -4440,7 +4440,83 @@ Before responding, silently reason through these steps (do NOT include this reas
 4. What should I NOT talk about? (avoid mixing unrelated topics — don't mention routines when they're asking about scripture, don't discuss scripture when they're asking about tasks)
 Then give your response."""
 
-        user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}{message}{image_note}
+        # =============================================================
+        # Phase 4b: Reading Plan Scripture Context Enrichment
+        # When the user is on a reading plan page, look up the scripture
+        # references SERVER-SIDE and inject them directly into the user
+        # prompt. This is more reliable than JavaScript DOM extraction
+        # and ensures the AI always knows what scripture is being read.
+        # =============================================================
+        scripture_context_block = ""
+        if page_context:
+            _pc = page_context.get('page_content') or {}
+            _pc_type = _pc.get('type', '')
+            _pc_url = page_context.get('url', '')
+
+            if _pc_type == 'reading_plan_progress' or (
+                not _pc_type and _pc_url
+                and '/faith/reading-plans/progress/' in _pc_url
+            ):
+                # Get references from client-side context first
+                scripture_refs = _pc.get('scriptures', [])
+                scripture_text = _pc.get('scripture_text', '')
+
+                # Server-side fallback: look up from database if JS missed them
+                if not scripture_refs:
+                    try:
+                        import re as _re_url
+                        _url_match = _re_url.search(
+                            r'/faith/reading-plans/progress/(\d+)', _pc_url
+                        )
+                        if _url_match:
+                            _plan_id = int(_url_match.group(1))
+                            from apps.faith.models import UserReadingPlan
+                            _user_plan = UserReadingPlan.objects.filter(
+                                pk=_plan_id, user=self.user,
+                            ).select_related('template').first()
+                            if _user_plan:
+                                from apps.faith.models import ReadingPlanDay
+                                _plan_day = ReadingPlanDay.objects.filter(
+                                    plan=_user_plan.template,
+                                    day_number=_user_plan.current_day,
+                                ).first()
+                                if _plan_day:
+                                    scripture_refs = _plan_day.scripture_references or []
+                                    # Also try to get pre-loaded text
+                                    if not scripture_text and _plan_day.scripture_content:
+                                        _texts = []
+                                        for sc in _plan_day.scripture_content:
+                                            if isinstance(sc, dict) and sc.get('text'):
+                                                _texts.append(sc['text'][:1500])
+                                        if _texts:
+                                            scripture_text = '\n\n'.join(_texts)
+                                    logger.info(
+                                        "Server-side reading plan lookup: plan=%s day=%s refs=%s",
+                                        _plan_id, _user_plan.current_day, scripture_refs,
+                                    )
+                    except Exception as _rp_err:
+                        logger.warning(
+                            "Reading plan server-side lookup failed: %s", _rp_err
+                        )
+
+                # Build context block injected directly into user prompt
+                if scripture_refs:
+                    refs_str = ', '.join(scripture_refs)
+                    scripture_context_block = (
+                        f"\n[SCRIPTURE CONTEXT: The user is currently on their "
+                        f"Bible reading plan reading {refs_str}. "
+                        f"When they say 'this scripture', 'break it down', "
+                        f"'help me understand', 'it', or 'this', they mean "
+                        f"{refs_str}. Answer about {refs_str} directly.]"
+                    )
+                    if scripture_text:
+                        # Include actual text (truncated for token budget)
+                        scripture_context_block += (
+                            f"\n[SCRIPTURE TEXT:\n"
+                            f"{scripture_text[:3000]}]"
+                        )
+
+        user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}{message}{image_note}{scripture_context_block}
 {topic_threading_hint}
 {reasoning_instruction}
 
@@ -4455,6 +4531,15 @@ Rules for this response:
         # Larger budgets allow deeper, more thoughtful responses
         mode_tokens = {'brief': 400, 'adaptive': 800, 'deep': 1200}
         max_tokens = mode_tokens.get(response_mode, 800)
+
+        # Scripture breakdowns need more tokens for thorough analysis
+        if scripture_context_block and any(
+            w in message.lower() for w in [
+                'break it down', 'break down', 'explain', 'understand',
+                'what does', 'teach me', 'walk me through',
+            ]
+        ):
+            max_tokens = max(max_tokens, 1200)
 
         # Temperature: warm enough for natural conversation, lower for data accuracy
         has_personal_data = personal_data_result.get('has_data', False)

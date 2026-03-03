@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Fix fast-path streaming missing ALL page context
+
+**What:** The streaming chat path (`_build_fast_context`) had ZERO page context handling — no scripture injection, no page title, nothing. This was the actual root cause of CoS asking "which scripture?" since all chat widget messages use the streaming path. The `_generate_response` fixes only applied to the non-streaming (fallback) path.
+
+**Changes:**
+- `apps/ai/personal_assistant.py` — Added full page context handling to `_build_fast_context`: scripture reference injection into user prompt, server-side database lookup fallback, page title/module injection into system prompt, and token limit boost for scripture breakdowns.
+
+**Why:** `_build_fast_context` is the primary code path for all streaming chat messages. Without page context here, no amount of fixes to `_generate_response` could help.
+
 ## 2026-03-03 — Refresh page context on input focus instead of every send
 
 **What:** Moved page context refresh from `sendMessage()` to the input `focus` event. When the user clicks/taps the text box, `getPageContext()` runs — capturing fresh DOM state (expanded scriptures, etc.) at the moment the user intends to type, rather than on every message send.

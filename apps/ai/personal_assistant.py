@@ -4744,8 +4744,73 @@ Before responding, silently reason through these steps (do NOT include this reas
 4. What should I NOT talk about? (avoid mixing unrelated topics — don't mention routines when they're asking about scripture, don't discuss scripture when they're asking about tasks)
 Then give your response."""
 
+        # --- h2) Page context injection (reading plan scripture, etc.)
+        # Must also run on fast path — otherwise streaming misses page context entirely.
+        scripture_context_block = ""
+        if page_context:
+            _pc = page_context.get('page_content') or {}
+            _pc_type = _pc.get('type', '')
+            _pc_url = page_context.get('url', '')
+
+            if _pc_type == 'reading_plan_progress' or (
+                not _pc_type and _pc_url
+                and '/faith/reading-plans/progress/' in _pc_url
+            ):
+                scripture_refs = _pc.get('scriptures', [])
+                scripture_text = _pc.get('scripture_text', '')
+
+                # Server-side fallback: look up from database if JS missed them
+                if not scripture_refs:
+                    try:
+                        import re as _re_url
+                        _url_match = _re_url.search(
+                            r'/faith/reading-plans/progress/(\d+)', _pc_url
+                        )
+                        if _url_match:
+                            _plan_id = int(_url_match.group(1))
+                            from apps.faith.models import UserReadingPlan, ReadingPlanDay
+                            _user_plan = UserReadingPlan.objects.filter(
+                                pk=_plan_id, user=self.user,
+                            ).select_related('template').first()
+                            if _user_plan:
+                                _plan_day = ReadingPlanDay.objects.filter(
+                                    plan=_user_plan.template,
+                                    day_number=_user_plan.current_day,
+                                ).first()
+                                if _plan_day:
+                                    scripture_refs = _plan_day.scripture_references or []
+                                    if not scripture_text and _plan_day.scripture_content:
+                                        _texts = []
+                                        for sc in _plan_day.scripture_content:
+                                            if isinstance(sc, dict) and sc.get('text'):
+                                                _texts.append(sc['text'][:1500])
+                                        if _texts:
+                                            scripture_text = '\n\n'.join(_texts)
+                    except Exception as _rp_err:
+                        logger.warning("Fast-path reading plan lookup failed: %s", _rp_err)
+
+                if scripture_refs:
+                    refs_str = ', '.join(scripture_refs)
+                    scripture_context_block = (
+                        f"\n[SCRIPTURE CONTEXT: The user is currently on their "
+                        f"Bible reading plan reading {refs_str}. "
+                        f"When they say 'this scripture', 'break it down', "
+                        f"'help me understand', 'it', or 'this', they mean "
+                        f"{refs_str}. Answer about {refs_str} directly.]"
+                    )
+                    if scripture_text:
+                        scripture_context_block += (
+                            f"\n[SCRIPTURE TEXT:\n{scripture_text[:3000]}]"
+                        )
+
+            # Inject page context into system prompt for non-scripture pages too
+            _page_title = page_context.get('page_title', '')
+            _page_module = page_context.get('module', '')
+            if _page_title or _page_module:
+                system_prompt += f"\n\nPAGE CONTEXT: The user is viewing: {_page_title or _pc_url} (module: {_page_module})\n"
+
         user_name = self.user.first_name or self.user.get_short_name() or ""
-        user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}{message}
+        user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}{message}{scripture_context_block}
 {reasoning_instruction}
 
 Rules for this response:
@@ -4758,6 +4823,16 @@ Rules for this response:
         mode_tokens = {'brief': 400, 'adaptive': 800, 'deep': 1200}
         max_tokens = mode_tokens.get(response_mode, 800)
         temperature = 0.5
+
+        # Scripture breakdowns need more tokens
+        if scripture_context_block and any(
+            w in message.lower() for w in [
+                'break it down', 'break down', 'explain', 'understand',
+                'what does', 'teach me', 'walk me through', '30,000',
+                '30000', 'overview', 'big picture',
+            ]
+        ):
+            max_tokens = max(max_tokens, 1200)
 
         # --- i) Return context dict (same shape as _generate_response context-only)
         return {

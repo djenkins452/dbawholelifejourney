@@ -902,6 +902,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for CoS deterministic coaching upgrade (PK 127)
         self._reset_cos_deterministic_coaching_release_note(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes + help_topics for tile card redesign + @mention help (PK 128)
+        self._reset_tile_card_mention_help_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5198,3 +5201,35 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset CoS deterministic coaching release note FAILED: {e}'))
+
+    def _reset_tile_card_mention_help_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 128 tile cards) and
+        help_topics (updated RELATIONSHIPS_PEOPLE with @mention autocomplete docs).
+        """
+        reset_tracker_name = 'reset_tile_card_mention_help_2026_03_03'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for fixture_name in ('release_notes', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=fixture_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {fixture_name} loader for tile card + mention help')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for tile card redesign + @mention help',
+                'command',
+                'One-time reset to reload release_notes PK 128 + help_topics RELATIONSHIPS_PEOPLE'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset tile card + mention help fixtures FAILED: {e}'))

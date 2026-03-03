@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 128,
+    "fields": {
+      "title": "People & Groups: New Tile Card Design",
+      "description": "The People list and Group detail pages now display contacts as visual tile cards with colored avatar initials (color-coded by relationship type), interaction counts, and time since last contact. Each card is clickable and highlights on hover. Multi-select, bulk actions, and group creation all work the same way with the new layout.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/relationships/",
+      "created_at": "2026-03-03T02:30:00Z",
+      "updated_at": "2026-03-03T02:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 127,
     "fields": {
       "title": "Smarter Chief of Staff: Decisive Coaching with Quick Actions",

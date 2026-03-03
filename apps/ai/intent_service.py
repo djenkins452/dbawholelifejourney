@@ -430,6 +430,14 @@ CRITICAL DELETE SAFETY:
 - "I already did those" or "those are done" → call complete_task for each, NOT delete.
 - Only use mutate_task(action="delete") when the user explicitly says "delete", "remove", or "cancel" a specific task by name.
 
+DELETE CONFIRMATION FLOW (REQUIRED):
+- When calling mutate_task(action="delete"), NEVER set delete_confirmed=true on the first call. The system will ask the user to confirm.
+- Only set delete_confirmed=true AFTER the user has explicitly confirmed (e.g., "yes", "yes delete it", "go ahead", "confirm").
+- Example flow:
+  1. User: "delete the laundry task" → mutate_task(action="delete", task_query="laundry") [NO delete_confirmed]
+  2. System: "Just to confirm — you want me to delete this task? • Laundry. Say 'yes, delete' to confirm."
+  3. User: "yes" → mutate_task(action="delete", task_query="laundry", delete_confirmed=true)
+
 IMPLICIT TASK CORRECTIONS — when the user says a task has wrong details or confirms a change should have happened:
 - "those tasks should be tomorrow" → mutate_task(action="update", task_query=<from context>, new_due_date="tomorrow", apply_to_all=true)
 - "you didn't actually move them" → mutate_task(action="update", task_query=<from context>, new_due_date=<from prior context>, apply_to_all=true)

@@ -5318,7 +5318,7 @@ class RestoreDeletedTasksAPIView(APIRateLimitMixin, View):
     Optional: ?dry_run=true to preview without restoring.
     """
 
-    rate_limit_requests_per_hour = 10
+    rate_limit_requests_per_hour = 60
     rate_limit_key_prefix = 'admin_api_restore_tasks'
 
     def get(self, request):

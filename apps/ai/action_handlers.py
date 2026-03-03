@@ -3050,7 +3050,29 @@ class ActionHandler:
             tasks = tasks[:10]  # Safety limit
 
             if action == 'delete':
-                # Safety: batch delete (>2 tasks) requires explicit apply_to_all
+                delete_confirmed = kwargs.get('delete_confirmed', False)
+
+                # Safety: ALWAYS require confirmation before deleting
+                if not delete_confirmed:
+                    titles = [f"• {t.title}" for t in tasks[:5]]
+                    task_word = "task" if len(tasks) == 1 else f"{len(tasks)} tasks"
+                    return ActionResult(
+                        success=False,
+                        message=(
+                            f"Just to confirm — you want me to delete this {task_word}?\n"
+                            + "\n".join(titles)
+                            + "\n\nSay 'yes, delete' to confirm."
+                        ),
+                        error='delete_confirmation_required',
+                        action_type='mutate_task',
+                        created_object={
+                            'candidates': [
+                                {'id': t.id, 'title': t.title} for t in tasks[:5]
+                            ],
+                        },
+                    )
+
+                # Batch delete (>2 tasks) still requires explicit apply_to_all
                 if len(tasks) > 2 and not apply_to_all:
                     candidates = [{'id': t.id, 'title': t.title} for t in tasks[:5]]
                     titles = [f"• {c['title']}" for c in candidates]

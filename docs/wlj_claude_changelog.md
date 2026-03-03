@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Increase More button inset from screen edge
+
+**What:** More button in bottom nav still too close to right edge for reliable tapping.
+**Changes:** `static/css/main.css` — Increased `.bottom-tab:last-child` right padding from `space-3` (12px) to `space-6` (24px).
+
+---
+
 ## 2026-03-03 — Mobile bottom nav: reduce to 5 tabs for better touch targets
 
 **What:** The mobile bottom navigation had 6 items (Home + 4 modules + More), making tabs too cramped on small screens. The More button near the right edge was nearly untappable on some devices.

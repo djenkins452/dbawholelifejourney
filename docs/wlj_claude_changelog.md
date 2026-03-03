@@ -9,6 +9,16 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Redesign People list and Group detail pages with tile cards
+
+**What:** Replaced flat list-style entry cards on the All People and Group Detail pages with visually rich tile cards. Each person now displays a colored avatar circle with initials (color-coded by relationship type: spouse=pink, family=purple, friend=blue, etc.), the person's name, relationship type, interaction count, and last contact time. Group detail gets a proper header card with group icon, description, and member grid. Both pages are fully responsive.
+
+**Changes:**
+- `templates/relationships/person_list.html` — Rewritten with tile grid (`.pl-grid`), avatar initials (`.pl-card-avatar`), stats column, and `data-no-mention` on search input. All existing functionality preserved (multi-select, floating action bar, group creation modal).
+- `templates/relationships/group_detail.html` — Rewritten with header card (group icon, name, description, actions), member tile grid (`.gd-members-grid`), avatar initials, last contact metadata. Delete confirmation preserved.
+
+---
+
 ## 2026-03-02 — Global @mention autocomplete across all text fields
 
 **What:** Wired the @mention autocomplete to every textarea and chat input in the app. Typing `@` in any text field now triggers a dropdown showing matching contacts and groups, with keyboard navigation, click-to-select, and inline person creation. Previously the autocomplete component existed but was not included in any template.

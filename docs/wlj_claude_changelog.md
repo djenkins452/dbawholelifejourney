@@ -9,25 +9,14 @@
 
 # WLJ Change History
 
-## 2026-03-03 — CoS Proactive Intelligence & Adaptive Coaching Upgrade
+## 2026-03-03 — Add fixture file fallback for help topic API
 
-- **What:** Major upgrade to the Chief of Staff (CoS) intelligence system implementing 6-part proactive intelligence: daily context scanning, adaptive coaching modes, universal analysis framework, consistency protection, frictionless confirmation, and trigger-aware event handling.
-- **Why:** Transform CoS from a reactive assistant to a proactive life operating system that scans the day, detects gaps, anticipates risk, reinforces wins, and intervenes before drift compounds.
-- **Changes:**
-  - **Part 1 — Daily Context Scan:** Added `_build_daily_scan_brief()` to `cos_context.py` that generates a structured COMPLETED/OUTSTANDING/TIME-SENSITIVE/RISK FLAGS summary injected into every LLM interaction.
-  - **Part 2 — Proactive Risk Anticipation:** Added trigger event detection in `prompt_templates.py` (social, dining, travel events) with pre-event strategy suggestions and structured A/B/C post-event follow-up.
-  - **Part 3 — Frictionless Confirmation:** Added `schedule_overdue_habit_prompts()` and `handle_abc_response()` to `prompt_service.py` for one-tap habit/medication confirmation (Yes/No/Moving it).
-  - **Part 4 — Adaptive Coaching Mode Selection:** Added 3 coaching modes (SUPPORTIVE/ANALYTICAL/CHALLENGER) to `tone_service.py` with automatic selection based on domain, emotional tone, and trend direction. Injected into every LLM interaction via `cos_context.py`.
-  - **Part 5 — Universal Analysis Framework:** Added 6-element framework (trend, signal/noise, root cause, risk, actions, question) to the system prompt for structured data-driven responses.
-  - **Part 6 — Consistency Protection:** Added `detect_consistency_violations()` to `pattern_service.py` with same-day intervention for missed workouts, medication gaps, activity gaps, and sentiment decline. Injected as CONSISTENCY ALERTS in the LLM context.
-- **Files modified:**
-  - `apps/ai/personal_assistant.py` — Added `COS_PROACTIVE_INTELLIGENCE_PROMPT` with all behavioral directives; wired into `build_personal_assistant_prompt()`
-  - `apps/cos/services/tone_service.py` — Added `COACHING_MODES`, `DOMAIN_KEYWORDS`, `EMOTIONAL_TONE_KEYWORDS`; added `select_coaching_mode()`, `build_coaching_mode_injection()`, `detect_domain()`, `get_available_coaching_modes()`
-  - `apps/core/ai_orchestrator/cos_context.py` — Added `_build_daily_scan_brief()`; integrated coaching mode injection and consistency violation alerts into `format_cos_system_injection()`
-  - `apps/cos/services/prompt_templates.py` — Added trigger event detection, A/B/C post-event templates, overdue habit/medication templates, and ABC follow-up response templates
-  - `apps/cos/services/prompt_service.py` — Added `schedule_trigger_aware_prompts()`, `schedule_overdue_habit_prompts()`, `handle_abc_response()`
-  - `apps/cos/services/pattern_service.py` — Added `detect_consistency_violations()`, `format_consistency_violations_for_injection()`, and 4 violation detectors (workout, medication, gaps, sentiment)
-- **Tests:** 437 CoS tests + 135 phase4 tests passed.
+- **What:** Added a direct fixture file fallback to `HelpTopicAPIView`. When a help topic isn't found in the database, the API now reads directly from the `help_topics.json` fixture file and serves the content.
+- **Why:** Fixture loader timing issues meant newly-added help topics (meals, medical, relationships, billing, etc.) weren't reliably reaching the production database. This fallback ensures help content is ALWAYS available regardless of whether the fixture loaded.
+- **How:** The `_load_from_fixture()` class method lazily loads and caches the entire fixture file in worker memory on first use. Subsequent lookups are instant (dict lookup). Falls through to the module fallback chain before returning "Help Not Available".
+- **Files:** `apps/help/views.py` — Added `_load_from_fixture()` method and fixture fallback in `get()`
+
+---
 
 ## 2026-03-03 — Fix fixture loader deploy-lag: add second-pass reload after resets
 
@@ -47,17 +36,6 @@
 - **Files:**
   - `static/js/help.js` — Fixed trigger element resolution in `openHelpModal()`
   - `apps/help/views.py` — Added missing module fallback prefixes
-
----
-
-## 2026-03-03 — Fix People list action bar and add Select All
-
-**What:** Fixed the floating action bar (Group, Journal, Pray buttons) that wasn't responding to checkbox selections. The `.visible` CSS class only set `transform: translateY(0)` but never overrode `pointer-events: none` from the base rule. Also merged duplicate `.pl-action-bar-inner` CSS rules. Added a "Select All" checkbox above the grid with indeterminate state support and a "X of Y selected" counter.
-
-**Changes:**
-- `templates/relationships/person_list.html` — Added `pointer-events: auto` to `.pl-action-bar.visible`, merged duplicate `.pl-action-bar-inner` rules, added Select All checkbox HTML/CSS/JS with indeterminate state, updated checkbox selector to `.pl-card .pl-checkbox` to exclude Select All, added info counter next to Select All.
-
-**Why:** Users could check individual contacts but the action bar was non-interactive due to missing `pointer-events: auto` on the visible state. Select All was requested for bulk operations.
 
 ---
 
@@ -85,45 +63,14 @@
 
 ---
 
-## 2026-03-03 — Fix multi-image in production template (assistant_panel.html)
+## 2026-03-03 — Fix People list floating action bar hidden behind mobile tab bar
 
-**What:** The initial multi-image changes were made to `chat_widget.html` but production uses `assistant_panel.html` (with `ap-` prefixed IDs). Applied identical multi-image changes to the production template and CSS.
-
-**Files:** `templates/components/assistant_panel.html`, `static/css/assistant-panel.css`
-
----
-
-## 2026-03-03 — Multi-image support for CoS chat (up to 5 images per message)
-
-**What:** Users could only attach 1 image per CoS message, making it impossible to share multiple screenshots (e.g., InBody health charts) for combined analysis.
-
-**Files:** `apps/ai/models.py`, `apps/ai/views.py`, `apps/ai/personal_assistant.py`, `apps/ai/services.py`, `templates/components/chat_widget.html`, `apps/ai/migrations/0025_messageimage.py`
-
----
-
-## 2026-03-03 — State-Aware Morning Automation & Contextual Task Engine
-
-**What:** Six-part enhancement to make CoS behave as a true life operating system companion — chronological task ordering, executive briefing in fast path, proactive nudging for all activities, wake-up auto-completion, cross-module task auto-completion, and accomplishment-aware check-ins.
+**What:** The People list checkboxes worked but the floating action bar (with Group, Journal, Pray buttons) was invisible on mobile because it sat behind the bottom tab bar. Both had `z-index: 100` and `position: fixed; bottom: 0`. Users could check boxes but never saw the action buttons.
 
 **Changes:**
-1. **Task ordering** — Tasks now sort by `scheduled_time` within priority groups (Wake Up 5:00 → Prayer 5:15 → Bible Reading 5:30)
-2. **Executive briefing in fast path** — Morning greeting/briefing now fires on streaming path (was missing entirely)
-3. **Proactive nudging** — Pending CoS prompts (meds, workouts, pickleball, etc.) injected into chat flow
-4. **Wake Up auto-complete** — First CoS interaction of the day auto-marks "Wake Up" task complete
-5. **Cross-module auto-completion** — Completing Bible reading → marks "Bible Reading" task done; logging workout → marks "Workout" done; taking medicine → marks "Medicine" done
-6. **Accomplishment check-ins** — CoS celebrates completed tasks before shifting to what's next
+- `templates/relationships/person_list.html` — Bumped action bar z-index to 101, added mobile-only bottom padding (`calc(var(--space-3) + 70px + env(safe-area-inset-bottom))`) to clear the tab bar, set `pointer-events: none` on outer bar with `pointer-events: all` on inner content so clicks pass through to tab bar below, enlarged checkbox touch target to 44x44px (Apple HIG minimum).
 
-**Files modified:**
-- `apps/life/models.py` — Task Meta ordering with `scheduled_time`
-- `apps/life/views.py` — TaskListView queryset ordering with `F().asc(nulls_last=True)`
-- `apps/life/services/routine_service.py` — Added `auto_complete_routine_task()` utility
-- `apps/ai/personal_assistant.py` — Executive briefing + CoS prompts in fast path, enhanced reasoning instruction
-- `apps/ai/executive_briefing.py` — Wake Up auto-complete, accomplishment-first instructions
-- `apps/cos/services/prompt_service.py` — Added `get_pending_prompt_injection()` for chat flow
-- `apps/faith/views.py` — Bible reading → auto-complete routine task hook
-- `apps/health/views.py` — Workout + medicine → auto-complete routine task hooks
-
-**Why:** User expected CoS to order tasks chronologically, auto-complete tasks on detected activity, proactively nudge about upcoming events, and celebrate accomplishments. Most infrastructure existed but wasn't wired together.
+**Why:** Users reported checkboxes "just exist" with no way to act on selections — the action bar was rendering but hidden underneath the tab bar on mobile.
 
 ---
 

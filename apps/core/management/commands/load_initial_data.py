@@ -890,6 +890,38 @@ class Command(BaseCommand):
         # One-time: Reset help_topics + teaching_destinations for context-aware help system review
         self._reset_context_aware_help_system_review(DataLoadConfig, force, verbosity)
 
+        # =====================================================================
+        # SECOND PASS: Reload any fixtures that were reset by one-time methods
+        # =====================================================================
+        # The one-time reset methods above set is_loaded=False AFTER the initial
+        # fixture loading loop. Without this second pass, reset fixtures would
+        # only load on the NEXT deploy, causing a deploy-lag for new help topics,
+        # teaching destinations, and release notes.
+        for loader in FIXTURE_LOADERS:
+            loader_name = loader['name']
+            if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+                continue  # Still loaded, no reset happened
+            try:
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reloading {loader_name} (reset by one-time method)...', ending='')
+                call_command('loaddata', loader_name, verbosity=0)
+                if verbosity >= 1:
+                    self.stdout.write(self.style.SUCCESS(' OK'))
+                loaded_count += 1
+                self._mark_loader_complete(
+                    DataLoadConfig, loader_name, loader['display'],
+                    'fixture', loader.get('description', '')
+                )
+            except Exception as e:
+                if verbosity >= 1:
+                    self.stdout.write(self.style.WARNING(f'  {loader_name}: Reload failed ({e})'))
+                err_msg = str(e).lower()
+                if 'duplicate key' in err_msg or 'unique constraint' in err_msg:
+                    self._mark_loader_complete(
+                        DataLoadConfig, loader_name, loader['display'],
+                        'fixture', f'Marked complete (data exists): {e}'
+                    )
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))

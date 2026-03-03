@@ -881,6 +881,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Calendar Add Task + Time Fixes (PK 121)
         self._reset_calendar_add_task_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for iOS Contact Import (PK 122)
+        self._reset_ios_contact_import_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -4929,3 +4932,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset calendar add task fixtures FAILED: {e}'))
+
+    def _reset_ios_contact_import_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 122) for iOS native contact
+        picker import feature.
+        """
+        reset_tracker_name = 'reset_ios_contact_import_2026_03_02'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes loader for iOS Contact Import')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for iOS Contact Import',
+                'command',
+                'One-time reset to reload release_notes PK 122'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset iOS contact import fixtures FAILED: {e}'))

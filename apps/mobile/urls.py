@@ -28,4 +28,7 @@ urlpatterns = [
     # Push notifications
     path("push/register/", views.push_register, name="push_register"),
     path("push/unregister/", views.push_unregister, name="push_unregister"),
+
+    # Contact import (from iOS contact picker)
+    path("contacts/import/", views.contact_import, name="contact_import"),
 ]

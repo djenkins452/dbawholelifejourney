@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-03-02 — iOS native contact import ("Import from Phone")
+
+**What:** Added the ability to import a single contact from the iOS native contact picker into WLJ. User taps "Import from Phone" → iOS contact picker opens → user picks one contact → name/phone/email are sent to the backend → Person is created (or existing match returned). No bulk import, no sync, no background access. Fully intentional, one contact at a time.
+
+**Changes:**
+- `apps/mobile/views.py` — Added `contact_import` endpoint (`POST /api/mobile/contacts/import/`) with JSON payload (first_name, last_name, phone, email). Case-insensitive deduplication. Returns created or existing Person.
+- `apps/mobile/urls.py` — Added route for `contacts/import/`.
+- `apps/mobile/tests/test_views.py` — Added `ContactImportTests` suite (11 tests): create, dedup, case-insensitive dedup, first-name-only, validation, auth, user isolation, optional fields.
+- `ios/WLJWrapper/WLJWrapper/Services/ContactImportManager.swift` — New file: `ContactPickerView` (UIViewControllerRepresentable wrapping CNContactPickerViewController) and `PickedContact` struct.
+- `ios/WLJWrapper/WLJWrapper/Services/APIClient.swift` — Added `importContact()` method and `ContactImportRequest`/`ContactImportResponse`/`ImportedPerson` types.
+- `ios/WLJWrapper/WLJWrapper/Views/ContactImportView.swift` — New SwiftUI view with picker trigger, progress, success/error states, and "Done" flow.
+- `apps/core/fixtures/release_notes.json` — Added PK 122 release note.
+- `apps/core/management/commands/load_initial_data.py` — Added fixture reset for PK 122.
+
+**Why:** Users shouldn't have to re-type contact info they already have in their phone. The native picker eliminates double data entry while keeping WLJ's intentional relationship model intact.
+
+---
+
 ## 2026-03-02 — Require confirmation before any task deletion
 
 **What:** CoS now ALWAYS asks for confirmation before deleting any task. No automatic deletes. The flow is: user says "delete X" → CoS shows what will be deleted and asks "are you sure?" → user confirms → task is deleted. This works through three layers: (1) the intent schema has a `delete_confirmed` parameter, (2) the action handler returns a confirmation prompt if `delete_confirmed` is not set, (3) the safety engine allows confirmed follow-ups through.

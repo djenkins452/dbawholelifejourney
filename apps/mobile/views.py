@@ -6,6 +6,7 @@ Endpoints for iOS app integration:
 - Token revocation
 - Health data ingestion
 - Sync status
+- Contact import (from iOS contact picker)
 
 All endpoints return JSON responses.
 
@@ -2635,3 +2636,129 @@ def push_unregister(request):
     )
 
     return JsonResponse({"status": "unregistered"})
+
+
+# =============================================================================
+# CONTACT IMPORT — iOS Contact Picker Integration
+# =============================================================================
+
+
+@csrf_exempt
+@require_mobile_auth
+@require_http_methods(["POST"])
+def contact_import(request):
+    """
+    Import a single contact from the iOS native contact picker.
+
+    This is NOT a sync or bulk import — the user selects one contact at a time
+    from CNContactPickerViewController. The iOS app extracts name/phone/email
+    and sends it here.
+
+    Deduplicates by case-insensitive first_name + last_name. If a match exists,
+    returns the existing Person instead of creating a duplicate.
+
+    POST /api/mobile/contacts/import/
+    Body: {
+        "first_name": "Heather",
+        "last_name": "Jenkins",
+        "phone": "555-123-4567",
+        "email": "heather@email.com"
+    }
+
+    Response (201 created):
+    {
+        "status": "created",
+        "person": { "id": 42, "first_name": "Heather", ... }
+    }
+
+    Response (200 existing):
+    {
+        "status": "existing",
+        "person": { "id": 42, "first_name": "Heather", ... }
+    }
+    """
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse(
+            {"error": "Invalid JSON body"},
+            status=400,
+        )
+
+    first_name = (data.get("first_name") or "").strip()
+    last_name = (data.get("last_name") or "").strip()
+    phone = (data.get("phone") or "").strip() or None
+    email = (data.get("email") or "").strip() or None
+
+    if not first_name:
+        return JsonResponse(
+            {"error": "first_name is required"},
+            status=400,
+        )
+
+    # Email validation
+    if email:
+        from django.core.validators import validate_email
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            validate_email(email)
+        except DjangoValidationError:
+            return JsonResponse(
+                {"error": "Invalid email address"},
+                status=400,
+            )
+
+    from apps.relationships.models import Person
+
+    # Check for existing contact (case-insensitive dedup)
+    existing = Person.objects.filter(
+        owner=request.user,
+        first_name__iexact=first_name,
+        last_name__iexact=last_name,
+    ).first()
+
+    if existing:
+        logger.info(
+            f"Contact import: existing match for "
+            f"'{first_name} {last_name}' (person_id={existing.id}), "
+            f"user={hash_pii(request.user.email, 'user')}"
+        )
+        return JsonResponse({
+            "status": "existing",
+            "person": _serialize_person(existing),
+        }, status=200)
+
+    # Create new Person
+    person = Person.objects.create(
+        owner=request.user,
+        first_name=first_name,
+        last_name=last_name,
+        phone=phone,
+        email=email,
+        relationship_type="other",  # User enriches after import
+    )
+
+    logger.info(
+        f"Contact imported: '{person.get_display_name()}' "
+        f"(person_id={person.id}), "
+        f"user={hash_pii(request.user.email, 'user')}"
+    )
+
+    return JsonResponse({
+        "status": "created",
+        "person": _serialize_person(person),
+    }, status=201)
+
+
+def _serialize_person(person):
+    """Serialize a Person to a JSON-safe dict for mobile API responses."""
+    return {
+        "id": person.id,
+        "first_name": person.first_name,
+        "last_name": person.last_name,
+        "display_name": person.get_display_name(),
+        "email": person.email or "",
+        "phone": person.phone or "",
+        "relationship_type": person.relationship_type,
+        "notes": person.notes,
+    }

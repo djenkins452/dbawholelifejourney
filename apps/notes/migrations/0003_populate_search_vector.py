@@ -5,6 +5,10 @@ from django.db import migrations
 
 def populate_search_vectors(apps, schema_editor):
     """Populate search_vector for all existing Note records."""
+    # SearchVector requires PostgreSQL — skip on SQLite (CI test database)
+    if schema_editor.connection.vendor != "postgresql":
+        return
+
     from django.contrib.postgres.search import SearchVector
 
     Note = apps.get_model("notes", "Note")

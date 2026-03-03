@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Fix notes data migrations failing on SQLite (CI)
+
+**What:** CI test suite fails during database creation: `no such function: to_tsvector` in notes migrations 0003 and 0005.
+**Root cause:** Data migrations use `SearchVector` (PostgreSQL `to_tsvector`) unconditionally. CI runs SQLite, which doesn't have this function.
+**Fix:** Added `schema_editor.connection.vendor != "postgresql"` early-return guard to both `populate_search_vectors` (0003) and `backfill_tags_and_attachments_text` (0005).
+**Files:** `apps/notes/migrations/0003_populate_search_vector.py`, `apps/notes/migrations/0005_backfill_tags_text_attachments_text_search_vector.py`
+
+---
+
 ## 2026-03-03 — Fix API logging TypeError on None cache returns
 
 **What:** Production error: `API logging failed: '>' not supported between instances of 'NoneType' and 'int'`

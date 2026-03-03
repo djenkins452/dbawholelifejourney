@@ -11,6 +11,10 @@ def backfill_tags_and_attachments_text(apps, schema_editor):
     Backfill tags_text and attachments_text for all existing notes,
     then recompute search_vector to include the new fields.
     """
+    # SearchVector requires PostgreSQL — skip on SQLite (CI test database)
+    if schema_editor.connection.vendor != "postgresql":
+        return
+
     Note = apps.get_model("notes", "Note")
     NoteAttachment = apps.get_model("notes", "NoteAttachment")
     ContentType = apps.get_model("contenttypes", "ContentType")

@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Fix People list floating action bar hidden behind mobile tab bar
+
+**What:** The People list checkboxes worked but the floating action bar (with Group, Journal, Pray buttons) was invisible on mobile because it sat behind the bottom tab bar. Both had `z-index: 100` and `position: fixed; bottom: 0`. Users could check boxes but never saw the action buttons.
+
+**Changes:**
+- `templates/relationships/person_list.html` — Bumped action bar z-index to 101, added mobile-only bottom padding (`calc(var(--space-3) + 70px + env(safe-area-inset-bottom))`) to clear the tab bar, set `pointer-events: none` on outer bar with `pointer-events: all` on inner content so clicks pass through to tab bar below, enlarged checkbox touch target to 44x44px (Apple HIG minimum).
+
+**Why:** Users reported checkboxes "just exist" with no way to act on selections — the action bar was rendering but hidden underneath the tab bar on mobile.
+
+---
+
 ## 2026-03-03 — Add proactive schedule awareness to CoS conversations
 
 **What:** CoS had schedule/calendar data in its system prompt (events tagged [SOON], [NOW], [MISSED]) but never proactively mentioned upcoming or missed items during active conversations. User expected "your workout starts in 7 minutes" or "your 5:15 prayer time passed" but got nothing.

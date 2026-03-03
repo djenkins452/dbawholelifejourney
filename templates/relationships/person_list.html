@@ -194,18 +194,18 @@
     box-shadow: 0 0 0 1px var(--color-accent);
 }
 
-/* Checkbox tucked in top-left corner */
+/* Checkbox tucked in top-left corner — 44x44 touch target */
 .pl-card-check {
     position: absolute;
-    top: var(--space-3);
-    left: var(--space-3);
+    top: 0;
+    left: 0;
     z-index: 2;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 44px;
+    height: 44px;
 }
 .pl-checkbox {
     width: 18px;
@@ -221,7 +221,7 @@
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-4);
-    padding-left: calc(var(--space-3) + 28px);
+    padding-left: 48px;
     text-decoration: none;
     color: inherit;
     min-height: 80px;
@@ -297,13 +297,13 @@
     font-style: italic;
 }
 
-/* Floating action bar */
+/* Floating action bar — sits above the bottom tab bar */
 .pl-action-bar {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 100;
+    z-index: 101;
     padding: var(--space-3) var(--space-4);
     transform: translateY(100%);
     transition: transform 0.2s ease;
@@ -311,6 +311,8 @@
 }
 .pl-action-bar.visible {
     transform: translateY(0);
+}
+.pl-action-bar-inner {
     pointer-events: all;
 }
 .pl-action-bar-inner {
@@ -383,6 +385,12 @@
 }
 
 /* Responsive */
+@media (max-width: 768px) {
+    /* Position action bar above the bottom tab bar on mobile */
+    .pl-action-bar {
+        padding-bottom: calc(var(--space-3) + 70px + env(safe-area-inset-bottom, 0px));
+    }
+}
 @media (max-width: 480px) {
     .pl-grid {
         grid-template-columns: 1fr;

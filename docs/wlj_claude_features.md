@@ -3046,7 +3046,7 @@ The Time Command Center (TCC) is the user's daily schedule hub. It provides mult
 
 ### Features
 - **Multiple views:** Today timeline, 3-Day, Week, Agenda, and full Month grid
-- **Month view:** Full calendar grid with color-coded domain chips, event popovers, month navigation
+- **Month view:** Full calendar grid with color-coded domain chips, event popovers, month navigation, and "Add Task" button (returns to same month after creation)
 - **Life balance bar:** Visual breakdown of time allocation across life domains (health, faith, work, family, etc.)
 - **Smart gap detection:** AI identifies unused time blocks and suggests activities
 - **NLP quick add:** Natural language event creation ("Pickleball tomorrow at 6pm" → creates event titled "Pickleball")

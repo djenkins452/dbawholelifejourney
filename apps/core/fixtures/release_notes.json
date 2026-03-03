@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 121,
+    "fields": {
+      "title": "Calendar: Add Task Button & Time Display Fixes",
+      "description": "The Month view now has an \"Add Task\" button that takes you to the task form and brings you right back to the same month when you're done. We also fixed calendar event times that could display 1 hour off, and eliminated duplicate events that appeared when a recurring event overlapped with a manual entry.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-02",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/calendar/month/",
+      "created_at": "2026-03-02T23:00:00Z",
+      "updated_at": "2026-03-02T23:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 120,
     "fields": {
       "title": "Contact Import from Phone",

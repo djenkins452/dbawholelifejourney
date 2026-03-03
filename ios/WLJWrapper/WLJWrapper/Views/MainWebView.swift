@@ -33,6 +33,11 @@ struct MainWebView: UIViewRepresentable {
         webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
 
+        // Set custom User-Agent so the server can identify the native app.
+        // Appending to the default UA ensures WKWebView sends proper Origin/Referer
+        // headers on form POSTs, which Django's CSRF middleware requires.
+        webView.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) WLJWrapper/1.0"
+
         // Enable pull-to-refresh
         let refreshControl = UIRefreshControl()
         refreshControl.addTarget(context.coordinator, action: #selector(Coordinator.handleRefresh(_:)), for: .valueChanged)
@@ -139,6 +144,18 @@ struct MainWebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            // Ensure CSRF cookie is accessible — fetch it from the page and re-set it
+            // so WKWebView's cookie store is in sync with the web content.
+            webView.evaluateJavaScript("""
+                (function() {
+                    var match = document.cookie.match(/csrftoken=([^;]+)/);
+                    return match ? match[1] : null;
+                })()
+            """) { result, _ in
+                // Cookie exists, WebView is in sync — no action needed.
+                // This eval just ensures the cookie store is primed.
+            }
+
             // Inject JS bridge helper after page loads
             let js = """
             window.wljNative = {

@@ -9,20 +9,14 @@
 
 # WLJ Change History
 
-## 2026-03-03 — Add dynamic keystroke search to all list pages
+## 2026-03-03 — Improve CoS emotional/relational awareness
 
-**What:** Five list pages had static search requiring a button click or Enter key. Added dynamic search (600ms debounce, auto-submit on keystroke) using the existing `dynamic-search.js` reusable script. Now all search inputs across the app behave consistently — results filter as the user types.
+**What:** When a user expressed vulnerability ("I just can't understand it the way it's written") and gratitude ("You helped a lot"), CoS re-explained the scripture instead of acknowledging the feeling. The reasoning steps and response rules didn't account for emotional/relational messages.
 
 **Changes:**
-- `templates/relationships/person_list.html` — Added `data-dynamic-search` to form, `data-auto-submit` to type select, `data-no-mention` to search input, removed Filter button, removed manual type auto-submit JS, included `dynamic-search.js`.
-- `templates/life/recipe_list.html` — Added `data-dynamic-search` to search form, `data-no-mention` to input, included `dynamic-search.js`.
-- `templates/life/inventory_list.html` — Added `data-dynamic-search` to search form, `data-no-mention` to input, included `dynamic-search.js`.
-- `templates/life/maintenance_list.html` — Added `data-dynamic-search` to search form, `data-no-mention` to input, included `dynamic-search.js`.
-- `templates/life/document_list.html` — Added `data-dynamic-search` to search form, `data-no-mention` to input, included `dynamic-search.js`.
+- `apps/ai/personal_assistant.py` — Updated reasoning instruction (both fast and full paths) to add step 2: "Is the user sharing a feeling, expressing gratitude, or being vulnerable? If YES — respond to the EMOTION first. Do NOT re-explain." Updated response rules to explicitly say "don't re-explain what you just told them" when user is expressing gratitude or vulnerability.
 
-**Why:** Search should be dynamic on every page — type and see results instantly, not click a button. The pattern was already in use on 5 other pages; these 5 were missed.
-
----
+**Why:** CoS treated every message containing a scripture keyword as a question about scripture, even when the user was simply reflecting on how the explanation made them feel.
 
 ## 2026-03-03 — Fix fast-path streaming missing ALL page context
 

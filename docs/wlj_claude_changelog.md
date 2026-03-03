@@ -9,6 +9,39 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Refresh page context on input focus instead of every send
+
+**What:** Moved page context refresh from `sendMessage()` to the input `focus` event. When the user clicks/taps the text box, `getPageContext()` runs — capturing fresh DOM state (expanded scriptures, etc.) at the moment the user intends to type, rather than on every message send.
+
+**Changes:**
+- `templates/components/chat_widget.html` — Added `getPageContext()` call in the input `focus` listener. Reverted `sendMessage()` to use cached context (with null fallback).
+
+**Why:** More efficient — DOM traversal happens once when the user engages, not on every send. Context is already captured by the time they hit enter.
+
+## 2026-03-03 — Fix CoS not using scripture context on reading plan pages (v2)
+
+**What:** CoS repeatedly asked "Please share the specific scripture" when the user was on a reading plan page with Matthew 16:1-28 visible. The root cause was that scripture context was only in the system prompt (easily ignored by the AI in a long prompt). Fixed with a three-layer approach.
+
+**Changes:**
+- `templates/components/chat_widget.html` — Always refresh `getPageContext()` on every message send (not just on drawer open).
+- `apps/ai/personal_assistant.py` — User prompt injection, server-side database lookup, pre-loaded scripture text, token limit boost, strengthened system prompt fallback.
+
+## 2026-03-02 — iOS native contact import ("Import from Phone")
+
+**What:** Added the ability to import a single contact from the iOS native contact picker into WLJ. User taps "Import from Phone" -> iOS contact picker opens -> user picks one contact -> name/phone/email are sent to the backend -> Person is created (or existing match returned).
+
+**Changes:**
+- `apps/mobile/views.py` — Added `contact_import` endpoint (`POST /api/mobile/contacts/import/`).
+- `apps/mobile/urls.py` — Added route for `contacts/import/`.
+- `apps/mobile/tests/test_views.py` — Added `ContactImportTests` suite (11 tests).
+- `ios/WLJWrapper/WLJWrapper/Services/ContactImportManager.swift` — New file.
+- `ios/WLJWrapper/WLJWrapper/Services/APIClient.swift` — Added `importContact()` method.
+- `ios/WLJWrapper/WLJWrapper/Views/ContactImportView.swift` — New SwiftUI view.
+- `apps/core/fixtures/release_notes.json` — Added PK 123 release note.
+- `apps/core/management/commands/load_initial_data.py` — Added fixture reset for PK 123.
+
+---
+
 ## 2026-03-03 — Redesign People list and Group detail pages with tile cards
 
 **What:** Replaced flat list-style entry cards on the All People and Group Detail pages with visually rich tile cards. Each person now displays a colored avatar circle with initials (color-coded by relationship type: spouse=pink, family=purple, friend=blue, etc.), the person's name, relationship type, interaction count, and last contact time. Group detail gets a proper header card with group icon, description, and member grid. Both pages are fully responsive.

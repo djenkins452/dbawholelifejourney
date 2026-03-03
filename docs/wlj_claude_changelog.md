@@ -9,45 +9,13 @@
 
 # WLJ Change History
 
-## 2026-03-03 — Refresh page context on input focus instead of every send
+## 2026-03-03 — Redesign People list and Group detail pages with tile cards
 
-**What:** Moved page context refresh from `sendMessage()` to the input `focus` event. When the user clicks/taps the text box, `getPageContext()` runs — capturing fresh DOM state (expanded scriptures, etc.) at the moment the user intends to type, rather than on every message send.
-
-**Changes:**
-- `templates/components/chat_widget.html` — Added `getPageContext()` call in the input `focus` listener. Reverted `sendMessage()` to use cached context (with null fallback).
-
-**Why:** More efficient — DOM traversal happens once when the user engages, not on every send. Context is already captured by the time they hit enter.
-
-## 2026-03-03 — Fix CoS not using scripture context on reading plan pages (v2)
-
-**What:** CoS repeatedly asked "Please share the specific scripture" when the user was on a reading plan page with Matthew 16:1-28 visible. The root cause was that scripture context was only in the system prompt (easily ignored by the AI in a long prompt). Fixed with a three-layer approach:
+**What:** Replaced flat list-style entry cards on the All People and Group Detail pages with visually rich tile cards. Each person now displays a colored avatar circle with initials (color-coded by relationship type: spouse=pink, family=purple, friend=blue, etc.), the person's name, relationship type, interaction count, and last contact time. Group detail gets a proper header card with group icon, description, and member grid. Both pages are fully responsive.
 
 **Changes:**
-- `templates/components/chat_widget.html` — Always refresh `getPageContext()` on every message send (not just on drawer open).
-- `apps/ai/personal_assistant.py` — Three fixes:
-  1. **User prompt injection** (most impactful): Scripture references are now injected directly into the user prompt (e.g., `[SCRIPTURE CONTEXT: reading Matthew 16:1-28]`) right next to the user's message. This is impossible for the AI to miss, unlike system prompt instructions buried among 20+ other sections.
-  2. **Server-side database lookup**: If JavaScript fails to capture scripture references from the DOM, the backend looks up the `UserReadingPlan` and `ReadingPlanDay` from the database using the URL. No JS dependency.
-  3. **Pre-loaded scripture text**: If `ReadingPlanDay.scripture_content` has pre-loaded text, it's included in the prompt so the AI can give verse-by-verse breakdowns.
-  4. **Token limit boost**: Scripture breakdown requests ("break it down", "explain", "understand") get 1200 tokens minimum.
-  5. **Strengthened system prompt fallback**: Changed from passive "use your knowledge" to emphatic "CRITICAL/NEVER" language.
-
-**Why:** The AI was ignoring scripture context buried deep in a massive system prompt. Injecting it into the user prompt where it's adjacent to the actual question makes it unmissable.
-
-## 2026-03-02 — iOS native contact import ("Import from Phone")
-
-**What:** Added the ability to import a single contact from the iOS native contact picker into WLJ. User taps "Import from Phone" -> iOS contact picker opens -> user picks one contact -> name/phone/email are sent to the backend -> Person is created (or existing match returned). No bulk import, no sync, no background access. Fully intentional, one contact at a time.
-
-**Changes:**
-- `apps/mobile/views.py` — Added `contact_import` endpoint (`POST /api/mobile/contacts/import/`) with JSON payload (first_name, last_name, phone, email). Case-insensitive deduplication. Returns created or existing Person.
-- `apps/mobile/urls.py` — Added route for `contacts/import/`.
-- `apps/mobile/tests/test_views.py` — Added `ContactImportTests` suite (11 tests): create, dedup, case-insensitive dedup, first-name-only, validation, auth, user isolation, optional fields.
-- `ios/WLJWrapper/WLJWrapper/Services/ContactImportManager.swift` — New file: `ContactPickerView` (UIViewControllerRepresentable wrapping CNContactPickerViewController) and `PickedContact` struct.
-- `ios/WLJWrapper/WLJWrapper/Services/APIClient.swift` — Added `importContact()` method and `ContactImportRequest`/`ContactImportResponse`/`ImportedPerson` types.
-- `ios/WLJWrapper/WLJWrapper/Views/ContactImportView.swift` — New SwiftUI view with picker trigger, progress, success/error states, and "Done" flow.
-- `apps/core/fixtures/release_notes.json` — Added PK 123 release note.
-- `apps/core/management/commands/load_initial_data.py` — Added fixture reset for PK 123.
-
-**Why:** Users shouldn't have to re-type contact info they already have in their phone. The native picker eliminates double data entry while keeping WLJ's intentional relationship model intact.
+- `templates/relationships/person_list.html` — Rewritten with tile grid (`.pl-grid`), avatar initials (`.pl-card-avatar`), stats column, and `data-no-mention` on search input. All existing functionality preserved (multi-select, floating action bar, group creation modal).
+- `templates/relationships/group_detail.html` — Rewritten with header card (group icon, name, description, actions), member tile grid (`.gd-members-grid`), avatar initials, last contact metadata. Delete confirmation preserved.
 
 ---
 

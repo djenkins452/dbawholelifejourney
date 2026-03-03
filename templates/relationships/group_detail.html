@@ -14,57 +14,227 @@
         <span>{{ group.name }}</span>
     </nav>
 
-    <div class="page-header">
-        <div>
-            <h1 class="page-title">{{ group.name }}</h1>
-            <p class="page-subtitle">{{ group.member_count }} member{{ group.member_count|pluralize }}</p>
+    <!-- Group Header Card -->
+    <div class="gd-header-card">
+        <div class="gd-header-top">
+            <div class="gd-header-icon">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+            </div>
+            <div class="gd-header-info">
+                <h1 class="gd-header-name">{{ group.name }}</h1>
+                <p class="gd-header-count">{{ group.member_count }} member{{ group.member_count|pluralize }}</p>
+            </div>
+            <div class="gd-header-actions">
+                <a href="{% url 'relationships:group_update' group.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+                <form method="post" action="{% url 'relationships:group_delete' group.pk %}" class="inline-form" data-confirm-delete>
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+            </div>
         </div>
-        <div class="header-actions">
-            <a href="{% url 'relationships:group_update' group.pk %}" class="btn btn-secondary btn-sm">Edit</a>
-            <form method="post" action="{% url 'relationships:group_delete' group.pk %}" class="inline-form" data-confirm-delete>
-                {% csrf_token %}
-                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-            </form>
-        </div>
+        {% if group.description %}
+        <p class="gd-header-desc">{{ group.description }}</p>
+        {% endif %}
     </div>
 
-    {% if group.description %}
-    <p class="text-muted mb-4">{{ group.description }}</p>
-    {% endif %}
-
     {% if group.members.all %}
-    <section class="grp-detail-section">
+    <section class="gd-members-section">
         <h2 class="section-title mb-4">Members</h2>
-        <div class="entry-list">
+        <div class="gd-members-grid">
             {% for person in group.members.all %}
-            <article class="entry-card">
-                <a href="{% url 'relationships:person_detail' person.pk %}" class="entry-link">
-                    <div class="entry-header">
-                        <h2 class="entry-title">{{ person.get_display_name }}</h2>
-                        <span class="badge badge-muted">{{ person.get_relationship_type_display }}</span>
-                    </div>
-                    <div class="entry-meta">
-                        {% if person.last_interaction_date %}
-                        <span class="text-muted text-sm">
-                            Last interaction: {{ person.last_interaction_date|date:"M j, Y" }}
-                        </span>
-                        {% else %}
-                        <span class="text-muted text-sm">No interactions yet</span>
-                        {% endif %}
-                    </div>
-                </a>
-            </article>
+            <a href="{% url 'relationships:person_detail' person.pk %}" class="gd-member-card">
+                <div class="gd-avatar gd-avatar-{{ person.relationship_type|default:'other' }}">
+                    {{ person.first_name|make_list|first|default:"?" }}{{ person.last_name|make_list|first|default:"" }}
+                </div>
+                <div class="gd-member-info">
+                    <h3 class="gd-member-name">{{ person.get_display_name }}</h3>
+                    <span class="gd-member-type">{{ person.get_relationship_type_display }}</span>
+                </div>
+                <div class="gd-member-meta">
+                    {% if person.last_interaction_date %}
+                    <span class="gd-meta-label">Last contact</span>
+                    <span class="gd-meta-value">{{ person.last_interaction_date|timesince }} ago</span>
+                    {% else %}
+                    <span class="gd-meta-label">No interactions yet</span>
+                    {% endif %}
+                </div>
+            </a>
             {% endfor %}
         </div>
     </section>
     {% else %}
     <div class="empty-state">
+        <div class="empty-state-icon">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+            </svg>
+        </div>
         <h2 class="empty-state-title">No members yet</h2>
-        <p class="empty-state-text">Add members to this group to start using it for bulk actions.</p>
+        <p class="empty-state-text">Add members to this group to start using it for @mentions and bulk actions.</p>
         <a href="{% url 'relationships:group_update' group.pk %}" class="btn btn-primary">Add Members</a>
     </div>
     {% endif %}
 </div>
+
+<style nonce="{{ csp_nonce }}">
+/* Group header card */
+.gd-header-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5) var(--space-6);
+    margin-bottom: var(--space-6);
+}
+.gd-header-top {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+.gd-header-icon {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    color: var(--color-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.gd-header-info {
+    flex: 1;
+    min-width: 0;
+}
+.gd-header-name {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-text);
+    margin: 0;
+}
+.gd-header-count {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: var(--space-1) 0 0 0;
+}
+.gd-header-actions {
+    flex-shrink: 0;
+    display: flex;
+    gap: var(--space-2);
+}
+.gd-header-desc {
+    margin: var(--space-4) 0 0 0;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    line-height: 1.5;
+}
+
+/* Members grid */
+.gd-members-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-4);
+}
+.gd-member-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+.gd-member-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-accent);
+}
+
+/* Avatar circle with initials */
+.gd-avatar {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.gd-avatar-spouse   { background: #e91e63; }
+.gd-avatar-family   { background: #7c3aed; }
+.gd-avatar-friend   { background: #2563eb; }
+.gd-avatar-coworker { background: #0891b2; }
+.gd-avatar-church   { background: #059669; }
+.gd-avatar-mentor   { background: #d97706; }
+.gd-avatar-other    { background: #6b7280; }
+
+.gd-member-info {
+    flex: 1;
+    min-width: 0;
+}
+.gd-member-name {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.gd-member-type {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: capitalize;
+}
+
+.gd-member-meta {
+    flex-shrink: 0;
+    text-align: right;
+}
+.gd-meta-label {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+.gd-meta-value {
+    display: block;
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .gd-header-top {
+        flex-wrap: wrap;
+    }
+    .gd-header-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+    .gd-members-grid {
+        grid-template-columns: 1fr;
+    }
+    .gd-member-meta {
+        display: none;
+    }
+}
+</style>
 
 <script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {

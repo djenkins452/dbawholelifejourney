@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Add Recipes tab to Meals subnav
+
+**What:** Added a "Recipes" tab to the Meals top navigation bar between Meal Plan and Receipts.
+**Files:** `templates/meals/partials/_subnav.html`
+
+---
+
 ## 2026-03-03 — Bulk Recipe Photo Import
 
 **What:** New feature allowing upload of up to 50 recipe photos at once, with background Celery processing through Vision AI. Photos are uploaded, saved to storage, then each is processed asynchronously. A review page with live progress polling lets the user review extracted recipes and confirm individually or all at once.

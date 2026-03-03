@@ -374,5 +374,10 @@
     {% include "components/chat_widget.html" %}
     {% endif %}
 
+    <!-- Global @mention autocomplete (all text fields) -->
+    {% if user.is_authenticated %}
+    {% include "components/_global_mention_autocomplete.html" %}
+    {% endif %}
+
 </body>
 </html>

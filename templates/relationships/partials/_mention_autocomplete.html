@@ -1,22 +1,12 @@
 {% comment %}
-Reusable @mention autocomplete component.
+DEPRECATED — Use the global autocomplete instead.
 
-Usage:
+The global component (components/_global_mention_autocomplete.html) is included
+once in base.html and auto-attaches to ALL textareas and chat inputs.
+This per-field partial is no longer needed.
+
+Original usage:
     {% include "relationships/partials/_mention_autocomplete.html" with target_field_id="id_body" %}
-
-Parameters:
-    - target_field_id: The ID of the textarea to attach autocomplete to
-
-Behavior:
-    - Type "@" to trigger autocomplete dropdown
-    - Keyboard navigation (up/down arrows, Enter to select, Escape to close)
-    - Click to select
-    - Create new person inline if not found
-    - AJAX lookup via /relationships/autocomplete/
-
-Requirements:
-    - Must be inside a {% block content %} with access to {{ csp_nonce }}
-    - Target textarea must exist in the DOM
 {% endcomment %}
 
 <div class="mention-autocomplete" id="mention-ac-{{ target_field_id }}" style="display:none;">

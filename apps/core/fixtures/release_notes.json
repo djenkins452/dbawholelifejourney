@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 122,
+    "fields": {
+      "title": "@Mention Autocomplete Everywhere",
+      "description": "Type @ in any text field across the app \u2014 journal entries, tasks, prayers, goals, reflections, chat, and more \u2014 and a dropdown instantly suggests matching contacts and groups. Select with keyboard or click, and quickly create new contacts inline if someone isn't in your list yet.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-02",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/relationships/",
+      "created_at": "2026-03-03T02:00:00Z",
+      "updated_at": "2026-03-03T02:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 121,
     "fields": {
       "title": "Calendar: Add Task Button & Time Display Fixes",

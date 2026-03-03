@@ -1,28 +1,28 @@
 // ContactImportView.swift
 // Whole Life Journey iOS App
 //
-// "Import from Phone" flow. Opens the native iOS contact picker,
-// sends the selected contact to the WLJ backend, then shows the result.
-// One contact at a time — intentional, not sync.
+// "Import from Phone" flow. Opens the native iOS contact picker with
+// multi-select support. Imports each selected contact to the WLJ backend
+// sequentially, showing progress and a summary when done.
 
 import SwiftUI
 
 struct ContactImportView: View {
     @State private var showPicker = false
-    @State private var pickedContact: PickedContact?
-    @State private var importResult: ContactImportResponse?
+    @State private var pickedContacts: [PickedContact] = []
+    @State private var importResults: [ImportResultItem] = []
     @State private var errorMessage: String?
     @State private var isImporting = false
+    @State private var importProgress: (current: Int, total: Int) = (0, 0)
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationView {
             VStack(spacing: 24) {
-                if let result = importResult {
-                    importSuccessView(result)
+                if !importResults.isEmpty && !isImporting {
+                    importSummaryView
                 } else if isImporting {
-                    ProgressView("Importing contact...")
-                        .padding()
+                    importProgressView
                 } else if let error = errorMessage {
                     errorView(error)
                 } else {
@@ -30,7 +30,7 @@ struct ContactImportView: View {
                 }
             }
             .padding()
-            .navigationTitle("Import Contact")
+            .navigationTitle("Import Contacts")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -38,11 +38,11 @@ struct ContactImportView: View {
                 }
             }
             .sheet(isPresented: $showPicker) {
-                ContactPickerView(pickedContact: $pickedContact, onCancel: { showPicker = false })
+                ContactPickerView(pickedContacts: $pickedContacts, onCancel: { showPicker = false })
             }
-            .onChange(of: pickedContact) { _, contact in
-                if let contact = contact {
-                    Task { await importContact(contact) }
+            .onChange(of: pickedContacts) { _, contacts in
+                if !contacts.isEmpty {
+                    Task { await importContacts(contacts) }
                 }
             }
         }
@@ -59,13 +59,13 @@ struct ContactImportView: View {
             Text("Import from Phone")
                 .font(.title2.bold())
 
-            Text("Select a contact from your phone to add them to Whole Life Journey. You can set their relationship type and add notes after import.")
+            Text("Select one or more contacts from your phone to add them to Whole Life Journey. You can set their relationship type and add notes after import.")
                 .font(.body)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
 
             Button(action: { showPicker = true }) {
-                Label("Choose Contact", systemImage: "person.crop.circle")
+                Label("Choose Contacts", systemImage: "person.2.crop.square.stack")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding()
@@ -77,46 +77,108 @@ struct ContactImportView: View {
         }
     }
 
-    private func importSuccessView(_ result: ContactImportResponse) -> some View {
+    private var importProgressView: some View {
         VStack(spacing: 16) {
-            Image(systemName: result.status == "created" ? "checkmark.circle.fill" : "person.fill.checkmark")
+            ProgressView(value: Double(importProgress.current), total: Double(importProgress.total))
+                .progressViewStyle(.linear)
+                .padding(.horizontal)
+
+            Text("Importing \(importProgress.current) of \(importProgress.total)...")
+                .font(.headline)
+                .foregroundColor(.secondary)
+
+            if let latest = importResults.last {
+                Text(latest.name)
+                    .font(.body)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private var importSummaryView: some View {
+        VStack(spacing: 16) {
+            let created = importResults.filter { $0.status == .created }.count
+            let existing = importResults.filter { $0.status == .existing }.count
+            let failed = importResults.filter { $0.status == .failed }.count
+
+            Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 64))
                 .foregroundColor(.green)
 
-            Text(result.status == "created" ? "Contact Added" : "Already in WLJ")
+            Text("Import Complete")
                 .font(.title2.bold())
 
-            Text(result.person.displayName)
-                .font(.title3)
-
-            if !result.person.phone.isEmpty {
-                Label(result.person.phone, systemImage: "phone")
-                    .foregroundColor(.secondary)
+            // Summary counts
+            VStack(spacing: 8) {
+                if created > 0 {
+                    Label("\(created) added", systemImage: "plus.circle.fill")
+                        .foregroundColor(.green)
+                }
+                if existing > 0 {
+                    Label("\(existing) already in WLJ", systemImage: "person.fill.checkmark")
+                        .foregroundColor(.blue)
+                }
+                if failed > 0 {
+                    Label("\(failed) failed", systemImage: "exclamationmark.circle.fill")
+                        .foregroundColor(.red)
+                }
             }
-            if !result.person.email.isEmpty {
-                Label(result.person.email, systemImage: "envelope")
-                    .foregroundColor(.secondary)
-            }
+            .font(.body)
 
-            if result.status == "created" {
-                Text("You can now set their relationship type and add notes from the Relationships page.")
-                    .font(.callout)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 4)
+            // Contact list
+            ScrollView {
+                VStack(spacing: 8) {
+                    ForEach(importResults) { item in
+                        HStack {
+                            Image(systemName: item.status.icon)
+                                .foregroundColor(item.status.color)
+                            Text(item.name)
+                                .font(.body)
+                            Spacer()
+                            Text(item.status.label)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color(.secondarySystemBackground))
+                        .cornerRadius(8)
+                    }
+                }
             }
+            .frame(maxHeight: 200)
 
-            Button("Done") {
+            // Action buttons
+            VStack(spacing: 12) {
+                Button(action: {
+                    // Reset for another round
+                    importResults = []
+                    pickedContacts = []
+                    showPicker = true
+                }) {
+                    Label("Import More", systemImage: "plus")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color(.secondarySystemBackground))
+                        .foregroundColor(.accentColor)
+                        .cornerRadius(12)
+                }
+
+                Button(action: {
                     NotificationCenter.default.post(name: .contactImported, object: nil)
                     dismiss()
+                }) {
+                    Text("Done")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.accentColor)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
                 }
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundColor(.white)
-                .cornerRadius(12)
-                .padding(.top, 8)
+            }
+            .padding(.top, 8)
         }
     }
 
@@ -149,17 +211,63 @@ struct ContactImportView: View {
 
     // MARK: - Import Logic
 
-    private func importContact(_ contact: PickedContact) async {
+    private func importContacts(_ contacts: [PickedContact]) async {
         isImporting = true
         errorMessage = nil
+        importResults = []
+        importProgress = (0, contacts.count)
 
-        do {
-            let result = try await APIClient.shared.importContact(contact)
-            importResult = result
-        } catch {
-            errorMessage = error.localizedDescription
+        for (index, contact) in contacts.enumerated() {
+            importProgress = (index + 1, contacts.count)
+            let name = [contact.firstName, contact.lastName].filter { !$0.isEmpty }.joined(separator: " ")
+
+            do {
+                let result = try await APIClient.shared.importContact(contact)
+                let status: ImportStatus = result.status == "created" ? .created : .existing
+                importResults.append(ImportResultItem(name: result.person.displayName, status: status))
+            } catch {
+                importResults.append(ImportResultItem(name: name.isEmpty ? "Unknown" : name, status: .failed))
+            }
         }
 
         isImporting = false
+    }
+}
+
+// MARK: - Supporting Types
+
+struct ImportResultItem: Identifiable {
+    let id = UUID()
+    let name: String
+    let status: ImportStatus
+}
+
+enum ImportStatus {
+    case created
+    case existing
+    case failed
+
+    var icon: String {
+        switch self {
+        case .created: return "plus.circle.fill"
+        case .existing: return "person.fill.checkmark"
+        case .failed: return "xmark.circle.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .created: return .green
+        case .existing: return .blue
+        case .failed: return .red
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .created: return "Added"
+        case .existing: return "Exists"
+        case .failed: return "Failed"
+        }
     }
 }

@@ -19,6 +19,13 @@
             <p class="page-subtitle">{{ people.paginator.count|default:"0" }} contact{{ people.paginator.count|pluralize }}</p>
         </div>
         <div class="header-actions">
+            <button type="button" id="import-phone-btn" class="btn btn-secondary btn-sm"
+                    style="display: none;">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12" y2="18.01"/>
+                </svg>
+                Phone
+            </button>
             <a href="{% url 'relationships:contact_import' %}" class="btn btn-secondary btn-sm">Import</a>
             <a href="{% url 'relationships:group_list' %}" class="btn btn-secondary btn-sm">Groups</a>
             <a href="{% url 'relationships:person_create' %}" class="btn btn-primary btn-sm">+ Add Person</a>
@@ -618,5 +625,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// Show "Import from Phone" button in native iOS app
+(function() {
+    if (window.wljNative && window.wljNative.isNativeApp) {
+        var phoneBtn = document.getElementById('import-phone-btn');
+        if (phoneBtn) {
+            phoneBtn.style.display = '';
+            phoneBtn.addEventListener('click', function() {
+                if (window.wljNative.importContact) {
+                    window.wljNative.importContact();
+                }
+            });
+        }
+    }
+})();
 </script>
 {% endblock %}

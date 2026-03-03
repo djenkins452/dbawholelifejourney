@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Multi-select contact import from iOS phone contacts
+
+**What:** Importing phone contacts was tedious — pick one, confirm, get redirected, navigate back, repeat. Now the iOS contact picker supports multi-select: pick all the contacts you want, tap Done, and they all import with a progress bar and summary. Added "Import More" button on the summary screen and a "Phone" button on the People list header (iOS only) so you don't have to go through Add Person.
+
+**Changes:**
+- `ios/.../ContactImportManager.swift` — Switched from `didSelect contact:` (single) to `didSelect contacts:` (multi-select), binding changed from `PickedContact?` to `[PickedContact]`.
+- `ios/.../ContactImportView.swift` — Rewritten for batch import: progress bar ("Importing 3 of 5..."), summary screen with added/existing/failed counts, scrollable result list, "Import More" button to pick again without dismissing.
+- `templates/relationships/person_list.html` — Added "Phone" import button in header actions (hidden by default, shown via JS when `window.wljNative.isNativeApp` is true).
+
+**Why:** Importing multiple contacts one at a time required ~6 taps per contact. Now it's: tap Phone → select all → Done.
+
+---
+
 ## 2026-03-03 — Mobile bottom nav: reduce to 5 tabs for better touch targets
 
 **What:** The mobile bottom navigation had 6 items (Home + 4 modules + More), making tabs too cramped on small screens. The More button near the right edge was nearly untappable on some devices.

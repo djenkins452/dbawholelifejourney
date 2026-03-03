@@ -7,6 +7,8 @@ Selects and adapts the tone/style of CoS interactions based on:
 3. Time of day (early morning → gentle, midday → energized)
 4. Response style preference (concise/balanced/strategic/deep_dive)
 5. User's base coaching style (from UserPreferences)
+6. Adaptive coaching mode: SUPPORTIVE / ANALYTICAL / CHALLENGER
+   selected based on domain, emotional tone, and trend direction.
 
 Does NOT replace the user's chosen CoachingStyle. Instead, it layers
 context-specific tone modifiers on top for CoS-generated prompts.
@@ -15,6 +17,7 @@ Design:
 - Tone = mood/emotion of the message (encouraging, gentle, direct, etc.)
 - Response style = verbosity/depth (from cos_response_style pref)
 - Coaching style = base personality (from ai_coaching_style pref)
+- Coaching mode = adaptive mode selected per-interaction (SUPPORTIVE/ANALYTICAL/CHALLENGER)
 """
 
 import datetime as dt
@@ -141,6 +144,80 @@ RESPONSE_STYLE_INSTRUCTIONS = {
 SENTIMENT_TONE_OVERRIDE = {
     "negative_streak": "empathetic",
     "positive_streak": "celebratory",
+}
+
+# ──────────────────────────────────────────────────────────
+# Adaptive Coaching Modes (Part 4 — Proactive Intelligence)
+# ──────────────────────────────────────────────────────────
+
+COACHING_MODES = {
+    "supportive": {
+        "label": "Supportive",
+        "instruction": (
+            "COACHING MODE: SUPPORTIVE. "
+            "The user is under strain or showing signs of discouragement. "
+            "Be warm. Validate effort. Suggest micro-adjustments, not overhauls. "
+            "Frame setbacks as recoverable. Focus on what they did right."
+        ),
+    },
+    "analytical": {
+        "label": "Analytical",
+        "instruction": (
+            "COACHING MODE: ANALYTICAL. "
+            "The user is reviewing data or asking about progress. "
+            "Be precise and data-driven. Show trends with specific numbers. "
+            "Compare periods. Highlight signal over noise. "
+            "Let the data speak — no motivational filler."
+        ),
+    },
+    "challenger": {
+        "label": "Challenger",
+        "instruction": (
+            "COACHING MODE: CHALLENGER. "
+            "A drift pattern has been detected or long-term identity is at risk. "
+            "Be direct. Name the pattern. Clarify the consequence if it continues. "
+            "Offer a concrete reset action for today. "
+            "Do not soften the message — clarity is kindness here."
+        ),
+    },
+}
+
+# Domain detection keywords for coaching mode selection
+DOMAIN_KEYWORDS = {
+    "health": [
+        "weight", "workout", "exercise", "medication", "meds", "sleep",
+        "fasting", "nutrition", "calories", "steps", "heart rate", "bp",
+        "blood pressure", "glucose", "fitness",
+    ],
+    "finance": [
+        "budget", "spending", "savings", "money", "income", "expenses",
+        "financial", "bills", "debt",
+    ],
+    "faith": [
+        "prayer", "bible", "scripture", "church", "faith", "devotional",
+        "spiritual", "fasting",
+    ],
+    "relationships": [
+        "relationship", "family", "friend", "partner", "spouse",
+        "connection", "social", "lonely",
+    ],
+    "productivity": [
+        "task", "goal", "habit", "project", "deadline", "schedule",
+        "calendar", "priority", "focus",
+    ],
+}
+
+# Emotional tone keywords
+EMOTIONAL_TONE_KEYWORDS = {
+    "discouraged": [
+        "struggling", "frustrated", "failing", "can't", "giving up",
+        "hopeless", "overwhelmed", "tired", "exhausted", "behind",
+        "slipping", "disappointed", "hard time",
+    ],
+    "confident": [
+        "great", "amazing", "crushing it", "on track", "proud",
+        "consistent", "motivated", "excited", "strong", "progress",
+    ],
 }
 
 
@@ -337,6 +414,131 @@ class CosToneService:
         instruction = self.get_tone_instruction(tone)
         return tone, instruction
 
+    # ── Adaptive Coaching Mode Selection ──────────────────
+
+    def select_coaching_mode(
+        self,
+        user_message="",
+        cos_context=None,
+    ):
+        """
+        Select the adaptive coaching mode based on domain, emotional tone,
+        and trend direction.
+
+        Priority:
+        1. If drift/consistency patterns detected → CHALLENGER
+        2. If user emotional tone is discouraged → SUPPORTIVE
+        3. If reviewing data or neutral tone → ANALYTICAL
+        4. Default → ANALYTICAL
+
+        Args:
+            user_message: The user's current message text.
+            cos_context: The full CoS context dict (from build_cos_context).
+
+        Returns:
+            str — coaching mode key ("supportive", "analytical", "challenger")
+        """
+        cos_context = cos_context or {}
+        msg_lower = (user_message or "").lower()
+
+        # 1. Check for drift/consistency patterns → CHALLENGER
+        drift_score = cos_context.get("drift_score", 0)
+        if drift_score >= 30:
+            return "challenger"
+
+        # Check active patterns for warnings
+        insights = cos_context.get("active_insights", [])
+        for insight in insights:
+            severity = insight.get("severity", "")
+            if severity in ("warning", "critical"):
+                pattern_type = insight.get("pattern_type", "")
+                if pattern_type in (
+                    "negative_streak", "consistency_drop",
+                    "activity_gap", "fatigue",
+                ):
+                    return "challenger"
+
+        # Check medication adherence
+        med = cos_context.get("medication_adherence_state", {})
+        adherence_pct = med.get("adherence_pct")
+        if adherence_pct is not None and adherence_pct < 70:
+            return "challenger"
+
+        # 2. Check emotional tone from message → SUPPORTIVE
+        for keyword in EMOTIONAL_TONE_KEYWORDS.get("discouraged", []):
+            if keyword in msg_lower:
+                return "supportive"
+
+        # Check mood trend from context
+        mood = cos_context.get("mood_status", {})
+        mood_trend = mood.get("trend", "stable")
+        if mood_trend in ("declining", "decreasing"):
+            return "supportive"
+
+        # Check sentiment context
+        sentiment_ctx = self.get_sentiment_context(days=7)
+        if sentiment_ctx and sentiment_ctx.get("recent_sentiment") == "negative":
+            if sentiment_ctx.get("streak_days", 0) >= 2:
+                return "supportive"
+
+        # 3. Check for confident/data-review tone → ANALYTICAL
+        for keyword in EMOTIONAL_TONE_KEYWORDS.get("confident", []):
+            if keyword in msg_lower:
+                return "analytical"
+
+        # Default to ANALYTICAL (data-driven)
+        return "analytical"
+
+    def get_coaching_mode_instruction(self, mode_key):
+        """
+        Get the instruction text for a coaching mode.
+
+        Returns empty string for unknown modes.
+        """
+        mode_def = COACHING_MODES.get(mode_key)
+        if not mode_def:
+            return ""
+        return mode_def.get("instruction", "")
+
+    def build_coaching_mode_injection(
+        self,
+        user_message="",
+        cos_context=None,
+    ):
+        """
+        Build the coaching mode injection string for the system prompt.
+
+        Detects the appropriate coaching mode and returns the instruction
+        text ready for injection into the LLM system prompt.
+
+        Returns:
+            str — coaching mode instruction, or "" if no mode selected.
+        """
+        mode = self.select_coaching_mode(
+            user_message=user_message,
+            cos_context=cos_context,
+        )
+        instruction = self.get_coaching_mode_instruction(mode)
+        return instruction
+
+    def detect_domain(self, user_message=""):
+        """
+        Detect the primary domain from the user's message.
+
+        Returns:
+            str — domain key (health, finance, faith, relationships,
+                  productivity) or "general".
+        """
+        msg_lower = (user_message or "").lower()
+        scores = {}
+        for domain, keywords in DOMAIN_KEYWORDS.items():
+            score = sum(1 for kw in keywords if kw in msg_lower)
+            if score > 0:
+                scores[domain] = score
+        if scores:
+            return max(scores, key=scores.get)
+        return "general"
+
     # ── Available Tones (for UI/API) ───────────────────────
 
     @staticmethod
@@ -352,3 +554,11 @@ class CosToneService:
     def get_activity_tone_defaults():
         """Return the default tone mapping for all activity types."""
         return dict(ACTIVITY_TONE_MAP)
+
+    @staticmethod
+    def get_available_coaching_modes():
+        """Return list of available coaching modes with labels."""
+        return [
+            {"key": key, "label": mode["label"]}
+            for key, mode in COACHING_MODES.items()
+        ]

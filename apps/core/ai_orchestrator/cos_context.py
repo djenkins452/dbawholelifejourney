@@ -1081,6 +1081,120 @@ def build_cos_context(user):
     return context
 
 
+def _build_daily_scan_brief(context):
+    """
+    Build a structured daily scan brief for proactive intelligence.
+
+    Summarizes the user's day in 4 categories:
+    1. Completed — what's been done today
+    2. Outstanding — what's overdue or not started
+    3. Time-sensitive — what's coming in the next 4-6 hours
+    4. Risk flags — patterns, drift, missed items
+
+    Returns:
+        str — formatted brief, or "" if insufficient data.
+    """
+    brief_lines = ["--- DAILY SCAN BRIEF ---"]
+    has_content = False
+
+    # 1. COMPLETED today
+    completed_items = []
+    blocks = context.get('today_blocks_summary', [])
+    for b in blocks:
+        if b.get('completed'):
+            completed_items.append(b['title'])
+    cal_events = context.get('calendar_events_today', [])
+    for ev in cal_events:
+        if ev.get('time_status') == 'past' and not ev.get('is_overdue'):
+            completed_items.append(ev['title'])
+
+    # Medication taken
+    med = context.get('medication_adherence_state', {})
+    taken = med.get('taken_today', 0)
+    total_sched = med.get('total_scheduled', 0)
+    if taken > 0:
+        completed_items.append(f"Medications: {taken}/{total_sched} taken")
+
+    if completed_items:
+        brief_lines.append(f"COMPLETED: {', '.join(completed_items[:6])}")
+        has_content = True
+
+    # 2. OUTSTANDING (overdue or not started)
+    outstanding_items = []
+    for b in blocks:
+        if not b.get('completed') and not b.get('locked'):
+            outstanding_items.append(b['title'])
+    for ev in cal_events:
+        if ev.get('is_overdue'):
+            outstanding_items.append(f"{ev['title']} [OVERDUE]")
+
+    # Missed medication doses
+    if total_sched > 0 and taken < total_sched:
+        missed = total_sched - taken
+        outstanding_items.append(f"Medications: {missed} dose(s) not yet taken")
+
+    # Overdue goals
+    loops = context.get('open_loops', {})
+    overdue_goals = loops.get('overdue_goals', 0)
+    if overdue_goals:
+        outstanding_items.append(f"{overdue_goals} overdue goal(s)")
+
+    if outstanding_items:
+        brief_lines.append(f"OUTSTANDING: {', '.join(outstanding_items[:6])}")
+        has_content = True
+
+    # 3. TIME-SENSITIVE (upcoming in next 4-6 hours)
+    time_sensitive = []
+    for ev in cal_events:
+        if ev.get('time_status') in ('upcoming_soon', 'in_progress'):
+            tag = "[NOW]" if ev['time_status'] == 'in_progress' else "[SOON]"
+            time_sensitive.append(f"{ev['title']} {tag}")
+    for b in blocks:
+        if not b.get('completed') and b.get('locked'):
+            time_sensitive.append(f"{b['title']} [LOCKED]")
+
+    # Approaching deadlines
+    deadline = context.get('deadline_snapshot', {})
+    if deadline.get('due_today'):
+        time_sensitive.append(f"{deadline['due_today']} deadline(s) today")
+
+    if time_sensitive:
+        brief_lines.append(f"TIME-SENSITIVE: {', '.join(time_sensitive[:5])}")
+        has_content = True
+
+    # 4. RISK FLAGS
+    risk_flags = []
+    drift = context.get('drift_score', 0)
+    if drift >= 30:
+        risk_flags.append(f"Drift score: {drift}/100")
+
+    # Active warning/critical insights
+    insights = context.get('active_insights', [])
+    for i in insights:
+        if i.get('severity') in ('warning', 'critical'):
+            risk_flags.append(i.get('title', i.get('message', '')))
+
+    # Mood trend
+    mood = context.get('mood_status', {})
+    if mood.get('trend') in ('declining', 'decreasing'):
+        risk_flags.append("Mood trend: declining")
+
+    # Medication adherence risk
+    adherence_pct = med.get('adherence_pct')
+    if adherence_pct is not None and adherence_pct < 70:
+        risk_flags.append(f"Medication adherence: {adherence_pct}%")
+
+    if risk_flags:
+        brief_lines.append(f"RISK FLAGS: {', '.join(risk_flags[:5])}")
+        has_content = True
+
+    if not has_content:
+        return ""
+
+    brief_lines.append("--- END SCAN BRIEF ---")
+    return '\n'.join(brief_lines)
+
+
 def format_cos_system_injection(context):
     """
     Format the CoS context as a system prompt injection string.
@@ -1134,6 +1248,27 @@ def format_cos_system_injection(context):
             lines.append("")
     except Exception:
         pass
+
+    # ── DAILY SCAN BRIEF (structured summary for proactive intelligence) ──
+    scan_brief = _build_daily_scan_brief(context)
+    if scan_brief:
+        lines.append(scan_brief)
+        lines.append("")
+
+    # ── COACHING MODE (adaptive mode for this interaction) ──
+    _cos_user = context.get('_user')
+    if _cos_user:
+        try:
+            from apps.cos.services.tone_service import CosToneService
+            _tone_svc = CosToneService(_cos_user)
+            _coaching_instruction = _tone_svc.build_coaching_mode_injection(
+                cos_context=context,
+            )
+            if _coaching_instruction:
+                lines.append(_coaching_instruction)
+                lines.append("")
+        except Exception:
+            pass
 
     # What matters to this person (compact)
     bp = context.get('blueprint_state', {})
@@ -1606,6 +1741,23 @@ def format_cos_system_injection(context):
             if ia.get('tags'):
                 tags_str = " " + " ".join(f"#{t}" for t in ia['tags'][:3])
             lines.append(f"  - [{ia['source']}] {ia['summary']}{tags_str}")
+
+    # Consistency protection alerts (immediate intervention patterns)
+    _cp_user = context.get('_user')
+    if _cp_user:
+        try:
+            from apps.cos.services.pattern_service import CosPatternService
+            _cp_svc = CosPatternService(_cp_user)
+            _cp_violations = _cp_svc.detect_consistency_violations(days=14)
+            if _cp_violations:
+                _cp_block = _cp_svc.format_consistency_violations_for_injection(
+                    _cp_violations
+                )
+                if _cp_block:
+                    lines.append("")
+                    lines.append(_cp_block)
+        except Exception:
+            pass  # Consistency protection must never break CoS
 
     lines.append("")
     lines.append("=== END SITUATIONAL AWARENESS ===")

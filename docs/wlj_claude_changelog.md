@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Fix multi-image in production template (assistant_panel.html)
+
+**What:** The initial multi-image changes were made to `chat_widget.html` but production uses `assistant_panel.html` (with `ap-` prefixed IDs). Applied identical multi-image changes to the production template and CSS.
+
+**Files:** `templates/components/assistant_panel.html`, `static/css/assistant-panel.css`
+
+---
+
 ## 2026-03-03 — Multi-image support for CoS chat (up to 5 images per message)
 
 **What:** Users could only attach 1 image per CoS message, making it impossible to share multiple screenshots (e.g., InBody health charts) for combined analysis. Also, referring to a previous image in a follow-up message resulted in "I'm unable to view images" because images aren't re-sent in conversation history.

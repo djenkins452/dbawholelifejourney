@@ -3558,6 +3558,7 @@ The help app provides a three-tier assistance system: context-aware "?" button h
 - **Search** — Full-text search across titles, descriptions, and content
 - **Related topics** — Cross-references between help topics
 - **Fallback mechanism** — Missing specific context falls back to module home (e.g., `HEALTH_HEART_RATE` → `HEALTH_HOME`)
+- **Fixture file fallback** — If a topic isn't in the database yet, the API reads directly from `help_topics.json` on disk (cached in worker memory). Eliminates fixture loader timing dependency
 
 ### Key Models
 | Model | Purpose |

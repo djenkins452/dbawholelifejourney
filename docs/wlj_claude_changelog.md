@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-03 — /close doc audit: add release note + features doc update for help system
+
+- **What:** Added release note PK 124 for context-aware help enhancement. Updated features doc with fixture file fallback description. Added fixture loader reset for release_notes.
+- **Files:** `apps/core/fixtures/release_notes.json` (PK 124), `docs/wlj_claude_features.md`, `apps/core/management/commands/load_initial_data.py`
+
+---
+
 ## 2026-03-03 — Add fixture file fallback for help topic API
 
 - **What:** Added a direct fixture file fallback to `HelpTopicAPIView`. When a help topic isn't found in the database, the API now reads directly from the `help_topics.json` fixture file and serves the content.

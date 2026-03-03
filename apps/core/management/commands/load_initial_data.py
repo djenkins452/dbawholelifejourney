@@ -890,6 +890,9 @@ class Command(BaseCommand):
         # One-time: Reset help_topics + teaching_destinations for context-aware help system review
         self._reset_context_aware_help_system_review(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for context-aware help release note (PK 124)
+        self._reset_help_system_release_note(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5065,3 +5068,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset context-aware help system review FAILED: {e}'))
+
+    def _reset_help_system_release_note(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 124) for context-aware help
+        system enhancement release note.
+        """
+        reset_tracker_name = 'reset_help_system_release_note_2026_03_03'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes loader for context-aware help release note')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for context-aware help release note',
+                'command',
+                'One-time reset to reload release_notes PK 124'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset help system release note FAILED: {e}'))

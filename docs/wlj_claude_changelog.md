@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Increase More button inset from screen edge
+
+**What:** More button in bottom nav still too close to right edge for reliable tapping.
+**Changes:** `static/css/main.css` — Increased `.bottom-tab:last-child` right padding from `space-3` (12px) to `space-6` (24px).
+
+---
+
 ## 2026-03-03 — Multi-select contact import from iOS phone contacts
 
 **What:** Importing phone contacts was tedious — pick one, confirm, get redirected, navigate back, repeat. Now the iOS contact picker supports multi-select: pick all the contacts you want, tap Done, and they all import with a progress bar and summary. Added "Import More" button on the summary screen and a "Phone" button on the People list header (iOS only) so you don't have to go through Add Person.

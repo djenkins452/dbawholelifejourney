@@ -905,6 +905,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes + help_topics for tile card redesign + @mention help (PK 128)
         self._reset_tile_card_mention_help_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Select All + batch contact import (PK 129, 130)
+        self._reset_select_all_batch_import_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5233,3 +5236,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset tile card + mention help fixtures FAILED: {e}'))
+
+    def _reset_select_all_batch_import_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 129, 130) for People list
+        Select All + bulk actions and batch multi-select contact import.
+        """
+        reset_tracker_name = 'reset_select_all_batch_import_2026_03_03'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes loader for Select All + batch import')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Select All + batch contact import',
+                'command',
+                'One-time reset to reload release_notes PK 129, 130'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset select all + batch import fixtures FAILED: {e}'))

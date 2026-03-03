@@ -164,7 +164,7 @@
     "pk": 118,
     "fields": {
       "title": "Smarter Task Matching & Time Range Support",
-      "description": "Your Chief of Staff is now much better at finding the right task when names overlap. Saying 'complete Workout' now correctly targets the task titled 'Workout' instead of also matching 'Post-Workout Stretch'. When multiple tasks match, you can pick by number or name, and your selection is resolved instantly without re-searching. You can also now schedule tasks with time ranges — saying 'add a task at 5pm to 6pm' captures both the start and end time.",
+      "description": "Your Chief of Staff is now much better at finding the right task when names overlap. Saying 'complete Workout' now correctly targets the task titled 'Workout' instead of also matching 'Post-Workout Stretch'. When multiple tasks match, you can pick by number or name, and your selection is resolved instantly without re-searching. You can also now schedule tasks with time ranges \u2014 saying 'add a task at 5pm to 6pm' captures both the start and end time.",
       "entry_type": "improvement",
       "version": "",
       "release_date": "2026-03-02",
@@ -179,8 +179,8 @@
     "model": "core.releasenote",
     "pk": 117,
     "fields": {
-      "title": "Recipe Photo Import — Scan Recipes with Your Camera",
-      "description": "Take a photo of any recipe — from a cookbook, recipe card, magazine, or handwritten note — and AI will extract the title, ingredients, instructions, cooking times, and more. Review and edit the extracted data before saving. The original photo is stored alongside your recipe for reference.",
+      "title": "Recipe Photo Import \u2014 Scan Recipes with Your Camera",
+      "description": "Take a photo of any recipe \u2014 from a cookbook, recipe card, magazine, or handwritten note \u2014 and AI will extract the title, ingredients, instructions, cooking times, and more. Review and edit the extracted data before saving. The original photo is stored alongside your recipe for reference.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-02",
@@ -195,8 +195,8 @@
     "model": "core.releasenote",
     "pk": 116,
     "fields": {
-      "title": "Meal Intelligence — Setup Mode Now Shows What's Coming",
-      "description": "The Meal Intelligence setup experience now gives you a preview of the system's full power before you activate it. The setup dashboard shows a 'Kitchen Intelligence Initialization' hero with six capability tags (blood sugar protection, protein alignment, waste reduction, calendar awareness, grocery efficiency, family scaling), three locked preview cards showing exactly what activates next (optimized dinner score, expiration alert, grocery stats), and a 'Why This Matters' side panel. The setup wizard now opens with a preamble — 'You're 3 minutes away from activating a household optimization engine' — and each step uses capability-unlock language so you know what you're building toward.",
+      "title": "Meal Intelligence \u2014 Setup Mode Now Shows What's Coming",
+      "description": "The Meal Intelligence setup experience now gives you a preview of the system's full power before you activate it. The setup dashboard shows a 'Kitchen Intelligence Initialization' hero with six capability tags (blood sugar protection, protein alignment, waste reduction, calendar awareness, grocery efficiency, family scaling), three locked preview cards showing exactly what activates next (optimized dinner score, expiration alert, grocery stats), and a 'Why This Matters' side panel. The setup wizard now opens with a preamble \u2014 'You're 3 minutes away from activating a household optimization engine' \u2014 and each step uses capability-unlock language so you know what you're building toward.",
       "entry_type": "enhancement",
       "version": "",
       "release_date": "2026-03-02",
@@ -212,7 +212,7 @@
     "pk": 115,
     "fields": {
       "title": "Relationship Insights Dashboard",
-      "description": "See how healthy your relational connections are at a glance. A new Insights page under People shows your Relational Health score (0–100), highlights people needing attention, reveals context balance across Journal, Tasks, Events, and Prayer, and identifies your relational anchors. A compact summary card on your Dashboard keeps the key numbers visible without leaving home.",
+      "description": "See how healthy your relational connections are at a glance. A new Insights page under People shows your Relational Health score (0\u2013100), highlights people needing attention, reveals context balance across Journal, Tasks, Events, and Prayer, and identifies your relational anchors. A compact summary card on your Dashboard keeps the key numbers visible without leaving home.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-02",
@@ -228,7 +228,7 @@
     "pk": 114,
     "fields": {
       "title": "People & Relationship Intelligence",
-      "description": "A new People section lets you track the important relationships in your life. Add contacts, see interaction history across Journal, Tasks, Prayer, and Events, and use @mentions to tag people in your entries. Your Chief of Staff now has relationship awareness — it knows who matters most and when you last connected.",
+      "description": "A new People section lets you track the important relationships in your life. Add contacts, see interaction history across Journal, Tasks, Prayer, and Events, and use @mentions to tag people in your entries. Your Chief of Staff now has relationship awareness \u2014 it knows who matters most and when you last connected.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-02",
@@ -243,7 +243,7 @@
     "model": "core.releasenote",
     "pk": 113,
     "fields": {
-      "title": "Pantry Photo Intelligence — Scan Your Kitchen with AI",
+      "title": "Pantry Photo Intelligence \u2014 Scan Your Kitchen with AI",
       "description": "Take photos of your fridge, pantry shelf, or freezer and let AI detect the food items inside. Each scan creates a session where you review and confirm detected items before they're added to your pantry. Track session history with confidence scores and monitor pantry freshness over time.",
       "entry_type": "feature",
       "version": "",
@@ -259,7 +259,7 @@
     "model": "core.releasenote",
     "pk": 112,
     "fields": {
-      "title": "Meal Intelligence — Your Kitchen Command Center",
+      "title": "Meal Intelligence \u2014 Your Kitchen Command Center",
       "description": "A complete Meal Intelligence pillar is now live. Get personalized dinner suggestions scored against your pantry, nutrition goals, and dietary needs. Track your pantry inventory with confidence scoring, plan weekly meals with a calendar view, upload grocery receipts to auto-update your pantry, and explore recipes with nutrition breakdowns, gap analysis, and substitution suggestions. Access it all from the new Meals entry in the sidebar.",
       "entry_type": "feature",
       "version": "",
@@ -276,7 +276,7 @@
     "pk": 111,
     "fields": {
       "title": "Dynamic Search Across All Pages",
-      "description": "Search boxes throughout the app now auto-search as you type. After a brief pause, results update automatically — no need to press Enter or click Search. This applies to Tasks, Journal, Audio Capture, Admin Task List, and Notes. Focus stays in the search box after results load so you can keep refining your query.",
+      "description": "Search boxes throughout the app now auto-search as you type. After a brief pause, results update automatically \u2014 no need to press Enter or click Search. This applies to Tasks, Journal, Audio Capture, Admin Task List, and Notes. Focus stays in the search box after results load so you can keep refining your query.",
       "entry_type": "improvement",
       "version": "",
       "release_date": "2026-03-01",
@@ -307,8 +307,8 @@
     "model": "core.releasenote",
     "pk": 109,
     "fields": {
-      "title": "AI Vision Analysis — Every Image Gets a Deep Look",
-      "description": "Upload an image anywhere in WLJ and the AI will comprehensively analyze it — identifying objects, reading text, describing the scene, and extracting actionable insights. Works in AI chat, camera scan, notes (new image upload!), inventory photos, and more. Your Chief of Staff now has visual context from recent images, so it can reference what you've scanned or photographed when giving advice.",
+      "title": "AI Vision Analysis \u2014 Every Image Gets a Deep Look",
+      "description": "Upload an image anywhere in WLJ and the AI will comprehensively analyze it \u2014 identifying objects, reading text, describing the scene, and extracting actionable insights. Works in AI chat, camera scan, notes (new image upload!), inventory photos, and more. Your Chief of Staff now has visual context from recent images, so it can reference what you've scanned or photographed when giving advice.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-01",
@@ -323,7 +323,7 @@
     "model": "core.releasenote",
     "pk": 108,
     "fields": {
-      "title": "Notes — Your Personal Memory Layer",
+      "title": "Notes \u2014 Your Personal Memory Layer",
       "description": "A new Notes module is now available for capturing thoughts, ideas, and reference notes. Notes support color coding, pinning, tagging, full-text search with highlighted results, and semantic search powered by AI. Attach notes to any entity (tasks, goals, journal entries) and find them instantly with intelligent ranking.",
       "entry_type": "feature",
       "release_date": "2026-03-01",
@@ -2037,6 +2037,38 @@
       "release_date": "2026-02-28",
       "is_published": true,
       "learn_more_url": ""
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 129,
+    "fields": {
+      "title": "People List: Select All & Bulk Actions",
+      "description": "Select multiple contacts with checkboxes and take action on them all at once. Use the new Select All checkbox to pick everyone on the page, or check individual contacts. A floating action bar appears with options to create a journal entry, add a prayer, or create a group from your selection.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/relationships/",
+      "created_at": "2026-03-03T18:00:00Z",
+      "updated_at": "2026-03-03T18:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 130,
+    "fields": {
+      "title": "Batch Import: Pick Multiple Phone Contacts at Once",
+      "description": "No more importing contacts one at a time. The iOS contact picker now supports multi-select \u2014 tap all the contacts you want, press Done, and they all import with a progress bar. A summary shows how many were added, already existed, or failed. Tap Import More to grab another batch without leaving the screen.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/relationships/",
+      "created_at": "2026-03-03T18:00:00Z",
+      "updated_at": "2026-03-03T18:00:00Z"
     }
   }
 ]

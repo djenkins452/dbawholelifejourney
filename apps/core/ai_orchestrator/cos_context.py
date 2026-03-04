@@ -1300,6 +1300,15 @@ def format_cos_system_injection(context):
         "Saying 'I don't have that' is ALWAYS better than making something up."
     )
     lines.append("")
+    lines.append(
+        "LINK & LIST FORMATTING: When listing tasks, events, or items, ALWAYS "
+        "use a consistent bulleted list with markdown. When referencing an app "
+        "page, use a markdown link with the RELATIVE path from the APP NAVIGATION "
+        "section below — e.g., [view your tasks](/life/tasks/). "
+        "NEVER invent URLs. NEVER use absolute URLs with a domain. "
+        "If there is no matching page in APP NAVIGATION, do not include a link."
+    )
+    lines.append("")
 
     # Language rules (what terms to avoid)
     try:
@@ -1735,7 +1744,10 @@ def format_cos_system_injection(context):
     if pages:
         lines.append("")
         lines.append(
-            "APP NAVIGATION (use these URLs when directing the user to a page):"
+            "APP NAVIGATION — This app is https://wholelifejourney.com. "
+            "When directing the user to a page, use markdown links with these "
+            "RELATIVE paths (not absolute URLs). Example: [Tasks](/life/tasks/) "
+            "NEVER invent URLs — only use paths listed here:"
         )
         for p in pages:
             lines.append(f"  - [{p['name']}]({p['url']})")

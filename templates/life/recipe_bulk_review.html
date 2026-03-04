@@ -412,6 +412,15 @@
                 if (data.status === 'extracted') {
                     processedSoFar++;
                     updateCardStatus(photoId, 'extracted', data);
+
+                    // Handle extra recipes from same photo (multi-recipe images)
+                    if (data.extra_recipes && data.extra_recipes.length > 0) {
+                        totalPhotos = data.total_photos;
+                        data.extra_recipes.forEach(function(extra) {
+                            processedSoFar++;
+                            addExtraRecipeCard(extra, photoId);
+                        });
+                    }
                 } else {
                     failedSoFar++;
                     updateCardStatus(photoId, 'failed', data);
@@ -430,6 +439,37 @@
         }
 
         processNext();
+    }
+
+    function addExtraRecipeCard(extra, sourcePhotoId) {
+        // Clone the source photo's image for the new card
+        var sourceCard = document.querySelector('[data-photo-id="' + sourcePhotoId + '"]');
+        var imgSrc = '';
+        if (sourceCard) {
+            var img = sourceCard.querySelector('.bulk-photo-image img');
+            if (img) imgSrc = img.getAttribute('src');
+        }
+
+        var confVal = extra.confidence || 0;
+        var confClass = 'medium';
+        if (confVal >= 0.8) confClass = 'high';
+        else if (confVal < 0.5) confClass = 'low';
+
+        var html =
+            '<div class="bulk-photo-card" data-photo-id="' + extra.photo_id + '" data-status="extracted">' +
+            '  <div class="bulk-photo-image">' +
+            (imgSrc ? '    <img src="' + escapeHtml(imgSrc) + '" alt="" loading="lazy">' : '') +
+            '    <div class="bulk-photo-status-badge status-extracted">Extracted</div>' +
+            '  </div>' +
+            '  <div class="bulk-photo-info">' +
+            '    <h3 class="bulk-photo-title">' + escapeHtml(extra.title || 'Untitled') + '</h3>' +
+            (confVal ? '<div class="bulk-photo-confidence"><span class="confidence-label">Confidence: </span><span class="confidence-value ' + confClass + '">' + Math.round(confVal * 100) + '%</span></div>' : '') +
+            '    <div class="bulk-photo-actions"><button type="button" class="btn btn-primary btn-sm confirm-single-btn" data-photo-id="' + extra.photo_id + '">Confirm</button></div>' +
+            '  </div>' +
+            '</div>';
+
+        var grid = document.getElementById('photo-grid');
+        grid.insertAdjacentHTML('beforeend', html);
     }
 
     function finishProcessing() {

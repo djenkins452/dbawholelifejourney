@@ -113,21 +113,47 @@ def process_bulk_recipe_import(self, session_id):
                     raw_bytes, content_type
                 )
 
-                if "error" in result:
+                # Service returns list of recipes or dict with error
+                if isinstance(result, dict) and "error" in result:
                     photo.photo_status = 'failed'
                     photo.error_message = result["error"]
                     photo.save(update_fields=[
                         'photo_status', 'error_message', 'updated_at',
                     ])
                     error_count += 1
-                else:
+                elif isinstance(result, list) and len(result) > 0:
+                    # First recipe on this photo
                     photo.photo_status = 'extracted'
-                    photo.extracted_data = result
-                    photo.confidence = result.get('confidence', 0.5)
+                    photo.extracted_data = result[0]
+                    photo.confidence = result[0].get('confidence', 0.5)
                     photo.save(update_fields=[
                         'photo_status', 'extracted_data', 'confidence', 'updated_at',
                     ])
                     processed_count += 1
+
+                    # Additional recipes → create new photo entries
+                    from apps.life.models import RecipeBulkImportPhoto
+                    for extra in result[1:]:
+                        RecipeBulkImportPhoto.objects.create(
+                            user=session.user,
+                            session=session,
+                            image=photo.image,
+                            image_url=photo.image_url,
+                            original_filename=photo.original_filename,
+                            photo_status='extracted',
+                            extracted_data=extra,
+                            confidence=extra.get('confidence', 0.5),
+                        )
+                        processed_count += 1
+                    if len(result) > 1:
+                        session.total_photos = session.photos.count()
+                else:
+                    photo.photo_status = 'failed'
+                    photo.error_message = 'No recipes found in image'
+                    photo.save(update_fields=[
+                        'photo_status', 'error_message', 'updated_at',
+                    ])
+                    error_count += 1
 
             except Exception as e:
                 logger.error(

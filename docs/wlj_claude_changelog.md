@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Fix email_medicine_list empty email fallback
+
+**What:** When user says "email me my medicines" without specifying an address, OpenAI was forced to send a `recipient_email` value (it was required). It sent empty string or placeholder text like `<user's email>`, which failed validation instead of falling back to the user's account email. Fixed by: (1) making `recipient_email` optional in the schema, (2) removing `<user's email>` placeholder from system prompt examples so OpenAI omits the param, (3) hardening the handler to catch placeholder patterns (strings starting with `<` or `{`).
+**Files:** `apps/ai/intents/medicine_intents.py`, `apps/ai/intent_service.py`, `apps/ai/action_handlers.py`
+
+---
+
 ## 2026-03-03 — Add email_medicine_list intent to CoS
 
 **What:** CoS couldn't email medicine lists when asked. Added a new `email_medicine_list` intent so users can say things like "email me my list of medicines" or "send my medication list to dannyjenkins71@gmail.com". The email includes each medicine's name, dose, purpose, schedule, prescribing doctor, pharmacy, instructions, and 30-day per-medicine adherence stats plus an overall adherence summary with personalized feedback.

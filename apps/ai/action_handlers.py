@@ -1771,7 +1771,8 @@ class ActionHandler:
         try:
             # Resolve email — fall back to user's own email
             email_addr = (recipient_email or "").strip()
-            if not email_addr:
+            # Catch placeholder text from LLM (e.g., "<user's email>")
+            if not email_addr or email_addr.startswith("<") or email_addr.startswith("{"):
                 email_addr = self.user.email
 
             try:

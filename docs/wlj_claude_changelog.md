@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Switch bulk recipe import from Celery to browser-driven AJAX processing
+
+**What:** Celery worker couldn't process recipes because Railway worker service env vars (OPENAI_API_KEY, CLOUDINARY) weren't taking effect. Replaced the Celery-based processing with browser-driven sequential AJAX. The review page JS now calls a new `RecipeBulkProcessOneView` endpoint for each photo, processing in the web process where all env vars are available. Each photo updates in real-time as it completes.
+**Files:** `apps/life/views.py` (new `RecipeBulkProcessOneView`, removed Celery dispatch), `apps/life/urls.py` (new route), `templates/life/recipe_bulk_review.html` (rewritten JS)
+
+---
+
 ## 2026-03-04 — Improve Vision API error messaging for missing env vars
 
 **What:** Bulk recipe import failed with "Vision API client not available" on Celery worker because `OPENAI_API_KEY` env var was missing on the Railway worker service. Improved error logging to explicitly state the missing config and point to the Railway services fix.

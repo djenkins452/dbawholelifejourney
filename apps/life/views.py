@@ -1410,9 +1410,9 @@ class RecipeBulkUploadProcessView(LifeAccessMixin, View):
         session.import_status = 'processing'
         session.save(update_fields=['total_photos', 'import_status', 'updated_at'])
 
-        # Dispatch Celery task
-        from apps.life.tasks import process_bulk_recipe_import
-        process_bulk_recipe_import.delay(session.pk)
+        # Processing is driven by the review page JS (AJAX calls to
+        # RecipeBulkProcessOneView) rather than Celery. This keeps
+        # processing in the web process where all env vars are available.
 
         return redirect("life:recipe_bulk_review", session_id=session.pk)
 
@@ -1442,6 +1442,111 @@ class RecipeBulkReviewView(LifeAccessMixin, DetailView):
             photo_status__in=['pending', 'processing']
         )
         return ctx
+
+
+class RecipeBulkProcessOneView(LifeAccessMixin, View):
+    """
+    AJAX endpoint: process a single photo through Vision AI.
+
+    Called by the review page JS to process photos one-by-one in the
+    web process. This avoids Celery worker env var issues since the
+    web process has all required env vars (OpenAI, Cloudinary).
+    """
+
+    def post(self, request, session_id, photo_id):
+        from apps.life.services.recipe_photo_import import recipe_photo_import_service
+
+        try:
+            session = RecipeBulkImportSession.objects.get(
+                pk=session_id, user=request.user
+            )
+        except RecipeBulkImportSession.DoesNotExist:
+            return JsonResponse({"error": "Session not found"}, status=404)
+
+        try:
+            photo = session.photos.get(pk=photo_id)
+        except RecipeBulkImportPhoto.DoesNotExist:
+            return JsonResponse({"error": "Photo not found"}, status=404)
+
+        if photo.photo_status not in ('pending', 'processing', 'failed'):
+            # Already processed
+            return JsonResponse({
+                "status": photo.photo_status,
+                "title": photo.extracted_data.get('title', '') if photo.extracted_data else '',
+                "photo_id": photo.pk,
+            })
+
+        photo.photo_status = 'processing'
+        photo.save(update_fields=['photo_status', 'updated_at'])
+
+        try:
+            # Read image bytes
+            raw_bytes = None
+            try:
+                photo.image.open('rb')
+                raw_bytes = photo.image.read()
+                photo.image.close()
+            except (FileNotFoundError, OSError):
+                pass
+
+            if raw_bytes is None and photo.image_url:
+                import urllib.request
+                raw_bytes = urllib.request.urlopen(photo.image_url).read()
+
+            if raw_bytes is None:
+                raise FileNotFoundError(f"Could not read image for photo {photo.pk}")
+
+            # Determine content type
+            name = (photo.original_filename or photo.image.name).lower()
+            if name.endswith('.png'):
+                content_type = 'image/png'
+            elif name.endswith('.webp'):
+                content_type = 'image/webp'
+            elif name.endswith('.heic'):
+                content_type = 'image/heic'
+            else:
+                content_type = 'image/jpeg'
+
+            result = recipe_photo_import_service.extract_from_bytes(raw_bytes, content_type)
+
+            if "error" in result:
+                photo.photo_status = 'failed'
+                photo.error_message = result["error"]
+                photo.save(update_fields=['photo_status', 'error_message', 'updated_at'])
+                session.failed_count = session.photos.filter(photo_status='failed').count()
+            else:
+                photo.photo_status = 'extracted'
+                photo.extracted_data = result
+                photo.confidence = result.get('confidence', 0.5)
+                photo.save(update_fields=[
+                    'photo_status', 'extracted_data', 'confidence', 'updated_at',
+                ])
+                session.processed_count = session.photos.filter(
+                    photo_status__in=['extracted', 'confirmed']
+                ).count()
+
+            session.failed_count = session.photos.filter(photo_status='failed').count()
+            session.save(update_fields=['processed_count', 'failed_count', 'updated_at'])
+
+            return JsonResponse({
+                "status": photo.photo_status,
+                "photo_id": photo.pk,
+                "title": photo.extracted_data.get('title', '') if photo.extracted_data else '',
+                "error": photo.error_message or '',
+                "confidence": photo.confidence,
+            })
+
+        except Exception as e:
+            photo.photo_status = 'failed'
+            photo.error_message = str(e)
+            photo.save(update_fields=['photo_status', 'error_message', 'updated_at'])
+            session.failed_count = session.photos.filter(photo_status='failed').count()
+            session.save(update_fields=['failed_count', 'updated_at'])
+            return JsonResponse({
+                "status": "failed",
+                "photo_id": photo.pk,
+                "error": str(e),
+            }, status=500)
 
 
 class RecipeBulkStatusView(LifeAccessMixin, View):

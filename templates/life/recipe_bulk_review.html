@@ -5,6 +5,7 @@
 {% block content %}
 <div class="container"
      data-session-id="{{ session.pk }}"
+     data-process-url-prefix="{% url 'life:recipe_bulk_process_one' session_id=session.pk photo_id=0 %}"
      data-status-url="{% url 'life:recipe_bulk_status' session_id=session.pk %}"
      data-confirm-url="{% url 'life:recipe_bulk_confirm' session_id=session.pk %}"
      data-confirm-all-url="{% url 'life:recipe_bulk_confirm_all' session_id=session.pk %}"
@@ -299,19 +300,19 @@
 
     var container = document.getElementById('bulk-review-container');
     var sessionId = container.getAttribute('data-session-id');
-    var statusUrl = container.getAttribute('data-status-url');
+    var processUrlPrefix = container.getAttribute('data-process-url-prefix');
     var confirmUrl = container.getAttribute('data-confirm-url');
     var confirmAllUrl = container.getAttribute('data-confirm-all-url');
     var progressFill = document.getElementById('progress-fill');
     var progressText = document.getElementById('progress-text');
     var progressPercent = document.getElementById('progress-percent');
-    var progressSection = document.getElementById('progress-section');
     var headerActions = document.getElementById('header-actions');
     var statusText = document.getElementById('status-text');
     var doneSection = document.getElementById('done-section');
-    var photoGrid = document.getElementById('photo-grid');
-    var pollTimer = null;
-    var isProcessing = {{ session.is_processing|yesno:"true,false" }};
+
+    var totalPhotos = {{ session.total_photos }};
+    var processedSoFar = 0;
+    var failedSoFar = 0;
 
     function getCsrfToken() {
         var cookie = document.cookie.split(';').find(function(c) {
@@ -320,89 +321,127 @@
         return cookie ? cookie.split('=')[1] : '';
     }
 
-    // Poll for status updates during processing
-    function pollStatus() {
-        fetch(statusUrl)
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                // Update progress
-                progressFill.style.width = data.progress_percent + '%';
-                progressText.textContent = (data.processed + data.failed) + ' of ' + data.total + ' processed';
-                progressPercent.textContent = data.progress_percent + '%';
-
-                if (data.failed > 0) {
-                    progressText.textContent += ' (' + data.failed + ' failed)';
-                }
-
-                // Update individual photo cards
-                updatePhotoCards(data.photos);
-
-                // Check if done processing
-                if (data.status === 'completed' || data.status === 'failed') {
-                    isProcessing = false;
-                    clearInterval(pollTimer);
-                    statusText.textContent = data.total + ' photos processed';
-
-                    // Show confirm all button if there are extracted recipes
-                    var extractedCount = data.photos.filter(function(p) { return p.status === 'extracted'; }).length;
-                    if (extractedCount > 0) {
-                        headerActions.style.display = 'flex';
-                    }
-                    doneSection.style.display = 'flex';
-                }
-            })
-            .catch(function() {
-                // Silently retry on next interval
-            });
-    }
-
-    function updatePhotoCards(photos) {
-        photos.forEach(function(p) {
-            var card = document.querySelector('[data-photo-id="' + p.pk + '"]');
-            if (!card) return;
-
-            var currentStatus = card.getAttribute('data-status');
-            if (currentStatus === p.status) return;  // No change
-            if (currentStatus === 'confirmed') return;  // Don't downgrade
-
-            card.setAttribute('data-status', p.status);
-
-            // Update badge
-            var badge = card.querySelector('.bulk-photo-status-badge');
-            if (badge) {
-                badge.className = 'bulk-photo-status-badge status-' + p.status;
-                var labels = {pending: 'Pending', processing: 'Processing', extracted: 'Extracted', confirmed: 'Confirmed', failed: 'Failed'};
-                badge.textContent = labels[p.status] || p.status;
-            }
-
-            // Update info section
-            var info = card.querySelector('.bulk-photo-info');
-            if (!info) return;
-
-            if (p.status === 'extracted') {
-                var confClass = 'medium';
-                if (p.confidence >= 80) confClass = 'high';
-                else if (p.confidence < 50) confClass = 'low';
-
-                info.innerHTML =
-                    '<h3 class="bulk-photo-title">' + escapeHtml(p.title || 'Untitled') + '</h3>' +
-                    (p.confidence ? '<div class="bulk-photo-confidence"><span class="confidence-label">Confidence: </span><span class="confidence-value ' + confClass + '">' + Math.round(p.confidence * 100) + '%</span></div>' : '') +
-                    '<div class="bulk-photo-actions"><button type="button" class="btn btn-primary btn-sm confirm-single-btn" data-photo-id="' + p.pk + '">Confirm</button></div>';
-            } else if (p.status === 'failed') {
-                info.innerHTML = '<p class="bulk-photo-error">' + escapeHtml(p.error_message || 'Processing failed') + '</p>';
-            } else if (p.status === 'processing') {
-                info.innerHTML = '<div class="bulk-photo-processing"><div class="mini-spinner"></div><span>Processing...</span></div>';
-            }
-        });
-    }
-
     function escapeHtml(text) {
         var div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
 
-    // Confirm single photo
+    function getProcessUrl(photoId) {
+        // Replace the trailing /0/ with the actual photo ID
+        return processUrlPrefix.replace(/\/0\/$/, '/' + photoId + '/');
+    }
+
+    function updateProgress() {
+        var done = processedSoFar + failedSoFar;
+        var pct = totalPhotos > 0 ? Math.round((done / totalPhotos) * 100) : 0;
+        progressFill.style.width = pct + '%';
+        var txt = done + ' of ' + totalPhotos + ' processed';
+        if (failedSoFar > 0) txt += ' (' + failedSoFar + ' failed)';
+        progressText.textContent = txt;
+        progressPercent.textContent = pct + '%';
+    }
+
+    function updateCardStatus(photoId, status, data) {
+        var card = document.querySelector('[data-photo-id="' + photoId + '"]');
+        if (!card) return;
+
+        card.setAttribute('data-status', status);
+
+        // Badge
+        var badge = card.querySelector('.bulk-photo-status-badge');
+        if (badge) {
+            badge.className = 'bulk-photo-status-badge status-' + status;
+            var labels = {pending:'Pending', processing:'Processing', extracted:'Extracted', confirmed:'Confirmed', failed:'Failed'};
+            badge.textContent = labels[status] || status;
+        }
+
+        // Info
+        var info = card.querySelector('.bulk-photo-info');
+        if (!info) return;
+
+        if (status === 'processing') {
+            info.innerHTML = '<div class="bulk-photo-processing"><div class="mini-spinner"></div><span>Processing...</span></div>';
+        } else if (status === 'extracted') {
+            var confClass = 'medium';
+            var confVal = data.confidence || 0;
+            if (confVal >= 0.8) confClass = 'high';
+            else if (confVal < 0.5) confClass = 'low';
+            info.innerHTML =
+                '<h3 class="bulk-photo-title">' + escapeHtml(data.title || 'Untitled') + '</h3>' +
+                (confVal ? '<div class="bulk-photo-confidence"><span class="confidence-label">Confidence: </span><span class="confidence-value ' + confClass + '">' + Math.round(confVal * 100) + '%</span></div>' : '') +
+                '<div class="bulk-photo-actions"><button type="button" class="btn btn-primary btn-sm confirm-single-btn" data-photo-id="' + photoId + '">Confirm</button></div>';
+        } else if (status === 'failed') {
+            info.innerHTML = '<p class="bulk-photo-error">' + escapeHtml(data.error || 'Processing failed') + '</p>';
+        }
+    }
+
+    // Process photos sequentially via AJAX (runs in web process, not Celery)
+    function processPhotosSequentially() {
+        var pendingCards = document.querySelectorAll('[data-status="pending"], [data-status="processing"]');
+        var photoIds = [];
+        pendingCards.forEach(function(card) {
+            photoIds.push(parseInt(card.getAttribute('data-photo-id')));
+        });
+
+        if (photoIds.length === 0) {
+            finishProcessing();
+            return;
+        }
+
+        statusText.textContent = 'Processing ' + totalPhotos + ' photos...';
+
+        var idx = 0;
+        function processNext() {
+            if (idx >= photoIds.length) {
+                finishProcessing();
+                return;
+            }
+
+            var photoId = photoIds[idx];
+            updateCardStatus(photoId, 'processing', {});
+
+            fetch(getProcessUrl(photoId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCsrfToken(),
+                },
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.status === 'extracted') {
+                    processedSoFar++;
+                    updateCardStatus(photoId, 'extracted', data);
+                } else {
+                    failedSoFar++;
+                    updateCardStatus(photoId, 'failed', data);
+                }
+                updateProgress();
+                idx++;
+                processNext();
+            })
+            .catch(function(err) {
+                failedSoFar++;
+                updateCardStatus(photoId, 'failed', { error: 'Network error' });
+                updateProgress();
+                idx++;
+                processNext();
+            });
+        }
+
+        processNext();
+    }
+
+    function finishProcessing() {
+        statusText.textContent = totalPhotos + ' photos processed';
+        var extractedCards = document.querySelectorAll('[data-status="extracted"]');
+        if (extractedCards.length > 0) {
+            headerActions.style.display = 'flex';
+        }
+        doneSection.style.display = 'flex';
+    }
+
+    // Confirm single photo (event delegation)
     document.addEventListener('click', function(e) {
         var btn = e.target.closest('.confirm-single-btn');
         if (!btn) return;
@@ -422,14 +461,9 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.status === 'ok' && data.created.length > 0) {
+                updateCardStatus(photoId, 'confirmed', { title: data.created[0].title });
                 var card = document.querySelector('[data-photo-id="' + photoId + '"]');
                 if (card) {
-                    card.setAttribute('data-status', 'confirmed');
-                    var badge = card.querySelector('.bulk-photo-status-badge');
-                    if (badge) {
-                        badge.className = 'bulk-photo-status-badge status-confirmed';
-                        badge.textContent = 'Confirmed';
-                    }
                     var info = card.querySelector('.bulk-photo-info');
                     if (info) {
                         info.innerHTML =
@@ -463,7 +497,6 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.status === 'ok') {
-                // Refresh to show updated state
                 window.location.reload();
             }
         })
@@ -480,17 +513,13 @@
         }
     }
 
-    // Start polling if still processing
-    if (isProcessing) {
-        pollTimer = setInterval(pollStatus, 3000);
-        pollStatus();  // Initial fetch
+    // On page load: if there are pending photos, start processing
+    var hasPending = document.querySelectorAll('[data-status="pending"], [data-status="processing"]').length > 0;
+    if (hasPending) {
+        processPhotosSequentially();
     } else {
         // Already done, show actions
-        var extractedCards = document.querySelectorAll('[data-status="extracted"]');
-        if (extractedCards.length > 0) {
-            headerActions.style.display = 'flex';
-        }
-        doneSection.style.display = 'flex';
+        finishProcessing();
     }
 })();
 </script>

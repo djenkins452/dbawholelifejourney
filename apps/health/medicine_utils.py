@@ -89,6 +89,62 @@ def calculate_medicine_adherence(user, start_date, end_date):
     }
 
 
+def calculate_single_medicine_adherence(user, medicine, start_date, end_date):
+    """
+    Calculate adherence for a SINGLE medicine over a date range.
+
+    Uses schedule-based expected doses (same approach as the overall calc)
+    so unlogged doses count as missed — not invisible.
+
+    Returns dict with:
+        - expected_doses: total scheduled doses in the period
+        - taken_doses: doses logged as taken or late
+        - adherence_rate: percentage (0-100) or None if no expected doses
+    """
+    from apps.health.models import MedicineLog
+
+    # Count expected doses from schedules
+    expected_doses = 0
+    day = start_date
+    active_schedules = list(medicine.schedules.filter(is_active=True))
+
+    while day <= end_date:
+        day_of_week = day.weekday()
+        for schedule in active_schedules:
+            if schedule.applies_to_day(day_of_week):
+                expected_doses += 1
+        day += timedelta(days=1)
+
+    if expected_doses == 0:
+        return {
+            "expected_doses": 0,
+            "taken_doses": 0,
+            "adherence_rate": None,
+        }
+
+    # Count actual taken/late logs
+    logs = MedicineLog.objects.filter(
+        user=user,
+        medicine=medicine,
+        scheduled_date__gte=start_date,
+        scheduled_date__lte=end_date,
+    )
+    taken_count = logs.filter(log_status__in=["taken", "late"]).count()
+    skipped_count = logs.filter(log_status="skipped").count()
+
+    effective_expected = expected_doses - skipped_count
+    if effective_expected > 0:
+        adherence_rate = min(100, round((taken_count / effective_expected) * 100))
+    else:
+        adherence_rate = None
+
+    return {
+        "expected_doses": expected_doses,
+        "taken_doses": taken_count,
+        "adherence_rate": adherence_rate,
+    }
+
+
 def calculate_medicine_adherence_rate(user, days=7):
     """
     Convenience wrapper: returns just the adherence rate (int or None)

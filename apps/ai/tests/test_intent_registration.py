@@ -50,6 +50,7 @@ from apps.core.ai_orchestrator.intent_engine import (
     CALIBRATION_INTENTS,
     TRANSFORMATION_INTENTS,
     LEARNING_MODE_INTENTS,
+    EXPORT_INTENTS,
     FINANCE_INTENTS,
     SYSTEM_INTENTS,
     TIME_AWARE_INTENTS,
@@ -85,6 +86,7 @@ def _get_all_engine_intents():
         | CALIBRATION_INTENTS
         | TRANSFORMATION_INTENTS
         | LEARNING_MODE_INTENTS
+        | EXPORT_INTENTS
         | FINANCE_INTENTS
         | SYSTEM_INTENTS
     )
@@ -142,6 +144,7 @@ NON_TIME_INTENTS = {
     'edit_last_entry',         # Edits most recent, no date component
     'check_budget',            # Read-only query
     'email_medicine_list',     # Sends email, no date/time component
+    'generate_report',         # Generates report, no recorded_at
 }
 
 

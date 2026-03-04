@@ -53,6 +53,13 @@
 
 ---
 
+## 2026-03-03 — Add CoS generate_report intent for on-demand Excel exports
+
+**What:** CoS can now generate and email Excel reports/dashboards for any tracked data type on demand. Users can say things like "create me an Excel dashboard of my workouts", "export my sleep data to a spreadsheet", "send me a blood pressure report for the last 6 months", etc. Supports 14 report types: workouts, sleep, weight, steps, heart_rate, blood_pressure, blood_oxygen, glucose, medicine, fasting, water, nutrition, body_composition, and health_overview (combined). Reports include summary stats, formatted data tables, and charts where applicable. Also fixed missing `email_medicine_list` routing in execute_intent and added it to the intent engine categories.
+**Files:** `apps/ai/intents/export_intents.py` (new intent), `apps/ai/report_generator.py` (new — 14 report builders), `apps/ai/intents/__init__.py` (registration), `apps/ai/action_handlers.py` (handler), `apps/ai/intent_service.py` (routing + examples), `apps/core/ai_orchestrator/intent_engine.py` (engine categories), `apps/ai/tests/test_intent_registration.py` (test updates)
+
+---
+
 ## 2026-03-03 — Add workout dashboard Excel export
 
 **What:** New Excel export feature on the Fitness page. Generates a multi-sheet workbook with: Dashboard summary (overview stats, workout type breakdown with bar chart, 12-week volume trend with line chart), Workout History (all sessions), Exercise Details (every set/rep/weight), Cardio & Classes, Personal Records, Steps & Activity (with chart), and Exercise Progress (best set per workout over time). Accessible via "Export Dashboard (Excel)" link on the Fitness home page.

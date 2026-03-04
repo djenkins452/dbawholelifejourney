@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Switch bulk recipe import from Celery to browser-driven AJAX processing
+
+**What:** Celery worker couldn't process recipes because Railway worker service env vars (OPENAI_API_KEY, CLOUDINARY) weren't taking effect. Replaced the Celery-based processing with browser-driven sequential AJAX. The review page JS now calls a new `RecipeBulkProcessOneView` endpoint for each photo, processing in the web process where all env vars are available. Each photo updates in real-time as it completes.
+**Files:** `apps/life/views.py` (new `RecipeBulkProcessOneView`, removed Celery dispatch), `apps/life/urls.py` (new route), `templates/life/recipe_bulk_review.html` (rewritten JS)
+
+---
+
 ## 2026-03-04 — Fix per-medicine adherence in email showing 100% when overall is 74%
 
 **What:** Per-medicine adherence in the email was calculated from existing MedicineLog rows only (taken/total_logs). If a dose was never logged at all (no row), it was invisible — so 5 taken out of 5 logs = 100%, even though 30 doses were expected from the schedule. The overall calc in `medicine_utils.py` correctly counted expected doses from schedules. Added `calculate_single_medicine_adherence()` to medicine_utils.py that uses schedule-based expected dose counting for a single medicine, matching the overall approach. Updated the email handler to use it.

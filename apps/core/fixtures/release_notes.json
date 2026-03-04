@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 134,
+    "fields": {
+      "title": "Email Your Medicine List",
+      "description": "Ask your Chief of Staff to email your medicine list — perfect for doctor visits. Just say \"email me my medicine list\" or \"send my medicines to doc@example.com\" and you'll receive a professional email with all your active medications, doses, schedules, prescribing doctors, and 30-day adherence stats for each medicine. Adherence is color-coded (green/yellow/red) so you can see consistency at a glance.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-04",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-04T06:00:00Z",
+      "updated_at": "2026-03-04T06:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 133,
     "fields": {
       "title": "Multi-Recipe Photo Detection & Prayer Awareness",

@@ -664,6 +664,7 @@ Daily tracker, adherence stats, PRN support, refill tracking, dashboard integrat
 - Refill alerts with request tracking
 - Pause/resume without losing history
 - **Edit Taken Time** (Added 2025-12-31) - Correct the time when you actually took a dose
+- **Email Medicine List** (Added 2026-03-04) - Ask CoS to email your full medicine list with adherence stats
 
 ### Edit Medicine Log (Added 2025-12-31)
 Allows users to correct the "taken at" time on medicine log entries:
@@ -708,6 +709,24 @@ Users can mark a medicine as "refill requested" to track that they've already ca
 - `medicine.request_refill()` - Sets refill as requested
 - `medicine.clear_refill_request()` - Clears after refill received
 - `medicine.refill_status` - Returns 'requested', 'needed', or None
+
+### Email Medicine List (Added 2026-03-04)
+Users can ask CoS to email their full medicine list — ideal for doctor visits:
+
+**How It Works:**
+1. User says "email me my medicine list" or "send my medicines to doc@example.com"
+2. CoS resolves the recipient (user's own email if none specified, or the provided address)
+3. Email includes: medicine name, dose, purpose, frequency, schedule times, doctor, pharmacy, instructions, start date
+4. 30-day adherence stats per medicine (color-coded green ≥90%, yellow ≥70%, red <70%)
+5. Overall adherence summary with contextual feedback
+
+**Intent:** `email_medicine_list` (optional params: `recipient_email`, `include_adherence`, `include_inactive`)
+
+**Key Files:**
+- `apps/ai/intents/medicine_intents.py` — Intent definition
+- `apps/ai/action_handlers.py` — `handle_email_medicine_list()` method
+- `templates/health/email/medicine_list.html` — HTML email template
+- `apps/health/medicine_utils.py` — `calculate_single_medicine_adherence()` for per-medicine stats
 
 ### Models
 - `Medicine` - The medication itself (includes refill_requested fields)

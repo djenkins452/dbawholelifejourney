@@ -516,7 +516,7 @@ class HealthScoreService:
             tracking_sub = domain_data.get("tracking_score")
             if protein_sub is not None and tracking_sub is not None:
                 if protein_sub < tracking_sub:
-                    return "Increase daily protein intake (target: 0.7g per lb body weight)"
+                    return "Increase daily protein intake (target: 1.0g per lb lean body mass)"
                 else:
                     return "Track meals more consistently to improve nutrition score"
 

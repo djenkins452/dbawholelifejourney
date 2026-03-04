@@ -353,33 +353,59 @@ python manage.py test apps.health.tests.test_health_intelligence -v 2 --failfast
 
 ---
 
-## Protein Intelligence
+## Protein Intelligence (LBM-Aware)
 
 **Added:** 2026-03-04
+**Upgraded:** 2026-03-04 — Lean Body Mass + Adaptive Workout-Day Targets
 
 ### ProteinService
 
 **Location:** `apps/health/services/protein_service.py`
 
-Protein target calculation, scoring, coaching, and weekly summaries.
+LBM-aware protein target calculation, scoring, coaching, and weekly summaries.
 
 ```python
 from apps.health.services.protein_service import ProteinService
 
-# Target: 0.7g/lb body weight (or custom override via HealthProfile)
-target = ProteinService.calculate_target(user)               # Decimal or None
+# LBM calculation
+lbm = ProteinService.calculate_lean_body_mass(weight_lbs=240, body_fat_pct=36.7)
+# Returns: Decimal(151.92) or None
+
+# Target: returns dict with full context
+info = ProteinService.calculate_target(user, date.today())
+# Returns: {target_g, method, lbm, workout_day, multiplier, weight_lbs, body_fat_pct}
+
+# Convenience: just the grams (backward-compatible)
+target_g = ProteinService.calculate_target_g(user)  # Decimal or None
+
 ratio = ProteinService.calculate_ratio(consumed_g, target_g)  # Decimal 0-2+
 per_lb = ProteinService.calculate_protein_per_lb(consumed_g, weight_lbs)
 
-# Score: 0-100 (50% today's ratio + 30% consistency + 20% workout-day bonus)
+# Score: 0-100 (50% today's ratio + 30% consistency + 20% workout-day adequacy)
+# Includes workout-day penalty: ratio < 0.85 on workout day → -10 pts
 score, details = ProteinService.calculate_score(user, date.today())
 
-# Coaching: contextual message with severity
+# Coaching: contextual message with LBM method note
 coaching = ProteinService.get_coaching(user, date.today())
-# Returns: {message, severity, context, consumed_g, target_g, remaining_g}
+# Returns: {message, severity, context, method, lbm, consumed_g, target_g, remaining_g}
 
-# Weekly summary for dashboards
+# Weekly summary with method and LBM info
 weekly = ProteinService.get_weekly_summary(user, date.today())
+```
+
+### Target Calculation Priority
+
+1. **Override:** `HealthProfile.protein_target_g_override` → fixed grams
+2. **LBM-based:** `LBM × multiplier` (rest: 1.0, workout: 1.1) → when body fat available
+3. **Body weight:** `weight × HealthProfile.protein_per_lb_target` → custom multiplier
+4. **Default fallback:** `weight × 0.7` → when no body fat, no custom multiplier
+
+```
+LBM formula:  LBM = weight × (1 − body_fat_pct / 100)
+
+Rest day:     target = LBM × 1.0 g/lb
+Workout day:  target = LBM × 1.1 g/lb
+Fallback:     target = body_weight × 0.7 g/lb
 ```
 
 ### Protein Target Customization
@@ -391,17 +417,16 @@ Users can override protein targets via `HealthProfile`:
 | `protein_target_g_override` | Decimal | Fixed daily target in grams |
 | `protein_per_lb_target` | Decimal | Custom g/lb multiplier (default: 0.7) |
 
-**Priority:** override → custom multiplier → 0.7 × body weight → None
-
 ### DailyHealthSummary Protein Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `protein_target_g` | Decimal | Daily target (auto-computed) |
+| `protein_target_g` | Decimal | Daily target (auto-computed, LBM-aware) |
 | `protein_consumed_g` | Decimal | Protein consumed (mirrors protein_g) |
 | `protein_ratio` | Decimal | consumed / target (1.0 = 100%) |
-| `protein_score` | SmallInt | Adequacy score 0-100 |
+| `protein_score` | SmallInt | Adequacy score 0-100 (workout-day penalty) |
 | `protein_per_lb` | Decimal | Grams per lb body weight |
+| `protein_method` | CharField | 'lean_body_mass', 'body_weight', or 'override' |
 
 ### Protein in Health Score
 
@@ -415,42 +440,52 @@ Workout-day protein check applies bonus/penalty to the protein sub-score.
 
 `HealthTrendAnalyzer` detects:
 - Very low protein intake (<50% of target) → risk flag
-- Low protein on workout days → warning
+- Low protein on training days (< 85% of LBM workout target) → warning
+- Protein lower on training days than rest days → info flag
 - Protein intake improving/declining over 2 weeks
 - Strong protein intake (≥90% of target) → strength
+- LBM method note in strength/weakness messages
 
 ### Protein Correlations
 
-`CorrelationService` now computes:
+`CorrelationService` computes:
 - Protein intake ↔ Next-day recovery score
 - Weekly protein avg ↔ Weight change
 - Protein per lb ↔ Sleep quality
+- **NEW:** Protein ↔ Skeletal muscle mass
+- **NEW:** Protein per lb ↔ Body fat change (fat loss rate)
+- **NEW:** Workout-day protein ↔ Next-day training load (performance)
 
 ### Protein Coaching (CoS)
 
-CoS receives `protein_intelligence` context:
+CoS receives `protein_intelligence` context with LBM info:
 ```python
 result['protein_intelligence'] = {
-    'coaching': {'message': '...', 'severity': '...', 'context': '...'},
-    'weekly_summary': {'avg_consumed_g': 150, 'days_at_target': 5, ...},
-    'target_g': 168.0,
+    'coaching': {'message': '...', 'severity': '...', 'context': '...', 'method': '...', 'lbm': ...},
+    'weekly_summary': {'avg_consumed_g': 150, 'days_at_target': 5, 'method': '...', ...},
+    'target_g': 152.0,
+    'method': 'lean_body_mass',
+    'lean_body_mass': 152.0,
+    'workout_day': True,
+    'multiplier': 1.1,
 }
 ```
 
 **Coaching severities:**
-- `success` — target met
-- `nudge` — close to target (80-99%)
+- `success` — target met (includes LBM method note)
+- `nudge` — close to target (85-99%) or workout day with no data
 - `warning` — low protein on workout day
 - `info` — below target, general advice
 
 ### Protein Panel (Command Center)
 
 `domain_panels["protein"]` includes:
-- Today: consumed, target, ratio, score, per_lb, is_workout_day
-- 7-day: avg, avg_ratio, days_at_target
+- Today: consumed, target, ratio, score, per_lb, method, is_workout_day
+- 7-day: avg, avg_ratio, days_at_target, consistency_pct
 - Workout vs rest day averages
+- Target info with method, LBM, multiplier
 - Coaching message
-- 14-day trend data for charts
+- 14-day trend data for charts (with method per day)
 
 ---
 

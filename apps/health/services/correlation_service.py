@@ -210,6 +210,44 @@ class CorrelationService:
                 "interpretation": CorrelationService._interpret_protein_sleep(corr),
             })
 
+        # 10. Protein intake ↔ Skeletal muscle mass
+        corr = CorrelationService._correlate_fields(
+            summaries, "protein_g", "skeletal_muscle_mass"
+        )
+        if corr is not None:
+            results.append({
+                "signal_a": "protein_g",
+                "signal_b": "skeletal_muscle_mass",
+                "correlation": corr,
+                "direction": "positive" if corr > 0 else "negative",
+                "confidence": CorrelationService._confidence(corr, summaries, "protein_g", "skeletal_muscle_mass"),
+                "interpretation": CorrelationService._interpret_protein_muscle(corr),
+            })
+
+        # 11. Protein per lb ↔ Body fat change (weekly)
+        corr = CorrelationService._correlate_protein_fat_loss(summaries)
+        if corr is not None:
+            results.append({
+                "signal_a": "protein_per_lb",
+                "signal_b": "fat_loss_rate",
+                "correlation": corr,
+                "direction": "negative" if corr < 0 else "positive",
+                "confidence": "moderate",
+                "interpretation": CorrelationService._interpret_protein_fat_loss(corr),
+            })
+
+        # 12. Protein on workout days ↔ Next-day training load
+        corr = CorrelationService._correlate_workout_protein_performance(summaries)
+        if corr is not None:
+            results.append({
+                "signal_a": "workout_day_protein",
+                "signal_b": "next_training_load",
+                "correlation": corr,
+                "direction": "positive" if corr > 0 else "negative",
+                "confidence": CorrelationService._confidence_count(len(summaries)),
+                "interpretation": CorrelationService._interpret_protein_performance(corr),
+            })
+
         # Sort by absolute correlation strength
         results.sort(key=lambda x: abs(x["correlation"]), reverse=True)
 
@@ -391,6 +429,80 @@ class CorrelationService:
         elif corr < -0.2:
             return "Higher protein may be affecting sleep quality negatively"
         return "No clear protein-sleep quality relationship detected"
+
+    @staticmethod
+    def _interpret_protein_muscle(corr):
+        if corr > 0.2:
+            return "Higher protein intake is associated with greater skeletal muscle mass"
+        elif corr < -0.2:
+            return "Unexpected: higher protein associated with lower muscle mass"
+        return "No clear protein-muscle mass relationship detected"
+
+    @staticmethod
+    def _interpret_protein_fat_loss(corr):
+        if corr < -0.2:
+            return "Higher protein per lb is associated with body fat reduction"
+        elif corr > 0.2:
+            return "Higher protein correlates with body fat increase (possibly in surplus)"
+        return "No clear protein-fat loss relationship detected"
+
+    @staticmethod
+    def _interpret_protein_performance(corr):
+        if corr > 0.2:
+            return "Higher protein on workout days supports greater next-day training output"
+        elif corr < -0.2:
+            return "Unexpected: higher workout-day protein associated with lower next-day performance"
+        return "No clear protein-performance relationship detected"
+
+    @staticmethod
+    def _correlate_protein_fat_loss(summaries):
+        """Correlate weekly avg protein per lb with body fat change direction."""
+        if len(summaries) < 14:
+            return None
+
+        weeks = []
+        for i in range(0, len(summaries) - 6, 7):
+            week = summaries[i:i + 7]
+            protein_per_lb_days = [
+                float(s.protein_per_lb) for s in week
+                if s.protein_per_lb is not None
+            ]
+            bf_days = [float(s.body_fat_pct) for s in week if s.body_fat_pct is not None]
+            if protein_per_lb_days and bf_days and len(bf_days) >= 2:
+                avg_ppl = sum(protein_per_lb_days) / len(protein_per_lb_days)
+                bf_change = bf_days[-1] - bf_days[0]
+                weeks.append((avg_ppl, bf_change))
+
+        if len(weeks) < 3:
+            return None
+
+        x_vals = [w[0] for w in weeks]
+        y_vals = [w[1] for w in weeks]
+        return _rank_correlation(x_vals, y_vals)
+
+    @staticmethod
+    def _correlate_workout_protein_performance(summaries):
+        """Correlate protein on workout days with next-day training load."""
+        pairs = []
+        by_date = {s.summary_date: s for s in summaries}
+
+        for s in summaries:
+            if not s.workout_count or s.workout_count == 0:
+                continue
+            if s.protein_g is None:
+                continue
+            # Look at next workout day's training load
+            next_date = s.summary_date + timedelta(days=1)
+            next_s = by_date.get(next_date)
+            if next_s and next_s.training_load is not None:
+                pairs.append((float(s.protein_g), float(next_s.training_load)))
+
+        if len(pairs) < 5:
+            return None
+
+        x_vals = [p[0] for p in pairs]
+        y_vals = [p[1] for p in pairs]
+        return _rank_correlation(x_vals, y_vals)
 
     @staticmethod
     def _correlate_protein_weight(summaries):

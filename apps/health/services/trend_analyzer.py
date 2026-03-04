@@ -435,7 +435,11 @@ class HealthTrendAnalyzer:
     @staticmethod
     def _detect_protein_patterns(recent_7, recent_28, user, target_date,
                                   strengths, weaknesses, risk_flags, trends):
-        """Detect protein intake patterns, workout-day adequacy, and consistency."""
+        """
+        Detect protein intake patterns, workout-day adequacy, and consistency.
+
+        Uses LBM-aware targets when available; falls back to body weight method.
+        """
         from apps.health.services.protein_service import ProteinService
 
         protein_7d = [s for s in recent_7 if s.protein_g is not None]
@@ -446,23 +450,28 @@ class HealthTrendAnalyzer:
 
         avg_protein_7d = sum(float(s.protein_g) for s in protein_7d) / len(protein_7d)
 
-        # Calculate target for context
-        target_g = ProteinService.calculate_target(user, target_date)
-        target = float(target_g) if target_g else None
+        # Calculate target for context (returns dict with target_g, method, lbm)
+        target_info = ProteinService.calculate_target(user, target_date)
+        target = float(target_info["target_g"]) if target_info else None
+        method = target_info["method"] if target_info else None
+
+        method_note = ""
+        if method == "lean_body_mass" and target_info.get("lbm"):
+            method_note = f" [LBM: {target_info['lbm']:.0f} lbs]"
 
         if target:
             avg_ratio = avg_protein_7d / target if target > 0 else 0
 
             if avg_ratio >= 0.9:
                 strengths.append(
-                    f"Strong protein intake ({avg_protein_7d:.0f}g/day, {avg_ratio:.0%} of target)"
+                    f"Strong protein intake ({avg_protein_7d:.0f}g/day, {avg_ratio:.0%} of target{method_note})"
                 )
                 trends["protein"] = "strong"
             elif avg_ratio >= 0.7:
                 trends["protein"] = "adequate"
             elif avg_ratio >= 0.5:
                 weaknesses.append(
-                    f"Below protein target ({avg_protein_7d:.0f}g/day, {avg_ratio:.0%} of {target:.0f}g)"
+                    f"Below protein target ({avg_protein_7d:.0f}g/day, {avg_ratio:.0%} of {target:.0f}g{method_note})"
                 )
                 trends["protein"] = "low"
             else:
@@ -471,7 +480,7 @@ class HealthTrendAnalyzer:
                     "severity": "warning",
                     "message": (
                         f"Very low protein intake ({avg_protein_7d:.0f}g/day, "
-                        f"{avg_ratio:.0%} of {target:.0f}g target)"
+                        f"{avg_ratio:.0%} of {target:.0f}g target{method_note})"
                     ),
                 })
                 trends["protein"] = "critically_low"
@@ -494,21 +503,48 @@ class HealthTrendAnalyzer:
                 else:
                     trends["protein"] = "adequate"
 
-        # Workout-day protein check
+        # Workout-day protein check — LBM-aware
+        # On workout days, target is LBM × 1.1 (higher), so undershoot is worse
         workout_protein_7d = [
             s for s in recent_7
             if s.workout_count and s.workout_count > 0 and s.protein_g is not None
         ]
         if workout_protein_7d and target:
             workout_avg = sum(float(s.protein_g) for s in workout_protein_7d) / len(workout_protein_7d)
-            workout_ratio = workout_avg / target if target > 0 else 0
-            if workout_ratio < 0.7:
+
+            # For workout-day comparison, get workout-day target if LBM method
+            workout_target = target
+            if target_info and target_info["method"] == "lean_body_mass" and target_info.get("lbm"):
+                from apps.health.services.protein_service import LBM_WORKOUT_MULTIPLIER
+                workout_target = target_info["lbm"] * float(LBM_WORKOUT_MULTIPLIER)
+
+            workout_ratio = workout_avg / workout_target if workout_target > 0 else 0
+            if workout_ratio < 0.85:
                 risk_flags.append({
                     "domain": "protein",
                     "severity": "warning",
                     "message": (
-                        f"Low protein on workout days ({workout_avg:.0f}g avg, "
-                        f"{workout_ratio:.0%} of target) — may impair recovery"
+                        f"Low protein on training days ({workout_avg:.0f}g avg, "
+                        f"{workout_ratio:.0%} of {workout_target:.0f}g target) — may impair recovery"
+                    ),
+                })
+
+        # Rest vs workout day protein gap
+        rest_protein_7d = [
+            s for s in recent_7
+            if (not s.workout_count or s.workout_count == 0) and s.protein_g is not None
+        ]
+        if workout_protein_7d and rest_protein_7d:
+            workout_avg = sum(float(s.protein_g) for s in workout_protein_7d) / len(workout_protein_7d)
+            rest_avg = sum(float(s.protein_g) for s in rest_protein_7d) / len(rest_protein_7d)
+            if rest_avg > 0 and workout_avg < rest_avg * 0.9:
+                # Protein should be HIGHER on workout days, not lower
+                risk_flags.append({
+                    "domain": "protein",
+                    "severity": "info",
+                    "message": (
+                        f"Protein lower on training days ({workout_avg:.0f}g) than rest days "
+                        f"({rest_avg:.0f}g) — should be higher for recovery"
                     ),
                 })
 

@@ -839,7 +839,7 @@ class TestCosHealthContext(TestCase, HealthIntelligenceTestMixin):
 
 
 class TestProteinService(TestCase, HealthIntelligenceTestMixin):
-    """Test the Protein Intelligence service."""
+    """Test the Protein Intelligence service (LBM-aware)."""
 
     def setUp(self):
         self.user = self.create_test_user()
@@ -850,22 +850,40 @@ class TestProteinService(TestCase, HealthIntelligenceTestMixin):
         target = ProteinService.calculate_target(self.user)
         self.assertIsNone(target)
 
-    def test_calculate_target_with_weight(self):
-        """Should return 0.7 * body weight as default target."""
+    def test_calculate_target_returns_dict(self):
+        """calculate_target should return a dict with target_g and metadata."""
         from apps.health.services.protein_service import ProteinService
 
         WeightEntry.objects.create(
             user=self.user, value=Decimal("240"), unit="lb",
             recorded_at=timezone.now(),
         )
-        # No DailyHealthSummary, but WeightEntry fallback should work
-        target = ProteinService.calculate_target(self.user)
-        self.assertIsNotNone(target)
+        result = ProteinService.calculate_target(self.user)
+        self.assertIsNotNone(result)
+        self.assertIsInstance(result, dict)
+        self.assertIn("target_g", result)
+        self.assertIn("method", result)
+        self.assertIn("lbm", result)
+        self.assertIn("workout_day", result)
+        self.assertIn("multiplier", result)
+
+    def test_calculate_target_body_weight_fallback(self):
+        """Without body fat, should fall back to body weight × 0.7."""
+        from apps.health.services.protein_service import ProteinService
+
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("240"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        result = ProteinService.calculate_target(self.user)
+        self.assertIsNotNone(result)
         # 240 * 0.7 = 168
-        self.assertEqual(target, Decimal("168.00"))
+        self.assertEqual(result["target_g"], Decimal("168.00"))
+        self.assertEqual(result["method"], "body_weight")
+        self.assertIsNone(result["lbm"])
 
     def test_calculate_target_with_override(self):
-        """Custom override should take priority over weight-based calc."""
+        """Custom override should take priority over everything."""
         from apps.health.services.protein_service import ProteinService
 
         HealthProfile.objects.create(
@@ -876,11 +894,12 @@ class TestProteinService(TestCase, HealthIntelligenceTestMixin):
             user=self.user, value=Decimal("240"), unit="lb",
             recorded_at=timezone.now(),
         )
-        target = ProteinService.calculate_target(self.user)
-        self.assertEqual(target, Decimal("200"))
+        result = ProteinService.calculate_target(self.user)
+        self.assertEqual(result["target_g"], Decimal("200"))
+        self.assertEqual(result["method"], "override")
 
     def test_calculate_target_custom_multiplier(self):
-        """Custom per-lb multiplier should be used."""
+        """Custom per-lb multiplier should be used in body_weight mode."""
         from apps.health.services.protein_service import ProteinService
 
         HealthProfile.objects.create(
@@ -891,10 +910,25 @@ class TestProteinService(TestCase, HealthIntelligenceTestMixin):
             user=self.user, value=Decimal("200"), unit="lb",
             recorded_at=timezone.now(),
         )
-        target = ProteinService.calculate_target(self.user)
-        self.assertIsNotNone(target)
+        result = ProteinService.calculate_target(self.user)
+        self.assertIsNotNone(result)
         # 200 * 1.0 = 200
-        self.assertEqual(target, Decimal("200.00"))
+        self.assertEqual(result["target_g"], Decimal("200.00"))
+        self.assertEqual(result["method"], "body_weight")
+        self.assertAlmostEqual(result["multiplier"], 1.0)
+
+    def test_calculate_target_g_convenience(self):
+        """calculate_target_g should return just the Decimal target."""
+        from apps.health.services.protein_service import ProteinService
+
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        target_g = ProteinService.calculate_target_g(self.user)
+        self.assertIsNotNone(target_g)
+        self.assertIsInstance(target_g, Decimal)
+        self.assertEqual(target_g, Decimal("140.00"))
 
     def test_calculate_ratio(self):
         """Ratio should be consumed / target."""
@@ -942,7 +976,6 @@ class TestProteinService(TestCase, HealthIntelligenceTestMixin):
             recorded_at=timezone.now(),
         )
 
-        # Create summary with protein data
         DailyHealthSummary.objects.create(
             user=self.user,
             summary_date=today,
@@ -958,6 +991,7 @@ class TestProteinService(TestCase, HealthIntelligenceTestMixin):
         self.assertLessEqual(score, 100)
         self.assertIn("today_consumed_g", details)
         self.assertIn("today_target_g", details)
+        self.assertIn("method", details)
 
     def test_status_labels(self):
         """Verify status label thresholds."""
@@ -967,6 +1001,321 @@ class TestProteinService(TestCase, HealthIntelligenceTestMixin):
         self.assertEqual(ProteinService._status_label(60), "fair")
         self.assertEqual(ProteinService._status_label(45), "needs_improvement")
         self.assertEqual(ProteinService._status_label(20), "low")
+
+
+# ====================================================================
+# LBM-SPECIFIC TESTS
+# ====================================================================
+
+
+class TestLeanBodyMassCalculation(TestCase, HealthIntelligenceTestMixin):
+    """Test LBM calculation and LBM-based protein targets."""
+
+    def setUp(self):
+        self.user = self.create_test_user()
+
+    def test_calculate_lbm_normal(self):
+        """LBM = weight × (1 − body_fat_pct / 100)."""
+        from apps.health.services.protein_service import ProteinService
+
+        # 240 lbs × (1 − 36.7 / 100) = 240 × 0.633 = 151.92
+        lbm = ProteinService.calculate_lean_body_mass(
+            weight_lbs=Decimal("240"), body_fat_pct=Decimal("36.7")
+        )
+        self.assertIsNotNone(lbm)
+        self.assertAlmostEqual(float(lbm), 151.92, places=1)
+
+    def test_calculate_lbm_low_bf(self):
+        """LBM with low body fat percentage."""
+        from apps.health.services.protein_service import ProteinService
+
+        # 200 lbs × (1 − 15 / 100) = 200 × 0.85 = 170
+        lbm = ProteinService.calculate_lean_body_mass(
+            weight_lbs=Decimal("200"), body_fat_pct=Decimal("15.0")
+        )
+        self.assertIsNotNone(lbm)
+        self.assertAlmostEqual(float(lbm), 170.0, places=1)
+
+    def test_calculate_lbm_none_inputs(self):
+        """LBM should return None for invalid inputs."""
+        from apps.health.services.protein_service import ProteinService
+
+        self.assertIsNone(ProteinService.calculate_lean_body_mass(None, Decimal("30")))
+        self.assertIsNone(ProteinService.calculate_lean_body_mass(Decimal("200"), None))
+        self.assertIsNone(ProteinService.calculate_lean_body_mass(Decimal("200"), Decimal("100")))
+        self.assertIsNone(ProteinService.calculate_lean_body_mass(Decimal("0"), Decimal("30")))
+        self.assertIsNone(ProteinService.calculate_lean_body_mass(Decimal("200"), Decimal("-5")))
+
+    def test_lbm_target_rest_day(self):
+        """LBM target on rest day = LBM × 1.0."""
+        from apps.health.services.protein_service import ProteinService
+
+        # Create weight + body fat data
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("240"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=date.today(),
+            weight=Decimal("240"),
+            body_fat_pct=Decimal("36.7"),
+            signals_present=["weight"],
+        )
+
+        result = ProteinService.calculate_target(
+            self.user, date.today(), is_workout_day=False
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result["method"], "lean_body_mass")
+        self.assertFalse(result["workout_day"])
+        # LBM = 240 × 0.633 = 151.92; rest target = 151.92 × 1.0 = 151.92
+        self.assertAlmostEqual(float(result["target_g"]), 151.92, places=0)
+        self.assertAlmostEqual(result["lbm"], 151.92, places=0)
+        self.assertAlmostEqual(result["multiplier"], 1.0)
+
+    def test_lbm_target_workout_day(self):
+        """LBM target on workout day = LBM × 1.1."""
+        from apps.health.services.protein_service import ProteinService
+
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("240"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=date.today(),
+            weight=Decimal("240"),
+            body_fat_pct=Decimal("36.7"),
+            workout_count=1,
+            signals_present=["weight", "workout"],
+        )
+
+        result = ProteinService.calculate_target(
+            self.user, date.today(), is_workout_day=True
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result["method"], "lean_body_mass")
+        self.assertTrue(result["workout_day"])
+        # LBM = 151.92; workout target = 151.92 × 1.1 = 167.11
+        self.assertAlmostEqual(float(result["target_g"]), 167.11, places=0)
+        self.assertAlmostEqual(result["multiplier"], 1.1)
+
+    def test_lbm_target_auto_detect_workout(self):
+        """Should auto-detect workout day from DailyHealthSummary."""
+        from apps.health.services.protein_service import ProteinService
+
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=date.today(),
+            weight=Decimal("200"),
+            body_fat_pct=Decimal("20.0"),
+            workout_count=2,
+            signals_present=["weight", "workout"],
+        )
+
+        result = ProteinService.calculate_target(self.user, date.today())
+        self.assertTrue(result["workout_day"])
+        self.assertAlmostEqual(result["multiplier"], 1.1)
+
+    def test_fallback_to_body_weight_no_bf(self):
+        """Without body fat data, should use body weight × 0.7 fallback."""
+        from apps.health.services.protein_service import ProteinService
+
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        # No body fat data anywhere
+        result = ProteinService.calculate_target(self.user)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["method"], "body_weight")
+        self.assertIsNone(result["lbm"])
+        self.assertEqual(result["target_g"], Decimal("140.00"))
+
+    def test_override_beats_lbm(self):
+        """Override should win even when body fat data is available."""
+        from apps.health.services.protein_service import ProteinService
+
+        HealthProfile.objects.create(
+            user=self.user,
+            protein_target_g_override=Decimal("180"),
+        )
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=date.today(),
+            weight=Decimal("200"),
+            body_fat_pct=Decimal("20.0"),
+            signals_present=["weight"],
+        )
+
+        result = ProteinService.calculate_target(self.user)
+        self.assertEqual(result["method"], "override")
+        self.assertEqual(result["target_g"], Decimal("180"))
+        self.assertIsNone(result["lbm"])
+
+    def test_body_fat_from_composition_entry(self):
+        """Should read body fat from BodyCompositionEntry if not in summary."""
+        from apps.health.services.protein_service import ProteinService
+
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        BodyCompositionEntry.objects.create(
+            user=self.user,
+            metric_name="body_fat_pct",
+            value=Decimal("25.0"),
+            measurement_date=date.today(),
+        )
+
+        result = ProteinService.calculate_target(self.user, date.today())
+        self.assertIsNotNone(result)
+        self.assertEqual(result["method"], "lean_body_mass")
+        # LBM = 200 × 0.75 = 150; target = 150 × 1.0 = 150
+        self.assertAlmostEqual(float(result["target_g"]), 150.0, places=0)
+
+    def test_workout_day_detection_from_session(self):
+        """Should detect workout day from WorkoutSession when no summary."""
+        from apps.health.services.protein_service import ProteinService
+
+        today = date.today()
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        WorkoutSession.objects.create(
+            user=self.user, date=today,
+            workout_type="strength", duration_minutes=60,
+        )
+
+        result = ProteinService.calculate_target(
+            self.user, today, weight_lbs=Decimal("200")
+        )
+        self.assertIsNotNone(result)
+        self.assertTrue(result["workout_day"])
+
+
+class TestLBMScoring(TestCase, HealthIntelligenceTestMixin):
+    """Test LBM-aware protein scoring with workout-day penalty."""
+
+    def setUp(self):
+        self.user = self.create_test_user()
+
+    def test_workout_day_penalty_low_ratio(self):
+        """Workout day + ratio < 0.85 should incur -10 point penalty."""
+        from apps.health.services.protein_service import ProteinService
+
+        today = date.today()
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+
+        # Create 7 days of summaries for scoring context
+        for i in range(7):
+            d = today - timedelta(days=i)
+            DailyHealthSummary.objects.create(
+                user=self.user,
+                summary_date=d,
+                protein_g=Decimal("90"),  # Low — ~64% of 140g target
+                weight=Decimal("200"),
+                workout_count=1 if i == 0 else 0,  # Today is workout day
+                nutrition_logged=True,
+                signals_present=["nutrition", "weight", "workout"],
+            )
+
+        score, details = ProteinService.calculate_score(self.user, today)
+        self.assertIsNotNone(score)
+        self.assertTrue(details["workout_day"])
+        # With penalty, the ratio component should be lowered
+        self.assertIn("components", details)
+
+    def test_score_includes_method_and_lbm(self):
+        """Score details should include method and LBM info."""
+        from apps.health.services.protein_service import ProteinService
+
+        today = date.today()
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=today,
+            protein_g=Decimal("150"),
+            weight=Decimal("200"),
+            body_fat_pct=Decimal("20.0"),
+            nutrition_logged=True,
+            signals_present=["nutrition", "weight"],
+        )
+
+        score, details = ProteinService.calculate_score(self.user, today)
+        self.assertIsNotNone(score)
+        self.assertEqual(details["method"], "lean_body_mass")
+        self.assertIsNotNone(details["lbm"])
+
+
+class TestLBMCoaching(TestCase, HealthIntelligenceTestMixin):
+    """Test LBM-aware coaching messages."""
+
+    def setUp(self):
+        self.user = self.create_test_user()
+
+    def test_coaching_includes_lbm_method_note(self):
+        """Coaching should include LBM method note when applicable."""
+        from apps.health.services.protein_service import ProteinService
+
+        today = date.today()
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=today,
+            protein_g=Decimal("200"),
+            weight=Decimal("200"),
+            body_fat_pct=Decimal("20.0"),
+            nutrition_logged=True,
+            signals_present=["nutrition", "weight"],
+        )
+
+        coaching = ProteinService.get_coaching(self.user, today)
+        self.assertEqual(coaching["method"], "lean_body_mass")
+        self.assertIsNotNone(coaching["lbm"])
+        self.assertIn("LBM", coaching["message"])
+
+    def test_coaching_workout_nudge_with_lbm(self):
+        """Workout day + no data should nudge with LBM target."""
+        from apps.health.services.protein_service import ProteinService
+
+        today = date.today()
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=today,
+            weight=Decimal("200"),
+            body_fat_pct=Decimal("20.0"),
+            workout_count=1,
+            signals_present=["weight", "workout"],
+        )
+
+        coaching = ProteinService.get_coaching(self.user, today)
+        self.assertEqual(coaching["context"], "workout_day_no_data")
+        self.assertEqual(coaching["severity"], "nudge")
+        self.assertEqual(coaching["method"], "lean_body_mass")
 
 
 class TestProteinCoaching(TestCase, HealthIntelligenceTestMixin):
@@ -1036,16 +1385,14 @@ class TestProteinInBuilder(TestCase, HealthIntelligenceTestMixin):
         self.user = self.create_test_user()
 
     def test_builder_computes_protein_fields(self):
-        """Builder should populate protein target, ratio, score."""
+        """Builder should populate protein target, ratio, score, method."""
         from apps.health.services.daily_summary_builder import DailyHealthSummaryBuilder
 
         today = date.today()
-        # Need weight for target calculation
         WeightEntry.objects.create(
             user=self.user, value=Decimal("200"), unit="lb",
             recorded_at=timezone.now(),
         )
-        # Need nutrition for protein
         DailyNutritionSummary.objects.create(
             user=self.user,
             summary_date=today,
@@ -1066,22 +1413,93 @@ class TestProteinInBuilder(TestCase, HealthIntelligenceTestMixin):
         builder = DailyHealthSummaryBuilder()
         summary = builder.build_for_date(self.user, today)
 
-        # protein_g should come from nutrition
         self.assertEqual(summary.protein_g, Decimal("140"))
-        # protein_consumed_g should mirror it
         self.assertEqual(summary.protein_consumed_g, Decimal("140"))
-        # target should be 200 * 0.7 = 140
+        # target should be 200 * 0.7 = 140 (body_weight method)
         self.assertIsNotNone(summary.protein_target_g)
         self.assertEqual(summary.protein_target_g, Decimal("140.00"))
+        self.assertEqual(summary.protein_method, "body_weight")
         # ratio should be 1.0
         self.assertIsNotNone(summary.protein_ratio)
         self.assertEqual(summary.protein_ratio, Decimal("1.00"))
-        # protein_per_lb
         self.assertIsNotNone(summary.protein_per_lb)
         self.assertEqual(summary.protein_per_lb, Decimal("0.700"))
-        # score should be high (hit target)
         self.assertIsNotNone(summary.protein_score)
         self.assertGreaterEqual(summary.protein_score, 85)
+
+    def test_builder_lbm_method_with_body_fat(self):
+        """Builder should use LBM method when body fat is available."""
+        from apps.health.services.daily_summary_builder import DailyHealthSummaryBuilder
+
+        today = date.today()
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+            body_fat_percentage=Decimal("20.0"),
+        )
+        DailyNutritionSummary.objects.create(
+            user=self.user,
+            summary_date=today,
+            total_calories=Decimal("2100"),
+            total_protein_g=Decimal("160"),
+            total_carbohydrates_g=Decimal("200"),
+            total_fat_g=Decimal("80"),
+            total_fiber_g=Decimal("25"),
+            total_sugar_g=Decimal("50"),
+            total_saturated_fat_g=Decimal("20"),
+            total_sodium_mg=Decimal("2000"),
+            breakfast_count=1,
+            lunch_count=1,
+            dinner_count=1,
+            snack_count=0,
+        )
+
+        builder = DailyHealthSummaryBuilder()
+        summary = builder.build_for_date(self.user, today)
+
+        self.assertEqual(summary.protein_method, "lean_body_mass")
+        # LBM = 200 × 0.80 = 160; target = 160 × 1.0 = 160
+        self.assertIsNotNone(summary.protein_target_g)
+        self.assertAlmostEqual(float(summary.protein_target_g), 160.0, places=0)
+
+    def test_builder_workout_day_penalty_in_score(self):
+        """Builder should apply workout-day penalty when protein is low."""
+        from apps.health.services.daily_summary_builder import DailyHealthSummaryBuilder
+
+        today = date.today()
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        # Workout session makes it a workout day
+        WorkoutSession.objects.create(
+            user=self.user, date=today,
+            workout_type="strength", duration_minutes=60,
+        )
+        DailyNutritionSummary.objects.create(
+            user=self.user,
+            summary_date=today,
+            total_calories=Decimal("1500"),
+            total_protein_g=Decimal("80"),  # Low for 200lb (target ~140g)
+            total_carbohydrates_g=Decimal("150"),
+            total_fat_g=Decimal("60"),
+            total_fiber_g=Decimal("20"),
+            total_sugar_g=Decimal("40"),
+            total_saturated_fat_g=Decimal("15"),
+            total_sodium_mg=Decimal("1500"),
+            breakfast_count=1,
+            lunch_count=1,
+            dinner_count=0,
+            snack_count=0,
+        )
+
+        builder = DailyHealthSummaryBuilder()
+        summary = builder.build_for_date(self.user, today)
+
+        # Score should be reduced by workout-day penalty
+        self.assertIsNotNone(summary.protein_score)
+        # 80/140 = 0.57 → base 58, workout penalty → 48
+        self.assertLessEqual(summary.protein_score, 60)
 
     def test_builder_no_protein_no_crash(self):
         """Builder should handle days with no nutrition data gracefully."""
@@ -1121,7 +1539,7 @@ class TestProteinTrends(TestCase, HealthIntelligenceTestMixin):
             DailyHealthSummary.objects.create(
                 user=self.user,
                 summary_date=d,
-                protein_g=Decimal("60"),  # Very low for 240 lbs
+                protein_g=Decimal("60"),
                 weight=Decimal("240"),
                 sleep_hours=Decimal("7"),
                 nutrition_logged=True,
@@ -1130,7 +1548,6 @@ class TestProteinTrends(TestCase, HealthIntelligenceTestMixin):
 
         analysis = HealthTrendAnalyzer.analyze(self.user, date.today())
 
-        # Should detect low protein as a risk flag or weakness
         protein_issues = [
             r for r in analysis["risk_flags"]
             if r.get("domain") == "protein"
@@ -1154,7 +1571,7 @@ class TestProteinTrends(TestCase, HealthIntelligenceTestMixin):
             DailyHealthSummary.objects.create(
                 user=self.user,
                 summary_date=d,
-                protein_g=Decimal("180"),  # 0.9g/lb — excellent
+                protein_g=Decimal("180"),
                 weight=Decimal("200"),
                 sleep_hours=Decimal("7"),
                 nutrition_logged=True,
@@ -1183,7 +1600,7 @@ class TestProteinTrends(TestCase, HealthIntelligenceTestMixin):
             DailyHealthSummary.objects.create(
                 user=self.user,
                 summary_date=d,
-                protein_g=Decimal("80"),  # Very low
+                protein_g=Decimal("80"),
                 weight=Decimal("200"),
                 sleep_hours=Decimal("7"),
                 workout_count=1 if i % 2 == 0 else 0,
@@ -1195,11 +1612,51 @@ class TestProteinTrends(TestCase, HealthIntelligenceTestMixin):
 
         workout_protein_flags = [
             r for r in analysis["risk_flags"]
-            if r.get("domain") == "protein" and "workout" in r.get("message", "").lower()
+            if r.get("domain") == "protein"
+            and ("workout" in r.get("message", "").lower()
+                 or "training" in r.get("message", "").lower())
         ]
         self.assertTrue(
             len(workout_protein_flags) > 0,
-            "Should flag low protein on workout days",
+            "Should flag low protein on workout/training days",
+        )
+
+    def test_protein_lower_on_training_days_flag(self):
+        """Should flag when protein is lower on training days than rest days."""
+        from apps.health.services.trend_analyzer import HealthTrendAnalyzer
+
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+
+        for i in range(10):
+            d = date.today() - timedelta(days=i)
+            is_workout = i % 2 == 0
+            # Workout days: lower protein (wrong direction)
+            protein = Decimal("100") if is_workout else Decimal("160")
+            DailyHealthSummary.objects.create(
+                user=self.user,
+                summary_date=d,
+                protein_g=protein,
+                weight=Decimal("200"),
+                sleep_hours=Decimal("7"),
+                workout_count=1 if is_workout else 0,
+                nutrition_logged=True,
+                signals_present=["nutrition", "weight", "sleep", "workout"],
+            )
+
+        analysis = HealthTrendAnalyzer.analyze(self.user, date.today())
+
+        # Should find a flag about protein being lower on training days
+        training_gap_flags = [
+            r for r in analysis["risk_flags"]
+            if r.get("domain") == "protein"
+            and "lower on training" in r.get("message", "").lower()
+        ]
+        self.assertTrue(
+            len(training_gap_flags) > 0,
+            "Should flag protein lower on training days than rest days",
         )
 
 
@@ -1233,7 +1690,6 @@ class TestProteinInHealthScore(TestCase, HealthIntelligenceTestMixin):
         score, drivers = HealthScoreService.compute(self.user, date.today())
 
         self.assertIsNotNone(score)
-        # Nutrition domain should have a protein sub-score
         nutrition_domain = drivers.get("domains", {}).get("nutrition", {})
         self.assertGreaterEqual(nutrition_domain.get("score", 0), 70)
 
@@ -1251,7 +1707,7 @@ class TestProteinInHealthScore(TestCase, HealthIntelligenceTestMixin):
                 steps=8000,
                 workout_count=1 if i % 2 == 0 else 0,
                 calories_consumed=2100,
-                protein_g=Decimal("50"),  # Very low
+                protein_g=Decimal("50"),
                 weight=Decimal("200"),
                 nutrition_logged=True,
                 recovery_score=72,
@@ -1262,12 +1718,11 @@ class TestProteinInHealthScore(TestCase, HealthIntelligenceTestMixin):
 
         self.assertIsNotNone(score)
         nutrition_domain = drivers.get("domains", {}).get("nutrition", {})
-        # Should be lower due to poor protein
         self.assertLessEqual(nutrition_domain.get("score", 100), 65)
 
 
 class TestProteinCorrelations(TestCase, HealthIntelligenceTestMixin):
-    """Test protein correlations."""
+    """Test protein correlations including new LBM-era correlations."""
 
     def setUp(self):
         self.user = self.create_test_user()
@@ -1282,7 +1737,6 @@ class TestProteinCorrelations(TestCase, HealthIntelligenceTestMixin):
         for i in range(28):
             d = date.today() - timedelta(days=i)
             protein = Decimal(str(round(100 + random.random() * 100, 2)))
-            # Recovery correlates with protein
             recovery = int(40 + float(protein) * 0.3 + random.random() * 10)
 
             DailyHealthSummary.objects.create(
@@ -1299,17 +1753,33 @@ class TestProteinCorrelations(TestCase, HealthIntelligenceTestMixin):
 
         results = CorrelationService.compute(self.user, date.today())
 
-        # Should have some results (may or may not include protein)
         self.assertGreater(len(results), 0)
-        # All should have valid structure
         for r in results:
             self.assertIn("signal_a", r)
             self.assertIn("interpretation", r)
             self.assertTrue(-1 <= r["correlation"] <= 1)
 
+    def test_new_interpretation_methods(self):
+        """Verify all new correlation interpretation methods work."""
+        from apps.health.services.correlation_service import CorrelationService
+
+        # Muscle correlation
+        msg = CorrelationService._interpret_protein_muscle(0.5)
+        self.assertIn("muscle", msg.lower())
+        msg = CorrelationService._interpret_protein_muscle(0.0)
+        self.assertIn("no clear", msg.lower())
+
+        # Fat loss
+        msg = CorrelationService._interpret_protein_fat_loss(-0.4)
+        self.assertIn("fat", msg.lower())
+
+        # Performance
+        msg = CorrelationService._interpret_protein_performance(0.5)
+        self.assertIn("training", msg.lower())
+
 
 class TestProteinWeeklySummary(TestCase, HealthIntelligenceTestMixin):
-    """Test protein weekly summary."""
+    """Test protein weekly summary with LBM info."""
 
     def setUp(self):
         self.user = self.create_test_user()
@@ -1322,7 +1792,7 @@ class TestProteinWeeklySummary(TestCase, HealthIntelligenceTestMixin):
         self.assertEqual(summary["status"], "no_data")
 
     def test_weekly_summary_with_data(self):
-        """Should compute weekly averages and breakdowns."""
+        """Should compute weekly averages and include method."""
         from apps.health.services.protein_service import ProteinService
 
         WeightEntry.objects.create(
@@ -1348,18 +1818,47 @@ class TestProteinWeeklySummary(TestCase, HealthIntelligenceTestMixin):
         self.assertEqual(summary["days_tracked"], 7)
         self.assertIsNotNone(summary["avg_consumed_g"])
         self.assertIsNotNone(summary["target_g"])
+        self.assertIn("method", summary)
+        self.assertIn("lbm", summary)
         self.assertIn("daily_detail", summary)
         self.assertEqual(len(summary["daily_detail"]), 7)
 
+    def test_weekly_summary_workout_rest_split(self):
+        """Should show separate workout vs rest day averages."""
+        from apps.health.services.protein_service import ProteinService
+
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+
+        for i in range(7):
+            d = date.today() - timedelta(days=i)
+            DailyHealthSummary.objects.create(
+                user=self.user,
+                summary_date=d,
+                protein_g=Decimal("180") if i % 2 == 0 else Decimal("140"),
+                weight=Decimal("200"),
+                workout_count=1 if i % 2 == 0 else 0,
+                nutrition_logged=True,
+                signals_present=["nutrition", "weight"],
+            )
+
+        summary = ProteinService.get_weekly_summary(self.user, date.today())
+        self.assertIn("workout_day_avg_g", summary)
+        self.assertIn("rest_day_avg_g", summary)
+        # Workout day avg should be higher
+        self.assertGreater(summary["workout_day_avg_g"], summary["rest_day_avg_g"])
+
 
 class TestProteinInCommandCenter(TestCase, HealthIntelligenceTestMixin):
-    """Test protein panel in Command Center API."""
+    """Test protein panel in Command Center API (LBM-aware)."""
 
     def setUp(self):
         self.user = self.create_test_user()
 
     def test_protein_panel_in_dashboard(self):
-        """Dashboard should include protein panel."""
+        """Dashboard should include protein panel with LBM fields."""
         from apps.health.services.command_center_api import HealthCommandCenterService
 
         today = date.today()
@@ -1372,6 +1871,7 @@ class TestProteinInCommandCenter(TestCase, HealthIntelligenceTestMixin):
             protein_score=85,
             protein_per_lb=Decimal("0.667"),
             protein_consumed_g=Decimal("160"),
+            protein_method="lean_body_mass",
             weight=Decimal("240"),
             workout_count=1,
             nutrition_logged=True,
@@ -1385,4 +1885,55 @@ class TestProteinInCommandCenter(TestCase, HealthIntelligenceTestMixin):
         self.assertEqual(protein_panel["today_consumed_g"], 160.0)
         self.assertEqual(protein_panel["today_target_g"], 168.0)
         self.assertEqual(protein_panel["today_score"], 85)
+        self.assertEqual(protein_panel["today_method"], "lean_body_mass")
         self.assertTrue(protein_panel["is_workout_day"])
+
+
+class TestCosProteinIntelligence(TestCase, HealthIntelligenceTestMixin):
+    """Test CoS protein intelligence with LBM context."""
+
+    def setUp(self):
+        self.user = self.create_test_user()
+
+    def test_cos_protein_intelligence_has_lbm_fields(self):
+        """CoS context should include method, LBM, and workout_day."""
+        from apps.health.services.cos_health_context import build_cos_health_intelligence
+
+        today = date.today()
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=today,
+            weight=Decimal("200"),
+            body_fat_pct=Decimal("20.0"),
+            protein_g=Decimal("150"),
+            nutrition_logged=True,
+            signals_present=["weight", "nutrition"],
+            baseline_ready=False,
+        )
+
+        intel = build_cos_health_intelligence(self.user)
+        protein = intel.get("protein_intelligence", {})
+
+        self.assertIn("method", protein)
+        self.assertIn("lean_body_mass", protein)
+        self.assertIn("workout_day", protein)
+        self.assertIsNotNone(protein.get("target_g"))
+
+    def test_cos_summary_serializes_protein_method(self):
+        """Summary serializer should include protein_method."""
+        from apps.health.services.cos_health_context import _serialize_summary
+
+        today = date.today()
+        summary = DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=today,
+            protein_method="lean_body_mass",
+            signals_present=["nutrition"],
+        )
+
+        serialized = _serialize_summary(summary)
+        self.assertEqual(serialized["protein_method"], "lean_body_mass")

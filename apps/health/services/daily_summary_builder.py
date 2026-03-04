@@ -564,6 +564,8 @@ class DailyHealthSummaryBuilder:
 
         Runs AFTER _collect_nutrition and _collect_weight_and_composition so that
         protein_g and weight are already populated in collected_data.
+
+        Uses LBM-aware targets when body fat data is available.
         """
         from apps.health.services.protein_service import ProteinService
 
@@ -576,11 +578,22 @@ class DailyHealthSummaryBuilder:
         # Copy consumed for clarity
         result["protein_consumed_g"] = protein_g
 
-        # Calculate target
-        target_g = ProteinService.calculate_target(user, target_date)
-        if target_g:
+        # Calculate target (returns dict with target_g, method, lbm, etc.)
+        # Pass weight and body_fat from collected_data since the summary
+        # hasn't been saved to DB yet at this point.
+        weight = collected_data.get("weight")
+        body_fat = collected_data.get("body_fat_pct")
+        target_info = ProteinService.calculate_target(
+            user, target_date,
+            weight_lbs=weight,
+            body_fat_pct=body_fat,
+        )
+        target_g = None
+        if target_info:
+            target_g = target_info["target_g"]
             result["protein_target_g"] = target_g
             result["protein_ratio"] = ProteinService.calculate_ratio(protein_g, target_g)
+            result["protein_method"] = target_info["method"]
 
         # Protein per lb body weight
         weight = collected_data.get("weight")
@@ -590,20 +603,26 @@ class DailyHealthSummaryBuilder:
             )
 
         # Protein score (lightweight inline version to avoid circular dep)
+        # Uses workout-day awareness for scoring penalty
         if target_g and target_g > 0:
             ratio = float(protein_g) / float(target_g)
+            is_workout = target_info.get("workout_day", False) if target_info else False
+
             if ratio >= 1.0:
                 score = 95
-            elif ratio >= 0.9:
-                score = 85
-            elif ratio >= 0.8:
-                score = 72
-            elif ratio >= 0.7:
+            elif ratio >= 0.85:
+                score = 90
+            elif ratio >= 0.70:
+                score = 75
+            elif ratio >= 0.50:
                 score = 58
-            elif ratio >= 0.5:
-                score = 38
             else:
-                score = 18
+                score = 35
+
+            # Workout-day penalty: ratio < 0.85 on workout day → -10 pts
+            if is_workout and ratio < 0.85:
+                score = max(0, score - 10)
+
             result["protein_score"] = score
 
         return result

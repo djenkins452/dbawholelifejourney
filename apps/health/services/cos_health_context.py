@@ -106,18 +106,23 @@ def build_cos_health_intelligence(user):
     except Exception:
         logger.error("Failed to compute health correlations for CoS", exc_info=True)
 
-    # Protein intelligence
+    # Protein intelligence (LBM-aware)
     try:
         from apps.health.services.protein_service import ProteinService
         coaching = ProteinService.get_coaching(user, today_date)
         weekly = ProteinService.get_weekly_summary(user, today_date)
+        target_info = ProteinService.calculate_target(user, today_date)
         result["protein_intelligence"] = {
             "coaching": coaching,
             "weekly_summary": {
                 k: v for k, v in weekly.items()
                 if k != "daily_detail"  # exclude chart data from CoS
             } if weekly else {},
-            "target_g": float(ProteinService.calculate_target(user, today_date) or 0),
+            "target_g": float(target_info["target_g"]) if target_info else 0,
+            "method": target_info["method"] if target_info else None,
+            "lean_body_mass": target_info["lbm"] if target_info else None,
+            "workout_day": target_info["workout_day"] if target_info else False,
+            "multiplier": target_info["multiplier"] if target_info else None,
         }
     except Exception:
         logger.error("Failed to compute protein intelligence for CoS", exc_info=True)
@@ -157,6 +162,7 @@ def _serialize_summary(summary):
         "protein_ratio": _dec(summary.protein_ratio),
         "protein_score": summary.protein_score,
         "protein_per_lb": _dec(summary.protein_per_lb),
+        "protein_method": summary.protein_method,
         "carbs_g": _dec(summary.carbs_g),
         "fat_g": _dec(summary.fat_g),
         "water_oz": _dec(summary.water_oz),

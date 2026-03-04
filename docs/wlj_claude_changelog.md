@@ -9,6 +9,39 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Protein Intelligence: LBM + Adaptive Workout-Day Targets
+
+**What:** Upgraded Protein Intelligence to use Lean Body Mass (LBM) for targets instead of total body weight. Added adaptive workout-day targets (rest: LBM×1.0, workout: LBM×1.1), with fallback to body weight × 0.7 when no body fat data available.
+
+**Key changes:**
+- `ProteinService.calculate_target()` now returns a dict (target_g, method, lbm, workout_day, multiplier) instead of Decimal
+- `ProteinService.calculate_target_g()` added as backward-compatible convenience
+- `ProteinService.calculate_lean_body_mass()` new static method
+- `_get_body_fat_pct()` and `_detect_workout_day()` helpers added
+- Workout-day penalty: ratio < 0.85 on workout day → -10 pts in scoring
+- Builder passes weight/body_fat from collected_data to avoid DB-before-save issue
+
+**Files created:**
+- `apps/health/migrations/0052_add_protein_method_field.py` — protein_method field on DailyHealthSummary
+
+**Files modified:**
+- `apps/health/models.py` — Added protein_method CharField
+- `apps/health/services/protein_service.py` — Complete LBM-aware rewrite
+- `apps/health/services/daily_summary_builder.py` — LBM-aware protein computation, passes weight/bf to service
+- `apps/health/services/health_score.py` — Updated immediate_focus text for LBM target
+- `apps/health/services/trend_analyzer.py` — Training-day detection, rest vs workout protein gap flag
+- `apps/health/services/correlation_service.py` — Added protein↔muscle, protein↔fat_loss, protein↔performance correlations
+- `apps/health/services/cos_health_context.py` — Added method, lean_body_mass, workout_day, multiplier to CoS context
+- `apps/health/services/command_center_api.py` — Added LBM target info, consistency_pct, method to protein panel
+- `apps/health/tests/test_health_intelligence.py` — Added 23 new LBM tests (84 total)
+- `docs/HEALTH_INTELLIGENCE_ENGINE.md` — Updated Protein Intelligence section for LBM
+
+**Why:** Total body weight × 0.7 penalizes users with higher body fat (their lean tissue needs less protein per total lb but same per lean lb). LBM-based targets are more accurate for body recomposition. Adaptive workout-day targets (1.1×) support muscle protein synthesis on training days.
+
+**Tests:** 84 tests passing, Django system check clean.
+
+---
+
 ## 2026-03-04 — Protein Intelligence & Coaching
 
 **What:** Added Protein Intelligence layer to the Health Intelligence Engine — protein target calculation (0.7g/lb), scoring, trend detection, correlations, CoS coaching, and Command Center protein panel.

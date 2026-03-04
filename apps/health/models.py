@@ -5485,7 +5485,7 @@ class DailyHealthSummary(UserOwnedModel):
     # --- Protein Intelligence ---
     protein_target_g = models.DecimalField(
         max_digits=6, decimal_places=2, null=True, blank=True,
-        help_text="Daily protein target in grams (0.7g/lb body weight)",
+        help_text="Daily protein target (LBM×1.0/1.1 or fallback 0.7g/lb)",
     )
     protein_consumed_g = models.DecimalField(
         max_digits=7, decimal_places=2, null=True, blank=True,
@@ -5502,6 +5502,10 @@ class DailyHealthSummary(UserOwnedModel):
     protein_per_lb = models.DecimalField(
         max_digits=4, decimal_places=3, null=True, blank=True,
         help_text="Grams of protein per pound of body weight",
+    )
+    protein_method = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="Target method: 'lean_body_mass', 'body_weight', or 'override'",
     )
 
     # --- Medication ---

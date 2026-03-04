@@ -76,7 +76,7 @@ MEDICINE_INTENT_TOOLS = [
                 "properties": {
                     "recipient_email": {
                         "type": "string",
-                        "description": "Email address to send the medicine list to. If the user says 'email me' or 'send it to me' without specifying, use their account email."
+                        "description": "Email address to send the medicine list to. Only include this if the user provides a SPECIFIC email address like 'send to john@example.com'. If they just say 'email me' or 'send it to me', OMIT this parameter — the system will use their account email automatically."
                     },
                     "include_adherence": {
                         "type": "boolean",
@@ -87,7 +87,7 @@ MEDICINE_INTENT_TOOLS = [
                         "description": "Whether to include paused/completed medicines. Default false — only active medicines."
                     }
                 },
-                "required": ["recipient_email"]
+                "required": []
             }
         }
     },

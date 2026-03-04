@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Fix email_medicine_list empty email fallback
+
+**What:** When user says "email me my medicines" without specifying an address, OpenAI was forced to send a `recipient_email` value (it was required). It sent empty string or placeholder text like `<user's email>`, which failed validation instead of falling back to the user's account email. Fixed by: (1) making `recipient_email` optional in the schema, (2) removing `<user's email>` placeholder from system prompt examples so OpenAI omits the param, (3) hardening the handler to catch placeholder patterns (strings starting with `<` or `{`).
+**Files:** `apps/ai/intents/medicine_intents.py`, `apps/ai/intent_service.py`, `apps/ai/action_handlers.py`
+
+---
+
 ## 2026-03-04 — Improve Vision API error messaging for missing env vars
 
 **What:** Bulk recipe import failed with "Vision API client not available" on Celery worker because `OPENAI_API_KEY` env var was missing on the Railway worker service. Improved error logging to explicitly state the missing config and point to the Railway services fix.

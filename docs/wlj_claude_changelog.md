@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Fix "Sorry, I couldn't log that habit" error in AI chat
+
+**What:** `handle_log_habit()` had three incorrect field references causing every habit logging attempt to throw a FieldError caught by the generic exception handler: (1) `habit_status='active'` — field doesn't exist on HabitGoal, should only use `status='active'`; (2) `user=self.user` in HabitEntry.get_or_create — HabitEntry has no `user` field, user is via `goal` FK; (3) `habit=habit` — the FK is named `goal`, not `habit`. Also fixed the weekly trend query to use `goal__user` instead of `user`.
+**Files:** `apps/ai/action_handlers.py` (handle_log_habit)
+
+---
+
 ## 2026-03-04 — Fix numbered list rendering in AI chat (all items showing as "1.")
 
 **What:** AI responses with numbered lists separated by blank lines were each rendered as their own `<ol>` with a single item, causing all bullets to display as "1." instead of sequential numbering. Added regex preprocessing to merge consecutive numbered/bullet list items separated by blank lines before paragraph splitting.

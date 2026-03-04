@@ -2690,7 +2690,6 @@ class ActionHandler:
         try:
             habits = HabitGoal.objects.filter(
                 user=self.user,
-                habit_status='active',
                 status='active'
             ).filter(
                 Q(name__icontains=habit_keyword) |
@@ -2712,9 +2711,9 @@ class ActionHandler:
 
                 # Create or update today's entry
                 entry, created = HabitEntry.objects.get_or_create(
-                    user=self.user,
-                    habit=habit,
+                    goal=habit,
                     date=today,
+                    session_number=1,
                     defaults={'completed': completed, 'notes': notes or ""}
                 )
 
@@ -2728,7 +2727,13 @@ class ActionHandler:
                 # Trend lookup — weekly habit count (safe — never blocks action)
                 trend = None
                 try:
-                    weekly = self._get_weekly_count(HabitEntry, 'date')
+                    import datetime as dt
+                    today_for_trend = self._get_user_today()
+                    week_start = today_for_trend - dt.timedelta(days=today_for_trend.weekday())
+                    weekly = HabitEntry.objects.filter(
+                        goal__user=self.user,
+                        date__gte=week_start
+                    ).count()
                     if weekly:
                         trend = f"{weekly} habit log{'s' if weekly != 1 else ''} this week"
                 except Exception:

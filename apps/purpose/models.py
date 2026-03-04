@@ -1091,33 +1091,13 @@ class HabitGoal(UserOwnedModel):
 
     @property
     def current_streak(self):
-        """Calculate current consecutive completion streak."""
-        today = get_user_today(self.user)
+        """Calculate current consecutive completion streak.
 
-        # Get completed entries ordered by date descending
-        completed_dates = set(
-            self.habit_entries.filter(completed=True)
-            .values_list('date', flat=True)
-        )
-
-        if not completed_dates:
-            return 0
-
-        # Start from today or end_date (whichever is earlier)
-        check_date = min(today, self.end_date)
-        streak = 0
-
-        while check_date >= self.start_date:
-            if check_date in completed_dates:
-                streak += 1
-                check_date -= timezone.timedelta(days=1)
-            elif check_date > today:
-                # Skip future dates
-                check_date -= timezone.timedelta(days=1)
-            else:
-                break
-
-        return streak
+        Delegates to streak_service for single source of truth.
+        Handles daily, weekly, and monthly frequency types.
+        """
+        from apps.purpose.services.streak_service import get_current_streak
+        return get_current_streak(self)
 
     # =========================================================================
     # Measurement Type Helpers

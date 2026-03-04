@@ -246,27 +246,17 @@ def _get_task_signals(user, week_ago, today):
 
 
 def _get_medication_signals(user, week_ago, today):
-    """Get medication adherence trend."""
+    """Get medication adherence trend (schedule-based, not logs-only)."""
     try:
-        from apps.health.models import MedicineLog
+        from apps.health.medicine_utils import calculate_medicine_adherence
 
-        total = MedicineLog.objects.filter(
-            medicine__user=user,
-            scheduled_date__gte=week_ago,
-            scheduled_date__lte=today,
-        ).count()
-
-        if total == 0:
+        adh = calculate_medicine_adherence(user, week_ago, today)
+        if adh["expected_doses"] == 0:
             return None
 
-        taken = MedicineLog.objects.filter(
-            medicine__user=user,
-            scheduled_date__gte=week_ago,
-            scheduled_date__lte=today,
-            log_status__in=['taken', 'late'],
-        ).count()
-
-        pct = int((taken / total) * 100) if total else 0
+        pct = adh["adherence_rate"] or 0
+        taken = adh["taken_doses"]
+        total = adh["expected_doses"]
         status = "good" if pct >= 90 else ("moderate" if pct >= 70 else "low")
         return f"{pct}% adherence ({taken}/{total} doses, {status})"
     except Exception:

@@ -479,3 +479,75 @@ class TestAdherenceEdgeCases(AdherenceTestMixin, TestCase):
         result = calculate_medicine_adherence(self.user, day, day)
         self.assertEqual(result["expected_doses"], 1)
         self.assertGreaterEqual(result["unlogged_doses"], 0)
+
+
+# =============================================================================
+# VIEW CONSISTENCY TESTS
+# =============================================================================
+
+
+class TestViewsUseMedicineUtils(AdherenceTestMixin, TestCase):
+    """
+    Verify that health views use medicine_utils for adherence, not their own
+    logs-only calculation. This prevents the critical bug where unlogged doses
+    are invisible (showing 100% when real adherence is 20%).
+    """
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.client = self._get_logged_in_client()
+        self.med = self.create_medicine(self.user, name="Consistency Test Med")
+        self.schedule = self.create_schedule(self.med)
+
+    def _get_logged_in_client(self):
+        from django.test import Client
+        client = Client()
+        client.login(email="adherence@test.com", password="testpass123")
+        return client
+
+    def test_medicine_detail_uses_schedule_based_adherence(self):
+        """
+        MedicineDetailView must show schedule-based adherence.
+        If 7 doses expected but only 1 logged as taken, adherence should be ~14%,
+        NOT 100%.
+        """
+        from django.urls import reverse
+        from apps.core.utils import get_user_today
+
+        today = get_user_today(self.user)
+
+        # Only log 1 of 7 expected doses as taken
+        self.create_log(self.user, self.med, today, "taken")
+
+        response = self.client.get(
+            reverse("health:medicine_detail", kwargs={"pk": self.med.pk}),
+        )
+        self.assertEqual(response.status_code, 200)
+        # week_adherence must be <= 20% (1 of ~7 expected), NOT 100%
+        week_adherence = response.context.get("week_adherence", 0)
+        self.assertLessEqual(
+            week_adherence, 20,
+            f"Adherence should be ~14% (1/7 expected) but got {week_adherence}%. "
+            f"View may be using logs-only denominator instead of medicine_utils."
+        )
+
+    def test_adherence_view_uses_schedule_based_adherence(self):
+        """
+        MedicineAdherenceView must show schedule-based adherence.
+        """
+        from django.urls import reverse
+        from apps.core.utils import get_user_today
+
+        today = get_user_today(self.user)
+
+        # Only log 1 of 7 expected doses
+        self.create_log(self.user, self.med, today, "taken")
+
+        response = self.client.get(reverse("health:medicine_adherence"))
+        self.assertEqual(response.status_code, 200)
+        adherence_rate = response.context.get("adherence_rate", 0)
+        self.assertLessEqual(
+            adherence_rate, 20,
+            f"Adherence should be ~14% (1/7) but got {adherence_rate}%. "
+            f"View may be using logs-only denominator instead of medicine_utils."
+        )

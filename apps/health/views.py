@@ -2665,21 +2665,16 @@ class MedicineDetailView(LoginRequiredMixin, TemplateView):
             medicine=medicine
         ).order_by("-scheduled_date", "-scheduled_time")[:30]
 
-        # Adherence stats for last 7 days
+        # Adherence stats for last 7 days (schedule-based, not logs-only)
         today = get_user_today(self.request.user)
         week_ago = today - timedelta(days=7)
-        week_logs = MedicineLog.objects.filter(
-            medicine=medicine,
-            scheduled_date__gte=week_ago,
-            scheduled_date__lte=today,
+        from apps.health.medicine_utils import calculate_single_medicine_adherence
+        adh_result = calculate_single_medicine_adherence(
+            self.request.user, medicine, week_ago, today
         )
-        taken = week_logs.filter(
-            log_status__in=[MedicineLog.STATUS_TAKEN, MedicineLog.STATUS_LATE]
-        ).count()
-        total = week_logs.count()
-        context["week_taken"] = taken
-        context["week_total"] = total
-        context["week_adherence"] = round(taken / total * 100) if total > 0 else 0
+        context["week_taken"] = adh_result["taken_doses"]
+        context["week_total"] = adh_result["expected_doses"]
+        context["week_adherence"] = adh_result["adherence_rate"] or 0
 
         return context
 
@@ -3610,44 +3605,44 @@ class MedicineAdherenceView(LoginRequiredMixin, TemplateView):
         context["start_date"] = start_date
         context["end_date"] = today
 
-        # Get all logs in the period
+        # Schedule-based adherence (counts unlogged doses as missed)
+        from apps.health.medicine_utils import (
+            calculate_medicine_adherence,
+            calculate_single_medicine_adherence,
+        )
+        adh_result = calculate_medicine_adherence(user, start_date, today)
+
+        # Also get log-level breakdown for display (missed/skipped/late)
         logs = MedicineLog.objects.filter(
             user=user,
             scheduled_date__gte=start_date,
             scheduled_date__lte=today,
-            is_prn_dose=False,  # Only count scheduled doses
+            is_prn_dose=False,
         )
-
-        total = logs.count()
-        taken = logs.filter(
-            log_status__in=[MedicineLog.STATUS_TAKEN, MedicineLog.STATUS_LATE]
-        ).count()
         missed = logs.filter(log_status=MedicineLog.STATUS_MISSED).count()
         skipped = logs.filter(log_status=MedicineLog.STATUS_SKIPPED).count()
         late = logs.filter(log_status=MedicineLog.STATUS_LATE).count()
 
-        context["total_scheduled"] = total
-        context["taken_count"] = taken
+        context["total_scheduled"] = adh_result["expected_doses"]
+        context["taken_count"] = adh_result["taken_doses"]
         context["missed_count"] = missed
         context["skipped_count"] = skipped
         context["late_count"] = late
-        context["adherence_rate"] = round(taken / total * 100) if total > 0 else 0
+        context["adherence_rate"] = adh_result["adherence_rate"] or 0
 
-        # Per-medicine breakdown
+        # Per-medicine breakdown (schedule-based)
         medicines = Medicine.objects.filter(user=user)
         medicine_stats = []
         for medicine in medicines:
-            med_logs = logs.filter(medicine=medicine)
-            med_total = med_logs.count()
-            med_taken = med_logs.filter(
-                log_status__in=[MedicineLog.STATUS_TAKEN, MedicineLog.STATUS_LATE]
-            ).count()
-            if med_total > 0:
+            med_adh = calculate_single_medicine_adherence(
+                user, medicine, start_date, today
+            )
+            if med_adh["expected_doses"] > 0:
                 medicine_stats.append({
                     "medicine": medicine,
-                    "total": med_total,
-                    "taken": med_taken,
-                    "rate": round(med_taken / med_total * 100),
+                    "total": med_adh["expected_doses"],
+                    "taken": med_adh["taken_doses"],
+                    "rate": med_adh["adherence_rate"] or 0,
                 })
         context["medicine_stats"] = sorted(
             medicine_stats, key=lambda x: x["rate"]

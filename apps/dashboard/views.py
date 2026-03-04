@@ -864,7 +864,11 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         }
     
     def _calculate_journal_streak(self, user, today):
-        """Calculate consecutive days of journaling (excludes today)."""
+        """Calculate consecutive days of journaling (includes today).
+
+        Aligned with journal module's _calculate_streak() and workout streak
+        to use a consistent start point (today, not yesterday).
+        """
         from apps.journal.models import JournalEntry
 
         entries = JournalEntry.objects.filter(
@@ -875,8 +879,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             return 0
 
         streak = 0
-        # Start from yesterday - today doesn't count toward the streak
-        expected_date = today - timedelta(days=1)
+        expected_date = today
 
         for entry_date in entries:
             if entry_date == expected_date:

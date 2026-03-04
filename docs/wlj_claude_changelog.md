@@ -9,7 +9,29 @@
 
 # WLJ Change History
 
-<<<<<<< HEAD
+## 2026-03-04 — System consistency review: fix metric calculation inconsistencies
+
+**What:** Comprehensive architecture review found 7 places where metrics disagreed with each other. Applied 6 fixes:
+
+1. **CRITICAL — Medicine adherence (4 locations):** `MedicineDetailView`, `MedicineAdherenceView`, `diagnostic_context.py`, and `cos_context.py` all calculated adherence using logs-only denominators (taken/logged_count), which showed 100% even when users only logged 1 of 7 expected doses. All 4 now call the authoritative `medicine_utils.calculate_medicine_adherence()` which uses schedule-based expected doses.
+2. **Journal streak inconsistency:** Dashboard started streak from yesterday while journal module started from today, causing an off-by-1 visible to users. Aligned dashboard to start from today (matching journal module and workout streak).
+3. **HabitGoal.current_streak duplication:** Model property reimplemented the exact same logic as `streak_service.get_current_streak()`. Now delegates to the service (single source of truth) and gains weekly/monthly frequency support.
+4. **Added view-level consistency tests** to prevent regression (TestViewsUseMedicineUtils).
+5. **Cleaned up** stale merge conflict marker in changelog.
+
+**Files:**
+- `apps/health/views.py` (MedicineDetailView lines ~2668-2682, MedicineAdherenceView lines ~3613-3654)
+- `apps/cos/context/diagnostic_context.py` (lines ~248-271)
+- `apps/core/ai_orchestrator/cos_context.py` (lines ~306-327)
+- `apps/dashboard/views.py` (_calculate_journal_streak)
+- `apps/purpose/models.py` (HabitGoal.current_streak property)
+- `apps/health/tests/test_medicine_adherence.py` (new TestViewsUseMedicineUtils)
+- `apps/dashboard/tests/test_dashboard_comprehensive.py` (updated streak test)
+
+**Why:** System behaved like separate modules instead of one platform. Same user could see 100% adherence on medicine detail page and 14% on dashboard. Journal streak showed different numbers on dashboard vs journal page.
+
+---
+
 ## 2026-03-04 — Cross-complete habits and tasks when user says "I finished X"
 
 **What:** When user says they finished something, the AI now handles both the habit and task side automatically. `log_habit` success also completes a matching task; `complete_task` success also logs a matching habit. When the primary type isn't found but the other type exists, CoS asks: "I see a task/habit called X — would you like me to mark it complete?" instead of silently failing.

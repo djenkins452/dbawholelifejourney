@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-04 — CoS proactive schedule awareness ("you should be working out right now")
+
+**What:** Schedule blocks in the CoS system prompt now get temporal tags — `[NOW]` for the currently active block and `[NEXT]` for the upcoming one. A new "RIGHT NOW" focus section and "SCHEDULE AWARENESS" directive tell the CoS to proactively mention when the user is interacting during a scheduled activity (e.g., workout time) and to ask clarifying questions instead of assuming.
+**Files:** `apps/core/ai_orchestrator/cos_context.py` (format_cos_system_injection — schedule block rendering + SCHEDULE AWARENESS directive)
+
+---
+
 ## 2026-03-04 — Cross-complete habits and tasks when user says "I finished X"
 
 **What:** When user says they finished something, the AI now handles both the habit and task side automatically. `log_habit` success also completes a matching task; `complete_task` success also logs a matching habit. When the primary type isn't found but the other type exists, CoS asks: "I see a task/habit called X — would you like me to mark it complete?" instead of silently failing.

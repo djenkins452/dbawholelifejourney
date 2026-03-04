@@ -1357,6 +1357,19 @@ def format_cos_system_injection(context):
         "If there is no matching page in APP NAVIGATION, do not include a link."
     )
     lines.append("")
+    lines.append(
+        "SCHEDULE AWARENESS: When the user interacts with you, CHECK the "
+        "schedule below for a [NOW] block. If there is a [NOW] block and the "
+        "user is chatting instead of doing that activity, PROACTIVELY mention it. "
+        "For example: 'Your workout is scheduled right now — want me to mark "
+        "something complete and let you get to it?' or 'Heads up, you're in your "
+        "Bible reading block right now.' Be helpful, not nagging — mention it once, "
+        "then respect their choice. If the user is reporting completion of the [NOW] "
+        "activity, acknowledge it positively without nagging. If you're unsure what "
+        "the user wants, ASK — don't assume. A good Chief of Staff asks clarifying "
+        "questions rather than guessing wrong."
+    )
+    lines.append("")
 
     # Language rules (what terms to avoid)
     try:
@@ -1435,14 +1448,49 @@ def format_cos_system_injection(context):
     if fast.get('active'):
         lines.append(f"Active Fast: In progress (target: {fast.get('target_hours', 0)}h)")
 
-    # Today's schedule blocks
+    # Today's schedule blocks (with temporal awareness)
     blocks = context.get('today_blocks_summary', [])
     if blocks:
         lines.append("")
         lines.append("Today's Schedule:")
+        now = timezone.localtime()
+        current_time = now.time()
+        current_block_title = None
+        next_block_title = None
+        next_block_time = None
         for b in blocks[:8]:
-            status = "[done]" if b['completed'] else "[locked]" if b['locked'] else ""
+            # Determine temporal status
+            if b['completed']:
+                status = "[done]"
+            elif b['locked']:
+                status = "[locked]"
+            else:
+                status = ""
+            # Add NOW/NEXT tags for non-completed blocks
+            if not b['completed'] and b['start'] and b['end']:
+                try:
+                    b_start = datetime.datetime.strptime(b['start'], '%H:%M').time()
+                    b_end = datetime.datetime.strptime(b['end'], '%H:%M').time()
+                    if b_start <= current_time <= b_end:
+                        status = "[NOW]" + (" [locked]" if b['locked'] else "")
+                        current_block_title = b['title']
+                    elif not current_block_title and not next_block_title and current_time < b_start:
+                        status = "[NEXT]" + (" [locked]" if b['locked'] else "")
+                        next_block_title = b['title']
+                        next_block_time = b['start']
+                except (ValueError, TypeError):
+                    pass
             lines.append(f"  {b['start']}-{b['end']} {b['title']} {status}")
+
+        # Add explicit current focus section
+        if current_block_title:
+            lines.append("")
+            lines.append(f"RIGHT NOW: User should be doing '{current_block_title}'.")
+            if next_block_title:
+                lines.append(f"NEXT UP: '{next_block_title}' at {next_block_time}.")
+        elif next_block_title:
+            lines.append("")
+            lines.append(f"NEXT UP: '{next_block_title}' at {next_block_time}.")
 
     # Calendar events (what's happening today)
     cal_events = context.get('calendar_events_today', [])

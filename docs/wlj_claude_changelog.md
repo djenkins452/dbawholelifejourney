@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Fix AI journal entry creation failing with "Sorry, I couldn't create that journal entry"
+
+**What:** The `handle_create_journal_entry` handler was calling `Category.objects.get_or_create(user=self.user, ...)` but `Category` is a system-wide model with no `user` field, causing a `FieldError`. Fixed to look up existing categories by name (case-insensitive) instead. Also fixed mood schema mismatch: intent had `"down"/"struggling"` but model expects `"low"/"difficult"`. Also added missing `EXPORT_INTENTS` set to `intent_engine.py` lost in merge conflict `9f32ae67`.
+**Files:** `apps/ai/action_handlers.py` (Category lookup fix), `apps/ai/intents/journal_intents.py` (mood enum), `apps/core/ai_orchestrator/intent_engine.py` (EXPORT_INTENTS + routing)
+
+---
+
 ## 2026-03-04 — Fix "Sorry, I couldn't log that habit" error in AI chat
 
 **What:** `handle_log_habit()` had three incorrect field references causing every habit logging attempt to throw a FieldError caught by the generic exception handler: (1) `habit_status='active'` — field doesn't exist on HabitGoal, should only use `status='active'`; (2) `user=self.user` in HabitEntry.get_or_create — HabitEntry has no `user` field, user is via `goal` FK; (3) `habit=habit` — the FK is named `goal`, not `habit`. Also fixed the weekly trend query to use `goal__user` instead of `user`.

@@ -105,6 +105,10 @@ MEALS_INTENTS = {
     "add_pantry_item",
 }
 
+EXPORT_INTENTS = {
+    "generate_report",
+}
+
 SYSTEM_INTENTS = {
     "undo_last_action",
     "edit_last_entry",
@@ -178,6 +182,8 @@ def get_intent_module(intent_type):
         return "finance"
     if intent_type in MEALS_INTENTS:
         return "meals"
+    if intent_type in EXPORT_INTENTS:
+        return "export"
     if intent_type in SYSTEM_INTENTS:
         return "core"
     return "unknown"

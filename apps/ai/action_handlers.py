@@ -1764,8 +1764,11 @@ class ActionHandler:
         from django.core.exceptions import ValidationError
         from django.template.loader import render_to_string
         from django.utils.html import strip_tags
-        from apps.health.models import Medicine, MedicineLog
-        from apps.health.medicine_utils import calculate_medicine_adherence
+        from apps.health.models import Medicine
+        from apps.health.medicine_utils import (
+            calculate_medicine_adherence,
+            calculate_single_medicine_adherence,
+        )
         from datetime import timedelta
 
         try:
@@ -1815,25 +1818,14 @@ class ActionHandler:
                     label = sched.label or sched.get_time_of_day_display()
                     schedule_times.append(f"{label}: {time_str}" if time_str else label)
 
-                # Per-medicine adherence (30 days)
+                # Per-medicine adherence (30 days) — schedule-based
                 med_adherence = None
                 if include_adherence and not med.is_prn:
                     start = today - timedelta(days=30)
-                    taken = MedicineLog.objects.filter(
-                        user=self.user,
-                        medicine=med,
-                        scheduled_date__gte=start,
-                        scheduled_date__lte=today,
-                        log_status__in=['taken', 'late'],
-                    ).count()
-                    expected = MedicineLog.objects.filter(
-                        user=self.user,
-                        medicine=med,
-                        scheduled_date__gte=start,
-                        scheduled_date__lte=today,
-                    ).exclude(log_status='skipped').count()
-                    if expected > 0:
-                        med_adherence = round((taken / expected) * 100)
+                    adh_result = calculate_single_medicine_adherence(
+                        self.user, med, start, today
+                    )
+                    med_adherence = adh_result.get('adherence_rate')
 
                 medicine_data.append({
                     'name': med.name,

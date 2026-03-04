@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Fix per-medicine adherence in email showing 100% when overall is 74%
+
+**What:** Per-medicine adherence in the email was calculated from existing MedicineLog rows only (taken/total_logs). If a dose was never logged at all (no row), it was invisible — so 5 taken out of 5 logs = 100%, even though 30 doses were expected from the schedule. The overall calc in `medicine_utils.py` correctly counted expected doses from schedules. Added `calculate_single_medicine_adherence()` to medicine_utils.py that uses schedule-based expected dose counting for a single medicine, matching the overall approach. Updated the email handler to use it.
+**Files:** `apps/health/medicine_utils.py` (new `calculate_single_medicine_adherence`), `apps/ai/action_handlers.py` (use new calc)
+
+---
+
 ## 2026-03-04 — Fix email_medicine_list empty email fallback
 
 **What:** When user says "email me my medicines" without specifying an address, OpenAI was forced to send a `recipient_email` value (it was required). It sent empty string or placeholder text like `<user's email>`, which failed validation instead of falling back to the user's account email. Fixed by: (1) making `recipient_email` optional in the schema, (2) removing `<user's email>` placeholder from system prompt examples so OpenAI omits the param, (3) hardening the handler to catch placeholder patterns (strings starting with `<` or `{`).

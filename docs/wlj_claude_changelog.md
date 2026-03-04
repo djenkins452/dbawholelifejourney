@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-04 — /close doc audit: Email Medicine List documentation
+
+**What:** Session close audit found 5 documentation gaps for the email medicine list feature. Added: release note (PK 132), updated teaching destination (PK 7) with email keywords, updated help topic (PK 15) with email capability mention, added Email Medicine List section to features doc, and added fixture loader reset method.
+**Files:** `apps/core/fixtures/release_notes.json`, `apps/help/fixtures/teaching_destinations.json`, `apps/help/fixtures/help_topics.json`, `docs/wlj_claude_features.md`, `apps/core/management/commands/load_initial_data.py`
+
+---
+
 ## 2026-03-04 — Add New Intent Checklist to CLAUDE.md
 
 **What:** Added a mandatory 7-point checklist for adding new CoS intents to CLAUDE.md. Every intent touches 5+ files and missing any one causes silent runtime failure (as demonstrated by the email_medicine_list rollout). The checklist includes: tool definition, handler map, engine category, execute dispatcher, action handler method, system prompt examples, and time awareness classification. Also added a calculation reuse rule to prevent metric drift (e.g., the adherence bug where inline log-counting diverged from schedule-based utility).

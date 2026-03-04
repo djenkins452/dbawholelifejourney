@@ -66,13 +66,40 @@ def process_bulk_recipe_import(self, session_id):
             photo.save(update_fields=['photo_status', 'updated_at'])
 
             try:
-                # Read image bytes from storage
-                photo.image.open('rb')
-                raw_bytes = photo.image.read()
-                photo.image.close()
+                # Read image bytes — try multiple strategies for storage backend
+                # compatibility. The web process uses Cloudinary but the Celery
+                # worker may fall back to FileSystemStorage if Cloudinary env
+                # vars aren't configured, causing path mismatches.
+                raw_bytes = None
+
+                # Strategy 1: standard storage open (works when storage matches)
+                try:
+                    photo.image.open('rb')
+                    raw_bytes = photo.image.read()
+                    photo.image.close()
+                except (FileNotFoundError, OSError):
+                    pass
+
+                # Strategy 2: fetch from Cloudinary URL stored at upload time
+                if raw_bytes is None and photo.image_url:
+                    import urllib.request
+                    raw_bytes = urllib.request.urlopen(photo.image_url).read()
+
+                # Strategy 3: try image.url (may work if storage is configured)
+                if raw_bytes is None:
+                    url = photo.image.url
+                    if url.startswith('http'):
+                        import urllib.request
+                        raw_bytes = urllib.request.urlopen(url).read()
+
+                if raw_bytes is None:
+                    raise FileNotFoundError(
+                        f"Could not read image for photo {photo.pk} "
+                        f"(name={photo.image.name}, url={photo.image_url})"
+                    )
 
                 # Determine content type from extension
-                name = photo.image.name.lower()
+                name = (photo.original_filename or photo.image.name).lower()
                 if name.endswith('.png'):
                     content_type = 'image/png'
                 elif name.endswith('.webp'):

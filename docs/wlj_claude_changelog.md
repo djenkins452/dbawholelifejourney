@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Fix bulk recipe import failing on Railway (Cloudinary storage mismatch)
+
+**What:** Bulk recipe photos uploaded via the web process (Cloudinary storage) couldn't be read by the Celery worker, which falls back to FileSystemStorage when Cloudinary env vars aren't on the worker service. Error: `[Errno 2] No such file or directory: '/app/media/media/life/...'` (double `media` from Cloudinary-prefixed name + MEDIA_ROOT).
+**Fix:** Added `image_url` field to `RecipeBulkImportPhoto` — populated with the Cloudinary CDN URL at upload time. Task now uses a 3-strategy fallback: (1) storage.open(), (2) stored Cloudinary URL, (3) image.url. This works regardless of worker storage configuration.
+**Files:** `apps/life/models.py`, `apps/life/views.py`, `apps/life/tasks.py`, migration `0020_recipebulkimportphoto_image_url.py`
+
+---
+
 ## 2026-03-03 — Expand relationship type choices
 
 **What:** Expanded the relationship type dropdown from 7 generic options to 23 specific options. Added: Father, Mother, Son, Daughter, Brother, Sister, Grandfather, Grandmother, Grandson, Granddaughter, Aunt, Uncle, Cousin, Niece, Nephew, Neighbor. Renamed "Family" to "Family (other)" as a catch-all. Existing records with `family` value are unaffected.

@@ -173,6 +173,22 @@ These rules prevent the silent-failure and schema-drift bugs that have caused pr
 **Streaming vs Non-Streaming Parity:**
 - The web UI uses two paths: `/api/chat/` (non-streaming) and `/api/chat/stream/` (SSE streaming). Both must call the same orchestrator pipeline. Any fix to one path must be verified on the other.
 
+**New Intent Checklist (REQUIRED when adding any CoS intent):**
+Every new intent touches 5+ files. Missing any one causes a silent runtime failure. After adding an intent, **always run the registration gate tests BEFORE deploying**:
+```bash
+python manage.py test apps.ai.tests.test_intent_registration -v 2 --failfast
+```
+The 5-point registration:
+1. **Tool definition** — `apps/ai/intents/<category>_intents.py` (OpenAI function schema)
+2. **Handler map** — `apps/ai/intents/__init__.py` → `INTENT_HANDLERS` dict
+3. **Engine category** — `apps/core/ai_orchestrator/intent_engine.py` → add to the correct `*_INTENTS` set
+4. **Execute dispatcher** — `apps/ai/intent_service.py` → add `elif` branch in `execute_intent()`
+5. **Action handler** — `apps/ai/action_handlers.py` → add `handle_<intent_name>()` method
+6. **System prompt examples** — `apps/ai/intent_service.py` → `_build_intent_system_prompt()` examples
+7. **Time awareness** — If the intent has NO date/time component, add to `NON_TIME_INTENTS` in `apps/ai/tests/test_intent_registration.py`
+
+**Calculation reuse rule:** When the handler needs a metric that already exists in a `*_utils.py` module (e.g., adherence, streaks), use the existing utility function — never re-derive the calculation inline. Inline re-derivation causes drift (e.g., log-based vs schedule-based adherence).
+
 ---
 
 ## Reference Docs (Read On-Demand)

@@ -9,6 +9,7 @@
 
 # WLJ Change History
 
+<<<<<<< HEAD
 ## 2026-03-04 — Cross-complete habits and tasks when user says "I finished X"
 
 **What:** When user says they finished something, the AI now handles both the habit and task side automatically. `log_habit` success also completes a matching task; `complete_task` success also logs a matching habit. When the primary type isn't found but the other type exists, CoS asks: "I see a task/habit called X — would you like me to mark it complete?" instead of silently failing.
@@ -48,6 +49,13 @@
 
 **What:** Celery worker couldn't process recipes because Railway worker service env vars (OPENAI_API_KEY, CLOUDINARY) weren't taking effect. Replaced the Celery-based processing with browser-driven sequential AJAX. The review page JS now calls a new `RecipeBulkProcessOneView` endpoint for each photo, processing in the web process where all env vars are available. Each photo updates in real-time as it completes.
 **Files:** `apps/life/views.py` (new `RecipeBulkProcessOneView`, removed Celery dispatch), `apps/life/urls.py` (new route), `templates/life/recipe_bulk_review.html` (rewritten JS)
+
+---
+
+## 2026-03-04 — Add New Intent Checklist to CLAUDE.md
+
+**What:** Added a mandatory 7-point checklist for adding new CoS intents to CLAUDE.md. Every intent touches 5+ files and missing any one causes silent runtime failure (as demonstrated by the email_medicine_list rollout). The checklist includes: tool definition, handler map, engine category, execute dispatcher, action handler method, system prompt examples, and time awareness classification. Also added a calculation reuse rule to prevent metric drift (e.g., the adherence bug where inline log-counting diverged from schedule-based utility).
+**Files:** `CLAUDE.md`
 
 ---
 

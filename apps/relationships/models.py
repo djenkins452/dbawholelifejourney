@@ -44,11 +44,27 @@ class Person(SoftDeleteModel):
 
     RELATIONSHIP_TYPE_CHOICES = [
         ('spouse', 'Spouse'),
-        ('family', 'Family'),
+        ('father', 'Father'),
+        ('mother', 'Mother'),
+        ('son', 'Son'),
+        ('daughter', 'Daughter'),
+        ('brother', 'Brother'),
+        ('sister', 'Sister'),
+        ('grandfather', 'Grandfather'),
+        ('grandmother', 'Grandmother'),
+        ('grandson', 'Grandson'),
+        ('granddaughter', 'Granddaughter'),
+        ('aunt', 'Aunt'),
+        ('uncle', 'Uncle'),
+        ('cousin', 'Cousin'),
+        ('niece', 'Niece'),
+        ('nephew', 'Nephew'),
+        ('family', 'Family (other)'),
         ('friend', 'Friend'),
         ('coworker', 'Coworker'),
         ('church', 'Church'),
         ('mentor', 'Mentor'),
+        ('neighbor', 'Neighbor'),
         ('other', 'Other'),
     ]
 

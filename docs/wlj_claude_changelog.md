@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Fix AI journal entry creation failing with "Sorry, I couldn't create that journal entry"
+
+**What:** The `handle_create_journal_entry` handler was calling `Category.objects.get_or_create(user=self.user, ...)` but `Category` is a system-wide model with no `user` field, causing a `FieldError`. Fixed to look up existing categories by name (case-insensitive) instead. Also fixed mood schema mismatch: intent had `"down"/"struggling"` but model expects `"low"/"difficult"`. Also added missing `EXPORT_INTENTS` set to `intent_engine.py` lost in merge conflict `9f32ae67`.
+**Files:** `apps/ai/action_handlers.py` (Category lookup fix), `apps/ai/intents/journal_intents.py` (mood enum), `apps/core/ai_orchestrator/intent_engine.py` (EXPORT_INTENTS + routing)
+
+---
+
 ## 2026-03-04 — Fix numbered list rendering in AI chat (all items showing as "1.")
 
 **What:** AI responses with numbered lists separated by blank lines were each rendered as their own `<ol>` with a single item, causing all bullets to display as "1." instead of sequential numbering. Added regex preprocessing to merge consecutive numbered/bullet list items separated by blank lines before paragraph splitting.

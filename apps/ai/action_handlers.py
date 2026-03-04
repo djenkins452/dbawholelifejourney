@@ -2101,15 +2101,14 @@ class ActionHandler:
                 mood=mood or 'okay'
             )
 
-            # Add categories if provided
+            # Add categories if provided (Category is system-wide, not per-user)
             if categories:
                 for cat_name in categories:
-                    category, _ = Category.objects.get_or_create(
-                        user=self.user,
-                        name=cat_name.strip().lower(),
-                        defaults={'color': '#6B7280'}
-                    )
-                    entry.categories.add(category)
+                    category = Category.objects.filter(
+                        name__iexact=cat_name.strip()
+                    ).first()
+                    if category:
+                        entry.categories.add(category)
 
             # Trend lookup — weekly journal count (safe — never blocks action)
             trend = None

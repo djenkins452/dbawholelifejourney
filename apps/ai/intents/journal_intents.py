@@ -32,7 +32,7 @@ JOURNAL_INTENT_TOOLS = [
                     },
                     "mood": {
                         "type": "string",
-                        "enum": ["great", "good", "okay", "down", "struggling"],
+                        "enum": ["great", "good", "okay", "low", "difficult"],
                         "description": "The user's current mood. Infer from content if not explicitly stated."
                     },
                     "categories": {

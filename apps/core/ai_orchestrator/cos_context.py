@@ -303,25 +303,17 @@ def _build_health_and_vitals(user):
     except Exception:
         pass
 
-    # Medication adherence
+    # Medication adherence (schedule-based, not just today's logs)
     try:
-        from apps.health.models import MedicineSchedule
+        from apps.health.medicine_utils import calculate_medicine_adherence
         today = timezone.localdate()
-        schedules = MedicineSchedule.objects.filter(
-            user=user, is_active=True,
-        )
-        taken = 0
-        total = 0
-        for sched in schedules:
-            total += 1
-            if hasattr(sched, 'logs'):
-                if sched.logs.filter(taken_at__date=today).exists():
-                    taken += 1
-        if total > 0:
+        week_ago = today - timezone.timedelta(days=7)
+        adh = calculate_medicine_adherence(user, week_ago, today)
+        if adh["expected_doses"] > 0:
             result['medication_adherence_state'] = {
-                'total_scheduled': total,
-                'taken_today': taken,
-                'adherence_pct': round(taken / total * 100),
+                'total_scheduled': adh["expected_doses"],
+                'taken_today': adh["taken_doses"],
+                'adherence_pct': adh["adherence_rate"] or 0,
             }
     except Exception:
         pass

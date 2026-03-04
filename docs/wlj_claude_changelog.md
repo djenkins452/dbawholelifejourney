@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Fix CoS not knowing domain or link formatting
+
+**What:** CoS didn't know the app domain (`wholelifejourney.com`) and had no instructions on how to format links, causing it to invent wrong URLs. Added domain awareness, explicit link formatting rules (use relative paths from APP NAVIGATION, never invent URLs), and consistent list formatting directive to the system prompt. Also added Recipes and Bulk Import Recipes to the navigable pages registry.
+**Files:** `apps/core/ai_orchestrator/cos_context.py`, `apps/core/ai_orchestrator/url_resolver.py`
+
+---
+
 ## 2026-03-03 — Fix bulk import status field shadowing SoftDeleteModel
 
 **What:** `RecipeBulkImportSession.status` and `RecipeBulkImportPhoto.status` shadowed `SoftDeleteModel.status`, causing the `SoftDeleteManager` (which filters `status="active"`) to hide all bulk import records. Renamed to `import_status` and `photo_status` respectively.

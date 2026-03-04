@@ -128,6 +128,8 @@ NAVIGABLE_PAGES: List[dict] = [
     {"url": "/purpose/goals/", "name": "Goals", "keywords": "goals, objectives, targets"},
     {"url": "/purpose/habits/", "name": "Habits", "keywords": "habits, routines, streak"},
     {"url": "/life/tasks/", "name": "Tasks", "keywords": "tasks, to-do, checklist"},
+    {"url": "/life/recipes/", "name": "Recipes", "keywords": "recipes, cooking, recipe book"},
+    {"url": "/life/recipes/bulk/", "name": "Bulk Import Recipes", "keywords": "bulk import, upload recipes, scan recipes"},
     {"url": "/calendar/", "name": "Calendar", "keywords": "calendar, schedule, events, appointments"},
     {"url": "/medical/medicines/", "name": "Medicines", "keywords": "medicine, medication, prescription"},
     {"url": "/finance/", "name": "Finance", "keywords": "finance, money, spending, budget"},

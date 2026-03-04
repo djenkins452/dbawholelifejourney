@@ -4,10 +4,17 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-04 (Railway worker env var config)
+# Last Updated: 2026-03-04 (session close documentation audit)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-03-04 — Session close documentation audit
+
+**What:** Added missing documentation for session changes: release notes for expanded relationship types (PK 132) and multi-recipe + prayer awareness (PK 133), teaching destination for bulk recipe import page (PK 175), updated features doc with bulk import subsection, and added fixture loader reset method.
+**Files:** `apps/core/fixtures/release_notes.json`, `apps/help/fixtures/teaching_destinations.json`, `docs/wlj_claude_features.md`, `apps/core/management/commands/load_initial_data.py`, `docs/wlj_claude_changelog.md`
+
+---
 
 ## 2026-03-04 — Support multiple recipes per photo in bulk import
 

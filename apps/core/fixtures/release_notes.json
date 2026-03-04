@@ -1,6 +1,38 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 133,
+    "fields": {
+      "title": "Multi-Recipe Photo Detection & Prayer Awareness",
+      "description": "Cookbook pages with multiple recipes are now detected automatically \u2014 each recipe on the page becomes its own entry during bulk import. Also, your Chief of Staff now knows about your active prayer requests, answered prayers, and Bible reading progress, so you can ask faith-related questions in conversation.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-04",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-04T12:00:00Z",
+      "updated_at": "2026-03-04T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 132,
+    "fields": {
+      "title": "Expanded Relationship Types",
+      "description": "The relationship type dropdown now has 23 options instead of 7. You can now specify Father, Mother, Son, Daughter, Brother, Sister, Grandfather, Grandmother, and many more specific family relationships when editing a person.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-04",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/relationships/",
+      "created_at": "2026-03-04T10:00:00Z",
+      "updated_at": "2026-03-04T10:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 131,
     "fields": {
       "title": "Bulk Recipe Photo Import",

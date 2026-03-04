@@ -3479,10 +3479,25 @@ Photograph a printed or handwritten recipe and have Vision AI extract the detail
 - **AI Extraction** — GPT-4o Vision API with recipe-specific OCR prompt (2048px, high detail)
 - **Review** — Side-by-side photo + editable form (stacks on mobile), all fields pre-filled
 - **Save** — Creates Recipe with original photo saved to `image` field via Cloudinary
+- **Multi-recipe detection** — Photos with multiple recipes (cookbook pages) produce separate entries
 - **Service:** `apps/life/services/recipe_photo_import.py` — `RecipePhotoImportService`
 - **Views:** `RecipeScanView`, `RecipeScanProcessView`, `RecipeScanConfirmView`
 - **Template:** `templates/life/recipe_scan.html` — single-page AJAX experience
 - **Tests:** 20 tests in `apps/life/tests/test_recipe_scan.py`
+
+### Bulk Recipe Photo Import
+Upload up to 50 recipe photos at once for batch AI extraction. Processes each photo sequentially via browser-driven AJAX (not Celery) with real-time progress tracking.
+
+- **Upload** — Multi-file upload (up to 50 photos), stored to Cloudinary with CDN URL captured
+- **Processing** — Browser-driven sequential AJAX to `RecipeBulkProcessOneView`, one photo at a time
+- **Multi-recipe support** — Vision AI detects multiple recipes per photo; extras become separate entries
+- **Review** — All extracted recipes on a single page, editable fields, confirm individually or batch
+- **Progress** — Real-time status updates per photo (pending → processing → extracted/failed)
+- **Models:** `RecipeBulkImportSession`, `RecipeBulkImportPhoto` (with `image_url` for Cloudinary CDN fallback)
+- **Views:** `RecipeBulkUploadView`, `RecipeBulkUploadProcessView`, `RecipeBulkReviewView`, `RecipeBulkProcessOneView`, `RecipeBulkConfirmView`, `RecipeBulkConfirmAllView`
+- **Template:** `templates/life/recipe_bulk_review.html` — AJAX-driven review page
+- **URL:** `/life/recipes/bulk/`
+- **Tests:** In `apps/life/tests/`
 
 ### Key Files
 - `apps/life/models.py` — All 13 models

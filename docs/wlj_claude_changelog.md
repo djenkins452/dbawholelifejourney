@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Cross-complete tasks from workout/cardio logging
+
+**What:** When a workout or cardio session is logged via AI chat, also auto-complete the matching task (e.g., "Workout" task). Tries the activity name first, then falls back to generic "workout" keyword. This closes the gap where "done with my workout" logged to Health > Fitness but didn't mark the task complete.
+**Files:** `apps/ai/action_handlers.py` (handle_log_workout, handle_log_cardio)
+
+---
+
 ## 2026-03-04 — CoS proactive schedule awareness ("you should be working out right now")
 
 **What:** Schedule blocks in the CoS system prompt now get temporal tags — `[NOW]` for the currently active block and `[NEXT]` for the upcoming one. A new "RIGHT NOW" focus section and "SCHEDULE AWARENESS" directive tell the CoS to proactively mention when the user is interacting during a scheduled activity (e.g., workout time) and to ask clarifying questions instead of assuming.

@@ -4305,9 +4305,18 @@ class ActionHandler:
             except Exception:
                 pass
 
+            # Cross-complete: also mark matching task complete
+            task_msg = self._cross_complete_task(name)
+            # Also try generic "workout" keyword if name was specific
+            if not task_msg and name.lower() != 'workout':
+                task_msg = self._cross_complete_task('workout')
+            msg = f"✓ Logged workout: {name}{duration_str}"
+            if task_msg:
+                msg += f"\n{task_msg}"
+
             return ActionResult(
                 success=True,
-                message=f"✓ Logged workout: {name}{duration_str}",
+                message=msg,
                 created_object={
                     'model': 'WorkoutSession',
                     'id': session.id,
@@ -4503,9 +4512,17 @@ class ActionHandler:
             except Exception:
                 pass
 
+            # Cross-complete: also mark matching task complete
+            task_msg = self._cross_complete_task(activity)
+            if not task_msg:
+                task_msg = self._cross_complete_task('workout')
+            msg = f"✓ Logged: {activity.title()} - {duration_minutes} min{distance_str}{cal_str}"
+            if task_msg:
+                msg += f"\n{task_msg}"
+
             return ActionResult(
                 success=True,
-                message=f"✓ Logged: {activity.title()} - {duration_minutes} min{distance_str}{cal_str}",
+                message=msg,
                 created_object={
                     'model': 'CardioDetails',
                     'id': cardio.id,

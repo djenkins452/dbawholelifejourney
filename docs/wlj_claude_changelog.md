@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Add workout dashboard Excel export
+
+**What:** New Excel export feature on the Fitness page. Generates a multi-sheet workbook with: Dashboard summary (overview stats, workout type breakdown with bar chart, 12-week volume trend with line chart), Workout History (all sessions), Exercise Details (every set/rep/weight), Cardio & Classes, Personal Records, Steps & Activity (with chart), and Exercise Progress (best set per workout over time). Accessible via "Export Dashboard (Excel)" link on the Fitness home page.
+**Files:** `apps/health/views_export.py` (new), `apps/health/urls.py` (new route), `templates/health/fitness/home.html` (export link), `requirements.txt` (added openpyxl)
+
+---
+
 ## 2026-03-03 — Add email_medicine_list intent to CoS
 
 **What:** CoS couldn't email medicine lists when asked. Added a new `email_medicine_list` intent so users can say things like "email me my list of medicines" or "send my medication list to dannyjenkins71@gmail.com". The email includes each medicine's name, dose, purpose, schedule, prescribing doctor, pharmacy, instructions, and 30-day per-medicine adherence stats plus an overall adherence summary with personalized feedback.

@@ -14,6 +14,7 @@ from . import views
 from . import views_body_composition
 from . import views_cycle
 from . import views_dashboards
+from . import views_export
 from . import views_insights
 from . import views_sleep_api
 
@@ -234,6 +235,9 @@ urlpatterns = [
     # Personal Records & Progress
     path("physical/fitness/prs/", views.PersonalRecordsView.as_view(), name="personal_records"),
     path("physical/fitness/progress/", views.ProgressView.as_view(), name="fitness_progress"),
+
+    # Export
+    path("physical/fitness/export/dashboard/", views_export.WorkoutDashboardExcelView.as_view(), name="workout_dashboard_export"),
 
     # HTMX Endpoints
     path("physical/fitness/exercises/", views.exercise_list_json, name="exercise_list_json"),

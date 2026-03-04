@@ -96,6 +96,9 @@ class HealthTrendAnalyzer:
         HealthTrendAnalyzer._detect_medication_patterns(
             recent_7, recent_28, strengths, weaknesses, risk_flags, trends
         )
+        HealthTrendAnalyzer._detect_protein_patterns(
+            recent_7, recent_28, user, target_date, strengths, weaknesses, risk_flags, trends
+        )
 
         # Top recommendation: highest-impact risk flag or biggest weakness
         top_rec = HealthTrendAnalyzer._determine_top_recommendation(
@@ -135,6 +138,11 @@ class HealthTrendAnalyzer:
             "resting_hr": safe_avg([s.resting_hr for s in summaries]),
             "recovery_score": safe_avg([s.recovery_score for s in summaries]),
             "health_score": safe_avg([s.health_score for s in summaries]),
+            "protein_consumed_g": safe_avg([s.protein_consumed_g or s.protein_g for s in summaries]),
+            "protein_target_g": safe_avg([s.protein_target_g for s in summaries]),
+            "protein_ratio": safe_avg([s.protein_ratio for s in summaries]),
+            "protein_score": safe_avg([s.protein_score for s in summaries]),
+            "protein_per_lb": safe_avg([s.protein_per_lb for s in summaries]),
             "workout_days": sum(1 for s in summaries if s.workout_count > 0),
             "nutrition_logged_days": sum(1 for s in summaries if s.nutrition_logged),
             "total_days": len(summaries),
@@ -423,6 +431,103 @@ class HealthTrendAnalyzer:
             trends["medication"] = "declining"
         else:
             trends["medication"] = "stable"
+
+    @staticmethod
+    def _detect_protein_patterns(recent_7, recent_28, user, target_date,
+                                  strengths, weaknesses, risk_flags, trends):
+        """Detect protein intake patterns, workout-day adequacy, and consistency."""
+        from apps.health.services.protein_service import ProteinService
+
+        protein_7d = [s for s in recent_7 if s.protein_g is not None]
+        protein_28d = [s for s in recent_28 if s.protein_g is not None]
+
+        if not protein_7d:
+            return
+
+        avg_protein_7d = sum(float(s.protein_g) for s in protein_7d) / len(protein_7d)
+
+        # Calculate target for context
+        target_g = ProteinService.calculate_target(user, target_date)
+        target = float(target_g) if target_g else None
+
+        if target:
+            avg_ratio = avg_protein_7d / target if target > 0 else 0
+
+            if avg_ratio >= 0.9:
+                strengths.append(
+                    f"Strong protein intake ({avg_protein_7d:.0f}g/day, {avg_ratio:.0%} of target)"
+                )
+                trends["protein"] = "strong"
+            elif avg_ratio >= 0.7:
+                trends["protein"] = "adequate"
+            elif avg_ratio >= 0.5:
+                weaknesses.append(
+                    f"Below protein target ({avg_protein_7d:.0f}g/day, {avg_ratio:.0%} of {target:.0f}g)"
+                )
+                trends["protein"] = "low"
+            else:
+                risk_flags.append({
+                    "domain": "protein",
+                    "severity": "warning",
+                    "message": (
+                        f"Very low protein intake ({avg_protein_7d:.0f}g/day, "
+                        f"{avg_ratio:.0%} of {target:.0f}g target)"
+                    ),
+                })
+                trends["protein"] = "critically_low"
+        else:
+            # No target available — report raw values
+            weight_days = [s for s in protein_7d if s.weight]
+            if weight_days:
+                avg_weight = sum(float(s.weight) for s in weight_days) / len(weight_days)
+                per_lb = avg_protein_7d / avg_weight if avg_weight > 0 else 0
+                if per_lb < 0.5:
+                    weaknesses.append(
+                        f"Low protein ({avg_protein_7d:.0f}g/day, {per_lb:.2f}g/lb)"
+                    )
+                    trends["protein"] = "low"
+                elif per_lb >= 0.7:
+                    strengths.append(
+                        f"Good protein intake ({avg_protein_7d:.0f}g/day, {per_lb:.2f}g/lb)"
+                    )
+                    trends["protein"] = "strong"
+                else:
+                    trends["protein"] = "adequate"
+
+        # Workout-day protein check
+        workout_protein_7d = [
+            s for s in recent_7
+            if s.workout_count and s.workout_count > 0 and s.protein_g is not None
+        ]
+        if workout_protein_7d and target:
+            workout_avg = sum(float(s.protein_g) for s in workout_protein_7d) / len(workout_protein_7d)
+            workout_ratio = workout_avg / target if target > 0 else 0
+            if workout_ratio < 0.7:
+                risk_flags.append({
+                    "domain": "protein",
+                    "severity": "warning",
+                    "message": (
+                        f"Low protein on workout days ({workout_avg:.0f}g avg, "
+                        f"{workout_ratio:.0%} of target) — may impair recovery"
+                    ),
+                })
+
+        # Protein consistency trend (28d vs first 28d)
+        if len(protein_28d) >= 14:
+            first_half = protein_28d[:len(protein_28d)//2]
+            second_half = protein_28d[len(protein_28d)//2:]
+            avg_first = sum(float(s.protein_g) for s in first_half) / len(first_half)
+            avg_second = sum(float(s.protein_g) for s in second_half) / len(second_half)
+            if avg_first > 0:
+                change_pct = ((avg_second - avg_first) / avg_first) * 100
+                if change_pct >= 10:
+                    strengths.append(
+                        f"Protein intake improving (+{change_pct:.0f}% over 2 weeks)"
+                    )
+                elif change_pct <= -15:
+                    weaknesses.append(
+                        f"Protein intake declining ({change_pct:.0f}% over 2 weeks)"
+                    )
 
     @staticmethod
     def _determine_top_recommendation(risk_flags, weaknesses, strengths):

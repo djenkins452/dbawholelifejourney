@@ -29,6 +29,7 @@ from .correlation_service import CorrelationService
 from .score_pipeline import ScorePipeline
 from .cos_health_context import build_cos_health_intelligence, build_cos_health_summary_text
 from .command_center_api import HealthCommandCenterService
+from .protein_service import ProteinService
 
 __all__ = [
     'DexcomService',
@@ -60,4 +61,5 @@ __all__ = [
     'build_cos_health_intelligence',
     'build_cos_health_summary_text',
     'HealthCommandCenterService',
+    'ProteinService',
 ]

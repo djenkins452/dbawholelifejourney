@@ -4158,6 +4158,16 @@ class HealthProfile(models.Model):
         help_text="Target date to achieve weight goal",
     )
 
+    # Protein target override (default: 0.7g/lb body weight)
+    protein_target_g_override = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Custom daily protein target (g). Overrides auto-calculated 0.7g/lb.",
+    )
+    protein_per_lb_target = models.DecimalField(
+        max_digits=4, decimal_places=3, null=True, blank=True,
+        help_text="Custom protein multiplier (g per lb body weight). Default: 0.7",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -5471,6 +5481,28 @@ class DailyHealthSummary(UserOwnedModel):
         help_text="True if at least one food entry was logged",
     )
     meals_logged = models.PositiveSmallIntegerField(default=0)
+
+    # --- Protein Intelligence ---
+    protein_target_g = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Daily protein target in grams (0.7g/lb body weight)",
+    )
+    protein_consumed_g = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+        help_text="Total protein consumed today (mirrors protein_g for clarity)",
+    )
+    protein_ratio = models.DecimalField(
+        max_digits=4, decimal_places=2, null=True, blank=True,
+        help_text="protein_consumed / protein_target (1.0 = 100% of target)",
+    )
+    protein_score = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Protein adequacy score 0-100",
+    )
+    protein_per_lb = models.DecimalField(
+        max_digits=4, decimal_places=3, null=True, blank=True,
+        help_text="Grams of protein per pound of body weight",
+    )
 
     # --- Medication ---
     medication_adherence_pct = models.DecimalField(

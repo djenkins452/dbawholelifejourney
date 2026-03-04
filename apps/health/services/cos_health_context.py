@@ -106,6 +106,22 @@ def build_cos_health_intelligence(user):
     except Exception:
         logger.error("Failed to compute health correlations for CoS", exc_info=True)
 
+    # Protein intelligence
+    try:
+        from apps.health.services.protein_service import ProteinService
+        coaching = ProteinService.get_coaching(user, today_date)
+        weekly = ProteinService.get_weekly_summary(user, today_date)
+        result["protein_intelligence"] = {
+            "coaching": coaching,
+            "weekly_summary": {
+                k: v for k, v in weekly.items()
+                if k != "daily_detail"  # exclude chart data from CoS
+            } if weekly else {},
+            "target_g": float(ProteinService.calculate_target(user, today_date) or 0),
+        }
+    except Exception:
+        logger.error("Failed to compute protein intelligence for CoS", exc_info=True)
+
     return result
 
 
@@ -136,6 +152,11 @@ def _serialize_summary(summary):
         "time_in_range_pct": _dec(summary.time_in_range_pct),
         "calories_consumed": summary.calories_consumed,
         "protein_g": _dec(summary.protein_g),
+        "protein_target_g": _dec(summary.protein_target_g),
+        "protein_consumed_g": _dec(summary.protein_consumed_g),
+        "protein_ratio": _dec(summary.protein_ratio),
+        "protein_score": summary.protein_score,
+        "protein_per_lb": _dec(summary.protein_per_lb),
         "carbs_g": _dec(summary.carbs_g),
         "fat_g": _dec(summary.fat_g),
         "water_oz": _dec(summary.water_oz),
@@ -187,7 +208,17 @@ def build_cos_health_summary_text(user):
         if today.get("calories_consumed"):
             parts.append(f"Calories: {today['calories_consumed']}")
         if today.get("protein_g"):
-            parts.append(f"Protein: {today['protein_g']:.0f}g")
+            protein_str = f"Protein: {today['protein_g']:.0f}g"
+            if today.get("protein_target_g"):
+                ratio = today['protein_g'] / today['protein_target_g'] * 100
+                protein_str += f" ({ratio:.0f}% of {today['protein_target_g']:.0f}g target)"
+            parts.append(protein_str)
+
+    # Protein coaching
+    protein_intel = intel.get("protein_intelligence", {})
+    coaching = protein_intel.get("coaching", {})
+    if coaching and coaching.get("severity") in ("warning", "nudge"):
+        parts.append(f"Protein: {coaching['message']}")
 
     # 7-day trends
     t7 = intel.get("trends_7d", {})

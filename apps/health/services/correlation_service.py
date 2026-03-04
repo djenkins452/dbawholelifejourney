@@ -170,6 +170,46 @@ class CorrelationService:
                 "interpretation": CorrelationService._interpret_workout_glucose(corr),
             })
 
+        # 7. Protein intake ↔ Recovery score (next day)
+        corr = CorrelationService._correlate_lagged(
+            summaries, "protein_g", "recovery_score", lag=1
+        )
+        if corr is not None:
+            results.append({
+                "signal_a": "protein_g",
+                "signal_b": "recovery_score_next_day",
+                "correlation": corr,
+                "direction": "positive" if corr > 0 else "negative",
+                "confidence": CorrelationService._confidence_count(len(summaries) - 1),
+                "interpretation": CorrelationService._interpret_protein_recovery(corr),
+            })
+
+        # 8. Protein intake ↔ Weekly weight change
+        corr = CorrelationService._correlate_protein_weight(summaries)
+        if corr is not None:
+            results.append({
+                "signal_a": "protein_intake",
+                "signal_b": "weight_change",
+                "correlation": corr,
+                "direction": "negative" if corr < 0 else "positive",
+                "confidence": "moderate",
+                "interpretation": CorrelationService._interpret_protein_weight(corr),
+            })
+
+        # 9. Protein ratio ↔ Sleep quality
+        corr = CorrelationService._correlate_fields(
+            summaries, "protein_per_lb", "sleep_quality_score"
+        )
+        if corr is not None:
+            results.append({
+                "signal_a": "protein_per_lb",
+                "signal_b": "sleep_quality",
+                "correlation": corr,
+                "direction": "positive" if corr > 0 else "negative",
+                "confidence": CorrelationService._confidence(corr, summaries, "protein_per_lb", "sleep_quality_score"),
+                "interpretation": CorrelationService._interpret_protein_sleep(corr),
+            })
+
         # Sort by absolute correlation strength
         results.sort(key=lambda x: abs(x["correlation"]), reverse=True)
 
@@ -327,3 +367,50 @@ class CorrelationService:
         elif corr > 0.2:
             return "Workout days show higher glucose (possible post-exercise liver glucose release)"
         return "No clear workout-glucose relationship detected"
+
+    @staticmethod
+    def _interpret_protein_recovery(corr):
+        if corr > 0.2:
+            return "Higher protein intake is associated with better next-day recovery"
+        elif corr < -0.2:
+            return "Unexpected: higher protein associated with lower recovery"
+        return "No clear protein-recovery relationship detected"
+
+    @staticmethod
+    def _interpret_protein_weight(corr):
+        if corr < -0.2:
+            return "Higher protein weeks are associated with more weight loss (preserving muscle)"
+        elif corr > 0.2:
+            return "Higher protein weeks correlate with weight gain (possibly intentional muscle building)"
+        return "No clear link between protein intake and weight change"
+
+    @staticmethod
+    def _interpret_protein_sleep(corr):
+        if corr > 0.2:
+            return "Higher protein per lb body weight is associated with better sleep quality"
+        elif corr < -0.2:
+            return "Higher protein may be affecting sleep quality negatively"
+        return "No clear protein-sleep quality relationship detected"
+
+    @staticmethod
+    def _correlate_protein_weight(summaries):
+        """Correlate weekly protein avg with weight change direction."""
+        if len(summaries) < 14:
+            return None
+
+        weeks = []
+        for i in range(0, len(summaries) - 6, 7):
+            week = summaries[i:i + 7]
+            protein_days = [float(s.protein_g) for s in week if s.protein_g]
+            weights = [float(s.weight) for s in week if s.weight]
+            if protein_days and weights and len(weights) >= 2:
+                avg_protein = sum(protein_days) / len(protein_days)
+                weight_change = weights[-1] - weights[0]
+                weeks.append((avg_protein, weight_change))
+
+        if len(weeks) < 3:
+            return None
+
+        x_vals = [w[0] for w in weeks]
+        y_vals = [w[1] for w in weeks]
+        return _rank_correlation(x_vals, y_vals)

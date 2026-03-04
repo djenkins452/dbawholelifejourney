@@ -100,6 +100,11 @@ class DailyHealthSummaryBuilder:
         if extras:
             data.update(extras)
 
+        # Protein intelligence (must run after nutrition + weight)
+        protein_data = self._compute_protein_intelligence(user, target_date, data)
+        if protein_data:
+            data.update(protein_data)
+
         # Completeness
         completeness = (len(signals) / len(ALL_DOMAINS)) * 100 if ALL_DOMAINS else 0
         data["data_completeness_pct"] = Decimal(str(round(completeness, 2)))
@@ -552,3 +557,53 @@ class DailyHealthSummaryBuilder:
         # These might come from SleepEntry (already collected there)
         # or from standalone sources. Only set if not already present.
         return {}
+
+    def _compute_protein_intelligence(self, user, target_date, collected_data):
+        """
+        Compute protein target, ratio, score, and per-lb from collected data.
+
+        Runs AFTER _collect_nutrition and _collect_weight_and_composition so that
+        protein_g and weight are already populated in collected_data.
+        """
+        from apps.health.services.protein_service import ProteinService
+
+        protein_g = collected_data.get("protein_g")
+        if protein_g is None:
+            return None
+
+        result = {}
+
+        # Copy consumed for clarity
+        result["protein_consumed_g"] = protein_g
+
+        # Calculate target
+        target_g = ProteinService.calculate_target(user, target_date)
+        if target_g:
+            result["protein_target_g"] = target_g
+            result["protein_ratio"] = ProteinService.calculate_ratio(protein_g, target_g)
+
+        # Protein per lb body weight
+        weight = collected_data.get("weight")
+        if weight:
+            result["protein_per_lb"] = ProteinService.calculate_protein_per_lb(
+                protein_g, weight
+            )
+
+        # Protein score (lightweight inline version to avoid circular dep)
+        if target_g and target_g > 0:
+            ratio = float(protein_g) / float(target_g)
+            if ratio >= 1.0:
+                score = 95
+            elif ratio >= 0.9:
+                score = 85
+            elif ratio >= 0.8:
+                score = 72
+            elif ratio >= 0.7:
+                score = 58
+            elif ratio >= 0.5:
+                score = 38
+            else:
+                score = 18
+            result["protein_score"] = score
+
+        return result

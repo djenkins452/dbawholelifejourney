@@ -330,7 +330,7 @@ data = HealthCommandCenterService.get_dashboard_data(user)
 # Run all health intelligence tests
 python manage.py test apps.health.tests.test_health_intelligence -v 2 --failfast
 
-# 37 tests covering:
+# 61 tests covering:
 # - DailyHealthSummary model (create, unique, str)
 # - Builder (empty day, sleep, steps, weight, glucose, idempotent, range, nutrition)
 # - BaselinePolicy (new user, few days, 14 days, missing signals, messages)
@@ -341,7 +341,116 @@ python manage.py test apps.health.tests.test_health_intelligence -v 2 --failfast
 # - ScorePipeline (full build, idempotent)
 # - CommandCenter (empty, with data)
 # - CoS context (no data, summary text, with data)
+# - ProteinService (target, override, multiplier, ratio, per_lb, score, status)
+# - ProteinCoaching (no weight, target met, low on workout day)
+# - ProteinInBuilder (computes fields, no crash on empty)
+# - ProteinTrends (low detected, strong detected, workout day flag)
+# - ProteinInHealthScore (high protein boost, low protein penalty)
+# - ProteinCorrelations (protein-recovery correlation)
+# - ProteinWeeklySummary (no data, with data)
+# - ProteinInCommandCenter (protein panel in dashboard)
 ```
+
+---
+
+## Protein Intelligence
+
+**Added:** 2026-03-04
+
+### ProteinService
+
+**Location:** `apps/health/services/protein_service.py`
+
+Protein target calculation, scoring, coaching, and weekly summaries.
+
+```python
+from apps.health.services.protein_service import ProteinService
+
+# Target: 0.7g/lb body weight (or custom override via HealthProfile)
+target = ProteinService.calculate_target(user)               # Decimal or None
+ratio = ProteinService.calculate_ratio(consumed_g, target_g)  # Decimal 0-2+
+per_lb = ProteinService.calculate_protein_per_lb(consumed_g, weight_lbs)
+
+# Score: 0-100 (50% today's ratio + 30% consistency + 20% workout-day bonus)
+score, details = ProteinService.calculate_score(user, date.today())
+
+# Coaching: contextual message with severity
+coaching = ProteinService.get_coaching(user, date.today())
+# Returns: {message, severity, context, consumed_g, target_g, remaining_g}
+
+# Weekly summary for dashboards
+weekly = ProteinService.get_weekly_summary(user, date.today())
+```
+
+### Protein Target Customization
+
+Users can override protein targets via `HealthProfile`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `protein_target_g_override` | Decimal | Fixed daily target in grams |
+| `protein_per_lb_target` | Decimal | Custom g/lb multiplier (default: 0.7) |
+
+**Priority:** override → custom multiplier → 0.7 × body weight → None
+
+### DailyHealthSummary Protein Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `protein_target_g` | Decimal | Daily target (auto-computed) |
+| `protein_consumed_g` | Decimal | Protein consumed (mirrors protein_g) |
+| `protein_ratio` | Decimal | consumed / target (1.0 = 100%) |
+| `protein_score` | SmallInt | Adequacy score 0-100 |
+| `protein_per_lb` | Decimal | Grams per lb body weight |
+
+### Protein in Health Score
+
+Nutrition domain (10% of health score) is split 50/50:
+- **Tracking consistency (50%):** How many days meals are logged
+- **Protein adequacy (50%):** g/lb body weight (0.7+ is good, 0.8+ is excellent)
+
+Workout-day protein check applies bonus/penalty to the protein sub-score.
+
+### Protein Trend Detection
+
+`HealthTrendAnalyzer` detects:
+- Very low protein intake (<50% of target) → risk flag
+- Low protein on workout days → warning
+- Protein intake improving/declining over 2 weeks
+- Strong protein intake (≥90% of target) → strength
+
+### Protein Correlations
+
+`CorrelationService` now computes:
+- Protein intake ↔ Next-day recovery score
+- Weekly protein avg ↔ Weight change
+- Protein per lb ↔ Sleep quality
+
+### Protein Coaching (CoS)
+
+CoS receives `protein_intelligence` context:
+```python
+result['protein_intelligence'] = {
+    'coaching': {'message': '...', 'severity': '...', 'context': '...'},
+    'weekly_summary': {'avg_consumed_g': 150, 'days_at_target': 5, ...},
+    'target_g': 168.0,
+}
+```
+
+**Coaching severities:**
+- `success` — target met
+- `nudge` — close to target (80-99%)
+- `warning` — low protein on workout day
+- `info` — below target, general advice
+
+### Protein Panel (Command Center)
+
+`domain_panels["protein"]` includes:
+- Today: consumed, target, ratio, score, per_lb, is_workout_day
+- 7-day: avg, avg_ratio, days_at_target
+- Workout vs rest day averages
+- Coaching message
+- 14-day trend data for charts
 
 ---
 

@@ -233,6 +233,11 @@ class HealthCommandCenterService:
             ],
         }
 
+        # --- Protein ---
+        panels["protein"] = HealthCommandCenterService._build_protein_panel(
+            summaries, recent_7, recent_14, today, user
+        )
+
         # --- Recovery ---
         panels["recovery"] = {
             "score": today.recovery_score if today else None,
@@ -298,6 +303,19 @@ class HealthCommandCenterService:
                 {"date": str(s.summary_date), "value": _dec(s.hrv)}
                 for s in summaries if s.hrv
             ],
+            "protein_g": [
+                {
+                    "date": str(s.summary_date),
+                    "value": _dec(s.protein_g),
+                    "target": _dec(s.protein_target_g),
+                    "ratio": _dec(s.protein_ratio),
+                }
+                for s in summaries if s.protein_g
+            ],
+            "protein_score": [
+                {"date": str(s.summary_date), "value": s.protein_score}
+                for s in summaries if s.protein_score
+            ],
         }
 
     @staticmethod
@@ -332,3 +350,71 @@ class HealthCommandCenterService:
             else:
                 break
         return streak
+
+    @staticmethod
+    def _build_protein_panel(summaries, recent_7, recent_14, today, user):
+        """Build the protein intelligence dashboard panel."""
+        def _dec(val):
+            return float(val) if val is not None else None
+
+        panel = {
+            "today_consumed_g": _dec(today.protein_consumed_g or today.protein_g) if today else None,
+            "today_target_g": _dec(today.protein_target_g) if today else None,
+            "today_ratio": _dec(today.protein_ratio) if today else None,
+            "today_score": today.protein_score if today else None,
+            "today_per_lb": _dec(today.protein_per_lb) if today else None,
+            "is_workout_day": (
+                bool(today.workout_count and today.workout_count > 0)
+                if today else False
+            ),
+            "avg_7d": None,
+            "avg_ratio_7d": None,
+            "days_at_target_7d": 0,
+            "coaching": None,
+            "trend_14d": [
+                {
+                    "date": str(s.summary_date),
+                    "consumed_g": _dec(s.protein_g),
+                    "target_g": _dec(s.protein_target_g),
+                    "ratio": _dec(s.protein_ratio),
+                    "score": s.protein_score,
+                    "is_workout_day": bool(s.workout_count and s.workout_count > 0),
+                }
+                for s in recent_14 if s.protein_g
+            ],
+        }
+
+        # 7-day averages
+        protein_7d = [s for s in recent_7 if s.protein_g]
+        if protein_7d:
+            avg = sum(float(s.protein_g) for s in protein_7d) / len(protein_7d)
+            panel["avg_7d"] = round(avg, 1)
+
+            ratio_days = [float(s.protein_ratio) for s in protein_7d if s.protein_ratio]
+            if ratio_days:
+                panel["avg_ratio_7d"] = round(sum(ratio_days) / len(ratio_days), 2)
+
+            target_days = [s for s in protein_7d if s.protein_ratio and float(s.protein_ratio) >= 1.0]
+            panel["days_at_target_7d"] = len(target_days)
+
+        # Workout vs rest day comparison
+        workout_protein = [s for s in protein_7d if s.workout_count and s.workout_count > 0]
+        rest_protein = [s for s in protein_7d if not s.workout_count or s.workout_count == 0]
+
+        if workout_protein:
+            panel["workout_day_avg_g"] = round(
+                sum(float(s.protein_g) for s in workout_protein) / len(workout_protein), 1
+            )
+        if rest_protein:
+            panel["rest_day_avg_g"] = round(
+                sum(float(s.protein_g) for s in rest_protein) / len(rest_protein), 1
+            )
+
+        # Coaching message
+        try:
+            from apps.health.services.protein_service import ProteinService
+            panel["coaching"] = ProteinService.get_coaching(user, today.summary_date if today else None)
+        except Exception:
+            logger.error("Failed to build protein coaching", exc_info=True)
+
+        return panel

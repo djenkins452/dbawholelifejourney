@@ -373,7 +373,12 @@ class HealthScoreService:
 
     @staticmethod
     def _score_nutrition_consistency(summaries, user):
-        """Score nutrition tracking and quality."""
+        """
+        Score nutrition tracking and quality.
+
+        Split: 50% tracking consistency + 50% protein adequacy.
+        If protein data is unavailable, fall back to tracking-only score.
+        """
         logged_days = sum(1 for s in summaries if s.nutrition_logged)
         total_days = len(summaries)
 
@@ -381,34 +386,68 @@ class HealthScoreService:
             return None
 
         tracking_pct = logged_days / total_days * 100
-
-        # Base score on tracking consistency
-        if tracking_pct >= 85:
-            score = 85
-        elif tracking_pct >= 70:
-            score = 70
-        elif tracking_pct >= 50:
-            score = 50
-        elif tracking_pct > 0:
-            score = 30
-        else:
+        if tracking_pct == 0:
             return None  # No tracking data at all
 
-        # Protein adequacy bonus/penalty
+        # --- Tracking score (50% of nutrition domain) ---
+        if tracking_pct >= 85:
+            tracking_score = 90
+        elif tracking_pct >= 70:
+            tracking_score = 75
+        elif tracking_pct >= 50:
+            tracking_score = 55
+        else:
+            tracking_score = 30
+
+        # --- Protein score (50% of nutrition domain) ---
         protein_days = [s for s in summaries if s.protein_g and s.weight]
+        protein_score = None
+        protein_detail = ""
+
         if protein_days:
             avg_protein = sum(float(s.protein_g) for s in protein_days) / len(protein_days)
             avg_weight = sum(float(s.weight) for s in protein_days) / len(protein_days)
             if avg_weight > 0:
                 protein_per_lb = avg_protein / avg_weight
+
                 if protein_per_lb >= 0.8:
-                    score = min(100, score + 10)
-                elif protein_per_lb < 0.5:
-                    score = max(0, score - 10)
+                    protein_score = 95
+                elif protein_per_lb >= 0.7:
+                    protein_score = 82
+                elif protein_per_lb >= 0.6:
+                    protein_score = 65
+                elif protein_per_lb >= 0.5:
+                    protein_score = 45
+                else:
+                    protein_score = 25
+
+                protein_detail = f", {avg_protein:.0f}g protein ({protein_per_lb:.2f}g/lb)"
+
+                # Workout-day protein check (bonus/penalty)
+                workout_protein_days = [
+                    s for s in summaries
+                    if s.protein_g and s.weight and s.workout_count and s.workout_count > 0
+                ]
+                if workout_protein_days:
+                    workout_avg = sum(float(s.protein_g) for s in workout_protein_days) / len(workout_protein_days)
+                    workout_ratio = workout_avg / avg_weight if avg_weight > 0 else 0
+                    if workout_ratio < 0.6:
+                        # Penalty for low protein on workout days
+                        protein_score = max(0, protein_score - 10)
+                    elif workout_ratio >= 0.8:
+                        protein_score = min(100, protein_score + 5)
+
+        # Combine: 50/50 split if protein available, otherwise tracking only
+        if protein_score is not None:
+            score = int(tracking_score * 0.5 + protein_score * 0.5)
+        else:
+            score = tracking_score
 
         return {
             "score": max(0, min(100, score)),
-            "detail": f"Tracked {logged_days}/{total_days} days",
+            "detail": f"Tracked {logged_days}/{total_days} days{protein_detail}",
+            "tracking_score": tracking_score,
+            "protein_score": protein_score,
         }
 
     @staticmethod
@@ -466,7 +505,19 @@ class HealthScoreService:
             "glucose": "Focus on blood sugar stability",
             "weight_trend": "Align nutrition with weight goal",
             "workout": "Increase workout frequency",
-            "nutrition": "Track meals consistently",
+            "nutrition": "Increase protein intake and track meals consistently",
             "activity": "Increase daily step count",
         }
+
+        # If nutrition is the weakest and protein sub-score is the driver
+        if top[0] == "nutrition":
+            domain_data = domain_scores.get("nutrition", {})
+            protein_sub = domain_data.get("protein_score")
+            tracking_sub = domain_data.get("tracking_score")
+            if protein_sub is not None and tracking_sub is not None:
+                if protein_sub < tracking_sub:
+                    return "Increase daily protein intake (target: 0.7g per lb body weight)"
+                else:
+                    return "Track meals more consistently to improve nutrition score"
+
         return focus_map.get(top[0], f"Improve {top[0]}")

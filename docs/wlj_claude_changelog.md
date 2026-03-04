@@ -9,6 +9,32 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Protein Intelligence & Coaching
+
+**What:** Added Protein Intelligence layer to the Health Intelligence Engine — protein target calculation (0.7g/lb), scoring, trend detection, correlations, CoS coaching, and Command Center protein panel.
+
+**Files created:**
+- `apps/health/services/protein_service.py` — ProteinService (target, ratio, score, coaching, weekly summary)
+- `apps/health/migrations/0051_add_protein_intelligence_fields.py` — protein fields on DailyHealthSummary + HealthProfile
+
+**Files modified:**
+- `apps/health/models.py` — Added 5 protein fields to DailyHealthSummary + 2 to HealthProfile
+- `apps/health/services/daily_summary_builder.py` — Added `_compute_protein_intelligence()` step
+- `apps/health/services/health_score.py` — Nutrition domain now 50/50 tracking + protein adequacy
+- `apps/health/services/trend_analyzer.py` — Added `_detect_protein_patterns()` + rolling protein fields
+- `apps/health/services/correlation_service.py` — Added protein↔recovery, protein↔weight, protein↔sleep correlations
+- `apps/health/services/cos_health_context.py` — Added `protein_intelligence` section + coaching
+- `apps/health/services/command_center_api.py` — Added protein panel + protein trend lines
+- `apps/health/services/__init__.py` — Exported ProteinService
+- `apps/health/tests/test_health_intelligence.py` — Added 24 new protein tests (61 total)
+- `docs/HEALTH_INTELLIGENCE_ENGINE.md` — Added Protein Intelligence section
+
+**Why:** Protein is the highest-leverage nutrition signal for body recomposition. The default 0.7g/lb target is evidence-based, and workout-day coaching helps users prioritize protein when it matters most for recovery.
+
+**Tests:** 61 tests passing, Django system check clean.
+
+---
+
 ## 2026-03-04 — Health Intelligence Engine
 
 **What:** Built the complete Health Intelligence Engine — a daily rollup layer, recovery + health scoring, trend/plateau detection, cross-domain correlations, CoS multi-week intelligence hooks, and Health Command Center API.

@@ -2021,6 +2021,11 @@ class RecipeBulkImportPhoto(UserOwnedModel):
         related_name='photos',
     )
     image = models.ImageField(upload_to='life/recipe_bulk_imports/')
+    image_url = models.URLField(
+        max_length=500,
+        blank=True,
+        help_text="Cloudinary CDN URL captured at upload time for worker access",
+    )
     original_filename = models.CharField(max_length=255, blank=True)
     photo_status = models.CharField(
         max_length=20,

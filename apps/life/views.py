@@ -1380,13 +1380,22 @@ class RecipeBulkUploadProcessView(LifeAccessMixin, View):
             if content_type not in allowed_types:
                 continue
 
-            RecipeBulkImportPhoto.objects.create(
+            photo_obj = RecipeBulkImportPhoto.objects.create(
                 user=request.user,
                 session=session,
                 image=photo,
                 original_filename=photo.name or "",
                 photo_status='pending',
             )
+            # Capture Cloudinary URL now (web process has Cloudinary configured;
+            # Celery worker may not, causing storage mismatch).
+            try:
+                url = photo_obj.image.url
+                if url and url.startswith('http'):
+                    photo_obj.image_url = url
+                    photo_obj.save(update_fields=['image_url'])
+            except Exception:
+                pass  # URL not critical if storage.open() works in worker
             saved_count += 1
 
         if saved_count == 0:

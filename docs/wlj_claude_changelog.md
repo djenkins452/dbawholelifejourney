@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Fix numbered list rendering in AI chat (all items showing as "1.")
+
+**What:** AI responses with numbered lists separated by blank lines were each rendered as their own `<ol>` with a single item, causing all bullets to display as "1." instead of sequential numbering. Added regex preprocessing to merge consecutive numbered/bullet list items separated by blank lines before paragraph splitting.
+**Files:** `templates/components/chat_widget.html` (formatAssistantMessage), `templates/components/assistant_panel.html` (formatAssistantMessage)
+
+---
+
 ## 2026-03-04 — Support multiple recipes per photo in bulk import
 
 **What:** Photos with multiple recipes (e.g., cookbook pages with 2+ recipes) now produce separate entries for each recipe. Updated Vision API prompt to detect and return all recipes as an array. Service returns a list; the view creates additional photo entries for extra recipes. Review page JS dynamically adds new cards when a photo yields multiple recipes.

@@ -348,6 +348,10 @@
        MESSAGE FORMATTING
        ================================================================ */
     function formatAssistantMessage(content) {
+        // Merge list items separated by blank lines so they form a single list
+        content = content.replace(/(\d+\.\s[^\n]+)\n\n+(?=\d+\.\s)/g, '$1\n');
+        content = content.replace(/([-*]\s[^\n]+)\n\n+(?=[-*]\s)/g, '$1\n');
+
         var paragraphs = content.split(/\n\n+/);
         return paragraphs.map(function(para) {
             var lines = para.split('\n');

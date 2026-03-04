@@ -1249,6 +1249,10 @@
         // Escape HTML first to prevent XSS
         content = content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+        // Merge list items separated by blank lines so they form a single list
+        content = content.replace(/(\d+\.\s[^\n]+)\n\n+(?=\d+\.\s)/g, '$1\n');
+        content = content.replace(/([-*]\s[^\n]+)\n\n+(?=[-*]\s)/g, '$1\n');
+
         // Split into paragraphs
         let paragraphs = content.split(/\n\n+/);
 

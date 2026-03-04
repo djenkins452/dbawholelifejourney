@@ -467,6 +467,44 @@ def _build_health_and_vitals(user):
     except Exception:
         result['health_signals'] = {}
 
+    # Health Intelligence Engine — multi-week trends, scores, patterns
+    try:
+        from apps.health.services.cos_health_context import (
+            build_cos_health_intelligence,
+            build_cos_health_summary_text,
+        )
+        intel = build_cos_health_intelligence(user)
+        result['health_intelligence'] = {
+            'baseline_ready': intel.get('baseline_ready', False),
+            'health_score': intel.get('scores', {}).get('health_score'),
+            'recovery_score': intel.get('scores', {}).get('recovery_score'),
+            'recovery_status': (
+                intel.get('scores', {}).get('recovery_drivers', {}).get('status')
+            ),
+            'strengths': intel.get('strengths', [])[:3],
+            'weaknesses': intel.get('weaknesses', [])[:3],
+            'risk_flags': [
+                r.get('message', '') for r in intel.get('risk_flags', [])[:3]
+            ],
+            'top_recommendation': intel.get('top_recommendation', ''),
+            'trends_7d': intel.get('trends_7d', {}),
+            'correlations': [
+                {
+                    'signals': f"{c['signal_a']} ↔ {c['signal_b']}",
+                    'interpretation': c.get('interpretation', ''),
+                }
+                for c in intel.get('correlations', [])[:2]
+            ],
+        }
+        result['health_intelligence_summary'] = build_cos_health_summary_text(user)
+    except ImportError:
+        pass  # Module not yet deployed
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Failed to build health intelligence for CoS", exc_info=True,
+        )
+
     return result
 
 

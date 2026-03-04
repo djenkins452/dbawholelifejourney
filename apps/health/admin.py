@@ -12,6 +12,7 @@ from .models import (
     CycleDailyLog,
     CyclePrediction,
     CycleSettings,
+    DailyHealthSummary,
     DailyNutritionSummary,
     DexcomCredential,
     Exercise,
@@ -995,3 +996,86 @@ class DietaryNutrientEntryAdmin(admin.ModelAdmin):
     search_fields = ["user__email"]
     raw_id_fields = ["user"]
     date_hierarchy = "metric_date"
+
+
+@admin.register(DailyHealthSummary)
+class DailyHealthSummaryAdmin(admin.ModelAdmin):
+    list_display = [
+        "user", "summary_date", "health_score", "recovery_score",
+        "baseline_ready", "data_completeness_pct",
+    ]
+    list_filter = ["baseline_ready", "summary_date"]
+    search_fields = ["user__email"]
+    raw_id_fields = ["user"]
+    date_hierarchy = "summary_date"
+    readonly_fields = [
+        "health_score", "health_score_drivers",
+        "recovery_score", "recovery_drivers",
+        "data_completeness_pct", "signals_present", "last_computed",
+    ]
+    fieldsets = [
+        ("Score Card", {
+            "fields": (
+                "user", "summary_date", "baseline_ready",
+                "health_score", "health_score_drivers",
+                "recovery_score", "recovery_drivers",
+            ),
+        }),
+        ("Sleep", {
+            "fields": (
+                "sleep_hours", "sleep_quality_score", "sleep_debt_minutes",
+                "deep_sleep_minutes", "rem_sleep_minutes", "sleep_efficiency_pct",
+            ),
+            "classes": ("collapse",),
+        }),
+        ("Vitals", {
+            "fields": (
+                "resting_hr", "hrv", "blood_pressure_systolic",
+                "blood_pressure_diastolic", "spo2_pct",
+            ),
+            "classes": ("collapse",),
+        }),
+        ("Activity", {
+            "fields": (
+                "steps", "active_minutes", "calories_burned",
+                "stand_hours", "flights_climbed",
+            ),
+            "classes": ("collapse",),
+        }),
+        ("Workouts", {
+            "fields": ("workout_count", "workout_minutes", "training_load"),
+            "classes": ("collapse",),
+        }),
+        ("Weight & Body Comp", {
+            "fields": ("weight", "body_fat_pct", "skeletal_muscle_mass", "lean_mass"),
+            "classes": ("collapse",),
+        }),
+        ("Glucose", {
+            "fields": (
+                "glucose_avg", "glucose_min", "glucose_max",
+                "glucose_variability", "time_in_range_pct",
+            ),
+            "classes": ("collapse",),
+        }),
+        ("Nutrition", {
+            "fields": (
+                "calories_consumed", "protein_g", "carbs_g", "fat_g",
+                "fiber_g", "water_oz", "nutrition_logged", "meals_logged",
+            ),
+            "classes": ("collapse",),
+        }),
+        ("Medication & Fasting", {
+            "fields": (
+                "medication_adherence_pct", "doses_taken", "doses_expected",
+                "fasting_hours",
+            ),
+            "classes": ("collapse",),
+        }),
+        ("Extras & Meta", {
+            "fields": (
+                "caffeine_mg", "mindful_minutes",
+                "data_completeness_pct", "signals_present", "last_computed",
+            ),
+            "classes": ("collapse",),
+        }),
+    ]

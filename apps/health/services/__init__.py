@@ -19,6 +19,17 @@ from .cycle_statistics import CycleStatisticsService
 from .health_data import HealthDataService
 from .insight_engine import InsightEngine
 
+# Health Intelligence Engine (v2)
+from .daily_summary_builder import DailyHealthSummaryBuilder
+from .baseline_policy import BaselinePolicy
+from .recovery_score import RecoveryScoreService
+from .health_score import HealthScoreService
+from .trend_analyzer import HealthTrendAnalyzer
+from .correlation_service import CorrelationService
+from .score_pipeline import ScorePipeline
+from .cos_health_context import build_cos_health_intelligence, build_cos_health_summary_text
+from .command_center_api import HealthCommandCenterService
+
 __all__ = [
     'DexcomService',
     'DexcomSyncService',
@@ -38,4 +49,15 @@ __all__ = [
     'CycleStatisticsService',
     'HealthDataService',
     'InsightEngine',
+    # Health Intelligence Engine
+    'DailyHealthSummaryBuilder',
+    'BaselinePolicy',
+    'RecoveryScoreService',
+    'HealthScoreService',
+    'HealthTrendAnalyzer',
+    'CorrelationService',
+    'ScorePipeline',
+    'build_cos_health_intelligence',
+    'build_cos_health_summary_text',
+    'HealthCommandCenterService',
 ]

@@ -9,6 +9,38 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Health Intelligence Engine
+
+**What:** Built the complete Health Intelligence Engine — a daily rollup layer, recovery + health scoring, trend/plateau detection, cross-domain correlations, CoS multi-week intelligence hooks, and Health Command Center API.
+
+**Why:** WLJ captures 55+ health models across 15+ source tables, but had no unified synthesis layer. The CoS could only see today's snapshot, not multi-week patterns. Dashboards operated in isolation with no cross-domain analysis.
+
+**Files created:**
+- `apps/health/models.py` — Added `DailyHealthSummary` model (pre-computed daily health rollup)
+- `apps/health/migrations/0050_add_daily_health_summary.py` — DB migration
+- `apps/health/services/daily_summary_builder.py` — Aggregates 15+ tables into one row/day
+- `apps/health/services/baseline_policy.py` — 14-day baseline readiness gate
+- `apps/health/services/recovery_score.py` — Baseline-aware recovery scoring (0-100)
+- `apps/health/services/health_score.py` — Composite health score (0-100, weighted, explainable)
+- `apps/health/services/trend_analyzer.py` — 7/28-day pattern detection (plateaus, sleep debt, etc.)
+- `apps/health/services/correlation_service.py` — Cross-domain correlations (sleep↔glucose, etc.)
+- `apps/health/services/score_pipeline.py` — Orchestrates summary build + score computation
+- `apps/health/services/cos_health_context.py` — CoS context builder with multi-week intelligence
+- `apps/health/services/command_center_api.py` — Single-call dashboard data service
+- `apps/health/tasks.py` — Celery tasks (nightly + on-demand)
+- `apps/health/management/commands/build_daily_health_summaries.py` — Management command
+- `apps/health/tests/test_health_intelligence.py` — 37 unit tests
+- `docs/HEALTH_INTELLIGENCE_ENGINE.md` — Full documentation
+
+**Files modified:**
+- `apps/health/services/__init__.py` — Exports for new services
+- `apps/health/admin.py` — DailyHealthSummary admin with fieldsets
+- `apps/core/ai_orchestrator/cos_context.py` — Health intelligence hook in `_build_health_and_vitals()`
+
+**Tests:** 37 tests all passing
+
+---
+
 ## 2026-03-04 — Session close documentation audit
 
 **What:** Added missing documentation for session changes: release notes for expanded relationship types (PK 132) and multi-recipe + prayer awareness (PK 133), teaching destination for bulk recipe import page (PK 175), updated features doc with bulk import subsection, and added fixture loader reset method.

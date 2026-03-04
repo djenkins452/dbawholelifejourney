@@ -5309,3 +5309,219 @@ class DietaryNutrientEntry(UserOwnedModel):
             parts.append(f"{self.protein_g}g protein")
         detail = ", ".join(parts) if parts else "no data"
         return f"Dietary ({detail}) on {self.metric_date}"
+
+
+# =============================================================================
+# Health Intelligence Engine — Daily Summary & Recovery
+# =============================================================================
+
+
+class DailyHealthSummary(UserOwnedModel):
+    """
+    Pre-computed daily health rollup — the keystone for fast dashboards
+    and multi-week CoS intelligence.
+
+    One row per user per day. Aggregated from 15+ source tables via the
+    DailyHealthSummaryBuilder service. Recomputed nightly and on data changes.
+
+    Fields are nullable because not every signal is available every day.
+    The health_score and recovery_score require baseline_ready=True (14+ days).
+    """
+
+    summary_date = models.DateField(
+        db_index=True,
+        help_text="Date this summary covers",
+    )
+    baseline_ready = models.BooleanField(
+        default=False,
+        help_text="True if user has >=14 days of core health signals",
+    )
+
+    # --- Scores (require baseline) ---
+    health_score = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Composite health score 0-100 (null if baseline not ready)",
+    )
+    health_score_drivers = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable breakdown: strongest_positive, primary_risk, etc.",
+    )
+    recovery_score = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Recovery readiness score 0-100",
+    )
+    recovery_drivers = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Recovery score driver breakdown",
+    )
+
+    # --- Sleep (previous night) ---
+    sleep_hours = models.DecimalField(
+        max_digits=4, decimal_places=2, null=True, blank=True,
+        help_text="Total sleep duration in hours",
+    )
+    sleep_quality_score = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Sleep quality 0-100 derived from stages + efficiency",
+    )
+    sleep_debt_minutes = models.IntegerField(
+        null=True, blank=True,
+        help_text="Minutes of sleep debt (target - actual, positive = deficit)",
+    )
+    deep_sleep_minutes = models.PositiveIntegerField(null=True, blank=True)
+    rem_sleep_minutes = models.PositiveIntegerField(null=True, blank=True)
+    sleep_efficiency_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+    )
+
+    # --- Vitals ---
+    resting_hr = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Resting heart rate (bpm)",
+    )
+    hrv = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Heart rate variability (ms)",
+    )
+    blood_pressure_systolic = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+    )
+    blood_pressure_diastolic = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+    )
+    spo2_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+    )
+
+    # --- Activity ---
+    steps = models.PositiveIntegerField(null=True, blank=True)
+    active_minutes = models.PositiveIntegerField(null=True, blank=True)
+    calories_burned = models.PositiveIntegerField(
+        null=True, blank=True, help_text="Active calories burned",
+    )
+    stand_hours = models.PositiveSmallIntegerField(null=True, blank=True)
+    flights_climbed = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    # --- Workouts ---
+    workout_count = models.PositiveSmallIntegerField(default=0)
+    workout_minutes = models.PositiveIntegerField(null=True, blank=True)
+    training_load = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        help_text="Volume-based training load score for the day",
+    )
+
+    # --- Weight & Body Composition ---
+    weight = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Latest weight reading in lbs",
+    )
+    body_fat_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+    )
+    skeletal_muscle_mass = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Skeletal muscle mass in lbs (when available)",
+    )
+    lean_mass = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+    )
+
+    # --- Glucose ---
+    glucose_avg = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Average glucose mg/dL for the day",
+    )
+    glucose_min = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+    )
+    glucose_max = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+    )
+    glucose_variability = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Glucose coefficient of variation (%)",
+    )
+    time_in_range_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="% of readings in 70-180 mg/dL range",
+    )
+
+    # --- Nutrition ---
+    calories_consumed = models.PositiveIntegerField(null=True, blank=True)
+    protein_g = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+    )
+    carbs_g = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+    )
+    fat_g = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+    )
+    fiber_g = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+    )
+    water_oz = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+    )
+    nutrition_logged = models.BooleanField(
+        default=False,
+        help_text="True if at least one food entry was logged",
+    )
+    meals_logged = models.PositiveSmallIntegerField(default=0)
+
+    # --- Medication ---
+    medication_adherence_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Medication adherence rate 0-100 for the day",
+    )
+    doses_taken = models.PositiveSmallIntegerField(default=0)
+    doses_expected = models.PositiveSmallIntegerField(default=0)
+
+    # --- Fasting ---
+    fasting_hours = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Total fasting hours during this day",
+    )
+
+    # --- Caffeine & Mindfulness ---
+    caffeine_mg = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+    )
+    mindful_minutes = models.PositiveIntegerField(null=True, blank=True)
+
+    # --- Meta ---
+    data_completeness_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="% of trackable domains with data today",
+    )
+    signals_present = models.JSONField(
+        default=list, blank=True,
+        help_text="List of domain names that have data for this day",
+    )
+    last_computed = models.DateTimeField(
+        auto_now=True,
+        help_text="When this summary was last recomputed",
+    )
+
+    class Meta:
+        ordering = ["-summary_date"]
+        verbose_name = "daily health summary"
+        verbose_name_plural = "daily health summaries"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "summary_date"],
+                name="unique_health_summary_per_day",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "-summary_date"]),
+            models.Index(fields=["user", "summary_date"]),
+            models.Index(fields=["user", "baseline_ready", "-summary_date"]),
+        ]
+
+    def __str__(self):
+        score = f"HS:{self.health_score}" if self.health_score else "no score"
+        return f"Health Summary {self.user.email} {self.summary_date} ({score})"

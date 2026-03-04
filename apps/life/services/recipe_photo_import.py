@@ -74,11 +74,18 @@ class RecipePhotoImportService:
     def client(self):
         """Lazy-initialize OpenAI client."""
         if self._client is None:
+            api_key = getattr(settings, "OPENAI_API_KEY", "") or ""
+            if not api_key:
+                logger.error(
+                    "OPENAI_API_KEY not configured — Vision API unavailable. "
+                    "Ensure the env var is set on ALL Railway services (web + worker)."
+                )
+                return None
             try:
                 import openai
 
                 self._client = openai.OpenAI(
-                    api_key=getattr(settings, "OPENAI_API_KEY", ""),
+                    api_key=api_key,
                     timeout=60,
                 )
             except ImportError:

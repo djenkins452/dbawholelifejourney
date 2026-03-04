@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Add email_medicine_list intent to CoS
+
+**What:** CoS couldn't email medicine lists when asked. Added a new `email_medicine_list` intent so users can say things like "email me my list of medicines" or "send my medication list to dannyjenkins71@gmail.com". The email includes each medicine's name, dose, purpose, schedule, prescribing doctor, pharmacy, instructions, and 30-day per-medicine adherence stats plus an overall adherence summary with personalized feedback.
+**Files:** `apps/ai/intents/medicine_intents.py` (new intent definition), `apps/ai/intents/__init__.py` (handler registration), `apps/ai/action_handlers.py` (new `handle_email_medicine_list` handler), `apps/ai/intent_service.py` (system prompt examples), `templates/health/email/medicine_list.html` (new HTML email template)
+
+---
+
 ## 2026-03-03 — Add faith/prayer context to CoS system prompt
 
 **What:** CoS had zero faith module context, so it couldn't answer questions like "how many prayers do I have open." Added `_build_faith_context()` parallel builder that queries PrayerRequest model for active/answered/urgent counts and recent prayer titles, plus optional BibleReadingProgress. Added formatting block in `format_cos_system_injection()` to inject a FAITH & PRAYER section into the system prompt.

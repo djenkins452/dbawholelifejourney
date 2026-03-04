@@ -15,7 +15,7 @@ Each intent defines a structured action the user can take through natural langua
 Supported Intent Categories:
 - Health: log_heart_rate, log_blood_pressure, log_weight, log_glucose, log_blood_oxygen,
           log_food, log_sleep, log_water, log_steps, log_body_measurement
-- Medicine: take_medicine, take_medicines_by_time
+- Medicine: take_medicine, take_medicines_by_time, email_medicine_list
 - Fasting: start_fast, end_fast
 - Journal: create_journal_entry, add_gratitude
 - Faith: log_prayer, mark_prayer_answered, save_verse, add_faith_milestone
@@ -75,6 +75,7 @@ INTENT_HANDLERS = {
     # Medicine
     'take_medicine': 'medicine',
     'take_medicines_by_time': 'medicine',
+    'email_medicine_list': 'medicine',
     # Fasting
     'start_fast': 'fasting',
     'end_fast': 'fasting',

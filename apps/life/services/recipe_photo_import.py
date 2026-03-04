@@ -16,40 +16,46 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
-RECIPE_VISION_PROMPT = """You are analyzing a photo of a recipe. This could be from a cookbook, \
-recipe card, magazine, handwritten note, or screen capture.
+RECIPE_VISION_PROMPT = """You are analyzing a photo that may contain one or MORE recipes. \
+This could be from a cookbook, recipe card, magazine, handwritten note, or screen capture.
 
-Your goal is to READ and TRANSCRIBE the recipe text from the image into structured data.
+Your goal is to READ and TRANSCRIBE ALL recipes visible in the image into structured data.
 
 IMPORTANT RULES:
-1. Transcribe the recipe exactly as written — do not invent or embellish.
-2. If a field is not visible or not present in the image, leave it as null or empty string.
+1. Transcribe each recipe exactly as written — do not invent or embellish.
+2. If a field is not visible or not present, leave it as null or empty string.
 3. For ingredients, list each one on its own line exactly as written (e.g., "2 cups flour").
 4. For instructions, preserve the step-by-step order. Number each step.
 5. Extract times, servings, and difficulty if mentioned anywhere in the recipe.
 6. If the recipe source/attribution is visible (cookbook name, author, website), include it.
+7. If the image contains MULTIPLE recipes, return ALL of them in the array.
 
-RESPONSE FORMAT (strict JSON):
+RESPONSE FORMAT (strict JSON — always return an object with a "recipes" array):
 {
-  "title": "Recipe Title",
-  "description": "Brief description if visible, or empty string",
-  "ingredients": "2 cups flour\\n1 tsp salt\\n3 eggs",
-  "instructions": "1. Preheat oven to 350F.\\n2. Mix dry ingredients.\\n3. ...",
-  "prep_time_minutes": null,
-  "cook_time_minutes": null,
-  "servings": null,
-  "difficulty": "",
-  "category": "",
-  "source": "Cookbook name or author if visible, else empty string",
-  "notes": "Any additional notes visible in the recipe",
-  "confidence": 0.85
+  "recipes": [
+    {
+      "title": "Recipe Title",
+      "description": "Brief description if visible, or empty string",
+      "ingredients": "2 cups flour\\n1 tsp salt\\n3 eggs",
+      "instructions": "1. Preheat oven to 350F.\\n2. Mix dry ingredients.\\n3. ...",
+      "prep_time_minutes": null,
+      "cook_time_minutes": null,
+      "servings": null,
+      "difficulty": "",
+      "category": "",
+      "source": "Cookbook name or author if visible, else empty string",
+      "notes": "Any additional notes visible in the recipe",
+      "confidence": 0.85
+    }
+  ]
 }
 
 Field notes:
 - "difficulty" must be one of: "", "easy", "medium", "hard"
 - "category" examples: "Breakfast", "Lunch", "Dinner", "Dessert", "Appetizer", "Snack", "Side Dish"
-- "confidence" is your overall confidence (0.0-1.0) that you accurately read the recipe
+- "confidence" is your overall confidence (0.0-1.0) that you accurately read that recipe
 - Numeric fields (prep_time_minutes, cook_time_minutes, servings) should be integers or null
+- The "recipes" array should contain one entry per distinct recipe visible in the image
 
 Respond ONLY with valid JSON. No markdown fences, no explanation."""
 
@@ -103,7 +109,7 @@ class RecipePhotoImportService:
             content_type: MIME type of the image
 
         Returns:
-            dict with recipe fields, or dict with 'error' key on failure
+            list of dicts (one per recipe found), or a single dict with 'error' key
         """
         from apps.scan.services.image_utils import resize_for_vision
 
@@ -170,7 +176,30 @@ class RecipePhotoImportService:
                 content = content.strip()
 
             result = json.loads(content)
-            return self._validate_result(result)
+
+            # Handle multi-recipe response: {"recipes": [...]}
+            if isinstance(result, dict) and "recipes" in result:
+                recipes = result["recipes"]
+                if isinstance(recipes, list) and len(recipes) > 0:
+                    validated = []
+                    for r in recipes:
+                        v = self._validate_result(r)
+                        if "error" not in v:
+                            validated.append(v)
+                    if validated:
+                        return validated
+                    # All recipes had errors — return the first error
+                    return self._validate_result(recipes[0])
+
+            # Backward compat: single recipe dict (no "recipes" wrapper)
+            if isinstance(result, dict):
+                validated = self._validate_result(result)
+                if "error" in validated:
+                    return validated
+                return [validated]
+
+            # Unexpected format
+            return {"error": "Unexpected response format from Vision API"}
 
         except json.JSONDecodeError as e:
             logger.error("Recipe Vision API returned invalid JSON: %s", e)

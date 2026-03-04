@@ -1272,10 +1272,15 @@ class RecipeScanProcessView(LifeAccessMixin, View):
 
         result = recipe_photo_import_service.extract_from_bytes(raw_bytes, content_type)
 
-        if "error" in result:
+        # Service now returns list of recipes or dict with error
+        if isinstance(result, dict) and "error" in result:
             return JsonResponse({"error": result["error"]}, status=422)
 
-        return JsonResponse({"status": "ok", "recipe": result})
+        # For single scan, take the first recipe
+        if isinstance(result, list) and len(result) > 0:
+            return JsonResponse({"status": "ok", "recipe": result[0]})
+
+        return JsonResponse({"error": "No recipe found in image"}, status=422)
 
 
 class RecipeScanConfirmView(LifeAccessMixin, View):
@@ -1509,32 +1514,69 @@ class RecipeBulkProcessOneView(LifeAccessMixin, View):
 
             result = recipe_photo_import_service.extract_from_bytes(raw_bytes, content_type)
 
-            if "error" in result:
+            # Result is either a list of recipes or a dict with 'error'
+            if isinstance(result, dict) and "error" in result:
                 photo.photo_status = 'failed'
                 photo.error_message = result["error"]
                 photo.save(update_fields=['photo_status', 'error_message', 'updated_at'])
-                session.failed_count = session.photos.filter(photo_status='failed').count()
-            else:
+            elif isinstance(result, list) and len(result) > 0:
+                # First recipe goes on this photo record
+                first = result[0]
                 photo.photo_status = 'extracted'
-                photo.extracted_data = result
-                photo.confidence = result.get('confidence', 0.5)
+                photo.extracted_data = first
+                photo.confidence = first.get('confidence', 0.5)
                 photo.save(update_fields=[
                     'photo_status', 'extracted_data', 'confidence', 'updated_at',
                 ])
-                session.processed_count = session.photos.filter(
-                    photo_status__in=['extracted', 'confirmed']
-                ).count()
 
+                # Additional recipes from the same image → create new photo entries
+                extra_photos = []
+                for extra_recipe in result[1:]:
+                    extra = RecipeBulkImportPhoto.objects.create(
+                        user=request.user,
+                        session=session,
+                        image=photo.image,  # Same image
+                        image_url=photo.image_url,
+                        original_filename=photo.original_filename,
+                        photo_status='extracted',
+                        extracted_data=extra_recipe,
+                        confidence=extra_recipe.get('confidence', 0.5),
+                    )
+                    extra_photos.append({
+                        "photo_id": extra.pk,
+                        "title": extra_recipe.get('title', ''),
+                        "confidence": extra_recipe.get('confidence', 0.5),
+                    })
+
+                if extra_photos:
+                    session.total_photos = session.photos.count()
+                    session.save(update_fields=['total_photos', 'updated_at'])
+            else:
+                photo.photo_status = 'failed'
+                photo.error_message = 'No recipes found in image'
+                photo.save(update_fields=['photo_status', 'error_message', 'updated_at'])
+
+            # Update session counts
+            session.processed_count = session.photos.filter(
+                photo_status__in=['extracted', 'confirmed']
+            ).count()
             session.failed_count = session.photos.filter(photo_status='failed').count()
             session.save(update_fields=['processed_count', 'failed_count', 'updated_at'])
 
-            return JsonResponse({
+            # Build response
+            response_data = {
                 "status": photo.photo_status,
                 "photo_id": photo.pk,
                 "title": photo.extracted_data.get('title', '') if photo.extracted_data else '',
                 "error": photo.error_message or '',
                 "confidence": photo.confidence,
-            })
+                "total_photos": session.total_photos,
+            }
+            # Include extra recipes so JS can add cards for them
+            if isinstance(result, list) and len(result) > 1:
+                response_data["extra_recipes"] = extra_photos
+
+            return JsonResponse(response_data)
 
         except Exception as e:
             photo.photo_status = 'failed'

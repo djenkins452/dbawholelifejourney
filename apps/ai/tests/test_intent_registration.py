@@ -141,6 +141,7 @@ NON_TIME_INTENTS = {
     'undo_last_action',        # Undoes last action, no date component
     'edit_last_entry',         # Edits most recent, no date component
     'check_budget',            # Read-only query
+    'email_medicine_list',     # Sends email, no date/time component
 }
 
 

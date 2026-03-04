@@ -1051,6 +1051,9 @@ Examples:
             elif intent_type == 'take_medicines_by_time':
                 return handler.handle_take_medicines_by_time(**parameters)
 
+            elif intent_type == 'email_medicine_list':
+                return handler.handle_email_medicine_list(**parameters)
+
             elif intent_type == 'start_fast':
                 return handler.handle_start_fast(**parameters)
 

@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Add New Intent Checklist to CLAUDE.md
+
+**What:** Added a mandatory 7-point checklist for adding new CoS intents to CLAUDE.md. Every intent touches 5+ files and missing any one causes silent runtime failure (as demonstrated by the email_medicine_list rollout). The checklist includes: tool definition, handler map, engine category, execute dispatcher, action handler method, system prompt examples, and time awareness classification. Also added a calculation reuse rule to prevent metric drift (e.g., the adherence bug where inline log-counting diverged from schedule-based utility).
+**Files:** `CLAUDE.md`
+
+---
+
 ## 2026-03-04 — Fix per-medicine adherence in email showing 100% when overall is 74%
 
 **What:** Per-medicine adherence in the email was calculated from existing MedicineLog rows only (taken/total_logs). If a dose was never logged at all (no row), it was invisible — so 5 taken out of 5 logs = 100%, even though 30 doses were expected from the schedule. The overall calc in `medicine_utils.py` correctly counted expected doses from schedules. Added `calculate_single_medicine_adherence()` to medicine_utils.py that uses schedule-based expected dose counting for a single medicine, matching the overall approach. Updated the email handler to use it.

@@ -911,6 +911,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Bulk Recipe Photo Import (PK 131)
         self._reset_bulk_recipe_import_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset for expanded relationship types, multi-recipe, prayer context (PKs 132-133)
+        self._reset_session_2026_03_04_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5300,3 +5303,35 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset bulk recipe import fixtures FAILED: {e}'))
+
+    def _reset_session_2026_03_04_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PKs 132-133) and teaching_destinations (PK 175)
+        for expanded relationship types, multi-recipe photo detection, and prayer context.
+        """
+        reset_tracker_name = 'reset_session_2026_03_04'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for fixture_name in ('release_notes', 'teaching_destinations'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=fixture_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {fixture_name} loader for session 2026-03-04 docs')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for session 2026-03-04 docs',
+                'command',
+                'One-time reset to reload release_notes PKs 132-133 and teaching_destinations PK 175'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset session 2026-03-04 fixtures FAILED: {e}'))

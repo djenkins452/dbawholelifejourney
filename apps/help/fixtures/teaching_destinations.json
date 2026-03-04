@@ -1,6 +1,23 @@
 [
   {
     "model": "help.teachingdestination",
+    "pk": 175,
+    "fields": {
+      "destination_id": "life-recipe-bulk-import",
+      "name": "Bulk Recipe Import",
+      "path_description": "Organize - Recipes - Bulk Import",
+      "explanation": "Upload up to 50 recipe photos at once and have AI extract each recipe automatically. Photos with multiple recipes (like cookbook pages) produce separate entries. Review all extracted recipes on a single page with real-time progress, edit any fields, then confirm individually or all at once.",
+      "url": "/life/recipes/bulk/",
+      "keywords": "bulk import,batch recipe,multiple recipes,recipe photos,cookbook import,mass import,bulk upload,recipe batch,many recipes",
+      "module": "life",
+      "sort_order": 224,
+      "is_active": true,
+      "created_at": "2026-03-04T12:00:00Z",
+      "updated_at": "2026-03-04T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
     "pk": 171,
     "fields": {
       "destination_id": "life-recipe-scan",

@@ -10,6 +10,8 @@ Medicine Intent Definitions
 
 OpenAI function (tool) definitions for medicine-related actions:
 - take_medicine: Log that user took a medicine
+- take_medicines_by_time: Mark all medicines for a time period as taken
+- email_medicine_list: Email the user's current medicine list with adherence stats
 """
 
 MEDICINE_INTENT_TOOLS = [
@@ -61,6 +63,31 @@ MEDICINE_INTENT_TOOLS = [
                     }
                 },
                 "required": ["time_of_day"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "email_medicine_list",
+            "description": "Email the user's current medicine list to a specified email address. Includes medicine names, doses, schedules, prescribing doctor, and recent adherence stats. Use when user asks to email, send, or share their medicine list, medication list, or list of medicines.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "recipient_email": {
+                        "type": "string",
+                        "description": "Email address to send the medicine list to. If the user says 'email me' or 'send it to me' without specifying, use their account email."
+                    },
+                    "include_adherence": {
+                        "type": "boolean",
+                        "description": "Whether to include adherence/consistency stats in the email. Default true."
+                    },
+                    "include_inactive": {
+                        "type": "boolean",
+                        "description": "Whether to include paused/completed medicines. Default false — only active medicines."
+                    }
+                },
+                "required": ["recipient_email"]
             }
         }
     },

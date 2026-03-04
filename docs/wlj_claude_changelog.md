@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Add email_medicine_list intent to CoS
+
+**What:** CoS couldn't email medicine lists when asked. Added a new `email_medicine_list` intent so users can say things like "email me my list of medicines" or "send my medication list to dannyjenkins71@gmail.com". The email includes each medicine's name, dose, purpose, schedule, prescribing doctor, pharmacy, instructions, and 30-day per-medicine adherence stats plus an overall adherence summary with personalized feedback.
+**Files:** `apps/ai/intents/medicine_intents.py` (new intent definition), `apps/ai/intents/__init__.py` (handler registration), `apps/ai/action_handlers.py` (new `handle_email_medicine_list` handler), `apps/ai/intent_service.py` (system prompt examples), `templates/health/email/medicine_list.html` (new HTML email template)
+
+---
+
 ## 2026-03-03 — Expand relationship type choices
 
 **What:** Expanded the relationship type dropdown from 7 generic options to 23 specific options. Added: Father, Mother, Son, Daughter, Brother, Sister, Grandfather, Grandmother, Grandson, Granddaughter, Aunt, Uncle, Cousin, Niece, Nephew, Neighbor. Renamed "Family" to "Family (other)" as a catch-all. Existing records with `family` value are unaffected.

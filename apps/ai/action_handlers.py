@@ -1747,6 +1747,169 @@ class ActionHandler:
                 error=str(e)
             )
 
+    def handle_email_medicine_list(self, recipient_email: str = "",
+                                    include_adherence: bool = True,
+                                    include_inactive: bool = False,
+                                    **kwargs) -> ActionResult:
+        """
+        Email the user's medicine list with details and adherence stats.
+
+        Args:
+            recipient_email: Email address to send to (falls back to user's email)
+            include_adherence: Include 30-day adherence stats
+            include_inactive: Include paused/completed medicines
+        """
+        from django.core.mail import EmailMessage
+        from django.core.validators import validate_email
+        from django.core.exceptions import ValidationError
+        from django.template.loader import render_to_string
+        from django.utils.html import strip_tags
+        from apps.health.models import Medicine, MedicineLog
+        from apps.health.medicine_utils import calculate_medicine_adherence
+        from datetime import timedelta
+
+        try:
+            # Resolve email — fall back to user's own email
+            email_addr = (recipient_email or "").strip()
+            if not email_addr:
+                email_addr = self.user.email
+
+            try:
+                validate_email(email_addr)
+            except ValidationError:
+                return ActionResult(
+                    success=False,
+                    message=f"'{email_addr}' doesn't look like a valid email address. Could you double-check it?",
+                    error='invalid_email'
+                )
+
+            # Query medicines
+            status_filter = ['active']
+            if include_inactive:
+                status_filter.extend(['paused', 'completed'])
+
+            medicines = Medicine.objects.filter(
+                user=self.user,
+                medicine_status__in=status_filter,
+                status='active',  # soft delete filter
+            ).prefetch_related('schedules').order_by('name')
+
+            if not medicines.exists():
+                return ActionResult(
+                    success=False,
+                    message="You don't have any medicines on file to email. You can add medicines in Health > Medicine.",
+                    error='no_medicines'
+                )
+
+            # Build medicine details
+            today = self._get_user_today()
+            medicine_data = []
+
+            for med in medicines:
+                # Schedule info
+                schedules = med.schedules.filter(is_active=True)
+                schedule_times = []
+                for sched in schedules:
+                    time_str = sched.scheduled_time.strftime("%I:%M %p") if sched.scheduled_time else ""
+                    label = sched.label or sched.get_time_of_day_display()
+                    schedule_times.append(f"{label}: {time_str}" if time_str else label)
+
+                # Per-medicine adherence (30 days)
+                med_adherence = None
+                if include_adherence and not med.is_prn:
+                    start = today - timedelta(days=30)
+                    taken = MedicineLog.objects.filter(
+                        user=self.user,
+                        medicine=med,
+                        scheduled_date__gte=start,
+                        scheduled_date__lte=today,
+                        log_status__in=['taken', 'late'],
+                    ).count()
+                    expected = MedicineLog.objects.filter(
+                        user=self.user,
+                        medicine=med,
+                        scheduled_date__gte=start,
+                        scheduled_date__lte=today,
+                    ).exclude(log_status='skipped').count()
+                    if expected > 0:
+                        med_adherence = round((taken / expected) * 100)
+
+                medicine_data.append({
+                    'name': med.name,
+                    'dose': med.dose,
+                    'purpose': med.purpose or '',
+                    'frequency': med.get_frequency_display(),
+                    'is_prn': med.is_prn,
+                    'status': med.medicine_status,
+                    'prescribing_doctor': med.prescribing_doctor or '',
+                    'pharmacy': med.pharmacy or '',
+                    'instructions': med.instructions or '',
+                    'schedule_times': schedule_times,
+                    'adherence_rate': med_adherence,
+                    'start_date': med.start_date,
+                })
+
+            # Overall adherence (30 days)
+            overall_adherence = None
+            if include_adherence:
+                start = today - timedelta(days=30)
+                adh = calculate_medicine_adherence(self.user, start, today)
+                overall_adherence = adh.get('adherence_rate')
+
+            user_name = self.user.get_full_name() or self.user.email.split('@')[0]
+
+            context = {
+                'user_name': user_name,
+                'medicines': medicine_data,
+                'overall_adherence': overall_adherence,
+                'include_adherence': include_adherence,
+                'include_inactive': include_inactive,
+                'report_date': today,
+                'current_year': today.year,
+            }
+
+            html_content = render_to_string(
+                'health/email/medicine_list.html', context
+            )
+            text_content = strip_tags(html_content)
+
+            email = EmailMessage(
+                subject=f"Your Medicine List — Whole Life Journey",
+                body=text_content,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[email_addr],
+                reply_to=[self.user.email],
+            )
+            email.content_subtype = 'html'
+            email.body = html_content
+            email.send(fail_silently=False)
+
+            med_count = len(medicine_data)
+            adherence_note = ""
+            if overall_adherence is not None:
+                adherence_note = f" Your 30-day adherence is {overall_adherence}%."
+
+            return ActionResult(
+                success=True,
+                message=(
+                    f"✓ Emailed your medicine list ({med_count} medicine{'s' if med_count != 1 else ''}) "
+                    f"to {email_addr}.{adherence_note}"
+                ),
+                action_type='email_medicine_list',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{med_count} medicines emailed",
+                    where="Health > Medicine",
+                )
+            )
+
+        except Exception as e:
+            logger.error(f"Error emailing medicine list: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't send the email. Please try again.",
+                error=str(e)
+            )
+
     # =========================================================================
     # FASTING HANDLERS
     # =========================================================================

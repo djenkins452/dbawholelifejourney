@@ -309,6 +309,7 @@ HEALTH LOGGING:
 - Blood oxygen: Extract SpO2 percentage value
 - Food: Extract food name and quantity (default 1)
 - Medicine: Extract medicine name and optional dose label
+- Email medicine list: Extract recipient email address; default to user's own email if not specified
 - Fasting: Determine start or end intent, and fasting type if starting
 
 FAITH ACTIONS:
@@ -360,6 +361,11 @@ HEALTH:
 - "mark morning medicines taken" → take_medicines_by_time(time_of_day="morning")
 - "took all my nightly pills" → take_medicines_by_time(time_of_day="nightly")
 - "I took my two evening medicines, mark them took at scheduled time" → take_medicines_by_time(time_of_day="evening", use_scheduled_time=true)
+- "email me my list of medicines" → email_medicine_list(recipient_email="<user's email>")
+- "send my medicine list to dannyjenkins71@gmail.com" → email_medicine_list(recipient_email="dannyjenkins71@gmail.com")
+- "email my medications to my doctor at doc@example.com" → email_medicine_list(recipient_email="doc@example.com")
+- "I need a list of my medicines emailed to me" → email_medicine_list(recipient_email="<user's email>")
+- "send me my medication list" → email_medicine_list(recipient_email="<user's email>")
 - "starting a fast" → start_fast(fasting_type="16:8")
 - "ending my fast" → end_fast()
 

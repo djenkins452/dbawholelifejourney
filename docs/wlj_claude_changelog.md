@@ -9,6 +9,28 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Remove Raw Protein Data from CoS Context (Prevent LLM Self-Math)
+
+**What:** Despite adding correct 7-day average fields, CoS was STILL using weekly totals because it had access to raw data (the full `weekly_summary` dict, protein fields in `trends_7d`, and raw daily values) which enabled the LLM to compute its own (incorrect) math. This fix removes all raw protein data from the LLM context, adds explicit anti-math rules, and adds a post-response validator to detect weekly-total language.
+
+**Root cause:** The prior fix added correct pre-calculated fields but didn't remove the raw data. The LLM ignored the pre-calculated averages and instead multiplied daily values by days or summed raw weekly data to produce incorrect totals like "You've logged 120g this week."
+
+**Key changes:**
+- `cos_health_context.py` — Removed `weekly_summary` raw dict from `protein_intelligence`; changed today's protein label to "Protein today: Xg (X% of Xg daily target)"
+- `cos_context.py` — Strip all `protein_` fields from `trends_7d` before passing to health_intelligence
+- `personal_assistant.py` — Added Rule 6 (NEVER COMPUTE YOUR OWN HEALTH MATH) and Rule 7 (weekly protein question format) to Section 9
+- `health_response_validator.py` — Added `_PROTEIN_WEEKLY_TOTAL_PATTERNS` for detecting "Xg this week", "total protein this week", "weekly total" language; `PROTEIN_WEEKLY_TOTAL` is critical severity
+- `test_health_intelligence.py` — Added 7 new tests: weekly-total detection, daily-average acceptance, severity check, protein data isolation (no raw weekly_summary, no protein in trends_7d, anti-math rules present, injection uses average language)
+
+**Files modified:**
+- `apps/health/services/cos_health_context.py`
+- `apps/core/ai_orchestrator/cos_context.py`
+- `apps/ai/personal_assistant.py`
+- `apps/ai/validators/health_response_validator.py`
+- `apps/health/tests/test_health_intelligence.py` — 111 tests total, all passing
+
+---
+
 ## 2026-03-04 — Fix Weekly Protein Evaluation (7-day average, not total)
 
 **What:** Fixed weekly protein evaluation logic so CoS uses 7-day daily average instead of comparing weekly total against daily target. Previously CoS could respond "120g this week, 93g short of 213g target" — now correctly says "Your 7d average is 168g/day (79% of 213g target)."

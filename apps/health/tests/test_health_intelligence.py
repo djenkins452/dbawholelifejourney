@@ -2235,6 +2235,194 @@ class TestHealthResponseValidator(TestCase):
         result = validate_health_response(response, None)
         self.assertFalse(result['has_violations'])
 
+    def test_detects_weekly_total_language(self):
+        """Should flag 'Xg this week' as a weekly total violation."""
+        from apps.ai.validators.health_response_validator import (
+            validate_health_response,
+        )
+
+        bad_responses = [
+            "You've logged 120g this week and are 93g short of your target.",
+            "You consumed 840g for the week.",
+            "Your total protein this week is 750g.",
+            "You've had 500g this week.",
+            "Your weekly total is about 900g.",
+        ]
+
+        for response in bad_responses:
+            result = validate_health_response(response, {})
+            weekly_total_violations = [
+                v for v in result['violations']
+                if v['type'] == 'PROTEIN_WEEKLY_TOTAL'
+            ]
+            self.assertTrue(
+                len(weekly_total_violations) > 0,
+                f"Expected PROTEIN_WEEKLY_TOTAL violation for: {response!r}"
+            )
+
+    def test_accepts_daily_average_language(self):
+        """Should NOT flag 'averaged Xg per day' responses."""
+        from apps.ai.validators.health_response_validator import (
+            validate_health_response,
+        )
+
+        cos_context = {
+            'health_intelligence': {
+                'protein': {'target_g': 213.0, 'method': 'lean_body_mass'},
+            },
+        }
+
+        good_response = (
+            "Your protein target is 213g per day. Over the last 7 days "
+            "you've averaged 168g per day, hitting about 79% of your target."
+        )
+
+        result = validate_health_response(good_response, cos_context)
+        weekly_total_violations = [
+            v for v in result['violations']
+            if v['type'] == 'PROTEIN_WEEKLY_TOTAL'
+        ]
+        self.assertEqual(len(weekly_total_violations), 0)
+
+    def test_weekly_total_is_critical_severity(self):
+        """Weekly total violations should be critical severity."""
+        from apps.ai.validators.health_response_validator import (
+            validate_health_response,
+        )
+
+        response = "You've logged 840g this week."
+        result = validate_health_response(response, {})
+        self.assertEqual(result['severity'], 'critical')
+
+
+# =========================================================================
+# Protein Intelligence Data Isolation Tests
+# =========================================================================
+
+
+class TestProteinDataIsolation(TestCase, HealthIntelligenceTestMixin):
+    """Verify that raw weekly data is NOT exposed to the LLM."""
+
+    def setUp(self):
+        self.user = self.create_test_user()
+
+    def test_no_weekly_summary_in_protein_intelligence(self):
+        """protein_intelligence must NOT contain raw weekly_summary dict."""
+        from apps.health.services.cos_health_context import build_cos_health_intelligence
+
+        today = date.today()
+        for i in range(7):
+            d = today - timedelta(days=i)
+            DailyHealthSummary.objects.create(
+                user=self.user,
+                summary_date=d,
+                protein_g=Decimal("150"),
+                protein_target_g=Decimal("200"),
+                protein_ratio=Decimal("0.75"),
+                nutrition_logged=True,
+                signals_present=["nutrition"],
+            )
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("220"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+
+        intel = build_cos_health_intelligence(self.user)
+        protein = intel.get("protein_intelligence", {})
+
+        # Must NOT have weekly_summary (raw dict dump)
+        self.assertNotIn("weekly_summary", protein)
+
+        # Must have pre-calculated evaluation fields
+        self.assertIn("protein_avg_7d", protein)
+        self.assertIn("protein_gap_g", protein)
+        self.assertIn("protein_consistency_pct", protein)
+        self.assertIn("protein_avg_ratio", protein)
+        self.assertIn("target_g", protein)
+
+    def test_trends_7d_excludes_raw_protein(self):
+        """trends_7d in health_intelligence must not contain protein_ fields."""
+        from apps.core.ai_orchestrator.cos_context import _build_health_and_vitals
+
+        today = date.today()
+        for i in range(7):
+            d = today - timedelta(days=i)
+            DailyHealthSummary.objects.create(
+                user=self.user,
+                summary_date=d,
+                protein_g=Decimal("150"),
+                protein_target_g=Decimal("200"),
+                protein_ratio=Decimal("0.75"),
+                sleep_hours=Decimal("7.5"),
+                steps=8000,
+                nutrition_logged=True,
+                signals_present=["nutrition", "sleep", "steps"],
+                baseline_ready=False,
+            )
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("220"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+
+        result = _build_health_and_vitals(self.user)
+        health_intel = result.get('health_intelligence', {})
+        trends = health_intel.get('trends_7d', {})
+
+        # No protein_ keys should be in trends_7d
+        protein_keys = [k for k in trends if k.startswith('protein')]
+        self.assertEqual(
+            protein_keys, [],
+            f"trends_7d should not contain protein fields, found: {protein_keys}"
+        )
+
+        # But non-protein fields should still be present
+        # (only if the trend analyzer returned them)
+        # The protein data is in the 'protein' sub-dict instead
+
+    def test_system_prompt_has_anti_math_rules(self):
+        """System prompt must include Rules 6 and 7 (anti-math, weekly format)."""
+        from apps.ai.personal_assistant import COS_PROACTIVE_INTELLIGENCE_PROMPT
+
+        self.assertIn("RULE 6", COS_PROACTIVE_INTELLIGENCE_PROMPT)
+        self.assertIn("NEVER COMPUTE YOUR OWN HEALTH MATH", COS_PROACTIVE_INTELLIGENCE_PROMPT)
+        self.assertIn("NEVER multiply a daily average by 7", COS_PROACTIVE_INTELLIGENCE_PROMPT)
+
+        self.assertIn("RULE 7", COS_PROACTIVE_INTELLIGENCE_PROMPT)
+        self.assertIn("WEEKLY PROTEIN QUESTIONS", COS_PROACTIVE_INTELLIGENCE_PROMPT)
+        self.assertIn("averaged", COS_PROACTIVE_INTELLIGENCE_PROMPT)
+
+    def test_cos_injection_weekly_block_uses_average_language(self):
+        """The injection block must say 'average intake' not 'total'."""
+        from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
+
+        context = {
+            'health_intelligence': {
+                'health_score': 75,
+                'protein': {
+                    'target_g': 213.0,
+                    'method': 'lean_body_mass',
+                    'lbm': 175.0,
+                    'workout_day': False,
+                    'multiplier': 1.0,
+                    'protein_avg_7d': 168.0,
+                    'protein_consistency_pct': 57.1,
+                    'protein_gap_g': 45.0,
+                    'protein_avg_ratio': 0.79,
+                },
+                'strengths': [],
+                'weaknesses': [],
+                'risk_flags': [],
+                'correlations': [],
+            },
+        }
+
+        injection = format_cos_system_injection(context)
+
+        # Must use "average" language, never "total"
+        self.assertIn("7-day average intake", injection)
+        self.assertNotIn("weekly total", injection.lower())
+        self.assertNotIn("total protein", injection.lower())
+
 
 # =========================================================================
 # System Prompt Health Rules Tests

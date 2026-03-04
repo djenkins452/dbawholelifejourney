@@ -66,6 +66,31 @@ _GENERIC_HEALTH_PHRASES = [
     re.compile(r'\ba\s+good\s+(?:target|goal|range)\s+(?:for|is|would)\b', re.IGNORECASE),
 ]
 
+# Weekly protein total patterns — LLM should never use weekly totals.
+# It should say "averaged Xg per day" not "logged Xg this week".
+_PROTEIN_WEEKLY_TOTAL_PATTERNS = [
+    # "Xg this week" / "Xg for the week" / "Xg over the week"
+    re.compile(
+        r'\b(\d{2,5})\s*g?\s*(?:this|for the|over the|during the|for this|in the)\s+week\b',
+        re.IGNORECASE,
+    ),
+    # "total protein this week" / "total of Xg"
+    re.compile(
+        r'\btotal\s+(?:protein|intake)\s+(?:this|for the|over the)\s+week\b',
+        re.IGNORECASE,
+    ),
+    # "you've logged/consumed/eaten Xg this week"
+    re.compile(
+        r"\byou(?:'ve|'re| have| are)\s+(?:logged|consumed|eaten|had|tracked)\s+\d+\s*g?\s*(?:this|for the|over the)\s+week\b",
+        re.IGNORECASE,
+    ),
+    # "weekly total of Xg" / "week total: Xg"
+    re.compile(
+        r'\bweek(?:ly)?\s+total\b',
+        re.IGNORECASE,
+    ),
+]
+
 
 def validate_health_response(response_text, cos_context=None, user=None):
     """
@@ -147,10 +172,24 @@ def validate_health_response(response_text, cos_context=None, user=None):
                 ),
             })
 
+    # Check for weekly protein totals (should always use daily average)
+    for pattern in _PROTEIN_WEEKLY_TOTAL_PATTERNS:
+        match = pattern.search(response_text)
+        if match:
+            violations.append({
+                'type': 'PROTEIN_WEEKLY_TOTAL',
+                'found': match.group(0),
+                'system_value': None,
+                'message': (
+                    f"Response uses weekly protein total language: '{match.group(0)}'. "
+                    f"CoS must use 7-day daily average, never weekly totals."
+                ),
+            })
+
     # Determine severity
     severity = 'none'
     if violations:
-        critical_types = {'GENERIC_PROTEIN_RANGE'}
+        critical_types = {'GENERIC_PROTEIN_RANGE', 'PROTEIN_WEEKLY_TOTAL'}
         if any(v['type'] in critical_types for v in violations):
             severity = 'critical'
         else:

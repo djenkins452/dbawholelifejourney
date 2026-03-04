@@ -504,7 +504,14 @@ def _build_health_and_vitals(user):
                 r.get('message', '') for r in intel.get('risk_flags', [])[:3]
             ],
             'top_recommendation': intel.get('top_recommendation', ''),
-            'trends_7d': intel.get('trends_7d', {}),
+            # Strip raw protein fields from trends_7d so the LLM cannot
+            # compute its own protein math from individual-day averages.
+            # The pre-calculated protein_avg_7d in the 'protein' block is
+            # the ONLY weekly protein number the LLM should see.
+            'trends_7d': {
+                k: v for k, v in intel.get('trends_7d', {}).items()
+                if not k.startswith('protein')
+            },
             'correlations': [
                 {
                     'signals': f"{c['signal_a']} ↔ {c['signal_b']}",

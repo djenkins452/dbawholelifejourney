@@ -126,18 +126,19 @@ def build_cos_health_intelligence(user):
             if weekly_avg_g is not None and target_g_val:
                 weekly_gap_g = round(target_g_val - weekly_avg_g, 1)
 
+        # IMPORTANT: Only expose pre-calculated evaluation fields to CoS.
+        # Do NOT expose raw weekly_summary dict — the LLM will attempt its
+        # own math (e.g., multiplying avg × days) and produce wrong answers.
         result["protein_intelligence"] = {
             "coaching": coaching,
-            "weekly_summary": {
-                k: v for k, v in weekly.items()
-                if k != "daily_detail"  # exclude chart data from CoS
-            } if weekly else {},
+            # Today's target
             "target_g": target_g_val,
             "method": target_info["method"] if target_info else None,
             "lean_body_mass": target_info["lbm"] if target_info else None,
             "workout_day": target_info["workout_day"] if target_info else False,
             "multiplier": target_info["multiplier"] if target_info else None,
-            # Weekly protein evaluation (7-day average vs daily target)
+            # Weekly protein evaluation (7-day AVERAGE vs daily target)
+            # These are the ONLY weekly fields CoS should use.
             "protein_avg_7d": weekly_avg_g,
             "protein_consistency_pct": weekly_consistency_pct,
             "protein_gap_g": weekly_gap_g,
@@ -233,13 +234,13 @@ def build_cos_health_summary_text(user):
         if today.get("calories_consumed"):
             parts.append(f"Calories: {today['calories_consumed']}")
         if today.get("protein_g"):
-            protein_str = f"Protein: {today['protein_g']:.0f}g"
+            protein_str = f"Protein today: {today['protein_g']:.0f}g"
             if today.get("protein_target_g"):
                 ratio = today['protein_g'] / today['protein_target_g'] * 100
-                protein_str += f" ({ratio:.0f}% of {today['protein_target_g']:.0f}g target)"
+                protein_str += f" ({ratio:.0f}% of {today['protein_target_g']:.0f}g daily target)"
             parts.append(protein_str)
 
-    # Protein weekly evaluation (7-day average, not total)
+    # Protein weekly evaluation (7-day AVERAGE, never totals)
     protein_intel = intel.get("protein_intelligence", {})
     p_avg = protein_intel.get("protein_avg_7d")
     p_target = protein_intel.get("target_g")
@@ -251,7 +252,7 @@ def build_cos_health_summary_text(user):
         method_note = " (LBM-based)" if p_method == "lean_body_mass" else ""
         parts.append(
             f"Protein 7d avg: {p_avg:.0f}g/day "
-            f"({pct}% of {p_target:.0f}g target{method_note})"
+            f"({pct}% of {p_target:.0f}g daily target{method_note})"
         )
         if gap > 0:
             parts.append(f"Protein gap: {gap:.0f}g/day below target")

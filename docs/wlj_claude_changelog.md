@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Cross-complete habits and tasks when user says "I finished X"
+
+**What:** When user says they finished something, the AI now handles both the habit and task side automatically. `log_habit` success also completes a matching task; `complete_task` success also logs a matching habit. When the primary type isn't found but the other type exists, CoS asks: "I see a task/habit called X — would you like me to mark it complete?" instead of silently failing.
+**Files:** `apps/ai/action_handlers.py` (handle_log_habit, handle_complete_task, + 4 new helper methods: _cross_complete_task, _cross_log_habit, _find_task_suggestion, _find_habit_suggestion)
+
+---
+
 ## 2026-03-04 — Fix AI journal entry creation failing with "Sorry, I couldn't create that journal entry"
 
 **What:** The `handle_create_journal_entry` handler was calling `Category.objects.get_or_create(user=self.user, ...)` but `Category` is a system-wide model with no `user` field, causing a `FieldError`. Fixed to look up existing categories by name (case-insensitive) instead. Also fixed mood schema mismatch: intent had `"down"/"struggling"` but model expects `"low"/"difficult"`. Also added missing `EXPORT_INTENTS` set to `intent_engine.py` lost in merge conflict `9f32ae67`.

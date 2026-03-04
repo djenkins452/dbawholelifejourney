@@ -9,6 +9,31 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Fix CoS Ignoring Health Intelligence Engine
+
+**What:** Fixed critical bug where CoS (Chief of Staff AI) generated generic health advice (e.g., "110-138g protein") instead of using WLJ's system-calculated values (e.g., "193g based on lean body mass"). The health intelligence data was computed but never rendered in the LLM system prompt injection.
+
+**Root cause:** `health_intelligence` and `health_intelligence_summary` were computed in `_build_health_and_vitals()` and stored in the context dict, but `format_cos_system_injection()` never rendered them into the system prompt. Only raw `health_signals` were injected. The LLM had no access to protein targets, health scores, or trend data.
+
+**Key changes:**
+1. **Force health metrics into CoS injection** — Added `_format_health_intelligence_block()` to render health scores, protein targets, and trends as LOCKED VALUES in the system prompt
+2. **Hard rule in system prompt** — Added Section 9 "HEALTH INTELLIGENCE ENFORCEMENT" with 5 absolute rules forbidding generic ranges
+3. **Metric lock protection** — Health intelligence block clearly marks values as system-calculated with MANDATORY/EXACT directives
+4. **Post-response validation** — Created `health_response_validator.py` (observe-only) that detects generic protein ranges and health advice phrases
+5. **Protein intelligence in context** — Added `protein` dict to `health_intelligence` with target_g, method, lbm, workout_day, multiplier
+6. **Streaming parity** — Health validator hooked into both non-streaming and streaming response paths
+
+**Files created:**
+- `apps/ai/validators/__init__.py`
+- `apps/ai/validators/health_response_validator.py` — Post-response validator for generic health advice detection
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — Added `_format_health_intelligence_block()`, protein data in health_intelligence, rendering in injection
+- `apps/ai/personal_assistant.py` — Added Section 9 health enforcement rules, health validator in both response paths
+- `apps/health/tests/test_health_intelligence.py` — 13 new tests (97 total): injection tests, validator tests, system prompt tests
+
+---
+
 ## 2026-03-04 — Protein Intelligence: LBM + Adaptive Workout-Day Targets
 
 **What:** Upgraded Protein Intelligence to use Lean Body Mass (LBM) for targets instead of total body weight. Added adaptive workout-day targets (rest: LBM×1.0, workout: LBM×1.1), with fallback to body weight × 0.7 when no body fat data available.

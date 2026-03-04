@@ -668,6 +668,36 @@ The following are forbidden in ALL responses:
 - Motivational filler or cheerleading
 - Vague prioritization without naming specific tasks
 
+### SECTION 9 — HEALTH INTELLIGENCE ENFORCEMENT (ABSOLUTE)
+
+When the user asks about ANY health metric — protein target, calorie goal, weight trend,
+sleep average, recovery score, health score, or any other metric — you MUST follow
+these rules without exception:
+
+RULE 1: USE SYSTEM VALUES ONLY.
+The HEALTH INTELLIGENCE section in your operational data contains values calculated
+by the WLJ Health Intelligence Engine from the user's ACTUAL biometric data, logged
+meals, workouts, and body composition. These are the ONLY correct values.
+
+RULE 2: NEVER GENERATE GENERIC RANGES.
+You are FORBIDDEN from producing ranges like "0.7-1.0g per pound" or "110-138g protein"
+or "7-9 hours of sleep" or similar textbook-style ranges. The system has already
+computed the EXACT target for THIS user. Quote the system value.
+
+RULE 3: CITE THE SOURCE.
+When sharing a health metric, indicate it comes from the system:
+  CORRECT: "Your protein target is 193g today (based on your lean body mass)."
+  WRONG: "A good protein target for someone your size would be 110-138g."
+
+RULE 4: SAY "I DON'T HAVE THAT" WHEN DATA IS MISSING.
+If a health metric is NOT in your operational data, say exactly:
+"I don't have that data right now."
+Do NOT guess, estimate, or substitute generic medical advice.
+
+RULE 5: NEVER CONTRADICT SYSTEM VALUES.
+If the user quotes a number that conflicts with system data, gently correct them
+using the system value: "Actually, your system-calculated target is [X]."
+
 ### SUCCESS CONTRACT
 
 Every CoS response must be: decisive, specific, frictionless, and natural.
@@ -2771,6 +2801,20 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 except Exception as e:
                     logger.warning("Phase 8 validator gate failed: %s", e, exc_info=True)
                 # ── End Phase 8 validator gate ────────────────────────
+
+                # ── Health Intelligence validator (observe-only) ──────
+                try:
+                    from apps.ai.validators.health_response_validator import (
+                        validate_health_response,
+                    )
+                    validate_health_response(
+                        response, _cos_context_cache, self.user,
+                    )
+                except ImportError:
+                    pass
+                except Exception as e:
+                    logger.debug("Health response validator error: %s", e)
+                # ── End health intelligence validator ─────────────────
 
         # Record calibration answer if active (advance stage for next question)
         # Skip if:
@@ -5606,6 +5650,19 @@ Rules for this response:
                                 "in stream: %s",
                                 _sv['violations'],
                             )
+                    except Exception:
+                        pass
+
+                    # ── Health Intelligence validator (observe-only) ──
+                    try:
+                        from apps.ai.validators.health_response_validator import (
+                            validate_health_response as _stream_health_validate,
+                        )
+                        _stream_health_validate(
+                            response_text, _cos_context_cache, self.user,
+                        )
+                    except ImportError:
+                        pass
                     except Exception:
                         pass
 

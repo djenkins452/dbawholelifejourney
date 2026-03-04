@@ -474,6 +474,18 @@ def _build_health_and_vitals(user):
             build_cos_health_summary_text,
         )
         intel = build_cos_health_intelligence(user)
+        # Protein intelligence (LBM-aware targets)
+        protein_intel = intel.get('protein_intelligence', {})
+        protein_data = {}
+        if protein_intel:
+            protein_data = {
+                'target_g': protein_intel.get('target_g'),
+                'method': protein_intel.get('method'),
+                'lbm': protein_intel.get('lean_body_mass'),
+                'workout_day': protein_intel.get('workout_day', False),
+                'multiplier': protein_intel.get('multiplier'),
+            }
+
         result['health_intelligence'] = {
             'baseline_ready': intel.get('baseline_ready', False),
             'health_score': intel.get('scores', {}).get('health_score'),
@@ -495,6 +507,7 @@ def _build_health_and_vitals(user):
                 }
                 for c in intel.get('correlations', [])[:2]
             ],
+            'protein': protein_data,
         }
         result['health_intelligence_summary'] = build_cos_health_summary_text(user)
     except ImportError:
@@ -1159,6 +1172,124 @@ def build_cos_context(user):
     return context
 
 
+def _format_health_intelligence_block(health_intel, context):
+    """
+    Format health intelligence as a LOCKED VALUES block for CoS injection.
+
+    This block contains system-calculated, authoritative health metrics
+    that the LLM must use verbatim — never generate its own ranges or estimates.
+
+    Args:
+        health_intel: dict from build_cos_health_intelligence() (subset stored in context)
+        context: full CoS context dict (for protein_intelligence, etc.)
+
+    Returns:
+        str — formatted health intelligence block.
+    """
+    lines = []
+    lines.append("=== HEALTH INTELLIGENCE (SYSTEM-CALCULATED — USE THESE EXACT VALUES) ===")
+    lines.append("")
+    lines.append(
+        "MANDATORY: The values below are calculated by the WLJ Health Intelligence "
+        "Engine from the user's ACTUAL data. When the user asks about ANY health "
+        "metric listed here, you MUST quote THESE EXACT numbers. "
+        "NEVER substitute generic ranges, textbook values, or LLM-generated estimates. "
+        "If a value is missing below, say 'I don't have that data right now.'"
+    )
+    lines.append("")
+
+    # Scores
+    hs = health_intel.get('health_score')
+    rs = health_intel.get('recovery_score')
+    if hs is not None:
+        lines.append(f"  Health Score: {hs}/100")
+    if rs is not None:
+        status = health_intel.get('recovery_status', '')
+        status_str = f" ({status})" if status else ""
+        lines.append(f"  Recovery Score: {rs}/100{status_str}")
+
+    # Protein intelligence (LBM-aware targets)
+    protein_intel = context.get('health_intelligence', {}).get('protein', {})
+    # Also check for protein_intelligence at top level (from _build_health_and_vitals)
+    if not protein_intel:
+        # Try to get from the full health intelligence
+        _user = context.get('_user')
+        if _user:
+            try:
+                from apps.health.services.protein_service import ProteinService
+                from django.utils import timezone as _tz
+                _today = _tz.localdate()
+                target_info = ProteinService.calculate_target(_user, _today)
+                if target_info:
+                    protein_intel = target_info
+            except Exception:
+                pass
+
+    if protein_intel:
+        lines.append("")
+        lines.append("  PROTEIN TARGET (locked — do not estimate):")
+        target_g = protein_intel.get('target_g')
+        method = protein_intel.get('method', '')
+        lbm = protein_intel.get('lbm')
+        workout_day = protein_intel.get('workout_day', False)
+        multiplier = protein_intel.get('multiplier')
+
+        if target_g is not None:
+            target_val = float(target_g) if not isinstance(target_g, float) else target_g
+            lines.append(f"    Daily target: {target_val:.0f}g")
+        if method:
+            method_label = {
+                'lean_body_mass': 'Based on lean body mass',
+                'body_weight': 'Based on body weight',
+                'override': 'User-set override',
+            }.get(method, method)
+            lines.append(f"    Method: {method_label}")
+        if lbm is not None:
+            lines.append(f"    Lean body mass: {float(lbm):.1f} lbs")
+        if multiplier:
+            lines.append(f"    Multiplier: {float(multiplier)}g per lb LBM")
+        day_type = "workout day" if workout_day else "rest day"
+        lines.append(f"    Day type: {day_type}")
+
+    # Trends summary
+    summary_text = context.get('health_intelligence_summary', '')
+    if summary_text:
+        lines.append("")
+        lines.append(f"  Intelligence summary: {summary_text}")
+
+    # Strengths / weaknesses / risks
+    strengths = health_intel.get('strengths', [])
+    weaknesses = health_intel.get('weaknesses', [])
+    risk_flags = health_intel.get('risk_flags', [])
+
+    if strengths:
+        lines.append(f"  Strengths: {'; '.join(strengths[:3])}")
+    if weaknesses:
+        lines.append(f"  Watch areas: {'; '.join(weaknesses[:3])}")
+    if risk_flags:
+        flags = risk_flags if isinstance(risk_flags[0], str) else [
+            r.get('message', str(r)) for r in risk_flags
+        ]
+        lines.append(f"  Risk flags: {'; '.join(flags[:3])}")
+
+    # Top recommendation
+    rec = health_intel.get('top_recommendation', '')
+    if rec:
+        lines.append(f"  Focus: {rec}")
+
+    # Correlations
+    correlations = health_intel.get('correlations', [])
+    if correlations:
+        for c in correlations[:2]:
+            interp = c.get('interpretation', '')
+            if interp:
+                lines.append(f"  Pattern: {interp}")
+
+    lines.append("")
+    lines.append("=== END HEALTH INTELLIGENCE ===")
+    return '\n'.join(lines)
+
+
 def _build_daily_scan_brief(context):
     """
     Build a structured daily scan brief for proactive intelligence.
@@ -1702,6 +1833,13 @@ def format_cos_system_injection(context):
             lines.append("Health Signals (7-day):")
             for hl in health_lines:
                 lines.append(f"  {hl}")
+
+    # Health Intelligence Engine — system-calculated scores, protein, trends
+    # These are the AUTHORITATIVE values CoS MUST use (never LLM guesses)
+    health_intel = context.get('health_intelligence', {})
+    if health_intel:
+        lines.append("")
+        lines.append(_format_health_intelligence_block(health_intel, context))
 
     # Approaching life events
     life_events = context.get('approaching_life_events', [])

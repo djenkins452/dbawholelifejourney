@@ -1937,3 +1937,331 @@ class TestCosProteinIntelligence(TestCase, HealthIntelligenceTestMixin):
 
         serialized = _serialize_summary(summary)
         self.assertEqual(serialized["protein_method"], "lean_body_mass")
+
+
+# =========================================================================
+# CoS Health Intelligence Injection Tests
+# =========================================================================
+
+
+class TestCosHealthIntelligenceInjection(TestCase, HealthIntelligenceTestMixin):
+    """Test that health intelligence is properly injected into CoS context."""
+
+    def setUp(self):
+        self.user = self.create_test_user()
+
+    def test_format_health_intelligence_block_with_protein(self):
+        """The health intelligence block should include protein target data."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _format_health_intelligence_block,
+        )
+
+        health_intel = {
+            'health_score': 75,
+            'recovery_score': 82,
+            'recovery_status': 'good',
+            'strengths': ['Sleep consistency'],
+            'weaknesses': ['Low protein intake'],
+            'risk_flags': ['Declining workout frequency'],
+            'top_recommendation': 'Increase protein to target',
+            'protein': {
+                'target_g': 193.0,
+                'method': 'lean_body_mass',
+                'lbm': 175.5,
+                'workout_day': True,
+                'multiplier': 1.1,
+            },
+            'correlations': [
+                {
+                    'signals': 'protein ↔ recovery',
+                    'interpretation': 'Higher protein correlates with better recovery',
+                },
+            ],
+        }
+        context = {
+            'health_intelligence': health_intel,
+            'health_intelligence_summary': 'Health score: 75/100',
+        }
+
+        result = _format_health_intelligence_block(health_intel, context)
+
+        # Must contain MANDATORY directive
+        self.assertIn("MANDATORY", result)
+        self.assertIn("EXACT", result)
+
+        # Must contain system scores
+        self.assertIn("75/100", result)
+        self.assertIn("82/100", result)
+
+        # Must contain protein target data
+        self.assertIn("193g", result)
+        self.assertIn("lean body mass", result.lower())
+        self.assertIn("175.5", result)
+        self.assertIn("workout day", result)
+
+        # Must contain strengths/weaknesses
+        self.assertIn("Sleep consistency", result)
+        self.assertIn("Low protein intake", result)
+
+        # Must contain risk flags
+        self.assertIn("Declining workout frequency", result)
+
+        # Must contain recommendation
+        self.assertIn("Increase protein to target", result)
+
+    def test_format_health_intelligence_block_minimal(self):
+        """Block should work with minimal data (no protein)."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _format_health_intelligence_block,
+        )
+
+        health_intel = {
+            'health_score': 60,
+            'protein': {},
+        }
+        context = {'health_intelligence': health_intel}
+
+        result = _format_health_intelligence_block(health_intel, context)
+
+        self.assertIn("60/100", result)
+        self.assertIn("HEALTH INTELLIGENCE", result)
+        # Should NOT crash or include empty protein section
+        self.assertNotIn("Daily target:", result)
+
+    def test_health_intelligence_included_in_cos_injection(self):
+        """format_cos_system_injection should include health intelligence block."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection,
+        )
+
+        context = {
+            'health_intelligence': {
+                'health_score': 78,
+                'recovery_score': 85,
+                'protein': {
+                    'target_g': 200.0,
+                    'method': 'lean_body_mass',
+                    'lbm': 182.0,
+                    'workout_day': False,
+                    'multiplier': 1.0,
+                },
+                'strengths': [],
+                'weaknesses': [],
+                'risk_flags': [],
+                'correlations': [],
+            },
+            'health_intelligence_summary': 'Health score: 78/100',
+        }
+
+        injection = format_cos_system_injection(context)
+
+        # The injection must contain the health intelligence block
+        self.assertIn("HEALTH INTELLIGENCE", injection)
+        self.assertIn("200g", injection)
+        self.assertIn("78/100", injection)
+        self.assertIn("lean body mass", injection.lower())
+
+    def test_cos_injection_without_health_intelligence(self):
+        """format_cos_system_injection should not crash without health intel."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection,
+        )
+
+        context = {}  # No health intelligence at all
+        injection = format_cos_system_injection(context)
+
+        # Should still produce a valid injection without health block
+        self.assertIn("OPERATIONAL INTELLIGENCE", injection)
+        self.assertNotIn("HEALTH INTELLIGENCE", injection)
+
+    def test_protein_target_in_build_health_and_vitals(self):
+        """_build_health_and_vitals should include protein data in health_intelligence."""
+        today = date.today()
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("220"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        HealthProfile.objects.create(
+            user=self.user,
+            protein_per_lb_target=Decimal("0.8"),
+        )
+        DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=today,
+            weight=Decimal("220"),
+            body_fat_pct=Decimal("18.0"),
+            protein_g=Decimal("160"),
+            protein_target_g=Decimal("198"),
+            protein_method="lean_body_mass",
+            nutrition_logged=True,
+            signals_present=["weight", "nutrition"],
+            baseline_ready=False,
+        )
+
+        from apps.core.ai_orchestrator.cos_context import _build_health_and_vitals
+        result = _build_health_and_vitals(self.user)
+
+        health_intel = result.get('health_intelligence', {})
+        protein = health_intel.get('protein', {})
+
+        # Protein intelligence should be populated
+        self.assertIsNotNone(protein.get('target_g'))
+        self.assertIsNotNone(protein.get('method'))
+
+
+# =========================================================================
+# Health Response Validator Tests
+# =========================================================================
+
+
+class TestHealthResponseValidator(TestCase):
+    """Test the health response validator catches generic health advice."""
+
+    def test_detects_generic_protein_range(self):
+        """Should detect generic protein ranges that contradict system values."""
+        from apps.ai.validators.health_response_validator import (
+            validate_health_response,
+        )
+
+        cos_context = {
+            'health_intelligence': {
+                'protein': {
+                    'target_g': 193.0,
+                    'method': 'lean_body_mass',
+                },
+            },
+        }
+
+        # This is the bad response — generic range instead of system value
+        response = (
+            "For your body weight, a good protein target would be "
+            "110-138g per day."
+        )
+
+        result = validate_health_response(response, cos_context)
+        self.assertTrue(result['has_violations'])
+        self.assertEqual(result['severity'], 'critical')
+        self.assertTrue(
+            any(v['type'] == 'GENERIC_PROTEIN_RANGE' for v in result['violations'])
+        )
+
+    def test_accepts_system_protein_value(self):
+        """Should NOT flag a response that uses the correct system value."""
+        from apps.ai.validators.health_response_validator import (
+            validate_health_response,
+        )
+
+        cos_context = {
+            'health_intelligence': {
+                'protein': {
+                    'target_g': 193.0,
+                    'method': 'lean_body_mass',
+                },
+            },
+        }
+
+        # Good response — uses system value
+        response = (
+            "Your protein target is 193g today, calculated from your "
+            "lean body mass. You're at 150g so far."
+        )
+
+        result = validate_health_response(response, cos_context)
+        # Should have no protein range violations
+        protein_violations = [
+            v for v in result['violations']
+            if v['type'] == 'GENERIC_PROTEIN_RANGE'
+        ]
+        self.assertEqual(len(protein_violations), 0)
+
+    def test_detects_generic_health_phrases(self):
+        """Should detect generic health advice language."""
+        from apps.ai.validators.health_response_validator import (
+            validate_health_response,
+        )
+
+        response = (
+            "Most experts recommend getting 7-9 hours of sleep. "
+            "A good target for protein is generally recommended at "
+            "0.7-1.0g per pound."
+        )
+
+        result = validate_health_response(response, {})
+        self.assertTrue(result['has_violations'])
+        generic_phrases = [
+            v for v in result['violations']
+            if v['type'] == 'GENERIC_HEALTH_PHRASE'
+        ]
+        self.assertTrue(len(generic_phrases) > 0)
+
+    def test_no_violations_on_clean_response(self):
+        """Clean system-value response should have no violations."""
+        from apps.ai.validators.health_response_validator import (
+            validate_health_response,
+        )
+
+        cos_context = {
+            'health_intelligence': {
+                'protein': {'target_g': 193.0, 'method': 'lean_body_mass'},
+            },
+        }
+
+        response = (
+            "Your health score is 75 out of 100. Recovery is looking good "
+            "at 82. Your protein target is 193g based on your lean body mass."
+        )
+
+        result = validate_health_response(response, cos_context)
+        self.assertFalse(result['has_violations'])
+        self.assertEqual(result['severity'], 'none')
+
+    def test_empty_response(self):
+        """Empty response should return no violations."""
+        from apps.ai.validators.health_response_validator import (
+            validate_health_response,
+        )
+
+        result = validate_health_response("", {})
+        self.assertFalse(result['has_violations'])
+        self.assertEqual(result['severity'], 'none')
+
+    def test_none_context(self):
+        """Should handle None context gracefully."""
+        from apps.ai.validators.health_response_validator import (
+            validate_health_response,
+        )
+
+        response = "Your protein looks good today."
+        result = validate_health_response(response, None)
+        self.assertFalse(result['has_violations'])
+
+
+# =========================================================================
+# System Prompt Health Rules Tests
+# =========================================================================
+
+
+class TestSystemPromptHealthRules(TestCase):
+    """Test that the system prompt includes health intelligence enforcement."""
+
+    def test_cos_prompt_includes_health_enforcement(self):
+        """COS_PROACTIVE_INTELLIGENCE_PROMPT should include Section 9."""
+        from apps.ai.personal_assistant import COS_PROACTIVE_INTELLIGENCE_PROMPT
+
+        self.assertIn("SECTION 9", COS_PROACTIVE_INTELLIGENCE_PROMPT)
+        self.assertIn("HEALTH INTELLIGENCE ENFORCEMENT", COS_PROACTIVE_INTELLIGENCE_PROMPT)
+        self.assertIn("USE SYSTEM VALUES ONLY", COS_PROACTIVE_INTELLIGENCE_PROMPT)
+        self.assertIn("NEVER GENERATE GENERIC RANGES", COS_PROACTIVE_INTELLIGENCE_PROMPT)
+        self.assertIn("NEVER CONTRADICT SYSTEM VALUES", COS_PROACTIVE_INTELLIGENCE_PROMPT)
+
+    def test_built_prompt_includes_health_enforcement(self):
+        """build_personal_assistant_prompt should include health rules."""
+        from apps.ai.personal_assistant import build_personal_assistant_prompt
+
+        prompt = build_personal_assistant_prompt(
+            coaching_style='supportive',
+            faith_enabled=False,
+        )
+
+        self.assertIn("HEALTH INTELLIGENCE ENFORCEMENT", prompt)
+        self.assertIn("NEVER GENERATE GENERIC RANGES", prompt)

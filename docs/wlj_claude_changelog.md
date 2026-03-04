@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Cross-complete habits and tasks when user says "I finished X"
+
+**What:** When user says they finished something, the AI now handles both the habit and task side automatically. `log_habit` success also completes a matching task; `complete_task` success also logs a matching habit. When the primary type isn't found but the other type exists, CoS asks: "I see a task/habit called X — would you like me to mark it complete?" instead of silently failing.
+**Files:** `apps/ai/action_handlers.py` (handle_log_habit, handle_complete_task, + 4 new helper methods: _cross_complete_task, _cross_log_habit, _find_task_suggestion, _find_habit_suggestion)
+
+---
+
 ## 2026-03-04 — Fix "Sorry, I couldn't log that habit" error in AI chat
 
 **What:** `handle_log_habit()` had three incorrect field references causing every habit logging attempt to throw a FieldError caught by the generic exception handler: (1) `habit_status='active'` — field doesn't exist on HabitGoal, should only use `status='active'`; (2) `user=self.user` in HabitEntry.get_or_create — HabitEntry has no `user` field, user is via `goal` FK; (3) `habit=habit` — the FK is named `goal`, not `habit`. Also fixed the weekly trend query to use `goal__user` instead of `user`.

@@ -153,6 +153,66 @@ class ActionHandler:
             **{f'{date_field}__date__gte': week_start}
         ).count()
 
+    def _cross_complete_task(self, keyword):
+        """Try to find and complete a matching active task. Returns message or None."""
+        try:
+            tasks, _ = self._resolve_tasks_by_query(keyword)
+            if len(tasks) == 1:
+                tasks[0].mark_complete()
+                return f"✓ Also marked task complete: {tasks[0].title}"
+        except Exception:
+            pass
+        return None
+
+    def _cross_log_habit(self, keyword):
+        """Try to find and log a matching active habit. Returns message or None."""
+        try:
+            from apps.purpose.models import HabitGoal, HabitEntry
+            habits = HabitGoal.objects.filter(
+                user=self.user, status='active'
+            ).filter(
+                Q(name__icontains=keyword) | Q(description__icontains=keyword)
+            )
+            if habits.count() == 1:
+                habit = habits.first()
+                today = self._get_user_today()
+                entry, created = HabitEntry.objects.get_or_create(
+                    goal=habit, date=today, session_number=1,
+                    defaults={'completed': True, 'notes': ''}
+                )
+                if not created and not entry.completed:
+                    entry.completed = True
+                    entry.save()
+                return f"✓ Also logged habit: {habit.name}"
+        except Exception:
+            pass
+        return None
+
+    def _find_task_suggestion(self, keyword):
+        """Check if a matching task exists (for suggesting when habit not found)."""
+        try:
+            tasks, _ = self._resolve_tasks_by_query(keyword)
+            if len(tasks) == 1:
+                return tasks[0]
+        except Exception:
+            pass
+        return None
+
+    def _find_habit_suggestion(self, keyword):
+        """Check if a matching habit exists (for suggesting when task not found)."""
+        try:
+            from apps.purpose.models import HabitGoal
+            habits = HabitGoal.objects.filter(
+                user=self.user, status='active'
+            ).filter(
+                Q(name__icontains=keyword) | Q(description__icontains=keyword)
+            )
+            if habits.count() == 1:
+                return habits.first()
+        except Exception:
+            pass
+        return None
+
     def _resolve_tasks_by_query(self, query, include_completed=False):
         """
         Resolve tasks by query with literal-first matching.
@@ -2699,6 +2759,18 @@ class ActionHandler:
             count = habits.count()
 
             if count == 0:
+                # No habit found — check if there's a matching task to suggest
+                task = self._find_task_suggestion(habit_keyword)
+                if task:
+                    return ActionResult(
+                        success=False,
+                        message=(
+                            f"I couldn't find an active habit matching '{habit_keyword}', "
+                            f"but I see a task called '{task.title}'. "
+                            f"Would you like me to mark it complete?"
+                        ),
+                        error='habit_not_found'
+                    )
                 return ActionResult(
                     success=False,
                     message=f"I couldn't find an active habit matching '{habit_keyword}'.",
@@ -2739,9 +2811,15 @@ class ActionHandler:
                 except Exception:
                     pass
 
+                # Cross-complete: also mark matching task complete
+                task_msg = self._cross_complete_task(habit_keyword)
+                msg = f"✓ Logged habit: {habit.name} - {status}"
+                if task_msg:
+                    msg += f"\n{task_msg}"
+
                 return ActionResult(
                     success=True,
-                    message=f"✓ Logged habit: {habit.name} - {status}",
+                    message=msg,
                     created_object={
                         'model': 'HabitEntry',
                         'id': entry.id,
@@ -3087,6 +3165,18 @@ class ActionHandler:
             count = len(tasks)
 
             if count == 0:
+                # No task found — check if there's a matching habit to suggest
+                habit = self._find_habit_suggestion(task_keyword)
+                if habit:
+                    return ActionResult(
+                        success=False,
+                        message=(
+                            f"I couldn't find an incomplete task matching '{task_keyword}', "
+                            f"but I see a habit called '{habit.name}'. "
+                            f"Would you like me to log it as completed for today?"
+                        ),
+                        error='task_not_found'
+                    )
                 return ActionResult(
                     success=False,
                     message=f"I couldn't find an incomplete task matching '{task_keyword}'.",
@@ -3099,9 +3189,15 @@ class ActionHandler:
                     task.save(update_fields=['notes', 'updated_at'])
                 task.mark_complete()  # handles recurrence + calendar sync + CoS
 
+                # Cross-complete: also log matching habit
+                habit_msg = self._cross_log_habit(task_keyword)
+                msg = f"✓ Completed: {task.title}"
+                if habit_msg:
+                    msg += f"\n{habit_msg}"
+
                 return ActionResult(
                     success=True,
-                    message=f"✓ Completed: {task.title}",
+                    message=msg,
                     created_object={
                         'model': 'Task',
                         'id': task.id,

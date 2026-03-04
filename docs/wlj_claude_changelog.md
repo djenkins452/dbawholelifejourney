@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Improve Vision API error messaging for missing env vars
+
+**What:** Bulk recipe import failed with "Vision API client not available" on Celery worker because `OPENAI_API_KEY` env var was missing on the Railway worker service. Improved error logging to explicitly state the missing config and point to the Railway services fix.
+**Root cause:** Railway worker service doesn't share env vars with the web service by default. Both `OPENAI_API_KEY` and `CLOUDINARY_*` vars need to be added to the worker service (or use Railway shared variables).
+**Files:** `apps/life/services/recipe_photo_import.py`
+
+---
+
 ## 2026-03-03 — Fix bulk recipe import failing on Railway (Cloudinary storage mismatch)
 
 **What:** Bulk recipe photos uploaded via the web process (Cloudinary storage) couldn't be read by the Celery worker, which falls back to FileSystemStorage when Cloudinary env vars aren't on the worker service. Error: `[Errno 2] No such file or directory: '/app/media/media/life/...'` (double `media` from Cloudinary-prefixed name + MEDIA_ROOT).

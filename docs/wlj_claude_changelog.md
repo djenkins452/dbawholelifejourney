@@ -9,6 +9,25 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Fix Weekly Protein Evaluation (7-day average, not total)
+
+**What:** Fixed weekly protein evaluation logic so CoS uses 7-day daily average instead of comparing weekly total against daily target. Previously CoS could respond "120g this week, 93g short of 213g target" — now correctly says "Your 7d average is 168g/day (79% of 213g target)."
+
+**Root cause:** `cos_health_context.py` computed `weekly_summary` via `ProteinService.get_weekly_summary()` but never extracted the avg/ratio/gap fields into the `protein_intelligence` dict. The `_format_health_intelligence_block` in `cos_context.py` also only injected today's target without weekly context, so CoS had no 7-day average to reference.
+
+**Key changes:**
+- `cos_health_context.py` — Extract `protein_avg_7d`, `protein_consistency_pct`, `protein_gap_g`, `protein_avg_ratio` from weekly summary; add "Protein 7d avg" to summary text
+- `cos_context.py` — Pass weekly fields through to `health_intelligence.protein`; render "PROTEIN WEEKLY EVALUATION" in LOCKED VALUES block
+- `command_center_api.py` — Add `gap_g_7d` field to protein panel
+
+**Files modified:**
+- `apps/health/services/cos_health_context.py`
+- `apps/core/ai_orchestrator/cos_context.py`
+- `apps/health/services/command_center_api.py`
+- `apps/health/tests/test_health_intelligence.py` — 7 new tests (104 total)
+
+---
+
 ## 2026-03-04 — Fix CoS Ignoring Health Intelligence Engine
 
 **What:** Fixed critical bug where CoS (Chief of Staff AI) generated generic health advice (e.g., "110-138g protein") instead of using WLJ's system-calculated values (e.g., "193g based on lean body mass"). The health intelligence data was computed but never rendered in the LLM system prompt injection.

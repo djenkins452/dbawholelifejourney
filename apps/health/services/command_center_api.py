@@ -372,6 +372,7 @@ class HealthCommandCenterService:
             "avg_ratio_7d": None,
             "days_at_target_7d": 0,
             "consistency_pct_7d": None,
+            "gap_g_7d": None,
             "coaching": None,
             "target_info": None,
             "trend_14d": [
@@ -403,6 +404,10 @@ class HealthCommandCenterService:
 
             days_at_80 = [s for s in protein_7d if s.protein_ratio and float(s.protein_ratio) >= 0.8]
             panel["consistency_pct_7d"] = round(len(days_at_80) / len(protein_7d) * 100, 1)
+
+            # Gap: how many grams below daily target is the 7-day average
+            if panel.get("today_target_g") and avg:
+                panel["gap_g_7d"] = round(panel["today_target_g"] - avg, 1)
 
         # Workout vs rest day comparison
         workout_protein = [s for s in protein_7d if s.workout_count and s.workout_count > 0] if protein_7d else []

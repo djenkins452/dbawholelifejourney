@@ -484,6 +484,11 @@ def _build_health_and_vitals(user):
                 'lbm': protein_intel.get('lean_body_mass'),
                 'workout_day': protein_intel.get('workout_day', False),
                 'multiplier': protein_intel.get('multiplier'),
+                # Weekly evaluation (7-day average vs daily target)
+                'protein_avg_7d': protein_intel.get('protein_avg_7d'),
+                'protein_consistency_pct': protein_intel.get('protein_consistency_pct'),
+                'protein_gap_g': protein_intel.get('protein_gap_g'),
+                'protein_avg_ratio': protein_intel.get('protein_avg_ratio'),
             }
 
         result['health_intelligence'] = {
@@ -1250,6 +1255,25 @@ def _format_health_intelligence_block(health_intel, context):
             lines.append(f"    Multiplier: {float(multiplier)}g per lb LBM")
         day_type = "workout day" if workout_day else "rest day"
         lines.append(f"    Day type: {day_type}")
+
+        # Weekly protein evaluation (7-day average — THIS is what CoS must
+        # use when answering "how's my protein this week?" questions)
+        p_avg_7d = protein_intel.get('protein_avg_7d')
+        p_gap_g = protein_intel.get('protein_gap_g')
+        p_consistency = protein_intel.get('protein_consistency_pct')
+        p_avg_ratio = protein_intel.get('protein_avg_ratio')
+        if p_avg_7d is not None:
+            lines.append("")
+            lines.append("  PROTEIN WEEKLY EVALUATION (locked — use these for weekly questions):")
+            pct = round(p_avg_ratio * 100) if p_avg_ratio else "?"
+            lines.append(f"    7-day average intake: {p_avg_7d:.0f}g/day")
+            lines.append(f"    % of daily target: {pct}%")
+            if p_gap_g is not None and p_gap_g > 0:
+                lines.append(f"    Daily gap: {p_gap_g:.0f}g below target")
+            elif p_gap_g is not None and p_gap_g <= 0:
+                lines.append(f"    Status: exceeding target by {abs(p_gap_g):.0f}g/day")
+            if p_consistency is not None:
+                lines.append(f"    Days hitting 80%+ target: {p_consistency:.0f}% of days")
 
     # Trends summary
     summary_text = context.get('health_intelligence_summary', '')

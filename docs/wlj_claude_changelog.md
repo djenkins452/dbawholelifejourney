@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-03-03 — Add faith/prayer context to CoS system prompt
+
+**What:** CoS had zero faith module context, so it couldn't answer questions like "how many prayers do I have open." Added `_build_faith_context()` parallel builder that queries PrayerRequest model for active/answered/urgent counts and recent prayer titles, plus optional BibleReadingProgress. Added formatting block in `format_cos_system_injection()` to inject a FAITH & PRAYER section into the system prompt.
+**Files:** `apps/core/ai_orchestrator/cos_context.py`
+
+---
+
 ## 2026-03-03 — Fix CoS not knowing domain or link formatting
 
 **What:** CoS didn't know the app domain (`wholelifejourney.com`) and had no instructions on how to format links, causing it to invent wrong URLs. Added domain awareness, explicit link formatting rules (use relative paths from APP NAVIGATION, never invent URLs), and consistent list formatting directive to the system prompt. Also added Recipes and Bulk Import Recipes to the navigable pages registry.

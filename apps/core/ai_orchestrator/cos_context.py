@@ -944,6 +944,53 @@ def _build_meals_context(user):
         return {}
 
 
+def _build_faith_context(user):
+    """Build faith module context — prayer requests, bible reading progress."""
+    try:
+        from apps.faith.models import PrayerRequest
+        active_prayers = PrayerRequest.objects.filter(user=user, is_answered=False).count()
+        answered_prayers = PrayerRequest.objects.filter(user=user, is_answered=True).count()
+
+        # Recent prayer titles (up to 5 most recent active)
+        recent_prayers = list(
+            PrayerRequest.objects.filter(user=user, is_answered=False)
+            .order_by('-created_at')
+            .values_list('title', flat=True)[:5]
+        )
+
+        # Urgent prayers
+        urgent_count = PrayerRequest.objects.filter(
+            user=user, is_answered=False, priority='urgent'
+        ).count()
+
+        result = {
+            'faith_summary': {
+                'active_prayers': active_prayers,
+                'answered_prayers': answered_prayers,
+                'urgent_prayers': urgent_count,
+                'recent_prayer_titles': recent_prayers,
+            }
+        }
+
+        # Bible reading progress (if available)
+        try:
+            from apps.faith.models import BibleReadingProgress
+            progress = BibleReadingProgress.objects.filter(user=user).first()
+            if progress:
+                result['faith_summary']['bible_reading'] = {
+                    'plan': str(progress.plan) if hasattr(progress, 'plan') else '',
+                    'streak_days': getattr(progress, 'streak_days', 0),
+                }
+        except Exception:
+            pass
+
+        return result
+
+    except Exception as e:
+        logger.debug("CoS context: faith unavailable: %s", e)
+        return {}
+
+
 # Registry of parallel builder functions.
 # Each takes (user, prefs) or (user,) and returns a dict of context updates.
 _PARALLEL_BUILDERS = [
@@ -958,6 +1005,7 @@ _PARALLEL_BUILDERS = [
     lambda user, prefs: _build_strategy_and_signals(user),
     lambda user, prefs: _build_recent_image_analyses(user),
     lambda user, prefs: _build_meals_context(user),
+    lambda user, prefs: _build_faith_context(user),
 ]
 
 
@@ -1738,6 +1786,24 @@ def format_cos_system_injection(context):
         if db_block:
             lines.append("")
             lines.append(db_block)
+
+    # Faith & Prayer context
+    faith = context.get('faith_summary', {})
+    if faith and (faith.get('active_prayers', 0) > 0 or faith.get('answered_prayers', 0) > 0):
+        lines.append("")
+        lines.append("FAITH & PRAYER:")
+        lines.append(f"  Active prayer requests: {faith['active_prayers']}")
+        lines.append(f"  Answered prayers: {faith['answered_prayers']}")
+        if faith.get('urgent_prayers'):
+            lines.append(f"  Urgent: {faith['urgent_prayers']}")
+        if faith.get('recent_prayer_titles'):
+            lines.append("  Recent prayers: " + ", ".join(faith['recent_prayer_titles']))
+        bible = faith.get('bible_reading')
+        if bible:
+            if bible.get('plan'):
+                lines.append(f"  Bible reading plan: {bible['plan']}")
+            if bible.get('streak_days'):
+                lines.append(f"  Reading streak: {bible['streak_days']} days")
 
     # Navigable pages — URL awareness for directing users to app pages
     pages = context.get('navigable_pages', [])

@@ -126,10 +126,11 @@ class BodyCompositionIntelligence:
             result['weight'] = weight_entry.value
 
         # 2. WeightEntry fallback for weight + body_fat + lean_mass
+        # Skip placeholder entries (value=0) created by HealthKit body_fat sync
         if result['weight'] is None:
             we = (
                 WeightEntry.objects
-                .filter(user=user, recorded_at__date__lte=as_of_date)
+                .filter(user=user, recorded_at__date__lte=as_of_date, value__gt=0)
                 .order_by('-recorded_at')
                 .first()
             )
@@ -146,6 +147,21 @@ class BodyCompositionIntelligence:
                 if result['scan_date'] is None:
                     result['scan_date'] = we.recorded_at.date()
                     result['source'] = we.source if hasattr(we, 'source') else 'weight_entry'
+
+        # Merge body_fat from another WeightEntry on same date if still missing
+        # (handles HealthKit body_fat arriving on a separate placeholder entry)
+        if result['body_fat_pct'] is None and result['scan_date']:
+            bf_entry = (
+                WeightEntry.objects
+                .filter(
+                    user=user,
+                    recorded_at__date=result['scan_date'],
+                    body_fat_percentage__isnull=False,
+                )
+                .first()
+            )
+            if bf_entry:
+                result['body_fat_pct'] = bf_entry.body_fat_percentage
 
         # 3. DailyHealthSummary fallback
         if result['weight'] is None or result['body_fat_pct'] is None:

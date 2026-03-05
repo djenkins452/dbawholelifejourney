@@ -3900,3 +3900,115 @@ class TestHealthIntelligenceTile(TestCase):
         tile = TILE_DEFINITIONS['health_intelligence']
         self.assertEqual(tile['module_dependency'], 'health_enabled')
         self.assertEqual(tile['default_size'], 'medium')
+
+
+# =========================================================================
+# Body Fat Pipeline Merge Tests
+# =========================================================================
+
+
+class TestBuilderBodyFatMerge(TestCase):
+    """Test that the builder merges body_fat from multiple WeightEntries."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='builder-merge@test.com', password='test123'
+        )
+
+    def test_merges_body_fat_from_second_entry(self):
+        """Body fat from a placeholder entry is merged with weight from another."""
+        d = date.today()
+        dt = timezone.make_aware(datetime.combine(d, datetime.min.time()))
+        # Real weight entry (no body fat)
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal('185.0'), unit='lb',
+            recorded_at=dt.replace(hour=7),
+        )
+        # HealthKit body_fat placeholder (weight=0, body_fat set)
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal('0'), unit='lb',
+            recorded_at=dt.replace(hour=8),
+            body_fat_percentage=Decimal('22.5'),
+        )
+        from apps.health.services.daily_summary_builder import DailyHealthSummaryBuilder
+        builder = DailyHealthSummaryBuilder()
+        result = builder._collect_weight_and_composition(self.user, d)
+        self.assertIsNotNone(result)
+        self.assertEqual(result['weight'], Decimal('185.0'))
+        self.assertEqual(result['body_fat_pct'], Decimal('22.5'))
+
+    def test_skips_weight_zero_entries(self):
+        """Weight=0 placeholders are skipped for weight, but body_fat collected."""
+        d = date.today()
+        dt = timezone.make_aware(datetime.combine(d, datetime.min.time()))
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal('0'), unit='lb',
+            recorded_at=dt.replace(hour=8),
+            body_fat_percentage=Decimal('25.0'),
+        )
+        from apps.health.services.daily_summary_builder import DailyHealthSummaryBuilder
+        builder = DailyHealthSummaryBuilder()
+        result = builder._collect_weight_and_composition(self.user, d)
+        self.assertIsNotNone(result)
+        # Weight should NOT be 0 — no valid weight entry exists
+        self.assertNotIn('weight', result)
+        # But body fat should still be collected
+        self.assertEqual(result['body_fat_pct'], Decimal('25.0'))
+
+    def test_single_entry_with_both_fields(self):
+        """Normal case: single entry with both weight and body_fat."""
+        d = date.today()
+        dt = timezone.make_aware(datetime.combine(d, datetime.min.time()))
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal('190.0'), unit='lb',
+            recorded_at=dt.replace(hour=7),
+            body_fat_percentage=Decimal('20.0'),
+        )
+        from apps.health.services.daily_summary_builder import DailyHealthSummaryBuilder
+        builder = DailyHealthSummaryBuilder()
+        result = builder._collect_weight_and_composition(self.user, d)
+        self.assertEqual(result['weight'], Decimal('190.0'))
+        self.assertEqual(result['body_fat_pct'], Decimal('20.0'))
+
+
+class TestGetLatestScanFix(TestCase):
+    """Test that get_latest_scan handles weight=0 placeholders correctly."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='scan-fix@test.com', password='test123'
+        )
+
+    def test_skips_zero_weight(self):
+        """get_latest_scan does not return weight=0 entries."""
+        d = date.today()
+        dt = timezone.make_aware(datetime.combine(d, datetime.min.time()))
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal('0'), unit='lb',
+            recorded_at=dt.replace(hour=8),
+            body_fat_percentage=Decimal('22.0'),
+        )
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        result = BCI.get_latest_scan(self.user, d)
+        # Weight should be None (placeholder skipped)
+        self.assertIsNone(result['weight'])
+
+    def test_merges_body_fat_from_same_date(self):
+        """Body fat from a placeholder is merged with real weight on same date."""
+        d = date.today()
+        dt = timezone.make_aware(datetime.combine(d, datetime.min.time()))
+        # Real weight
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal('180.0'), unit='lb',
+            recorded_at=dt.replace(hour=7),
+        )
+        # Body fat placeholder
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal('0'), unit='lb',
+            recorded_at=dt.replace(hour=8),
+            body_fat_percentage=Decimal('23.0'),
+        )
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        result = BCI.get_latest_scan(self.user, d)
+        self.assertEqual(result['weight'], Decimal('180.0'))
+        self.assertEqual(result['body_fat_pct'], Decimal('23.0'))

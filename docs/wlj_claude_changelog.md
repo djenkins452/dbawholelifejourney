@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Fix Body Fat Pipeline + Dashboard Tile Improvements
+
+**What:** Fixed body fat data pipeline bug where HealthKit body_fat and weight arriving on separate WeightEntry records caused intelligence fields to silently fail. Improved Health Intelligence tile with empty state guidance and better "Awaiting data" labels. Overhauled Relationships tile with score badge, two display modes (attention vs healthy), anchor persons, and insight lines.
+
+**Why:** User reported Health Intelligence tile showing "No data" for 3 of 4 metrics despite having smart scale data. Root cause: builder only read the latest WeightEntry per day, missing body_fat from a separate placeholder entry (value=0). Relationships tile showed recently-contacted people as "Need Attention" — not useful when all relationships are healthy.
+
+**Changes:**
+- `apps/health/services/daily_summary_builder.py` — Fixed `_collect_weight_and_composition()`: skip weight=0 placeholders, merge body_fat from ANY same-day WeightEntry
+- `apps/health/services/body_composition_intelligence.py` — Fixed `get_latest_scan()`: filter `value__gt=0`, merge body_fat from same-date entries
+- `templates/dashboard/tiles/health_intelligence.html` — Added empty state with guidance links, replaced "No data" with "Awaiting data" styling
+- `templates/dashboard/tiles/relational_health.html` — Full overhaul: score badge, attention/healthy modes, anchor persons, insight lines
+- `apps/health/tests/test_health_intelligence.py` — 5 new tests for pipeline merge logic and scan fix
+
+**Tests:** 203 health intelligence tests passing.
+
+---
+
 ## 2026-03-05 — Health Intelligence UI: Dashboard Tile, Intelligence Page, Admin Rebuild, Ops Enhancement
 
 **What:** Added full UI layer for the Health Intelligence Engine — dashboard tile, dedicated `/health/intelligence/` page with 5 sections and charts, admin rebuild endpoint, and enhanced Ops Command Center tile with nightly task metrics.

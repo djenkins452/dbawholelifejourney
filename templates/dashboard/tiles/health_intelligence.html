@@ -82,6 +82,12 @@ Data source: DailyHealthSummary (read-only — no calculations).
             background: var(--color-surface, #f3f4f6);
             color: var(--color-text-muted, #6b7280);
         }
+        .hi-status-pending {
+            background: var(--color-surface, #f3f4f6);
+            color: var(--color-text-muted, #6b7280);
+            font-style: italic;
+            font-weight: 400;
+        }
         .hi-tile-footer {
             margin-top: 0.6rem;
             font-size: 0.7rem;
@@ -110,7 +116,7 @@ Data source: DailyHealthSummary (read-only — no calculations).
                     {{ hi.fat_loss_phase|cut:"_" }}
                 </span>
                 {% else %}
-                <span class="hi-badge hi-status-neutral">No data</span>
+                <span class="hi-badge hi-status-pending">Awaiting data</span>
                 {% endif %}
             </div>
         </div>
@@ -127,7 +133,7 @@ Data source: DailyHealthSummary (read-only — no calculations).
                 <span style="font-size: 0.75rem; color: var(--color-text-muted);">({{ hi.plateau_risk_score }})</span>
                 {% endif %}
                 {% else %}
-                <span class="hi-badge hi-status-neutral">No data</span>
+                <span class="hi-badge hi-status-pending">Awaiting data</span>
                 {% endif %}
             </div>
         </div>
@@ -141,7 +147,7 @@ Data source: DailyHealthSummary (read-only — no calculations).
                     {{ hi.muscle_preservation_status|cut:"_" }}
                 </span>
                 {% else %}
-                <span class="hi-badge hi-status-neutral">No data</span>
+                <span class="hi-badge hi-status-pending">Awaiting data</span>
                 {% endif %}
             </div>
         </div>
@@ -153,7 +159,7 @@ Data source: DailyHealthSummary (read-only — no calculations).
                 {% if hi.fat_loss_ratio is not None %}
                 {{ hi.fat_loss_ratio|floatformat:2 }}
                 {% else %}
-                <span style="color: var(--color-text-muted);">&mdash;</span>
+                <span class="hi-badge hi-status-pending">Awaiting data</span>
                 {% endif %}
             </div>
         </div>
@@ -164,4 +170,45 @@ Data source: DailyHealthSummary (read-only — no calculations).
     </div>
 </section>
 {% endwith %}
+{% elif health_enabled %}
+{# Empty state: no DailyHealthSummary data yet — guide user to log data #}
+<section class="tile tile-size-{{ tile.size|default:'medium' }}" data-tile-id="health_intelligence">
+    <style nonce="{{ csp_nonce }}">
+        .hi-tile-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+        .hi-tile-header h3 { font-size: 1rem; font-weight: 600; margin: 0; color: var(--color-text); }
+        .hi-tile-link { font-size: 0.8rem; color: var(--color-accent, #6366f1); text-decoration: none; }
+        .hi-tile-link:hover { text-decoration: underline; }
+        .hi-empty { text-align: center; padding: 1rem 0.75rem; }
+        .hi-empty-icon { font-size: 1.75rem; color: var(--color-text-muted, #6b7280); margin-bottom: 0.5rem; }
+        .hi-empty-title { font-size: var(--font-size-sm, 0.875rem); font-weight: 600; color: var(--color-text); margin-bottom: 0.25rem; }
+        .hi-empty-text { font-size: var(--font-size-xs, 0.75rem); color: var(--color-text-muted, #6b7280); margin-bottom: 0.75rem; line-height: 1.5; }
+        .hi-empty-actions { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+        .hi-empty-action {
+            font-size: var(--font-size-xs, 0.75rem);
+            color: var(--color-accent, #6366f1);
+            text-decoration: none;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--color-accent, #6366f1);
+            border-radius: var(--radius-full, 9999px);
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+        }
+        .hi-empty-action:hover { background: color-mix(in srgb, var(--color-accent, #6366f1) 10%, var(--color-background)); }
+    </style>
+
+    <div class="hi-tile-header">
+        <h3><i class="fa-solid fa-brain"></i> Health Intelligence</h3>
+        <a href="{% url 'health:health_intelligence' %}" class="hi-tile-link">Details &rarr;</a>
+    </div>
+    <div class="hi-empty">
+        <div class="hi-empty-icon"><i class="fa-solid fa-chart-line"></i></div>
+        <div class="hi-empty-title">Unlock Body Composition Intelligence</div>
+        <div class="hi-empty-text">Log weight and body fat data to see fat loss phases, plateau risk, and muscle preservation insights.</div>
+        <div class="hi-empty-actions">
+            <a href="{% url 'health:weight_create' %}" class="hi-empty-action">Log Weight</a>
+            <a href="{% url 'health:body_composition_create' %}" class="hi-empty-action">Log Body Scan</a>
+        </div>
+    </div>
+</section>
 {% endif %}

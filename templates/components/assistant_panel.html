@@ -787,9 +787,14 @@
         var fullText = '';
         var firstToken = true;
 
+        // Abort controller with 60s timeout (covers CoS context build + OpenAI latency)
+        var streamAbort = new AbortController();
+        var streamTimeout = setTimeout(function() { streamAbort.abort(); }, 60000);
+
         try {
             var response = await fetch('/assistant/api/chat/stream/', {
                 method: 'POST',
+                signal: streamAbort.signal,
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCsrfToken()
@@ -799,6 +804,7 @@
                     page_context: pageCtx
                 })
             });
+            clearTimeout(streamTimeout);
 
             if (!response.ok) throw new Error('Stream returned ' + response.status);
 
@@ -924,8 +930,14 @@
             };
         }
 
+        // Abort controller with 90s timeout for non-streaming (longer since it's the fallback)
+        var fallbackAbort = new AbortController();
+        var fallbackTimeout = setTimeout(function() { fallbackAbort.abort(); }, 90000);
+        fetchOpts.signal = fallbackAbort.signal;
+
         fetch('/assistant/api/chat/', fetchOpts)
         .then(function(r) {
+            clearTimeout(fallbackTimeout);
             if (!r.ok) throw new Error('status_' + r.status);
             return r.json();
         })
@@ -939,9 +951,12 @@
             }
         })
         .catch(function(err) {
+            clearTimeout(fallbackTimeout);
             hideTyping();
             var msg = 'Could not reach the server. Please try again.';
-            if (err && err.message && err.message.indexOf('status_5') === 0) {
+            if (err && err.name === 'AbortError') {
+                msg = 'The response took too long. Please try again — it usually works on the second try.';
+            } else if (err && err.message && err.message.indexOf('status_5') === 0) {
                 msg = 'The server encountered an error. Please try again in a moment.';
             }
             addMessage(container, msg, false, true);

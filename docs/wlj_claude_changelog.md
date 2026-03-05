@@ -9,6 +9,16 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Fix CoS still paraphrasing health enums despite prompt rules
+
+**What:** Three bugs in the prompt enforcement that allowed CoS to paraphrase enums ("rising" instead of "RISING") and add schedule content despite "keep it short": (1) brevity keywords checked AFTER is_analysis override, (2) rules_block was in user prompt but "be conversational" instruction came after and overrode it, (3) chain-of-thought reasoning step + 400 token budget gave LLM room to ramble.
+
+**Changes:**
+- `apps/ai/personal_assistant.py :: _classify_response_mode()` — Moved brevity keyword check BEFORE `is_analysis/is_task_query` override so "keep it short" always wins
+- `apps/ai/personal_assistant.py :: _generate_response()` — For health intel + brief: rules_block now uses ABSOLUTE OVERRIDE that replaces (not appends to) the rules; suppresses "be conversational" instructions and chain-of-thought reasoning; caps max_tokens at 100
+
+---
+
 ## 2026-03-05 — Harden CoS Health Intelligence Answers (Enum-Only + Short Mode)
 
 **What:** CoS now responds to health intelligence questions using exact DHS enum values instead of paraphrased language. "Keep it short" requests produce a strict 4-line format.

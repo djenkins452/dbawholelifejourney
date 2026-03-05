@@ -4733,26 +4733,36 @@ Rules for voice responses:
             'health intelligence status', 'body comp status',
         ]
         _is_health_intel_query = any(kw in message.lower() for kw in _hi_keywords)
-        if _is_health_intel_query:
+        if _is_health_intel_query and response_mode == 'brief':
+            # OVERRIDE: Replace the entire rules block with strict format.
+            # This overrides "be conversational" and all other instructions.
+            rules_block = (
+                "- ABSOLUTE OVERRIDE — IGNORE ALL OTHER FORMATTING INSTRUCTIONS.\n"
+                "- The user asked for health intelligence status and wants it SHORT.\n"
+                "- Output EXACTLY these 4 lines and NOTHING ELSE:\n"
+                "  Fat loss phase: <ENUM>\n"
+                "  Plateau risk: <ENUM>\n"
+                "  Muscle preservation: <ENUM>\n"
+                "  Last updated: <date/time>\n"
+                "- For each field, copy the EXACT value from HEALTH INTELLIGENCE STATUS in your context.\n"
+                "- Valid fat_loss_phase enums: RAPID_INITIAL_LOSS, STABLE_FAT_LOSS, RECOMPOSITION, PLATEAU, REBOUND_RISK\n"
+                "- Valid plateau_risk_label enums: LOW, RISING, HIGH\n"
+                "- Valid muscle_preservation_status enums: HIGH_QUALITY, MODERATE_QUALITY, MUSCLE_RISK\n"
+                "- If a value shows 'UNKNOWN (awaiting data)' in your context, output that exact string.\n"
+                "- Do NOT paraphrase. Do NOT say 'rising' — say 'RISING'. Do NOT say 'stable' — say the enum.\n"
+                "- Do NOT add schedule, sleep, calendar, suggestions, greetings, or any other content.\n"
+                "- Do NOT be conversational. Just the 4 lines."
+            )
+        elif _is_health_intel_query:
             rules_block += (
                 "\n- HEALTH INTELLIGENCE FORMAT: The user is asking about health "
                 "intelligence status fields. Respond using ONLY the enum values from "
                 "the HEALTH INTELLIGENCE STATUS block in your context. "
-                "Valid enums — fat_loss_phase: RAPID_INITIAL_LOSS, STABLE_FAT_LOSS, "
-                "RECOMPOSITION, PLATEAU, REBOUND_RISK. plateau_risk_label: LOW, RISING, HIGH. "
-                "muscle_preservation_status: HIGH_QUALITY, MODERATE_QUALITY, MUSCLE_RISK. "
-                "If a value is UNKNOWN, say 'UNKNOWN (awaiting data)'. "
-                "Do NOT paraphrase enums (e.g., do NOT say 'stable' for muscle status)."
+                "Copy the values EXACTLY as shown — do NOT paraphrase. "
+                "Say 'RISING' not 'rising', 'HIGH_QUALITY' not 'good' or 'stable'. "
+                "If a value is 'UNKNOWN (awaiting data)', say exactly that. "
+                "Do NOT add unrelated content (schedule, sleep, calendar)."
             )
-            if response_mode == 'brief':
-                rules_block += (
-                    "\n- STRICT SHORT FORMAT: Output EXACTLY 4 lines, nothing more:\n"
-                    "  Fat loss phase: <ENUM>\n"
-                    "  Plateau risk: <ENUM>\n"
-                    "  Muscle preservation: <ENUM>\n"
-                    "  Last updated: <date/time>\n"
-                    "  Do NOT add schedule, sleep, suggestions, or any other content."
-                )
 
         # Per-user response style preference (admin-configurable)
         style_pref = getattr(self.prefs, 'cos_response_style', 'balanced')
@@ -4858,21 +4868,37 @@ Then give your response."""
                             f"{scripture_text[:3000]}]"
                         )
 
+        # For strict health intel + brief, suppress conversational instructions
+        if _is_health_intel_query and response_mode == 'brief':
+            _conversational_rules = ""
+            _reasoning_block = ""  # Skip chain-of-thought too — just output the enums
+        else:
+            _conversational_rules = (
+                f"{style_nudge}- Be conversational and natural — speak like someone who knows this person\n"
+                "- If they're sharing a feeling, expressing gratitude, or being vulnerable — respond to THAT. "
+                "Don't re-explain what you just told them. A simple \"I'm glad that helped\" or "
+                "\"that's completely normal\" is better than repeating content.\n"
+                "- If following up on previous conversation, build on it naturally"
+            )
+            _reasoning_block = reasoning_instruction
+
         user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}{message}{image_note}{scripture_context_block}
 {topic_threading_hint}
-{reasoning_instruction}
+{_reasoning_block}
 
 Rules for this response:
 - Answer directly. Lead with the data when you have it.
 {rules_block}
-{style_nudge}- Be conversational and natural — speak like someone who knows this person
-- If they're sharing a feeling, expressing gratitude, or being vulnerable — respond to THAT. Don't re-explain what you just told them. A simple "I'm glad that helped" or "that's completely normal" is better than repeating content.
-- If following up on previous conversation, build on it naturally"""
+{_conversational_rules}"""
 
         # Dynamic token limit keyed to response mode
         # Larger budgets allow deeper, more thoughtful responses
         mode_tokens = {'brief': 400, 'adaptive': 800, 'deep': 1200}
         max_tokens = mode_tokens.get(response_mode, 800)
+
+        # Health intel + brief: tiny budget constrains the LLM to just the enums
+        if _is_health_intel_query and response_mode == 'brief':
+            max_tokens = 100
 
         # Scripture breakdowns need more tokens for thorough analysis
         if scripture_context_block and any(
@@ -6104,18 +6130,19 @@ Rules for this response:
         This drives token budget and per-response rules without exposing
         the classification to the user.
         """
-        if is_analysis or is_task_query:
-            return 'deep'
-
         msg = message.strip()
         msg_lower = msg.lower()
 
-        # Brief: explicit brevity requests or short questions
+        # Brief ALWAYS wins when user explicitly requests brevity — even for
+        # analysis or task queries. The user said "keep it short" and means it.
         if any(kw in msg_lower for kw in [
             'keep it short', 'keep it brief', 'just the numbers',
             'just the status', 'short answer', 'tl;dr',
         ]):
             return 'brief'
+
+        if is_analysis or is_task_query:
+            return 'deep'
         if len(msg) < 40 and '?' in msg:
             return 'brief'
         if msg_lower in ('yes', 'no', 'ok', 'sure', 'thanks', 'thank you',

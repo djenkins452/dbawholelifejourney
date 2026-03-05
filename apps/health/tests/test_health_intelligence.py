@@ -3265,3 +3265,59 @@ class TestSystemPromptBodyCompRules(TestCase):
     def test_never_generic_body_fat(self):
         from apps.ai.personal_assistant import COS_PROACTIVE_INTELLIGENCE_PROMPT
         self.assertIn('generic body fat ranges', COS_PROACTIVE_INTELLIGENCE_PROMPT)
+
+
+class TestHealthIntelligenceScheduling(TestCase):
+    """Verify nightly health summary task is properly scheduled."""
+
+    def test_nightly_task_in_celery_beat(self):
+        """The nightly health summary task must be in CELERY_BEAT_SCHEDULE."""
+        from django.conf import settings
+        schedule = settings.CELERY_BEAT_SCHEDULE
+        self.assertIn('health-nightly-summary-3am-utc', schedule)
+        entry = schedule['health-nightly-summary-3am-utc']
+        self.assertEqual(entry['task'], 'health.build_nightly_health_summaries')
+
+    def test_nightly_task_uses_crontab(self):
+        """The nightly task must use crontab at 3:00 AM UTC."""
+        from celery.schedules import crontab
+        from django.conf import settings
+        entry = settings.CELERY_BEAT_SCHEDULE['health-nightly-summary-3am-utc']
+        sched = entry['schedule']
+        self.assertIsInstance(sched, crontab)
+        self.assertEqual(sched.hour, {3})
+        self.assertEqual(sched.minute, {0})
+
+
+class TestHealthIntelligenceTelemetry(TestCase):
+    """Verify Health Intelligence ops telemetry returns expected structure."""
+
+    def test_telemetry_returns_expected_keys(self):
+        """_get_health_intelligence_telemetry must return all required keys."""
+        from apps.core.ai_observability.ops_views import (
+            _get_health_intelligence_telemetry,
+        )
+        result = _get_health_intelligence_telemetry(timezone.now())
+        self.assertIn('status', result)
+        self.assertIn(result['status'], ['OK', 'STALE', 'ERROR'])
+
+    def test_telemetry_with_summary_data(self):
+        """Telemetry returns OK when fresh summary data exists."""
+        from apps.core.ai_observability.ops_views import (
+            _get_health_intelligence_telemetry,
+        )
+        user = get_user_model().objects.create_user(
+            email='telemetry@test.com', password='test123',
+        )
+        DailyHealthSummary.objects.create(
+            user=user,
+            summary_date=date.today(),
+            data_completeness_pct=Decimal('75.0'),
+            health_score=72,
+            recovery_score=68,
+        )
+        result = _get_health_intelligence_telemetry(timezone.now())
+        self.assertEqual(result['status'], 'OK')
+        self.assertIsNotNone(result.get('latest_summary_date'))
+        self.assertIn('scores', result)
+        self.assertIn('ingestion_24h', result)

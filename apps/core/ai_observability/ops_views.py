@@ -137,6 +137,9 @@ class OpsStreamView(View):
         # Persistent learning health
         learning_health = _get_learning_health(now)
 
+        # Health Intelligence Engine telemetry
+        health_intelligence = _get_health_intelligence_telemetry(now)
+
         return JsonResponse({
             "server_time": now.isoformat(),
             "posture": posture,
@@ -149,6 +152,7 @@ class OpsStreamView(View):
             "scheduler_health": scheduler_health,
             "eae_telemetry": eae_telemetry,
             "learning_health": learning_health,
+            "health_intelligence": health_intelligence,
             "next_since": now.isoformat(),
         })
 
@@ -1480,3 +1484,171 @@ def _get_learning_health(now):
             'subsystems': {},
             'error': str(e)[:200],
         }
+
+
+def _get_health_intelligence_telemetry(now):
+    """
+    Build Health Intelligence Engine telemetry for the Operations Wall.
+
+    Monitors DailyHealthSummary freshness, data completeness, body comp
+    coverage, health scores, and HealthKit ingestion pipeline health.
+
+    Status thresholds:
+      OK (green): latest summary ≤ 36h old
+      STALE (yellow): latest summary > 36h old
+      ERROR (red): no summaries exist or exception
+    """
+    try:
+        from django.contrib.auth import get_user_model
+        from django.db.models import Avg, Count, Max
+
+        from apps.health.models import DailyHealthSummary
+
+        User = get_user_model()
+        last_7d = now - timedelta(days=7)
+        last_24h = now - timedelta(hours=24)
+        last_36h = now - timedelta(hours=36)
+
+        # --- Summary freshness ---
+        latest = DailyHealthSummary.objects.aggregate(
+            latest_date=Max('summary_date'),
+            latest_updated=Max('updated_at'),
+        )
+        latest_date = latest.get('latest_date')
+        latest_updated = latest.get('latest_updated')
+
+        if latest_updated:
+            age_str = _human_ago(latest_updated)
+            is_stale = latest_updated < last_36h
+        else:
+            age_str = "never"
+            is_stale = True
+
+        # --- Active user coverage (7d) ---
+        active_users = User.objects.filter(is_active=True).count()
+        users_with_summaries_7d = (
+            DailyHealthSummary.objects
+            .filter(summary_date__gte=last_7d.date())
+            .values('user')
+            .distinct()
+            .count()
+        )
+
+        # --- Data completeness (7d average) ---
+        completeness_agg = (
+            DailyHealthSummary.objects
+            .filter(summary_date__gte=last_7d.date())
+            .aggregate(avg_completeness=Avg('data_completeness_pct'))
+        )
+        avg_completeness = completeness_agg.get('avg_completeness')
+        if avg_completeness is not None:
+            avg_completeness = round(float(avg_completeness), 1)
+
+        # --- Health & Recovery scores (7d average) ---
+        score_agg = (
+            DailyHealthSummary.objects
+            .filter(
+                summary_date__gte=last_7d.date(),
+                health_score__isnull=False,
+            )
+            .aggregate(
+                avg_health=Avg('health_score'),
+                avg_recovery=Avg('recovery_score'),
+            )
+        )
+        avg_health = round(score_agg['avg_health']) if score_agg.get('avg_health') else None
+        avg_recovery = round(score_agg['avg_recovery']) if score_agg.get('avg_recovery') else None
+
+        # --- Body composition coverage (7d) ---
+        body_comp_users = (
+            DailyHealthSummary.objects
+            .filter(
+                summary_date__gte=last_7d.date(),
+                fat_loss_quality_label__isnull=False,
+            )
+            .exclude(fat_loss_quality_label="")
+            .values('user')
+            .distinct()
+            .count()
+        )
+
+        # --- Signals breakdown (latest summaries per user) ---
+        total_summaries_7d = (
+            DailyHealthSummary.objects
+            .filter(summary_date__gte=last_7d.date())
+            .count()
+        )
+
+        # --- HealthKit ingestion stats (24h) ---
+        ingestion_stats = _get_ingestion_stats(last_24h)
+
+        # --- Overall status ---
+        if latest_date is None:
+            status = "ERROR"
+        elif is_stale:
+            status = "STALE"
+        else:
+            status = "OK"
+
+        return {
+            'status': status,
+            'latest_summary_date': str(latest_date) if latest_date else None,
+            'latest_updated_age': age_str,
+            'active_users': active_users,
+            'users_with_summaries_7d': users_with_summaries_7d,
+            'avg_completeness_7d': avg_completeness,
+            'total_summaries_7d': total_summaries_7d,
+            'body_comp_users_7d': body_comp_users,
+            'scores': {
+                'avg_health_7d': avg_health,
+                'avg_recovery_7d': avg_recovery,
+            },
+            'ingestion_24h': ingestion_stats,
+        }
+
+    except Exception as e:
+        logger.debug("Health intelligence telemetry failed: %s", e)
+        return {
+            'status': 'ERROR',
+            'error': str(e)[:200],
+        }
+
+
+def _get_ingestion_stats(since):
+    """Get HealthKit ingestion pipeline stats since a given datetime."""
+    try:
+        from django.db.models import Sum
+
+        from apps.mobile.models import HealthIngestionRun
+
+        runs = HealthIngestionRun.objects.filter(request_timestamp__gte=since)
+        total_runs = runs.count()
+        if total_runs == 0:
+            return {'runs': 0, 'metrics_ingested': 0, 'error_rate': 0.0}
+
+        agg = runs.aggregate(
+            total_created=Sum('metrics_created'),
+            total_updated=Sum('metrics_updated'),
+            total_skipped=Sum('metrics_skipped'),
+            total_received=Sum('metrics_received'),
+        )
+        total_created = agg.get('total_created') or 0
+        total_updated = agg.get('total_updated') or 0
+        total_skipped = agg.get('total_skipped') or 0
+        total_received = agg.get('total_received') or 0
+        error_rate = (
+            round(total_skipped / total_received * 100, 1)
+            if total_received > 0 else 0.0
+        )
+        # Count runs with partial/failed status
+        error_runs = runs.filter(status__in=['partial', 'failed']).count()
+
+        return {
+            'runs': total_runs,
+            'metrics_ingested': total_created + total_updated,
+            'metrics_skipped': total_skipped,
+            'error_rate': error_rate,
+            'error_runs': error_runs,
+        }
+    except Exception:
+        return {'runs': 0, 'metrics_ingested': None, 'error_rate': None}

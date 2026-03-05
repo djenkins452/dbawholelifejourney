@@ -1019,6 +1019,85 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 }
 
 /* =========================================================================
+   Health Intelligence Engine Tile
+   ========================================================================= */
+.ops-health-intel {
+    padding: 14px 20px;
+    margin-bottom: 14px;
+}
+.ops-health-intel-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.ops-health-intel-pulse {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.ops-health-intel-pulse.OK { background: var(--ops-green); box-shadow: 0 0 10px rgba(16,185,129,0.6); }
+.ops-health-intel-pulse.STALE { background: var(--ops-yellow); box-shadow: 0 0 10px rgba(245,158,11,0.6); animation: schedPulseAmber 1.5s ease-in-out infinite; }
+.ops-health-intel-pulse.ERROR { background: var(--ops-red); box-shadow: 0 0 10px rgba(239,68,68,0.6); animation: schedPulseRed 1s ease-in-out infinite; }
+.ops-health-intel-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ops-text-bright);
+}
+.ops-health-intel-status {
+    font-size: 0.5625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: 3px;
+    display: inline-block;
+    margin-left: auto;
+}
+.ops-health-intel-status.OK { color: var(--ops-green); background: var(--ops-green-dim); }
+.ops-health-intel-status.STALE { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
+.ops-health-intel-status.ERROR { color: var(--ops-red); background: var(--ops-red-dim); }
+.ops-health-intel-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+.ops-health-intel-card {
+    padding: 10px 12px;
+    background: var(--ops-surface-alt);
+    border-radius: var(--ops-radius-sm);
+    border: 1px solid var(--ops-glass-border);
+    border-left: 3px solid var(--ops-blue);
+}
+.ops-health-intel-card-title {
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ops-text-bright);
+    margin-bottom: 6px;
+}
+.ops-health-intel-metric {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.ops-health-intel-metric-label {
+    font-size: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ops-text-dim);
+}
+.ops-health-intel-metric-value {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--ops-text);
+}
+
+/* =========================================================================
    Responsive
    ========================================================================= */
 @media (max-width: 1400px) {
@@ -1034,11 +1113,13 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     .ops-integrity-gauge-wrap { width: 150px; height: 150px; }
     .ops-integrity-strip { grid-template-columns: repeat(3, 1fr); }
     .ops-learning-grid { grid-template-columns: repeat(3, 1fr); }
+    .ops-health-intel-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 768px) {
     .ops-wall { padding: 10px 12px 20px; }
     .ops-scheduler-heartbeat { grid-template-columns: 1fr; }
     .ops-learning-grid { grid-template-columns: repeat(2, 1fr); }
+    .ops-health-intel-grid { grid-template-columns: repeat(2, 1fr); }
     .ops-integrity-hero-main { grid-template-columns: 1fr; justify-items: center; text-align: center; }
     .ops-integrity-gauge-wrap { width: 130px; height: 130px; }
     .ops-integrity-strip { grid-template-columns: repeat(2, 1fr); justify-items: center; }
@@ -1254,6 +1335,81 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
                         <span class="ops-learning-sub-metric-label">Evolved</span>
                         <span class="ops-learning-sub-metric-value" id="learnProfEvolved">0%</span>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Health Intelligence Engine Tile -->
+    <div class="ops-section ops-glass ops-health-intel" id="healthIntelTile">
+        <div class="ops-health-intel-header">
+            <div class="ops-health-intel-pulse ERROR" id="healthIntelPulse"></div>
+            <span class="ops-health-intel-title">Health Intelligence Engine</span>
+            <span class="ops-health-intel-status ERROR" id="healthIntelStatus">INITIALIZING</span>
+        </div>
+        <div class="ops-health-intel-grid">
+            <!-- Summary Freshness -->
+            <div class="ops-health-intel-card">
+                <div class="ops-health-intel-card-title">Summary Pipeline</div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">Latest</span>
+                    <span class="ops-health-intel-metric-value" id="hiLatestDate">&mdash;</span>
+                </div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">Updated</span>
+                    <span class="ops-health-intel-metric-value" id="hiUpdatedAge">&mdash;</span>
+                </div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">7d Summaries</span>
+                    <span class="ops-health-intel-metric-value" id="hiSummaries7d">0</span>
+                </div>
+            </div>
+            <!-- Scores -->
+            <div class="ops-health-intel-card">
+                <div class="ops-health-intel-card-title">Scores (7d Avg)</div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">Health</span>
+                    <span class="ops-health-intel-metric-value" id="hiAvgHealth">&mdash;</span>
+                </div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">Recovery</span>
+                    <span class="ops-health-intel-metric-value" id="hiAvgRecovery">&mdash;</span>
+                </div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">Completeness</span>
+                    <span class="ops-health-intel-metric-value" id="hiCompleteness">&mdash;</span>
+                </div>
+            </div>
+            <!-- Coverage -->
+            <div class="ops-health-intel-card">
+                <div class="ops-health-intel-card-title">Coverage</div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">Active Users</span>
+                    <span class="ops-health-intel-metric-value" id="hiActiveUsers">0</span>
+                </div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">With Summaries</span>
+                    <span class="ops-health-intel-metric-value" id="hiUsersWithData">0</span>
+                </div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">Body Comp</span>
+                    <span class="ops-health-intel-metric-value" id="hiBodyCompUsers">0</span>
+                </div>
+            </div>
+            <!-- Ingestion -->
+            <div class="ops-health-intel-card">
+                <div class="ops-health-intel-card-title">HealthKit (24h)</div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">Ingest Runs</span>
+                    <span class="ops-health-intel-metric-value" id="hiIngestRuns">0</span>
+                </div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">Metrics</span>
+                    <span class="ops-health-intel-metric-value" id="hiMetricsIngested">0</span>
+                </div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">Error Rate</span>
+                    <span class="ops-health-intel-metric-value" id="hiErrorRate">0%</span>
                 </div>
             </div>
         </div>
@@ -1940,6 +2096,7 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
         renderIntegrity(data.integrity);
         renderSchedulerHeartbeats(data.scheduler_heartbeats || []);
         renderLearningHealth(data.learning_health);
+        renderHealthIntelligence(data.health_intelligence);
         renderPosture(data.posture, data.narrative);
         renderNarration(data.narrative);
         trackAnomalies(data.anomalies || []);
@@ -2180,6 +2337,44 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     function _setVal(id, val) {
         var el = document.getElementById(id);
         if (el) el.textContent = (val !== null && val !== undefined) ? val : '\u2014';
+    }
+
+    function renderHealthIntelligence(hi) {
+        if (!hi) return;
+
+        var status = hi.status || 'ERROR';
+
+        // Pulse + status badge
+        var pulse = document.getElementById('healthIntelPulse');
+        if (pulse) pulse.className = 'ops-health-intel-pulse ' + status;
+
+        var badge = document.getElementById('healthIntelStatus');
+        if (badge) {
+            badge.textContent = status;
+            badge.className = 'ops-health-intel-status ' + status;
+        }
+
+        // Summary pipeline
+        _setVal('hiLatestDate', hi.latest_summary_date);
+        _setVal('hiUpdatedAge', hi.latest_updated_age);
+        _setVal('hiSummaries7d', hi.total_summaries_7d);
+
+        // Scores
+        var scores = hi.scores || {};
+        _setVal('hiAvgHealth', scores.avg_health_7d !== null ? scores.avg_health_7d + '/100' : null);
+        _setVal('hiAvgRecovery', scores.avg_recovery_7d !== null ? scores.avg_recovery_7d + '/100' : null);
+        _setVal('hiCompleteness', hi.avg_completeness_7d !== null ? hi.avg_completeness_7d + '%' : null);
+
+        // Coverage
+        _setVal('hiActiveUsers', hi.active_users);
+        _setVal('hiUsersWithData', hi.users_with_summaries_7d);
+        _setVal('hiBodyCompUsers', hi.body_comp_users_7d);
+
+        // Ingestion
+        var ingest = hi.ingestion_24h || {};
+        _setVal('hiIngestRuns', ingest.runs);
+        _setVal('hiMetricsIngested', ingest.metrics_ingested);
+        _setVal('hiErrorRate', ingest.error_rate !== null && ingest.error_rate !== undefined ? ingest.error_rate + '%' : null);
     }
 
     function renderPosture(posture, narrative) {

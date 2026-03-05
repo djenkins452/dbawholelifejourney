@@ -7,6 +7,7 @@ Tests token exchange, health ingestion, and device management endpoints.
 import json
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import Client, TestCase
 from django.utils import timezone
@@ -404,6 +405,43 @@ class HealthIngestionTests(TestCase):
         # Django's DATA_UPLOAD_MAX_MEMORY_SIZE protection returns 400
         # Our view would return 413 if it got through, but Django catches it first
         self.assertIn(response.status_code, [400, 413])
+
+    @patch("apps.health.tasks.build_user_health_summary")
+    def test_ingest_queues_summary_rebuild(self, mock_task):
+        """Successful ingest queues async summary rebuild for affected dates."""
+        response = self.client.post(
+            "/api/mobile/health/ingest/",
+            data=json.dumps({
+                "metrics": [
+                    {
+                        "type": "steps",
+                        "date": "2024-01-15",
+                        "value": 9000,
+                        "source": "apple_health",
+                        "sync_id": "steps-rebuild-test",
+                    },
+                    {
+                        "type": "steps",
+                        "date": "2024-01-16",
+                        "value": 7000,
+                        "source": "apple_health",
+                        "sync_id": "steps-rebuild-test-2",
+                    },
+                ]
+            }),
+            content_type="application/json",
+            **self._auth_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["created"], 2)
+        # Verify delay was called for the affected dates
+        self.assertTrue(mock_task.delay.called)
+        call_dates = {call[0][1] for call in mock_task.delay.call_args_list}
+        self.assertIn("2024-01-15", call_dates)
+        self.assertIn("2024-01-16", call_dates)
 
 
 class DeviceManagementTests(TestCase):

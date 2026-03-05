@@ -1065,6 +1065,8 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
 
 # Beat schedule — periodic tasks
+from celery.schedules import crontab  # noqa: E402
+
 CELERY_BEAT_SCHEDULE = {
     "run-same-cycle-every-60-seconds": {
         "task": "apps.core.tasks.run_same_cycle_task",
@@ -1077,6 +1079,10 @@ CELERY_BEAT_SCHEDULE = {
     "cos-keepalive-every-30-seconds": {
         "task": "apps.ai.tasks.cos_keepalive_task",
         "schedule": 30.0,  # Keep CoS context warm for active users
+    },
+    "health-nightly-summary-3am-utc": {
+        "task": "health.build_nightly_health_summaries",
+        "schedule": crontab(hour=3, minute=0),  # 3:00 AM UTC = 10:00 PM EST
     },
 }
 

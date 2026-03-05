@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Wire Health Intelligence Production Infrastructure
+
+**What:** Connected the Health Intelligence Engine to production automation. Added the nightly summary task to Celery Beat (3 AM UTC), wired HealthKit data ingestion to trigger async summary rebuilds, and added a Health Intelligence Engine tile to the Ops Command Center.
+
+**Why:** The nightly `build_nightly_health_summaries` task existed but was never scheduled. HealthKit data ingestion didn't trigger summary rebuilds, so health scores, body comp intelligence, and protein tracking only updated on manual runs. No ops visibility existed for the health intelligence pipeline.
+
+**Changes:**
+- `config/settings.py` — Added `crontab` import + `health-nightly-summary-3am-utc` to CELERY_BEAT_SCHEDULE (3:00 AM UTC)
+- `apps/mobile/views.py` — After successful health ingest, queue `build_user_health_summary.delay()` for each affected date
+- `apps/core/ai_observability/ops_views.py` — Added `_get_health_intelligence_telemetry()` and `_get_ingestion_stats()` functions, wired into OpsStreamView
+- `templates/admin_console/operations_wall.html` — Added Health Intelligence Engine tile with summary pipeline, scores, coverage, and HealthKit ingestion cards
+- `apps/health/tests/test_health_intelligence.py` — 4 new tests (scheduling + telemetry)
+- `apps/mobile/tests/test_views.py` — 1 new test (ingest queues summary rebuild)
+
+**Tests:** 162 health intelligence tests + 30 mobile tests passing.
+
+---
+
 ## 2026-03-05 — Build Body Composition Intelligence Engine
 
 **What:** Built a complete Body Composition Intelligence Engine that computes fat loss quality, recomposition detection, plateau classification, fat loss speed monitoring, and muscle loss risk scoring from historical InBody/DEXA scan data. All calculations occur at daily rollup time; CoS reads only from DailyHealthSummary.

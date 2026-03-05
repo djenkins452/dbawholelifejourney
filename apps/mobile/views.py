@@ -484,6 +484,29 @@ def health_ingest(request):
         f"created={created}, updated={updated}, skipped={skipped}, errors={len(errors)}"
     )
 
+    # Queue async summary rebuild for affected dates so health intelligence
+    # (scores, protein, body comp) updates without waiting for nightly job.
+    if created + updated > 0:
+        affected_dates = set()
+        for metric in metrics:
+            d = metric.get("date")
+            if d:
+                affected_dates.add(d)
+        if affected_dates:
+            try:
+                from apps.health.tasks import build_user_health_summary
+                for date_str in affected_dates:
+                    build_user_health_summary.delay(user.id, date_str)
+                logger.info(
+                    "Queued summary rebuild for %d date(s) after ingest",
+                    len(affected_dates),
+                )
+            except Exception:
+                logger.error(
+                    "Failed to queue summary rebuild after ingest",
+                    exc_info=True,
+                )
+
     return JsonResponse({
         "success": True,
         "ingestion_id": ingestion_run.id,

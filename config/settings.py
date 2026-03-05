@@ -670,6 +670,10 @@ else:
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
 
+# Custom CSRF failure view — logs diagnostic info and renders a user-friendly
+# page with "Try Again" link (instead of Django's dead-end default page)
+CSRF_FAILURE_VIEW = 'apps.core.views.csrf_failure'
+
 # Cookie SameSite attribute (Security Fix M-1)
 # Prevents CSRF attacks by restricting cookie sending on cross-site requests
 SESSION_COOKIE_SAMESITE = 'Lax'  # 'Lax' allows normal navigation, 'Strict' blocks all cross-site

@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Fix CSRF 403 on iOS WKWebView login + add CSRF diagnostic logging
+
+**What:** iOS app login returned "CSRF verification failed. Request aborted." with no way to recover. Two root causes: (1) `customUserAgent` completely replaced the default WKWebView UA, which can disrupt WebKit's default cookie and Origin/Referer header behavior; (2) the CSRF cookie "sync" code was a no-op that read `document.cookie` but did nothing with the result.
+
+**Changes:**
+- `ios/.../MainWebView.swift` — Switched from `webView.customUserAgent` (replaces UA) to `config.applicationNameForUserAgent` (appends to default UA, preserves WebKit cookie handling). Replaced no-op CSRF cookie check with actual `WKHTTPCookieStore.getAllCookies` sync that re-injects the csrftoken cookie into `document.cookie`.
+- `apps/core/views.py` — Added `csrf_failure()` view with diagnostic logging: logs CSRF failure reason, cookie presence, Origin, Referer, and User-Agent to Railway logs for debugging.
+- `config/settings.py` — Added `CSRF_FAILURE_VIEW = 'apps.core.views.csrf_failure'`
+- `templates/403_csrf.html` — Created user-friendly CSRF failure page with "Try Again" and "Go to Home" buttons (replaces Django's dead-end default 403 page).
+
+**Files Modified:**
+- `ios/WLJWrapper/WLJWrapper/Views/MainWebView.swift`
+- `apps/core/views.py`
+- `config/settings.py`
+- `templates/403_csrf.html` (new)
+
+**Why:** iOS app could not complete login → could not pair device → no HealthKit data could sync → Health Intelligence Engine had no data.
+
+---
+
 ## 2026-03-05 — Enforce deterministic 4-line health status (no-append rule)
 
 **What:** CoS still appended sleep/calendar/coaching content after health status lines despite strict prompt rules and 100-token cap. Prompt engineering alone cannot guarantee format compliance. Solution: bypass the LLM entirely — `enforce_strict_health_status()` reads enum values directly from CoS context and returns a deterministic 4-line string. LLM output is discarded.

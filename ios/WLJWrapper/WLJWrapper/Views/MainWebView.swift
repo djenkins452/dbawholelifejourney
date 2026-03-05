@@ -57,15 +57,17 @@ struct MainWebView: UIViewRepresentable {
         config.websiteDataStore = .default() // Persist cookies/session
         config.allowsInlineMediaPlayback = true
 
+        // Append app identifier to the DEFAULT User-Agent instead of replacing it.
+        // Using customUserAgent replaces the entire UA string, which can disrupt
+        // WKWebView's default cookie and Origin/Referer header behavior.
+        // applicationNameForUserAgent appends to the default UA, preserving all
+        // WebKit cookie handling while still letting the server identify the app.
+        config.applicationNameForUserAgent = "WLJWrapper/1.0"
+
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
-
-        // Set custom User-Agent so the server can identify the native app.
-        // Appending to the default UA ensures WKWebView sends proper Origin/Referer
-        // headers on form POSTs, which Django's CSRF middleware requires.
-        webView.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) WLJWrapper/1.0"
 
         // Enable pull-to-refresh
         let refreshControl = UIRefreshControl()
@@ -190,16 +192,18 @@ struct MainWebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            // Ensure CSRF cookie is accessible — fetch it from the page and re-set it
-            // so WKWebView's cookie store is in sync with the web content.
-            webView.evaluateJavaScript("""
-                (function() {
-                    var match = document.cookie.match(/csrftoken=([^;]+)/);
-                    return match ? match[1] : null;
-                })()
-            """) { result, _ in
-                // Cookie exists, WebView is in sync — no action needed.
-                // This eval just ensures the cookie store is primed.
+            // Sync CSRF cookie: read from WKHTTPCookieStore and re-inject into
+            // the web content's document.cookie. This fixes a known WKWebView issue
+            // where cookies set via HTTP Set-Cookie headers may not be immediately
+            // visible to JavaScript or sent on subsequent form POSTs.
+            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
+                let csrfCookie = cookies.first { $0.name == "csrftoken" }
+                if let cookie = csrfCookie {
+                    // Re-inject the cookie into document.cookie to ensure
+                    // the web content's cookie jar is in sync with WKHTTPCookieStore
+                    let js = "document.cookie = '\(cookie.name)=\(cookie.value); path=\(cookie.path); domain=\(cookie.domain)';"
+                    webView.evaluateJavaScript(js) { _, _ in }
+                }
             }
 
             // Inject JS bridge helper after page loads

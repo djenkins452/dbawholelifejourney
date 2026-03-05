@@ -480,6 +480,39 @@ class FavoritesHubView(LoginRequiredMixin, HelpContextMixin, TemplateView):
 # CUSTOM ERROR HANDLERS
 # =============================================================================
 
+def csrf_failure(request, reason=""):
+    """
+    Custom CSRF failure view with diagnostic logging.
+
+    Logs the exact failure reason so we can diagnose WKWebView/iOS CSRF
+    issues from Railway logs without needing DEBUG=True.
+
+    Renders a user-friendly page with a "Try Again" link instead of
+    Django's dead-end default CSRF failure page.
+    """
+    # Log diagnostic info for debugging
+    user_agent = request.META.get('HTTP_USER_AGENT', 'none')
+    origin = request.META.get('HTTP_ORIGIN', 'none')
+    referer = request.META.get('HTTP_REFERER', 'none')
+    has_csrf_cookie = 'csrftoken' in request.COOKIES
+    has_session_cookie = 'sessionid' in request.COOKIES
+
+    logger.warning(
+        "CSRF failure on %s %s | reason=%s | has_csrf_cookie=%s | "
+        "has_session_cookie=%s | origin=%s | referer=%s | ua=%s",
+        request.method,
+        request.path,
+        reason,
+        has_csrf_cookie,
+        has_session_cookie,
+        origin,
+        referer,
+        user_agent[:120],
+    )
+
+    return render(request, '403_csrf.html', status=403)
+
+
 def custom_404(request, exception=None):
     """
     Custom 404 error handler.

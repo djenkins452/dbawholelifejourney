@@ -917,6 +917,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Email Medicine List feature (PK 134 + teaching/help updates)
         self._reset_email_medicine_list_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for cross-completion + schedule awareness (PK 135)
+        self._reset_cross_completion_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Backfill health intelligence enhancements (plateau risk, phase, muscle preservation)
         self._backfill_health_intelligence_enhancements(DataLoadConfig, force, verbosity)
 
@@ -5373,6 +5376,38 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset email medicine list fixtures FAILED: {e}'))
+
+    def _reset_cross_completion_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for cross-completion and
+        schedule awareness enhancements (PK 135).
+        """
+        reset_tracker_name = 'reset_cross_completion_2026_03_04'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for loader_name in ('release_notes',):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader_name} loader for cross-completion')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for cross-completion enhancements',
+                'command',
+                'One-time reset to reload release_notes PK 135'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset cross-completion fixtures FAILED: {e}'))
 
     def _backfill_health_intelligence_enhancements(self, DataLoadConfig, force=False, verbosity=1):
         """

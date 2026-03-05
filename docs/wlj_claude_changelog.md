@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Implement iOS token exchange flow for HealthKit data sync
+
+**What:** After CSRF login fix, HealthKit sync still produced zero data because the token exchange flow was unimplemented. `requestExchangeCode()` was a stub that just printed to console. Without an API token in Keychain, `APIClient.submitHealthMetrics()` threw `.notAuthenticated` silently.
+
+**Changes:**
+- `ios/.../MainWebView.swift` — Implemented full token exchange flow:
+  - `requestExchangeCode()`: Uses WKWebView's session cookie to call `/api/mobile/generate-code/` via JavaScript `fetch()`, receives one-time code, passes to native via JS bridge
+  - `exchangeCodeForToken()`: Calls `APIClient.exchangeToken(code:)` which stores token in Keychain, then auto-triggers first health sync
+  - Auto-detection in `didFinish`: When navigating to a non-login page with a session cookie but no API token, automatically requests exchange code (handles first-login flow)
+  - Added `"exchangeCode"` case to JS bridge message handler
+
+**Files Modified:**
+- `ios/WLJWrapper/WLJWrapper/Views/MainWebView.swift`
+
+**Why:** Token exchange is the bridge between WKWebView login (session-based) and native API calls (token-based). Without it, the app could log in but never send HealthKit data to the server.
+
+---
+
 ## 2026-03-05 — Fix CSRF 403 on iOS WKWebView login + add CSRF diagnostic logging
 
 **What:** iOS app login returned "CSRF verification failed. Request aborted." with no way to recover. Two root causes: (1) `customUserAgent` completely replaced the default WKWebView UA, which can disrupt WebKit's default cookie and Origin/Referer header behavior; (2) the CSRF cookie "sync" code was a no-op that read `document.cookie` but did nothing with the result.

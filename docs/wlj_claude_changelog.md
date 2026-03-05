@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Throttle iOS HealthKit sync frequency
+
+**What:** iOS app was doing 95 syncs in 24h — each resending all 7 days of data (~460 metrics), causing 95.5% dedup skip rate on the server. Three root causes: no throttle on foreground sync (`applicationDidBecomeActive` fires every app open), 23 observer queries each triggering schedule, and 1-minute schedule throttle was too low.
+
+**Changes:**
+- `ios/.../BackgroundSyncManager.swift` — Added 30-minute throttle on foreground syncs, increased schedule throttle from 1 min to 5 min, reduced observer types from 23 to 10 (core types only — others are still synced in each full sync), added `isSyncing` concurrency guard, added `forceSync()` for manual sync buttons.
+
+**Files Modified:**
+- `ios/WLJWrapper/WLJWrapper/Services/BackgroundSyncManager.swift`
+
+**Why:** 95 syncs/day with 95.5% dedup wastes battery, bandwidth, and server resources. With 30-min throttle, foreground syncs drop to max ~48/day. With 5-min schedule throttle + 10 observer types, background syncs are also reduced. Manual "Sync Now" button bypasses throttle.
+
+---
+
 ## 2026-03-05 — Fix HealthKit ingestion issues: workout race condition, error rate, weight handler, body comp diagnostics
 
 **What:** Multiple HealthKit ingestion pipeline fixes based on ops page diagnostic data.

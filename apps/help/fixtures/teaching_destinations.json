@@ -2932,5 +2932,22 @@
       "created_at": "2026-03-03T00:00:00Z",
       "updated_at": "2026-03-03T00:00:00Z"
     }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 175,
+    "fields": {
+      "destination_id": "fitness-export-dashboard",
+      "name": "Export Workout Dashboard",
+      "path_description": "Health - Fitness - Export Dashboard",
+      "explanation": "Download a comprehensive workout dashboard as an Excel workbook. Includes 7 sheets: summary stats with charts, workout history, exercise details, cardio and classes, personal records, steps and activity, and exercise progress over time.",
+      "url": "/health/physical/fitness/export/dashboard/",
+      "keywords": "export,workout,dashboard,excel,download,fitness report,spreadsheet,workout history,exercise data",
+      "module": "health",
+      "sort_order": 223,
+      "is_active": true,
+      "created_at": "2026-03-04T00:00:00Z",
+      "updated_at": "2026-03-04T00:00:00Z"
+    }
   }
 ]

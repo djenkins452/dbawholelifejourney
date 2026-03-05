@@ -923,6 +923,9 @@ class Command(BaseCommand):
         # One-time: Backfill health intelligence enhancements (plateau risk, phase, muscle preservation)
         self._backfill_health_intelligence_enhancements(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Excel Export + CoS Report Generation (PKs 136-137 release notes, PK 175 teaching dest)
+        self._reset_excel_export_report_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5444,3 +5447,35 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Health intelligence backfill FAILED: {e}'))
+
+    def _reset_excel_export_report_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PKs 136-137) and
+        teaching_destinations (PK 175) for Excel Export and CoS Report Generation features.
+        """
+        reset_tracker_name = 'reset_excel_export_report_2026_03_04'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for loader_name in ('release_notes', 'teaching_destinations'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader_name} loader for Excel Export + Report Generation')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Excel Export + CoS Report Generation',
+                'command',
+                'One-time reset to reload release_notes PKs 136-137, teaching_destinations PK 175'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Excel Export + Report fixtures FAILED: {e}'))

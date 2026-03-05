@@ -55,20 +55,21 @@ For core project context, see `CLAUDE.md` (project root).
 36. [Body Transformation Protocol](#body-transformation-protocol) *(Feb 2026)*
 37. [Admin Guide](#admin-guide) *(Feb 2026)*
 38. [Workout Plans & Training Splits](#workout-plans--training-splits) *(Feb 2026)*
-39. [Additional Jan-Feb 2026 Enhancements](#additional-jan-feb-2026-enhancements)
-40. [Time Command Center (Calendar Engine)](#time-command-center-calendar-engine) *(Feb 2026)*
-41. [Users & Authentication](#users--authentication)
-42. [Core Infrastructure](#core-infrastructure)
-43. [Dashboard](#dashboard)
-44. [Journal](#journal)
-45. [Life & Organization](#life--organization)
-46. [Admin Console](#admin-console)
-47. [Help System](#help-system)
-48. [Mobile API & iOS Support](#mobile-api--ios-support)
-49. [Security Assessment](#security-assessment)
-50. [Ops Command Center (Intelligence Monitoring)](#ops-command-center-intelligence-monitoring)
-51. [Calendar Engine (Technical Reference)](#calendar-engine-technical-reference)
-52. [Owner Financial Command Center](#owner-financial-command-center) *(Feb 2026)*
+39. [Data Export & Report Generation](#data-export--report-generation) *(Mar 2026)*
+40. [Additional Jan-Feb 2026 Enhancements](#additional-jan-feb-2026-enhancements)
+41. [Time Command Center (Calendar Engine)](#time-command-center-calendar-engine) *(Feb 2026)*
+42. [Users & Authentication](#users--authentication)
+43. [Core Infrastructure](#core-infrastructure)
+44. [Dashboard](#dashboard)
+45. [Journal](#journal)
+46. [Life & Organization](#life--organization)
+47. [Admin Console](#admin-console)
+48. [Help System](#help-system)
+49. [Mobile API & iOS Support](#mobile-api--ios-support)
+50. [Security Assessment](#security-assessment)
+51. [Ops Command Center (Intelligence Monitoring)](#ops-command-center-intelligence-monitoring)
+52. [Calendar Engine (Technical Reference)](#calendar-engine-technical-reference)
+53. [Owner Financial Command Center](#owner-financial-command-center) *(Feb 2026)*
 
 ---
 
@@ -3058,6 +3059,33 @@ Structured workout programming system allowing users to create named plans with 
 - `apps/health/models.py` — WorkoutPlan, WorkoutSchedule
 - `apps/health/views.py` — Plan management views
 - `apps/health/tests/` — Test coverage
+
+---
+
+## Data Export & Report Generation
+
+### Overview
+Two-tier data export system: a direct Excel download from the Fitness page and an AI-powered report generator accessible through the Chief of Staff chat. The CoS can generate and email formatted Excel workbooks for any of 14 health data types on demand via natural language.
+
+### Features
+- **Workout Dashboard Excel Export** — Direct download from Fitness page with 7-sheet workbook (summary + charts, workout history, exercise details, cardio/classes, personal records, steps/activity, exercise progress)
+- **CoS generate_report Intent** — Natural language AI intent supporting 14 report types: workouts, sleep, weight, steps, heart rate, blood pressure, blood oxygen, glucose, medicine adherence, fasting, water, nutrition, body composition, health overview
+- **Health Overview Dashboard** — Combined multi-sheet workbook with one sheet per data type that has records
+- **Email Delivery** — Reports are generated server-side and emailed as Excel attachments
+- **Configurable Date Range** — Users can specify any period ("last 30 days", "past year", "all time")
+- **Styled Workbooks** — Color-coded headers, borders, number formatting, and line/bar charts
+
+### Key Files
+- `apps/health/views_export.py` — WorkoutDashboardExcelView (direct download)
+- `apps/ai/report_generator.py` — 14 report builders + health overview
+- `apps/ai/intents/export_intents.py` — generate_report OpenAI function schema
+- `apps/ai/action_handlers.py` — handle_generate_report handler
+- `apps/ai/intent_service.py` — Routing + 17 system prompt examples
+- `apps/core/ai_orchestrator/intent_engine.py` — EXPORT_INTENTS routing
+
+### Tests
+- 580 AI module tests passing (includes intent registration)
+- 10 intent registration tests covering schema parity
 
 ---
 

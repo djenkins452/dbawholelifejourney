@@ -2150,5 +2150,37 @@
       "created_at": "2026-03-03T18:00:00Z",
       "updated_at": "2026-03-03T18:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 136,
+    "fields": {
+      "title": "Export Workout Dashboard to Excel",
+      "description": "Download a full workout dashboard as an Excel file right from the Fitness page. The workbook includes 7 sheets: summary stats with charts, workout history, exercise details with every set and rep, cardio and classes, personal records with estimated 1RM, steps and activity, and exercise progress over time.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-04",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/health/physical/fitness/",
+      "created_at": "2026-03-04T00:00:00Z",
+      "updated_at": "2026-03-04T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 137,
+    "fields": {
+      "title": "Ask Your Chief of Staff for Any Report",
+      "description": "Just ask and she'll build it. Say something like 'create me a workout report', 'export my sleep data to Excel', or 'send me a health overview dashboard' and your Chief of Staff will generate a formatted Excel workbook and email it to you. Supports 14 report types: workouts, sleep, weight, steps, heart rate, blood pressure, blood oxygen, glucose, medicine adherence, fasting, hydration, nutrition, body composition, and a combined health overview.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-04",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-04T00:00:00Z",
+      "updated_at": "2026-03-04T00:00:00Z"
+    }
   }
 ]

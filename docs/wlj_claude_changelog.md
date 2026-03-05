@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-03-04 — Documentation audit for Excel Export + CoS Report Generation
+
+**What:** End-of-session /close documentation audit. Added missing release notes, teaching destinations, features doc section, and fixture loader reset for the two features built this session.
+
+**Files:** `apps/core/fixtures/release_notes.json` (PKs 136-137), `apps/help/fixtures/teaching_destinations.json` (PK 175), `docs/wlj_claude_features.md` (new section 39), `apps/core/management/commands/load_initial_data.py` (reset method)
+
+---
+
 ## 2026-03-05 — Fix CoS "No tasks found" for conversational check-in queries (streaming path)
 
 **What:** Added the check-in pre-filter to the streaming chat path (`send_message_stream`) and added negative examples to the intent service system prompt to prevent conversational check-ins from being misclassified as `read_task` intents.

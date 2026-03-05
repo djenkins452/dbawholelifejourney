@@ -9,6 +9,28 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Health Intelligence Engine Enhancements: Plateau Early Warning, Phase Detection, Muscle Preservation
+
+**What:** Added three new intelligence capabilities to the Body Composition Intelligence Engine: predictive plateau risk scoring (0–100 with prediction window), unified fat loss phase detection (5 phases with confidence scores), and muscle preservation status aliasing for CoS readability.
+
+**Why:** The existing engine detected current plateau state but couldn't predict upcoming plateaus. Fat loss phase was not classified, forcing CoS to make its own assessment. Muscle preservation status needed a cleaner label mapping for prompt readability.
+
+**Changes:**
+- `apps/health/models.py` — Added 7 new DailyHealthSummary fields: plateau_risk_score, plateau_prediction_window_days, plateau_risk_label, fat_loss_phase, phase_confidence, phase_start_date, muscle_preservation_status
+- `apps/health/migrations/0054_health_intelligence_enhancements.py` — New migration for the 7 fields
+- `apps/health/services/body_composition_intelligence.py` — Added 4 new methods: `_linear_slope()` (least-squares regression), `compute_plateau_risk()` (4-component scoring), `detect_fat_loss_phase()` (priority-based classifier), `compute_muscle_preservation_status()` (alias mapping). Updated `compute_daily_intelligence()` to call all new methods.
+- `apps/health/services/command_center_api.py` — Extended body_comp panel with plateau risk, phase, muscle preservation fields; HIGH plateau risk as top_insight
+- `apps/health/services/cos_health_context.py` — Added 7 new fields to body_comp_intelligence dict + summary text lines
+- `apps/core/ai_orchestrator/cos_context.py` — Extended BODY COMPOSITION locked block with plateau risk, phase, muscle preservation
+- `apps/ai/personal_assistant.py` — Extended Rule 8 with plateau warning, phase classification, muscle preservation directives
+- `apps/ai/validators/health_response_validator.py` — Added 2 new patterns for generic plateau predictions and self-classified phase detection
+- `apps/health/tests/test_health_intelligence.py` — 28 new tests across 9 classes (TestPlateauRisk, TestPlateauRiskSlope, TestFatLossPhase, TestPhaseStartDate, TestMusclePreservationStatus, TestEnhancedDailyIntelligence, TestEnhancedCosInjection, TestEnhancedCommandCenter, TestEnhancedValidatorPatterns)
+- `docs/HEALTH_INTELLIGENCE_ENGINE.md` — Added Plateau Early Warning, Fat Loss Phase Detection, Muscle Preservation Status subsections
+
+**Tests:** 190 health intelligence tests passing.
+
+---
+
 ## 2026-03-05 — Wire Health Intelligence Production Infrastructure
 
 **What:** Connected the Health Intelligence Engine to production automation. Added the nightly summary task to Celery Beat (3 AM UTC), wired HealthKit data ingestion to trigger async summary rebuilds, and added a Health Intelligence Engine tile to the Ops Command Center.

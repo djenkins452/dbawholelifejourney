@@ -113,6 +113,16 @@ _BODY_COMP_GENERIC_PATTERNS = [
         r'\b(?:your\s+)?fat\s+mass\s+is\s+(?:approximately|about|roughly|estimated)\b',
         re.IGNORECASE,
     ),
+    # Generic plateau predictions: "you will/may plateau in X days/weeks"
+    re.compile(
+        r'\byou\b.*\bplateau\b.*\bin\b.*\b(?:days?|weeks?)\b',
+        re.IGNORECASE,
+    ),
+    # Self-classified phase: "you appear/seem to be in/entering X phase"
+    re.compile(
+        r'\byou\b.*\b(?:appear|seem)\b.*\b(?:in|entering)\b.*\bphase\b',
+        re.IGNORECASE,
+    ),
 ]
 
 

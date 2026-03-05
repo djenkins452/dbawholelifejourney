@@ -3321,3 +3321,426 @@ class TestHealthIntelligenceTelemetry(TestCase):
         self.assertIsNotNone(result.get('latest_summary_date'))
         self.assertIn('scores', result)
         self.assertIn('ingestion_24h', result)
+
+
+# ======================================================================
+# Health Intelligence Engine Enhancements Tests
+# ======================================================================
+
+
+class TestPlateauRisk(TestCase):
+    """Test plateau early warning engine."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            email='plateau-risk@test.com', password='test123',
+        )
+        self.today = date.today()
+
+    def _create_weight_series(self, weights, start_offset=21):
+        """Create DHS entries with weight data going back start_offset days."""
+        for i, w in enumerate(weights):
+            d = self.today - timedelta(days=start_offset - i)
+            DailyHealthSummary.objects.create(
+                user=self.user,
+                summary_date=d,
+                weight=Decimal(str(w)),
+                fat_mass=Decimal(str(w * 0.22)),  # ~22% body fat
+            )
+
+    def test_low_risk_active_loss(self):
+        """Active weight loss → LOW plateau risk."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        # Steady downward trend: 200 → 195 over 21 days
+        weights = [200 - (i * 5 / 21) for i in range(22)]
+        self._create_weight_series(weights)
+        result = BCI.compute_plateau_risk(self.user, self.today)
+        self.assertEqual(result['plateau_risk_label'], 'LOW')
+        self.assertLessEqual(result['plateau_risk_score'], 29)
+
+    def test_rising_risk_decelerating(self):
+        """Decelerating weight loss → RISING plateau risk."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        # Fast loss first 14d, then nearly flat last 7d
+        weights = []
+        for i in range(22):
+            if i < 14:
+                weights.append(200 - (i * 0.3))  # losing ~0.3/day
+            else:
+                weights.append(200 - 4.2 - ((i - 14) * 0.01))  # nearly flat
+        self._create_weight_series(weights)
+        result = BCI.compute_plateau_risk(self.user, self.today)
+        self.assertIn(result['plateau_risk_label'], ['RISING', 'HIGH'])
+        self.assertGreaterEqual(result['plateau_risk_score'], 30)
+
+    def test_high_risk_flat(self):
+        """Completely flat weight → HIGH plateau risk."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        # Weight barely moves
+        weights = [200 + (0.1 * (i % 3 - 1)) for i in range(22)]
+        self._create_weight_series(weights)
+        result = BCI.compute_plateau_risk(self.user, self.today)
+        self.assertEqual(result['plateau_risk_label'], 'HIGH')
+        self.assertGreaterEqual(result['plateau_risk_score'], 60)
+
+    def test_insufficient_data(self):
+        """Too few weight entries → no score."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        # Only 3 days
+        for i in range(3):
+            DailyHealthSummary.objects.create(
+                user=self.user,
+                summary_date=self.today - timedelta(days=i),
+                weight=Decimal('200'),
+            )
+        result = BCI.compute_plateau_risk(self.user, self.today)
+        self.assertIsNone(result['plateau_risk_score'])
+
+    def test_prediction_window(self):
+        """HIGH risk → 0 window, RISING → positive window."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        # Flat = HIGH
+        weights = [200 + (0.05 * (i % 2)) for i in range(22)]
+        self._create_weight_series(weights)
+        result = BCI.compute_plateau_risk(self.user, self.today)
+        if result['plateau_risk_label'] == 'HIGH':
+            self.assertEqual(result['plateau_prediction_window_days'], 0)
+
+
+class TestPlateauRiskSlope(TestCase):
+    """Test linear regression slope computation."""
+
+    def test_linear_slope_positive(self):
+        """Positive slope for increasing values."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        values = [(0, 100), (1, 102), (2, 104), (3, 106)]
+        slope = BCI._linear_slope(values)
+        self.assertAlmostEqual(slope, 2.0, places=1)
+
+    def test_linear_slope_negative(self):
+        """Negative slope for decreasing values."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        values = [(0, 200), (7, 197), (14, 194)]
+        slope = BCI._linear_slope(values)
+        self.assertLess(slope, 0)
+
+    def test_linear_slope_insufficient(self):
+        """Fewer than 3 points → None."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        self.assertIsNone(BCI._linear_slope([(0, 1), (1, 2)]))
+        self.assertIsNone(BCI._linear_slope([]))
+
+
+class TestFatLossPhase(TestCase):
+    """Test fat loss phase detection."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            email='phase@test.com', password='test123',
+        )
+        self.today = date.today()
+
+    def test_stable_fat_loss(self):
+        """SAFE speed + GOOD quality → STABLE_FAT_LOSS."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        intel = {
+            'fat_loss_speed_label': 'SAFE',
+            'fat_loss_quality_label': 'GOOD',
+            'plateau_status': '',
+            'recomposition_flag_14d': False,
+        }
+        result = BCI.detect_fat_loss_phase(self.user, self.today, current_intel=intel)
+        self.assertEqual(result['fat_loss_phase'], 'STABLE_FAT_LOSS')
+        self.assertGreaterEqual(result['phase_confidence'], 65)
+
+    def test_rapid_initial_loss(self):
+        """FAST/TOO_FAST speed → RAPID_INITIAL_LOSS."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        intel = {
+            'fat_loss_speed_label': 'TOO_FAST',
+            'fat_loss_speed_pct_per_week': 1.8,
+            'fat_loss_quality_label': 'GOOD',
+            'plateau_status': '',
+            'recomposition_flag_14d': False,
+        }
+        result = BCI.detect_fat_loss_phase(self.user, self.today, current_intel=intel)
+        self.assertEqual(result['fat_loss_phase'], 'RAPID_INITIAL_LOSS')
+
+    def test_plateau_phase(self):
+        """TRUE_PLATEAU → PLATEAU phase."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        intel = {
+            'fat_loss_speed_label': 'SLOW',
+            'fat_loss_quality_label': 'INSUFFICIENT_DATA',
+            'plateau_status': 'TRUE_PLATEAU',
+            'recomposition_flag_14d': False,
+        }
+        result = BCI.detect_fat_loss_phase(self.user, self.today, current_intel=intel)
+        self.assertEqual(result['fat_loss_phase'], 'PLATEAU')
+        self.assertEqual(result['phase_confidence'], 85)
+
+    def test_recomposition_phase(self):
+        """Recomp flag → RECOMPOSITION phase."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        intel = {
+            'fat_loss_speed_label': 'SLOW',
+            'fat_loss_quality_label': 'GOOD',
+            'plateau_status': 'RECOMP',
+            'recomposition_flag_14d': True,
+        }
+        result = BCI.detect_fat_loss_phase(self.user, self.today, current_intel=intel)
+        self.assertEqual(result['fat_loss_phase'], 'RECOMPOSITION')
+
+    def test_rebound_risk(self):
+        """GAINING after STABLE_FAT_LOSS → REBOUND_RISK."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        # Create a prior DHS with STABLE_FAT_LOSS phase
+        DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=self.today - timedelta(days=3),
+            fat_loss_phase='STABLE_FAT_LOSS',
+        )
+        intel = {
+            'fat_loss_speed_label': 'GAINING',
+            'fat_loss_speed_pct_per_week': 0.8,
+            'fat_loss_quality_label': '',
+            'plateau_status': '',
+            'recomposition_flag_14d': False,
+        }
+        result = BCI.detect_fat_loss_phase(self.user, self.today, current_intel=intel)
+        self.assertEqual(result['fat_loss_phase'], 'REBOUND_RISK')
+
+    def test_insufficient_data(self):
+        """No speed/plateau data → empty phase."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        intel = {
+            'fat_loss_speed_label': '',
+            'fat_loss_quality_label': '',
+            'plateau_status': '',
+            'recomposition_flag_14d': False,
+        }
+        result = BCI.detect_fat_loss_phase(self.user, self.today, current_intel=intel)
+        self.assertEqual(result['fat_loss_phase'], '')
+
+
+class TestPhaseStartDate(TestCase):
+    """Test phase start date detection."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            email='phase-start@test.com', password='test123',
+        )
+        self.today = date.today()
+
+    def test_phase_start_boundary(self):
+        """Start date is the earliest consecutive day with same phase."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        # 5 days of STABLE_FAT_LOSS, then 3 days of RAPID before that
+        for i in range(5):
+            DailyHealthSummary.objects.create(
+                user=self.user,
+                summary_date=self.today - timedelta(days=i),
+                fat_loss_phase='STABLE_FAT_LOSS',
+            )
+        for i in range(5, 8):
+            DailyHealthSummary.objects.create(
+                user=self.user,
+                summary_date=self.today - timedelta(days=i),
+                fat_loss_phase='RAPID_INITIAL_LOSS',
+            )
+        start = BCI._find_phase_start(self.user, self.today, 'STABLE_FAT_LOSS')
+        self.assertEqual(start, self.today - timedelta(days=4))
+
+    def test_no_prior_phase(self):
+        """No DHS history → returns end_date."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        start = BCI._find_phase_start(self.user, self.today, 'STABLE_FAT_LOSS')
+        self.assertEqual(start, self.today)
+
+
+class TestMusclePreservationStatus(TestCase):
+    """Test muscle preservation status alias mapping."""
+
+    def test_excellent_maps_to_high_quality(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        self.assertEqual(BCI.compute_muscle_preservation_status('EXCELLENT'), 'HIGH_QUALITY')
+
+    def test_good_maps_to_high_quality(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        self.assertEqual(BCI.compute_muscle_preservation_status('GOOD'), 'HIGH_QUALITY')
+
+    def test_mixed_maps_to_moderate(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        self.assertEqual(BCI.compute_muscle_preservation_status('MIXED'), 'MODERATE_QUALITY')
+
+    def test_muscle_loss_risk_maps(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        self.assertEqual(BCI.compute_muscle_preservation_status('MUSCLE_LOSS_RISK'), 'MUSCLE_RISK')
+
+
+class TestEnhancedDailyIntelligence(TestCase):
+    """Test that compute_daily_intelligence includes new fields."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            email='enhanced-intel@test.com', password='test123',
+        )
+        self.today = date.today()
+
+    def test_new_fields_populated_with_data(self):
+        """With sufficient data, new fields are populated."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        # Create 22 days of weight + body comp data
+        for i in range(22):
+            d = self.today - timedelta(days=21 - i)
+            w = Decimal('200') - Decimal(str(i * 0.2))
+            bf = Decimal('25.0')
+            WeightEntry.objects.create(
+                user=self.user, recorded_at=timezone.make_aware(datetime.combine(d, datetime.min.time())), value=w,
+            )
+            BodyCompositionEntry.objects.create(
+                user=self.user, measurement_date=d,
+                metric_name='body_fat_pct', value=bf, unit='%',
+            )
+            DailyHealthSummary.objects.create(
+                user=self.user, summary_date=d,
+                weight=w, body_fat_pct=bf,
+                fat_mass=w * bf / 100,
+            )
+        result = BCI.compute_daily_intelligence(self.user, self.today)
+        # Should have plateau risk fields
+        self.assertIn('plateau_risk_score', result)
+        self.assertIn('plateau_risk_label', result)
+        # Should have muscle preservation status
+        if result.get('fat_loss_quality_label'):
+            self.assertIn('muscle_preservation_status', result)
+
+    def test_handles_missing_data(self):
+        """With no data, returns empty dict gracefully."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        result = BCI.compute_daily_intelligence(self.user, self.today)
+        self.assertEqual(result, {})
+
+
+class TestEnhancedCosInjection(TestCase):
+    """Test CoS context includes new body comp fields."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            email='cos-enhanced@test.com', password='test123',
+        )
+        self.today = date.today()
+
+    def test_new_fields_in_cos_context(self):
+        """build_cos_health_intelligence includes new fields when present."""
+        DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=self.today,
+            weight=Decimal('195'),
+            body_fat_pct=Decimal('22.0'),
+            fat_mass=Decimal('42.9'),
+            fat_loss_quality_label='EXCELLENT',
+            fat_loss_ratio_14d=Decimal('0.87'),
+            plateau_risk_score=45,
+            plateau_risk_label='RISING',
+            plateau_prediction_window_days=5,
+            fat_loss_phase='STABLE_FAT_LOSS',
+            phase_confidence=80,
+            phase_start_date=self.today - timedelta(days=14),
+            muscle_preservation_status='HIGH_QUALITY',
+        )
+        from apps.health.services.cos_health_context import build_cos_health_intelligence
+        intel = build_cos_health_intelligence(self.user)
+        bc = intel.get('body_comp_intelligence', {})
+        self.assertEqual(bc['plateau_risk_label'], 'RISING')
+        self.assertEqual(bc['plateau_risk_score'], 45)
+        self.assertEqual(bc['fat_loss_phase'], 'STABLE_FAT_LOSS')
+        self.assertEqual(bc['muscle_preservation_status'], 'HIGH_QUALITY')
+
+    def test_new_fields_in_summary_text(self):
+        """build_cos_health_summary_text includes plateau risk and phase."""
+        DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=self.today,
+            weight=Decimal('195'),
+            body_fat_pct=Decimal('22.0'),
+            fat_mass=Decimal('42.9'),
+            fat_loss_quality_label='GOOD',
+            plateau_risk_score=50,
+            plateau_risk_label='RISING',
+            plateau_prediction_window_days=4,
+            fat_loss_phase='STABLE_FAT_LOSS',
+            phase_confidence=80,
+            muscle_preservation_status='HIGH_QUALITY',
+        )
+        from apps.health.services.cos_health_context import build_cos_health_summary_text
+        text = build_cos_health_summary_text(self.user)
+        self.assertIn('RISING', text)
+        self.assertIn('STABLE_FAT_LOSS', text)
+        self.assertIn('HIGH_QUALITY', text)
+
+
+class TestEnhancedCommandCenter(TestCase):
+    """Test command center panel includes new fields."""
+
+    def test_new_fields_in_panel(self):
+        user = get_user_model().objects.create_user(
+            email='cc-enhanced@test.com', password='test123',
+        )
+        today = date.today()
+        DailyHealthSummary.objects.create(
+            user=user,
+            summary_date=today,
+            weight=Decimal('195'),
+            body_fat_pct=Decimal('22.0'),
+            fat_mass=Decimal('42.9'),
+            fat_loss_quality_label='EXCELLENT',
+            plateau_risk_score=60,
+            plateau_risk_label='HIGH',
+            plateau_prediction_window_days=0,
+            fat_loss_phase='PLATEAU',
+            phase_confidence=85,
+            muscle_preservation_status='HIGH_QUALITY',
+        )
+        from apps.health.services.command_center_api import HealthCommandCenterService
+        result = HealthCommandCenterService.get_dashboard_data(user)
+        panel = result.get('domain_panels', {}).get('body_comp', {})
+        self.assertEqual(panel.get('plateau_risk_label'), 'HIGH')
+        self.assertEqual(panel.get('fat_loss_phase'), 'PLATEAU')
+        self.assertEqual(panel.get('muscle_preservation_status'), 'HIGH_QUALITY')
+
+
+class TestEnhancedValidatorPatterns(TestCase):
+    """Test new validator patterns detect generic plateau/phase predictions."""
+
+    def test_generic_plateau_prediction_detected(self):
+        """Generic 'you will plateau in X days' should be flagged."""
+        from apps.ai.validators.health_response_validator import validate_health_response
+        result = validate_health_response(
+            "Based on your trends, you may plateau in about 2 weeks."
+        )
+        violations = result.get('violations', [])
+        types = [v['type'] for v in violations]
+        self.assertIn('GENERIC_BODY_COMP', types)
+
+    def test_self_classified_phase_detected(self):
+        """Generic 'you appear to be in X phase' should be flagged."""
+        from apps.ai.validators.health_response_validator import validate_health_response
+        result = validate_health_response(
+            "You appear to be entering a plateau phase based on patterns."
+        )
+        violations = result.get('violations', [])
+        types = [v['type'] for v in violations]
+        self.assertIn('GENERIC_BODY_COMP', types)
+
+    def test_system_values_accepted(self):
+        """Response using system values should pass."""
+        from apps.ai.validators.health_response_validator import validate_health_response
+        result = validate_health_response(
+            "Your plateau risk is RISING with a score of 45. "
+            "You're in the STABLE_FAT_LOSS phase with 80% confidence. "
+            "Muscle preservation is HIGH_QUALITY."
+        )
+        violations = result.get('violations', [])
+        body_comp_violations = [v for v in violations if v['type'] == 'GENERIC_BODY_COMP']
+        self.assertEqual(len(body_comp_violations), 0)

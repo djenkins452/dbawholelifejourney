@@ -764,6 +764,403 @@ class BodyCompositionIntelligence:
         }
 
     # ------------------------------------------------------------------
+    # Plateau Early Warning
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _linear_slope(values):
+        """
+        Compute slope of a list of (day_index, value) pairs via least-squares.
+
+        Uses sum-of-squares formula (no numpy required).
+        Returns slope in units-per-day, or None if < 3 points.
+        """
+        if not values or len(values) < 3:
+            return None
+        n = len(values)
+        sum_x = sum(x for x, _ in values)
+        sum_y = sum(y for _, y in values)
+        sum_xy = sum(x * y for x, y in values)
+        sum_xx = sum(x * x for x, _ in values)
+        denom = n * sum_xx - sum_x * sum_x
+        if denom == 0:
+            return 0.0
+        return (n * sum_xy - sum_x * sum_y) / denom
+
+    @staticmethod
+    def compute_plateau_risk(user, end_date):
+        """
+        Compute predictive plateau risk score (0-100).
+
+        Analyses recent weight and fat mass trends to predict
+        whether a plateau is approaching, using:
+        - 7-day and 14-day weight slopes (via linear regression)
+        - 14-day fat mass slope
+        - Deceleration (7d slope flatter than 14d)
+        - Weight variance
+
+        Returns: {plateau_risk_score, plateau_risk_label, plateau_prediction_window_days, drivers}
+        Labels: LOW (0-29), RISING (30-59), HIGH (60-100)
+        """
+        from apps.health.models import DailyHealthSummary
+
+        BCI = BodyCompositionIntelligence
+
+        result = {
+            'plateau_risk_score': None,
+            'plateau_risk_label': '',
+            'plateau_prediction_window_days': None,
+            'drivers': [],
+        }
+
+        # Gather DHS weight + fat_mass for last 21 days
+        start = end_date - timedelta(days=21)
+        summaries = list(
+            DailyHealthSummary.objects
+            .filter(user=user, summary_date__gte=start, summary_date__lte=end_date)
+            .values('summary_date', 'weight', 'fat_mass')
+            .order_by('summary_date')
+        )
+
+        # Need at least 7 weight entries for meaningful analysis
+        weight_entries = [(s['summary_date'], float(s['weight']))
+                         for s in summaries if s.get('weight')]
+        if len(weight_entries) < 7:
+            return result
+
+        # Build indexed series (days from start)
+        base_date = weight_entries[0][0]
+        weight_series = [((d - base_date).days, w) for d, w in weight_entries]
+
+        # 14-day and 7-day weight subsets
+        cutoff_14d = (end_date - timedelta(days=14))
+        cutoff_7d = (end_date - timedelta(days=7))
+
+        weight_14d = [((d - base_date).days, w) for d, w in weight_entries
+                      if d >= cutoff_14d]
+        weight_7d = [((d - base_date).days, w) for d, w in weight_entries
+                     if d >= cutoff_7d]
+
+        slope_14d = BCI._linear_slope(weight_14d)
+        slope_7d = BCI._linear_slope(weight_7d)
+
+        # Fat mass slope (14d)
+        fat_entries = [(s['summary_date'], float(s['fat_mass']))
+                       for s in summaries if s.get('fat_mass')]
+        fat_14d = [((d - base_date).days, f) for d, f in fat_entries
+                   if d >= cutoff_14d]
+        fat_slope_14d = BCI._linear_slope(fat_14d)
+
+        # Weight std dev (14d)
+        weights_14d_vals = [w for _, w in weight_14d]
+        if len(weights_14d_vals) >= 3:
+            mean_w = sum(weights_14d_vals) / len(weights_14d_vals)
+            variance = sum((w - mean_w) ** 2 for w in weights_14d_vals) / len(weights_14d_vals)
+            std_dev_14d = variance ** 0.5
+        else:
+            std_dev_14d = None
+
+        drivers = []
+
+        # --- Component 1: Weight slope approaching zero (0-35) ---
+        weight_slope_score = 0
+        if slope_7d is not None:
+            abs_slope = abs(slope_7d)
+            if abs_slope < 0.02:
+                weight_slope_score = 35
+            elif abs_slope < 0.05:
+                weight_slope_score = 25
+            elif abs_slope < 0.10:
+                weight_slope_score = 15
+            if weight_slope_score > 0:
+                drivers.append({
+                    'component': 'weight_slope',
+                    'score': weight_slope_score,
+                    'detail': f"7d weight slope {slope_7d:+.3f} lbs/day (approaching zero)",
+                })
+
+        # --- Component 2: Fat stagnation (0-30) ---
+        fat_stagnation_score = 0
+        if fat_slope_14d is not None:
+            abs_fat = abs(fat_slope_14d)
+            if abs_fat < 0.01:
+                fat_stagnation_score = 30
+            elif abs_fat < 0.03:
+                fat_stagnation_score = 20
+            elif abs_fat < 0.05:
+                fat_stagnation_score = 10
+            if fat_stagnation_score > 0:
+                drivers.append({
+                    'component': 'fat_stagnation',
+                    'score': fat_stagnation_score,
+                    'detail': f"14d fat mass slope {fat_slope_14d:+.4f} lbs/day (minimal change)",
+                })
+
+        # --- Component 3: Deceleration (0-20) ---
+        deceleration_score = 0
+        if slope_14d is not None and slope_7d is not None and slope_14d < 0:
+            # 14d is negative (losing). Is 7d closer to zero?
+            if abs(slope_14d) > 0.01:  # avoid division by near-zero
+                ratio = abs(slope_7d) / abs(slope_14d) if slope_14d != 0 else 1.0
+                if ratio < 0.3:
+                    deceleration_score = 20
+                elif ratio < 0.5:
+                    deceleration_score = 15
+                elif ratio < 0.7:
+                    deceleration_score = 10
+                if deceleration_score > 0:
+                    drivers.append({
+                        'component': 'deceleration',
+                        'score': deceleration_score,
+                        'detail': f"7d/14d slope ratio {ratio:.2f} (loss decelerating)",
+                    })
+
+        # --- Component 4: Low variance with flat trend (0-15) ---
+        variance_score = 0
+        if std_dev_14d is not None and weight_slope_score > 15:
+            if std_dev_14d < 0.5:
+                variance_score = 15
+            elif std_dev_14d < 1.0:
+                variance_score = 10
+            if variance_score > 0:
+                drivers.append({
+                    'component': 'low_variance',
+                    'score': variance_score,
+                    'detail': f"Weight std dev {std_dev_14d:.2f} lbs (low variation + flat trend)",
+                })
+
+        # --- Total score ---
+        total = min(weight_slope_score + fat_stagnation_score +
+                    deceleration_score + variance_score, 100)
+
+        # --- Label ---
+        if total >= 60:
+            label = 'HIGH'
+        elif total >= 30:
+            label = 'RISING'
+        else:
+            label = 'LOW'
+
+        # --- Prediction window ---
+        if total >= 60:
+            window = 0  # already at plateau
+        elif total >= 30:
+            window = max(0, 7 - round((total - 30) / 30 * 7))
+        else:
+            window = None  # no meaningful prediction
+
+        result['plateau_risk_score'] = total
+        result['plateau_risk_label'] = label
+        result['plateau_prediction_window_days'] = window
+        result['drivers'] = drivers
+
+        return result
+
+    # ------------------------------------------------------------------
+    # Fat Loss Phase Detection
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def detect_fat_loss_phase(user, end_date, current_intel=None):
+        """
+        Detect the current fat loss metabolic phase.
+
+        Uses existing DHS intelligence fields + plateau risk to classify
+        the overall fat loss trajectory into one of:
+        - RAPID_INITIAL_LOSS: fast weight loss in first ~3 weeks
+        - STABLE_FAT_LOSS: steady, sustainable loss
+        - RECOMPOSITION: weight stable but composition improving
+        - PLATEAU: true plateau (no change in weight or fat)
+        - REBOUND_RISK: weight gaining after prior loss phase
+
+        Args:
+            user: User instance
+            end_date: date to analyze
+            current_intel: dict of already-computed fields for today
+                (fat_loss_speed_label, plateau_status, recomposition_flag_14d, etc.)
+                If None, reads from DHS.
+
+        Returns: {fat_loss_phase, phase_confidence, phase_start_date, previous_phase, explanation}
+        """
+        from apps.health.models import DailyHealthSummary
+
+        result = {
+            'fat_loss_phase': '',
+            'phase_confidence': None,
+            'phase_start_date': None,
+            'previous_phase': None,
+            'explanation': '',
+        }
+
+        # Get current signals (prefer already-computed, fallback to DHS)
+        if current_intel:
+            speed_label = current_intel.get('fat_loss_speed_label', '')
+            speed_pct = current_intel.get('fat_loss_speed_pct_per_week')
+            plateau_status = current_intel.get('plateau_status', '')
+            recomp_flag = current_intel.get('recomposition_flag_14d', False)
+            quality_label = current_intel.get('fat_loss_quality_label', '')
+            plateau_risk = current_intel.get('plateau_risk_label', '')
+        else:
+            today_dhs = (
+                DailyHealthSummary.objects
+                .filter(user=user, summary_date=end_date)
+                .first()
+            )
+            if not today_dhs:
+                return result
+            speed_label = today_dhs.fat_loss_speed_label or ''
+            speed_pct = (
+                float(today_dhs.fat_loss_speed_pct_per_week)
+                if today_dhs.fat_loss_speed_pct_per_week else None
+            )
+            plateau_status = today_dhs.plateau_status or ''
+            recomp_flag = today_dhs.recomposition_flag_14d or False
+            quality_label = today_dhs.fat_loss_quality_label or ''
+            plateau_risk = today_dhs.plateau_risk_label or ''
+
+        # If no speed/plateau data, insufficient
+        if not speed_label and not plateau_status:
+            return result
+
+        # Get previous phase for REBOUND_RISK detection
+        prev_phase_entry = (
+            DailyHealthSummary.objects
+            .filter(user=user, summary_date__lt=end_date)
+            .exclude(fat_loss_phase='')
+            .exclude(fat_loss_phase=None)
+            .order_by('-summary_date')
+            .values('fat_loss_phase', 'summary_date')
+            .first()
+        )
+        previous_phase = prev_phase_entry['fat_loss_phase'] if prev_phase_entry else None
+
+        # --- Phase classification (priority order) ---
+
+        # 1. REBOUND_RISK: gaining after a loss/plateau phase
+        if speed_label == 'GAINING' and previous_phase in (
+            'STABLE_FAT_LOSS', 'PLATEAU', 'RAPID_INITIAL_LOSS',
+        ):
+            phase = 'REBOUND_RISK'
+            conf = 85 if speed_pct and speed_pct > 0.5 else 70
+            explanation = (
+                f"Weight gaining after {previous_phase} phase. "
+                f"Previous phase was {previous_phase}."
+            )
+
+        # 2. PLATEAU: confirmed true plateau
+        elif plateau_status == 'TRUE_PLATEAU':
+            phase = 'PLATEAU'
+            conf = 85
+            explanation = "True plateau: weight and fat mass both stable."
+
+        # 3. RECOMPOSITION: fat down, lean up, weight flat
+        elif recomp_flag or plateau_status == 'RECOMP':
+            phase = 'RECOMPOSITION'
+            conf = 80
+            explanation = "Body recomposition: fat decreasing while lean mass increasing."
+
+        # 4. RAPID_INITIAL_LOSS: fast loss early in journey
+        elif speed_label in ('FAST', 'TOO_FAST'):
+            phase = 'RAPID_INITIAL_LOSS'
+            conf = 75 if speed_label == 'TOO_FAST' else 70
+            explanation = (
+                f"Rapid weight loss at {speed_pct:.1f}%/week. "
+                f"Typical in early fat loss phase."
+                if speed_pct else "Rapid weight loss detected."
+            )
+
+        # 5. STABLE_FAT_LOSS: steady sustainable loss
+        elif speed_label in ('SAFE', 'SLOW'):
+            phase = 'STABLE_FAT_LOSS'
+            if speed_label == 'SAFE' and quality_label in ('EXCELLENT', 'GOOD'):
+                conf = 80
+            elif speed_label == 'SAFE':
+                conf = 70
+            else:  # SLOW
+                conf = 65
+            explanation = (
+                f"Stable fat loss at sustainable pace. "
+                f"Quality: {quality_label}." if quality_label else
+                "Slow but steady weight loss."
+            )
+
+        # 6. Fallback
+        else:
+            return result
+
+        result['fat_loss_phase'] = phase
+        result['phase_confidence'] = conf
+        result['explanation'] = explanation
+        result['previous_phase'] = previous_phase
+
+        # Determine phase start date — scan backward up to 28 days
+        result['phase_start_date'] = BodyCompositionIntelligence._find_phase_start(
+            user, end_date, phase
+        )
+
+        return result
+
+    @staticmethod
+    def _find_phase_start(user, end_date, current_phase):
+        """
+        Look backward through DHS to find when current phase began.
+
+        Returns the earliest date within 28 days that has the same phase.
+        """
+        from apps.health.models import DailyHealthSummary
+
+        lookback = end_date - timedelta(days=28)
+        recent = list(
+            DailyHealthSummary.objects
+            .filter(
+                user=user,
+                summary_date__gte=lookback,
+                summary_date__lte=end_date,
+            )
+            .exclude(fat_loss_phase='')
+            .exclude(fat_loss_phase=None)
+            .order_by('-summary_date')
+            .values_list('summary_date', 'fat_loss_phase')
+        )
+
+        if not recent:
+            return end_date
+
+        # Walk backward from most recent: find the boundary
+        phase_start = end_date
+        for s_date, s_phase in recent:
+            if s_phase == current_phase:
+                phase_start = s_date
+            else:
+                break  # phase boundary found
+
+        return phase_start
+
+    # ------------------------------------------------------------------
+    # Muscle Preservation Status (alias mapping)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def compute_muscle_preservation_status(fat_loss_quality_label):
+        """
+        Map fat loss quality label to a muscle preservation status.
+
+        This is a readability alias — no new computation.
+        EXCELLENT/GOOD → HIGH_QUALITY
+        MIXED → MODERATE_QUALITY
+        MUSCLE_LOSS_RISK → MUSCLE_RISK
+        INSUFFICIENT_DATA → INSUFFICIENT_DATA
+        """
+        mapping = {
+            'EXCELLENT': 'HIGH_QUALITY',
+            'GOOD': 'HIGH_QUALITY',
+            'MIXED': 'MODERATE_QUALITY',
+            'MUSCLE_LOSS_RISK': 'MUSCLE_RISK',
+            'INSUFFICIENT_DATA': 'INSUFFICIENT_DATA',
+        }
+        return mapping.get(fat_loss_quality_label or '', '')
+
+    # ------------------------------------------------------------------
     # Single-call convenience for builder
     # ------------------------------------------------------------------
 
@@ -843,6 +1240,49 @@ class BodyCompositionIntelligence:
             }
         except Exception:
             logger.error("Failed to compute muscle loss risk", exc_info=True)
+
+        # Plateau early warning
+        try:
+            plateau_risk = BCI.compute_plateau_risk(user, target_date)
+            if plateau_risk.get('plateau_risk_score') is not None:
+                result['plateau_risk_score'] = plateau_risk['plateau_risk_score']
+                result['plateau_risk_label'] = plateau_risk.get('plateau_risk_label', '')
+                result['plateau_prediction_window_days'] = plateau_risk.get(
+                    'plateau_prediction_window_days'
+                )
+                drivers['plateau_risk'] = {
+                    'score': plateau_risk['plateau_risk_score'],
+                    'label': plateau_risk.get('plateau_risk_label', ''),
+                    'window_days': plateau_risk.get('plateau_prediction_window_days'),
+                    'components': plateau_risk.get('drivers', []),
+                }
+        except Exception:
+            logger.error("Failed to compute plateau risk", exc_info=True)
+
+        # Fat loss phase detection (must run after plateau risk)
+        try:
+            phase = BCI.detect_fat_loss_phase(
+                user, target_date, current_intel=result,
+            )
+            if phase.get('fat_loss_phase'):
+                result['fat_loss_phase'] = phase['fat_loss_phase']
+                result['phase_confidence'] = phase.get('phase_confidence')
+                result['phase_start_date'] = phase.get('phase_start_date')
+                drivers['fat_loss_phase'] = {
+                    'phase': phase['fat_loss_phase'],
+                    'confidence': phase.get('phase_confidence'),
+                    'previous_phase': phase.get('previous_phase'),
+                    'explanation': phase.get('explanation', ''),
+                }
+        except Exception:
+            logger.error("Failed to detect fat loss phase", exc_info=True)
+
+        # Muscle preservation status (alias)
+        quality_label = result.get('fat_loss_quality_label', '')
+        if quality_label:
+            result['muscle_preservation_status'] = BCI.compute_muscle_preservation_status(
+                quality_label
+            )
 
         result['body_comp_drivers'] = drivers
 

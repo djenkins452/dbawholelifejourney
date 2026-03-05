@@ -1322,6 +1322,26 @@ def _format_health_intelligence_block(health_intel, context):
         if fat_mass:
             lines.append(f"    Current fat mass: {fat_mass:.1f} lbs")
 
+        # Plateau early warning
+        pr_label = body_comp.get('plateau_risk_label')
+        pr_score = body_comp.get('plateau_risk_score')
+        pr_window = body_comp.get('plateau_prediction_window_days')
+        if pr_label and pr_label != 'LOW':
+            window_str = f", est. {pr_window} days" if pr_window is not None else ""
+            lines.append(f"    Plateau risk: {pr_label} (score {pr_score}{window_str})")
+
+        # Fat loss phase
+        phase = body_comp.get('fat_loss_phase')
+        phase_conf = body_comp.get('phase_confidence')
+        if phase:
+            conf_str = f" ({phase_conf}% confidence)" if phase_conf else ""
+            lines.append(f"    Fat loss phase: {phase}{conf_str}")
+
+        # Muscle preservation
+        mp_status = body_comp.get('muscle_preservation_status')
+        if mp_status and mp_status != 'INSUFFICIENT_DATA':
+            lines.append(f"    Muscle preservation: {mp_status}")
+
     # Trends summary
     summary_text = context.get('health_intelligence_summary', '')
     if summary_text:

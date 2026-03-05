@@ -483,6 +483,19 @@ class HealthCommandCenterService:
             "muscle_loss_risk_level": today.muscle_loss_risk_level if today else None,
             "body_comp_drivers": today.body_comp_drivers if today else None,
 
+            # Plateau Early Warning
+            "plateau_risk_score": today.plateau_risk_score if today else None,
+            "plateau_risk_label": today.plateau_risk_label or None if today else None,
+            "plateau_prediction_window_days": today.plateau_prediction_window_days if today else None,
+
+            # Fat Loss Phase
+            "fat_loss_phase": today.fat_loss_phase or None if today else None,
+            "phase_confidence": today.phase_confidence if today else None,
+            "phase_start_date": str(today.phase_start_date) if today and today.phase_start_date else None,
+
+            # Muscle Preservation (alias)
+            "muscle_preservation_status": today.muscle_preservation_status or None if today else None,
+
             # 14d deltas (computed from recent_14 endpoints)
             "weight_delta_14d": None,
             "fat_mass_delta_14d": None,
@@ -532,10 +545,19 @@ class HealthCommandCenterService:
             plateau = today.plateau_status
             recomp = today.recomposition_flag_14d
 
+            plateau_risk = today.plateau_risk_label
+
             if risk == 'HIGH':
                 panel["top_insight"] = (
                     f"Muscle loss risk is HIGH (score {today.muscle_loss_risk_score}). "
                     f"Review protein intake and recovery."
+                )
+            elif plateau_risk == 'HIGH':
+                window = today.plateau_prediction_window_days
+                window_str = f" — est. {window} days" if window is not None else ""
+                panel["top_insight"] = (
+                    f"Plateau risk is HIGH (score {today.plateau_risk_score}){window_str}. "
+                    f"Consider adjusting approach."
                 )
             elif label == 'MUSCLE_LOSS_RISK':
                 panel["top_insight"] = "Fat loss quality indicates muscle loss risk — review nutrition."

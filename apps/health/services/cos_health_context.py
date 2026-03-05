@@ -164,6 +164,19 @@ def build_cos_health_intelligence(user):
             "muscle_loss_risk_score": today_summary.muscle_loss_risk_score,
             "muscle_loss_risk_level": today_summary.muscle_loss_risk_level or None,
             "body_comp_drivers": today_summary.body_comp_drivers or {},
+            # Plateau Early Warning
+            "plateau_risk_score": today_summary.plateau_risk_score,
+            "plateau_risk_label": today_summary.plateau_risk_label or None,
+            "plateau_prediction_window_days": today_summary.plateau_prediction_window_days,
+            # Fat Loss Phase
+            "fat_loss_phase": today_summary.fat_loss_phase or None,
+            "phase_confidence": today_summary.phase_confidence,
+            "phase_start_date": (
+                str(today_summary.phase_start_date)
+                if today_summary.phase_start_date else None
+            ),
+            # Muscle Preservation (alias)
+            "muscle_preservation_status": today_summary.muscle_preservation_status or None,
         }
 
     return result
@@ -306,6 +319,26 @@ def build_cos_health_summary_text(user):
         risk_level = body_comp.get("muscle_loss_risk_level")
         if risk_level and risk_level != "LOW":
             parts.append(f"Muscle loss risk: {risk_level}")
+
+        # Plateau early warning
+        pr_label = body_comp.get("plateau_risk_label")
+        pr_score = body_comp.get("plateau_risk_score")
+        pr_window = body_comp.get("plateau_prediction_window_days")
+        if pr_label and pr_label != "LOW":
+            window_str = f", ~{pr_window} days" if pr_window is not None else ""
+            parts.append(f"Plateau risk: {pr_label} (score {pr_score}{window_str})")
+
+        # Fat loss phase
+        phase = body_comp.get("fat_loss_phase")
+        phase_conf = body_comp.get("phase_confidence")
+        if phase:
+            conf_str = f" ({phase_conf}% confidence)" if phase_conf else ""
+            parts.append(f"Fat loss phase: {phase}{conf_str}")
+
+        # Muscle preservation status
+        mp_status = body_comp.get("muscle_preservation_status")
+        if mp_status and mp_status != "INSUFFICIENT_DATA":
+            parts.append(f"Muscle preservation: {mp_status}")
 
     # 7-day trends
     t7 = intel.get("trends_7d", {})

@@ -565,8 +565,73 @@ BCI.compute_daily_intelligence(user, target_date)
 ```
 fat_mass, fat_loss_quality_label, fat_loss_ratio_14d, recomposition_flag_14d,
 plateau_status, fat_loss_speed_pct_per_week, fat_loss_speed_label,
-muscle_loss_risk_score, muscle_loss_risk_level, body_comp_drivers
+muscle_loss_risk_score, muscle_loss_risk_level, body_comp_drivers,
+plateau_risk_score, plateau_risk_label, plateau_prediction_window_days,
+fat_loss_phase, phase_confidence, phase_start_date,
+muscle_preservation_status
 ```
+
+### Plateau Early Warning
+
+Predictive plateau risk scoring (vs `detect_plateau` which classifies current state).
+
+```python
+BCI.compute_plateau_risk(user, end_date)
+# → {plateau_risk_score (0-100), plateau_risk_label, plateau_prediction_window_days, drivers}
+```
+
+**Algorithm — 4-component composite (0–100):**
+
+| Component | Range | What it measures |
+|-----------|-------|------------------|
+| weight_slope_score | 0–35 | 7-day weight slope approaching zero |
+| fat_stagnation_score | 0–30 | 14-day fat mass slope near zero |
+| deceleration_score | 0–20 | 7-day slope flatter than 14-day slope (decelerating) |
+| variance_score | 0–15 | Low weight variance + flat trend = plateau-like |
+
+**Labels:** LOW (0–29), RISING (30–59), HIGH (60–100)
+
+**Prediction window:** HIGH → 0 days (already there), RISING → 7 down to 0, LOW → null
+
+Uses `_linear_slope(values)` — least-squares regression without numpy.
+
+### Fat Loss Phase Detection
+
+Unified metabolic phase classifier using priority-based rules.
+
+```python
+BCI.detect_fat_loss_phase(user, end_date, current_intel=None)
+# → {fat_loss_phase, phase_confidence, phase_start_date, previous_phase, explanation}
+```
+
+**Phase classification (priority order — first match wins):**
+
+| Priority | Phase | Conditions | Confidence |
+|----------|-------|------------|------------|
+| 1 | REBOUND_RISK | GAINING + prior phase was STABLE/PLATEAU/RAPID | 70–90 |
+| 2 | PLATEAU | plateau_status == TRUE_PLATEAU | 85 |
+| 3 | RECOMPOSITION | recomposition_flag or plateau_status == RECOMP | 80 |
+| 4 | RAPID_INITIAL_LOSS | speed FAST/TOO_FAST | 70–75 |
+| 5 | STABLE_FAT_LOSS | speed SAFE or SLOW (still losing) | 65–80 |
+| 6 | INSUFFICIENT_DATA | default fallback | 0 |
+
+**Phase start date:** Backward scan through DHS to find when current phase's conditions first appeared (up to 28 days).
+
+### Muscle Preservation Status
+
+Simple alias mapping from existing `fat_loss_quality_label` for CoS readability.
+
+```python
+BCI.compute_muscle_preservation_status(fat_loss_quality_label)
+```
+
+| Quality Label | Preservation Status |
+|---------------|-------------------|
+| EXCELLENT | HIGH_QUALITY |
+| GOOD | HIGH_QUALITY |
+| MIXED | MODERATE_QUALITY |
+| MUSCLE_LOSS_RISK | MUSCLE_RISK |
+| INSUFFICIENT_DATA | INSUFFICIENT_DATA |
 
 ### CoS Locked Values Block
 
@@ -578,13 +643,17 @@ BODY COMPOSITION (locked — use these exact values):
   Fat loss speed: SAFE (0.8%/week)
   Muscle loss risk: LOW
   Current fat mass: 50.0 lbs
+  Plateau risk: RISING (score 45, est. 5 days)
+  Fat loss phase: STABLE_FAT_LOSS (80% confidence)
+  Muscle preservation: HIGH_QUALITY
 ```
 
-CoS must NEVER compute fat mass, lean mass, or ratios itself. Rule 8 in Section 9 enforces this.
+CoS must NEVER compute fat mass, lean mass, ratios, plateau timing, or metabolic phase itself. Rule 8 in Section 9 enforces this.
 
 ### Command Center Panel
 
 Dashboard panel `body_comp` includes: current snapshot, 14d deltas, all intelligence labels,
+plateau risk score/label/prediction window, fat loss phase/confidence, muscle preservation status,
 top insight string, and 56-day trend lines for weight/fat_mass/lean_mass.
 
 ---

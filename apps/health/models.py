@@ -5481,6 +5481,40 @@ class DailyHealthSummary(UserOwnedModel):
         help_text="Explainable drivers for body comp intelligence",
     )
 
+    # --- Plateau Early Warning (computed by BodyCompositionIntelligence) ---
+    plateau_risk_score = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Predictive plateau risk 0-100",
+    )
+    plateau_prediction_window_days = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Estimated days until plateau onset",
+    )
+    plateau_risk_label = models.CharField(
+        max_length=10, blank=True, default="",
+        help_text="LOW / RISING / HIGH",
+    )
+
+    # --- Fat Loss Phase Detection (computed by BodyCompositionIntelligence) ---
+    fat_loss_phase = models.CharField(
+        max_length=25, blank=True, default="",
+        help_text="RAPID_INITIAL_LOSS / STABLE_FAT_LOSS / RECOMPOSITION / PLATEAU / REBOUND_RISK",
+    )
+    phase_confidence = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Confidence 0-100 in phase classification",
+    )
+    phase_start_date = models.DateField(
+        null=True, blank=True,
+        help_text="Estimated date current phase began",
+    )
+
+    # --- Muscle Preservation Status (alias for CoS readability) ---
+    muscle_preservation_status = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="HIGH_QUALITY / MODERATE_QUALITY / MUSCLE_RISK / INSUFFICIENT_DATA",
+    )
+
     # --- Glucose ---
     glucose_avg = models.DecimalField(
         max_digits=6, decimal_places=2, null=True, blank=True,

@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-03-05 — /close Documentation Audit Fixes
+
+**What:** Added missing release note for Relationships tile overhaul (PK 136) and Health Intelligence Engine section in features doc.
+
+**Why:** Session /close audit found 2 documentation gaps: no What's New entry for the Relationships tile changes, and no features doc section for the Health Intelligence Engine.
+
+**Changes:**
+- `apps/core/fixtures/release_notes.json` — Added PK 136: "Smarter Relationships Tile"
+- `docs/wlj_claude_features.md` — Added section 53: Health Intelligence Engine with overview, features, pipeline, pages, key files, tests
+- `apps/core/management/commands/load_initial_data.py` — Added `_reset_relationships_tile_overhaul_fixtures()` for release_notes reload
+
+---
+
 ## 2026-03-05 — Fix Body Fat Pipeline + Dashboard Tile Improvements
 
 **What:** Fixed body fat data pipeline bug where HealthKit body_fat and weight arriving on separate WeightEntry records caused intelligence fields to silently fail. Improved Health Intelligence tile with empty state guidance and better "Awaiting data" labels. Overhauled Relationships tile with score badge, two display modes (attention vs healthy), anchor persons, and insight lines.

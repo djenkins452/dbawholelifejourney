@@ -69,6 +69,7 @@ For core project context, see `CLAUDE.md` (project root).
 50. [Ops Command Center (Intelligence Monitoring)](#ops-command-center-intelligence-monitoring)
 51. [Calendar Engine (Technical Reference)](#calendar-engine-technical-reference)
 52. [Owner Financial Command Center](#owner-financial-command-center) *(Feb 2026)*
+53. [Health Intelligence Engine](#health-intelligence-engine) *(Mar 2026)*
 
 ---
 
@@ -4124,4 +4125,56 @@ Setup Mode dashboard features:
 
 ---
 
-*Last updated: 2026-03-02*
+## Health Intelligence Engine
+
+*(Mar 2026)*
+
+### Overview
+Body composition intelligence that transforms raw weight and body-fat data into actionable insights. The engine runs nightly via Celery Beat, computing fat loss phase detection, plateau risk scoring, muscle preservation status, and fat-to-lean-mass ratios. Results are stored in `DailyHealthSummary` and surfaced through a dashboard tile and a dedicated intelligence page.
+
+### Features
+- **Fat Loss Phase Detection** — Classifies the user's current phase: Rapid Initial Loss, Stable Fat Loss, Recomposition, Plateau, or Rebound Risk based on 14-day weight and body-fat trends
+- **Plateau Risk Scoring** — 0–100 score combining weight stagnation, body-fat plateau, and caloric adaptation signals with color-coded labels (Low/Rising/High)
+- **Muscle Preservation Status** — Evaluates fat-loss quality: High Quality (lean mass preserved), Moderate Quality, or Muscle Risk based on fat-to-lean-mass loss ratio
+- **Fat Loss Ratio** — Numeric ratio of fat mass lost vs lean mass lost over rolling windows
+- **Dashboard Tile** — 2×2 metric grid with color-coded badges, stale-data warning banner, empty-state guidance with links to log data
+- **Intelligence Page** — 5-section detail page (`/health/intelligence/`) with trend charts (Chart.js), phase history, risk explanations, scan history table, and rebuild button (staff only)
+- **HealthKit Pipeline Merge** — Handles Apple Health splitting body_fat and weight across separate WeightEntry records by merging data from all same-day entries
+- **Ops Integration** — Nightly task metrics and manual rebuild button on the Operations Command Center
+
+### Data Pipeline
+1. **iOS HealthKit** syncs weight and body_fat as separate metrics → `process_weight_metric()` / `process_body_fat_metric()` create WeightEntry records
+2. **DailyHealthSummaryBuilder** (`_collect_weight_and_composition()`) merges weight + body_fat from ALL same-day entries, skipping value=0 placeholders
+3. **BodyCompositionIntelligence** (`compute_daily_intelligence()`) runs phase detection, plateau scoring, muscle preservation → writes to `DailyHealthSummary`
+4. **Nightly Celery task** (`compute_daily_health_summaries`) triggers rebuild for all active users
+5. **Dashboard view** (`_get_health_intelligence()`) reads latest `DailyHealthSummary` for tile context
+
+### Pages
+
+| Page | URL | help_context_id |
+|------|-----|-----------------|
+| Health Intelligence | `/health/intelligence/` | `HEALTH_INTELLIGENCE` |
+| Dashboard Tile | `/dashboard/` (tile) | — |
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `apps/health/services/body_composition_intelligence.py` | Core engine: phase detection, plateau risk, muscle preservation, fat-loss ratio |
+| `apps/health/services/daily_summary_builder.py` | Nightly builder: collects weight/body-fat/composition, merges HealthKit split entries |
+| `apps/health/models.py` | `DailyHealthSummary` model (stores computed fields) |
+| `apps/health/views.py` | `HealthIntelligenceView` (page), `HealthRebuildView` (staff rebuild) |
+| `apps/health/urls.py` | Routes: `/intelligence/`, `/intelligence/rebuild/` |
+| `templates/health/intelligence.html` | Full intelligence page (5 sections, Chart.js) |
+| `templates/dashboard/tiles/health_intelligence.html` | Dashboard tile (2×2 grid, empty state) |
+| `apps/dashboard/views.py` | `_get_health_intelligence()` context method |
+| `apps/dashboard/services/config_service.py` | Tile definition for `health_intelligence` |
+| `docs/HEALTH_INTELLIGENCE_ENGINE.md` | Full technical documentation |
+
+### Tests
+- 203 tests in `apps/health/tests/test_health_intelligence.py`
+- Covers: pipeline merge logic, zero-weight filtering, phase detection, plateau scoring, muscle preservation, UI views, empty states, staff rebuild
+
+---
+
+*Last updated: 2026-03-05*

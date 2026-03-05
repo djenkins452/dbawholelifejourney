@@ -1675,6 +1675,8 @@ def _get_health_intelligence_telemetry(now):
 def _get_ingestion_stats(since):
     """Get HealthKit ingestion pipeline stats since a given datetime."""
     try:
+        from collections import Counter
+
         from django.db.models import Sum
 
         from apps.mobile.models import HealthIngestionRun
@@ -1701,12 +1703,30 @@ def _get_ingestion_stats(since):
         # Count runs with partial/failed status
         error_runs = runs.filter(status__in=['partial', 'failed']).count()
 
+        # Aggregate validation errors for diagnostics
+        error_by_type = Counter()
+        error_samples = {}  # type -> first error message
+        for run in runs.filter(validation_errors__isnull=False).exclude(validation_errors=[]):
+            for err in (run.validation_errors or []):
+                mtype = err.get('type', 'unknown')
+                error_by_type[mtype] += 1
+                if mtype not in error_samples:
+                    error_samples[mtype] = err.get('error', '')[:120]
+
+        # Build top errors list (sorted by count desc)
+        top_errors = [
+            {'type': t, 'count': c, 'sample': error_samples.get(t, '')}
+            for t, c in error_by_type.most_common(10)
+        ]
+
         return {
             'runs': total_runs,
             'metrics_ingested': total_created + total_updated,
             'metrics_skipped': total_skipped,
+            'total_received': total_received,
             'error_rate': error_rate,
             'error_runs': error_runs,
+            'top_errors': top_errors,
         }
     except Exception:
         return {'runs': 0, 'metrics_ingested': None, 'error_rate': None}

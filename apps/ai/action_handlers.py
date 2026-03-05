@@ -3422,83 +3422,78 @@ class ActionHandler:
                             action_type='mutate_task',
                         )
 
-                # Apply updates
+                # Apply updates — skip fields that are already at the target value
                 updated_titles = []
                 changes_desc = []
+                any_actual_change = False
                 for task in tasks:
                     update_fields = ['updated_at']
 
-                    if parsed_due is not None:
+                    if parsed_due is not None and task.due_date != parsed_due:
                         task.due_date = parsed_due
                         update_fields.append('due_date')
+                        any_actual_change = True
 
-                    if parsed_time is not None:
+                    if parsed_time is not None and task.scheduled_time != parsed_time:
                         task.scheduled_time = parsed_time
                         update_fields.append('scheduled_time')
+                        any_actual_change = True
 
-                    if parsed_end_time is not None:
+                    if parsed_end_time is not None and task.scheduled_end_time != parsed_end_time:
                         task.scheduled_end_time = parsed_end_time
                         update_fields.append('scheduled_end_time')
+                        any_actual_change = True
 
-                    if new_title:
+                    if new_title and task.title != new_title:
                         task.title = new_title
                         update_fields.append('title')
+                        any_actual_change = True
 
-                    if new_notes:
+                    if new_notes and task.notes != new_notes:
                         task.notes = new_notes
                         update_fields.append('notes')
+                        any_actual_change = True
 
-                    if new_effort:
+                    if new_effort and task.effort != new_effort:
                         task.effort = new_effort
                         update_fields.append('effort')
+                        any_actual_change = True
 
-                    task.save(update_fields=update_fields)
-
-                    # Sync calendar event if task has one
-                    try:
-                        from apps.calendar_engine.models import CalendarEvent
-                        cal_events = CalendarEvent.objects.filter(
-                            user=self.user,
-                            source_type='task',
-                            source_id=str(task.id),
-                            is_deleted=False,
-                        )
-                        for ce in cal_events:
-                            cal_updates = []
-                            if parsed_due is not None:
-                                ce.start_date = parsed_due
-                                ce.end_date = parsed_due
-                                cal_updates.extend(['start_date', 'end_date'])
-                            if parsed_time is not None:
-                                ce.start_time = parsed_time
-                                cal_updates.append('start_time')
-                            if parsed_end_time is not None:
-                                ce.end_time = parsed_end_time
-                                cal_updates.append('end_time')
-                            if new_title:
-                                ce.title = new_title
-                                cal_updates.append('title')
-                            if cal_updates:
-                                cal_updates.append('updated_at')
-                                ce.save(update_fields=cal_updates)
-                    except Exception:
-                        pass  # Calendar sync is best-effort
+                    if len(update_fields) > 1:
+                        # Only save if we actually changed something
+                        task.save(update_fields=update_fields)
 
                     updated_titles.append(task.title)
 
+                # If nothing actually changed, report that it's already set
+                if not any_actual_change:
+                    already_parts = []
+                    if parsed_due is not None:
+                        already_parts.append(f"due {parsed_due.strftime('%b %d')}")
+                    if parsed_time is not None:
+                        already_parts.append(f"at {parsed_time.strftime('%I:%M %p').lstrip('0')}")
+                    title_list = ', '.join(f"'{t}'" for t in updated_titles)
+                    already_desc = ' → '.join(already_parts) if already_parts else 'at the requested values'
+                    return ActionResult(
+                        success=True,
+                        message=f"{title_list} is already {already_desc}. No changes needed.",
+                        action_type='mutate_task',
+                    )
+
                 # Build change description
-                if parsed_due is not None:
+                if parsed_due is not None and 'due_date' in update_fields:
                     changes_desc.append(f"due {parsed_due.strftime('%b %d')}")
                 if parsed_time is not None and parsed_end_time is not None:
-                    changes_desc.append(
-                        f"at {parsed_time.strftime('%I:%M %p').lstrip('0')} – "
-                        f"{parsed_end_time.strftime('%I:%M %p').lstrip('0')}"
-                    )
-                elif parsed_time is not None:
+                    if 'scheduled_time' in update_fields or 'scheduled_end_time' in update_fields:
+                        changes_desc.append(
+                            f"at {parsed_time.strftime('%I:%M %p').lstrip('0')} – "
+                            f"{parsed_end_time.strftime('%I:%M %p').lstrip('0')}"
+                        )
+                elif parsed_time is not None and 'scheduled_time' in update_fields:
                     changes_desc.append(f"at {parsed_time.strftime('%I:%M %p').lstrip('0')}")
-                elif parsed_end_time is not None:
+                elif parsed_end_time is not None and 'scheduled_end_time' in update_fields:
                     changes_desc.append(f"end time {parsed_end_time.strftime('%I:%M %p').lstrip('0')}")
-                if new_title:
+                if new_title and 'title' in update_fields:
                     changes_desc.append(f"renamed to '{new_title}'")
                 if new_effort:
                     changes_desc.append(f"effort: {new_effort}")

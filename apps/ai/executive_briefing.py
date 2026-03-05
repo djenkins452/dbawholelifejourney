@@ -637,7 +637,9 @@ def _build_day_overview_section(user, user_now, today) -> str:
 
         events = CalendarEvent.objects.filter(
             user=user, start_dt__date=today
-        ).exclude(status='canceled').order_by('start_dt')[:10]
+        ).exclude(status='canceled').exclude(
+            deleted_at__isnull=False
+        ).order_by('start_dt')[:10]
 
         event_list = list(events)
         if not event_list:

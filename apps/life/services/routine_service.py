@@ -103,7 +103,8 @@ class RoutineTaskService:
     def schedule_cos_prompts(task, calendar_event):
         """
         Schedule pre- and post-activity CoS prompts for a routine task.
-        Uses the existing CosPromptService.
+        Cancels any stale pending prompts first to prevent the assistant
+        from referencing outdated schedule data after a reschedule.
 
         Args:
             task: Task instance
@@ -118,6 +119,12 @@ class RoutineTaskService:
             from apps.cos.services.prompt_service import CosPromptService
 
             svc = CosPromptService(task.user)
+
+            # Cancel any existing pending prompts for this event before
+            # scheduling new ones — prevents stale prompts firing after
+            # a task reschedule.
+            svc.cancel_prompts_for_event(calendar_event)
+
             prompts = svc.schedule_prompts_for_event(
                 source_object=calendar_event,
                 activity_type=None,  # auto-detect from title

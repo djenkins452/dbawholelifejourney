@@ -9,6 +9,33 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Fix stale CoS prompts after task reschedule + false update confirmations
+
+**What:** When a task was rescheduled (due_date changed), old CosPromptSchedule entries were never canceled. This caused the assistant to reference already-rescheduled tasks in check-in messages (e.g., "gearing up for your 'Dude Ranches' session at 10:00 AM" at 6 PM after the task was moved to the next day). Additionally, when the user corrected the assistant ("I already moved it"), the action handler blindly re-applied the same values and falsely reported "Updated → due Mar 06" even though nothing changed.
+
+**Root cause:** Three-layer failure:
+1. CosPromptSchedule entries not canceled when CalendarEvent times change in projection service
+2. No validation of source events at prompt delivery/injection time
+3. Action handler not checking if requested values match current values (no-op detection)
+
+**Changes:**
+- `apps/calendar_engine/services/projection.py` — Added `_cancel_stale_cos_prompts()` helper; called from `upsert_from_routine_task()` and `upsert_from_task()` when CalendarEvent start_dt changes
+- `apps/life/services/routine_service.py` — `schedule_cos_prompts()` now cancels existing pending prompts before scheduling new ones
+- `apps/cos/services/prompt_service.py` — Added `_is_prompt_stale_static()` validation; `deliver_prompt()` expires stale prompts; `get_pending_prompt_injection()` filters out stale prompts at injection time
+- `apps/ai/action_handlers.py` — Task update handler now detects no-op updates (values already at target) and reports "already set to X" instead of falsely claiming a change
+- `apps/ai/executive_briefing.py` — Added `exclude(deleted_at__isnull=False)` to day overview CalendarEvent query
+
+**Files Modified:**
+- `apps/calendar_engine/services/projection.py`
+- `apps/life/services/routine_service.py`
+- `apps/cos/services/prompt_service.py`
+- `apps/ai/action_handlers.py`
+- `apps/ai/executive_briefing.py`
+
+**Why:** The assistant was taking "one step forward and four back" — successfully rescheduling tasks but then referencing stale schedules in proactive check-ins, and falsely confirming already-done actions when the user corrected it.
+
+---
+
 ## 2026-03-05 — Fix blood pressure & body temperature timestamp parsing
 
 **What:** Both `process_blood_pressure_metric()` and `process_body_temperature_metric()` used `django.utils.dateparse.parse_datetime()` which silently returns `None` for ISO8601 timestamps with "Z" suffix (what iOS sends). Every reading was stored at noon instead of actual measurement time.

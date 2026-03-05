@@ -210,10 +210,21 @@ class CosPromptService:
         """
         Deliver a single prompt.
 
-        Applies tone modifier, marks as delivered, and optionally routes
-        through DNE. Returns True if delivered successfully.
+        Validates the source event is still relevant, applies tone modifier,
+        marks as delivered, and optionally routes through DNE.
+        Returns True if delivered successfully.
         """
         if prompt.status != CosPromptSchedule.STATUS_PENDING:
+            return False
+
+        # Safety net: verify source event hasn't been rescheduled or canceled.
+        # This catches edge cases where prompt cancellation was missed.
+        if self._is_prompt_stale(prompt):
+            prompt.mark_expired()
+            logger.debug(
+                "Expired stale prompt %s — source event rescheduled/canceled",
+                prompt.pk,
+            )
             return False
 
         try:
@@ -679,6 +690,9 @@ class CosPromptService:
         Injected into both streaming fast-path and full-path so CoS can
         naturally mention upcoming activities when the user interacts.
 
+        Validates each prompt's source event is still scheduled — skips
+        prompts for rescheduled/canceled events to prevent stale references.
+
         Returns:
             str — formatted injection, or "" if nothing pending.
         """
@@ -696,7 +710,16 @@ class CosPromptService:
             return ""
 
         lines = ["--- PENDING ACTIVITY PROMPTS ---"]
+        valid_count = 0
         for prompt in pending:
+            # Validate source event is still current — expire stale prompts
+            if CosPromptService._is_prompt_stale_static(prompt):
+                prompt.mark_expired()
+                logger.debug(
+                    "Expired stale prompt %s at injection time", prompt.pk,
+                )
+                continue
+
             delta_seconds = (prompt.scheduled_for - now).total_seconds()
             minutes_until = delta_seconds / 60
             if minutes_until <= 0:
@@ -708,6 +731,10 @@ class CosPromptService:
 
             activity_label = prompt.activity_type.replace("_", " ").title()
             lines.append(f"  {tag} {activity_label}: {prompt.prompt_text[:150]}")
+            valid_count += 1
+
+        if valid_count == 0:
+            return ""
 
         lines.append(
             "Weave these naturally into conversation. Don't list them — "
@@ -715,6 +742,47 @@ class CosPromptService:
         )
         lines.append("--- END PENDING PROMPTS ---")
         return "\n".join(lines)
+
+    # ── Staleness validation ─────────────────────────────
+
+    def _is_prompt_stale(self, prompt: CosPromptSchedule) -> bool:
+        """Instance method wrapper for staleness check."""
+        return CosPromptService._is_prompt_stale_static(prompt)
+
+    @staticmethod
+    def _is_prompt_stale_static(prompt: CosPromptSchedule) -> bool:
+        """
+        Check if a prompt's source event has been canceled, completed,
+        or deleted.
+
+        Returns True if the prompt should be expired/skipped.
+
+        Note: Timing drift (event rescheduled) is handled by the
+        projection service which cancels prompts when CalendarEvent
+        times change. This method is a safety net for status checks only.
+        """
+        try:
+            source = prompt.source_entity
+            if source is None:
+                return True  # Source deleted
+
+            # Check CalendarEvent-specific staleness
+            from apps.calendar_engine.models import CalendarEvent
+            if isinstance(source, CalendarEvent):
+                if source.status in (
+                    CalendarEvent.STATUS_CANCELED,
+                    CalendarEvent.STATUS_COMPLETED,
+                ):
+                    return True
+                # Also check soft-delete
+                if getattr(source, 'deleted_at', None) is not None:
+                    return True
+
+            return False
+        except Exception:
+            # If we can't validate, let it through rather than silently
+            # dropping potentially valid prompts.
+            return False
 
     # ── Private helpers ───────────────────────────────────
 

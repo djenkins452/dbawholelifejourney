@@ -27,6 +27,27 @@ def _log_schedule_change(user, event, old_start, new_start):
         logger.debug("Drift logging skipped for event %s: %s", event.pk, e)
 
 
+def _cancel_stale_cos_prompts(user, calendar_event):
+    """
+    Cancel any pending CosPromptSchedule entries for a CalendarEvent
+    whose times have changed. Prevents the assistant from referencing
+    stale schedule data after a task/event is rescheduled.
+    """
+    try:
+        from apps.cos.services.prompt_service import CosPromptService
+        svc = CosPromptService(user)
+        canceled = svc.cancel_prompts_for_event(calendar_event)
+        if canceled:
+            logger.debug(
+                "Canceled %d stale CoS prompt(s) for rescheduled event %s",
+                canceled, calendar_event.pk,
+            )
+    except ImportError:
+        pass  # CoS module not installed
+    except Exception as e:
+        logger.debug("CoS prompt cancellation skipped: %s", e)
+
+
 def _get_default_domain(slug='work'):
     """Get a LifeDomain by slug, or None if not found."""
     from apps.purpose.models import LifeDomain
@@ -155,6 +176,11 @@ def upsert_from_task(task):
             existing.status = CalendarEvent.STATUS_SCHEDULED
         existing.save()
         _log_schedule_change(task.user, existing, old_start, start_dt)
+
+        # Cancel stale CoS prompts when due date changes
+        if old_start != start_dt:
+            _cancel_stale_cos_prompts(task.user, existing)
+
         return existing
 
     task_title = f"Due: {task.title}"
@@ -236,6 +262,12 @@ def upsert_from_routine_task(task):
         existing.status = status
         existing.save()
         _log_schedule_change(task.user, existing, old_start, start_dt)
+
+        # If times changed, cancel stale CosPromptSchedule entries so
+        # the assistant doesn't reference the old schedule.
+        if old_start != start_dt:
+            _cancel_stale_cos_prompts(task.user, existing)
+
         return existing
 
     return CalendarEvent.objects.create(

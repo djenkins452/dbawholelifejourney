@@ -195,6 +195,7 @@ The 5-point registration:
 
 | Doc | When to Read |
 |-----|-------------|
+| `docs/ENGINE_COS_REFERENCE.md` | **Engine/CoS changes — AUTO-MAINTAIN (see below)** |
 | `docs/INTELLIGENCE_ARCHITECTURE.md` | AI/intelligence feature work |
 | `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md` | AI/intelligence feature work |
 | `docs/ENGINE_INTEGRATION_GUIDE.md` | Wiring new features into engines |
@@ -210,4 +211,27 @@ The 5-point registration:
 
 ---
 
-*Last updated: 2026-02-19*
+## Auto-Maintain: Engine & CoS Reference (REQUIRED)
+
+**When you modify ANY of these areas, update `docs/ENGINE_COS_REFERENCE.md` to reflect the change:**
+
+- Engine files (`apps/core/ai_*/`, `apps/core/blueprint/`)
+- CoS context builder (`apps/core/ai_orchestrator/cos_context.py`)
+- Proactive check-ins (`apps/ai/proactive_checkins.py`, `apps/ai/assistant_intelligence.py`)
+- Celery Beat schedule (`config/settings.py` CELERY_BEAT_SCHEDULE)
+- ISE scheduler registry (`apps/core/ai_scheduler/scheduler_registry.py`)
+- Intelligence models (Insight, Prediction, GuidanceItem, UserState)
+- SAE state builders (`apps/core/ai_state/state_builder.py`)
+- Chat pipeline (`apps/ai/personal_assistant.py :: send_message()`, `apps/ai/views.py`)
+
+**What to update in the doc:**
+- Engine inventory table (new/renamed/removed engines)
+- Schedule tables (changed intervals or new scheduled tasks)
+- CoS context pipeline (new builders, changed data sources, new cache keys)
+- Known bugs section (new bugs found, bugs fixed — mark as FIXED with date)
+- Key file paths (new files, renamed files)
+- Update the "Last updated" date at the top
+
+---
+
+*Last updated: 2026-03-05*

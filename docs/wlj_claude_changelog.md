@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Add Engine & CoS Reference Document
+
+**What:** Created `docs/ENGINE_COS_REFERENCE.md` — a comprehensive, auto-maintained reference documenting all 50+ engines, the CoS context pipeline, proactive check-in system, truth layer architecture, known bugs, and recommended fixes. Updated CLAUDE.md with auto-maintenance rules so the document stays current.
+
+**Why:** Eliminates repeated deep-dive research sessions. Provides a single source of truth for engine inventory, scheduling, CoS data flow, and known issues (medicine name gaps, false completion claims, SAE bypass).
+
+**Changes:**
+- `docs/ENGINE_COS_REFERENCE.md` — NEW: Full engine inventory, CoS context map, medication pipeline findings, task completion findings, truth layer architecture, gap analysis, recommended fixes, key file paths
+- `CLAUDE.md` — Added `docs/ENGINE_COS_REFERENCE.md` to reference docs table; added "Auto-Maintain: Engine & CoS Reference" section with trigger rules for when to update
+
+**Key findings documented:**
+- BUG: Medicine names collected but dropped by template (no `{names}` placeholder in `grouped_meds_due`)
+- BUG: CoS marks past-time events as `[done]` without checking `CalendarEvent.status` field
+- GAP: CoS goal_gap_analyzer and diagnostic_context bypass SAE and query raw tables
+- RECOMMENDED: Option C (truth adapter) — refactor CoS to use SAE + engine outputs only
+
+---
+
 ## 2026-03-05 — Fix Body Fat Pipeline + Dashboard Tile Improvements
 
 **What:** Fixed body fat data pipeline bug where HealthKit body_fat and weight arriving on separate WeightEntry records caused intelligence fields to silently fail. Improved Health Intelligence tile with empty state guidance and better "Awaiting data" labels. Overhauled Relationships tile with score badge, two display modes (attention vs healthy), anchor persons, and insight lines.

@@ -371,20 +371,27 @@ class DailyHealthSummaryBuilder:
         }
 
     def _collect_weight_and_composition(self, user, target_date):
-        """Collect weight and body composition data."""
+        """Collect weight and body composition data.
+
+        Merges data from multiple WeightEntry records on the same day.
+        HealthKit may sync weight and body_fat_percentage as separate
+        records — body_fat creates a placeholder entry with value=0.
+        We skip placeholders for weight but still collect body_fat from them.
+        """
         from apps.health.models import BodyCompositionEntry, WeightEntry
 
         result = {}
 
-        # Weight (latest of day)
-        weight = (
+        # All weight entries for the day
+        day_entries = (
             WeightEntry.objects
             .filter(user=user, recorded_at__date=target_date)
             .order_by("-recorded_at")
-            .first()
         )
+
+        # Weight: pick latest entry with a real weight (skip value=0 placeholders)
+        weight = day_entries.filter(value__gt=0).first()
         if weight:
-            # Convert to lbs if needed
             if weight.unit == "kg":
                 result["weight"] = Decimal(str(round(float(weight.value) * 2.20462, 2)))
             else:
@@ -393,6 +400,19 @@ class DailyHealthSummaryBuilder:
                 result["body_fat_pct"] = weight.body_fat_percentage
             if weight.lean_body_mass:
                 result["lean_mass"] = weight.lean_body_mass
+
+        # Merge body_fat_percentage from ANY entry on the same day if not yet set
+        # (handles HealthKit body_fat arriving on a separate placeholder entry)
+        if not result.get("body_fat_pct"):
+            bf_entry = day_entries.filter(body_fat_percentage__isnull=False).first()
+            if bf_entry:
+                result["body_fat_pct"] = bf_entry.body_fat_percentage
+
+        # Merge lean_body_mass similarly
+        if not result.get("lean_mass"):
+            lbm_entry = day_entries.filter(lean_body_mass__isnull=False).first()
+            if lbm_entry:
+                result["lean_mass"] = lbm_entry.lean_body_mass
 
         # Body composition — BodyCompositionEntry is a flexible key-value model
         # with metric_name, value, unit, measurement_date

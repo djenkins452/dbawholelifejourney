@@ -414,6 +414,37 @@ DNE (delivery_engine.py) → DeliveredNotification (in-app / email / SMS)
 
 ---
 
+### FIX APPLIED: Health Intelligence Enum-Only CoS Output (2026-03-05)
+
+**Status:** FIXED
+
+**Problem:** CoS paraphrased health intelligence enums ("in the fat loss phase", "muscle preservation is stable") instead of quoting exact DHS enum values. Also ignored "keep it short" requests by adding sleep/calendar content.
+
+**Changes:**
+1. `cos_context.py :: _format_health_intelligence_block()` — Added prominent HEALTH INTELLIGENCE STATUS sub-block at the top with exact enum values + UNKNOWN placeholders + strict verbatim-quote rule
+2. `cos_health_context.py :: build_cos_health_intelligence()` — Added `last_computed` timestamp to body_comp_intelligence dict
+3. `personal_assistant.py :: _classify_response_mode()` — "keep it short", "keep it brief", "just the numbers", "tl;dr" now classify as `brief` mode
+4. `personal_assistant.py :: _generate_response()` — Health intelligence keyword detection adds strict enum-only format rule; brief mode + health intel = mandatory 4-line output
+5. `health_response_validator.py` — Added `_check_health_intelligence_enums()`: rejects "stable"/"good" for muscle status, rejects paraphrased phase language
+6. Tests: `apps/ai/tests/test_health_intelligence_cos.py` — 21 tests covering enum rendering, UNKNOWN placeholders, validator enforcement, response mode classification
+
+**CoS Output Contract:**
+```
+When asked: "What is my fat loss phase, plateau risk, and muscle preservation status? Keep it short."
+Must respond:
+  Fat loss phase: STABLE_FAT_LOSS
+  Plateau risk: LOW
+  Muscle preservation: HIGH_QUALITY
+  Last updated: 2026-03-05T08:00:00
+```
+
+Valid enums:
+- `fat_loss_phase`: RAPID_INITIAL_LOSS, STABLE_FAT_LOSS, RECOMPOSITION, PLATEAU, REBOUND_RISK
+- `plateau_risk_label`: LOW, RISING, HIGH
+- `muscle_preservation_status`: HIGH_QUALITY, MODERATE_QUALITY, MUSCLE_RISK
+
+---
+
 ## Recommended Fixes
 
 ### Fix 1: Add Medicine Names to CoS Context (3 files)

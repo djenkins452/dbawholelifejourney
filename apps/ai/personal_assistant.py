@@ -4727,6 +4727,33 @@ Rules for voice responses:
         }
         rules_block = mode_rules.get(response_mode, mode_rules['adaptive'])
 
+        # Health intelligence status: strict enum-only format
+        _hi_keywords = [
+            'fat loss phase', 'plateau risk', 'muscle preservation',
+            'health intelligence status', 'body comp status',
+        ]
+        _is_health_intel_query = any(kw in message.lower() for kw in _hi_keywords)
+        if _is_health_intel_query:
+            rules_block += (
+                "\n- HEALTH INTELLIGENCE FORMAT: The user is asking about health "
+                "intelligence status fields. Respond using ONLY the enum values from "
+                "the HEALTH INTELLIGENCE STATUS block in your context. "
+                "Valid enums — fat_loss_phase: RAPID_INITIAL_LOSS, STABLE_FAT_LOSS, "
+                "RECOMPOSITION, PLATEAU, REBOUND_RISK. plateau_risk_label: LOW, RISING, HIGH. "
+                "muscle_preservation_status: HIGH_QUALITY, MODERATE_QUALITY, MUSCLE_RISK. "
+                "If a value is UNKNOWN, say 'UNKNOWN (awaiting data)'. "
+                "Do NOT paraphrase enums (e.g., do NOT say 'stable' for muscle status)."
+            )
+            if response_mode == 'brief':
+                rules_block += (
+                    "\n- STRICT SHORT FORMAT: Output EXACTLY 4 lines, nothing more:\n"
+                    "  Fat loss phase: <ENUM>\n"
+                    "  Plateau risk: <ENUM>\n"
+                    "  Muscle preservation: <ENUM>\n"
+                    "  Last updated: <date/time>\n"
+                    "  Do NOT add schedule, sleep, suggestions, or any other content."
+                )
+
         # Per-user response style preference (admin-configurable)
         style_pref = getattr(self.prefs, 'cos_response_style', 'balanced')
         style_nudge = ''
@@ -6083,7 +6110,12 @@ Rules for this response:
         msg = message.strip()
         msg_lower = msg.lower()
 
-        # Brief: short questions, yes/no, confirmations, greetings
+        # Brief: explicit brevity requests or short questions
+        if any(kw in msg_lower for kw in [
+            'keep it short', 'keep it brief', 'just the numbers',
+            'just the status', 'short answer', 'tl;dr',
+        ]):
+            return 'brief'
         if len(msg) < 40 and '?' in msg:
             return 'brief'
         if msg_lower in ('yes', 'no', 'ok', 'sure', 'thanks', 'thank you',

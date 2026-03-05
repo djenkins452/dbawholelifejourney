@@ -1,6 +1,23 @@
 [
   {
     "model": "help.teachingdestination",
+    "pk": 176,
+    "fields": {
+      "destination_id": "health-intelligence",
+      "name": "Health Intelligence",
+      "path_description": "Health - Intelligence",
+      "explanation": "View your body composition intelligence: fat loss phase, plateau risk score, muscle preservation status, trend charts, and scan history. See plain-language explanations of what your data means and automatic risk warnings.",
+      "url": "/health/intelligence/",
+      "keywords": "health intelligence,body composition,fat loss,plateau risk,muscle preservation,body fat,lean mass,trend,phase,intelligence",
+      "module": "health",
+      "sort_order": 225,
+      "is_active": true,
+      "created_at": "2026-03-05T04:00:00Z",
+      "updated_at": "2026-03-05T04:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
     "pk": 175,
     "fields": {
       "destination_id": "life-recipe-bulk-import",

@@ -334,6 +334,17 @@ TILE_DEFINITIONS = {
         'mandatory': False,
         'default_order': 9,
     },
+    'health_intelligence': {
+        'id': 'health_intelligence',
+        'name': 'Health Intelligence',
+        'description': 'Body composition intelligence: fat loss phase, plateau risk, and muscle preservation status.',
+        'icon': 'brain',
+        'module_dependency': 'health_enabled',
+        'default_visible': True,
+        'default_size': 'medium',
+        'mandatory': False,
+        'default_order': 16,
+    },
 }
 
 

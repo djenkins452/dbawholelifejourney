@@ -1,6 +1,22 @@
 [
   {
     "model": "help.helptopic",
+    "pk": 114,
+    "fields": {
+      "context_id": "HEALTH_INTELLIGENCE",
+      "help_id": "health-intelligence",
+      "title": "Health Intelligence",
+      "description": "Body composition analysis with fat loss phase detection, plateau risk scoring, and muscle preservation tracking.",
+      "content": "## Health Intelligence\n\nThe Health Intelligence page shows your body composition analysis powered by nightly data processing. All numbers come from your daily health summary \u2014 no manual calculations needed.\n\n### What You'll See\n\n1. **Where You Are Now** \u2014 Four key metrics:\n   - **Fat Loss Phase** \u2014 Your current phase (Stable Fat Loss, Rapid Initial Loss, Recomposition, Plateau, or Rebound Risk)\n   - **Plateau Risk** \u2014 Score from 0\u2013100 with a label (Low, Rising, or High) plus a prediction window\n   - **Fat Loss Quality** \u2014 Whether you're preserving muscle during fat loss (High Quality, Moderate, or Muscle Risk)\n   - **Fat Loss Ratio** \u2014 The proportion of fat vs lean mass lost over 14 days\n\n2. **What It Means** \u2014 Plain-language explanations of each label so you understand what your numbers indicate\n\n3. **Risks & Warnings** \u2014 Automatic alerts when plateau risk is high, muscle preservation is at risk, or fat loss is too fast\n\n4. **Trend Graphs** \u2014 56-day charts showing weight, fat mass, lean mass, and plateau risk score over time\n\n5. **Scan History** \u2014 Your recent body composition scan entries\n\n### How Data Updates\n\nHealth intelligence updates nightly. If the data badge shows \u2018stale\u2019, it means the nightly process hasn\u2019t run recently. Your data will refresh automatically.\n\n### Dashboard Tile\n\nThe Health Intelligence tile on your dashboard shows the same four metrics at a glance. Tap it to visit this full page.\n\n### Tips\n\n- Log body composition scans regularly for better trend analysis\n- Fat loss ratio improves when you combine caloric deficit with strength training\n- A rising plateau risk doesn\u2019t mean you\u2019ll plateau \u2014 it\u2019s an early warning to adjust",
+      "app_name": "health",
+      "order": 114,
+      "is_active": true,
+      "created_at": "2026-03-05T04:00:00Z",
+      "updated_at": "2026-03-05T04:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
     "pk": 113,
     "fields": {
       "context_id": "RECIPE_SCAN",

@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 138,
+    "fields": {
+      "title": "Health Intelligence Dashboard",
+      "description": "See your body composition intelligence at a glance — fat loss phase, plateau risk, muscle preservation status, and fat loss quality now appear on your dashboard. Tap through to the full Health Intelligence page for trend charts, detailed explanations of what your numbers mean, risk warnings, and your scan history.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-05",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/health/intelligence/",
+      "created_at": "2026-03-05T04:00:00Z",
+      "updated_at": "2026-03-05T04:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 135,
     "fields": {
       "title": "Smarter Task & Habit Completion",

@@ -78,6 +78,10 @@ urlpatterns = [
     # Landing page at /health/
     path("", views.HealthLandingView.as_view(), name="landing"),
 
+    # Health Intelligence (cross-cutting — not under physical/)
+    path("intelligence/", views.HealthIntelligenceView.as_view(), name="health_intelligence"),
+    path("intelligence/rebuild/", views.HealthRebuildView.as_view(), name="health_rebuild"),
+
     # Physical Health dashboard at /health/physical/
     path("physical/", views.HealthHomeView.as_view(), name="home"),
 

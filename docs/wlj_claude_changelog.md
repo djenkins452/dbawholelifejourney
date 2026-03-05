@@ -9,6 +9,33 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Health Intelligence UI: Dashboard Tile, Intelligence Page, Admin Rebuild, Ops Enhancement
+
+**What:** Added full UI layer for the Health Intelligence Engine — dashboard tile, dedicated `/health/intelligence/` page with 5 sections and charts, admin rebuild endpoint, and enhanced Ops Command Center tile with nightly task metrics.
+
+**Why:** The Health Intelligence Engine was fully built and populating DailyHealthSummary nightly, but had zero UI visibility. Users couldn't see fat loss phase, plateau risk, muscle preservation status, or trend charts. Staff couldn't trigger rebuilds without shell access.
+
+**Changes:**
+- `apps/dashboard/services/config_service.py` — Added `health_intelligence` tile definition (medium, health_enabled dependency)
+- `apps/dashboard/views.py` — Added `_get_health_intelligence()` method to query latest DailyHealthSummary for dashboard context
+- `templates/dashboard/tiles/health_intelligence.html` — NEW: Dashboard tile with 2x2 metric grid, color-coded badges, stale warning
+- `templates/dashboard/home.html` — Added tile dispatch for health_intelligence
+- `apps/health/views.py` — Added `HealthIntelligenceView` (5-section page with chart data) and `HealthRebuildView` (staff-only Celery task trigger)
+- `apps/health/urls.py` — Added routes: `intelligence/`, `intelligence/rebuild/`
+- `templates/health/intelligence.html` — NEW: Full page with Where You Are Now, What It Means, Risks & Warnings, Trend Graphs (Chart.js), Scan History
+- `apps/core/ai_observability/ops_views.py` — Extended health telemetry with nightly task metrics, added `rebuild_health_summaries` action
+- `templates/admin_console/operations_wall.html` — Added rebuild button + nightly task card to Health Intelligence tile
+- `apps/health/tests/test_health_intelligence.py` — Added 8 UI tests (view, rebuild, tile registration)
+- `docs/HEALTH_INTELLIGENCE_ENGINE.md` — Added UI Layer section
+- `apps/core/fixtures/release_notes.json` — Added release note (PK 138)
+- `apps/help/fixtures/help_topics.json` — Added HEALTH_INTELLIGENCE help topic (PK 114)
+- `apps/help/fixtures/teaching_destinations.json` — Added teaching destination (PK 176)
+- `apps/core/management/commands/load_initial_data.py` — Added fixture reset for health intelligence UI
+
+**Tests:** 198 health intelligence tests passing, dashboard tests passing.
+
+---
+
 ## 2026-03-05 — Add fetch timeouts + eliminate cheerleader language from CoS prompts
 
 **What:** Added AbortController timeouts (60s streaming, 90s fallback) to prevent indefinite browser hangs, and eliminated cheerleader language contradictions in the system prompt.
@@ -35,7 +62,7 @@
 
 **What:** Added the check-in pre-filter to the streaming chat path (`send_message_stream`) and added negative examples to the intent service system prompt to prevent conversational check-ins from being misclassified as `read_task` intents.
 
-**Why:** When user asked "anything left for me to do today?" the streaming path had no pre-filter, so the intent service classified it as `read_task` → handler returned terse "No tasks found." instead of a warm, data-driven CoS summary. The non-streaming path already had this pre-filter but it was never ported to the streaming path.
+**Why:** When user asked "anything left for me to do today?" the streaming path had no pre-filter, so the intent service classified it as `read_task` -> handler returned terse "No tasks found." instead of a warm, data-driven CoS summary. The non-streaming path already had this pre-filter but it was never ported to the streaming path.
 
 **Changes:**
 - `apps/ai/personal_assistant.py` — Added full check-in pre-filter pattern list to `send_message_stream()` before intent recognition block; added `_is_checkin_stream` flag to skip intent service when detected; added "anything left" pattern
@@ -52,7 +79,7 @@
 **Why:** The medication check was querying wrong field names (`date` instead of `scheduled_date`, `status` instead of `log_status`), causing it to always miss existing logs and falsely report medications as missed. The reasoning chain had no step for proactive suggestions. The chat error handler showed the same message for all failure types.
 
 **Changes:**
-- `apps/ai/assistant_intelligence.py` — Fixed `_check_missed_medications()`: `date` → `scheduled_date`, `time` → `scheduled_time`, `status` → `log_status`; also added `'late'` to the handled statuses
+- `apps/ai/assistant_intelligence.py` — Fixed `_check_missed_medications()`: `date` -> `scheduled_date`, `time` -> `scheduled_time`, `status` -> `log_status`; also added `'late'` to the handled statuses
 - `apps/ai/personal_assistant.py` — Added step 7 (PROACTIVE OPPORTUNITY) to reasoning instruction in both full and fast context paths
 - `templates/components/assistant_panel.html` — Improved non-streaming error handler: added HTTP status check, differentiated server errors from network errors, added console.error logging
 

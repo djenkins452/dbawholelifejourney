@@ -1059,9 +1059,29 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 .ops-health-intel-status.OK { color: var(--ops-green); background: var(--ops-green-dim); }
 .ops-health-intel-status.STALE { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
 .ops-health-intel-status.ERROR { color: var(--ops-red); background: var(--ops-red-dim); }
+.ops-health-intel-rebuild-btn {
+    margin-left: auto;
+    font-size: 0.5rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border: 1px solid var(--ops-border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ops-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.ops-health-intel-rebuild-btn:hover {
+    color: var(--ops-green);
+    border-color: var(--ops-green);
+}
+.ops-health-intel-rebuild-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
 .ops-health-intel-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 10px;
 }
 .ops-health-intel-card {
@@ -1346,6 +1366,9 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
             <div class="ops-health-intel-pulse ERROR" id="healthIntelPulse"></div>
             <span class="ops-health-intel-title">Health Intelligence Engine</span>
             <span class="ops-health-intel-status ERROR" id="healthIntelStatus">INITIALIZING</span>
+            <button class="ops-health-intel-rebuild-btn" id="hiRebuildBtn" title="Queue nightly health summary rebuild">
+                &#8635; Rebuild
+            </button>
         </div>
         <div class="ops-health-intel-grid">
             <!-- Summary Freshness -->
@@ -1410,6 +1433,22 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
                 <div class="ops-health-intel-metric">
                     <span class="ops-health-intel-metric-label">Error Rate</span>
                     <span class="ops-health-intel-metric-value" id="hiErrorRate">0%</span>
+                </div>
+            </div>
+            <!-- Nightly Task -->
+            <div class="ops-health-intel-card">
+                <div class="ops-health-intel-card-title">Nightly Task (24h)</div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">Built</span>
+                    <span class="ops-health-intel-metric-value" id="hiBuilt24h">0</span>
+                </div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">Users</span>
+                    <span class="ops-health-intel-metric-value" id="hiUsersProcessed24h">0</span>
+                </div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">Missing</span>
+                    <span class="ops-health-intel-metric-value" id="hiOldestMissing">&mdash;</span>
                 </div>
             </div>
         </div>
@@ -2375,6 +2414,12 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
         _setVal('hiIngestRuns', ingest.runs);
         _setVal('hiMetricsIngested', ingest.metrics_ingested);
         _setVal('hiErrorRate', ingest.error_rate !== null && ingest.error_rate !== undefined ? ingest.error_rate + '%' : null);
+
+        // Nightly task
+        var nightly = hi.nightly_task || {};
+        _setVal('hiBuilt24h', nightly.summaries_built_24h);
+        _setVal('hiUsersProcessed24h', nightly.users_processed_24h);
+        _setVal('hiOldestMissing', nightly.oldest_missing_user ? nightly.oldest_missing_user.split('@')[0] : 'none');
     }
 
     function renderPosture(posture, narrative) {
@@ -3071,6 +3116,18 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
         var btn = e.target.closest('[data-action]');
         if (!btn) return;
         executeAction(btn.dataset.action, btn.dataset.engine || '', btn);
+    });
+
+    // Health Intelligence rebuild button
+    document.getElementById('hiRebuildBtn').addEventListener('click', function() {
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Queuing...';
+        executeAction('rebuild_health_summaries', 'HIE', btn);
+        setTimeout(function() {
+            btn.disabled = false;
+            btn.textContent = '\u21BB Rebuild';
+        }, 3000);
     });
 
     // Wall Mode keyboard shortcut (W key)

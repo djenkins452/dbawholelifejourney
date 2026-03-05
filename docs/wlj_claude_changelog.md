@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Add fetch timeouts + eliminate cheerleader language from CoS prompts
+
+**What:** Added AbortController timeouts (60s streaming, 90s fallback) to prevent indefinite browser hangs, and eliminated cheerleader language contradictions in the system prompt.
+
+**Why:** The CoS streaming and non-streaming fetch calls had no timeout, causing "Could not reach the server" errors when the server was slow. The system prompt banned cheerleader language at line 172 but contradicted itself with "crushing it", "strong execution", and "meaningful progress" examples in other sections, causing the AI to produce praise-laden responses.
+
+**Changes:**
+- `templates/components/assistant_panel.html` — Added AbortController with 60s timeout on streaming fetch, 90s on non-streaming fallback; added timeout-specific error message ("response took too long")
+- `apps/ai/personal_assistant.py` — Expanded cheerleader ban with explicit forbidden word list; replaced "strong execution" example with factual language; replaced "meaningful progress" example; rewrote reasoning step 4b to use factual acknowledgment instead of "crushing it"; clarified personal sharing acknowledgment must not use praise
+
+**Files:** `templates/components/assistant_panel.html`, `apps/ai/personal_assistant.py`
+
+---
+
 ## 2026-03-05 — Fix CoS "No tasks found" for conversational check-in queries (streaming path)
 
 **What:** Added the check-in pre-filter to the streaming chat path (`send_message_stream`) and added negative examples to the intent service system prompt to prevent conversational check-ins from being misclassified as `read_task` intents.

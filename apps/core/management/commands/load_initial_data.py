@@ -917,6 +917,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Email Medicine List feature (PK 134 + teaching/help updates)
         self._reset_email_medicine_list_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Backfill health intelligence enhancements (plateau risk, phase, muscle preservation)
+        self._backfill_health_intelligence_enhancements(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5370,3 +5373,39 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset email medicine list fixtures FAILED: {e}'))
+
+    def _backfill_health_intelligence_enhancements(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time backfill for health intelligence enhancements (March 2026).
+
+        Rebuilds DailyHealthSummary for last 90 days to populate new fields:
+        plateau_risk_score, plateau_risk_label, plateau_prediction_window_days,
+        fat_loss_phase, phase_confidence, phase_start_date, muscle_preservation_status.
+
+        Only runs once (tracked via DataLoadConfig).
+        """
+        loader_name = 'backfill_health_intel_enhancements_2026_03'
+
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            return
+
+        try:
+            if verbosity >= 1:
+                self.stdout.write('  Backfilling health intelligence enhancements (90 days)...')
+
+            from django.core.management import call_command
+            call_command('build_daily_health_summaries', '--days', '90', verbosity=0)
+
+            if verbosity >= 1:
+                self.stdout.write(self.style.SUCCESS('  Health intelligence backfill complete'))
+
+            self._mark_loader_complete(
+                DataLoadConfig, loader_name,
+                'Backfill Health Intelligence Enhancements',
+                'command',
+                'One-time 90-day backfill for plateau risk, fat loss phase, muscle preservation fields'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Health intelligence backfill FAILED: {e}'))

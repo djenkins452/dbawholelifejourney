@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Fix CoS "No tasks found" for conversational check-in queries (streaming path)
+
+**What:** Added the check-in pre-filter to the streaming chat path (`send_message_stream`) and added negative examples to the intent service system prompt to prevent conversational check-ins from being misclassified as `read_task` intents.
+
+**Why:** When user asked "anything left for me to do today?" the streaming path had no pre-filter, so the intent service classified it as `read_task` → handler returned terse "No tasks found." instead of a warm, data-driven CoS summary. The non-streaming path already had this pre-filter but it was never ported to the streaming path.
+
+**Changes:**
+- `apps/ai/personal_assistant.py` — Added full check-in pre-filter pattern list to `send_message_stream()` before intent recognition block; added `_is_checkin_stream` flag to skip intent service when detected; added "anything left" pattern
+- `apps/ai/intent_service.py` — Added 3 negative examples to system prompt showing that conversational check-in queries should return NO ACTION
+
+**Files:** `apps/ai/personal_assistant.py`, `apps/ai/intent_service.py`
+
+---
+
 ## 2026-03-05 — Fix Medication False Alarm, Add Proactive Suggestions, Improve Chat Error Handling
 
 **What:** Fixed three user-reported issues: (1) AI incorrectly reporting missed medications that were already logged, (2) AI not being proactive with suggestions during conversations, (3) generic "Could not reach the server" error with no differentiation.

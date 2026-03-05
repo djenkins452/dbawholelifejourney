@@ -2676,6 +2676,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     'remaining today', 'remaining for today',
                     'tasks today', 'tasks for today',
                     'things to do', 'to-do list',
+                    'anything left',
                 ])
                 if _is_checkin_prefilter:
                     response = self._generate_response(
@@ -5427,6 +5428,7 @@ Rules for this response:
                 # =====================================================
                 _cos_context_cache = None
                 _direct_response = None
+                _is_checkin_stream = False
 
                 # Build cos_context (same as send_message ECC section)
                 try:
@@ -5544,11 +5546,71 @@ Rules for this response:
                             clar_err, exc_info=True,
                         )
 
+                # ── Check-in pre-filter (mirrors send_message Phase) ──
+                # Catch conversational status queries ("anything left to
+                # do today?", "what's on my plate?") BEFORE the intent
+                # service misclassifies them as read_task.
+                if not _direct_response:
+                    _msg_lower_stream = message.lower()
+                    _is_checkin_stream = any(
+                        p in _msg_lower_stream for p in [
+                            'check in', 'checking in', 'check-in',
+                            'checkin',
+                            "what's left", 'whats left', 'what is left',
+                            "what's remaining", 'whats remaining',
+                            'what do i have left',
+                            'what do i still need',
+                            'meds and journal', 'journal and meds',
+                            'meds and reading', 'reading and meds',
+                            'brief me', 'briefing', 'daily briefing',
+                            'run down my day', 'give me a rundown',
+                            'give me my status', 'status update',
+                            'status report',
+                            "how's my day", 'how is my day',
+                            "what's on my plate", 'whats on my plate',
+                            "what's left for me", 'whats left for me',
+                            'what still needs to be done',
+                            "what haven't i done",
+                            'my day look', 'day look like', 'day ahead',
+                            'what does my day', 'what is my day',
+                            'plan for today', 'plan for the day',
+                            'today look like', 'today looking like',
+                            'what should i do today',
+                            'what should i focus on',
+                            'what do i need to do',
+                            'walk me through my day',
+                            'my schedule today', 'my schedule look',
+                            'what am i doing today',
+                            'what have i got today',
+                            'where do i stand', 'where am i at',
+                            'catch me up', 'fill me in',
+                            'have to do today', 'to do today',
+                            "haven't completed", 'havent completed',
+                            "haven't done", 'havent done',
+                            "haven't finished", 'havent finished',
+                            'still need to do', 'need to finish',
+                            'left to do', 'left to finish',
+                            'still outstanding', 'still pending',
+                            'incomplete today', 'not done today',
+                            'remaining today', 'remaining for today',
+                            'tasks today', 'tasks for today',
+                            'things to do', 'to-do list',
+                            'anything left',
+                        ]
+                    )
+                    if _is_checkin_stream:
+                        # Skip intent service — go straight to LLM
+                        # with full CoS context (handled below at the
+                        # _generate_response_stream block).
+                        pass  # fall through to streaming LLM
+                    else:
+                        _direct_response = None  # allow intent processing
+
                 # ── Intent recognition (mirrors send_message Phase 7) ──
                 # Run intent recognition BEFORE streaming so action
                 # requests (create task, delete event, etc.) are handled
                 # by the action pipeline, not the conversational LLM.
-                if not _direct_response:
+                if not _direct_response and not _is_checkin_stream:
                     try:
                         from apps.ai.intent_service import intent_service
                         from apps.core.ai_orchestrator.orchestrator import (

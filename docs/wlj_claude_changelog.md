@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Fix blood pressure & body temperature timestamp parsing
+
+**What:** Both `process_blood_pressure_metric()` and `process_body_temperature_metric()` used `django.utils.dateparse.parse_datetime()` which silently returns `None` for ISO8601 timestamps with "Z" suffix (what iOS sends). Every reading was stored at noon instead of actual measurement time.
+
+**Changes:**
+- `apps/mobile/views.py` — Replaced `parse_datetime(recorded_at_str)` with `datetime.fromisoformat(recorded_at_str.replace("Z", "+00:00"))` in both handlers, matching the pattern used by blood_glucose and blood_oxygen handlers.
+
+**Files Modified:**
+- `apps/mobile/views.py`
+
+**Why:** Data fidelity — blood pressure and temperature readings should be stored at their actual measurement time, not noon. The "Z" suffix from Swift's ISO8601DateFormatter was causing silent parse failure.
+
+---
+
 ## 2026-03-05 — Add HealthKit ingestion error diagnostics to ops page
 
 **What:** Ops page showed "HEALTHKIT (24H): ERROR RATE 95.4%" but gave no visibility into what errors were actually occurring. The `HealthIngestionRun.validation_errors` JSON field stores detailed error info per metric, but this data was never surfaced.

@@ -1948,8 +1948,10 @@ def process_blood_pressure_metric(user, metric_date, source, sync_id, data):
     recorded_at = None
     if recorded_at_str:
         try:
-            from django.utils.dateparse import parse_datetime
-            recorded_at = parse_datetime(recorded_at_str)
+            # Handle both "Z" suffix and "+00:00" offset from iOS
+            recorded_at = datetime.fromisoformat(
+                recorded_at_str.replace("Z", "+00:00")
+            )
         except (TypeError, ValueError):
             pass
 
@@ -2021,8 +2023,10 @@ def process_body_temperature_metric(user, metric_date, source, sync_id, data):
     recorded_at = None
     if recorded_at_str:
         try:
-            from django.utils.dateparse import parse_datetime
-            recorded_at = parse_datetime(recorded_at_str)
+            # Handle both "Z" suffix and "+00:00" offset from iOS
+            recorded_at = datetime.fromisoformat(
+                recorded_at_str.replace("Z", "+00:00")
+            )
         except (TypeError, ValueError):
             pass
 

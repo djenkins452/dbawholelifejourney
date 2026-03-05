@@ -443,6 +443,33 @@ Valid enums:
 - `plateau_risk_label`: LOW, RISING, HIGH
 - `muscle_preservation_status`: HIGH_QUALITY, MODERATE_QUALITY, MUSCLE_RISK
 
+### No-Append Rule for STRICT_HEALTH_STATUS (2026-03-05)
+
+**Status:** ENFORCED
+
+**Problem:** Even with strict prompt rules and 100-token cap, LLM still appended sleep, calendar, and coaching content after the 4-line health status. Prompt engineering alone cannot guarantee format compliance.
+
+**Solution: Deterministic enforcement — LLM output is DISCARDED entirely.**
+
+When the user asks a health intelligence question with a brevity keyword ("keep it short", "tl;dr", etc.), the system:
+1. Detects health intel keywords + brevity keywords in the message
+2. Still sends the message to the LLM (for logging/observability)
+3. **Discards the LLM response completely**
+4. Calls `enforce_strict_health_status(cos_context)` which reads enum values directly from the CoS context dict
+5. Returns a deterministic 4-line string — no LLM involvement in the output
+
+**Enforcement points:**
+- **Non-streaming path** (`personal_assistant.py :: _generate_response()`, ~line 4950): After LLM response, replaces it with `enforce_strict_health_status()` output
+- **Streaming path** (`personal_assistant.py :: send_message_stream()`, ~line 5777): Sets `_direct_response` before LLM streaming begins, skips SSE streaming entirely
+
+**Key function:** `health_response_validator.py :: enforce_strict_health_status(cos_context) -> str`
+- Reads `cos_context['health_intelligence']['body_comp']` for enum values
+- Missing/None values → `UNKNOWN (awaiting data)`
+- Strips microseconds from ISO timestamps
+- Returns exactly 4 lines, no exceptions
+
+**Tests:** `apps/ai/tests/test_health_intelligence_cos.py` — 29 tests (8 specifically for `enforce_strict_health_status`)
+
 ---
 
 ## Recommended Fixes

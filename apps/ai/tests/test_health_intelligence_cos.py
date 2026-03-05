@@ -255,3 +255,127 @@ class TestHealthIntelligencePromptRules(TestCase):
         ]
         _is_health_intel_query = any(kw in msg_lower for kw in _hi_keywords)
         self.assertFalse(_is_health_intel_query)
+
+
+class TestEnforceStrictHealthStatus(TestCase):
+    """Test the deterministic 4-line health status enforcer."""
+
+    def _enforce(self, cos_context):
+        from apps.ai.validators.health_response_validator import (
+            enforce_strict_health_status,
+        )
+        return enforce_strict_health_status(cos_context)
+
+    def test_full_data_produces_exact_4_lines(self):
+        """With all data, output is exactly 4 non-empty lines."""
+        ctx = {
+            'health_intelligence': {
+                'body_comp': {
+                    'fat_loss_phase': 'STABLE_FAT_LOSS',
+                    'plateau_risk_label': 'RISING',
+                    'muscle_preservation_status': 'HIGH_QUALITY',
+                },
+                'last_computed': '2026-03-05T08:00:00',
+            },
+        }
+        result = self._enforce(ctx)
+        lines = [l for l in result.strip().split('\n') if l.strip()]
+        self.assertEqual(len(lines), 4)
+
+    def test_exact_enum_values_in_output(self):
+        """Output contains the exact enum values from context."""
+        ctx = {
+            'health_intelligence': {
+                'body_comp': {
+                    'fat_loss_phase': 'PLATEAU',
+                    'plateau_risk_label': 'HIGH',
+                    'muscle_preservation_status': 'MUSCLE_RISK',
+                },
+                'last_computed': '2026-03-05T10:30:00',
+            },
+        }
+        result = self._enforce(ctx)
+        self.assertIn('Fat loss phase: PLATEAU', result)
+        self.assertIn('Plateau risk: HIGH', result)
+        self.assertIn('Muscle preservation: MUSCLE_RISK', result)
+        self.assertIn('Last updated: 2026-03-05T10:30:00', result)
+
+    def test_missing_values_show_unknown(self):
+        """Missing enum values produce UNKNOWN placeholders."""
+        ctx = {
+            'health_intelligence': {
+                'body_comp': {
+                    'fat_loss_phase': None,
+                    'plateau_risk_label': 'RISING',
+                    'muscle_preservation_status': None,
+                },
+                'last_computed': '',
+            },
+        }
+        result = self._enforce(ctx)
+        self.assertIn('Fat loss phase: UNKNOWN (awaiting data)', result)
+        self.assertIn('Plateau risk: RISING', result)
+        self.assertIn('Muscle preservation: UNKNOWN (awaiting data)', result)
+        self.assertIn('Last updated: UNKNOWN', result)
+
+    def test_no_schedule_sleep_calendar_in_output(self):
+        """Output must not contain schedule, sleep, or calendar content."""
+        ctx = {
+            'health_intelligence': {
+                'body_comp': {
+                    'fat_loss_phase': 'STABLE_FAT_LOSS',
+                    'plateau_risk_label': 'LOW',
+                    'muscle_preservation_status': 'HIGH_QUALITY',
+                },
+                'last_computed': '2026-03-05T08:00:00',
+            },
+        }
+        result = self._enforce(ctx)
+        # No schedule/sleep/calendar/coaching content
+        self.assertNotIn('sleep', result.lower())
+        self.assertNotIn('session', result.lower())
+        self.assertNotIn('schedule', result.lower())
+        self.assertNotIn('calendar', result.lower())
+        self.assertNotIn('AM', result)  # No time-of-day references
+
+    def test_empty_context_produces_all_unknown(self):
+        """Empty/None context produces all UNKNOWN."""
+        result = self._enforce(None)
+        lines = [l for l in result.strip().split('\n') if l.strip()]
+        self.assertEqual(len(lines), 4)
+        self.assertIn('Fat loss phase: UNKNOWN (awaiting data)', result)
+        self.assertIn('Plateau risk: UNKNOWN (awaiting data)', result)
+        self.assertIn('Muscle preservation: UNKNOWN (awaiting data)', result)
+        self.assertIn('Last updated: UNKNOWN', result)
+
+    def test_empty_body_comp_dict(self):
+        """Empty body_comp dict produces all UNKNOWN."""
+        ctx = {'health_intelligence': {'body_comp': {}, 'last_computed': ''}}
+        result = self._enforce(ctx)
+        self.assertIn('UNKNOWN (awaiting data)', result)
+        lines = [l for l in result.strip().split('\n') if l.strip()]
+        self.assertEqual(len(lines), 4)
+
+    def test_microseconds_stripped_from_timestamp(self):
+        """ISO timestamps with microseconds get truncated."""
+        ctx = {
+            'health_intelligence': {
+                'body_comp': {'fat_loss_phase': 'PLATEAU'},
+                'last_computed': '2026-03-05T08:00:00.123456',
+            },
+        }
+        result = self._enforce(ctx)
+        self.assertIn('Last updated: 2026-03-05T08:00:00', result)
+        self.assertNotIn('.123456', result)
+
+    def test_brevity_overrides_is_analysis(self):
+        """'Keep it short' must win over is_analysis classification."""
+        from apps.ai.personal_assistant import PersonalAssistant
+        # Even if the message would normally be classified as analysis,
+        # "keep it short" must return brief
+        result = PersonalAssistant._classify_response_mode(
+            "Analyze my fat loss phase and plateau risk. Keep it short.",
+            is_analysis=True,
+            is_task_query=False,
+        )
+        self.assertEqual(result, 'brief')

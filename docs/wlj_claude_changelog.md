@@ -9,6 +9,27 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Enforce deterministic 4-line health status (no-append rule)
+
+**What:** CoS still appended sleep/calendar/coaching content after health status lines despite strict prompt rules and 100-token cap. Prompt engineering alone cannot guarantee format compliance. Solution: bypass the LLM entirely — `enforce_strict_health_status()` reads enum values directly from CoS context and returns a deterministic 4-line string. LLM output is discarded.
+
+**Changes:**
+- `apps/ai/validators/health_response_validator.py` — Added `enforce_strict_health_status(cos_context)` deterministic 4-line builder; reads body_comp enums from context, handles None/empty → UNKNOWN, strips microseconds from timestamps
+- `apps/ai/personal_assistant.py :: _generate_response()` — Post-LLM interception: when strict health status mode is active, discards LLM response and returns `enforce_strict_health_status()` output
+- `apps/ai/personal_assistant.py :: send_message_stream()` — Pre-streaming interception: sets `_direct_response` before LLM streaming begins, skips SSE entirely
+- `apps/ai/tests/test_health_intelligence_cos.py` — Added 8 new tests for `TestEnforceStrictHealthStatus` (29 total); covers exact 4-line output, UNKNOWN handling, no schedule/sleep/calendar content, empty context, microsecond stripping, brevity-overrides-is_analysis
+- `docs/ENGINE_COS_REFERENCE.md` — Added "No-Append Rule for STRICT_HEALTH_STATUS" section
+
+**Files Modified:**
+- `apps/ai/validators/health_response_validator.py`
+- `apps/ai/personal_assistant.py`
+- `apps/ai/tests/test_health_intelligence_cos.py`
+- `docs/ENGINE_COS_REFERENCE.md`
+
+**Why:** Prompt engineering proved insufficient across 3 iterations. Deterministic enforcement guarantees exactly 4 lines with exact enums and zero LLM-appended content.
+
+---
+
 ## 2026-03-05 — Fix CoS still paraphrasing health enums despite prompt rules
 
 **What:** Three bugs in the prompt enforcement that allowed CoS to paraphrase enums ("rising" instead of "RISING") and add schedule content despite "keep it short": (1) brevity keywords checked AFTER is_analysis override, (2) rules_block was in user prompt but "be conversational" instruction came after and overrode it, (3) chain-of-thought reasoning step + 400 token budget gave LLM room to ramble.

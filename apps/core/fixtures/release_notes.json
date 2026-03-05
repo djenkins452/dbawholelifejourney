@@ -17,6 +17,22 @@
   },
   {
     "model": "core.releasenote",
+    "pk": 136,
+    "fields": {
+      "title": "Smarter Relationships Tile",
+      "description": "Your Relationships dashboard tile just got a lot smarter. It now shows a color-coded health score, switches between attention mode (who needs a call) and healthy mode (your anchor people and insights), and surfaces relationship patterns you might miss.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-05",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-05T05:00:00Z",
+      "updated_at": "2026-03-05T05:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 135,
     "fields": {
       "title": "Smarter Task & Habit Completion",

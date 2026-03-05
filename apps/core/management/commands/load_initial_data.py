@@ -929,6 +929,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Health Intelligence UI (release note PK 138, help PK 114, teaching PK 176)
         self._reset_health_intelligence_ui_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release notes for Relationships tile overhaul (PK 136)
+        self._reset_relationships_tile_overhaul_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5514,3 +5517,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset health intelligence UI fixtures FAILED: {e}'))
+
+    def _reset_relationships_tile_overhaul_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 136) for Relationships tile overhaul.
+        """
+        reset_tracker_name = 'reset_relationships_tile_overhaul_2026_03_05'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes loader for Relationships tile overhaul')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Relationships tile overhaul',
+                'command',
+                'One-time reset to reload release_notes PK 136'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset relationships tile overhaul fixtures FAILED: {e}'))

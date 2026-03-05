@@ -21,9 +21,16 @@ class BackgroundSyncManager {
     // Notification posted when any sync completes (background or foreground)
     static let syncCompletedNotification = Notification.Name("HealthSyncCompleted")
 
-    // Throttle scheduling to prevent runaway loops
+    // Throttle: prevent excessive syncs from observer queries and app activations.
+    // Without throttling, 23 observer queries + frequent app opens = 90+ syncs/day,
+    // each resending 7 days of unchanged data (95%+ dedup skips on server).
     private var lastScheduleTime: Date?
-    private let scheduleThrottleInterval: TimeInterval = 60  // 1 minute minimum between schedules
+    private let scheduleThrottleInterval: TimeInterval = 300  // 5 min between BG task schedules
+
+    private var lastForegroundSyncTime: Date?
+    private let foregroundSyncThrottleInterval: TimeInterval = 1800  // 30 min between foreground syncs
+
+    private var isSyncing = false  // prevent concurrent syncs
 
     private init() {}
 
@@ -47,36 +54,25 @@ class BackgroundSyncManager {
 
     // MARK: - HealthKit Background Delivery
 
-    /// Enable background delivery for all health types
+    /// Enable background delivery for key health types.
+    /// We observe a focused set of types that change frequently and matter most.
+    /// Other types (mobility, audio, etc.) are picked up in each full sync.
     func enableBackgroundDelivery() {
         guard HKHealthStore.isHealthDataAvailable() else { return }
 
-        // Types to observe
+        // Core types to observe — these change frequently and are most important.
+        // Reducing from 23 to 10 types to cut observer-triggered syncs.
         let typesToObserve: [HKSampleType] = [
             HKQuantityType.quantityType(forIdentifier: .stepCount),
             HKQuantityType.quantityType(forIdentifier: .bodyMass),
-            HKQuantityType.quantityType(forIdentifier: .restingHeartRate),
-            HKQuantityType.quantityType(forIdentifier: .bloodGlucose),
-            HKQuantityType.quantityType(forIdentifier: .oxygenSaturation),
-            HKQuantityType.quantityType(forIdentifier: .dietaryWater),
-            HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned),
-            HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning),
-            HKQuantityType.quantityType(forIdentifier: .basalEnergyBurned),
-            HKQuantityType.quantityType(forIdentifier: .flightsClimbed),
-            HKQuantityType.quantityType(forIdentifier: .appleExerciseTime),
-            HKQuantityType.quantityType(forIdentifier: .appleStandTime),
             HKQuantityType.quantityType(forIdentifier: .bodyFatPercentage),
             HKQuantityType.quantityType(forIdentifier: .leanBodyMass),
-            HKQuantityType.quantityType(forIdentifier: .respiratoryRate),
-            HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN),
-            HKQuantityType.quantityType(forIdentifier: .vo2Max),
-            HKQuantityType.quantityType(forIdentifier: .dietaryCaffeine),
-            HKCategoryType.categoryType(forIdentifier: .mindfulSession),
-            HKQuantityType.quantityType(forIdentifier: .bloodPressureSystolic),
-            HKQuantityType.quantityType(forIdentifier: .bloodPressureDiastolic),
-            HKQuantityType.quantityType(forIdentifier: .bodyTemperature),
+            HKQuantityType.quantityType(forIdentifier: .bloodGlucose),
+            HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned),
             HKCategoryType.categoryType(forIdentifier: .sleepAnalysis),
-            HKObjectType.workoutType()
+            HKObjectType.workoutType(),
+            HKQuantityType.quantityType(forIdentifier: .restingHeartRate),
+            HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN),
         ].compactMap { $0 }
 
         for sampleType in typesToObserve {
@@ -87,8 +83,6 @@ class BackgroundSyncManager {
             ) { success, error in
                 if let error = error {
                     print("Failed to enable background delivery for \(sampleType): \(error)")
-                } else if success {
-                    print("Background delivery enabled for \(sampleType)")
                 }
             }
 
@@ -103,7 +97,7 @@ class BackgroundSyncManager {
                     return
                 }
 
-                // New data available - schedule a sync
+                // New data available - schedule a sync (throttled)
                 self?.scheduleBackgroundSync()
                 completionHandler()
             }
@@ -136,7 +130,6 @@ class BackgroundSyncManager {
         // Throttle: only schedule if enough time has passed since last schedule
         if let lastTime = lastScheduleTime,
            Date().timeIntervalSince(lastTime) < scheduleThrottleInterval {
-            // Already scheduled recently, skip
             return
         }
 
@@ -167,10 +160,20 @@ class BackgroundSyncManager {
                 // Check if authenticated
                 guard KeychainManager.shared.getAPIToken() != nil else {
                     print("Background sync skipped: not authenticated")
+                    task.setTaskCompleted(success: true)
                     return
                 }
 
-                // Perform sync
+                // Perform sync (with concurrency guard)
+                guard !isSyncing else {
+                    print("Background sync skipped: sync already in progress")
+                    task.setTaskCompleted(success: true)
+                    return
+                }
+
+                isSyncing = true
+                defer { isSyncing = false }
+
                 _ = try await HealthKitManager.shared.syncHealthData()
                 print("Background sync completed successfully")
 
@@ -182,6 +185,7 @@ class BackgroundSyncManager {
                 task.setTaskCompleted(success: true)
             } catch {
                 print("Background sync failed: \(error)")
+                isSyncing = false
                 task.setTaskCompleted(success: false)
             }
         }
@@ -200,22 +204,61 @@ class BackgroundSyncManager {
         scheduleBackgroundSync()
     }
 
-    /// Call when app becomes active (good time to sync)
+    /// Call when app becomes active — sync with throttle to avoid excessive requests.
+    /// Without throttle: every app open triggers a full 7-day sync (~460 metrics).
+    /// With 30-min throttle: max ~48 foreground syncs/day instead of 90+.
     func applicationDidBecomeActive() {
-        // Sync when app becomes active if authenticated
-        if KeychainManager.shared.getAPIToken() != nil {
-            Task {
-                do {
-                    _ = try await HealthKitManager.shared.syncHealthData()
-                    print("Foreground sync completed")
+        // Throttle foreground syncs
+        if let lastTime = lastForegroundSyncTime,
+           Date().timeIntervalSince(lastTime) < foregroundSyncThrottleInterval {
+            return
+        }
 
-                    // Post notification so UI can update
-                    await MainActor.run {
-                        NotificationCenter.default.post(name: Self.syncCompletedNotification, object: nil)
-                    }
-                } catch {
-                    print("Foreground sync failed: \(error)")
+        guard KeychainManager.shared.getAPIToken() != nil else { return }
+        guard !isSyncing else { return }
+
+        lastForegroundSyncTime = Date()
+
+        Task {
+            do {
+                isSyncing = true
+                defer { isSyncing = false }
+
+                _ = try await HealthKitManager.shared.syncHealthData()
+                print("Foreground sync completed")
+
+                // Post notification so UI can update
+                await MainActor.run {
+                    NotificationCenter.default.post(name: Self.syncCompletedNotification, object: nil)
                 }
+            } catch {
+                print("Foreground sync failed: \(error)")
+                isSyncing = false
+            }
+        }
+    }
+
+    /// Force an immediate sync regardless of throttle (e.g., user taps "Sync Now")
+    func forceSync() {
+        guard KeychainManager.shared.getAPIToken() != nil else { return }
+        guard !isSyncing else { return }
+
+        lastForegroundSyncTime = Date()
+
+        Task {
+            do {
+                isSyncing = true
+                defer { isSyncing = false }
+
+                _ = try await HealthKitManager.shared.syncHealthData()
+                print("Forced sync completed")
+
+                await MainActor.run {
+                    NotificationCenter.default.post(name: Self.syncCompletedNotification, object: nil)
+                }
+            } catch {
+                print("Forced sync failed: \(error)")
+                isSyncing = false
             }
         }
     }

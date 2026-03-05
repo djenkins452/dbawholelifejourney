@@ -9,30 +9,17 @@
 
 # WLJ Change History
 
-## 2026-03-05 — Fix stale CoS prompts after task reschedule + false update confirmations
+## 2026-03-05 — Throttle iOS HealthKit sync frequency
 
-**What:** When a task was rescheduled (due_date changed), old CosPromptSchedule entries were never canceled. This caused the assistant to reference already-rescheduled tasks in check-in messages (e.g., "gearing up for your 'Dude Ranches' session at 10:00 AM" at 6 PM after the task was moved to the next day). Additionally, when the user corrected the assistant ("I already moved it"), the action handler blindly re-applied the same values and falsely reported "Updated → due Mar 06" even though nothing changed.
-
-**Root cause:** Three-layer failure:
-1. CosPromptSchedule entries not canceled when CalendarEvent times change in projection service
-2. No validation of source events at prompt delivery/injection time
-3. Action handler not checking if requested values match current values (no-op detection)
+**What:** iOS app was doing 95 syncs in 24h — each resending all 7 days of data (~460 metrics), causing 95.5% dedup skip rate on the server. Three root causes: no throttle on foreground sync (`applicationDidBecomeActive` fires every app open), 23 observer queries each triggering schedule, and 1-minute schedule throttle was too low.
 
 **Changes:**
-- `apps/calendar_engine/services/projection.py` — Added `_cancel_stale_cos_prompts()` helper; called from `upsert_from_routine_task()` and `upsert_from_task()` when CalendarEvent start_dt changes
-- `apps/life/services/routine_service.py` — `schedule_cos_prompts()` now cancels existing pending prompts before scheduling new ones
-- `apps/cos/services/prompt_service.py` — Added `_is_prompt_stale_static()` validation; `deliver_prompt()` expires stale prompts; `get_pending_prompt_injection()` filters out stale prompts at injection time
-- `apps/ai/action_handlers.py` — Task update handler now detects no-op updates (values already at target) and reports "already set to X" instead of falsely claiming a change
-- `apps/ai/executive_briefing.py` — Added `exclude(deleted_at__isnull=False)` to day overview CalendarEvent query
+- `ios/.../BackgroundSyncManager.swift` — Added 30-minute throttle on foreground syncs, increased schedule throttle from 1 min to 5 min, reduced observer types from 23 to 10 (core types only — others are still synced in each full sync), added `isSyncing` concurrency guard, added `forceSync()` for manual sync buttons.
 
 **Files Modified:**
-- `apps/calendar_engine/services/projection.py`
-- `apps/life/services/routine_service.py`
-- `apps/cos/services/prompt_service.py`
-- `apps/ai/action_handlers.py`
-- `apps/ai/executive_briefing.py`
+- `ios/WLJWrapper/WLJWrapper/Services/BackgroundSyncManager.swift`
 
-**Why:** The assistant was taking "one step forward and four back" — successfully rescheduling tasks but then referencing stale schedules in proactive check-ins, and falsely confirming already-done actions when the user corrected it.
+**Why:** 95 syncs/day with 95.5% dedup wastes battery, bandwidth, and server resources. With 30-min throttle, foreground syncs drop to max ~48/day. With 5-min schedule throttle + 10 observer types, background syncs are also reduced. Manual "Sync Now" button bypasses throttle.
 
 ---
 
@@ -185,19 +172,6 @@
 - BUG: CoS marks past-time events as `[done]` without checking `CalendarEvent.status` field
 - GAP: CoS goal_gap_analyzer and diagnostic_context bypass SAE and query raw tables
 - RECOMMENDED: Option C (truth adapter) — refactor CoS to use SAE + engine outputs only
-
----
-
-## 2026-03-05 — /close Documentation Audit Fixes
-
-**What:** Added missing release note for Relationships tile overhaul (PK 136) and Health Intelligence Engine section in features doc.
-
-**Why:** Session /close audit found 2 documentation gaps: no What's New entry for the Relationships tile changes, and no features doc section for the Health Intelligence Engine.
-
-**Changes:**
-- `apps/core/fixtures/release_notes.json` — Added PK 136: "Smarter Relationships Tile"
-- `docs/wlj_claude_features.md` — Added section 53: Health Intelligence Engine with overview, features, pipeline, pages, key files, tests
-- `apps/core/management/commands/load_initial_data.py` — Added `_reset_relationships_tile_overhaul_fixtures()` for release_notes reload
 
 ---
 

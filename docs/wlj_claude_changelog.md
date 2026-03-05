@@ -9,6 +9,38 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Build Body Composition Intelligence Engine
+
+**What:** Built a complete Body Composition Intelligence Engine that computes fat loss quality, recomposition detection, plateau classification, fat loss speed monitoring, and muscle loss risk scoring from historical InBody/DEXA scan data. All calculations occur at daily rollup time; CoS reads only from DailyHealthSummary.
+
+**Key changes:**
+- **New service:** `apps/health/services/body_composition_intelligence.py` — 10 static methods: compute_fat_mass, compute_lean_mass, get_latest_scan, get_window_metrics (±5 day tolerance), compute_fat_loss_quality (EXCELLENT/GOOD/MIXED/MUSCLE_LOSS_RISK), detect_recomposition, detect_plateau (TRUE_PLATEAU/RECOMP/WATER), compute_fat_loss_speed (SAFE/FAST/TOO_FAST/SLOW/GAINING), compute_muscle_loss_risk (0-100 composite), compute_daily_intelligence
+- **Model:** 10 new nullable fields on DailyHealthSummary (fat_mass, fat_loss_quality_label, fat_loss_ratio_14d, recomposition_flag_14d, plateau_status, fat_loss_speed_pct_per_week, fat_loss_speed_label, muscle_loss_risk_score, muscle_loss_risk_level, body_comp_drivers)
+- **Builder:** Body comp intelligence step runs after protein intelligence in daily_summary_builder.py
+- **Dashboard:** New `body_comp` panel in command_center_api.py with 56-day trend lines
+- **CoS:** Locked BODY COMPOSITION block in system prompt injection (reads from DHS only)
+- **Rules:** Rule 8 in personal_assistant.py — never compute body comp math, never cite generic ranges
+- **Validator:** Detects generic body fat ranges, generic fat loss advice, self-computed fat mass
+- **Tests:** 47 new tests (158 total), covering all computations, classifications, builder, dashboard, CoS injection, validator
+- **Docs:** New Section 7 in HEALTH_INTELLIGENCE_ENGINE.md
+
+**Files created:**
+- `apps/health/services/body_composition_intelligence.py`
+- `apps/health/migrations/0053_body_composition_intelligence.py`
+
+**Files modified:**
+- `apps/health/models.py`
+- `apps/health/services/daily_summary_builder.py`
+- `apps/health/services/command_center_api.py`
+- `apps/health/services/cos_health_context.py`
+- `apps/core/ai_orchestrator/cos_context.py`
+- `apps/ai/personal_assistant.py`
+- `apps/ai/validators/health_response_validator.py`
+- `apps/health/tests/test_health_intelligence.py`
+- `docs/HEALTH_INTELLIGENCE_ENGINE.md`
+
+---
+
 ## 2026-03-04 — Remove Raw Protein Data from CoS Context (Prevent LLM Self-Math)
 
 **What:** Despite adding correct 7-day average fields, CoS was STILL using weekly totals because it had access to raw data (the full `weekly_summary` dict, protein fields in `trends_7d`, and raw daily values) which enabled the LLM to compute its own (incorrect) math. This fix removes all raw protein data from the LLM context, adds explicit anti-math rules, and adds a post-response validator to detect weekly-total language.

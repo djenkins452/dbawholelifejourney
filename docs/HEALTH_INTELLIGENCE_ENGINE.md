@@ -489,6 +489,106 @@ result['protein_intelligence'] = {
 
 ---
 
+## Body Composition Intelligence
+
+Deterministic engine that analyzes historical body composition scans (InBody, DEXA, etc.)
+to produce fat loss quality, recomposition detection, plateau classification, and muscle loss risk.
+
+### Architecture
+
+All calculations occur at daily rollup time (via `DailyHealthSummaryBuilder`).
+CoS reads ONLY from `DailyHealthSummary` — never calls the service directly.
+
+```
+BodyCompositionEntry → BodyCompositionIntelligence → DailyHealthSummary → CoS / Dashboard
+```
+
+### Service: BodyCompositionIntelligence
+
+Location: `apps/health/services/body_composition_intelligence.py`
+
+```python
+from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+
+# Core math
+BCI.compute_fat_mass(weight=200, body_fat_pct=25)  # → 50.0
+BCI.compute_lean_mass(weight=200, fat_mass=50)       # → 150.0
+
+# Scan retrieval (priority: BodyCompositionEntry → WeightEntry → DailyHealthSummary)
+BCI.get_latest_scan(user, date.today())
+# → {weight, body_fat_pct, fat_mass, lean_mass, skeletal_muscle_mass, scan_date, source}
+
+# 14-day window comparison (±5 day tolerance, requires 10-20 actual days)
+BCI.get_window_metrics(user, end_date, window_days=14)
+# → {current, start, deltas: {weight_delta, fat_mass_delta, lean_mass_delta}, sufficient_data}
+
+# Fat loss quality (noise guard: abs(weight_delta) ≥ 1.5 lbs)
+BCI.compute_fat_loss_quality(deltas, window_days)
+# → {label: EXCELLENT/GOOD/MIXED/MUSCLE_LOSS_RISK, fat_loss_ratio, explanation}
+
+# Recomp: weight flat (±1 lb), fat down (≥1 lb), lean up (≥0.5 lb)
+BCI.detect_recomposition(deltas)
+# → {detected: bool, details: str}
+
+# Plateau: 21-day window → TRUE_PLATEAU / RECOMP / WATER / INSUFFICIENT_DATA
+BCI.detect_plateau(user, end_date, window_days=21)
+
+# Fat loss speed: % body weight per week → SAFE / FAST / TOO_FAST / SLOW / GAINING
+BCI.compute_fat_loss_speed(deltas, start_weight, window_days)
+
+# Muscle loss risk: 0-100 composite → LOW / MED / HIGH
+BCI.compute_muscle_loss_risk(user, end_date)
+# Components: lean_mass_drop (0-40), protein_low (0-25), recovery_low (0-20), training_high (0-15)
+
+# Single-call for builder
+BCI.compute_daily_intelligence(user, target_date)
+# → dict matching DailyHealthSummary field names
+```
+
+### Thresholds
+
+| Signal | Threshold | Label |
+|--------|-----------|-------|
+| Fat loss ratio | ≥ 0.80 + lean stable | EXCELLENT |
+| Fat loss ratio | 0.60 – 0.80 | GOOD |
+| Fat loss ratio | 0.40 – 0.60 | MIXED |
+| Fat loss ratio | < 0.40 or lean dropping fast | MUSCLE_LOSS_RISK |
+| Fat loss speed | 0.5% – 1.0%/week | SAFE |
+| Fat loss speed | 1.0% – 1.5%/week | FAST |
+| Fat loss speed | > 1.5%/week | TOO_FAST |
+| Muscle loss risk | 0 – 29 | LOW |
+| Muscle loss risk | 30 – 59 | MED |
+| Muscle loss risk | 60 – 100 | HIGH |
+
+### DailyHealthSummary Fields
+
+```
+fat_mass, fat_loss_quality_label, fat_loss_ratio_14d, recomposition_flag_14d,
+plateau_status, fat_loss_speed_pct_per_week, fat_loss_speed_label,
+muscle_loss_risk_score, muscle_loss_risk_level, body_comp_drivers
+```
+
+### CoS Locked Values Block
+
+```
+BODY COMPOSITION (locked — use these exact values):
+  Fat loss quality: EXCELLENT (ratio 0.87)
+  Recomposition: No
+  Plateau status: none
+  Fat loss speed: SAFE (0.8%/week)
+  Muscle loss risk: LOW
+  Current fat mass: 50.0 lbs
+```
+
+CoS must NEVER compute fat mass, lean mass, or ratios itself. Rule 8 in Section 9 enforces this.
+
+### Command Center Panel
+
+Dashboard panel `body_comp` includes: current snapshot, 14d deltas, all intelligence labels,
+top insight string, and 56-day trend lines for weight/fat_mass/lean_mass.
+
+---
+
 ## Backfill Guide
 
 For existing users with historical data:

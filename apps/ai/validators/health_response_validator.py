@@ -91,6 +91,30 @@ _PROTEIN_WEEKLY_TOTAL_PATTERNS = [
     ),
 ]
 
+# Body composition generic range patterns — LLM should use system values only.
+_BODY_COMP_GENERIC_PATTERNS = [
+    # "15-20% body fat" or "body fat of 15-20%"
+    re.compile(
+        r'\b(\d{1,2})\s*[-–to]+\s*(\d{1,2})\s*%?\s*(?:body\s+fat|BF)\b',
+        re.IGNORECASE,
+    ),
+    # "ideal body fat is..." or "healthy body fat range"
+    re.compile(
+        r'\b(?:ideal|healthy|optimal|target|recommended)\s+body\s+fat\b',
+        re.IGNORECASE,
+    ),
+    # "1-2 lbs per week is recommended" / "lose 1 to 2 pounds per week"
+    re.compile(
+        r'\b(\d+\.?\d*)\s*[-–to]+\s*(\d+\.?\d*)\s*(?:lbs?|pounds?)\s*(?:per|a|each)\s*week\b',
+        re.IGNORECASE,
+    ),
+    # "your fat mass is approximately" / "estimated fat mass"
+    re.compile(
+        r'\b(?:your\s+)?fat\s+mass\s+is\s+(?:approximately|about|roughly|estimated)\b',
+        re.IGNORECASE,
+    ),
+]
+
 
 def validate_health_response(response_text, cos_context=None, user=None):
     """
@@ -186,10 +210,26 @@ def validate_health_response(response_text, cos_context=None, user=None):
                 ),
             })
 
+    # Check for generic body composition advice
+    for pattern in _BODY_COMP_GENERIC_PATTERNS:
+        match = pattern.search(response_text)
+        if match:
+            violations.append({
+                'type': 'GENERIC_BODY_COMP',
+                'found': match.group(0),
+                'system_value': None,
+                'message': (
+                    f"Response uses generic body composition language: '{match.group(0)}'. "
+                    f"CoS must use locked system values from BODY COMPOSITION block."
+                ),
+            })
+
     # Determine severity
     severity = 'none'
     if violations:
-        critical_types = {'GENERIC_PROTEIN_RANGE', 'PROTEIN_WEEKLY_TOTAL'}
+        critical_types = {
+            'GENERIC_PROTEIN_RANGE', 'PROTEIN_WEEKLY_TOTAL', 'GENERIC_BODY_COMP',
+        }
         if any(v['type'] in critical_types for v in violations):
             severity = 'critical'
         else:

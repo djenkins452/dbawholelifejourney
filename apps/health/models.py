@@ -5439,6 +5439,48 @@ class DailyHealthSummary(UserOwnedModel):
         max_digits=6, decimal_places=2, null=True, blank=True,
     )
 
+    # --- Body Composition Intelligence (computed by BodyCompositionIntelligence) ---
+    fat_mass = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Computed: weight * (body_fat_pct / 100) in lbs",
+    )
+    fat_loss_quality_label = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="EXCELLENT/GOOD/MIXED/MUSCLE_LOSS_RISK/INSUFFICIENT_DATA",
+    )
+    fat_loss_ratio_14d = models.DecimalField(
+        max_digits=4, decimal_places=3, null=True, blank=True,
+        help_text="abs(fat_mass_delta) / abs(weight_delta) over 14d window",
+    )
+    recomposition_flag_14d = models.BooleanField(
+        null=True, blank=True,
+        help_text="True if fat down + muscle up + weight flat over 14d",
+    )
+    plateau_status = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="TRUE_PLATEAU/RECOMP/WATER/INSUFFICIENT_DATA",
+    )
+    fat_loss_speed_pct_per_week = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Pct of body weight lost per week over 14d window",
+    )
+    fat_loss_speed_label = models.CharField(
+        max_length=10, blank=True, default="",
+        help_text="SAFE/FAST/TOO_FAST/SLOW/GAINING",
+    )
+    muscle_loss_risk_score = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Composite 0-100 risk score for muscle loss",
+    )
+    muscle_loss_risk_level = models.CharField(
+        max_length=10, blank=True, default="",
+        help_text="LOW/MED/HIGH",
+    )
+    body_comp_drivers = models.JSONField(
+        default=dict, blank=True,
+        help_text="Explainable drivers for body comp intelligence",
+    )
+
     # --- Glucose ---
     glucose_avg = models.DecimalField(
         max_digits=6, decimal_places=2, null=True, blank=True,

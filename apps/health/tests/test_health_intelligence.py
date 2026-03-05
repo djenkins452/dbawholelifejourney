@@ -2691,3 +2691,577 @@ class TestWeeklyProteinEvaluation(TestCase, HealthIntelligenceTestMixin):
             if v['type'] == 'GENERIC_PROTEIN_RANGE'
         ]
         self.assertEqual(len(protein_violations), 0)
+
+
+# ============================================================
+# Body Composition Intelligence Tests
+# ============================================================
+
+class TestBodyCompComputation(TestCase):
+    """Test core body composition math."""
+
+    def test_compute_fat_mass(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        result = BCI.compute_fat_mass(Decimal("200"), Decimal("20"))
+        self.assertAlmostEqual(float(result), 40.0, places=1)
+
+    def test_compute_fat_mass_none_weight(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        self.assertIsNone(BCI.compute_fat_mass(None, Decimal("20")))
+
+    def test_compute_fat_mass_none_bf(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        self.assertIsNone(BCI.compute_fat_mass(Decimal("200"), None))
+
+    def test_compute_fat_mass_zero_bf(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        result = BCI.compute_fat_mass(Decimal("200"), Decimal("0"))
+        self.assertAlmostEqual(float(result), 0.0, places=1)
+
+    def test_compute_lean_mass(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        result = BCI.compute_lean_mass(Decimal("200"), Decimal("40"))
+        self.assertAlmostEqual(float(result), 160.0, places=1)
+
+    def test_compute_lean_mass_none(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        self.assertIsNone(BCI.compute_lean_mass(None, Decimal("40")))
+        self.assertIsNone(BCI.compute_lean_mass(Decimal("200"), None))
+
+    def test_get_latest_scan_from_bce(self):
+        """BodyCompositionEntry is priority 1."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        user = User.objects.create_user(email="bci_bce@test.com", password="t")
+        today = date.today()
+        BodyCompositionEntry.objects.create(
+            user=user, metric_name="body_fat_pct", value=Decimal("22.5"),
+            unit="%", measurement_date=today, source="inbody",
+        )
+        WeightEntry.objects.create(
+            user=user, value=Decimal("200"), unit="lb",
+            recorded_at=timezone.now(),
+        )
+        scan = BCI.get_latest_scan(user, today)
+        self.assertAlmostEqual(float(scan['body_fat_pct']), 22.5)
+        self.assertAlmostEqual(float(scan['weight']), 200.0)
+        self.assertIsNotNone(scan['fat_mass'])  # computed
+
+    def test_get_latest_scan_no_data(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        user = User.objects.create_user(email="bci_none@test.com", password="t")
+        scan = BCI.get_latest_scan(user, date.today())
+        self.assertIsNone(scan['weight'])
+        self.assertIsNone(scan['body_fat_pct'])
+
+
+class TestWindowMetrics(TestCase):
+    """Test 14-day window scan selection and tolerance."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="bci_window@test.com", password="t")
+        self.today = date.today()
+
+    def _create_scan(self, d, weight, bf_pct):
+        """Create weight + body fat entries for a date."""
+        dt = timezone.make_aware(datetime.combine(d, datetime.min.time()).replace(hour=7))
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal(str(weight)), unit="lb", recorded_at=dt,
+        )
+        BodyCompositionEntry.objects.create(
+            user=self.user, metric_name="body_fat_pct", value=Decimal(str(bf_pct)),
+            unit="%", measurement_date=d, source="inbody",
+        )
+
+    def test_14d_window_with_two_scans(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        start_date = self.today - timedelta(days=14)
+        self._create_scan(start_date, 210, 25.0)
+        self._create_scan(self.today, 207, 24.0)
+
+        metrics = BCI.get_window_metrics(self.user, self.today, window_days=14)
+        self.assertTrue(metrics['sufficient_data'])
+        self.assertIsNotNone(metrics['deltas'])
+        self.assertAlmostEqual(metrics['deltas']['weight_delta'], -3.0, places=1)
+
+    def test_window_insufficient_one_scan(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        self._create_scan(self.today, 207, 24.0)
+
+        metrics = BCI.get_window_metrics(self.user, self.today, window_days=14)
+        self.assertFalse(metrics['sufficient_data'])
+
+    def test_window_tolerance_within_range(self):
+        """Start scan within ±5 days of target should work."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        # Target start = today - 14, but scan is at today - 12 (within +2 days)
+        self._create_scan(self.today - timedelta(days=12), 210, 25.0)
+        self._create_scan(self.today, 207, 24.0)
+
+        metrics = BCI.get_window_metrics(self.user, self.today, window_days=14)
+        self.assertTrue(metrics['sufficient_data'])
+
+    def test_window_too_short(self):
+        """Scans only 5 days apart should fail (< 10 day minimum)."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        self._create_scan(self.today - timedelta(days=5), 210, 25.0)
+        self._create_scan(self.today, 207, 24.0)
+
+        metrics = BCI.get_window_metrics(self.user, self.today, window_days=14)
+        self.assertFalse(metrics['sufficient_data'])
+
+
+class TestFatLossQuality(TestCase):
+    """Test fat loss quality classification."""
+
+    def test_excellent_quality(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        deltas = {
+            'weight_delta': -4.0,
+            'fat_mass_delta': -3.6,  # ratio = 0.90
+            'lean_mass_delta': -0.4,
+        }
+        result = BCI.compute_fat_loss_quality(deltas, 14)
+        self.assertEqual(result['label'], 'EXCELLENT')
+        self.assertGreaterEqual(result['fat_loss_ratio'], 0.80)
+
+    def test_good_quality(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        deltas = {
+            'weight_delta': -4.0,
+            'fat_mass_delta': -2.8,  # ratio = 0.70
+            'lean_mass_delta': -0.8,  # -0.4 lbs/week, within threshold
+        }
+        result = BCI.compute_fat_loss_quality(deltas, 14)
+        self.assertEqual(result['label'], 'GOOD')
+
+    def test_mixed_quality(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        deltas = {
+            'weight_delta': -4.0,
+            'fat_mass_delta': -2.0,  # ratio = 0.50
+            'lean_mass_delta': -0.9,  # -0.45 lbs/week, within threshold
+        }
+        result = BCI.compute_fat_loss_quality(deltas, 14)
+        self.assertEqual(result['label'], 'MIXED')
+
+    def test_muscle_loss_risk_low_ratio(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        deltas = {
+            'weight_delta': -4.0,
+            'fat_mass_delta': -1.2,  # ratio = 0.30
+            'lean_mass_delta': -2.8,
+        }
+        result = BCI.compute_fat_loss_quality(deltas, 14)
+        self.assertEqual(result['label'], 'MUSCLE_LOSS_RISK')
+
+    def test_insufficient_data_small_change(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        deltas = {
+            'weight_delta': -0.5,  # < 1.5 noise guard
+            'fat_mass_delta': -0.3,
+            'lean_mass_delta': -0.2,
+        }
+        result = BCI.compute_fat_loss_quality(deltas, 14)
+        self.assertEqual(result['label'], 'INSUFFICIENT_DATA')
+
+
+class TestRecomposition(TestCase):
+    """Test body recomposition detection."""
+
+    def test_recomp_detected(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        deltas = {
+            'weight_delta': 0.3,    # flat
+            'fat_mass_delta': -1.5,  # fat down
+            'lean_mass_delta': 1.0,  # lean up
+        }
+        result = BCI.detect_recomposition(deltas)
+        self.assertTrue(result['detected'])
+
+    def test_recomp_not_detected_weight_loss(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        deltas = {
+            'weight_delta': -3.0,  # not flat
+            'fat_mass_delta': -2.5,
+            'lean_mass_delta': -0.5,
+        }
+        result = BCI.detect_recomposition(deltas)
+        self.assertFalse(result['detected'])
+
+    def test_recomp_not_detected_lean_flat(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        deltas = {
+            'weight_delta': 0.2,
+            'fat_mass_delta': -0.8,  # not enough fat loss
+            'lean_mass_delta': 0.2,  # not enough lean gain
+        }
+        result = BCI.detect_recomposition(deltas)
+        self.assertFalse(result['detected'])
+
+
+class TestPlateau(TestCase):
+    """Test plateau classification."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="bci_plateau@test.com", password="t")
+        self.today = date.today()
+
+    def _create_scan_pair(self, start_date, end_date, start_w, end_w, start_bf, end_bf):
+        """Create weight + body fat at both start and end."""
+        for d, w, bf in [(start_date, start_w, start_bf), (end_date, end_w, end_bf)]:
+            dt = timezone.make_aware(datetime.combine(d, datetime.min.time()).replace(hour=7))
+            WeightEntry.objects.create(
+                user=self.user, value=Decimal(str(w)), unit="lb", recorded_at=dt,
+            )
+            BodyCompositionEntry.objects.create(
+                user=self.user, metric_name="body_fat_pct", value=Decimal(str(bf)),
+                unit="%", measurement_date=d, source="inbody",
+            )
+
+    def test_true_plateau(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        start = self.today - timedelta(days=21)
+        self._create_scan_pair(start, self.today, 200, 200.5, 22.0, 22.1)
+
+        result = BCI.detect_plateau(self.user, self.today, window_days=21)
+        self.assertEqual(result['status'], 'TRUE_PLATEAU')
+
+    def test_recomp_plateau(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        start = self.today - timedelta(days=21)
+        # Weight flat, fat down, lean up → recomp
+        self._create_scan_pair(start, self.today, 200, 200.2, 25.0, 23.5)
+
+        result = BCI.detect_plateau(self.user, self.today, window_days=21)
+        self.assertEqual(result['status'], 'RECOMP')
+
+    def test_water_fluctuation(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        start = self.today - timedelta(days=21)
+        # Fat stable in absolute terms: 200*0.22=44.0 → 203*0.2167=43.99
+        # Weight up 3 lbs (not flat), but fat_mass essentially flat
+        self._create_scan_pair(start, self.today, 200, 203, 22.0, 21.67)
+        # Create 10+ weight entries for variance check
+        for i in range(15):
+            d = start + timedelta(days=i)
+            w = 200 + (i % 5) - 2  # fluctuating
+            DailyHealthSummary.objects.update_or_create(
+                user=self.user, summary_date=d,
+                defaults={'weight': Decimal(str(w))},
+            )
+
+        result = BCI.detect_plateau(self.user, self.today, window_days=21)
+        self.assertEqual(result['status'], 'WATER')
+
+    def test_insufficient_data(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        # No scans at all
+        result = BCI.detect_plateau(self.user, self.today, window_days=21)
+        self.assertEqual(result['status'], 'INSUFFICIENT_DATA')
+
+
+class TestFatLossSpeed(TestCase):
+    """Test fat loss speed classification."""
+
+    def test_safe_speed(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        deltas = {'weight_delta': -2.5}  # 2.5 lbs over 14 days at 200 lbs
+        # rate = (2.5/200 * 100) / (14/7) = 0.625%/week → SAFE
+        result = BCI.compute_fat_loss_speed(deltas, Decimal("200"), 14)
+        self.assertEqual(result['label'], 'SAFE')
+        self.assertGreaterEqual(result['rate_pct_per_week'], 0.5)
+        self.assertLessEqual(result['rate_pct_per_week'], 1.0)
+
+    def test_too_fast(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        deltas = {'weight_delta': -7.0}  # 7 lbs over 14 days at 200 lbs
+        # rate = (7/200 * 100) / 2 = 1.75%/week → TOO_FAST
+        result = BCI.compute_fat_loss_speed(deltas, Decimal("200"), 14)
+        self.assertEqual(result['label'], 'TOO_FAST')
+
+    def test_gaining_weight(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        deltas = {'weight_delta': 2.0}
+        result = BCI.compute_fat_loss_speed(deltas, Decimal("200"), 14)
+        self.assertEqual(result['label'], 'GAINING')
+
+    def test_slow_speed(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        deltas = {'weight_delta': -0.5}  # 0.5 lbs over 14 days at 200 lbs
+        # rate = (0.5/200 * 100) / 2 = 0.125%/week → SLOW
+        result = BCI.compute_fat_loss_speed(deltas, Decimal("200"), 14)
+        self.assertEqual(result['label'], 'SLOW')
+
+
+class TestMuscleLossRisk(TestCase):
+    """Test muscle loss risk scoring."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="bci_risk@test.com", password="t")
+        self.today = date.today()
+
+    def _create_scan_pair(self, start_w, end_w, start_bf, end_bf):
+        start = self.today - timedelta(days=14)
+        for d, w, bf in [(start, start_w, start_bf), (self.today, end_w, end_bf)]:
+            dt = timezone.make_aware(datetime.combine(d, datetime.min.time()).replace(hour=7))
+            WeightEntry.objects.create(
+                user=self.user, value=Decimal(str(w)), unit="lb", recorded_at=dt,
+            )
+            BodyCompositionEntry.objects.create(
+                user=self.user, metric_name="body_fat_pct", value=Decimal(str(bf)),
+                unit="%", measurement_date=d, source="inbody",
+            )
+
+    def test_low_risk(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        # Lean mass stable
+        self._create_scan_pair(200, 197, 25.0, 24.0)
+        result = BCI.compute_muscle_loss_risk(self.user, self.today)
+        self.assertEqual(result['risk_level'], 'LOW')
+        self.assertLess(result['risk_score'], 30)
+
+    def test_high_risk_lean_dropping(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        # Lean mass dropping fast: start lean = 200*(1-0.25) = 150, end lean = 190*(1-0.25) = 142.5
+        # lean delta = -7.5 over 14 days = -3.75/week → heavy drop
+        self._create_scan_pair(200, 190, 25.0, 25.0)
+        result = BCI.compute_muscle_loss_risk(self.user, self.today)
+        self.assertGreater(result['risk_score'], 0)
+        self.assertIn(result['risk_level'], ('MED', 'HIGH'))
+
+    def test_drivers_present(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        self._create_scan_pair(200, 197, 25.0, 24.0)
+        result = BCI.compute_muscle_loss_risk(self.user, self.today)
+        self.assertIn('drivers', result)
+        self.assertGreater(len(result['drivers']), 0)
+        # Each driver should have component, score, detail
+        for driver in result['drivers']:
+            self.assertIn('component', driver)
+            self.assertIn('score', driver)
+            self.assertIn('detail', driver)
+
+    def test_risk_components_sum(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        self._create_scan_pair(200, 197, 25.0, 24.0)
+        result = BCI.compute_muscle_loss_risk(self.user, self.today)
+        component_sum = sum(d['score'] for d in result['drivers'])
+        self.assertEqual(result['risk_score'], component_sum)
+
+
+class TestBodyCompInBuilder(TestCase, HealthIntelligenceTestMixin):
+    """Test body comp intelligence in DailyHealthSummaryBuilder."""
+
+    def test_builder_populates_fat_mass(self):
+        """Builder computes fat_mass when weight + body_fat available."""
+        from apps.health.services.daily_summary_builder import DailyHealthSummaryBuilder
+
+        user = self.create_test_user()
+        today = date.today()
+        dt = timezone.make_aware(datetime.combine(today, datetime.min.time()).replace(hour=7))
+        WeightEntry.objects.create(
+            user=user, value=Decimal("200"), unit="lb", recorded_at=dt,
+        )
+        BodyCompositionEntry.objects.create(
+            user=user, metric_name="body_fat_pct", value=Decimal("25.0"),
+            unit="%", measurement_date=today, source="inbody",
+        )
+
+        builder = DailyHealthSummaryBuilder()
+        summary = builder.build_for_date(user, today)
+        self.assertIsNotNone(summary.fat_mass)
+        self.assertAlmostEqual(float(summary.fat_mass), 50.0, places=0)
+
+    def test_builder_handles_no_body_comp(self):
+        """Builder doesn't crash when no body comp data exists."""
+        from apps.health.services.daily_summary_builder import DailyHealthSummaryBuilder
+
+        user = self.create_test_user()
+        today = date.today()
+
+        builder = DailyHealthSummaryBuilder()
+        summary = builder.build_for_date(user, today)
+        self.assertIsNone(summary.fat_mass)
+        self.assertEqual(summary.fat_loss_quality_label, "")
+
+
+class TestBodyCompCommandCenter(TestCase, HealthIntelligenceTestMixin):
+    """Test body comp panel in Health Command Center."""
+
+    def test_panel_present(self):
+        from apps.health.services.command_center_api import HealthCommandCenterService
+
+        user = self.create_test_user()
+        today = date.today()
+        DailyHealthSummary.objects.create(
+            user=user, summary_date=today,
+            weight=Decimal("200"), body_fat_pct=Decimal("25.0"),
+            fat_mass=Decimal("50"), lean_mass=Decimal("150"),
+            fat_loss_quality_label="EXCELLENT",
+            fat_loss_ratio_14d=Decimal("0.87"),
+            muscle_loss_risk_score=15,
+            muscle_loss_risk_level="LOW",
+        )
+        data = HealthCommandCenterService.get_dashboard_data(user, today)
+        self.assertIn("body_comp", data["domain_panels"])
+        panel = data["domain_panels"]["body_comp"]
+        self.assertEqual(panel["fat_loss_quality_label"], "EXCELLENT")
+        self.assertAlmostEqual(panel["fat_loss_ratio_14d"], 0.87, places=2)
+        self.assertEqual(panel["muscle_loss_risk_level"], "LOW")
+
+
+class TestBodyCompCosInjection(TestCase, HealthIntelligenceTestMixin):
+    """Test body comp intelligence in CoS context."""
+
+    def test_cos_context_has_body_comp(self):
+        from apps.health.services.cos_health_context import build_cos_health_intelligence
+
+        user = self.create_test_user()
+        today = date.today()
+        DailyHealthSummary.objects.create(
+            user=user, summary_date=today,
+            weight=Decimal("200"), body_fat_pct=Decimal("25.0"),
+            fat_mass=Decimal("50"), lean_mass=Decimal("150"),
+            fat_loss_quality_label="GOOD",
+            fat_loss_ratio_14d=Decimal("0.72"),
+            recomposition_flag_14d=False,
+            plateau_status="",
+            fat_loss_speed_label="SAFE",
+            fat_loss_speed_pct_per_week=Decimal("0.75"),
+            muscle_loss_risk_score=20,
+            muscle_loss_risk_level="LOW",
+        )
+
+        intel = build_cos_health_intelligence(user)
+        self.assertIn("body_comp_intelligence", intel)
+        bc = intel["body_comp_intelligence"]
+        self.assertEqual(bc["fat_loss_quality_label"], "GOOD")
+        self.assertAlmostEqual(bc["fat_loss_ratio_14d"], 0.72, places=2)
+        self.assertEqual(bc["muscle_loss_risk_level"], "LOW")
+
+    def test_cos_injection_has_locked_block(self):
+        from apps.core.ai_orchestrator.cos_context import _format_health_intelligence_block
+
+        health_intel = {
+            'health_score': 75,
+            'recovery_score': 65,
+            'recovery_status': 'moderate',
+            'body_comp': {
+                'fat_loss_quality_label': 'EXCELLENT',
+                'fat_loss_ratio_14d': 0.87,
+                'recomposition_flag_14d': False,
+                'plateau_status': '',
+                'fat_loss_speed_label': 'SAFE',
+                'fat_loss_speed_pct_per_week': 0.8,
+                'muscle_loss_risk_level': 'LOW',
+                'muscle_loss_risk_score': 12,
+                'fat_mass': 50.0,
+                'body_comp_drivers': {},
+            },
+        }
+        context = {}
+        text = _format_health_intelligence_block(health_intel, context)
+        self.assertIn('BODY COMPOSITION (locked', text)
+        self.assertIn('Fat loss quality: EXCELLENT', text)
+        self.assertIn('Muscle loss risk: LOW', text)
+
+
+class TestBodyCompValidator(TestCase):
+    """Test validator detects generic body composition language."""
+
+    def test_detects_generic_body_fat_range(self):
+        from apps.ai.validators.health_response_validator import validate_health_response
+        response = "A healthy body fat percentage is between 15-20% for men."
+        result = validate_health_response(response)
+        body_comp_violations = [
+            v for v in result['violations'] if v['type'] == 'GENERIC_BODY_COMP'
+        ]
+        self.assertGreater(len(body_comp_violations), 0)
+
+    def test_detects_generic_fat_loss_advice(self):
+        from apps.ai.validators.health_response_validator import validate_health_response
+        response = "You should aim to lose 1 to 2 lbs per week for safe weight loss."
+        result = validate_health_response(response)
+        body_comp_violations = [
+            v for v in result['violations'] if v['type'] == 'GENERIC_BODY_COMP'
+        ]
+        self.assertGreater(len(body_comp_violations), 0)
+
+    def test_accepts_system_body_comp_values(self):
+        from apps.ai.validators.health_response_validator import validate_health_response
+        response = (
+            "Over the last 14 days your weight is down 3.1 lbs. "
+            "About 2.7 lbs came from fat mass and lean mass is stable. "
+            "Fat loss quality: EXCELLENT (ratio 0.87). "
+            "Muscle loss risk is LOW."
+        )
+        result = validate_health_response(response)
+        body_comp_violations = [
+            v for v in result['violations'] if v['type'] == 'GENERIC_BODY_COMP'
+        ]
+        self.assertEqual(len(body_comp_violations), 0)
+
+    def test_body_comp_generic_is_critical(self):
+        from apps.ai.validators.health_response_validator import validate_health_response
+        response = "Your fat mass is approximately 50 lbs based on your weight."
+        result = validate_health_response(response)
+        self.assertEqual(result['severity'], 'critical')
+
+
+class TestBodyCompDailyIntelligence(TestCase):
+    """Test the full compute_daily_intelligence single-call."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="bci_daily@test.com", password="t")
+        self.today = date.today()
+
+    def _create_scan(self, d, weight, bf_pct):
+        dt = timezone.make_aware(datetime.combine(d, datetime.min.time()).replace(hour=7))
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal(str(weight)), unit="lb", recorded_at=dt,
+        )
+        BodyCompositionEntry.objects.create(
+            user=self.user, metric_name="body_fat_pct", value=Decimal(str(bf_pct)),
+            unit="%", measurement_date=d, source="inbody",
+        )
+
+    def test_full_analysis_with_two_scans(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        self._create_scan(self.today - timedelta(days=14), 210, 26.0)
+        self._create_scan(self.today, 205, 24.5)
+
+        result = BCI.compute_daily_intelligence(self.user, self.today)
+        self.assertIn('fat_mass', result)
+        self.assertIn('body_comp_drivers', result)
+        self.assertIsNotNone(result.get('fat_mass'))
+
+    def test_returns_empty_dict_no_data(self):
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        result = BCI.compute_daily_intelligence(self.user, self.today)
+        self.assertEqual(result, {})
+
+    def test_fat_mass_only_with_one_scan(self):
+        """With only one scan (no window), should still compute fat_mass."""
+        from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence as BCI
+        self._create_scan(self.today, 200, 25.0)
+
+        result = BCI.compute_daily_intelligence(self.user, self.today)
+        self.assertIn('fat_mass', result)
+        self.assertAlmostEqual(float(result['fat_mass']), 50.0, places=0)
+
+
+class TestSystemPromptBodyCompRules(TestCase):
+    """Test that personal assistant prompt has body comp enforcement rules."""
+
+    def test_rule_8_present(self):
+        from apps.ai.personal_assistant import COS_PROACTIVE_INTELLIGENCE_PROMPT
+        self.assertIn('RULE 8:', COS_PROACTIVE_INTELLIGENCE_PROMPT)
+        self.assertIn('BODY COMPOSITION', COS_PROACTIVE_INTELLIGENCE_PROMPT)
+
+    def test_never_compute_fat_mass(self):
+        from apps.ai.personal_assistant import COS_PROACTIVE_INTELLIGENCE_PROMPT
+        self.assertIn('NEVER compute fat mass', COS_PROACTIVE_INTELLIGENCE_PROMPT)
+
+    def test_never_generic_body_fat(self):
+        from apps.ai.personal_assistant import COS_PROACTIVE_INTELLIGENCE_PROMPT
+        self.assertIn('generic body fat ranges', COS_PROACTIVE_INTELLIGENCE_PROMPT)

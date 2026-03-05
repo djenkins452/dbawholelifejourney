@@ -105,6 +105,11 @@ class DailyHealthSummaryBuilder:
         if protein_data:
             data.update(protein_data)
 
+        # Body composition intelligence (must run after weight + protein)
+        body_comp = self._compute_body_composition_intelligence(user, target_date, data)
+        if body_comp:
+            data.update(body_comp)
+
         # Completeness
         completeness = (len(signals) / len(ALL_DOMAINS)) * 100 if ALL_DOMAINS else 0
         data["data_completeness_pct"] = Decimal(str(round(completeness, 2)))
@@ -626,3 +631,27 @@ class DailyHealthSummaryBuilder:
             result["protein_score"] = score
 
         return result
+
+    def _compute_body_composition_intelligence(self, user, target_date, collected_data):
+        """
+        Compute body composition intelligence from collected data.
+
+        Runs AFTER _compute_protein_intelligence so that weight and body_fat_pct
+        are available in collected_data.
+
+        Returns dict with DailyHealthSummary body comp fields, or None.
+        """
+        try:
+            from apps.health.services.body_composition_intelligence import (
+                BodyCompositionIntelligence,
+            )
+            result = BodyCompositionIntelligence.compute_daily_intelligence(
+                user, target_date
+            )
+            return result if result else None
+        except Exception:
+            logger.error(
+                "Failed to compute body composition intelligence for %s on %s",
+                user.email, target_date, exc_info=True,
+            )
+            return None

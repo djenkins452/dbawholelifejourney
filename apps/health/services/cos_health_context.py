@@ -147,6 +147,25 @@ def build_cos_health_intelligence(user):
     except Exception:
         logger.error("Failed to compute protein intelligence for CoS", exc_info=True)
 
+    # Body composition intelligence (read from DailyHealthSummary ONLY)
+    # These values are pre-computed by BodyCompositionIntelligence at rollup time.
+    if today_summary:
+        def _dec(val):
+            return float(val) if val is not None else None
+
+        result["body_comp_intelligence"] = {
+            "fat_mass": _dec(today_summary.fat_mass),
+            "fat_loss_quality_label": today_summary.fat_loss_quality_label or None,
+            "fat_loss_ratio_14d": _dec(today_summary.fat_loss_ratio_14d),
+            "recomposition_flag_14d": today_summary.recomposition_flag_14d,
+            "plateau_status": today_summary.plateau_status or None,
+            "fat_loss_speed_pct_per_week": _dec(today_summary.fat_loss_speed_pct_per_week),
+            "fat_loss_speed_label": today_summary.fat_loss_speed_label or None,
+            "muscle_loss_risk_score": today_summary.muscle_loss_risk_score,
+            "muscle_loss_risk_level": today_summary.muscle_loss_risk_level or None,
+            "body_comp_drivers": today_summary.body_comp_drivers or {},
+        }
+
     return result
 
 
@@ -261,6 +280,32 @@ def build_cos_health_summary_text(user):
     coaching = protein_intel.get("coaching", {})
     if coaching and coaching.get("severity") in ("warning", "nudge"):
         parts.append(f"Protein: {coaching['message']}")
+
+    # Body composition intelligence
+    body_comp = intel.get("body_comp_intelligence", {})
+    if body_comp:
+        fl_label = body_comp.get("fat_loss_quality_label")
+        fl_ratio = body_comp.get("fat_loss_ratio_14d")
+        if fl_label and fl_label != "INSUFFICIENT_DATA":
+            ratio_str = f" (ratio {fl_ratio:.2f})" if fl_ratio else ""
+            parts.append(f"Fat loss quality: {fl_label}{ratio_str}")
+
+        if body_comp.get("recomposition_flag_14d"):
+            parts.append("Body recomposition detected")
+
+        plateau = body_comp.get("plateau_status")
+        if plateau and plateau not in ("INSUFFICIENT_DATA", ""):
+            parts.append(f"Plateau status: {plateau}")
+
+        speed_label = body_comp.get("fat_loss_speed_label")
+        speed_pct = body_comp.get("fat_loss_speed_pct_per_week")
+        if speed_label and speed_label not in ("INSUFFICIENT_DATA", ""):
+            speed_str = f" ({speed_pct:.1f}%/week)" if speed_pct else ""
+            parts.append(f"Fat loss speed: {speed_label}{speed_str}")
+
+        risk_level = body_comp.get("muscle_loss_risk_level")
+        if risk_level and risk_level != "LOW":
+            parts.append(f"Muscle loss risk: {risk_level}")
 
     # 7-day trends
     t7 = intel.get("trends_7d", {})

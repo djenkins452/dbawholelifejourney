@@ -238,6 +238,11 @@ class HealthCommandCenterService:
             summaries, recent_7, recent_14, today, user
         )
 
+        # --- Body Composition Intelligence ---
+        panels["body_comp"] = HealthCommandCenterService._build_body_comp_panel(
+            summaries, recent_14, today
+        )
+
         # --- Recovery ---
         panels["recovery"] = {
             "score": today.recovery_score if today else None,
@@ -278,6 +283,14 @@ class HealthCommandCenterService:
             "weight": [
                 {"date": str(s.summary_date), "value": _dec(s.weight)}
                 for s in summaries if s.weight
+            ],
+            "fat_mass": [
+                {"date": str(s.summary_date), "value": _dec(s.fat_mass)}
+                for s in summaries if s.fat_mass
+            ],
+            "lean_mass": [
+                {"date": str(s.summary_date), "value": _dec(s.lean_mass)}
+                for s in summaries if s.lean_mass
             ],
             "sleep_hours": [
                 {"date": str(s.summary_date), "value": _dec(s.sleep_hours)}
@@ -439,5 +452,106 @@ class HealthCommandCenterService:
                 }
         except Exception:
             logger.error("Failed to build protein coaching/target", exc_info=True)
+
+        return panel
+
+    @staticmethod
+    def _build_body_comp_panel(summaries, recent_14, today):
+        """Build the body composition intelligence dashboard panel.
+
+        Reads from DailyHealthSummary ONLY — no live computation.
+        """
+        def _dec(val):
+            return float(val) if val is not None else None
+
+        panel = {
+            # Current snapshot
+            "weight": _dec(today.weight) if today else None,
+            "body_fat_pct": _dec(today.body_fat_pct) if today else None,
+            "fat_mass": _dec(today.fat_mass) if today else None,
+            "lean_mass": _dec(today.lean_mass) if today else None,
+            "skeletal_muscle_mass": _dec(today.skeletal_muscle_mass) if today else None,
+
+            # Intelligence labels (from DailyHealthSummary)
+            "fat_loss_quality_label": today.fat_loss_quality_label if today else None,
+            "fat_loss_ratio_14d": _dec(today.fat_loss_ratio_14d) if today else None,
+            "recomposition_flag_14d": today.recomposition_flag_14d if today else None,
+            "plateau_status": today.plateau_status if today else None,
+            "fat_loss_speed_pct_per_week": _dec(today.fat_loss_speed_pct_per_week) if today else None,
+            "fat_loss_speed_label": today.fat_loss_speed_label if today else None,
+            "muscle_loss_risk_score": today.muscle_loss_risk_score if today else None,
+            "muscle_loss_risk_level": today.muscle_loss_risk_level if today else None,
+            "body_comp_drivers": today.body_comp_drivers if today else None,
+
+            # 14d deltas (computed from recent_14 endpoints)
+            "weight_delta_14d": None,
+            "fat_mass_delta_14d": None,
+            "lean_mass_delta_14d": None,
+
+            # Top insight
+            "top_insight": None,
+
+            # 56-day trend lines (from summaries)
+            "weight_trend_56d": [
+                {"date": str(s.summary_date), "value": _dec(s.weight)}
+                for s in summaries if s.weight
+            ],
+            "fat_mass_trend_56d": [
+                {"date": str(s.summary_date), "value": _dec(s.fat_mass)}
+                for s in summaries if s.fat_mass
+            ],
+            "lean_mass_trend_56d": [
+                {"date": str(s.summary_date), "value": _dec(s.lean_mass)}
+                for s in summaries if s.lean_mass
+            ],
+        }
+
+        # Compute 14d deltas from recent summaries
+        weight_data = [s for s in recent_14 if s.weight]
+        if len(weight_data) >= 2:
+            panel["weight_delta_14d"] = round(
+                float(weight_data[-1].weight) - float(weight_data[0].weight), 2
+            )
+
+        fat_data = [s for s in recent_14 if s.fat_mass]
+        if len(fat_data) >= 2:
+            panel["fat_mass_delta_14d"] = round(
+                float(fat_data[-1].fat_mass) - float(fat_data[0].fat_mass), 2
+            )
+
+        lean_data = [s for s in recent_14 if s.lean_mass]
+        if len(lean_data) >= 2:
+            panel["lean_mass_delta_14d"] = round(
+                float(lean_data[-1].lean_mass) - float(lean_data[0].lean_mass), 2
+            )
+
+        # Top insight — pick the most important signal
+        if today:
+            label = today.fat_loss_quality_label
+            risk = today.muscle_loss_risk_level
+            plateau = today.plateau_status
+            recomp = today.recomposition_flag_14d
+
+            if risk == 'HIGH':
+                panel["top_insight"] = (
+                    f"Muscle loss risk is HIGH (score {today.muscle_loss_risk_score}). "
+                    f"Review protein intake and recovery."
+                )
+            elif label == 'MUSCLE_LOSS_RISK':
+                panel["top_insight"] = "Fat loss quality indicates muscle loss risk — review nutrition."
+            elif recomp:
+                panel["top_insight"] = "Body recomposition detected — fat decreasing while lean mass increasing."
+            elif plateau == 'TRUE_PLATEAU':
+                panel["top_insight"] = "True plateau detected — consider adjusting calories or training."
+            elif plateau == 'WATER':
+                panel["top_insight"] = "Weight fluctuating but fat mass stable — likely water retention."
+            elif label == 'EXCELLENT':
+                ratio = _dec(today.fat_loss_ratio_14d)
+                ratio_str = f" (ratio {ratio:.2f})" if ratio else ""
+                panel["top_insight"] = f"Fat loss quality is EXCELLENT{ratio_str} — lean mass preserved."
+            elif label == 'GOOD':
+                panel["top_insight"] = "Fat loss quality is GOOD — mostly fat loss with minimal lean loss."
+            elif today.fat_loss_speed_label == 'TOO_FAST':
+                panel["top_insight"] = "Weight loss pace is too fast — risk of muscle loss."
 
         return panel

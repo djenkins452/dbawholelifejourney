@@ -520,6 +520,7 @@ def _build_health_and_vitals(user):
                 for c in intel.get('correlations', [])[:2]
             ],
             'protein': protein_data,
+            'body_comp': intel.get('body_comp_intelligence', {}),
         }
         result['health_intelligence_summary'] = build_cos_health_summary_text(user)
     except ImportError:
@@ -1281,6 +1282,45 @@ def _format_health_intelligence_block(health_intel, context):
                 lines.append(f"    Status: exceeding target by {abs(p_gap_g):.0f}g/day")
             if p_consistency is not None:
                 lines.append(f"    Days hitting 80%+ target: {p_consistency:.0f}% of days")
+
+    # Body composition intelligence (locked — pre-computed at rollup time)
+    body_comp = health_intel.get('body_comp', {})
+    if body_comp and body_comp.get('fat_loss_quality_label'):
+        lines.append("")
+        lines.append("  BODY COMPOSITION (locked — use these exact values):")
+
+        # 14d deltas — pull from body_comp_drivers if available
+        drivers = body_comp.get('body_comp_drivers', {})
+
+        fl_label = body_comp.get('fat_loss_quality_label')
+        fl_ratio = body_comp.get('fat_loss_ratio_14d')
+        ratio_str = f" (ratio {fl_ratio:.2f})" if fl_ratio else ""
+        lines.append(f"    Fat loss quality: {fl_label}{ratio_str}")
+
+        if body_comp.get('recomposition_flag_14d'):
+            lines.append("    Recomposition: Yes — fat decreasing, lean mass increasing")
+        else:
+            lines.append("    Recomposition: No")
+
+        plateau = body_comp.get('plateau_status')
+        if plateau and plateau != 'INSUFFICIENT_DATA':
+            lines.append(f"    Plateau status: {plateau}")
+
+        speed_label = body_comp.get('fat_loss_speed_label')
+        speed_pct = body_comp.get('fat_loss_speed_pct_per_week')
+        if speed_label and speed_label != 'INSUFFICIENT_DATA':
+            speed_str = f" ({speed_pct:.1f}%/week)" if speed_pct else ""
+            lines.append(f"    Fat loss speed: {speed_label}{speed_str}")
+
+        risk_level = body_comp.get('muscle_loss_risk_level')
+        risk_score = body_comp.get('muscle_loss_risk_score')
+        if risk_level:
+            score_str = f" (score {risk_score})" if risk_score is not None else ""
+            lines.append(f"    Muscle loss risk: {risk_level}{score_str}")
+
+        fat_mass = body_comp.get('fat_mass')
+        if fat_mass:
+            lines.append(f"    Current fat mass: {fat_mass:.1f} lbs")
 
     # Trends summary
     summary_text = context.get('health_intelligence_summary', '')

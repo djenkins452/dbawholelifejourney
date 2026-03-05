@@ -229,6 +229,27 @@ struct MainWebView: UIViewRepresentable {
             console.log('WLJ Native bridge initialized');
             """
             webView.evaluateJavaScript(js, completionHandler: nil)
+
+            // Auto-trigger token exchange after login.
+            // If we're on a non-login page (user is authenticated) but have no
+            // API token in Keychain, request an exchange code. This handles the
+            // first-login flow: user logs in via WKWebView → we detect post-login
+            // navigation → generate exchange code → exchange for API token.
+            let currentURL = webView.url?.absoluteString ?? ""
+            let isLoginPage = currentURL.contains("/accounts/login")
+                || currentURL.contains("/accounts/signup")
+            let hasToken = KeychainManager.shared.getAPIToken() != nil
+
+            if !isLoginPage && !hasToken {
+                // Check if user is actually logged in by looking for session cookie
+                webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
+                    let hasSession = cookies.contains { $0.name == "sessionid" }
+                    if hasSession {
+                        print("Post-login detected, no API token — requesting exchange code")
+                        self.requestExchangeCode()
+                    }
+                }
+            }
         }
 
         // MARK: - WKScriptMessageHandler
@@ -244,6 +265,11 @@ struct MainWebView: UIViewRepresentable {
                 triggerHealthSync()
             case "requestExchangeCode":
                 requestExchangeCode()
+            case "exchangeCode":
+                // Received a one-time code from the web — exchange it for an API token
+                if let code = body["code"] as? String {
+                    exchangeCodeForToken(code)
+                }
             case "openSettings":
                 DispatchQueue.main.async {
                     self.parent.appState.showSettings = true
@@ -298,9 +324,64 @@ struct MainWebView: UIViewRepresentable {
         // MARK: - Token Exchange
 
         private func requestExchangeCode() {
-            // This would be called when user logs in via web
-            // The web sends us a code, we exchange it for a token
-            print("Exchange code requested - implement web-side JS to pass code")
+            // Use the WKWebView's session (which has the login cookie) to call
+            // the Django generate-code endpoint via JavaScript fetch().
+            // URLSession can't call this endpoint because it doesn't share
+            // WKWebView's cookie store.
+            guard let webView = webView else { return }
+
+            let js = """
+            (async function() {
+                try {
+                    // Get CSRF token from cookie for the POST request
+                    var csrfMatch = document.cookie.match(/csrftoken=([^;]+)/);
+                    var csrfToken = csrfMatch ? csrfMatch[1] : '';
+
+                    var response = await fetch('/api/mobile/generate-code/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        credentials: 'same-origin'
+                    });
+
+                    if (response.ok) {
+                        var data = await response.json();
+                        // Pass the code back to native via JS bridge
+                        window.webkit.messageHandlers.wljBridge.postMessage({
+                            action: 'exchangeCode',
+                            code: data.code
+                        });
+                    } else {
+                        console.error('Generate code failed:', response.status);
+                    }
+                } catch (e) {
+                    console.error('Generate code error:', e);
+                }
+            })();
+            """
+
+            webView.evaluateJavaScript(js) { _, error in
+                if let error = error {
+                    print("Exchange code JS error: \(error)")
+                }
+            }
+        }
+
+        private func exchangeCodeForToken(_ code: String) {
+            Task {
+                do {
+                    let result = try await APIClient.shared.exchangeToken(code: code)
+                    print("Token exchange successful for \(result.user.email)")
+
+                    // Token is now saved in Keychain by APIClient.exchangeToken()
+                    // Trigger an initial health sync now that we have a token
+                    triggerHealthSync()
+                } catch {
+                    print("Token exchange error: \(error)")
+                }
+            }
         }
     }
 }

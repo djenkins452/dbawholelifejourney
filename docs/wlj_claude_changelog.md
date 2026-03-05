@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Fix Medication False Alarm, Add Proactive Suggestions, Improve Chat Error Handling
+
+**What:** Fixed three user-reported issues: (1) AI incorrectly reporting missed medications that were already logged, (2) AI not being proactive with suggestions during conversations, (3) generic "Could not reach the server" error with no differentiation.
+
+**Why:** The medication check was querying wrong field names (`date` instead of `scheduled_date`, `status` instead of `log_status`), causing it to always miss existing logs and falsely report medications as missed. The reasoning chain had no step for proactive suggestions. The chat error handler showed the same message for all failure types.
+
+**Changes:**
+- `apps/ai/assistant_intelligence.py` — Fixed `_check_missed_medications()`: `date` → `scheduled_date`, `time` → `scheduled_time`, `status` → `log_status`; also added `'late'` to the handled statuses
+- `apps/ai/personal_assistant.py` — Added step 7 (PROACTIVE OPPORTUNITY) to reasoning instruction in both full and fast context paths
+- `templates/components/assistant_panel.html` — Improved non-streaming error handler: added HTTP status check, differentiated server errors from network errors, added console.error logging
+
+**Files:** `apps/ai/assistant_intelligence.py`, `apps/ai/personal_assistant.py`, `templates/components/assistant_panel.html`
+
+---
+
 ## 2026-03-05 — Health Intelligence Engine Enhancements: Plateau Early Warning, Phase Detection, Muscle Preservation
 
 **What:** Added three new intelligence capabilities to the Body Composition Intelligence Engine: predictive plateau risk scoring (0–100 with prediction window), unified fat loss phase detection (5 phases with confidence scores), and muscle preservation status aliasing for CoS readability.

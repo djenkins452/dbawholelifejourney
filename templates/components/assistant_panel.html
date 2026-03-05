@@ -925,7 +925,10 @@
         }
 
         fetch('/assistant/api/chat/', fetchOpts)
-        .then(function(r) { return r.json(); })
+        .then(function(r) {
+            if (!r.ok) throw new Error('status_' + r.status);
+            return r.json();
+        })
         .then(function(data) {
             hideTyping();
             if (data.success && data.response) {
@@ -935,9 +938,14 @@
                 addMessage(container, data.error || 'Sorry, something went wrong.', false, true);
             }
         })
-        .catch(function() {
+        .catch(function(err) {
             hideTyping();
-            addMessage(container, 'Could not reach the server. Please try again.', false, true);
+            var msg = 'Could not reach the server. Please try again.';
+            if (err && err.message && err.message.indexOf('status_5') === 0) {
+                msg = 'The server encountered an error. Please try again in a moment.';
+            }
+            addMessage(container, msg, false, true);
+            console.error('Chat fallback error:', err);
         })
         .finally(function() {
             btnEl.disabled = !inputEl.value.trim();

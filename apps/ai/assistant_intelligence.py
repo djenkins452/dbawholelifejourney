@@ -587,11 +587,11 @@ class IntelligentCheckInService:
                 # Check if already logged
                 log = MedicineLog.objects.filter(
                     medicine=medicine,
-                    date=today,
-                    time=scheduled_time,
+                    scheduled_date=today,
+                    scheduled_time=scheduled_time,
                 ).first()
 
-                if log and log.status in ['taken', 'skipped']:
+                if log and log.log_status in ['taken', 'skipped', 'late']:
                     continue  # Already handled
 
                 # Check throttle for this specific dose

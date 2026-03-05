@@ -1418,6 +1418,10 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
                     <span class="ops-health-intel-metric-label">Body Comp</span>
                     <span class="ops-health-intel-metric-value" id="hiBodyCompUsers">0</span>
                 </div>
+                <div class="ops-health-intel-metric">
+                    <span class="ops-health-intel-metric-label">BC Raw Data</span>
+                    <span class="ops-health-intel-metric-value" id="hiBodyCompRawUsers">0</span>
+                </div>
             </div>
             <!-- Ingestion -->
             <div class="ops-health-intel-card">
@@ -1427,16 +1431,16 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
                     <span class="ops-health-intel-metric-value" id="hiIngestRuns">0</span>
                 </div>
                 <div class="ops-health-intel-metric">
-                    <span class="ops-health-intel-metric-label">Metrics</span>
+                    <span class="ops-health-intel-metric-label">Ingested</span>
                     <span class="ops-health-intel-metric-value" id="hiMetricsIngested">0</span>
                 </div>
                 <div class="ops-health-intel-metric">
-                    <span class="ops-health-intel-metric-label">Error Rate</span>
-                    <span class="ops-health-intel-metric-value" id="hiErrorRate">0%</span>
+                    <span class="ops-health-intel-metric-label">Errors</span>
+                    <span class="ops-health-intel-metric-value" id="hiActualErrors">0</span>
                 </div>
                 <div class="ops-health-intel-metric">
-                    <span class="ops-health-intel-metric-label">Received</span>
-                    <span class="ops-health-intel-metric-value" id="hiTotalReceived">0</span>
+                    <span class="ops-health-intel-metric-label">Dedup Skip</span>
+                    <span class="ops-health-intel-metric-value" id="hiSkipRate">0%</span>
                 </div>
                 <div id="hiErrorDetails" style="display:none; margin-top:0.5rem; font-size:0.75rem; text-align:left; width:100%;">
                     <div style="font-weight:600; margin-bottom:0.25rem; color:var(--color-text-muted);">Error Breakdown:</div>
@@ -2416,13 +2420,14 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
         _setVal('hiActiveUsers', hi.active_users);
         _setVal('hiUsersWithData', hi.users_with_summaries_7d);
         _setVal('hiBodyCompUsers', hi.body_comp_users_7d);
+        _setVal('hiBodyCompRawUsers', hi.body_comp_raw_users_7d);
 
         // Ingestion
         var ingest = hi.ingestion_24h || {};
         _setVal('hiIngestRuns', ingest.runs);
         _setVal('hiMetricsIngested', ingest.metrics_ingested);
-        _setVal('hiErrorRate', ingest.error_rate !== null && ingest.error_rate !== undefined ? ingest.error_rate + '%' : null);
-        _setVal('hiTotalReceived', ingest.total_received);
+        _setVal('hiActualErrors', ingest.actual_errors !== null && ingest.actual_errors !== undefined ? ingest.actual_errors : 0);
+        _setVal('hiSkipRate', ingest.skip_rate !== null && ingest.skip_rate !== undefined ? ingest.skip_rate + '%' : null);
 
         // Error breakdown
         var errorDetails = document.getElementById('hiErrorDetails');

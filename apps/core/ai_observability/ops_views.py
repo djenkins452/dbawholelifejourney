@@ -1583,6 +1583,7 @@ def _get_health_intelligence_telemetry(now):
         avg_recovery = round(score_agg['avg_recovery']) if score_agg.get('avg_recovery') else None
 
         # --- Body composition coverage (7d) ---
+        # Users with fat_loss_quality_label computed (needs multi-day data)
         body_comp_users = (
             DailyHealthSummary.objects
             .filter(
@@ -1590,6 +1591,18 @@ def _get_health_intelligence_telemetry(now):
                 fat_loss_quality_label__isnull=False,
             )
             .exclude(fat_loss_quality_label="")
+            .values('user')
+            .distinct()
+            .count()
+        )
+        # Users with raw body comp data (weight + body_fat from HealthKit)
+        from apps.health.models import WeightEntry
+        body_comp_raw_users = (
+            WeightEntry.objects
+            .filter(
+                recorded_at__date__gte=last_7d.date(),
+                body_fat_percentage__isnull=False,
+            )
             .values('user')
             .distinct()
             .count()
@@ -1652,6 +1665,7 @@ def _get_health_intelligence_telemetry(now):
             'avg_completeness_7d': avg_completeness,
             'total_summaries_7d': total_summaries_7d,
             'body_comp_users_7d': body_comp_users,
+            'body_comp_raw_users_7d': body_comp_raw_users,
             'scores': {
                 'avg_health_7d': avg_health,
                 'avg_recovery_7d': avg_recovery,
@@ -1696,22 +1710,38 @@ def _get_ingestion_stats(since):
         total_updated = agg.get('total_updated') or 0
         total_skipped = agg.get('total_skipped') or 0
         total_received = agg.get('total_received') or 0
-        error_rate = (
-            round(total_skipped / total_received * 100, 1)
-            if total_received > 0 else 0.0
-        )
+
         # Count runs with partial/failed status
         error_runs = runs.filter(status__in=['partial', 'failed']).count()
 
-        # Aggregate validation errors for diagnostics
+        # Aggregate validation errors for diagnostics.
+        # metrics_skipped conflates legitimate dedup skips and real errors.
+        # Count actual errors from validation_errors JSON to separate them.
+        total_actual_errors = 0
         error_by_type = Counter()
         error_samples = {}  # type -> first error message
         for run in runs.filter(validation_errors__isnull=False).exclude(validation_errors=[]):
-            for err in (run.validation_errors or []):
+            run_errors = run.validation_errors or []
+            total_actual_errors += len(run_errors)
+            for err in run_errors:
                 mtype = err.get('type', 'unknown')
                 error_by_type[mtype] += 1
                 if mtype not in error_samples:
                     error_samples[mtype] = err.get('error', '')[:120]
+
+        # True skip count = total_skipped (which includes errors) - actual errors
+        true_skips = max(0, total_skipped - total_actual_errors)
+
+        # Error rate = actual errors / received (not skips / received)
+        error_rate = (
+            round(total_actual_errors / total_received * 100, 1)
+            if total_received > 0 else 0.0
+        )
+        # Skip rate = dedup skips / received (informational)
+        skip_rate = (
+            round(true_skips / total_received * 100, 1)
+            if total_received > 0 else 0.0
+        )
 
         # Build top errors list (sorted by count desc)
         top_errors = [
@@ -1722,9 +1752,11 @@ def _get_ingestion_stats(since):
         return {
             'runs': total_runs,
             'metrics_ingested': total_created + total_updated,
-            'metrics_skipped': total_skipped,
+            'metrics_skipped': true_skips,
             'total_received': total_received,
             'error_rate': error_rate,
+            'skip_rate': skip_rate,
+            'actual_errors': total_actual_errors,
             'error_runs': error_runs,
             'top_errors': top_errors,
         }

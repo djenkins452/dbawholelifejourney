@@ -665,8 +665,8 @@ def process_weight_metric(user, metric_date, source, sync_id, data):
     """
     Process weight metric.
 
-    Note: WeightEntry uses 'value', 'unit', and 'recorded_at' (datetime, not date).
-    It doesn't have source/sync_id fields, so we match by date only.
+    WeightEntry has value, unit, recorded_at, source, sync_id, plus
+    body_fat_percentage and lean_body_mass (set by separate handlers).
     """
     value = data.get("value")
     unit = data.get("unit", "lb")
@@ -693,26 +693,44 @@ def process_weight_metric(user, metric_date, source, sync_id, data):
     if unit == "kg" and (value < 20 or value > 450):
         raise ValueError(f"Weight value out of range: {value}")
 
-    # Check for existing entry on same date (WeightEntry has no source/sync_id)
+    # Check for existing entry by sync_id first, then fall back to date match
     from datetime import time as dt_time
-    start_of_day = timezone.make_aware(datetime.combine(metric_date, dt_time.min))
-    end_of_day = timezone.make_aware(datetime.combine(metric_date, dt_time.max))
 
+    if sync_id:
+        existing = WeightEntry.objects.filter(
+            user=user,
+            sync_id=sync_id,
+        ).first()
+
+        if existing:
+            if existing.value != value or existing.unit != unit:
+                existing.value = value
+                existing.unit = unit
+                existing.source = source or "apple_health"
+                existing.save(update_fields=["value", "unit", "source", "updated_at"])
+                return "updated"
+            return "skipped"
+
+    # Fall back to date-based matching
     existing = WeightEntry.objects.filter(
         user=user,
-        recorded_at__gte=start_of_day,
-        recorded_at__lte=end_of_day,
+        recorded_at__date=metric_date,
     ).first()
 
     if existing:
         if existing.value != value or existing.unit != unit:
             existing.value = value
             existing.unit = unit
-            # Add source info to notes if not already there
-            if source and source not in (existing.notes or ""):
-                existing.notes = f"Synced from {source}" if not existing.notes else existing.notes
-            existing.save(update_fields=["value", "unit", "notes", "updated_at"])
+            existing.source = source or "apple_health"
+            if not existing.sync_id and sync_id:
+                existing.sync_id = sync_id
+            existing.save(update_fields=["value", "unit", "source", "sync_id", "updated_at"])
             return "updated"
+        # Backfill sync_id if missing
+        if not existing.sync_id and sync_id:
+            existing.sync_id = sync_id
+            existing.source = source or "apple_health"
+            existing.save(update_fields=["sync_id", "source", "updated_at"])
         return "skipped"
 
     # Create new entry (use noon as default time)
@@ -721,7 +739,8 @@ def process_weight_metric(user, metric_date, source, sync_id, data):
         value=value,
         unit=unit,
         recorded_at=timezone.make_aware(datetime.combine(metric_date, dt_time(12, 0))),
-        notes=f"Synced from {source}" if source else "",
+        source=source or "apple_health",
+        sync_id=sync_id,
     )
     return "created"
 
@@ -1610,52 +1629,60 @@ def process_workout_metric(user, metric_date, source, sync_id, data):
         except (ValueError, AttributeError):
             pass
 
-    # Check for existing workout with this sync_id
-    existing = WorkoutSession.objects.filter(
-        user=user,
-        sync_id=sync_id,
-    ).first()
+    # Use update_or_create to avoid race condition with concurrent syncs.
+    # The unique constraint on (user, sync_id) can cause IntegrityError when
+    # two requests check simultaneously, both find nothing, and both try INSERT.
+    from django.db import IntegrityError
 
-    if existing:
-        # Check if anything has changed
-        changed = False
-        if existing.workout_type != workout_type:
-            existing.workout_type = workout_type
-            changed = True
-        if existing.duration_minutes != workout_duration:
-            existing.duration_minutes = workout_duration
-            changed = True
-        if existing.calories_burned != workout_calories:
-            existing.calories_burned = workout_calories
-            changed = True
-        if existing.distance_miles != workout_distance:
-            existing.distance_miles = workout_distance
-            changed = True
-        if existing.avg_heart_rate != workout_avg_heart_rate:
-            existing.avg_heart_rate = workout_avg_heart_rate
-            changed = True
+    if sync_id:
+        existing = WorkoutSession.objects.filter(
+            user=user,
+            sync_id=sync_id,
+        ).first()
 
-        if changed:
-            existing.save()
-            return "updated"
+        if existing:
+            changed = False
+            if existing.workout_type != workout_type:
+                existing.workout_type = workout_type
+                changed = True
+            if existing.duration_minutes != workout_duration:
+                existing.duration_minutes = workout_duration
+                changed = True
+            if existing.calories_burned != workout_calories:
+                existing.calories_burned = workout_calories
+                changed = True
+            if existing.distance_miles != workout_distance:
+                existing.distance_miles = workout_distance
+                changed = True
+            if existing.avg_heart_rate != workout_avg_heart_rate:
+                existing.avg_heart_rate = workout_avg_heart_rate
+                changed = True
+
+            if changed:
+                existing.save()
+                return "updated"
+            return "skipped"
+
+    # Create new WorkoutSession, handle race condition gracefully
+    try:
+        WorkoutSession.objects.create(
+            user=user,
+            date=metric_date,
+            name=workout_type,
+            workout_type=workout_type,
+            duration_minutes=workout_duration,
+            calories_burned=workout_calories,
+            distance_miles=workout_distance,
+            avg_heart_rate=workout_avg_heart_rate,
+            started_at=started_at,
+            completed_at=completed_at,
+            source=source,
+            sync_id=sync_id,
+        )
+        return "created"
+    except IntegrityError:
+        # Another concurrent request already created this workout
         return "skipped"
-
-    # Create new WorkoutSession
-    WorkoutSession.objects.create(
-        user=user,
-        date=metric_date,
-        name=workout_type,  # Use workout type as default name
-        workout_type=workout_type,
-        duration_minutes=workout_duration,
-        calories_burned=workout_calories,
-        distance_miles=workout_distance,
-        avg_heart_rate=workout_avg_heart_rate,
-        started_at=started_at,
-        completed_at=completed_at,
-        source=source,
-        sync_id=sync_id,
-    )
-    return "created"
 
 
 def process_lean_body_mass_metric(user, metric_date, source, sync_id, data):

@@ -9,6 +9,25 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Fix HealthKit ingestion issues: workout race condition, error rate, weight handler, body comp diagnostics
+
+**What:** Multiple HealthKit ingestion pipeline fixes based on ops page diagnostic data.
+
+**Changes:**
+1. **Workout IntegrityError fix** — `process_workout_metric()` had a TOCTOU race condition: concurrent syncs could both check for existing workout, find nothing, and both INSERT, hitting the unique constraint. Added `try/except IntegrityError` to catch the race and return "skipped".
+2. **Error rate formula fix** — The formula counted all `metrics_skipped` (including legitimate dedup skips) as errors. With 95 syncs in 24h, 95.5% were dedup skips, not errors. Now separates actual errors (from `validation_errors` JSON) from dedup skips. Shows "Errors" count and "Dedup Skip" rate separately.
+3. **Weight handler fix** — `process_weight_metric()` had stale docstring claiming "no source/sync_id fields" when the model has both. Now sets `source` and `sync_id` on WeightEntry, uses sync_id-first dedup, and backfills sync_id on existing entries.
+4. **Body comp raw data metric** — Added "BC Raw Data" to ops page Coverage section, showing users with WeightEntry + body_fat_percentage data (even before intelligence computes fat_loss_quality_label).
+
+**Files Modified:**
+- `apps/mobile/views.py` — workout race condition fix, weight handler rewrite
+- `apps/core/ai_observability/ops_views.py` — error rate formula, body comp raw users
+- `templates/admin_console/operations_wall.html` — new metrics display
+
+**Why:** Ops page showed misleading 95.5% "error rate" that was actually 95.5% dedup skip rate with only 7 real errors (workout IntegrityError). Weight handler wasn't setting source/sync_id, making dedup less reliable. Body comp diagnostic shows whether raw data exists before intelligence computes.
+
+---
+
 ## 2026-03-05 — Fix blood pressure & body temperature timestamp parsing
 
 **What:** Both `process_blood_pressure_metric()` and `process_body_temperature_metric()` used `django.utils.dateparse.parse_datetime()` which silently returns `None` for ISO8601 timestamps with "Z" suffix (what iOS sends). Every reading was stored at noon instead of actual measurement time.

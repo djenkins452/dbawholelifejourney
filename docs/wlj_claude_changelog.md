@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Add HealthKit ingestion error diagnostics to ops page
+
+**What:** Ops page showed "HEALTHKIT (24H): ERROR RATE 95.4%" but gave no visibility into what errors were actually occurring. The `HealthIngestionRun.validation_errors` JSON field stores detailed error info per metric, but this data was never surfaced.
+
+**Changes:**
+- `apps/core/ai_observability/ops_views.py` — Enhanced `_get_ingestion_stats()` to aggregate validation errors from recent ingestion runs. Returns `top_errors` list with metric type, count, and sample error message. Also returns `total_received` count.
+- `templates/admin_console/operations_wall.html` — Added "Received" count metric and expandable "Error Breakdown" section to HealthKit card. Shows top error types with counts and sample error messages.
+
+**Files Modified:**
+- `apps/core/ai_observability/ops_views.py`
+- `templates/admin_console/operations_wall.html`
+
+**Why:** Can't diagnose the 95.4% ingestion error rate without seeing what's actually failing. This gives immediate visibility into which metric types are erroring and the specific error messages.
+
+---
+
 ## 2026-03-05 — Implement iOS token exchange flow for HealthKit data sync
 
 **What:** After CSRF login fix, HealthKit sync still produced zero data because the token exchange flow was unimplemented. `requestExchangeCode()` was a stub that just printed to console. Without an API token in Keychain, `APIClient.submitHealthMetrics()` threw `.notAuthenticated` silently.

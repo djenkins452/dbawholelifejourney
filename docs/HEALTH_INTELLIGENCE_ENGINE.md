@@ -676,3 +676,58 @@ print(DailyHealthSummary.objects.count(), 'summaries')
 print(DailyHealthSummary.objects.filter(health_score__isnull=False).count(), 'with scores')
 "
 ```
+
+---
+
+## UI Layer
+
+The Health Intelligence UI surfaces DailyHealthSummary data through three integration points. **All data is read-only from DailyHealthSummary — no calculations happen in views or templates.**
+
+### Dashboard Tile
+
+**Tile ID:** `health_intelligence` | **Size:** medium | **Dependency:** `health_enabled`
+
+Located in `templates/dashboard/tiles/health_intelligence.html`. Shows a 2×2 metric grid:
+
+| Metric | Source Field | Display |
+|--------|-------------|---------|
+| Fat Loss Phase | `fat_loss_phase` | Colored badge (STABLE_FAT_LOSS, RAPID_INITIAL_LOSS, etc.) |
+| Plateau Risk | `plateau_risk_label` | Color-coded: green (LOW), yellow (RISING), red (HIGH) |
+| Fat Loss Quality | `muscle_preservation_status` | Color-coded: green (HIGH_QUALITY), yellow (MODERATE), red (MUSCLE_RISK) |
+| Fat Loss Ratio | `fat_loss_ratio_14d` | Decimal value |
+
+Shows stale warning when data is >36 hours old. Links to `/health/intelligence/`.
+
+### Health Intelligence Page
+
+**URL:** `/health/intelligence/` | **View:** `HealthIntelligenceView` | **Help ID:** `HEALTH_INTELLIGENCE`
+
+Five sections:
+
+1. **Where You Are Now** — 4-metric card grid (same as tile, larger format)
+2. **What It Means** — Human-readable explanation per phase/label (template-driven, no computation)
+3. **Risks & Warnings** — Conditional panels for HIGH/RISING plateau, MUSCLE_RISK, TOO_FAST speed
+4. **Trend Graphs** — Chart.js charts: Weight+Fat Mass (56 days), Lean Mass/SMM, Plateau Risk Score
+5. **Scan History** — Table of BodyCompositionEntry records (last 20)
+
+Admin section (staff only) includes a "Rebuild Health Summaries" button that POSTs to `/health/intelligence/rebuild/`.
+
+### Ops Command Center
+
+The Health Intelligence Engine tile on the Operations Wall shows:
+- Nightly task metrics: summaries built (24h), users processed, oldest missing user
+- "Rebuild" button that queues `build_nightly_health_summaries` via `AdminIntervention`
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `apps/dashboard/services/config_service.py` | Tile registration in TILE_DEFINITIONS |
+| `apps/dashboard/views.py` | `_get_health_intelligence()` context method |
+| `templates/dashboard/tiles/health_intelligence.html` | Dashboard tile template |
+| `templates/dashboard/home.html` | Tile dispatch entry |
+| `apps/health/views.py` | `HealthIntelligenceView` + `HealthRebuildView` |
+| `apps/health/urls.py` | URL routes: `intelligence/`, `intelligence/rebuild/` |
+| `templates/health/intelligence.html` | Full intelligence page (5 sections + charts) |
+| `apps/core/ai_observability/ops_views.py` | Extended telemetry + rebuild action |
+| `templates/admin_console/operations_wall.html` | Rebuild button + nightly metrics |

@@ -920,6 +920,9 @@ class Command(BaseCommand):
         # One-time: Backfill health intelligence enhancements (plateau risk, phase, muscle preservation)
         self._backfill_health_intelligence_enhancements(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Health Intelligence UI (release note PK 135, help PK 114, teaching PK 176)
+        self._reset_health_intelligence_ui_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5409,3 +5412,35 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Health intelligence backfill FAILED: {e}'))
+
+    def _reset_health_intelligence_ui_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 135), help_topics (PK 114),
+        and teaching_destinations (PK 176) for Health Intelligence UI.
+        """
+        reset_tracker_name = 'reset_health_intelligence_ui_2026_03_05'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for loader_name in ('release_notes', 'help_topics', 'teaching_destinations'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader_name} loader for Health Intelligence UI')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Health Intelligence UI',
+                'command',
+                'One-time reset to reload release_notes PK 135, help_topics PK 114, teaching_destinations PK 176'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset health intelligence UI fixtures FAILED: {e}'))

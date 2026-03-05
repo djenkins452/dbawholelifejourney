@@ -3744,3 +3744,159 @@ class TestEnhancedValidatorPatterns(TestCase):
         violations = result.get('violations', [])
         body_comp_violations = [v for v in violations if v['type'] == 'GENERIC_BODY_COMP']
         self.assertEqual(len(body_comp_violations), 0)
+
+
+# =========================================================================
+# Health Intelligence UI Tests
+# =========================================================================
+
+
+class TestHealthIntelligenceView(TestCase):
+    """Test the /health/intelligence/ page view."""
+
+    def _setup_user(self, email, password='test123', is_staff=False):
+        """Create a test user with onboarding + terms completed."""
+        from django.conf import settings as django_settings
+        from apps.users.models import TermsAcceptance
+        User = get_user_model()
+        user = User.objects.create_user(email=email, password=password, is_staff=is_staff)
+        TermsAcceptance.objects.create(
+            user=user,
+            terms_version=django_settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0'),
+        )
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
+        return user
+
+    def setUp(self):
+        self.user = self._setup_user('hi-view@test.com')
+        self.client.login(email='hi-view@test.com', password='test123')
+
+    def test_page_loads_no_data(self):
+        """Page loads with no DailyHealthSummary data."""
+        response = self.client.get('/health/intelligence/', follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Health Intelligence')
+
+    def test_page_loads_with_data(self):
+        """Page loads and shows data when DailyHealthSummary exists."""
+        DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=date.today(),
+            weight=Decimal('195'),
+            body_fat_pct=Decimal('22.0'),
+            fat_mass=Decimal('42.9'),
+            fat_loss_phase='STABLE_FAT_LOSS',
+            phase_confidence=80,
+            plateau_risk_score=30,
+            plateau_risk_label='RISING',
+            muscle_preservation_status='HIGH_QUALITY',
+            fat_loss_ratio_14d=Decimal('0.85'),
+        )
+        response = self.client.get('/health/intelligence/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'STABLE_FAT_LOSS')
+        self.assertContains(response, 'RISING')
+        self.assertContains(response, 'HIGH_QUALITY')
+        self.assertContains(response, 'Where You Are Now')
+
+    def test_warnings_shown_for_high_risk(self):
+        """Warning panels shown when plateau risk is HIGH."""
+        DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=date.today(),
+            weight=Decimal('195'),
+            plateau_risk_score=75,
+            plateau_risk_label='HIGH',
+            plateau_prediction_window_days=0,
+            muscle_preservation_status='MUSCLE_RISK',
+        )
+        response = self.client.get('/health/intelligence/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Risks')
+        self.assertContains(response, 'Plateau risk is HIGH')
+        self.assertContains(response, 'Muscle preservation at risk')
+
+    def test_stale_warning(self):
+        """Stale banner shown when data is old."""
+        DailyHealthSummary.objects.create(
+            user=self.user,
+            summary_date=date.today() - timedelta(days=3),
+            weight=Decimal('195'),
+        )
+        # Manually set updated_at to 3 days ago
+        DailyHealthSummary.objects.filter(user=self.user).update(
+            updated_at=timezone.now() - timedelta(hours=48)
+        )
+        response = self.client.get('/health/intelligence/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'not been updated recently')
+
+    def test_requires_login(self):
+        """Page requires authentication."""
+        self.client.logout()
+        response = self.client.get('/health/intelligence/')
+        self.assertEqual(response.status_code, 302)  # Redirect to login
+
+
+class TestHealthRebuildView(TestCase):
+    """Test the admin rebuild endpoint."""
+
+    def _setup_user(self, email, password='test123', is_staff=False):
+        """Create a test user with onboarding + terms completed."""
+        from django.conf import settings as django_settings
+        from apps.users.models import TermsAcceptance
+        User = get_user_model()
+        user = User.objects.create_user(email=email, password=password, is_staff=is_staff)
+        TermsAcceptance.objects.create(
+            user=user,
+            terms_version=django_settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0'),
+        )
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
+        return user
+
+    def setUp(self):
+        self.admin = self._setup_user('admin-rebuild@test.com', is_staff=True)
+        self.regular_user = self._setup_user('regular-rebuild@test.com', is_staff=False)
+
+    def test_staff_can_trigger_rebuild(self):
+        """Staff users can trigger rebuild."""
+        self.client.login(email='admin-rebuild@test.com', password='test123')
+        # Staff users require MFA — set session flag to bypass MFA middleware
+        session = self.client.session
+        session['mfa_verified'] = True
+        session.save()
+        with patch('apps.health.tasks.build_user_health_summary') as mock_task:
+            mock_task.delay = lambda *a: None
+            response = self.client.post(
+                '/health/intelligence/rebuild/',
+                data='{"days": 3}',
+                content_type='application/json',
+            )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(data['queued'], 3)
+
+    def test_non_staff_forbidden(self):
+        """Regular users cannot trigger rebuild."""
+        self.client.login(email='regular-rebuild@test.com', password='test123')
+        response = self.client.post(
+            '/health/intelligence/rebuild/',
+            data='{"days": 3}',
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 403)
+
+
+class TestHealthIntelligenceTile(TestCase):
+    """Test the dashboard tile registration."""
+
+    def test_tile_registered(self):
+        """health_intelligence tile is in TILE_DEFINITIONS."""
+        from apps.dashboard.services.config_service import TILE_DEFINITIONS
+        self.assertIn('health_intelligence', TILE_DEFINITIONS)
+        tile = TILE_DEFINITIONS['health_intelligence']
+        self.assertEqual(tile['module_dependency'], 'health_enabled')
+        self.assertEqual(tile['default_size'], 'medium')

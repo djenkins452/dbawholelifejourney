@@ -443,6 +443,8 @@ body.edit-mode .tile-name-label {
                 {% include "dashboard/tiles/transformation.html" with tile=tile %}
             {% elif tile_id == 'relational_health' %}
                 {% include "dashboard/tiles/relational_health.html" with tile=tile %}
+            {% elif tile_id == 'health_intelligence' %}
+                {% include "dashboard/tiles/health_intelligence.html" with tile=tile %}
             {% endif %}
             {% endwith %}
         </div>

@@ -1075,6 +1075,8 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # Cycle Tracking
             "cycle_tracking_enabled": cycle_tracking_enabled,
             "cycle_data": cycle_data,
+            # Health Intelligence (body comp intelligence from latest DailyHealthSummary)
+            "health_intelligence": self._get_health_intelligence(user),
         }
 
     def _calculate_workout_streak(self, user, today):
@@ -1099,6 +1101,39 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 break
 
         return streak
+
+    def _get_health_intelligence(self, user):
+        """Get latest health intelligence data from DailyHealthSummary."""
+        try:
+            from apps.health.models import DailyHealthSummary
+
+            latest = (
+                DailyHealthSummary.objects
+                .filter(user=user)
+                .order_by('-summary_date')
+                .first()
+            )
+            if not latest:
+                return None
+
+            age_hours = None
+            if latest.updated_at:
+                age_hours = (timezone.now() - latest.updated_at).total_seconds() / 3600
+
+            return {
+                'fat_loss_phase': latest.fat_loss_phase or None,
+                'phase_confidence': latest.phase_confidence,
+                'plateau_risk_score': latest.plateau_risk_score,
+                'plateau_risk_label': latest.plateau_risk_label or None,
+                'plateau_prediction_window_days': latest.plateau_prediction_window_days,
+                'fat_loss_ratio': float(latest.fat_loss_ratio_14d) if latest.fat_loss_ratio_14d else None,
+                'muscle_preservation_status': latest.muscle_preservation_status or None,
+                'muscle_loss_risk_score': latest.muscle_loss_risk_score,
+                'summary_date': latest.summary_date,
+                'is_stale': age_hours > 36 if age_hours is not None else True,
+            }
+        except Exception:
+            return None
 
     def _get_scan_data(self, user, today, week_ago):
         """Get scan/camera activity data."""

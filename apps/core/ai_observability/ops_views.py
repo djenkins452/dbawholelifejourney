@@ -1012,6 +1012,8 @@ def _execute_action(action, engine, trace_id):
             return _action_restart_scheduler()
         elif action == "acknowledge_anomaly":
             return _action_acknowledge_anomaly(engine)
+        elif action == "rebuild_health_summaries":
+            return _action_rebuild_health_summaries()
         else:
             return {"status": "failure", "detail": f"Unknown action: {action}"}
     except Exception as e:
@@ -1113,6 +1115,27 @@ def _action_acknowledge_anomaly(engine):
         "status": "success",
         "detail": f"Acknowledged {resolved} anomaly/anomalies for {engine}",
     }
+
+
+def _action_rebuild_health_summaries():
+    """Queue a full nightly health summary rebuild via Celery."""
+    try:
+        from apps.health.tasks import build_nightly_health_summaries
+        build_nightly_health_summaries.delay()
+        return {
+            "status": "success",
+            "detail": "Health summary nightly rebuild queued via Celery.",
+        }
+    except ImportError:
+        return {
+            "status": "failure",
+            "detail": "Celery health tasks not available.",
+        }
+    except Exception as e:
+        return {
+            "status": "failure",
+            "detail": f"Failed to queue rebuild: {e}",
+        }
 
 
 def _get_scheduler_heartbeats():
@@ -1590,6 +1613,36 @@ def _get_health_intelligence_telemetry(now):
         else:
             status = "OK"
 
+        # --- Nightly task metrics (24h) ---
+        summaries_built_24h = (
+            DailyHealthSummary.objects
+            .filter(updated_at__gte=last_24h)
+            .count()
+        )
+        users_processed_24h = (
+            DailyHealthSummary.objects
+            .filter(updated_at__gte=last_24h)
+            .values('user')
+            .distinct()
+            .count()
+        )
+        # Oldest active user without a recent (7d) summary
+        from django.db.models import Subquery
+        users_with_recent = (
+            DailyHealthSummary.objects
+            .filter(summary_date__gte=last_7d.date())
+            .values_list('user_id', flat=True)
+            .distinct()
+        )
+        oldest_missing = (
+            User.objects
+            .filter(is_active=True)
+            .exclude(id__in=Subquery(users_with_recent))
+            .order_by('date_joined')
+            .values_list('email', flat=True)
+            .first()
+        )
+
         return {
             'status': status,
             'latest_summary_date': str(latest_date) if latest_date else None,
@@ -1604,6 +1657,11 @@ def _get_health_intelligence_telemetry(now):
                 'avg_recovery_7d': avg_recovery,
             },
             'ingestion_24h': ingestion_stats,
+            'nightly_task': {
+                'summaries_built_24h': summaries_built_24h,
+                'users_processed_24h': users_processed_24h,
+                'oldest_missing_user': oldest_missing,
+            },
         }
 
     except Exception as e:

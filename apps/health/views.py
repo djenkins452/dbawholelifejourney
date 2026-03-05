@@ -53,9 +53,11 @@ from .forms import (
 from .models import (
     BloodOxygenEntry,
     BloodPressureEntry,
+    BodyCompositionEntry,
     BodyTemperatureEntry,
     CardioDetails,
     ClassDetails,
+    DailyHealthSummary,
     CustomFood,
     Exercise,
     ExerciseSet,
@@ -6478,3 +6480,105 @@ class BulkDeleteSleepView(LoginRequiredMixin, View):
             'count': count,
             'item_type': 'health.sleepentry',
         })
+
+
+# =========================================================================
+# Health Intelligence UI
+# =========================================================================
+
+
+class HealthIntelligenceView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    """
+    Full health intelligence page showing body composition analysis,
+    phase detection, plateau risk, and trend charts.
+
+    All data is read from DailyHealthSummary — no live calculations.
+    """
+
+    template_name = "health/intelligence.html"
+    help_context_id = "HEALTH_INTELLIGENCE"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        today = timezone.now().date()
+
+        # Latest DailyHealthSummary
+        latest = (
+            DailyHealthSummary.objects
+            .filter(user=user)
+            .order_by('-summary_date')
+            .first()
+        )
+        context['summary'] = latest
+
+        # Staleness check
+        if latest and latest.updated_at:
+            age_hours = (timezone.now() - latest.updated_at).total_seconds() / 3600
+            context['is_stale'] = age_hours > 36
+        else:
+            context['is_stale'] = True
+
+        # Historical data for charts (last 56 days)
+        history = list(
+            DailyHealthSummary.objects
+            .filter(user=user, summary_date__gte=today - timedelta(days=56))
+            .order_by('summary_date')
+            .values(
+                'summary_date', 'weight', 'fat_mass', 'lean_mass',
+                'skeletal_muscle_mass', 'plateau_risk_score', 'fat_loss_phase',
+            )
+        )
+        context['chart_data'] = json.dumps([
+            {
+                'date': str(h['summary_date']),
+                'weight': float(h['weight']) if h['weight'] else None,
+                'fat_mass': float(h['fat_mass']) if h['fat_mass'] else None,
+                'lean_mass': float(h['lean_mass']) if h['lean_mass'] else None,
+                'smm': float(h['skeletal_muscle_mass']) if h['skeletal_muscle_mass'] else None,
+                'plateau_risk': h['plateau_risk_score'],
+            }
+            for h in history
+        ], default=str)
+
+        # Scan history (BodyCompositionEntry, last 20)
+        context['scan_history'] = (
+            BodyCompositionEntry.objects
+            .filter(user=user)
+            .order_by('-measurement_date')[:20]
+        )
+
+        # Admin rebuild access
+        context['is_staff'] = user.is_staff
+
+        return context
+
+
+class HealthRebuildView(LoginRequiredMixin, View):
+    """Staff-only endpoint to trigger health summary rebuild via Celery."""
+
+    def post(self, request):
+        if not request.user.is_staff:
+            return JsonResponse({'error': 'Forbidden'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            body = {}
+
+        target_user_id = body.get('user_id', request.user.id)
+        days = min(int(body.get('days', 7)), 90)  # Cap at 90
+
+        try:
+            from .tasks import build_user_health_summary
+        except ImportError:
+            return JsonResponse({'error': 'Celery tasks not available'}, status=500)
+
+        today = timezone.now().date()
+        queued = 0
+        for i in range(days):
+            d = today - timedelta(days=i)
+            build_user_health_summary.delay(int(target_user_id), str(d))
+            queued += 1
+
+        return JsonResponse({'success': True, 'queued': queued, 'days': days})

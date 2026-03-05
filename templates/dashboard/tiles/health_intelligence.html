@@ -1,0 +1,167 @@
+{% comment %}
+Dashboard Tile: Health Intelligence
+Shows body composition intelligence: fat loss phase, plateau risk, muscle preservation.
+Data source: DailyHealthSummary (read-only — no calculations).
+{% endcomment %}
+
+{% if health_enabled and user_data.health_intelligence %}
+{% with hi=user_data.health_intelligence %}
+<section class="tile tile-size-{{ tile.size|default:'medium' }}" data-tile-id="health_intelligence">
+    <style nonce="{{ csp_nonce }}">
+        .hi-tile-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+        }
+        .hi-tile-header h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 0;
+            color: var(--color-text);
+        }
+        .hi-tile-link {
+            font-size: 0.8rem;
+            color: var(--color-accent, #6366f1);
+            text-decoration: none;
+        }
+        .hi-tile-link:hover { text-decoration: underline; }
+        .hi-stale-banner {
+            background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, var(--color-background));
+            border: 1px solid var(--color-warning, #f59e0b);
+            border-radius: var(--radius-lg, 0.5rem);
+            padding: 0.4rem 0.6rem;
+            font-size: 0.75rem;
+            color: var(--color-text);
+            margin-bottom: 0.75rem;
+        }
+        .hi-metric-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.6rem;
+        }
+        .hi-metric-card {
+            background: var(--color-surface, #f9fafb);
+            border: 1px solid var(--color-border, #e5e7eb);
+            border-radius: var(--radius-lg, 0.5rem);
+            padding: 0.6rem 0.75rem;
+        }
+        .hi-metric-label {
+            font-size: 0.7rem;
+            color: var(--color-text-muted, #6b7280);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            margin-bottom: 0.2rem;
+        }
+        .hi-metric-value {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--color-text);
+        }
+        .hi-badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: var(--radius-full, 9999px);
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        .hi-status-good {
+            background: color-mix(in srgb, var(--color-success, #10b981) 15%, var(--color-background));
+            color: var(--color-success, #10b981);
+        }
+        .hi-status-warning {
+            background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, var(--color-background));
+            color: #b45309;
+        }
+        .hi-status-danger {
+            background: color-mix(in srgb, var(--color-error, #ef4444) 15%, var(--color-background));
+            color: var(--color-error, #ef4444);
+        }
+        .hi-status-neutral {
+            background: var(--color-surface, #f3f4f6);
+            color: var(--color-text-muted, #6b7280);
+        }
+        .hi-tile-footer {
+            margin-top: 0.6rem;
+            font-size: 0.7rem;
+            color: var(--color-text-muted, #6b7280);
+        }
+    </style>
+
+    <div class="hi-tile-header">
+        <h3><i class="fa-solid fa-brain"></i> Health Intelligence</h3>
+        <a href="{% url 'health:health_intelligence' %}" class="hi-tile-link">Details &rarr;</a>
+    </div>
+
+    {% if hi.is_stale %}
+    <div class="hi-stale-banner">
+        &#9888; Health intelligence data has not been updated recently.
+    </div>
+    {% endif %}
+
+    <div class="hi-metric-grid">
+        <!-- Fat Loss Phase -->
+        <div class="hi-metric-card">
+            <div class="hi-metric-label">Fat Loss Phase</div>
+            <div class="hi-metric-value">
+                {% if hi.fat_loss_phase %}
+                <span class="hi-badge {% if hi.fat_loss_phase == 'STABLE_FAT_LOSS' or hi.fat_loss_phase == 'RAPID_INITIAL_LOSS' %}hi-status-good{% elif hi.fat_loss_phase == 'RECOMPOSITION' %}hi-status-good{% elif hi.fat_loss_phase == 'PLATEAU' %}hi-status-warning{% elif hi.fat_loss_phase == 'REBOUND_RISK' %}hi-status-danger{% else %}hi-status-neutral{% endif %}">
+                    {{ hi.fat_loss_phase|cut:"_" }}
+                </span>
+                {% else %}
+                <span class="hi-badge hi-status-neutral">No data</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Plateau Risk -->
+        <div class="hi-metric-card">
+            <div class="hi-metric-label">Plateau Risk</div>
+            <div class="hi-metric-value">
+                {% if hi.plateau_risk_label %}
+                <span class="hi-badge {% if hi.plateau_risk_label == 'LOW' %}hi-status-good{% elif hi.plateau_risk_label == 'RISING' %}hi-status-warning{% elif hi.plateau_risk_label == 'HIGH' %}hi-status-danger{% else %}hi-status-neutral{% endif %}">
+                    {{ hi.plateau_risk_label }}
+                </span>
+                {% if hi.plateau_risk_score is not None %}
+                <span style="font-size: 0.75rem; color: var(--color-text-muted);">({{ hi.plateau_risk_score }})</span>
+                {% endif %}
+                {% else %}
+                <span class="hi-badge hi-status-neutral">No data</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Muscle Preservation -->
+        <div class="hi-metric-card">
+            <div class="hi-metric-label">Fat Loss Quality</div>
+            <div class="hi-metric-value">
+                {% if hi.muscle_preservation_status %}
+                <span class="hi-badge {% if hi.muscle_preservation_status == 'HIGH_QUALITY' %}hi-status-good{% elif hi.muscle_preservation_status == 'MODERATE_QUALITY' %}hi-status-warning{% elif hi.muscle_preservation_status == 'MUSCLE_RISK' %}hi-status-danger{% else %}hi-status-neutral{% endif %}">
+                    {{ hi.muscle_preservation_status|cut:"_" }}
+                </span>
+                {% else %}
+                <span class="hi-badge hi-status-neutral">No data</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Fat Loss Ratio -->
+        <div class="hi-metric-card">
+            <div class="hi-metric-label">Fat Loss Ratio</div>
+            <div class="hi-metric-value">
+                {% if hi.fat_loss_ratio is not None %}
+                {{ hi.fat_loss_ratio|floatformat:2 }}
+                {% else %}
+                <span style="color: var(--color-text-muted);">&mdash;</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="hi-tile-footer">
+        Last updated: {{ hi.summary_date|date:"M j, Y" }}
+    </div>
+</section>
+{% endwith %}
+{% endif %}

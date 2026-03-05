@@ -9,6 +9,33 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Health Intelligence UI: Dashboard Tile, Intelligence Page, Admin Rebuild, Ops Enhancement
+
+**What:** Added full UI layer for the Health Intelligence Engine — dashboard tile, dedicated `/health/intelligence/` page with 5 sections and charts, admin rebuild endpoint, and enhanced Ops Command Center tile with nightly task metrics.
+
+**Why:** The Health Intelligence Engine was fully built and populating DailyHealthSummary nightly, but had zero UI visibility. Users couldn't see fat loss phase, plateau risk, muscle preservation status, or trend charts. Staff couldn't trigger rebuilds without shell access.
+
+**Changes:**
+- `apps/dashboard/services/config_service.py` — Added `health_intelligence` tile definition (medium, health_enabled dependency)
+- `apps/dashboard/views.py` — Added `_get_health_intelligence()` method to query latest DailyHealthSummary for dashboard context
+- `templates/dashboard/tiles/health_intelligence.html` — NEW: Dashboard tile with 2×2 metric grid, color-coded badges, stale warning
+- `templates/dashboard/home.html` — Added tile dispatch for health_intelligence
+- `apps/health/views.py` — Added `HealthIntelligenceView` (5-section page with chart data) and `HealthRebuildView` (staff-only Celery task trigger)
+- `apps/health/urls.py` — Added routes: `intelligence/`, `intelligence/rebuild/`
+- `templates/health/intelligence.html` — NEW: Full page with Where You Are Now, What It Means, Risks & Warnings, Trend Graphs (Chart.js), Scan History
+- `apps/core/ai_observability/ops_views.py` — Extended health telemetry with nightly task metrics, added `rebuild_health_summaries` action
+- `templates/admin_console/operations_wall.html` — Added rebuild button + nightly task card to Health Intelligence tile
+- `apps/health/tests/test_health_intelligence.py` — Added 8 UI tests (view, rebuild, tile registration)
+- `docs/HEALTH_INTELLIGENCE_ENGINE.md` — Added UI Layer section
+- `apps/core/fixtures/release_notes.json` — Added release note (PK 135)
+- `apps/help/fixtures/help_topics.json` — Added HEALTH_INTELLIGENCE help topic (PK 114)
+- `apps/help/fixtures/teaching_destinations.json` — Added teaching destination (PK 176)
+- `apps/core/management/commands/load_initial_data.py` — Added fixture reset for health intelligence UI
+
+**Tests:** 198 health intelligence tests passing, dashboard tests passing.
+
+---
+
 ## 2026-03-05 — Health Intelligence Engine Enhancements: Plateau Early Warning, Phase Detection, Muscle Preservation
 
 **What:** Added three new intelligence capabilities to the Body Composition Intelligence Engine: predictive plateau risk scoring (0–100 with prediction window), unified fat loss phase detection (5 phases with confidence scores), and muscle preservation status aliasing for CoS readability.

@@ -15,14 +15,68 @@ Detection approach:
 This is an OBSERVE-ONLY validator (does not block responses), but logs
 violations so we can track CoS compliance with system values.
 
+The strict health status enforcer (enforce_strict_health_status) is NOT
+observe-only — it deterministically builds the 4-line response from
+CoS context, bypassing LLM output entirely.
+
 Public API:
     validate_health_response(response_text, cos_context, user) -> dict
+    enforce_strict_health_status(cos_context) -> str
 """
 
 import logging
 import re
 
 logger = logging.getLogger(__name__)
+
+
+# =========================================================================
+# Strict Health Status Enforcer (deterministic — bypasses LLM)
+# =========================================================================
+
+def enforce_strict_health_status(cos_context):
+    """
+    Build the exact 4-line health intelligence status response from CoS context.
+
+    This is called INSTEAD of using LLM output when strict health status mode
+    is active. It reads the enum values directly from the context dict and
+    returns a deterministic string. The LLM output is discarded.
+
+    Args:
+        cos_context: dict — the CoS context containing health_intelligence.
+
+    Returns:
+        str — exactly 4 lines:
+            Fat loss phase: <ENUM>
+            Plateau risk: <ENUM>
+            Muscle preservation: <ENUM>
+            Last updated: <timestamp>
+    """
+    body_comp = {}
+    last_computed = ''
+
+    if cos_context:
+        hi = cos_context.get('health_intelligence', {})
+        body_comp = hi.get('body_comp', {})
+        last_computed = hi.get('last_computed', '')
+
+    phase = body_comp.get('fat_loss_phase') or 'UNKNOWN (awaiting data)'
+    plateau = body_comp.get('plateau_risk_label') or 'UNKNOWN (awaiting data)'
+    muscle = body_comp.get('muscle_preservation_status') or 'UNKNOWN (awaiting data)'
+
+    # Format last_updated — strip microseconds from ISO timestamp if present
+    if last_computed:
+        # Truncate to seconds: "2026-03-05T08:00:00.123456" → "2026-03-05T08:00:00"
+        updated = last_computed.split('.')[0] if '.' in str(last_computed) else str(last_computed)
+    else:
+        updated = 'UNKNOWN'
+
+    return (
+        f"Fat loss phase: {phase}\n"
+        f"Plateau risk: {plateau}\n"
+        f"Muscle preservation: {muscle}\n"
+        f"Last updated: {updated}"
+    )
 
 
 # =========================================================================

@@ -4947,9 +4947,23 @@ Rules for this response:
             ) or self._get_fallback_response(message)
             logger.warning("COS LLM call took %.1f ms", (_t_llm.monotonic() - _t_llm_start) * 1000)
 
-            # Write-suppressed behavior is now enforced at generation time
-            # via COS_WRITE_SUPPRESSED_CONTRACT in the system prompt.
-            # Post-generation compliance gate removed — prompt-level enforcement only.
+            # =============================================================
+            # STRICT_HEALTH_STATUS: Deterministic 4-line enforcement
+            # When strict mode is active, DISCARD LLM output entirely
+            # and build the response from CoS context. This is the only
+            # way to guarantee no appended schedule/sleep/coaching.
+            # =============================================================
+            if _is_health_intel_query and response_mode == 'brief':
+                try:
+                    from apps.ai.validators.health_response_validator import (
+                        enforce_strict_health_status,
+                    )
+                    return enforce_strict_health_status(cos_context)
+                except Exception as _shi_err:
+                    logger.warning(
+                        "Strict health status enforcement failed, "
+                        "using LLM response: %s", _shi_err,
+                    )
 
             # =============================================================
             # Phase 4c: Response Quality Validation
@@ -5759,6 +5773,35 @@ Rules for this response:
                             "send_message_stream intent error: %s",
                             intent_err, exc_info=True,
                         )
+
+                # ── STRICT_HEALTH_STATUS: deterministic 4-line response ──
+                # Bypass LLM entirely when strict health status is triggered.
+                if not _direct_response:
+                    _msg_lo = message.lower()
+                    _hi_kws = [
+                        'fat loss phase', 'plateau risk',
+                        'muscle preservation', 'health intelligence status',
+                        'body comp status',
+                    ]
+                    _brevity_kws = [
+                        'keep it short', 'keep it brief',
+                        'just the numbers', 'just the status',
+                        'short answer', 'tl;dr',
+                    ]
+                    if (any(k in _msg_lo for k in _hi_kws)
+                            and any(k in _msg_lo for k in _brevity_kws)):
+                        try:
+                            from apps.ai.validators.health_response_validator import (
+                                enforce_strict_health_status,
+                            )
+                            _direct_response = enforce_strict_health_status(
+                                _cos_context_cache,
+                            )
+                        except Exception as _shi_err:
+                            logger.warning(
+                                "Streaming strict health status failed: %s",
+                                _shi_err,
+                            )
 
                 if _direct_response:
                     # Pre-processing or intent produced a direct response

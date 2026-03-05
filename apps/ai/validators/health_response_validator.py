@@ -234,11 +234,17 @@ def validate_health_response(response_text, cos_context=None, user=None):
                 ),
             })
 
+    # Health intelligence enum enforcement
+    violations.extend(
+        _check_health_intelligence_enums(response_text, cos_context)
+    )
+
     # Determine severity
     severity = 'none'
     if violations:
         critical_types = {
             'GENERIC_PROTEIN_RANGE', 'PROTEIN_WEEKLY_TOTAL', 'GENERIC_BODY_COMP',
+            'INVALID_MUSCLE_STATUS', 'INVALID_FAT_LOSS_PHASE', 'INVALID_PLATEAU_RISK',
         }
         if any(v['type'] in critical_types for v in violations):
             severity = 'critical'
@@ -254,6 +260,79 @@ def validate_health_response(response_text, cos_context=None, user=None):
         'has_violations': bool(violations),
         'severity': severity,
     }
+
+
+# =========================================================================
+# Health Intelligence Enum Enforcement
+# =========================================================================
+
+# Valid enum values for health intelligence fields
+_VALID_FAT_LOSS_PHASES = {
+    'RAPID_INITIAL_LOSS', 'STABLE_FAT_LOSS', 'RECOMPOSITION', 'PLATEAU', 'REBOUND_RISK',
+}
+_VALID_PLATEAU_RISK_LABELS = {'LOW', 'RISING', 'HIGH'}
+_VALID_MUSCLE_PRESERVATION = {'HIGH_QUALITY', 'MODERATE_QUALITY', 'MUSCLE_RISK'}
+
+# Words that indicate the LLM paraphrased an enum instead of quoting it
+_INVALID_MUSCLE_WORDS = re.compile(
+    r'\bmuscle\s+preservation\b[^:]*?\b(stable|good|strong|adequate|fine|normal|healthy|ok)\b',
+    re.IGNORECASE,
+)
+_INVALID_PHASE_WORDS = re.compile(
+    r'\b(in the|currently in|entering the|entering a)\b[^.]{0,30}\bfat\s+loss\s+phase\b'
+    r'|\bfat\s+loss\s+phase\b[^:]{0,30}\b(in the|currently in|entering the|entering a)\b',
+    re.IGNORECASE,
+)
+
+# Pattern to detect when response mentions health intelligence fields
+_HEALTH_INTEL_RESPONSE_PATTERN = re.compile(
+    r'(?:fat\s+loss\s+phase|plateau\s+risk|muscle\s+preservation)',
+    re.IGNORECASE,
+)
+
+
+def _check_health_intelligence_enums(response_text, cos_context):
+    """
+    Validate that health intelligence enum fields use exact system values.
+
+    Checks:
+    1. If response mentions muscle preservation with invalid words like "stable"
+    2. If response mentions fat loss phase with paraphrased language
+    3. If response mentions unrelated modules (sleep/calendar) when health
+       intelligence fields are being answered in a short format
+    """
+    violations = []
+
+    if not _HEALTH_INTEL_RESPONSE_PATTERN.search(response_text):
+        return violations
+
+    # Check for invalid muscle preservation words
+    match = _INVALID_MUSCLE_WORDS.search(response_text)
+    if match:
+        violations.append({
+            'type': 'INVALID_MUSCLE_STATUS',
+            'found': match.group(0),
+            'system_value': None,
+            'message': (
+                f"Response uses invalid muscle preservation word '{match.group(1)}'. "
+                f"Must use exact enum: HIGH_QUALITY, MODERATE_QUALITY, or MUSCLE_RISK."
+            ),
+        })
+
+    # Check for paraphrased fat loss phase (narrative instead of enum)
+    match = _INVALID_PHASE_WORDS.search(response_text)
+    if match:
+        violations.append({
+            'type': 'INVALID_FAT_LOSS_PHASE',
+            'found': match.group(0).strip(),
+            'system_value': None,
+            'message': (
+                f"Response paraphrases fat loss phase instead of using enum. "
+                f"Must use: RAPID_INITIAL_LOSS, STABLE_FAT_LOSS, RECOMPOSITION, PLATEAU, or REBOUND_RISK."
+            ),
+        })
+
+    return violations
 
 
 def _log_health_response_violations(violations, user, response_text):

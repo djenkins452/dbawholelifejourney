@@ -521,6 +521,7 @@ def _build_health_and_vitals(user):
             ],
             'protein': protein_data,
             'body_comp': intel.get('body_comp_intelligence', {}),
+            'last_computed': intel.get('body_comp_intelligence', {}).get('last_computed', ''),
         }
         result['health_intelligence_summary'] = build_cos_health_summary_text(user)
     except ImportError:
@@ -1208,6 +1209,45 @@ def _format_health_intelligence_block(health_intel, context):
         "metric listed here, you MUST quote THESE EXACT numbers. "
         "NEVER substitute generic ranges, textbook values, or LLM-generated estimates. "
         "If a value is missing below, say 'I don't have that data right now.'"
+    )
+    lines.append("")
+
+    # ── HEALTH INTELLIGENCE STATUS (top-level enum snapshot) ──
+    # These are the AUTHORITATIVE enum values from DailyHealthSummary.
+    # When user asks for health intelligence status, fat loss phase, plateau
+    # risk, or muscle preservation — respond with ONLY these enum values.
+    # If user says "keep it short" respond in exactly this 4-line format:
+    #   Fat loss phase: <ENUM>
+    #   Plateau risk: <ENUM>
+    #   Muscle preservation: <ENUM>
+    #   Last updated: <date/time>
+    body_comp = health_intel.get('body_comp', {})
+    _hi_phase = body_comp.get('fat_loss_phase') or 'UNKNOWN (awaiting data)'
+    _hi_plateau = body_comp.get('plateau_risk_label') or 'UNKNOWN (awaiting data)'
+    _hi_muscle = body_comp.get('muscle_preservation_status') or 'UNKNOWN (awaiting data)'
+    _hi_conf = body_comp.get('phase_confidence')
+    _hi_date = body_comp.get('phase_start_date') or ''
+    # Use last_computed from the DHS if available, otherwise summary_date
+    _hi_updated = health_intel.get('last_computed') or ''
+
+    lines.append("  HEALTH INTELLIGENCE STATUS (enum snapshot — QUOTE VERBATIM):")
+    lines.append(f"    fat_loss_phase: {_hi_phase}")
+    if _hi_conf:
+        lines.append(f"    phase_confidence: {_hi_conf}%")
+    lines.append(f"    plateau_risk_label: {_hi_plateau}")
+    lines.append(f"    muscle_preservation_status: {_hi_muscle}")
+    if _hi_updated:
+        lines.append(f"    last_updated: {_hi_updated}")
+    lines.append("")
+    lines.append(
+        "  STRICT RULE: When user asks 'What is my fat loss phase / plateau risk / "
+        "muscle preservation?' — respond with ONLY the enum values above. "
+        "Valid fat_loss_phase: RAPID_INITIAL_LOSS, STABLE_FAT_LOSS, RECOMPOSITION, PLATEAU, REBOUND_RISK. "
+        "Valid plateau_risk_label: LOW, RISING, HIGH. "
+        "Valid muscle_preservation_status: HIGH_QUALITY, MODERATE_QUALITY, MUSCLE_RISK. "
+        "Do NOT paraphrase enums (e.g., 'stable' is NOT valid for muscle_preservation_status). "
+        "If user says 'keep it short', output ONLY 4 lines: the 3 enum fields + last_updated. "
+        "No schedule, no sleep, no suggestions, no extra content."
     )
     lines.append("")
 

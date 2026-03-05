@@ -177,6 +177,11 @@ def build_cos_health_intelligence(user):
             ),
             # Muscle Preservation (alias)
             "muscle_preservation_status": today_summary.muscle_preservation_status or None,
+            # Timestamp for "last updated" in CoS status responses
+            "last_computed": (
+                today_summary.last_computed.isoformat()
+                if today_summary.last_computed else str(today_summary.summary_date)
+            ),
         }
 
     return result

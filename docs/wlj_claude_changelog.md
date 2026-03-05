@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Harden CoS Health Intelligence Answers (Enum-Only + Short Mode)
+
+**What:** CoS now responds to health intelligence questions using exact DHS enum values instead of paraphrased language. "Keep it short" requests produce a strict 4-line format.
+
+**Why:** CoS was saying "in the fat loss phase" and "muscle preservation is stable" instead of quoting exact enums (STABLE_FAT_LOSS, HIGH_QUALITY). It also added sleep/calendar content when user asked to keep it short. The UI already surfaces these enums, so CoS must match them exactly.
+
+**Changes:**
+- `apps/core/ai_orchestrator/cos_context.py` — Added HEALTH INTELLIGENCE STATUS sub-block at top of `_format_health_intelligence_block()` with exact enum values + UNKNOWN placeholders + strict verbatim rule + last_computed passthrough
+- `apps/health/services/cos_health_context.py` — Added `last_computed` timestamp to `body_comp_intelligence` dict
+- `apps/ai/personal_assistant.py` — "keep it short"/"tl;dr" now maps to `brief` mode; health intel keywords trigger strict 4-line format rule
+- `apps/ai/validators/health_response_validator.py` — Added `_check_health_intelligence_enums()` detecting invalid words ("stable", "good") for muscle status and paraphrased phase language
+- `apps/ai/tests/test_health_intelligence_cos.py` — NEW: 21 tests covering enum rendering, UNKNOWN placeholders, validator enforcement, response mode classification
+- `docs/ENGINE_COS_REFERENCE.md` — Added FIX APPLIED section documenting CoS output contract
+
+---
+
 ## 2026-03-05 — Add Engine & CoS Reference Document
 
 **What:** Created `docs/ENGINE_COS_REFERENCE.md` — a comprehensive, auto-maintained reference documenting all 50+ engines, the CoS context pipeline, proactive check-in system, truth layer architecture, known bugs, and recommended fixes. Updated CLAUDE.md with auto-maintenance rules so the document stays current.

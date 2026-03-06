@@ -9,6 +9,28 @@
 
 # WLJ Change History
 
+## 2026-03-06 — CoS Truth Layer Refactor: Enforce SAE as canonical state source
+
+**What:** Refactored CoS context builder (`cos_context.py`) to read domain state exclusively from SAE (`UserState.state_data`) instead of raw ORM queries. Eliminated ~41 redundant DB queries, added 5 new SAE builders, enriched 4 existing builders, and added per-request SAE snapshot caching.
+
+**Why:** CoS was bypassing the SAE truth layer for most domain reads, causing drift risk between SAE state and CoS context, plus unnecessary DB load (~40-60 UserState queries per context build due to parallel threads).
+
+**Changes:**
+- **Phase 1:** Replaced 11 direct ORM queries (weight, BP, steps, sleep, workouts, goals, pantry, dinner, prayers) with SAE reads
+- **Phase 2:** Enriched 4 SAE builders (health: HR/glucose/SpO2/HR events/weight goal; fitness: workout aggregates + recent list; faith: answered/urgent prayers + bible plan; meals: expiring item names) and replaced 14 more CoS queries
+- **Phase 3:** Created 5 new SAE builders (intervention, feedback, life_events, scan, governance) and replaced 16 remaining gap queries including full rewrites of `_build_trajectory_signals`, `_build_recent_image_analyses`, `_build_faith_context`
+- **Phase 4:** Removed dead imports (MealPlanEntry, PantryItem), added per-request `_sae_cache` on user object with cleanup, updated `get_user_state()` to check cache
+
+**Files:**
+- `apps/core/ai_orchestrator/cos_context.py` — Major refactor (12 builders updated)
+- `apps/core/ai_state/state_builder.py` — 5 new builders + 4 enrichments
+- `apps/core/ai_state/state_engine.py` — Added `_sae_cache` fast path
+- `docs/ENGINE_COS_REFERENCE.md` — Updated SAE state table + CoS data sources
+
+**Tests:** 236 tests passing (65 SAE + 22 transformation + 149 Phase 4 CoS)
+
+---
+
 ## 2026-03-05 — Fix HealthKit ingestion issues: workout race condition, error rate, weight handler, body comp diagnostics
 
 **What:** Multiple HealthKit ingestion pipeline fixes based on ops page diagnostic data.

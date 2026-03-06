@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-05
+**Last updated:** 2026-03-06
 
 ---
 
@@ -220,20 +220,22 @@ User Message
 **Function:** `build_cos_context(user)` — `apps/core/ai_orchestrator/cos_context.py:1068`
 Uses `ThreadPoolExecutor(max_workers=6)`.
 
+**SAE Truth Layer:** `build_cos_context()` pre-loads `get_user_state(user)` into `user._sae_cache` so all builders share one DB hit for SAE reads. Builders read from SAE via `get_state_value()` / `get_module_state()` instead of raw ORM queries for domain state.
+
 | Builder | Function | Data Sources | Key Output Fields |
 |---------|----------|--------------|-------------------|
 | Blueprint & Governance | `_build_blueprint_and_governance()` | Blueprint, Persona | operating_style, protected_tiers, persona |
 | Plan & Alignment | `_build_plan_and_alignment()` | ArchitecturePlan, Drift | capacity, alignment_score, drift_probability |
-| Pressure & Deadlines | `_build_pressure_and_deadlines()` | PressureSnapshot, DeadlineSnapshot | weekly_pressure, deadline_snapshot |
-| Health & Vitals | `_build_health_and_vitals()` | WeightEntry, HealthProfile, FastingSession, **medicine_utils** | weight, trend, fasting, **medication_adherence_state** |
-| Calendar Events | `_build_calendar_events()` | CalendarEvent | events with time_status markers |
-| Intelligence Signals | `_build_intelligence_signals()` | Insight, Prediction, Guidance | active insights/predictions/guidance |
+| Pressure & Deadlines | `_build_pressure_and_deadlines()` | **SAE intervention** | weekly_pressure, deadline_snapshot |
+| Health & Vitals | `_build_health_and_vitals()` | **SAE health/fitness**, FastingSession, medicine_utils | weight, trend, vitals, workouts, fasting, medication |
+| Calendar Events | `_build_calendar_events()` | CalendarEvent (live) | events with time_status markers |
+| Intelligence Signals | `_build_intelligence_signals()` | Insight, Prediction, Guidance (engine output) | active insights/predictions/guidance |
 | People & Mood | `_build_people_and_mood()` | JournalEntry, Relationships | mood_trends, relationship_signals |
-| Loops & Events | `_build_loops_and_events()` | Goals, Tasks | open_loops, friction_gates |
+| Loops & Events | `_build_loops_and_events()` | **SAE goals/intervention/feedback/life_events** | open_loops, friction_gates |
 | Strategy & Signals | `_build_strategy_and_signals()` | Strategic goals | strategy_snapshot |
-| Image Analyses | `_build_recent_image_analyses()` | Vision analysis | recent_analyses |
-| Meals | `_build_meals_context()` | FoodEntry | meals_context |
-| Faith | `_build_faith_context()` | ReadingProgress | faith_context |
+| Image Analyses | `_build_recent_image_analyses()` | **SAE scan** | recent_analyses |
+| Meals | `_build_meals_context()` | **SAE meals**, HouseholdMembership | meals_context |
+| Faith | `_build_faith_context()` | **SAE faith** | faith_context |
 
 ### System Prompt Assembly (Priority Order)
 
@@ -341,15 +343,21 @@ DNE (delivery_engine.py) → DeliveredNotification (in-app / email / SMS)
 
 | Module Key | Builder | Fields |
 |------------|---------|--------|
-| `health` | `build_health_state()` | weight_current, weight_trend, weight_entries_90d, body_fat_current, sleep_avg_7d, bp_systolic, bp_diastolic |
+| `health` | `build_health_state()` | weight_current, weight_trend, weight_entries_90d, body_fat_current, sleep_avg_7d, bp_systolic, bp_diastolic, heart_rate_avg_7d, glucose_avg_7d, blood_oxygen_avg_7d, heart_rate_events_7d, weight_goal, weight_goal_unit, weight_goal_target_date, weight_goal_remaining, weight_goal_on_track |
 | `goals` | `build_goal_state()` | active_goal_count, next_deadline, completion_rate |
 | `habits` | `build_habit_state()` | active_habit_count, longest_streak, avg_completion_rate |
 | `journal` | `build_journal_state()` | last_entry, entry_frequency, mood_distribution |
-| `faith` | `build_faith_state()` | reading_streak, last_scripture_read |
+| `faith` | `build_faith_state()` | reading_streak, last_scripture_read, answered_prayers, recent_prayer_titles, urgent_prayers, bible_plan_name |
 | `nutrition` | `build_nutrition_state()` | calorie_avg_7d, protein_avg_7d, macro_compliance |
 | `fasting` | `build_fasting_state()` | rolling_7d_hours, avg_fast_duration, compliance_score |
-| `fitness` | `build_fitness_state()` | workout_count_7d, total_volume, pr_count, strength_trend |
+| `fitness` | `build_fitness_state()` | workout_count_7d, total_volume, pr_count, strength_trend, workout_calories_7d, workout_minutes_7d, workout_avg_hr_7d, workout_distance_7d, recent_workouts |
 | `transformation` | `build_transformation_state()` | transformation_score, weight_trend_score, momentum_score |
+| `meals` | `build_meals_state()` | pantry_item_count, expiring_item_names, has_dinner_planned, dinner_recipe |
+| `intervention` | `build_intervention_state()` | override_frequency_14d, override_count_10d, pending_friction_gates, deferrals_7d, renegotiation_patterns, tier1_skip_patterns, consecutive_tier1_skips |
+| `feedback` | `build_feedback_state()` | insight_engagement, briefing_open_rate, preferred_briefing_length, intervention_effectiveness, escalation_modifier |
+| `life_events` | `build_life_events_state()` | approaching_events |
+| `scan` | `build_scan_state()` | recent_analyses |
+| `governance` | `build_governance_state()` | declared_priorities, drift_scenario_count_14d |
 
 ---
 

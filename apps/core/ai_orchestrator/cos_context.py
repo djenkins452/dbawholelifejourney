@@ -257,16 +257,12 @@ def _build_pressure_and_deadlines(user):
     except Exception:
         pass
 
-    # Override frequency (14d)
+    # Override frequency (14d) — from SAE truth layer
     try:
-        from apps.core.blueprint.models import InterventionLog
-        fourteen_days_ago = timezone.now() - datetime.timedelta(days=14)
-        overrides = InterventionLog.objects.filter(
-            user=user,
-            user_response='proceeded',
-            created_at__gte=fourteen_days_ago,
-        ).count()
-        result['override_frequency_14d'] = overrides
+        from apps.core.ai_state.state_engine import get_state_value
+        result['override_frequency_14d'] = get_state_value(
+            user, 'intervention.override_frequency_14d', 0
+        )
     except Exception:
         pass
 
@@ -331,137 +327,86 @@ def _build_health_and_vitals(user):
         from datetime import timedelta
         week_ago = timezone.localdate() - timedelta(days=7)
 
-        # Weight — direct DB query (state cache can be stale)
+        # Weight — from SAE truth layer
         try:
-            from apps.health.models import WeightEntry, HealthProfile
-            latest_weight = (
-                WeightEntry.objects.filter(user=user)
-                .order_by('-recorded_at')
-                .first()
-            )
-            if latest_weight:
-                health_signals['weight_current'] = round(float(latest_weight.value), 1)
-                health_signals['weight_unit'] = latest_weight.unit or 'lb'
-                health_signals['weight_date'] = str(latest_weight.recorded_at.date())
-                # Trend: compare to 30 days ago
-                cutoff_30d = timezone.now() - timedelta(days=30)
-                older_weight = (
-                    WeightEntry.objects.filter(user=user, recorded_at__lte=cutoff_30d)
-                    .order_by('-recorded_at')
-                    .values_list('value', flat=True)
-                    .first()
-                )
-                if older_weight is not None:
-                    diff = float(latest_weight.value) - float(older_weight)
-                    if abs(diff) < 0.5:
-                        health_signals['weight_trend'] = 'stable'
-                    elif diff > 0:
-                        health_signals['weight_trend'] = 'increasing'
-                    else:
-                        health_signals['weight_trend'] = 'decreasing'
+            weight_current = get_state_value(user, 'health.weight_current')
+            if weight_current is not None:
+                health_signals['weight_current'] = round(float(weight_current), 1)
+                health_signals['weight_unit'] = get_state_value(user, 'health.weight_unit', 'lb')
+                last_entry = get_state_value(user, 'health.last_weight_entry')
+                if last_entry:
+                    health_signals['weight_date'] = last_entry[:10]
+                weight_trend = get_state_value(user, 'health.weight_trend')
+                if weight_trend:
+                    health_signals['weight_trend'] = weight_trend
 
-            # Weight goal from HealthProfile
-            hp = HealthProfile.objects.filter(user=user).first()
-            if hp and hp.has_weight_goal:
-                health_signals['weight_goal'] = float(hp.weight_goal)
-                health_signals['weight_goal_unit'] = hp.weight_goal_unit
-                if hp.weight_goal_target_date:
-                    health_signals['weight_goal_target_date'] = str(hp.weight_goal_target_date)
-                progress = hp.get_weight_progress()
-                if progress and progress.get('remaining') is not None:
-                    health_signals['weight_goal_remaining'] = progress['remaining']
-                    health_signals['weight_goal_on_track'] = progress.get('on_track')
+            # Weight goal from SAE
+            weight_goal = get_state_value(user, 'health.weight_goal')
+            if weight_goal is not None:
+                health_signals['weight_goal'] = float(weight_goal)
+                health_signals['weight_goal_unit'] = get_state_value(user, 'health.weight_goal_unit', 'lb')
+                wg_target = get_state_value(user, 'health.weight_goal_target_date')
+                if wg_target:
+                    health_signals['weight_goal_target_date'] = str(wg_target)
+                wg_remaining = get_state_value(user, 'health.weight_goal_remaining')
+                if wg_remaining is not None:
+                    health_signals['weight_goal_remaining'] = wg_remaining
+                    health_signals['weight_goal_on_track'] = get_state_value(user, 'health.weight_goal_on_track')
         except Exception:
             pass
 
+        # Vitals and workout signals — from SAE truth layer
         try:
-            from django.db.models import Avg, Sum
-            from apps.health.models import (
-                HeartRateEntry, BloodPressureEntry, GlucoseEntry,
-                BloodOxygenEntry, StepsEntry, SleepEntry,
-            )
-
-            hr_avg = HeartRateEntry.objects.filter(
-                user=user, recorded_at__date__gte=week_ago
-            ).aggregate(avg=Avg('bpm'))['avg']
+            hr_avg = get_state_value(user, 'health.heart_rate_avg_7d')
             if hr_avg:
                 health_signals['heart_rate_avg_7d'] = round(float(hr_avg))
 
-            latest_bp = BloodPressureEntry.objects.filter(
-                user=user, recorded_at__date__gte=week_ago
-            ).order_by('-recorded_at').first()
-            if latest_bp:
-                health_signals['bp_latest'] = f"{latest_bp.systolic}/{latest_bp.diastolic}"
+            bp_sys = get_state_value(user, 'health.bp_systolic')
+            bp_dia = get_state_value(user, 'health.bp_diastolic')
+            if bp_sys and bp_dia:
+                health_signals['bp_latest'] = f"{bp_sys}/{bp_dia}"
 
-            glucose_avg = GlucoseEntry.objects.filter(
-                user=user, recorded_at__date__gte=week_ago
-            ).aggregate(avg=Avg('value'))['avg']
+            glucose_avg = get_state_value(user, 'health.glucose_avg_7d')
             if glucose_avg:
                 health_signals['glucose_avg_7d'] = round(float(glucose_avg))
 
-            spo2_avg = BloodOxygenEntry.objects.filter(
-                user=user, recorded_at__date__gte=week_ago
-            ).aggregate(avg=Avg('spo2'))['avg']
+            spo2_avg = get_state_value(user, 'health.blood_oxygen_avg_7d')
             if spo2_avg:
                 health_signals['blood_oxygen_avg_7d'] = round(float(spo2_avg), 1)
 
             if not health_signals.get('steps_avg_7d'):
-                steps_avg = StepsEntry.objects.filter(
-                    user=user, logged_date__gte=week_ago
-                ).aggregate(avg=Avg('count'))['avg']
-                if steps_avg:
-                    health_signals['steps_avg_7d'] = int(steps_avg)
+                steps = get_state_value(user, 'health.steps_avg_7d')
+                if steps:
+                    health_signals['steps_avg_7d'] = int(steps)
 
             if not health_signals.get('sleep_avg_7d'):
-                sleep_avg = SleepEntry.objects.filter(
-                    user=user, sleep_date__gte=week_ago
-                ).aggregate(avg=Avg('asleep_duration_minutes'))['avg']
-                if sleep_avg:
-                    health_signals['sleep_avg_7d'] = round(float(sleep_avg) / 60, 1)
+                sleep_min = get_state_value(user, 'health.sleep_avg_duration_7d')
+                if sleep_min:
+                    health_signals['sleep_avg_7d'] = round(float(sleep_min) / 60, 1)
 
-            from apps.health.models import WorkoutSession
-            workout_qs = WorkoutSession.objects.filter(
-                user=user, date__gte=week_ago
-            )
-            workout_count = workout_qs.count()
+            # Fitness signals from SAE
+            from apps.core.ai_state.state_engine import get_module_state
+            fitness = get_module_state(user, 'fitness') or {}
+            workout_count = fitness.get('workouts_7d', 0)
             if workout_count > 0:
                 health_signals['workout_count_7d'] = workout_count
-                workout_agg = workout_qs.aggregate(
-                    total_cal=Sum('calories_burned'),
-                    total_min=Sum('duration_minutes'),
-                    avg_hr=Avg('avg_heart_rate'),
-                    total_dist=Sum('distance_miles'),
-                )
-                if workout_agg['total_cal']:
-                    health_signals['workout_calories_7d'] = workout_agg['total_cal']
-                if workout_agg['total_min']:
-                    health_signals['workout_minutes_7d'] = workout_agg['total_min']
-                if workout_agg['avg_hr']:
-                    health_signals['workout_avg_hr_7d'] = round(float(workout_agg['avg_hr']))
-                if workout_agg['total_dist']:
-                    health_signals['workout_distance_7d'] = round(float(workout_agg['total_dist']), 1)
-                recent_workouts = workout_qs.order_by('-date')[:3]
-                health_signals['recent_workouts'] = [
-                    {
-                        'name': w.name,
-                        'type': w.workout_type,
-                        'date': str(w.date),
-                        'minutes': w.duration_minutes,
-                        'calories': w.calories_burned,
-                        'avg_hr': w.avg_heart_rate,
-                    }
-                    for w in recent_workouts
-                ]
+                if fitness.get('workout_calories_7d'):
+                    health_signals['workout_calories_7d'] = fitness['workout_calories_7d']
+                if fitness.get('workout_minutes_7d'):
+                    health_signals['workout_minutes_7d'] = fitness['workout_minutes_7d']
+                if fitness.get('workout_avg_hr_7d'):
+                    health_signals['workout_avg_hr_7d'] = fitness['workout_avg_hr_7d']
+                if fitness.get('workout_distance_7d'):
+                    health_signals['workout_distance_7d'] = fitness['workout_distance_7d']
+                if fitness.get('recent_workouts'):
+                    health_signals['recent_workouts'] = fitness['recent_workouts']
 
-            from apps.health.models import HeartRateEventEntry
-            hr_events = HeartRateEventEntry.objects.filter(
-                user=user, recorded_at__date__gte=week_ago
-            ).count()
-            if hr_events > 0:
+            hr_events = get_state_value(user, 'health.heart_rate_events_7d')
+            if hr_events and hr_events > 0:
                 health_signals['heart_rate_events_7d'] = hr_events
 
         except Exception:
-            pass  # Direct queries are supplementary
+            pass
 
         result['health_signals'] = health_signals
     except Exception:
@@ -767,85 +712,38 @@ def _build_loops_and_events(user):
     """Build open loops, life events, feedback profiles, and learned profile."""
     result = {}
 
-    # Open loops
+    # Open loops — from SAE truth layer
     try:
-        from apps.purpose.models import LifeGoal
-        overdue_goals = LifeGoal.objects.filter(
-            user=user, status="active",
-            target_date__lt=timezone.localdate(),
-        ).count()
+        from apps.core.ai_state.state_engine import get_state_value
+        overdue_goals = get_state_value(user, 'goals.overdue_goal_count', 0)
+        pending_gates = get_state_value(user, 'intervention.pending_friction_gates', 0)
         result['open_loops'] = {
             'overdue_goals': overdue_goals,
+            'pending_friction_gates': pending_gates,
         }
-        from apps.core.blueprint.models import InterventionLog
-        pending_gates = InterventionLog.objects.filter(
-            user=user, level=4, user_response='pending',
-        ).count()
-        result['open_loops']['pending_friction_gates'] = pending_gates
     except Exception:
         result['open_loops'] = {}
 
-    # Approaching life events (next 14 days)
+    # Approaching life events — from SAE truth layer
     try:
-        from apps.life.models import SignificantEvent, LifeEvent
-        from apps.core.utils import get_user_today
-        today = get_user_today(user)
-        approaching_events = []
-
-        for event in SignificantEvent.objects.filter(user=user):
-            try:
-                days_until = event.days_until_next(today)
-                if days_until is not None and days_until <= 14:
-                    event_info = {
-                        'title': event.title,
-                        'type': event.event_type,
-                        'days_until': days_until,
-                        'person': event.person_name or '',
-                    }
-                    if event.original_year:
-                        years = today.year - event.original_year
-                        if days_until > 0:
-                            years = years
-                        event_info['years'] = years
-                    approaching_events.append(event_info)
-            except Exception:
-                continue
-
-        from datetime import timedelta
-        cutoff = today + timedelta(days=14)
-        for event in LifeEvent.objects.filter(
-            user=user, start_date__gte=today, start_date__lte=cutoff
-        ).exclude(status='deleted').order_by('start_date')[:10]:
-            days_until = (event.start_date - today).days
-            approaching_events.append({
-                'title': event.title,
-                'type': event.event_type if hasattr(event, 'event_type') else 'event',
-                'days_until': days_until,
-                'person': '',
-            })
-
-        approaching_events.sort(key=lambda e: e['days_until'])
-        result['approaching_life_events'] = approaching_events[:5]
+        from apps.core.ai_state.state_engine import get_state_value
+        result['approaching_life_events'] = get_state_value(
+            user, 'life_events.approaching_events', []
+        )
     except Exception as e:
         logger.debug("CoS context: life events unavailable: %s", e)
         result['approaching_life_events'] = []
 
-    # Feedback loop profiles
+    # Feedback loop profiles — from SAE truth layer
     try:
-        from apps.core.ai_feedback.models import (
-            BriefingEngagementProfile,
-            InsightEngagementProfile,
-            InterventionEffectivenessProfile,
-        )
-        ie_profile = InsightEngagementProfile.objects.filter(user=user).first()
-        be_profile = BriefingEngagementProfile.objects.filter(user=user).first()
-        iv_profile = InterventionEffectivenessProfile.objects.filter(user=user).first()
+        from apps.core.ai_state.state_engine import get_module_state
+        feedback = get_module_state(user, 'feedback') or {}
         result['feedback_profiles'] = {
-            'insight_engagement': ie_profile.engagement_score if ie_profile else 0.5,
-            'briefing_open_rate': be_profile.open_rate if be_profile else 0.0,
-            'preferred_briefing_length': be_profile.preferred_length if be_profile else 'standard',
-            'intervention_effectiveness': iv_profile.effectiveness_score if iv_profile else 0.5,
-            'escalation_modifier': iv_profile.escalation_speed_modifier if iv_profile else 0.0,
+            'insight_engagement': feedback.get('insight_engagement', 0.5),
+            'briefing_open_rate': feedback.get('briefing_open_rate', 0.0),
+            'preferred_briefing_length': feedback.get('preferred_briefing_length', 'standard'),
+            'intervention_effectiveness': feedback.get('intervention_effectiveness', 0.5),
+            'escalation_modifier': feedback.get('escalation_modifier', 0.0),
         }
     except Exception:
         result['feedback_profiles'] = {}
@@ -894,36 +792,14 @@ def _build_strategy_and_signals(user):
 
 
 def _build_recent_image_analyses(user):
-    """Build recent image analysis context for CoS injection."""
-    import datetime
-
-    from django.utils import timezone
-
+    """Build recent image analysis context — from SAE truth layer."""
     try:
-        from apps.scan.models import ImageAnalysis
+        from apps.core.ai_state.state_engine import get_state_value
 
-        lookback = timezone.now() - datetime.timedelta(days=7)
-        analyses = ImageAnalysis.objects.filter(
-            user=user,
-            status='completed',
-            created_at__gte=lookback,
-        ).order_by('-created_at')[:10]
-
+        analyses = get_state_value(user, 'scan.recent_analyses', [])
         if not analyses:
             return {}
-
-        return {
-            'recent_image_analyses': [
-                {
-                    'summary': a.summary,
-                    'category': a.category,
-                    'source': a.get_source_type_display(),
-                    'when': a.created_at.isoformat(),
-                    'tags': a.relevance_tags[:5] if a.relevance_tags else [],
-                }
-                for a in analyses
-            ]
-        }
+        return {'recent_image_analyses': analyses}
     except Exception as e:
         logger.debug("CoS context: image analyses unavailable: %s", e)
         return {}
@@ -932,7 +808,7 @@ def _build_recent_image_analyses(user):
 def _build_meals_context(user):
     """Build meal intelligence context for CoS awareness."""
     try:
-        from apps.meals.models import HouseholdMembership, MealPlanEntry, PantryItem
+        from apps.meals.models import HouseholdMembership
         from apps.meals.services.activation import get_activation_status
         from django.utils import timezone as tz
 
@@ -960,18 +836,14 @@ def _build_meals_context(user):
                 }
             }
 
-        # Pantry summary
-        pantry_count = PantryItem.objects.filter(household=household, quantity__gt=0).count()
-        expiring = PantryItem.objects.filter(
-            household=household, quantity__gt=0,
-            expiration_date_estimated__lte=today + tz.timedelta(days=3),
-            expiration_date_estimated__gte=today,
-        ).values_list("ingredient__canonical_name", flat=True)[:5]
+        # Pantry summary — from SAE truth layer
+        from apps.core.ai_state.state_engine import get_state_value
+        pantry_count = get_state_value(user, 'meals.pantry_item_count', 0)
+        expiring = get_state_value(user, 'meals.expiring_item_names', [])
 
-        # Today's plan
-        dinner_entry = MealPlanEntry.objects.filter(
-            meal_plan__household=household, date=today, meal_type="dinner",
-        ).select_related("recipe").first()
+        # Today's plan — from SAE truth layer
+        has_dinner = get_state_value(user, 'meals.has_dinner_planned', False)
+        dinner_recipe = get_state_value(user, 'meals.dinner_recipe') if has_dinner else None
 
         # Phase 12: Pantry scan confidence drift
         pantry_scan_data = {}
@@ -991,7 +863,7 @@ def _build_meals_context(user):
                 'activated': True,
                 'pantry_items_tracked': pantry_count,
                 'expiring_soon': list(expiring),
-                'dinner_planned': dinner_entry.recipe.title if dinner_entry else None,
+                'dinner_planned': dinner_recipe,
                 'household_name': household.name,
                 **pantry_scan_data,
             }
@@ -1002,23 +874,16 @@ def _build_meals_context(user):
 
 
 def _build_faith_context(user):
-    """Build faith module context — prayer requests, bible reading progress."""
+    """Build faith module context — from SAE truth layer."""
     try:
-        from apps.faith.models import PrayerRequest
-        active_prayers = PrayerRequest.objects.filter(user=user, is_answered=False).count()
-        answered_prayers = PrayerRequest.objects.filter(user=user, is_answered=True).count()
+        from apps.core.ai_state.state_engine import get_state_value
 
-        # Recent prayer titles (up to 5 most recent active)
-        recent_prayers = list(
-            PrayerRequest.objects.filter(user=user, is_answered=False)
-            .order_by('-created_at')
-            .values_list('title', flat=True)[:5]
-        )
+        faith = get_state_value(user, 'faith', {}) or {}
 
-        # Urgent prayers
-        urgent_count = PrayerRequest.objects.filter(
-            user=user, is_answered=False, priority='urgent'
-        ).count()
+        active_prayers = faith.get('unanswered_prayers', 0)
+        answered_prayers = faith.get('answered_prayers', 0)
+        recent_prayers = faith.get('recent_prayer_titles', [])
+        urgent_count = faith.get('urgent_prayers', 0)
 
         result = {
             'faith_summary': {
@@ -1029,17 +894,14 @@ def _build_faith_context(user):
             }
         }
 
-        # Bible reading progress (if available)
-        try:
-            from apps.faith.models import BibleReadingProgress
-            progress = BibleReadingProgress.objects.filter(user=user).first()
-            if progress:
-                result['faith_summary']['bible_reading'] = {
-                    'plan': str(progress.plan) if hasattr(progress, 'plan') else '',
-                    'streak_days': getattr(progress, 'streak_days', 0),
-                }
-        except Exception:
-            pass
+        # Bible reading progress
+        reading_streak = faith.get('reading_streak', 0)
+        bible_plan = faith.get('bible_plan_name', '')
+        if reading_streak or bible_plan:
+            result['faith_summary']['bible_reading'] = {
+                'plan': bible_plan,
+                'streak_days': reading_streak,
+            }
 
         return result
 
@@ -1084,6 +946,13 @@ def build_cos_context(user):
     """
     import time as _time
     start = _time.monotonic()
+
+    # Pre-load SAE snapshot so all builders share one DB hit
+    try:
+        from apps.core.ai_state.state_engine import get_user_state
+        user._sae_cache = get_user_state(user)
+    except Exception:
+        user._sae_cache = None
 
     context = {
         '_user': user,
@@ -1182,6 +1051,9 @@ def build_cos_context(user):
         log_parallel_build(user.id, elapsed_ms, len(_PARALLEL_BUILDERS))
     except Exception:
         pass
+
+    # Cleanup per-request SAE cache
+    user._sae_cache = None
 
     return context
 
@@ -2061,20 +1933,19 @@ def format_cos_system_injection(context):
             lines.append("")
             lines.append(f"EXECUTIVE TONE: {tone_text}")
 
-    # Phase 1: Declared user priorities (from UserPriorityProfile)
+    # Phase 1: Declared user priorities — from SAE truth layer
     try:
-        from apps.core.blueprint.models import UserPriorityProfile
-        priorities = UserPriorityProfile.objects.filter(
-            user=context.get('_user'),
-        ) if context.get('_user') else None
-        if priorities and priorities.exists():
+        from apps.core.ai_state.state_engine import get_state_value as _gsv
+        priorities = _gsv(context.get('_user'), 'governance.declared_priorities', []) if context.get('_user') else []
+        if priorities:
             lines.append("")
             lines.append("Declared Priorities:")
             for p in priorities[:10]:
-                sub = f".{p.sub_module_key}" if p.sub_module_key else ""
-                level = p.get_declared_priority_level_display()
-                reason = f" — {p.declared_reason[:100]}" if p.declared_reason else ""
-                lines.append(f"  {p.module_key}{sub}: {level}{reason}")
+                sub = f".{p['sub_module']}" if p.get('sub_module') else ""
+                level = p.get('level', '')
+                reason_text = p.get('reason', '')
+                reason = f" — {reason_text[:100]}" if reason_text else ""
+                lines.append(f"  {p['module']}{sub}: {level}{reason}")
     except Exception:
         pass
 
@@ -2778,21 +2649,21 @@ def _source_integrity_gate(source_name, queryset_fn, min_records=1):
 
 def _build_trajectory_signals(user):
     """
-    Build trajectory-relevant signals from existing data sources.
+    Build trajectory-relevant signals from SAE truth layer.
 
-    Source-Integrity Gate applied to every signal source:
-    - Each source verified importable and returns non-trivial volume
-    - Insufficient sources produce compact placeholder, not fabricated data
-    - Read-only — no writes, no side effects
+    Source-Integrity Gate applied via SAE state presence checks.
+    Read-only — no writes, no side effects.
 
-    Uses ONLY existing models — no new data structures:
-    - InterventionLog: renegotiation patterns, override frequency
-    - ScenarioHistory: drift frequency
-    - State engine: progress trend
+    Reads from:
+    - SAE intervention state: renegotiation patterns, override frequency
+    - SAE governance state: drift frequency
+    - SAE health state: progress trend
 
     Returns:
         dict — trajectory signals for prompt injection.
     """
+    from apps.core.ai_state.state_engine import get_module_state, get_state_value
+
     signals = {
         'renegotiation_patterns': [],
         'tier1_skip_patterns': [],
@@ -2800,142 +2671,41 @@ def _build_trajectory_signals(user):
         'override_count_10d': 0,
         'drift_scenario_count_14d': 0,
         'progress_trend_negative': False,
-        'insufficient': [],  # Compact placeholders for unavailable signals
+        'insufficient': [],
     }
 
-    ten_days_ago = timezone.now() - datetime.timedelta(days=10)
-    seven_days_ago = timezone.now() - datetime.timedelta(days=7)
-    fourteen_days_ago = timezone.now() - datetime.timedelta(days=14)
+    # --- Renegotiation patterns (Layer 1) from SAE ---
+    intervention = get_module_state(user, 'intervention') or {}
 
-    # --- Renegotiation patterns (Layer 1) ---
-    # Gate: require ≥1 record to compute, ≥3 per behavior to trigger pattern
-    def _renegotiation_source():
-        from apps.core.blueprint.models import InterventionLog
-        from django.db.models import Count
-
-        qs = InterventionLog.objects.filter(
-            user=user,
-            created_at__gte=ten_days_ago,
-            user_response__in=['proceeded', 'dismissed'],
-            behavior_key__gt='',
-        )
-        total = qs.count()
-        patterns = list(
-            qs.values('behavior_key')
-            .annotate(count=Count('id'))
-            .filter(count__gte=3)
-            .order_by('-count')[:5]
-        )
-        return patterns, total
-
-    result = _source_integrity_gate('renegotiation', _renegotiation_source, min_records=1)
-    if result is not None:
-        patterns, _ = result
-        for r in patterns:
-            signals['renegotiation_patterns'].append({
-                'behavior': r['behavior_key'],
-                'count': r['count'],
-                'window_days': 10,
-            })
-        # Override count (total proceeded in 10 days)
-        try:
-            from apps.core.blueprint.models import InterventionLog
-            signals['override_count_10d'] = InterventionLog.objects.filter(
-                user=user,
-                created_at__gte=ten_days_ago,
-                user_response='proceeded',
-            ).count()
-        except Exception:
-            pass
+    reneg_patterns = intervention.get('renegotiation_patterns', [])
+    if reneg_patterns:
+        signals['renegotiation_patterns'] = reneg_patterns
+        signals['override_count_10d'] = intervention.get('override_count_10d', 0)
     else:
         signals['insufficient'].append('renegotiation')
 
-    # --- Tier 1 skip patterns (Layer 2) ---
-    # Gate: require ≥1 record to compute, ≥2 per behavior to trigger alert
-    def _tier1_skip_source():
-        from apps.core.blueprint.models import InterventionLog
-
-        qs = InterventionLog.objects.filter(
-            user=user,
-            created_at__gte=seven_days_ago,
-            trigger_type__in=['tier1_violation', 'non_negotiable_miss'],
-        ).order_by('-created_at')
-        records = list(qs.values('behavior_key', 'created_at'))
-        return records, len(records)
-
-    result = _source_integrity_gate('tier1_skips', _tier1_skip_source, min_records=1)
-    if result is not None:
-        records, _ = result
-        tier1_by_behavior = {}
-        tier1_dates = []
-        for rec in records:
-            key = rec['behavior_key'] or 'general'
-            tier1_by_behavior.setdefault(key, 0)
-            tier1_by_behavior[key] += 1
-            tier1_dates.append(rec['created_at'].date())
-
-        for bkey, count in tier1_by_behavior.items():
-            if count >= 2:
-                signals['tier1_skip_patterns'].append({
-                    'behavior': bkey,
-                    'count': count,
-                    'window_days': 7,
-                })
-
-        # Consecutive Tier 1 skips
-        if tier1_dates:
-            unique_dates = sorted(set(tier1_dates), reverse=True)
-            consecutive = 1
-            for i in range(1, len(unique_dates)):
-                if (unique_dates[i - 1] - unique_dates[i]).days <= 1:
-                    consecutive += 1
-                else:
-                    break
-            signals['consecutive_tier1_skips'] = consecutive
+    # --- Tier 1 skip patterns (Layer 2) from SAE ---
+    tier1_patterns = intervention.get('tier1_skip_patterns', [])
+    if tier1_patterns:
+        signals['tier1_skip_patterns'] = tier1_patterns
+        signals['consecutive_tier1_skips'] = intervention.get('consecutive_tier1_skips', 0)
     else:
         signals['insufficient'].append('tier1_skips')
 
-    # --- Drift scenario frequency (supports Layer 2 + 3) ---
-    # Gate: require ≥5 events in 14 days for frequency-based inference
-    def _drift_frequency_source():
-        from apps.core.ai_arbitration.models import ScenarioHistory
-        from datetime import date
-
-        total_events = ScenarioHistory.objects.filter(
-            user=user,
-            date__gte=date.today() - datetime.timedelta(days=14),
-        ).count()
-        drift_count = ScenarioHistory.objects.filter(
-            user=user,
-            date__gte=date.today() - datetime.timedelta(days=14),
-            dominant_scenario='DRIFT_CRITICAL',
-        ).count()
-        return drift_count, total_events
-
-    result = _source_integrity_gate('drift_frequency', _drift_frequency_source, min_records=5)
-    if result is not None:
-        drift_count, _ = result
+    # --- Drift scenario frequency from SAE governance ---
+    drift_count = get_state_value(user, 'governance.drift_scenario_count_14d', 0)
+    if drift_count > 0:
         signals['drift_scenario_count_14d'] = drift_count
     else:
         signals['insufficient'].append('drift_frequency')
 
     # --- Progress trend (supports Layer 2 corrective minimum detection) ---
-    def _progress_trend_source():
-        from apps.core.ai_state.state_engine import get_state_value
-        weight_trend = get_state_value(user, 'health.weight_trend', 'stable')
-        alignment_trend = get_state_value(user, 'alignment.trend', 'stable')
-        is_negative = (
-            weight_trend in ('increasing',)
-            or alignment_trend in ('declining', 'decreasing')
-        )
-        return is_negative, 1  # Always 1 record (state engine always available)
-
-    result = _source_integrity_gate('progress_trend', _progress_trend_source, min_records=1)
-    if result is not None:
-        is_negative, _ = result
-        signals['progress_trend_negative'] = is_negative
-    else:
-        signals['insufficient'].append('progress_trend')
+    weight_trend = get_state_value(user, 'health.weight_trend', 'stable')
+    alignment_trend = get_state_value(user, 'alignment.trend', 'stable')
+    signals['progress_trend_negative'] = (
+        weight_trend in ('increasing',)
+        or alignment_trend in ('declining', 'decreasing')
+    )
 
     return signals
 
@@ -3167,15 +2937,12 @@ def _build_decision_branch_signals(user):
     except Exception:
         pass
 
-    # Deferral count: distinct days with renegotiations in last 7 days
+    # Deferral count — from SAE truth layer
     try:
-        from apps.core.blueprint.models import InterventionLog
-        seven_days_ago = timezone.now() - datetime.timedelta(days=7)
-        signals['deferrals_7d'] = InterventionLog.objects.filter(
-            user=user,
-            created_at__gte=seven_days_ago,
-            user_response__in=['proceeded', 'dismissed'],
-        ).count()
+        from apps.core.ai_state.state_engine import get_state_value
+        signals['deferrals_7d'] = get_state_value(
+            user, 'intervention.deferrals_7d', 0
+        )
     except Exception:
         pass
 
@@ -4569,20 +4336,10 @@ def build_learning_mode_context(user):
     except Exception:
         pass
 
-    # User declared priorities (from UserPriorityProfile)
+    # User declared priorities — from SAE truth layer
     try:
-        from apps.core.blueprint.models import UserPriorityProfile
-        priorities = UserPriorityProfile.objects.filter(user=user)
-        context['user_priorities'] = [
-            {
-                'module': p.module_key,
-                'sub_module': p.sub_module_key,
-                'level': p.get_declared_priority_level_display(),
-                'weight': float(p.importance_weight),
-                'reason': p.declared_reason[:200] if p.declared_reason else '',
-            }
-            for p in priorities
-        ]
+        from apps.core.ai_state.state_engine import get_state_value
+        context['user_priorities'] = get_state_value(user, 'governance.declared_priorities', [])
     except Exception:
         pass
 

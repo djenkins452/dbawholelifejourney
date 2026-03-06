@@ -23,12 +23,21 @@ def get_user_state(user):
     Returns the cached state_data dict. If no state exists yet,
     triggers a full rebuild.
 
+    Supports per-request caching: if ``user._sae_cache`` is set
+    (e.g. by ``build_cos_context``), returns it directly, avoiding
+    repeated DB hits during the same request cycle.
+
     Args:
         user: Django User instance.
 
     Returns:
         dict — structured state snapshot keyed by module.
     """
+    # Fast path: per-request cache set by build_cos_context
+    cached = getattr(user, "_sae_cache", None)
+    if cached is not None:
+        return cached
+
     state_obj, created = UserState.objects.get_or_create(
         user=user, defaults={"state_data": {}}
     )

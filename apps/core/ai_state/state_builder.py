@@ -147,6 +147,74 @@ def build_health_state(user):
         state["bp_diastolic"] = latest_bp[1]
         state["last_bp_entry"] = latest_bp[2].isoformat()
 
+    # ── Heart Rate (7-day avg) ────────────────────────────────
+    try:
+        from django.db.models import Avg
+        from apps.health.models import HeartRateEntry
+
+        hr_avg = HeartRateEntry.objects.filter(
+            user=user, recorded_at__gte=cutoff_7d
+        ).aggregate(avg=Avg("bpm"))["avg"]
+        if hr_avg:
+            state["heart_rate_avg_7d"] = round(float(hr_avg))
+    except Exception:
+        pass
+
+    # ── Glucose (7-day avg) ───────────────────────────────────
+    try:
+        from django.db.models import Avg
+        from apps.health.models import GlucoseEntry
+
+        glucose_avg = GlucoseEntry.objects.filter(
+            user=user, recorded_at__gte=cutoff_7d
+        ).aggregate(avg=Avg("value"))["avg"]
+        if glucose_avg:
+            state["glucose_avg_7d"] = round(float(glucose_avg))
+    except Exception:
+        pass
+
+    # ── Blood Oxygen (7-day avg) ──────────────────────────────
+    try:
+        from django.db.models import Avg
+        from apps.health.models import BloodOxygenEntry
+
+        spo2_avg = BloodOxygenEntry.objects.filter(
+            user=user, recorded_at__gte=cutoff_7d
+        ).aggregate(avg=Avg("spo2"))["avg"]
+        if spo2_avg:
+            state["blood_oxygen_avg_7d"] = round(float(spo2_avg), 1)
+    except Exception:
+        pass
+
+    # ── Heart Rate Events (7-day count) ───────────────────────
+    try:
+        from apps.health.models import HeartRateEventEntry
+
+        hr_events = HeartRateEventEntry.objects.filter(
+            user=user, recorded_at__gte=cutoff_7d
+        ).count()
+        if hr_events > 0:
+            state["heart_rate_events_7d"] = hr_events
+    except Exception:
+        pass
+
+    # ── Weight Goal (from HealthProfile) ──────────────────────
+    try:
+        from apps.health.models import HealthProfile
+
+        hp = HealthProfile.objects.filter(user=user).first()
+        if hp and hp.has_weight_goal:
+            state["weight_goal"] = float(hp.weight_goal)
+            state["weight_goal_unit"] = hp.weight_goal_unit
+            if hp.weight_goal_target_date:
+                state["weight_goal_target_date"] = str(hp.weight_goal_target_date)
+            progress = hp.get_weight_progress()
+            if progress and progress.get("remaining") is not None:
+                state["weight_goal_remaining"] = progress["remaining"]
+                state["weight_goal_on_track"] = progress.get("on_track")
+    except Exception:
+        pass
+
     return state
 
 
@@ -296,6 +364,27 @@ def build_faith_state(user):
     state["unanswered_prayers"] = PrayerRequest.objects.filter(
         user=user, is_answered=False
     ).count()
+
+    state["answered_prayers"] = PrayerRequest.objects.filter(
+        user=user, is_answered=True
+    ).count()
+
+    # Recent prayer titles (top 5 active)
+    state["recent_prayer_titles"] = list(
+        PrayerRequest.objects.filter(user=user, is_answered=False)
+        .order_by("-created_at")
+        .values_list("title", flat=True)[:5]
+    )
+
+    # Urgent prayers
+    state["urgent_prayers"] = PrayerRequest.objects.filter(
+        user=user, is_answered=False, priority="urgent"
+    ).count()
+
+    # Bible reading plan name
+    active_plan = active_plans.first()
+    if active_plan and hasattr(active_plan, "plan"):
+        state["bible_plan_name"] = str(active_plan.plan)
 
     return state
 
@@ -650,6 +739,37 @@ def build_fitness_state(user):
     state["total_volume_7d"] = round(total_volume, 1)
     state["total_sets_7d"] = total_sets
 
+    # ── Workout aggregates (7d) for CoS context ──────────────────
+    if state["workouts_7d"] > 0:
+        workout_agg = recent_sessions.aggregate(
+            total_cal=Sum("calories_burned"),
+            total_min=Sum("duration_minutes"),
+            avg_hr=Avg("avg_heart_rate"),
+            total_dist=Sum("distance_miles"),
+        )
+        if workout_agg["total_cal"]:
+            state["workout_calories_7d"] = workout_agg["total_cal"]
+        if workout_agg["total_min"]:
+            state["workout_minutes_7d"] = workout_agg["total_min"]
+        if workout_agg["avg_hr"]:
+            state["workout_avg_hr_7d"] = round(float(workout_agg["avg_hr"]))
+        if workout_agg["total_dist"]:
+            state["workout_distance_7d"] = round(float(workout_agg["total_dist"]), 1)
+
+        # Recent workouts list (top 3)
+        recent_list = recent_sessions.order_by("-date")[:3]
+        state["recent_workouts"] = [
+            {
+                "name": w.name,
+                "type": w.workout_type,
+                "date": str(w.date),
+                "minutes": w.duration_minutes,
+                "calories": w.calories_burned,
+                "avg_hr": w.avg_heart_rate,
+            }
+            for w in recent_list
+        ]
+
     # ── Average workout duration ─────────────────────────────────
     sessions_with_duration = WorkoutSession.objects.filter(
         user=user,
@@ -897,6 +1017,17 @@ def build_meals_state(user):
     ).count()
     state["pantry_expiring_count"] = expiring_count
 
+    # Expiring item names (up to 5)
+    if expiring_count > 0:
+        state["expiring_item_names"] = list(
+            PantryItem.objects.filter(
+                household=household,
+                quantity__gt=0,
+                expiration_date_estimated__lte=(now + timedelta(days=3)).date(),
+                expiration_date_estimated__gte=now.date(),
+            ).values_list("ingredient__canonical_name", flat=True)[:5]
+        )
+
     # Active meal plan
     today = now.date()
     active_entry = MealPlanEntry.objects.filter(
@@ -924,6 +1055,281 @@ def build_meals_state(user):
     return state
 
 
+# ── Intervention State Builder ────────────────────────────────────
+
+
+def build_intervention_state(user):
+    """
+    Build intervention/governance state from InterventionLog records.
+
+    Returns:
+        dict with override frequencies, renegotiation patterns, tier 1 skips.
+    """
+    from django.db.models import Count
+
+    now = get_current_time()
+    state = {}
+
+    seven_days_ago = now - timedelta(days=7)
+    ten_days_ago = now - timedelta(days=10)
+    fourteen_days_ago = now - timedelta(days=14)
+
+    try:
+        from apps.core.blueprint.models import InterventionLog
+
+        # Override frequency (14d)
+        state["override_frequency_14d"] = InterventionLog.objects.filter(
+            user=user, user_response="proceeded",
+            created_at__gte=fourteen_days_ago,
+        ).count()
+
+        # Override count (10d)
+        state["override_count_10d"] = InterventionLog.objects.filter(
+            user=user, user_response="proceeded",
+            created_at__gte=ten_days_ago,
+        ).count()
+
+        # Pending friction gates
+        state["pending_friction_gates"] = InterventionLog.objects.filter(
+            user=user, level=4, user_response="pending",
+        ).count()
+
+        # Deferrals (7d)
+        state["deferrals_7d"] = InterventionLog.objects.filter(
+            user=user, created_at__gte=seven_days_ago,
+            user_response__in=["proceeded", "dismissed"],
+        ).count()
+
+        # Renegotiation patterns (10d)
+        patterns = list(
+            InterventionLog.objects.filter(
+                user=user, created_at__gte=ten_days_ago,
+                user_response__in=["proceeded", "dismissed"],
+                behavior_key__gt="",
+            )
+            .values("behavior_key")
+            .annotate(count=Count("id"))
+            .filter(count__gte=3)
+            .order_by("-count")[:5]
+        )
+        state["renegotiation_patterns"] = [
+            {"behavior": p["behavior_key"], "count": p["count"], "window_days": 10}
+            for p in patterns
+        ]
+
+        # Tier 1 skip patterns (7d)
+        tier1_records = list(
+            InterventionLog.objects.filter(
+                user=user, created_at__gte=seven_days_ago,
+                trigger_type__in=["tier1_violation", "non_negotiable_miss"],
+            ).values("behavior_key", "created_at")
+        )
+        tier1_by_behavior = {}
+        tier1_dates = []
+        for rec in tier1_records:
+            key = rec["behavior_key"] or "general"
+            tier1_by_behavior.setdefault(key, 0)
+            tier1_by_behavior[key] += 1
+            tier1_dates.append(rec["created_at"].date())
+
+        state["tier1_skip_patterns"] = [
+            {"behavior": bkey, "count": count, "window_days": 7}
+            for bkey, count in tier1_by_behavior.items()
+            if count >= 2
+        ]
+
+        # Consecutive tier 1 skips
+        if tier1_dates:
+            unique_dates = sorted(set(tier1_dates), reverse=True)
+            consecutive = 1
+            for i in range(1, len(unique_dates)):
+                if (unique_dates[i - 1] - unique_dates[i]).days <= 1:
+                    consecutive += 1
+                else:
+                    break
+            state["consecutive_tier1_skips"] = consecutive
+
+    except Exception:
+        logger.warning("Intervention state build failed", exc_info=True)
+
+    return state
+
+
+# ── Feedback State Builder ────────────────────────────────────────
+
+
+def build_feedback_state(user):
+    """
+    Build feedback profile state from engagement/effectiveness models.
+
+    Returns:
+        dict with insight engagement, briefing rates, intervention effectiveness.
+    """
+    state = {}
+
+    try:
+        from apps.core.ai_feedback.models import (
+            BriefingEngagementProfile,
+            InsightEngagementProfile,
+            InterventionEffectivenessProfile,
+        )
+
+        ie = InsightEngagementProfile.objects.filter(user=user).first()
+        be = BriefingEngagementProfile.objects.filter(user=user).first()
+        iv = InterventionEffectivenessProfile.objects.filter(user=user).first()
+
+        state["insight_engagement"] = ie.engagement_score if ie else 0.5
+        state["briefing_open_rate"] = be.open_rate if be else 0.0
+        state["preferred_briefing_length"] = be.preferred_length if be else "standard"
+        state["intervention_effectiveness"] = iv.effectiveness_score if iv else 0.5
+        state["escalation_modifier"] = iv.escalation_speed_modifier if iv else 0.0
+
+    except Exception:
+        logger.warning("Feedback state build failed", exc_info=True)
+
+    return state
+
+
+# ── Life Events State Builder ─────────────────────────────────────
+
+
+def build_life_events_state(user):
+    """
+    Build approaching life events state (14-day window).
+
+    Returns:
+        dict with approaching_events list.
+    """
+    state = {}
+    approaching = []
+
+    try:
+        from apps.core.utils import get_user_today
+
+        today = get_user_today(user)
+
+        try:
+            from apps.life.models import LifeEvent, SignificantEvent
+
+            for event in SignificantEvent.objects.filter(user=user):
+                try:
+                    days_until = event.days_until_next(today)
+                    if days_until is not None and days_until <= 14:
+                        event_info = {
+                            "title": event.title,
+                            "type": event.event_type,
+                            "days_until": days_until,
+                            "person": event.person_name or "",
+                        }
+                        if event.original_year:
+                            event_info["years"] = today.year - event.original_year
+                        approaching.append(event_info)
+                except Exception:
+                    continue
+
+            cutoff = today + timedelta(days=14)
+            for event in LifeEvent.objects.filter(
+                user=user, start_date__gte=today, start_date__lte=cutoff,
+            ).exclude(status="deleted").order_by("start_date")[:10]:
+                approaching.append({
+                    "title": event.title,
+                    "type": getattr(event, "event_type", "event"),
+                    "days_until": (event.start_date - today).days,
+                    "person": "",
+                })
+
+            approaching.sort(key=lambda e: e["days_until"])
+        except Exception:
+            pass
+
+    except Exception:
+        logger.warning("Life events state build failed", exc_info=True)
+
+    state["approaching_events"] = approaching[:5]
+    return state
+
+
+# ── Scan State Builder ────────────────────────────────────────────
+
+
+def build_scan_state(user):
+    """
+    Build recent image analysis state (7-day window).
+
+    Returns:
+        dict with recent_analyses list.
+    """
+    state = {"recent_analyses": []}
+
+    try:
+        from apps.scan.models import ImageAnalysis
+
+        lookback = get_current_time() - timedelta(days=7)
+        analyses = ImageAnalysis.objects.filter(
+            user=user, status="completed", created_at__gte=lookback,
+        ).order_by("-created_at")[:10]
+
+        state["recent_analyses"] = [
+            {
+                "summary": a.summary,
+                "category": a.category,
+                "source": a.get_source_type_display(),
+                "when": a.created_at.isoformat(),
+                "tags": a.relevance_tags[:5] if a.relevance_tags else [],
+            }
+            for a in analyses
+        ]
+    except Exception:
+        logger.warning("Scan state build failed", exc_info=True)
+
+    return state
+
+
+# ── Governance State Builder ──────────────────────────────────────
+
+
+def build_governance_state(user):
+    """
+    Build governance-related state (priorities, drift scenarios).
+
+    Returns:
+        dict with declared_priorities and drift_scenario_count_14d.
+    """
+    state = {"declared_priorities": [], "drift_scenario_count_14d": 0}
+
+    # Declared priorities
+    try:
+        from apps.core.blueprint.models import UserPriorityProfile
+
+        priorities = UserPriorityProfile.objects.filter(user=user)
+        state["declared_priorities"] = [
+            {
+                "module": p.module_key,
+                "sub_module": p.sub_module_key,
+                "level": p.get_declared_priority_level_display(),
+                "weight": float(p.importance_weight),
+                "reason": p.declared_reason[:200] if p.declared_reason else "",
+            }
+            for p in priorities
+        ]
+    except Exception:
+        logger.warning("Governance priorities build failed", exc_info=True)
+
+    # Drift scenario frequency (14d)
+    try:
+        from apps.core.ai_arbitration.models import ScenarioHistory
+
+        cutoff = get_current_time() - timedelta(days=14)
+        state["drift_scenario_count_14d"] = ScenarioHistory.objects.filter(
+            user=user, date__gte=cutoff.date(),
+            dominant_scenario="DRIFT_CRITICAL",
+        ).count()
+    except Exception:
+        logger.warning("Governance drift scenarios build failed", exc_info=True)
+
+    return state
+
+
 # ── Builder Registry ─────────────────────────────────────────────
 
 # Maps module names to their builder functions.
@@ -940,6 +1346,11 @@ MODULE_BUILDERS = {
     "fitness": build_fitness_state,
     "transformation": build_transformation_state,
     "meals": build_meals_state,
+    "intervention": build_intervention_state,
+    "feedback": build_feedback_state,
+    "life_events": build_life_events_state,
+    "scan": build_scan_state,
+    "governance": build_governance_state,
 }
 
 

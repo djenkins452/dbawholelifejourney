@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-03-06 — Fix morning routine greeting: don't celebrate when only "Wake Up" is done
+
+**What:** The executive briefing told the LLM to "Celebrate warmly! Summarize with energy (e.g., 'You've already knocked out your morning routine!')" even when only 1 of 6 routine tasks (Wake Up, auto-completed) was done. Now the celebration only fires when ≥70% of routines are complete. Below that threshold, it acknowledges progress without overstating.
+
+**Why:** User reported the assistant saying "You've already knocked out your morning routine" at 5:30 AM when they'd only just woken up. Prayer, bible reading, workout, etc. were all still pending.
+
+**Files:**
+- `apps/ai/executive_briefing.py` — Proportional celebration logic in `_build_health_gate_section()`
+
+---
+
 ## 2026-03-06 — Fix body composition pipeline: HealthKit → BodyCompositionEntry sync
 
 **What:** When HealthKit sends body fat % or lean body mass, the ingestion now also creates/updates `BodyCompositionEntry` rows. Previously, HealthKit data was only stored on `WeightEntry` fields, but the SAE builder, UI, and intelligence engine all read from `BodyCompositionEntry` — causing "No body composition scans" despite having data.

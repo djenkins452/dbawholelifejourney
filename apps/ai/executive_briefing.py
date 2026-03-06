@@ -607,17 +607,27 @@ def _build_health_gate_section(user, today) -> str:
             due_date=today,
         ).values_list('title', flat=True)[:5])
 
-        if completed_routines:
-            lines.append(
-                f"Routines Completed: {', '.join(completed_routines)}. "
-                "Celebrate this warmly! Don't list each one — summarize "
-                "with energy (e.g., 'You've already knocked out your "
-                "morning routine!')."
-            )
+        total_routines = len(completed_routines) + len(pending_routines)
+        if completed_routines and total_routines > 0:
+            completion_ratio = len(completed_routines) / total_routines
+            if completion_ratio >= 0.7:
+                # Most/all routines done — celebrate broadly
+                lines.append(
+                    f"Routines Completed: {', '.join(completed_routines)}. "
+                    "Celebrate this warmly! Summarize with energy "
+                    "(e.g., 'You've already knocked out your morning routine!')."
+                )
+            else:
+                # Only some routines done — acknowledge but don't overstate
+                lines.append(
+                    f"Routines Completed So Far: {', '.join(completed_routines)}. "
+                    "Acknowledge briefly but do NOT say they've 'knocked out' "
+                    "or 'completed' their morning routine — they're still in progress."
+                )
         if pending_routines:
             lines.append(
                 f"Routines Still Ahead: {', '.join(pending_routines)}. "
-                "Mention these as what's coming up, not as things they missed."
+                "Mention these naturally as what's coming up, not as things they missed."
             )
     except Exception:
         pass

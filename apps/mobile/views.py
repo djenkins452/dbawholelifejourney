@@ -1498,6 +1498,40 @@ def process_stand_hours_metric(user, metric_date, source, sync_id, data):
     return "created"
 
 
+def _sync_body_composition_entry(user, metric_name, value, unit, measurement_date, source):
+    """
+    Create or update a BodyCompositionEntry so the intelligence engine
+    and UI can find body-comp data from HealthKit.
+
+    HealthKit ingestion stores body fat / lean mass on WeightEntry fields,
+    but the SAE health builder and UI read from BodyCompositionEntry.
+    This bridges the gap.
+    """
+    from apps.health.models import BodyCompositionEntry
+
+    existing = BodyCompositionEntry.objects.filter(
+        user=user,
+        metric_name=metric_name,
+        measurement_date=measurement_date,
+    ).first()
+
+    if existing:
+        if existing.value != value:
+            existing.value = value
+            existing.unit = unit
+            existing.source = source or "apple_health"
+            existing.save(update_fields=["value", "unit", "source", "updated_at"])
+    else:
+        BodyCompositionEntry.objects.create(
+            user=user,
+            metric_name=metric_name,
+            value=value,
+            unit=unit,
+            measurement_date=measurement_date,
+            source=source or "apple_health",
+        )
+
+
 def process_body_fat_metric(user, metric_date, source, sync_id, data):
     """
     Process body fat percentage metric from Apple HealthKit.
@@ -1530,6 +1564,7 @@ def process_body_fat_metric(user, metric_date, source, sync_id, data):
         if existing.body_fat_percentage != body_fat_percentage:
             existing.body_fat_percentage = body_fat_percentage
             existing.save(update_fields=["body_fat_percentage", "updated_at"])
+            _sync_body_composition_entry(user, "body_fat_pct", body_fat_percentage, "pct", metric_date, source)
             return "updated"
         return "skipped"
 
@@ -1543,6 +1578,7 @@ def process_body_fat_metric(user, metric_date, source, sync_id, data):
         if weight_entry.body_fat_percentage != body_fat_percentage:
             weight_entry.body_fat_percentage = body_fat_percentage
             weight_entry.save(update_fields=["body_fat_percentage", "updated_at"])
+            _sync_body_composition_entry(user, "body_fat_pct", body_fat_percentage, "pct", metric_date, source)
             return "updated"
         return "skipped"
 
@@ -1559,6 +1595,7 @@ def process_body_fat_metric(user, metric_date, source, sync_id, data):
         source=source,
         sync_id=sync_id,
     )
+    _sync_body_composition_entry(user, "body_fat_pct", body_fat_percentage, "pct", metric_date, source)
     return "created"
 
 
@@ -1722,6 +1759,7 @@ def process_lean_body_mass_metric(user, metric_date, source, sync_id, data):
         if existing.lean_body_mass != lean_mass_value:
             existing.lean_body_mass = lean_mass_value
             existing.save(update_fields=["lean_body_mass", "updated_at"])
+            _sync_body_composition_entry(user, "lean_mass", lean_mass_value, "lb", metric_date, source)
             return "updated"
         return "skipped"
 
@@ -1735,6 +1773,7 @@ def process_lean_body_mass_metric(user, metric_date, source, sync_id, data):
         if weight_entry.lean_body_mass != lean_mass_value:
             weight_entry.lean_body_mass = lean_mass_value
             weight_entry.save(update_fields=["lean_body_mass", "updated_at"])
+            _sync_body_composition_entry(user, "lean_mass", lean_mass_value, "lb", metric_date, source)
             return "updated"
         return "skipped"
 
@@ -1750,6 +1789,7 @@ def process_lean_body_mass_metric(user, metric_date, source, sync_id, data):
         source=source,
         sync_id=sync_id,
     )
+    _sync_body_composition_entry(user, "lean_mass", lean_mass_value, "lb", metric_date, source)
     return "created"
 
 

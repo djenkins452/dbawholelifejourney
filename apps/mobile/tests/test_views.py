@@ -12,7 +12,7 @@ from unittest.mock import patch
 from django.test import Client, TestCase
 from django.utils import timezone
 
-from apps.health.models import GlucoseEntry, SleepEntry, StepsEntry, WeightEntry
+from apps.health.models import BodyCompositionEntry, GlucoseEntry, SleepEntry, StepsEntry, WeightEntry
 from apps.mobile.models import (
     HealthIngestionRun,
     MobileAPIToken,
@@ -442,6 +442,186 @@ class HealthIngestionTests(TestCase):
         call_dates = {call[0][1] for call in mock_task.delay.call_args_list}
         self.assertIn("2024-01-15", call_dates)
         self.assertIn("2024-01-16", call_dates)
+
+
+@patch("apps.health.tasks.build_user_health_summary")
+class BodyCompositionSyncTests(TestCase):
+    """Test that body fat and lean mass ingestion creates BodyCompositionEntry rows."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            email="test@example.com",
+            password="testpass123",
+        )
+        self.device = MobileDevice.objects.create(
+            user=self.user,
+            device_id="test-device-uuid",
+        )
+        self.token, self.raw_token = MobileAPIToken.create_token(
+            user=self.user,
+            device=self.device,
+        )
+
+    def _auth_headers(self):
+        return {"HTTP_AUTHORIZATION": f"Bearer {self.raw_token}"}
+
+    def _ingest(self, metrics):
+        return self.client.post(
+            "/api/mobile/health/ingest/",
+            data=json.dumps({"metrics": metrics}),
+            content_type="application/json",
+            **self._auth_headers(),
+        )
+
+    def test_body_fat_creates_bce(self, _mock_task):
+        """Ingesting body fat % creates a BodyCompositionEntry."""
+        response = self._ingest([{
+            "type": "body_fat",
+            "date": "2024-03-01",
+            "body_fat_percentage": 22.5,
+            "source": "apple_health",
+            "sync_id": "bf-001",
+        }])
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["created"], 1)
+
+        bce = BodyCompositionEntry.objects.filter(
+            user=self.user, metric_name="body_fat_pct"
+        ).first()
+        self.assertIsNotNone(bce)
+        self.assertEqual(bce.value, Decimal("22.5"))
+        self.assertEqual(bce.unit, "pct")
+        self.assertEqual(str(bce.measurement_date), "2024-03-01")
+
+    def test_lean_mass_creates_bce(self, _mock_task):
+        """Ingesting lean body mass creates a BodyCompositionEntry."""
+        response = self._ingest([{
+            "type": "lean_body_mass",
+            "date": "2024-03-01",
+            "lean_mass_value": 145.3,
+            "lean_mass_unit": "lb",
+            "source": "apple_health",
+            "sync_id": "lm-001",
+        }])
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["created"], 1)
+
+        bce = BodyCompositionEntry.objects.filter(
+            user=self.user, metric_name="lean_mass"
+        ).first()
+        self.assertIsNotNone(bce)
+        self.assertEqual(bce.value, Decimal("145.3"))
+        self.assertEqual(bce.unit, "lb")
+
+    def test_body_fat_update_updates_bce(self, _mock_task):
+        """Updating body fat via sync_id also updates the BCE row."""
+        # First ingestion
+        self._ingest([{
+            "type": "body_fat",
+            "date": "2024-03-01",
+            "body_fat_percentage": 22.5,
+            "source": "apple_health",
+            "sync_id": "bf-002",
+        }])
+
+        # Second ingestion with updated value
+        self._ingest([{
+            "type": "body_fat",
+            "date": "2024-03-01",
+            "body_fat_percentage": 21.8,
+            "source": "apple_health",
+            "sync_id": "bf-002",
+        }])
+
+        # Should have exactly one BCE row with updated value
+        bces = BodyCompositionEntry.objects.filter(
+            user=self.user,
+            metric_name="body_fat_pct",
+            measurement_date="2024-03-01",
+        )
+        self.assertEqual(bces.count(), 1)
+        self.assertEqual(bces.first().value, Decimal("21.8"))
+
+    def test_lean_mass_kg_converted_in_bce(self, _mock_task):
+        """Lean mass in kg is converted to lb in the BCE row."""
+        self._ingest([{
+            "type": "lean_body_mass",
+            "date": "2024-03-01",
+            "lean_mass_value": 60.0,
+            "lean_mass_unit": "kg",
+            "source": "apple_health",
+            "sync_id": "lm-002",
+        }])
+
+        bce = BodyCompositionEntry.objects.get(
+            user=self.user, metric_name="lean_mass"
+        )
+        # 60 kg * 2.20462 = 132.2772
+        self.assertAlmostEqual(float(bce.value), 132.28, places=1)
+        self.assertEqual(bce.unit, "lb")
+
+    def test_body_fat_date_match_creates_bce(self, _mock_task):
+        """Body fat update via date match also creates BCE."""
+        # Create a weight entry for this date first
+        WeightEntry.objects.create(
+            user=self.user,
+            value=Decimal("180"),
+            unit="lb",
+            recorded_at=timezone.make_aware(
+                timezone.datetime(2024, 3, 1, 12, 0, 0)
+            ),
+            source="apple_health",
+            sync_id="w-100",
+        )
+
+        # Ingest body fat with different sync_id (will match by date)
+        self._ingest([{
+            "type": "body_fat",
+            "date": "2024-03-01",
+            "body_fat_percentage": 23.0,
+            "source": "apple_health",
+            "sync_id": "bf-date-match",
+        }])
+
+        bce = BodyCompositionEntry.objects.filter(
+            user=self.user, metric_name="body_fat_pct"
+        ).first()
+        self.assertIsNotNone(bce)
+        self.assertEqual(bce.value, Decimal("23.0"))
+
+    def test_body_fat_skipped_no_duplicate_bce(self, _mock_task):
+        """When body fat is skipped (same value), no new BCE is created."""
+        # First ingestion
+        self._ingest([{
+            "type": "body_fat",
+            "date": "2024-03-01",
+            "body_fat_percentage": 22.5,
+            "source": "apple_health",
+            "sync_id": "bf-skip",
+        }])
+
+        bce_count_before = BodyCompositionEntry.objects.filter(
+            user=self.user, metric_name="body_fat_pct"
+        ).count()
+
+        # Same value again — should be skipped
+        response = self._ingest([{
+            "type": "body_fat",
+            "date": "2024-03-01",
+            "body_fat_percentage": 22.5,
+            "source": "apple_health",
+            "sync_id": "bf-skip",
+        }])
+
+        self.assertEqual(response.json()["skipped"], 1)
+
+        bce_count_after = BodyCompositionEntry.objects.filter(
+            user=self.user, metric_name="body_fat_pct"
+        ).count()
+        self.assertEqual(bce_count_before, bce_count_after)
 
 
 class DeviceManagementTests(TestCase):

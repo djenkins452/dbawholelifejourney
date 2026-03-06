@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-03-06 — Backfill BodyCompositionEntry from historical WeightEntry data
+
+**What:** Added `backfill_body_composition` management command that migrates body fat % and lean body mass from WeightEntry to BodyCompositionEntry. Idempotent — skips rows where BCE already exists for the same user/metric/date. Wired into `load_initial_data` to run on next deploy (backfill first, then rebuild summaries).
+
+**Why:** The pipeline fix creates BCE on new ingestion, but historical HealthKit data only exists on WeightEntry fields. Without backfill, SAE/UI/engine still show "No body composition scans" for historical data.
+
+**Files:**
+- `apps/health/management/commands/backfill_body_composition.py` — New command
+- `apps/core/management/commands/load_initial_data.py` — Updated one-time runner to backfill before rebuilding summaries
+
+---
+
 ## 2026-03-06 — Fix morning routine greeting: don't celebrate when only "Wake Up" is done
 
 **What:** The executive briefing told the LLM to "Celebrate warmly! Summarize with energy (e.g., 'You've already knocked out your morning routine!')" even when only 1 of 6 routine tasks (Wake Up, auto-completed) was done. Now the celebration only fires when ≥70% of routines are complete. Below that threshold, it acknowledges progress without overstating.

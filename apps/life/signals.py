@@ -53,6 +53,8 @@ def handle_task_saved(sender, instance, created, **kwargs):
     - Tasks with no due_date: remove any existing marker
 
     This ensures all tasks with dates appear on the Time Command Center instantly.
+    Also invalidates the CoS context cache so the next CoS interaction
+    reflects the updated schedule (prevents stale [done]/[MISSED] tags).
     """
     if instance.is_routine and instance.scheduled_time and instance.due_date and not instance.is_completed:
         # Routine task — execution block + CoS prompts
@@ -74,6 +76,13 @@ def handle_task_saved(sender, instance, created, **kwargs):
             logger.warning(
                 "Failed to project task %s to calendar: %s", instance.pk, e
             )
+
+    # Invalidate CoS context cache so next interaction sees updated schedule
+    try:
+        from apps.ai.readiness_cache import invalidate_cos_context
+        invalidate_cos_context(instance.user)
+    except Exception:
+        pass  # Cache invalidation is best-effort
 
 
 @receiver(post_save, sender='life.LifeEvent')

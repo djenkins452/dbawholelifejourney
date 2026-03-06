@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-03-06 — Fix stale CoS context after task mutation ("What's for Dinner" bug)
+
+**What:** Fixed two-layer staleness bug where CoS continued reporting a task on its old date after a user moved it via chat (e.g., "move dinner to Sunday" — CoS still said it was due Wednesday).
+
+**Root cause:** (1) Redis CoS context cache was never invalidated when a Task was saved — the `invalidate_cos_context()` function existed but was never called from the Task `post_save` signal. (2) The in-request `_cos_context_cache` was built once at the start of `send_message()` before intent execution and never cleared, so downstream validators could read stale schedule data.
+
+**Changes:**
+- `apps/life/signals.py` — Added `invalidate_cos_context(instance.user)` to `handle_task_saved()` signal handler (best-effort, non-blocking)
+- `apps/ai/personal_assistant.py` — Added `_cos_context_cache = None` after action execution in both non-streaming (`send_message()`) and streaming (`send_message_stream()`) paths, conditioned on `actions_taken` being non-empty
+- 6 new regression tests covering: cache invalidation on save, date move invalidation, resilience to Redis failure, user isolation, and code-pattern verification for both streaming/non-streaming paths
+
+**Files:**
+- `apps/life/signals.py` — signal cache invalidation
+- `apps/ai/personal_assistant.py` — in-request cache clear (both paths)
+- `apps/life/tests/test_cos_context_invalidation.py` — NEW (6 tests)
+
+**Limitations:** Same-turn response text for the action itself is deterministic (from `ActionResult.message`), not from CoS context, so the confirmation message was never wrong. The fix prevents stale data from reaching downstream validators and ensures the *next* CoS interaction sees the updated schedule.
+
+---
+
 ## 2026-03-06 — CoS Step 1 Bug Fixes: Timezone, False Completions, Medicine Names
 
 **What:** Three critical CoS proactive behavior bugs fixed as part of the CoS architectural assessment.

@@ -9,6 +9,28 @@
 
 # WLJ Change History
 
+## 2026-03-06 — Fix body composition pipeline: HealthKit → BodyCompositionEntry sync
+
+**What:** When HealthKit sends body fat % or lean body mass, the ingestion now also creates/updates `BodyCompositionEntry` rows. Previously, HealthKit data was only stored on `WeightEntry` fields, but the SAE builder, UI, and intelligence engine all read from `BodyCompositionEntry` — causing "No body composition scans" despite having data.
+
+**Why:** Schema mismatch: HealthKit → `WeightEntry.body_fat_percentage` / `WeightEntry.lean_body_mass`, but SAE/UI/engine read from `BodyCompositionEntry(metric_name="body_fat_pct"|"lean_mass")`. The data existed but was invisible.
+
+**Changes:**
+- Added `_sync_body_composition_entry()` helper in `apps/mobile/views.py` — creates or updates BCE rows by (user, metric_name, date)
+- Wired helper into `process_body_fat_metric()` (3 return paths: sync_id update, date match, create)
+- Wired helper into `process_lean_body_mass_metric()` (3 return paths: sync_id update, date match, create)
+- Added `post_save`/`post_delete` signals for `BodyCompositionEntry` in `apps/ai/signals.py` → `invalidate_state_snapshot()`
+- Added 6 tests in `BodyCompositionSyncTests`: create, update, kg→lb conversion, date match, skip idempotency
+
+**Files:**
+- `apps/mobile/views.py` — BCE sync helper + wired into both handlers
+- `apps/ai/signals.py` — BodyCompositionEntry post_save/post_delete signals
+- `apps/mobile/tests/test_views.py` — 6 new tests
+
+**Tests:** 6/6 passing
+
+---
+
 ## 2026-03-06 — CoS Truth Layer Refactor: Enforce SAE as canonical state source
 
 **What:** Refactored CoS context builder (`cos_context.py`) to read domain state exclusively from SAE (`UserState.state_data`) instead of raw ORM queries. Eliminated ~41 redundant DB queries, added 5 new SAE builders, enriched 4 existing builders, and added per-request SAE snapshot caching.

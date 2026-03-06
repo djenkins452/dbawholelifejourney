@@ -198,6 +198,18 @@ def invalidate_insights_on_weight_delete(sender, instance, **kwargs):
     invalidate_state_snapshot(instance.user)
 
 
+@receiver(post_save, sender='health.BodyCompositionEntry')
+def invalidate_state_on_body_comp_save(sender, instance, created, **kwargs):
+    """Invalidate SAE state when body composition data changes."""
+    invalidate_state_snapshot(instance.user)
+
+
+@receiver(post_delete, sender='health.BodyCompositionEntry')
+def invalidate_state_on_body_comp_delete(sender, instance, **kwargs):
+    """Invalidate SAE state when body composition data is deleted."""
+    invalidate_state_snapshot(instance.user)
+
+
 # =============================================================================
 # LIFE/TASKS SIGNALS
 # =============================================================================

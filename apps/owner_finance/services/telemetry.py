@@ -41,6 +41,7 @@ def log_llm_usage(
     with metadata flag missing_pricebook=True.
     """
     try:
+        from django.db import transaction
         from apps.owner_finance.models import LLMPriceBook, LLMUsageEvent
 
         cost_usd = Decimal('0')
@@ -89,18 +90,21 @@ def log_llm_usage(
                 "No PriceBook entry for model=%s, storing cost=0", model_name
             )
 
-        LLMUsageEvent.objects.create(
-            user=user,
-            feature=feature,
-            engine=engine or '',
-            model_name=model_name,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            cost_usd=cost_usd,
-            escalated=escalated,
-            conversation_id=conversation_id or '',
-            metadata=meta,
-        )
+        # Use savepoint so a failed insert doesn't poison the outer
+        # transaction (e.g. Django TestCase's wrapping atomic block).
+        with transaction.atomic():
+            LLMUsageEvent.objects.create(
+                user=user,
+                feature=feature,
+                engine=engine or '',
+                model_name=model_name,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=cost_usd,
+                escalated=escalated,
+                conversation_id=conversation_id or '',
+                metadata=meta,
+            )
 
     except Exception as exc:
         logger.debug("owner_finance telemetry write failed: %s", exc)

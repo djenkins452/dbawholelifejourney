@@ -9,6 +9,28 @@
 
 # WLJ Change History
 
+## 2026-03-06 — Fix CI test suite: 6 bugs across 5 apps
+
+**What:** Fixed multiple CI test failures spanning calendar_engine, notes, core fixtures, AI briefing, capture, and dependency management.
+
+**Fixes:**
+1. **freezegun missing from requirements.txt** — 5 calendar_engine test files import `freezegun` for time-frozen determinism tests, but the package wasn't declared. Added `freezegun>=1.2.0`.
+2. **Calendar engine idempotency key collision** — `upsert_execution_block_for_task()` collided with the deadline marker created by the Task post_save signal because source-backed idempotency keys are `hash(user, source_type, source_id)` without `event_kind`. Fix: delete stale deadline marker before creating execution block (mirrors existing pattern in `upsert_from_task()`).
+3. **Duplicate fixture PKs** — `release_notes.json` had duplicate PK 136, `help_topics.json` had duplicate PK 114, `teaching_destinations.json` had duplicate PK 175. Reassigned to unique PKs.
+4. **Flaky health gate test** — `test_medication_not_taken` depended on wall-clock time (medication at 8 AM classified as "upcoming" before 8 AM, "overdue" after). Fix: mock `timezone.now()` to noon so the test is deterministic.
+5. **Capture summarization TransactionManagementError** — Telemetry `log_llm_usage()` failed inside Django TestCase's transaction wrapper when mock OpenAI response's `usage.prompt_tokens` was a MagicMock (not an int). The failed INSERT poisoned the outer transaction. Fix: wrap the telemetry INSERT in `transaction.atomic()` savepoint so failures are isolated.
+
+**Files changed:**
+- `requirements.txt` — Added freezegun
+- `apps/calendar_engine/services/projection.py` — Delete deadline marker before creating execution block
+- `apps/core/fixtures/release_notes.json` — PK 136→139 for "Smarter Relationships Tile"
+- `apps/help/fixtures/help_topics.json` — PK 114→146 for "Health Intelligence"
+- `apps/help/fixtures/teaching_destinations.json` — PK 175→177 for "Bulk Recipe Import"
+- `apps/ai/tests/test_executive_briefing.py` — Mock timezone.now in health gate test
+- `apps/owner_finance/services/telemetry.py` — Savepoint around LLMUsageEvent.objects.create()
+
+---
+
 ## 2026-03-06 — Backfill BodyCompositionEntry from historical WeightEntry data
 
 **What:** Added `backfill_body_composition` management command that migrates body fat % and lean body mass from WeightEntry to BodyCompositionEntry. Idempotent — skips rows where BCE already exists for the same user/metric/date. Wired into `load_initial_data` to run on next deploy (backfill first, then rebuild summaries).

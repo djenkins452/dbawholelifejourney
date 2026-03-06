@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-03-05 — Fix 164 CI test errors: Notes app PostgreSQL-on-SQLite compatibility
+
+**What:** Fixed 164 test errors in CI caused by the Notes app using PostgreSQL-specific `SearchVector`, `SearchQuery`, `SearchRank`, and `SearchHeadline` functions on SQLite (the CI test database). Added SQLite fallback paths and `skipUnless` decorators for PostgreSQL-only tests.
+
+**Why:** The Notes app was introduced with PostgreSQL full-text search (GinIndex, SearchVectorField) but CI runs on in-memory SQLite via `config.settings_test`. Every `Note.save()` called `_refresh_search_vector()` which uses `to_tsvector()` -- a PostgreSQL-only function -- causing every test that creates a Note to fail with `OperationalError: no such function: to_tsvector`.
+
+**Changes:**
+- `apps/notes/utils.py` — Added `is_postgres()` helper that checks `connection.vendor`
+- `apps/notes/models.py` — Guarded `_refresh_search_vector()` to skip on non-PostgreSQL backends
+- `apps/notes/services.py` — Added SQLite fallback (icontains Q-filter) for `search_notes()` and `search_notes_cos()` search functions; cleaned up imports with try/except for PostgreSQL search classes
+- `apps/notes/tests/test_models.py` — Added `@skipUnless(is_postgres())` to 7 tests that use `SearchQuery` directly
+- `apps/notes/tests/test_refresh_command.py` — Added `@skipUnless(is_postgres())` to 2 tests that use `SearchQuery`
+- `apps/notes/tests/test_index_integrity.py` — Added `@skipUnless(is_postgres())` to 6 tests that assert `search_vector` population
+- `apps/notes/tests/test_services.py` — Added `@skipUnless(is_postgres())` to 4 tests that assert ranking/headline features
+- `apps/notes/tests/test_cos_memory_ranking.py` — Added `@skipUnless(is_postgres())` to 1 test that asserts FTS ranking
+
+**Result:** 227 notes tests: 207 pass, 20 skipped on SQLite (pass on PostgreSQL), 0 errors. Total CI error count reduced by 164.
+
 ## 2026-03-06 — CoS Truth Layer Refactor: Enforce SAE as canonical state source
 
 **What:** Refactored CoS context builder (`cos_context.py`) to read domain state exclusively from SAE (`UserState.state_data`) instead of raw ORM queries. Eliminated ~41 redundant DB queries, added 5 new SAE builders, enriched 4 existing builders, and added per-request SAE snapshot caching.

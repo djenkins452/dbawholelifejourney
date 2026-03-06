@@ -89,3 +89,13 @@ def get_entity_display_name(attachment):
         )
     except Exception:
         return f"Deleted {attachment.content_type.name}"
+
+
+def is_postgres():
+    """Check if the default database backend is PostgreSQL.
+
+    Used to guard PostgreSQL-specific features (SearchVector, GinIndex)
+    so that tests can run on SQLite in CI without errors.
+    """
+    from django.db import connection
+    return connection.vendor == "postgresql"

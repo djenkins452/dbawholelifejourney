@@ -4,7 +4,11 @@ Tests for the Notes service layer (Phase 4A).
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from unittest import skipUnless
+
 from django.test import TestCase
+
+from apps.notes.utils import is_postgres
 
 from apps.core.models import Tag
 from apps.notes.models import Note, NoteAttachment
@@ -88,6 +92,7 @@ class SearchNotesServiceTest(TestCase):
         self.assertIn("body", matched_in)
         self.assertIn("tags", matched_in)
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_ranking_title_above_body(self):
         """Title matches rank above body-only matches."""
         Note.objects.create(
@@ -100,6 +105,7 @@ class SearchNotesServiceTest(TestCase):
         self.assertEqual(result["count"], 2)
         self.assertEqual(result["results"][0]["display_title"], "Kubernetes")
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_ranking_title_above_tags(self):
         """Title matches rank above tag-only matches."""
         note1 = Note.objects.create(
@@ -209,12 +215,14 @@ class SearchNotesServiceTest(TestCase):
         match_keys = {"query", "matched_in", "headline", "rank"}
         self.assertTrue(match_keys.issubset(block["match"].keys()))
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_headline_included_on_search(self):
         """headline is populated when searching."""
         Note.objects.create(user=self.user, body="The kubernetes deployment was successful")
         result = search_notes(user=self.user, query="kubernetes")
         self.assertTrue(result["results"][0]["match"]["headline"])
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_rank_included_on_search(self):
         """rank is a float when searching."""
         Note.objects.create(user=self.user, body="Unique xyzzyword content")

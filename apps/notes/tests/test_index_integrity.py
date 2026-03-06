@@ -7,7 +7,11 @@ from io import StringIO
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
+from unittest import skipUnless
+
 from django.test import TestCase
+
+from apps.notes.utils import is_postgres
 
 from apps.notes.index_registry import NOTE_INDEX_REGISTRY
 from apps.notes.models import Note, NoteAttachment
@@ -185,6 +189,7 @@ class IntegrityDetectionTest(TestCase):
         self.assertEqual(missing.count(), 1)
         self.assertEqual(missing.first().pk, note.pk)
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_no_false_positives_search_vector(self):
         """Notes with populated search_vector are NOT flagged."""
         Note.objects.create(user=self.user, body="Good search vector")
@@ -201,6 +206,7 @@ class IntegrityReportTest(TestCase):
             email="integrity_report@example.com", password="testpass123"
         )
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_clean_report(self):
         """Report with no issues returns zero counts for missing fields."""
         from apps.life.models import Project
@@ -265,6 +271,7 @@ class IntegrityRepairTest(TestCase):
         note.refresh_from_db()
         self.assertIn("Repair Att Project", note.attachments_text)
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_repair_fixes_missing_search_vector(self):
         """repair_notes_missing_index rebuilds missing search_vector."""
         note = Note.objects.create(user=self.user, body="Repair sv note")
@@ -278,6 +285,7 @@ class IntegrityRepairTest(TestCase):
         note.refresh_from_db()
         self.assertIsNotNone(note.search_vector)
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_repair_idempotent(self):
         """Running repair on clean data returns zero repairs."""
         Note.objects.create(user=self.user, body="Already clean")
@@ -306,6 +314,7 @@ class IntegrityCommandTest(TestCase):
         self.assertIn("Missing attachments_text:", output)
         self.assertIn("Missing search_vector:", output)
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_command_clean_report(self):
         """Command shows success message when no issues found."""
         Note.objects.create(user=self.user, body="All clean")
@@ -328,6 +337,7 @@ class IntegrityCommandTest(TestCase):
         note.refresh_from_db()
         self.assertIsNone(note.search_vector)
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_command_repair(self):
         """Command --repair fixes detected issues."""
         note = Note.objects.create(user=self.user, body="Repair cmd test")

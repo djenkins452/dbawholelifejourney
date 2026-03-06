@@ -151,7 +151,15 @@ class Note(UserOwnedModel):
         self._refresh_search_vector()
 
     def _refresh_search_vector(self):
-        """Rebuild search_vector from title(A) + body(B) + tags_text(C) + attachments_text(C)."""
+        """Rebuild search_vector from title(A) + body(B) + tags_text(C) + attachments_text(C).
+
+        Skips on non-PostgreSQL backends (e.g. SQLite in CI) since
+        SearchVector requires the to_tsvector() function.
+        """
+        from .utils import is_postgres
+
+        if not is_postgres():
+            return
         Note.objects.filter(pk=self.pk).update(
             search_vector=(
                 SearchVector("title", weight="A")

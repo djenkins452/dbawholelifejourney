@@ -5562,7 +5562,7 @@ Tasks are sorted by priority (ascending) then creation date.""",
 
         Only runs once (tracked via DataLoadConfig).
         """
-        loader_name = 'rebuild_health_summaries_body_comp_2026_03_06'
+        loader_name = 'backfill_body_comp_rerun_2026_03_06b'
 
         if not force and self._is_loader_complete(DataLoadConfig, loader_name):
             return

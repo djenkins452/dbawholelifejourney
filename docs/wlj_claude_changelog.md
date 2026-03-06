@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-03-06 — Re-run body composition backfill with new DataLoadConfig tracker
+
+**What:** Changed DataLoadConfig loader name to `backfill_body_comp_rerun_2026_03_06b` so the backfill + summary rebuild runs again on next deploy. Previous run was marked complete before production data was available.
+
+**Files:**
+- `apps/core/management/commands/load_initial_data.py` — New tracker name to force re-run
+
+---
+
 ## 2026-03-06 — Backfill BodyCompositionEntry from historical WeightEntry data
 
 **What:** Added `backfill_body_composition` management command that migrates body fat % and lean body mass from WeightEntry to BodyCompositionEntry. Idempotent — skips rows where BCE already exists for the same user/metric/date. Wired into `load_initial_data` to run on next deploy (backfill first, then rebuild summaries).

@@ -187,6 +187,14 @@ def invalidate_insights_on_weight_save(sender, instance, created, **kwargs):
     invalidate_personal_data_cache(instance.user, 'weight')
     invalidate_state_snapshot(instance.user)
 
+    # Derive lean_mass and fat_mass from weight + body_fat_percentage
+    if instance.value and instance.value > 0 and instance.body_fat_percentage is not None:
+        try:
+            from apps.health.services.body_composition_service import sync_derived_body_composition
+            sync_derived_body_composition(instance.user, instance)
+        except Exception:
+            logger.error("Failed to sync derived body composition", exc_info=True)
+
 
 @receiver(post_delete, sender='health.WeightEntry')
 def invalidate_insights_on_weight_delete(sender, instance, **kwargs):

@@ -99,6 +99,18 @@ def build_health_state(user):
         state["lean_mass_current"] = float(latest_lm[0])
         state["last_lean_mass_entry"] = latest_lm[1].isoformat()
 
+    latest_fm = (
+        BodyCompositionEntry.objects.filter(
+            user=user, metric_name="fat_mass"
+        )
+        .order_by("-measurement_date")
+        .values_list("value", "measurement_date")
+        .first()
+    )
+    if latest_fm:
+        state["fat_mass_current"] = float(latest_fm[0])
+        state["last_fat_mass_entry"] = latest_fm[1].isoformat()
+
     # ── Sleep (last 7 days) ───────────────────────────────────
     cutoff_7d = now - timedelta(days=7)
     recent_sleep = SleepEntry.objects.filter(

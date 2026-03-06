@@ -754,3 +754,183 @@ class HealthProfileFormTest(TestCase):
         self.assertTrue(form.is_valid())
         saved = form.save()
         self.assertIsNone(saved.weight_goal)
+
+
+# =========================================================================
+# Derived Body Composition Metrics Tests
+# =========================================================================
+
+
+from unittest.mock import patch
+
+from apps.health.services.body_composition_service import (
+    calculate_body_composition,
+    sync_derived_body_composition,
+)
+
+
+class CalculateBodyCompositionTests(TestCase):
+    """Test the pure calculation function."""
+
+    def test_correct_calculation(self):
+        """Standard calculation: 304.7 lb at 36.5% body fat."""
+        result = calculate_body_composition(Decimal("304.7"), Decimal("36.5"))
+        self.assertIsNotNone(result)
+        self.assertEqual(result["fat_mass"], Decimal("111.2"))
+        self.assertEqual(result["lean_mass"], Decimal("193.5"))
+
+    def test_rounding(self):
+        """Values round to 1 decimal place."""
+        result = calculate_body_composition(Decimal("200"), Decimal("33.3"))
+        self.assertIsNotNone(result)
+        self.assertEqual(result["fat_mass"], Decimal("66.6"))
+        self.assertEqual(result["lean_mass"], Decimal("133.4"))
+
+    def test_zero_weight_returns_none(self):
+        result = calculate_body_composition(Decimal("0"), Decimal("25"))
+        self.assertIsNone(result)
+
+    def test_negative_weight_returns_none(self):
+        result = calculate_body_composition(Decimal("-10"), Decimal("25"))
+        self.assertIsNone(result)
+
+    def test_none_weight_returns_none(self):
+        result = calculate_body_composition(None, Decimal("25"))
+        self.assertIsNone(result)
+
+    def test_none_body_fat_returns_none(self):
+        result = calculate_body_composition(Decimal("200"), None)
+        self.assertIsNone(result)
+
+    def test_body_fat_over_100_returns_none(self):
+        result = calculate_body_composition(Decimal("200"), Decimal("101"))
+        self.assertIsNone(result)
+
+    def test_accepts_numeric_types(self):
+        """Accepts float/int values."""
+        result = calculate_body_composition(200.0, 25.0)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["fat_mass"], Decimal("50.0"))
+        self.assertEqual(result["lean_mass"], Decimal("150.0"))
+
+
+@patch("apps.health.tasks.build_user_health_summary")
+class SignalDerivedMetricsTests(TestCase):
+    """Test that WeightEntry save triggers derived body comp creation."""
+
+    def setUp(self):
+        self.user = create_test_user()
+
+    def test_signal_creates_derived_entries(self, _mock_task):
+        """Saving a WeightEntry with weight + body fat creates lean_mass and fat_mass."""
+        WeightEntry.objects.create(
+            user=self.user,
+            value=Decimal("200"),
+            unit="lb",
+            recorded_at=timezone.now(),
+            body_fat_percentage=Decimal("25.0"),
+            source="apple_health",
+        )
+
+        lean = BodyCompositionEntry.objects.filter(
+            user=self.user, metric_name="lean_mass"
+        ).first()
+        fat = BodyCompositionEntry.objects.filter(
+            user=self.user, metric_name="fat_mass"
+        ).first()
+
+        self.assertIsNotNone(lean)
+        self.assertEqual(lean.value, Decimal("150.0"))
+        self.assertEqual(lean.unit, "lb")
+
+        self.assertIsNotNone(fat)
+        self.assertEqual(fat.value, Decimal("50.0"))
+        self.assertEqual(fat.unit, "lb")
+
+    def test_signal_skips_placeholder_weight(self, _mock_task):
+        """WeightEntry with value=0 (placeholder) does not create BCE."""
+        WeightEntry.objects.create(
+            user=self.user,
+            value=Decimal("0"),
+            unit="lb",
+            recorded_at=timezone.now(),
+            body_fat_percentage=Decimal("25.0"),
+            source="apple_health",
+        )
+
+        self.assertEqual(
+            BodyCompositionEntry.objects.filter(
+                user=self.user, metric_name="fat_mass"
+            ).count(),
+            0,
+        )
+
+    def test_signal_skips_no_body_fat(self, _mock_task):
+        """WeightEntry without body_fat_percentage does not create BCE."""
+        WeightEntry.objects.create(
+            user=self.user,
+            value=Decimal("200"),
+            unit="lb",
+            recorded_at=timezone.now(),
+            source="apple_health",
+        )
+
+        self.assertEqual(
+            BodyCompositionEntry.objects.filter(
+                user=self.user, metric_name="fat_mass"
+            ).count(),
+            0,
+        )
+
+    def test_signal_updates_existing_entries(self, _mock_task):
+        """Updating body fat on WeightEntry updates the BCE values."""
+        entry = WeightEntry.objects.create(
+            user=self.user,
+            value=Decimal("200"),
+            unit="lb",
+            recorded_at=timezone.now(),
+            body_fat_percentage=Decimal("25.0"),
+            source="apple_health",
+        )
+
+        entry.body_fat_percentage = Decimal("30.0")
+        entry.save(update_fields=["body_fat_percentage", "updated_at"])
+
+        fat = BodyCompositionEntry.objects.filter(
+            user=self.user, metric_name="fat_mass"
+        )
+        self.assertEqual(fat.count(), 1)
+        self.assertEqual(fat.first().value, Decimal("60.0"))
+
+        lean = BodyCompositionEntry.objects.filter(
+            user=self.user, metric_name="lean_mass"
+        )
+        self.assertEqual(lean.count(), 1)
+        self.assertEqual(lean.first().value, Decimal("140.0"))
+
+    def test_idempotent_no_duplicates(self, _mock_task):
+        """Calling sync twice for the same entry doesn't create duplicates."""
+        entry = WeightEntry.objects.create(
+            user=self.user,
+            value=Decimal("200"),
+            unit="lb",
+            recorded_at=timezone.now(),
+            body_fat_percentage=Decimal("25.0"),
+            source="apple_health",
+        )
+
+        # Signal already fired on create; call sync manually again
+        sync_derived_body_composition(self.user, entry)
+
+        self.assertEqual(
+            BodyCompositionEntry.objects.filter(
+                user=self.user, metric_name="fat_mass"
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            BodyCompositionEntry.objects.filter(
+                user=self.user, metric_name="lean_mass"
+            ).count(),
+            1,
+        )

@@ -9,6 +9,31 @@
 
 # WLJ Change History
 
+## 2026-03-06 — Derived body composition metrics (lean_mass, fat_mass)
+
+**What:** WLJ now automatically calculates lean body mass and fat mass from weight + body fat percentage using `lean_mass = weight × (1 - bf/100)` and `fat_mass = weight × (bf/100)`. Derived values are stored as BodyCompositionEntry rows and exposed in the SAE health state for CoS and the Health Intelligence Engine.
+
+**Why:** Apple Health doesn't reliably provide lean body mass or fat mass. Deriving them mathematically ensures the intelligence pipeline always has complete body composition data for muscle preservation and fat loss reasoning.
+
+**Changes:**
+- New `body_composition_service.py` — `calculate_body_composition()` pure math + `sync_derived_body_composition()` upsert helper
+- WeightEntry `post_save` signal in `apps/ai/signals.py` — triggers derived calc when weight > 0 and body_fat_percentage present
+- State builder — added `fat_mass_current` and `last_fat_mass_entry` to health state snapshot
+- Backfill command — now also derives lean_mass and fat_mass for historical WeightEntry rows
+- 13 new tests (8 calculation + 5 signal/idempotency)
+
+**Files:**
+- `apps/health/services/body_composition_service.py` — NEW
+- `apps/ai/signals.py` — derived calc trigger
+- `apps/core/ai_state/state_builder.py` — fat_mass in health state
+- `apps/health/management/commands/backfill_body_composition.py` — derived metrics
+- `apps/core/management/commands/load_initial_data.py` — new tracker name
+- `apps/health/tests/test_body_composition.py` — 13 new tests
+
+**Tests:** 13/13 passing
+
+---
+
 ## 2026-03-06 — Re-run body composition backfill with new DataLoadConfig tracker
 
 **What:** Changed DataLoadConfig loader name to `backfill_body_comp_rerun_2026_03_06b` so the backfill + summary rebuild runs again on next deploy. Previous run was marked complete before production data was available.

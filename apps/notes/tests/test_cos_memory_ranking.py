@@ -13,7 +13,11 @@ from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from unittest import skipUnless
+
 from django.test import TestCase
+
+from apps.notes.utils import is_postgres
 from django.utils import timezone
 
 from apps.core.models import Tag
@@ -314,6 +318,7 @@ class SearchNotesCoSPinnedTest(TestCase):
                 unpinned_idx = ids.index(unpinned.pk)
                 self.assertLess(pinned_idx, unpinned_idx)
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search ranking")
     def test_pinned_irrelevant_does_not_outrank_strong_match(self):
         """Pinned note with low relevance should not outrank strong text match."""
         strong_match = Note.objects.create(

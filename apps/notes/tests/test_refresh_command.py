@@ -7,9 +7,17 @@ from io import StringIO
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.postgres.search import SearchQuery
 from django.core.management import call_command
+from unittest import skipUnless
+
 from django.test import TestCase
+
+from apps.notes.utils import is_postgres
+
+try:
+    from django.contrib.postgres.search import SearchQuery
+except ImportError:
+    SearchQuery = None
 
 from apps.core.models import Tag
 from apps.notes.models import Note, NoteAttachment
@@ -43,6 +51,7 @@ class RefreshCommandTest(TestCase):
             note=note, content_type=ct, object_id=project.pk
         )
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_command_refreshes_after_entity_rename(self):
         """Rename entity, run command, confirm attachments_text and search updated."""
         from apps.life.models import Project
@@ -250,6 +259,7 @@ class EntityRenameSignalTest(TestCase):
             email="rename_signal@example.com", password="testpass123"
         )
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_project_rename_auto_refreshes_notes(self):
         """Renaming a Project via save() auto-refreshes attached note index."""
         from apps.life.models import Project

@@ -15,12 +15,16 @@ import re
 import string
 
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.postgres.search import SearchHeadline, SearchQuery, SearchRank
 from django.db import models
 from django.db.models import F, Prefetch, Q
 
+try:
+    from django.contrib.postgres.search import SearchHeadline, SearchQuery, SearchRank
+except ImportError:
+    SearchHeadline = SearchQuery = SearchRank = None
+
 from .models import Note, NoteAttachment
-from .utils import resolve_entity_url
+from .utils import is_postgres, resolve_entity_url
 
 logger = logging.getLogger(__name__)
 
@@ -222,23 +226,32 @@ def search_notes(
     headline_field = None
 
     if query_str:
-        search_query = SearchQuery(query_str, search_type="websearch")
-        queryset = (
-            queryset.filter(search_vector=search_query)
-            .annotate(
-                rank=SearchRank(F("search_vector"), search_query),
-                headline=SearchHeadline(
-                    "body",
-                    search_query,
-                    start_sel="<mark>",
-                    stop_sel="</mark>",
-                    max_words=35,
-                    min_words=15,
-                ),
+        if is_postgres():
+            search_query = SearchQuery(query_str, search_type="websearch")
+            queryset = (
+                queryset.filter(search_vector=search_query)
+                .annotate(
+                    rank=SearchRank(F("search_vector"), search_query),
+                    headline=SearchHeadline(
+                        "body",
+                        search_query,
+                        start_sel="<mark>",
+                        stop_sel="</mark>",
+                        max_words=35,
+                        min_words=15,
+                    ),
+                )
+                .order_by("-rank", "-is_pinned", "-updated_at")
             )
-            .order_by("-rank", "-is_pinned", "-updated_at")
-        )
-        headline_field = "headline"
+            headline_field = "headline"
+        else:
+            # SQLite fallback: basic substring search
+            queryset = queryset.filter(
+                Q(title__icontains=query_str)
+                | Q(body__icontains=query_str)
+                | Q(tags_text__icontains=query_str)
+                | Q(attachments_text__icontains=query_str)
+            ).order_by("-is_pinned", "-updated_at")
     else:
         queryset = queryset.order_by("-is_pinned", "-updated_at")
 
@@ -478,22 +491,31 @@ def search_notes_cos(
         )
 
     # --- FTS search: get candidate pool ---
-    search_query = SearchQuery(query_str, search_type="websearch")
-    candidates_qs = (
-        base_qs.filter(search_vector=search_query)
-        .annotate(
-            rank=SearchRank(F("search_vector"), search_query),
-            headline=SearchHeadline(
-                "body",
-                search_query,
-                start_sel="<mark>",
-                stop_sel="</mark>",
-                max_words=35,
-                min_words=15,
-            ),
+    if is_postgres():
+        search_query = SearchQuery(query_str, search_type="websearch")
+        candidates_qs = (
+            base_qs.filter(search_vector=search_query)
+            .annotate(
+                rank=SearchRank(F("search_vector"), search_query),
+                headline=SearchHeadline(
+                    "body",
+                    search_query,
+                    start_sel="<mark>",
+                    stop_sel="</mark>",
+                    max_words=35,
+                    min_words=15,
+                ),
+            )
+            .order_by("-rank")
         )
-        .order_by("-rank")
-    )
+    else:
+        # SQLite fallback: basic substring search
+        candidates_qs = base_qs.filter(
+            Q(title__icontains=query_str)
+            | Q(body__icontains=query_str)
+            | Q(tags_text__icontains=query_str)
+            | Q(attachments_text__icontains=query_str)
+        ).order_by("-is_pinned", "-updated_at")
 
     # Entity scope filter: boost attached notes but also include non-attached
     if scoped_ct_id and scoped_object_id:

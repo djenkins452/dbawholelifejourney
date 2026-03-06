@@ -4,9 +4,17 @@ Tests for the Note and NoteAttachment models.
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.postgres.search import SearchQuery
 from django.db import IntegrityError
+from unittest import skipUnless
+
 from django.test import TestCase
+
+from apps.notes.utils import is_postgres
+
+try:
+    from django.contrib.postgres.search import SearchQuery
+except ImportError:
+    SearchQuery = None
 
 from apps.core.models import Tag
 from apps.notes.models import Note, NoteAttachment
@@ -135,6 +143,7 @@ class NoteModelTest(TestCase):
         self.assertEqual(my_notes.count(), 1)
         self.assertEqual(my_notes.first().body, "My note")
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_search_vector_populated_on_save(self):
         """search_vector is populated after save."""
         note = Note.objects.create(
@@ -143,6 +152,7 @@ class NoteModelTest(TestCase):
         note.refresh_from_db()
         self.assertIsNotNone(note.search_vector)
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_search_vector_updates_on_edit(self):
         """search_vector updates when note body changes."""
         note = Note.objects.create(user=self.user, body="Original content alpha")
@@ -162,6 +172,7 @@ class NoteModelTest(TestCase):
         )
         self.assertEqual(not_found.count(), 0)
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_search_vector_title_weighted_higher(self):
         """Notes matching in title rank higher than body-only matches."""
         from django.contrib.postgres.search import SearchQuery, SearchRank
@@ -337,6 +348,7 @@ class NoteSearchIndexTest(TestCase):
         note.refresh_from_db()
         self.assertEqual(note.tags_text, "")
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_search_vector_includes_tag_names(self):
         """Search vector matches tag names after tag add."""
         note = Note.objects.create(user=self.user, body="General thoughts")
@@ -348,6 +360,7 @@ class NoteSearchIndexTest(TestCase):
         self.assertEqual(found.count(), 1)
         self.assertEqual(found.first().pk, note.pk)
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_search_vector_excludes_removed_tag(self):
         """After removing a tag, search no longer matches it."""
         note = Note.objects.create(user=self.user, body="General thoughts")
@@ -393,6 +406,7 @@ class NoteSearchIndexTest(TestCase):
         note.refresh_from_db()
         self.assertEqual(note.attachments_text, "")
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_search_vector_includes_attachment_text(self):
         """Search vector matches attachment display string."""
         project = self._create_project("Morning routine refinement")
@@ -407,6 +421,7 @@ class NoteSearchIndexTest(TestCase):
         self.assertEqual(found.count(), 1)
         self.assertEqual(found.first().pk, note.pk)
 
+    @skipUnless(is_postgres(), "Requires PostgreSQL full-text search")
     def test_search_vector_excludes_deleted_attachment(self):
         """After deleting attachment, search no longer matches its text."""
         project = self._create_project("Zzzyyyxxx unique project")

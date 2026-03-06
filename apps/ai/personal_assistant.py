@@ -2837,6 +2837,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             feature_request_service=feature_request_service
                         )
 
+                # ── Invalidate in-request CoS cache after mutations ──
+                # If any actions were executed (task created/moved/completed),
+                # clear the cached context so downstream validators and any
+                # follow-up processing don't use stale schedule data.
+                if actions_taken:
+                    _cos_context_cache = None
+
                 # ── Phase 8: Pre-release validator gate ──────────────
                 # Inspect LLM response before persistence. Structural
                 # violations are blocked (replaced); unverifiable action
@@ -5802,6 +5809,10 @@ Rules for this response:
                                 "Streaming strict health status failed: %s",
                                 _shi_err,
                             )
+
+                # ── Invalidate in-request CoS cache after mutations ──
+                if actions_taken:
+                    _cos_context_cache = None
 
                 if _direct_response:
                     # Pre-processing or intent produced a direct response

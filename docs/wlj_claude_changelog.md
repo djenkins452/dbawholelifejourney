@@ -9,25 +9,12 @@
 
 # WLJ Change History
 
-## 2026-03-06 — Fix CI test suite: 6 bugs across 5 apps
+## 2026-03-06 — Re-run body composition backfill with new DataLoadConfig tracker
 
-**What:** Fixed multiple CI test failures spanning calendar_engine, notes, core fixtures, AI briefing, capture, and dependency management.
+**What:** Changed DataLoadConfig loader name to `backfill_body_comp_rerun_2026_03_06b` so the backfill + summary rebuild runs again on next deploy. Previous run was marked complete before production data was available.
 
-**Fixes:**
-1. **freezegun missing from requirements.txt** — 5 calendar_engine test files import `freezegun` for time-frozen determinism tests, but the package wasn't declared. Added `freezegun>=1.2.0`.
-2. **Calendar engine idempotency key collision** — `upsert_execution_block_for_task()` collided with the deadline marker created by the Task post_save signal because source-backed idempotency keys are `hash(user, source_type, source_id)` without `event_kind`. Fix: delete stale deadline marker before creating execution block (mirrors existing pattern in `upsert_from_task()`).
-3. **Duplicate fixture PKs** — `release_notes.json` had duplicate PK 136, `help_topics.json` had duplicate PK 114, `teaching_destinations.json` had duplicate PK 175. Reassigned to unique PKs.
-4. **Flaky health gate test** — `test_medication_not_taken` depended on wall-clock time (medication at 8 AM classified as "upcoming" before 8 AM, "overdue" after). Fix: mock `timezone.now()` to noon so the test is deterministic.
-5. **Capture summarization TransactionManagementError** — Telemetry `log_llm_usage()` failed inside Django TestCase's transaction wrapper when mock OpenAI response's `usage.prompt_tokens` was a MagicMock (not an int). The failed INSERT poisoned the outer transaction. Fix: wrap the telemetry INSERT in `transaction.atomic()` savepoint so failures are isolated.
-
-**Files changed:**
-- `requirements.txt` — Added freezegun
-- `apps/calendar_engine/services/projection.py` — Delete deadline marker before creating execution block
-- `apps/core/fixtures/release_notes.json` — PK 136→139 for "Smarter Relationships Tile"
-- `apps/help/fixtures/help_topics.json` — PK 114→146 for "Health Intelligence"
-- `apps/help/fixtures/teaching_destinations.json` — PK 175→177 for "Bulk Recipe Import"
-- `apps/ai/tests/test_executive_briefing.py` — Mock timezone.now in health gate test
-- `apps/owner_finance/services/telemetry.py` — Savepoint around LLMUsageEvent.objects.create()
+**Files:**
+- `apps/core/management/commands/load_initial_data.py` — New tracker name to force re-run
 
 ---
 
@@ -76,25 +63,6 @@
 
 ---
 
-## 2026-03-05 — Fix 164 CI test errors: Notes app PostgreSQL-on-SQLite compatibility
-
-**What:** Fixed 164 test errors in CI caused by the Notes app using PostgreSQL-specific `SearchVector`, `SearchQuery`, `SearchRank`, and `SearchHeadline` functions on SQLite (the CI test database). Added SQLite fallback paths and `skipUnless` decorators for PostgreSQL-only tests.
-
-**Why:** The Notes app was introduced with PostgreSQL full-text search (GinIndex, SearchVectorField) but CI runs on in-memory SQLite via `config.settings_test`. Every `Note.save()` called `_refresh_search_vector()` which uses `to_tsvector()` -- a PostgreSQL-only function -- causing every test that creates a Note to fail with `OperationalError: no such function: to_tsvector`.
-
-**Changes:**
-- `apps/notes/utils.py` — Added `is_postgres()` helper that checks `connection.vendor`
-- `apps/notes/models.py` — Guarded `_refresh_search_vector()` to skip on non-PostgreSQL backends
-- `apps/notes/services.py` — Added SQLite fallback (icontains Q-filter) for `search_notes()` and `search_notes_cos()` search functions; cleaned up imports with try/except for PostgreSQL search classes
-- `apps/notes/tests/test_models.py` — Added `@skipUnless(is_postgres())` to 7 tests that use `SearchQuery` directly
-- `apps/notes/tests/test_refresh_command.py` — Added `@skipUnless(is_postgres())` to 2 tests that use `SearchQuery`
-- `apps/notes/tests/test_index_integrity.py` — Added `@skipUnless(is_postgres())` to 6 tests that assert `search_vector` population
-- `apps/notes/tests/test_services.py` — Added `@skipUnless(is_postgres())` to 4 tests that assert ranking/headline features
-- `apps/notes/tests/test_cos_memory_ranking.py` — Added `@skipUnless(is_postgres())` to 1 test that asserts FTS ranking
-
-**Result:** 227 notes tests: 207 pass, 20 skipped on SQLite (pass on PostgreSQL), 0 errors. Total CI error count reduced by 164.
-
-
 ## 2026-03-06 — CoS Truth Layer Refactor: Enforce SAE as canonical state source
 
 **What:** Refactored CoS context builder (`cos_context.py`) to read domain state exclusively from SAE (`UserState.state_data`) instead of raw ORM queries. Eliminated ~41 redundant DB queries, added 5 new SAE builders, enriched 4 existing builders, and added per-request SAE snapshot caching.
@@ -114,20 +82,6 @@
 - `docs/ENGINE_COS_REFERENCE.md` — Updated SAE state table + CoS data sources
 
 **Tests:** 236 tests passing (65 SAE + 22 transformation + 149 Phase 4 CoS)
-
----
-
-## 2026-03-05 — Throttle iOS HealthKit sync frequency
-
-**What:** iOS app was doing 95 syncs in 24h — each resending all 7 days of data (~460 metrics), causing 95.5% dedup skip rate on the server. Three root causes: no throttle on foreground sync (`applicationDidBecomeActive` fires every app open), 23 observer queries each triggering schedule, and 1-minute schedule throttle was too low.
-
-**Changes:**
-- `ios/.../BackgroundSyncManager.swift` — Added 30-minute throttle on foreground syncs, increased schedule throttle from 1 min to 5 min, reduced observer types from 23 to 10 (core types only — others are still synced in each full sync), added `isSyncing` concurrency guard, added `forceSync()` for manual sync buttons.
-
-**Files Modified:**
-- `ios/WLJWrapper/WLJWrapper/Services/BackgroundSyncManager.swift`
-
-**Why:** 95 syncs/day with 95.5% dedup wastes battery, bandwidth, and server resources. With 30-min throttle, foreground syncs drop to max ~48/day. With 5-min schedule throttle + 10 observer types, background syncs are also reduced. Manual "Sync Now" button bypasses throttle.
 
 ---
 
@@ -280,6 +234,19 @@
 - BUG: CoS marks past-time events as `[done]` without checking `CalendarEvent.status` field
 - GAP: CoS goal_gap_analyzer and diagnostic_context bypass SAE and query raw tables
 - RECOMMENDED: Option C (truth adapter) — refactor CoS to use SAE + engine outputs only
+
+---
+
+## 2026-03-05 — /close Documentation Audit Fixes
+
+**What:** Added missing release note for Relationships tile overhaul (PK 136) and Health Intelligence Engine section in features doc.
+
+**Why:** Session /close audit found 2 documentation gaps: no What's New entry for the Relationships tile changes, and no features doc section for the Health Intelligence Engine.
+
+**Changes:**
+- `apps/core/fixtures/release_notes.json` — Added PK 136: "Smarter Relationships Tile"
+- `docs/wlj_claude_features.md` — Added section 53: Health Intelligence Engine with overview, features, pipeline, pages, key files, tests
+- `apps/core/management/commands/load_initial_data.py` — Added `_reset_relationships_tile_overhaul_fixtures()` for release_notes reload
 
 ---
 

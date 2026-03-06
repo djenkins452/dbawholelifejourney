@@ -315,6 +315,17 @@ def upsert_execution_block_for_task(task, start_dt, end_dt):
         _log_schedule_change(task.user, existing, old_start, start_dt)
         return existing
 
+    # Clean up stale deadline marker — execution block replaces it.
+    # Source-backed idempotency keys are hash(user, source_type, source_id)
+    # so a deadline marker and execution block for the same task share the
+    # same key and would violate the unique constraint.
+    CalendarEvent.objects.filter(
+        user=task.user,
+        source_type=CalendarEvent.SOURCE_TASK,
+        source_id=str(task.pk),
+        event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
+    ).delete()
+
     return CalendarEvent.objects.create(
         user=task.user,
         title=task.title,

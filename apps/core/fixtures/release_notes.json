@@ -17,7 +17,7 @@
   },
   {
     "model": "core.releasenote",
-    "pk": 136,
+    "pk": 139,
     "fields": {
       "title": "Smarter Relationships Tile",
       "description": "Your Relationships dashboard tile just got a lot smarter. It now shows a color-coded health score, switches between attention mode (who needs a call) and healthy mode (your anchor people and insights), and surfaces relationship patterns you might miss.",

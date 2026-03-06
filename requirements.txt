@@ -79,6 +79,9 @@ sentry-sdk>=2.0.0
 # Test Coverage
 coverage>=7.4.0
 
+# Test Utilities
+freezegun>=1.2.0  # Time-freezing for calendar determinism tests
+
 # Document Generation
 python-docx>=1.1.0  # Word document generation (no system dependencies needed)
 openpyxl>=3.1.0  # Excel spreadsheet generation (workout dashboard export)

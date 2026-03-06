@@ -208,6 +208,7 @@ class TestHealthGate(ExecutiveBriefingTestMixin, TestCase):
 
     def test_medication_not_taken(self):
         """Should flag untaken medication."""
+        from unittest.mock import patch
         user = self.create_user(email='med@example.com')
         today = date.today()
 
@@ -227,7 +228,15 @@ class TestHealthGate(ExecutiveBriefingTestMixin, TestCase):
             time_of_day='morning',
         )
 
-        result = _build_health_gate_section(user, today)
+        # Pin current time to noon so the 8 AM dose is always overdue
+        from django.utils import timezone as tz
+        import datetime as dt
+        noon_today = tz.make_aware(
+            dt.datetime.combine(today, time(12, 0)),
+            tz.get_current_timezone(),
+        )
+        with patch('apps.ai.executive_briefing.timezone.now', return_value=noon_today):
+            result = _build_health_gate_section(user, today)
         self.assertIn("HEALTH GATE", result)
         self.assertIn("1 of 1", result)
 

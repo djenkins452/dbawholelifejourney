@@ -5553,9 +5553,12 @@ Tasks are sorted by priority (ascending) then creation date.""",
 
     def _rebuild_health_summaries_body_comp_fix(self, DataLoadConfig, force=False, verbosity=1):
         """
-        One-time rebuild of DailyHealthSummary for last 90 days after body composition
-        pipeline fix. HealthKit body fat % and lean mass now sync to BodyCompositionEntry,
-        so summaries need rebuilding to pick up the new data.
+        One-time: backfill BodyCompositionEntry from historical WeightEntry data,
+        then rebuild DailyHealthSummary for last 90 days.
+
+        HealthKit stored body fat % and lean mass on WeightEntry but the SAE/UI/engine
+        read from BodyCompositionEntry. This migrates historical data, then rebuilds
+        summaries so intelligence picks it up.
 
         Only runs once (tracked via DataLoadConfig).
         """
@@ -5565,22 +5568,26 @@ Tasks are sorted by priority (ascending) then creation date.""",
             return
 
         try:
-            if verbosity >= 1:
-                self.stdout.write('  Rebuilding health summaries after body comp pipeline fix (90 days)...')
-
             from django.core.management import call_command
+
+            if verbosity >= 1:
+                self.stdout.write('  Backfilling BodyCompositionEntry from WeightEntry...')
+            call_command('backfill_body_composition', verbosity=1 if verbosity >= 1 else 0)
+
+            if verbosity >= 1:
+                self.stdout.write('  Rebuilding health summaries (90 days)...')
             call_command('build_daily_health_summaries', '--days', '90', verbosity=0)
 
             if verbosity >= 1:
-                self.stdout.write(self.style.SUCCESS('  Health summary rebuild complete'))
+                self.stdout.write(self.style.SUCCESS('  Body comp backfill + summary rebuild complete'))
 
             self._mark_loader_complete(
                 DataLoadConfig, loader_name,
-                'Rebuild Health Summaries (Body Comp Fix)',
+                'Backfill Body Comp + Rebuild Summaries',
                 'command',
-                'One-time 90-day rebuild after HealthKit body comp → BodyCompositionEntry pipeline fix'
+                'One-time backfill WeightEntry → BodyCompositionEntry + 90-day summary rebuild'
             )
 
         except Exception as e:
             if verbosity >= 1:
-                self.stdout.write(self.style.ERROR(f'Health summary rebuild FAILED: {e}'))
+                self.stdout.write(self.style.ERROR(f'Body comp backfill/rebuild FAILED: {e}'))

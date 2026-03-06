@@ -312,7 +312,58 @@ def _build_health_and_vitals(user):
                 'adherence_pct': adh["adherence_rate"] or 0,
             }
     except Exception:
-        pass
+        logger.error("CoS context: medication adherence failed", exc_info=True)
+
+    # Pending medication details (names, times, status)
+    try:
+        from apps.health.models import Medicine, MedicineLog
+        from apps.core.utils import get_user_now
+        user_now = get_user_now(user)
+        med_today = user_now.date()
+        current_time = user_now.time()
+        day_of_week = str(med_today.weekday())  # 0=Monday, 6=Sunday
+
+        active_meds = Medicine.objects.filter(
+            user=user, medicine_status=Medicine.STATUS_ACTIVE,
+        ).exclude(status='deleted').prefetch_related('schedules')
+
+        pending_meds = []
+        for med in active_meds:
+            for sched in med.schedules.filter(is_active=True):
+                # Check if this schedule applies to today
+                if sched.days_of_week and day_of_week not in sched.days_of_week.split(','):
+                    continue
+
+                taken = MedicineLog.objects.filter(
+                    medicine=med,
+                    schedule=sched,
+                    scheduled_date=med_today,
+                    log_status__in=['taken', 'late'],
+                ).exists()
+
+                if taken:
+                    med_status = 'taken'
+                elif sched.scheduled_time and sched.scheduled_time > current_time:
+                    med_status = 'upcoming'
+                else:
+                    med_status = 'overdue'
+
+                time_str = ''
+                if sched.scheduled_time:
+                    time_str = sched.scheduled_time.strftime('%I:%M %p').lstrip('0')
+
+                pending_meds.append({
+                    'name': med.name,
+                    'dose': med.dose or '',
+                    'scheduled_time': time_str,
+                    'time_of_day': sched.time_of_day or '',
+                    'status': med_status,
+                })
+
+        if pending_meds:
+            result['pending_medications'] = pending_meds
+    except Exception:
+        logger.error("CoS context: pending medication details failed", exc_info=True)
 
     # Health signals
     try:
@@ -495,12 +546,16 @@ def _build_calendar_events(user):
             user=user,
             start_dt__lte=today_end,
             end_dt__gte=today_start,
-            status='scheduled',
+            status__in=['scheduled', 'completed'],
         ).order_by('start_dt')[:12]
 
         event_summaries = []
         for ev in events:
-            if ev.end_dt <= user_now:
+            actual_status = ev.status  # 'scheduled', 'completed', 'canceled'
+
+            if actual_status == 'completed':
+                time_status = 'completed'
+            elif ev.end_dt <= user_now:
                 time_status = 'past'
             elif ev.start_dt <= user_now <= ev.end_dt:
                 time_status = 'in_progress'
@@ -509,7 +564,11 @@ def _build_calendar_events(user):
             else:
                 time_status = 'upcoming'
 
-            is_overdue = ev.start_dt < user_now and time_status == 'past'
+            # Overdue = past its time AND not completed
+            is_overdue = (
+                ev.end_dt <= user_now
+                and actual_status != 'completed'
+            )
 
             _local_start = ev.start_dt.astimezone(user_now.tzinfo)
             _local_end = ev.end_dt.astimezone(user_now.tzinfo)
@@ -521,6 +580,7 @@ def _build_calendar_events(user):
                 'is_protected': ev.is_protected,
                 'time_status': time_status,
                 'is_overdue': is_overdue,
+                'actual_status': actual_status,
             })
         result['calendar_events_today'] = event_summaries
     except Exception as e:
@@ -1317,14 +1377,18 @@ def _build_daily_scan_brief(context):
             completed_items.append(b['title'])
     cal_events = context.get('calendar_events_today', [])
     for ev in cal_events:
-        if ev.get('time_status') == 'past' and not ev.get('is_overdue'):
+        if ev.get('actual_status') == 'completed':
             completed_items.append(ev['title'])
 
-    # Medication taken
+    # Medication taken (with names if available)
     med = context.get('medication_adherence_state', {})
+    pending_meds = context.get('pending_medications', [])
     taken = med.get('taken_today', 0)
     total_sched = med.get('total_scheduled', 0)
-    if taken > 0:
+    taken_names = [m['name'] for m in pending_meds if m.get('status') == 'taken']
+    if taken_names:
+        completed_items.append(f"Medications: {', '.join(taken_names)}")
+    elif taken > 0:
         completed_items.append(f"Medications: {taken}/{total_sched} taken")
 
     if completed_items:
@@ -1340,8 +1404,13 @@ def _build_daily_scan_brief(context):
         if ev.get('is_overdue'):
             outstanding_items.append(f"{ev['title']} [OVERDUE]")
 
-    # Missed medication doses
-    if total_sched > 0 and taken < total_sched:
+    # Missed/overdue medication doses (with names)
+    overdue_meds = [m for m in pending_meds if m.get('status') == 'overdue']
+    upcoming_meds = [m for m in pending_meds if m.get('status') == 'upcoming']
+    if overdue_meds:
+        med_names = ', '.join(m['name'] for m in overdue_meds)
+        outstanding_items.append(f"Medications OVERDUE: {med_names}")
+    elif total_sched > 0 and taken < total_sched:
         missed = total_sched - taken
         outstanding_items.append(f"Medications: {missed} dose(s) not yet taken")
 
@@ -1601,9 +1670,31 @@ def format_cos_system_injection(context):
     if pillars:
         lines.append(f"Life Priorities (ranked): {', '.join(pillars)}")
 
-    # Medication (actionable — user needs to know)
+    # Medication (actionable — user needs to know, with names)
     med = context.get('medication_adherence_state', {})
-    if med and med.get('total_scheduled', 0) > 0:
+    pending_meds = context.get('pending_medications', [])
+    if pending_meds:
+        overdue = [m for m in pending_meds if m['status'] == 'overdue']
+        upcoming = [m for m in pending_meds if m['status'] == 'upcoming']
+        taken_meds = [m for m in pending_meds if m['status'] == 'taken']
+        parts = []
+        if taken_meds:
+            taken_str = ', '.join(m['name'] for m in taken_meds)
+            parts.append("Taken: " + taken_str)
+        if overdue:
+            overdue_items = []
+            for m in overdue:
+                label = m['name'] + (" (due " + m['scheduled_time'] + ")" if m['scheduled_time'] else "")
+                overdue_items.append(label)
+            parts.append("OVERDUE: " + ', '.join(overdue_items))
+        if upcoming:
+            upcoming_items = []
+            for m in upcoming:
+                label = m['name'] + (" (" + m['scheduled_time'] + ")" if m['scheduled_time'] else "")
+                upcoming_items.append(label)
+            parts.append("Upcoming: " + ', '.join(upcoming_items))
+        lines.append("Medication: " + ' | '.join(parts))
+    elif med and med.get('total_scheduled', 0) > 0:
         lines.append(f"Medication: {med.get('taken_today', 0)}/{med.get('total_scheduled', 0)} "
                      f"taken today")
 
@@ -1663,14 +1754,14 @@ def format_cos_system_injection(context):
         lines.append("Today's Calendar:")
         for ev in cal_events:
             status_tag = ""
-            if ev['time_status'] == 'in_progress':
+            if ev.get('actual_status') == 'completed':
+                status_tag = " [done]"
+            elif ev['time_status'] == 'in_progress':
                 status_tag = " [NOW]"
             elif ev['time_status'] == 'upcoming_soon':
                 status_tag = " [SOON]"
             elif ev['is_overdue']:
                 status_tag = " [MISSED]"
-            elif ev['time_status'] == 'past':
-                status_tag = " [done]"
             ev_protected = " (protected)" if ev.get('is_protected') else ""
             lines.append(
                 f"  {ev['start']}-{ev['end']} {ev['title']}"
@@ -4436,9 +4527,22 @@ def format_learning_mode_injection(context):
             reason = f" — {p['reason']}" if p['reason'] else ""
             lines.append(f"  {p['module']}{sub}: {p['level']} (w={p['weight']}){reason}")
 
-    # Medication (still important to know during learning)
+    # Medication (still important to know during learning, with names)
     med = context.get('medication_adherence_state', {})
-    if med.get('total_scheduled', 0) > 0:
+    pending_meds = context.get('pending_medications', [])
+    if pending_meds:
+        overdue = [m for m in pending_meds if m['status'] == 'overdue']
+        upcoming = [m for m in pending_meds if m['status'] == 'upcoming']
+        taken_meds = [m for m in pending_meds if m['status'] == 'taken']
+        parts = []
+        if taken_meds:
+            parts.append(f"Taken: {', '.join(m['name'] for m in taken_meds)}")
+        if overdue:
+            parts.append(f"OVERDUE: {', '.join(m['name'] for m in overdue)}")
+        if upcoming:
+            parts.append(f"Upcoming: {', '.join(m['name'] for m in upcoming)}")
+        lines.append(f"Medication: {' | '.join(parts)}")
+    elif med.get('total_scheduled', 0) > 0:
         lines.append(
             f"Medication: {med.get('taken_today', 0)}/{med.get('total_scheduled', 0)} taken today"
         )

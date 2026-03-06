@@ -363,32 +363,25 @@ DNE (delivery_engine.py) → DeliveredNotification (in-app / email / SMS)
 
 ## Known Bugs & Gap Analysis
 
-### BUG 1: Medicine Names Not Passed to CoS
+### BUG 1: Medicine Names Not Passed to CoS — FIXED (2026-03-06)
 
 **Severity:** High — CoS says "meds due" but can't list which ones.
 
-**Three gaps:**
+**Fix:** Added `pending_medications` list to CoS context in `_build_health_and_vitals()`. Each entry has `name`, `dose`, `scheduled_time`, `time_of_day`, `status` (taken/overdue/upcoming). Daily scan brief and schedule display now show medicine names. Executive briefing HEALTH GATE also includes medicine names in overdue/upcoming messages.
 
-| Gap | Location | Issue |
-|-----|----------|-------|
-| Template missing `{names}` | `apps/ai/assistant_intelligence.py` templates | `grouped_meds_due` template: `"Your {group} meds are due by {time}."` — no `{names}` placeholder despite names being collected |
-| CoS context has no medicine names | `cos_context.py :: _build_health_and_vitals()` lines 306-319 | Only builds `medication_adherence_state` with counts (`total_scheduled`, `taken_today`, `adherence_pct`). No `pending_medicines` field |
-| Daily scan brief has no names | `cos_context.py :: _build_daily_scan_brief()` lines 1431-1434 | Says "Medications: 2 dose(s) not yet taken" — no medicine names |
+**Remaining gap:** `assistant_intelligence.py` template still missing `{names}` placeholder — lower priority since CoS context now has the data.
 
-**Root cause:** `calculate_medicine_adherence()` in `apps/health/medicine_utils.py` returns only counts, not medicine details.
-
-### BUG 2: False Routine/Task Completion Claims
+### BUG 2: False Routine/Task Completion Claims — FIXED (2026-03-06)
 
 **Severity:** High — CoS says "morning routine completed" without evidence.
 
-**Two bugs in `cos_context.py`:**
+**Fix:** Calendar event builder now queries `status__in=['scheduled', 'completed']` and adds `actual_status` field to event summaries. Daily scan brief only counts events as COMPLETED when `actual_status == 'completed'`. Schedule display shows `[done]` only for completed events, `[MISSED]` for past-but-uncompleted. `is_overdue` now properly checks `actual_status != 'completed'`.
 
-| Bug | Location | Issue |
-|-----|----------|-------|
-| Daily scan brief | `cos_context.py:1404-1409` | `if ev.get('time_status') == 'past': completed_items.append(ev['title'])` — treats past-time events as completed without checking `CalendarEvent.status` |
-| Schedule display | `cos_context.py:1760-1761` | Marks past-time events with `[done]` tag based purely on clock time |
+### BUG 3: Timezone Bug in Executive Briefing — FIXED (2026-03-06)
 
-**Root cause:** `time_status == 'past'` (temporal) is conflated with `status == 'completed'` (actual). `CalendarEvent.status` field exists and is properly maintained by `routine_service.py` but CoS never reads it.
+**Severity:** High — Medication overdue/upcoming comparison used UTC time instead of user's local time.
+
+**Fix:** `_build_health_gate_section()` now uses `get_user_now(user).time()` instead of `timezone.now().time()`. This was causing 2 AM medication reminders for 7 AM medicines (UTC offset made them appear overdue).
 
 ### GAP 3: CoS Bypasses SAE Truth Layer
 

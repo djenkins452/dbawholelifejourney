@@ -460,16 +460,20 @@ def _build_health_gate_section(user, today) -> str:
     try:
         from django.utils import timezone
         from apps.health.models import Medicine, MedicineLog
+        from apps.core.utils import get_user_now
+        user_now = get_user_now(user)
         active_meds = Medicine.objects.filter(
             user=user, medicine_status=Medicine.STATUS_ACTIVE,
         ).exclude(status='deleted')
 
         if active_meds.exists():
-            current_time = timezone.now().time()
+            current_time = user_now.time()  # user's local time, NOT UTC
             total_scheduled = 0
             taken_count = 0
             overdue_count = 0
             upcoming_count = 0
+            overdue_names = []
+            upcoming_names = []
             for med in active_meds:
                 schedules = med.schedules.all()
                 for sched in schedules:
@@ -484,32 +488,39 @@ def _build_health_gate_section(user, today) -> str:
                         taken_count += 1
                     elif sched.scheduled_time and sched.scheduled_time > current_time:
                         upcoming_count += 1
+                        time_str = sched.scheduled_time.strftime('%I:%M %p').lstrip('0')
+                        upcoming_names.append(f"{med.name} ({time_str})")
                     else:
                         overdue_count += 1
+                        overdue_names.append(med.name)
 
             if total_scheduled > 0:
                 if overdue_count > 0:
+                    med_list = ', '.join(overdue_names)
                     lines.append(
                         f"HEALTH GATE — Medication: {overdue_count} of "
-                        f"{total_scheduled} doses OVERDUE today. "
+                        f"{total_scheduled} doses OVERDUE today: {med_list}. "
                         "Ask if they've taken their medicine before "
                         "moving to tasks."
                     )
                     if upcoming_count > 0:
+                        upcoming_list = ', '.join(upcoming_names)
                         lines.append(
-                            f"({upcoming_count} more doses scheduled later today — not yet due.)"
+                            f"({upcoming_count} more doses scheduled later today: "
+                            f"{upcoming_list} — not yet due.)"
                         )
                 elif upcoming_count > 0:
+                    upcoming_list = ', '.join(upcoming_names)
                     lines.append(
                         f"Medication: {taken_count} of {total_scheduled} doses taken. "
-                        f"{upcoming_count} scheduled later today (not yet due)."
+                        f"{upcoming_count} scheduled later today: {upcoming_list} (not yet due)."
                     )
                 else:
                     lines.append(
                         f"Medication: All {total_scheduled} doses taken today."
                     )
     except Exception:
-        pass
+        logger.error("Executive briefing: medication gate failed", exc_info=True)
 
     # Active fast
     try:

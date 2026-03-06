@@ -9,6 +9,27 @@
 
 # WLJ Change History
 
+## 2026-03-06 — CoS Step 1 Bug Fixes: Timezone, False Completions, Medicine Names
+
+**What:** Three critical CoS proactive behavior bugs fixed as part of the CoS architectural assessment.
+
+**Bug A — Timezone in executive briefing:** `_build_health_gate_section()` used `timezone.now().time()` (UTC) instead of user's local time. At 2 AM CST (8 AM UTC), a 7 AM medicine appeared overdue. Fixed to use `get_user_now(user).time()`.
+
+**Bug B — False completion claims:** Calendar events were marked `[done]` in the daily scan brief and schedule display based on `time_status == 'past'` (clock time), not actual `CalendarEvent.status`. Now queries both `scheduled` and `completed` events, adds `actual_status` field, and only shows `[done]` for truly completed events. Past-but-uncompleted events show `[MISSED]`.
+
+**Bug C — Medicine names in CoS context:** Added `pending_medications` list to `_build_health_and_vitals()` with each medicine's name, dose, scheduled_time, time_of_day, and status (taken/overdue/upcoming). Updated daily scan brief, schedule display, and learning mode display to show medicine names instead of just counts. Executive briefing HEALTH GATE also now includes medicine names.
+
+**Also fixed:** `except Exception: pass` on medication gate in executive_briefing.py → now logs errors properly.
+
+**Files:**
+- `apps/ai/executive_briefing.py` — timezone fix, medicine names in HEALTH GATE, error logging
+- `apps/core/ai_orchestrator/cos_context.py` — false completion fix, pending_medications, medicine names in all display modes
+- `docs/ENGINE_COS_REFERENCE.md` — BUG 1, BUG 2, BUG 3 marked FIXED
+
+**Tests:** 242 tests pass (28 executive_briefing + 214 cos/calendar)
+
+---
+
 ## 2026-03-06 — Derived body composition metrics (lean_mass, fat_mass)
 
 **What:** WLJ now automatically calculates lean body mass and fat mass from weight + body fat percentage using `lean_mass = weight × (1 - bf/100)` and `fat_mass = weight × (bf/100)`. Derived values are stored as BodyCompositionEntry rows and exposed in the SAE health state for CoS and the Health Intelligence Engine.

@@ -932,6 +932,9 @@ class Command(BaseCommand):
         # One-time: Reset release notes for Relationships tile overhaul (PK 136)
         self._reset_relationships_tile_overhaul_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Rebuild health summaries after body composition pipeline fix
+        self._rebuild_health_summaries_body_comp_fix(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5547,3 +5550,37 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset relationships tile overhaul fixtures FAILED: {e}'))
+
+    def _rebuild_health_summaries_body_comp_fix(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time rebuild of DailyHealthSummary for last 90 days after body composition
+        pipeline fix. HealthKit body fat % and lean mass now sync to BodyCompositionEntry,
+        so summaries need rebuilding to pick up the new data.
+
+        Only runs once (tracked via DataLoadConfig).
+        """
+        loader_name = 'rebuild_health_summaries_body_comp_2026_03_06'
+
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            return
+
+        try:
+            if verbosity >= 1:
+                self.stdout.write('  Rebuilding health summaries after body comp pipeline fix (90 days)...')
+
+            from django.core.management import call_command
+            call_command('build_daily_health_summaries', '--days', '90', verbosity=0)
+
+            if verbosity >= 1:
+                self.stdout.write(self.style.SUCCESS('  Health summary rebuild complete'))
+
+            self._mark_loader_complete(
+                DataLoadConfig, loader_name,
+                'Rebuild Health Summaries (Body Comp Fix)',
+                'command',
+                'One-time 90-day rebuild after HealthKit body comp → BodyCompositionEntry pipeline fix'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Health summary rebuild FAILED: {e}'))

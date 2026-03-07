@@ -91,8 +91,23 @@ class Command(BaseCommand):
         dd_path = os.path.join(settings.BASE_DIR, 'docs', 'WLJ_Data_Dictionary.md')
 
         if not os.path.exists(dd_path):
-            self.stderr.write(self.style.ERROR(f"Data dictionary not found: {dd_path}"))
-            return
+            # Try fallback: resolve relative to this file's location
+            fallback = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                ))),
+                'docs', 'WLJ_Data_Dictionary.md'
+            )
+            if os.path.exists(fallback):
+                dd_path = fallback
+            else:
+                msg = (
+                    f"Data dictionary not found at {dd_path} "
+                    f"or fallback {fallback}. "
+                    f"BASE_DIR={settings.BASE_DIR}"
+                )
+                self.stderr.write(self.style.ERROR(msg))
+                raise FileNotFoundError(msg)
 
         with open(dd_path, 'r') as f:
             content = f.read()

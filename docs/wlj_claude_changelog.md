@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-03-06 — Fix check-in: lead with remaining items, not recap; authoritative data guard
+
+**What:** Two check-in issues: (1) "what's left?" responses recapped completed items (wake-up, workout, etc.) instead of leading with remaining items — caused by prompt instruction "Note what IS done too." (2) LLM referenced moved/rescheduled tasks from conversation history despite current data not listing them.
+
+**Fix:** Rewrote check-in instructions to lead with remaining items, suppress completed-item recap unless user asks "recap my day", and added authoritative data guard across all 3 briefing paths.
+
+**Files:**
+- `apps/ai/personal_assistant.py` — check-in, analysis, task/priorities prompt rewrite
+
+---
+
 ## 2026-03-06 — Fix check-in referencing moved tasks via conversation history
 
 **What:** CoS check-in responses ("what's left for today?") would reference tasks that had been moved to future dates, even though the database (Task.due_date, CalendarEvent.start_dt) correctly showed the new date. Root cause: the LLM was picking up task names from earlier messages in the same conversation when they WERE due today, and repeating them despite the current system prompt data not including them.

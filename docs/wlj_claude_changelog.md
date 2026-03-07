@@ -9,6 +9,12 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Update App Review Guide with all current modules
+
+- **What:** Updated the Apple App Store review guide at `/app-review/` to include all current modules: Meals & Nutrition, People & Relationships, Notes, Capture (Audio), and Chief of Staff (AI). Updated feature grid (6→10 cards), feature locations table (10→15 rows), HealthKit data types (+Lean Body Mass, BMI), video script (added AI and module tour steps), and native iOS justification (+Contact Import, Camera/Photo).
+- **Why:** Guide was missing ~5 modules added since initial creation — must be current for Apple review submission.
+- **Files:** `templates/core/app_review.html`
+
 ## 2026-03-07 — Fix: Guides Hub sync on deploy
 
 - **What:** Added `sync_data_dictionary` and `sync_user_guide` calls to `load_initial_data.py` so they run automatically on every deploy.

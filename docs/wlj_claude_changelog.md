@@ -30,6 +30,17 @@
 - `apps/ai/personal_assistant.py` — check-in prompt rewrite + history truncation for check-in/task/analysis paths
 
 ---
+## 2026-03-06 — Comprehensive Data Dictionary Document
+- **What:** Created `docs/WLJ_Data_Dictionary.md` — a complete data dictionary for every table and field in the WLJ database
+- **Why:** Needed a searchable reference to find where engines write data, what fields mean, and how tables relate
+- **Files:** `docs/WLJ_Data_Dictionary.md` (new)
+- **Details:**
+  - Documents 100+ models across 20+ apps with every field, type, and constraint
+  - Full intelligence engine mapping (PIE, PRIE, SAE, CoS, PGE, DBE, WIRE, DNE, E3, UAL, EAE, CDCE, GLOE, SLCME, Blueprint, Governance, IOCD, SAME, ISE)
+  - SAE `state_data` JSON structure fully documented
+  - Engine-to-Table matrix showing reads/writes/schedules
+  - Common SQL join patterns for DBeaver queries
+  - Keyword search index for quick lookup (search "PIE" → find tables, engine, notes)
 
 ## 2026-03-06 — Fix check-in referencing moved tasks via conversation history
 

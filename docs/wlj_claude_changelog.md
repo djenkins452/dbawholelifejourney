@@ -9,6 +9,12 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Session close: Update features doc for Guides Hub
+
+- **What:** Updated `docs/wlj_claude_features.md` — expanded "Admin Guide" section into comprehensive "Guides Hub" section covering all three guides (Admin Guide, Data Dictionary, User Guide), architecture details, key files, and test references. Updated ToC entry.
+- **Why:** Session close audit found features doc was missing documentation for the Guides Hub feature.
+- **Files:** `docs/wlj_claude_features.md`
+
 ## 2026-03-07 — Professional styling for Data Dictionary and User Guide
 
 - **What:** Overhauled CSS for both Data Dictionary and User Guide templates with professional documentation styling. Dark code blocks (#1e293b), blue gradient table headers, alternating row colors with hover highlights, accent-colored h3 headings, bordered h2 sections, proper inline code styling, subtle box shadows. Removed `nl2br` extension from markdown filter (was breaking code blocks and tables). Added `fenced_code` extension.

@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Fix CoS conversational issues: silence, repeated briefings, confusing "move" language
+
+**What:** Three conversational intelligence failures:
+1. **Silence on casual messages** — User said "OK that makes sense, LOL" and got no response. Had to prompt "no answer?"
+2. **Repeated briefing** — When prompted with "no answer?", AI repeated the exact same briefing instead of continuing conversation
+3. **Confusing "move" language** — AI asked "What needs to move today?" which user interpreted as rescheduling to another day
+
+**Fix:**
+1. **NEVER GO SILENT rule:** Added absolute rule that every user message gets a response, including casual remarks, acknowledgments, LOLs, short messages. Provided examples of natural responses to casual messages.
+2. **NEVER REPEAT A BRIEFING rule:** If a briefing was already delivered in the conversation, do not re-brief. Continue naturally, answer follow-ups, acknowledge what the user said.
+3. **"Move" → "Schedule/Skip":** Changed A/B/C options from "Move to a specific time" to "Schedule it for a specific time" and "Defer" to "Skip it for today." Added explicit instruction to avoid the word "move" for tasks since users interpret it as rescheduling. Updated both reference examples.
+
+**Files:** `apps/ai/personal_assistant.py` — New NEVER GO SILENT section, NEVER REPEAT A BRIEFING section, A/B/C option rewording, updated reference examples
+
+---
+
 ## 2026-03-07 — CoS response policy: combine facts with coaching naturally
 
 **What:** The response policy treated factual data and advice as separate modes — the AI either dumped data robotically or gave generic advice. Users need BOTH: real numbers AND coaching on what they mean and how to improve.

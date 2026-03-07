@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-06
+**Last updated:** 2026-03-07
 
 ---
 
@@ -243,16 +243,38 @@ Uses `ThreadPoolExecutor(max_workers=6)`.
 
 ```
 System prompt layers (highest priority first):
-├─ 1. Calibration override
+├─ 1. Calibration override (v4: SUPPRESSED for functional queries — see below)
 ├─ 2. Recalibration injection
 ├─ 3. Governance alignment session
 ├─ 4. Governance instructions + personality
 ├─ 5. Learned user profile
 ├─ 6. format_cos_system_injection(cos_context) ← THE MAIN CONTEXT
+│     └─ v4: Data State Snapshot moved to END (highest recency weight)
+│     └─ v4: RESPONSE QUALITY RULES appended (anti-generic-response)
 ├─ 7. Base prompt + coaching style + faith
 ├─ 8. Pending reflections
 └─ 9. Greeting context
 ```
+
+### v4 Calibration Suppression (2026-03-07)
+
+**Problem:** When calibration is active (stage not complete, not paused), `build_calibration_system_injection()` injects ~6000 chars with "MANDATORY OVERRIDE — GETTING TO KNOW YOU SESSION". This conflicts with check-in/operational data — the LLM sees "your ONLY job is calibration" AND "give a briefing", and fabricates data (e.g., "3 of 5 tasks" when only 1 exists).
+
+**Fix:** `_generate_response()` now detects "functional queries" before assembling priority layers. If the message is a functional query, calibration injection is skipped entirely. Only pure calibration responses (statements answering calibration questions) still get the injection.
+
+**Detection logic** (`_is_functional_query`):
+- Message contains `?`
+- Message contains question words: what, how, why, when, where, which
+- Message contains imperative verbs: tell me, remind me, encourage, explain, help me, show me
+- Message matches any `CHECKIN_PATTERNS` entry
+
+**CHECKIN_PATTERNS** (v4 expansion): Added 15+ advisory/planning patterns including `'structure my day'`, `'biggest improvement'`, `'highest impact'`, `'if you were my chief of staff'`, `'what would improve my life'`, `'top priority'`, `'where should i start'`, etc.
+
+### v4 Data State Snapshot (2026-03-07)
+
+**Change:** `_build_data_state_snapshot()` now includes `active_tasks` and `completed_tasks_today` counts. The snapshot is injected at the END of `format_cos_system_injection()` (just before "END SITUATIONAL AWARENESS") for maximum recency weight — LLMs weight later-appearing context more heavily.
+
+**Grounding rules:** Snapshot includes "ABSOLUTE GROUNDING RULES" that instruct the LLM to use exact counts or say "no data logged" — never estimate or infer.
 
 ### CoS Context Injection Output
 
@@ -382,6 +404,25 @@ DNE (delivery_engine.py) → DeliveredNotification (in-app / email / SMS)
 **Severity:** High — Medication overdue/upcoming comparison used UTC time instead of user's local time.
 
 **Fix:** `_build_health_gate_section()` now uses `get_user_now(user).time()` instead of `timezone.now().time()`. This was causing 2 AM medication reminders for 7 AM medicines (UTC offset made them appear overdue).
+
+### BUG 4: Calibration Injection Causes Task/Medication Hallucinations — FIXED (2026-03-07)
+
+**Severity:** Critical — CoS fabricated "3 of 5 tasks" when user had only 1 task, and "medication due" when user had 0 medications.
+
+**Root cause:** Active calibration injection (~6000 chars "MANDATORY OVERRIDE") conflicted with operational check-in data. The LLM resolved the conflict by fabricating data to bridge both instructions. 8/24 evaluation questions had task hallucinations; 5/24 had medication hallucinations.
+
+**Fix (v4 stability upgrade):**
+1. **Calibration suppression** — `_generate_response()` detects functional queries (questions, commands, advisory requests) and skips calibration injection. Only pure calibration responses get the injection.
+2. **Data state snapshot** — `_build_data_state_snapshot()` adds exact `active_tasks` and `completed_tasks_today` counts with "ABSOLUTE GROUNDING RULES".
+3. **Snapshot positioning** — Moved to END of CoS system injection for highest recency weight.
+4. **Anti-generic rules** — RESPONSE QUALITY RULES block prevents fallback to generic productivity advice.
+5. **Calibration data isolation** — Added isolation markers in `cos_governance.py` noting calibration data is NOT for operational briefings.
+
+**Result:** Task hallucinations: 8/24 → 0/24. Medication hallucinations: 5/24 → 1/24. Overall eval score: 5.8 → 6.0/10.
+
+**Files changed:** `apps/ai/personal_assistant.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/core/blueprint/cos_governance.py`
+
+**Evaluation report:** `docs/CoSEvaluation_v4.md`
 
 ### GAP 3: CoS Bypasses SAE Truth Layer
 

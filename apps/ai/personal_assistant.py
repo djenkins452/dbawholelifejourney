@@ -4286,6 +4286,7 @@ INSTRUCTIONS:
 - Note what IS done too (briefly) so they see progress.
 - End with a prioritized recommendation: "Here's what I'd tackle first: ..."
 - Be concise but SPECIFIC — this person wants an actionable list, not a motivational summary.
+- CRITICAL: The data above is the AUTHORITATIVE current state. Only reference tasks, calendar items, and medications that appear in the sections above. If something was mentioned earlier in the conversation but is NOT listed above, it has been moved, completed, or rescheduled — do NOT mention it.
 """
             elif is_asking_for_analysis:
                 faith = state.get('faith', {})
@@ -4311,6 +4312,7 @@ Do NOT tell them to go to a page or click a link. ANALYZE the data you have and 
 If they ask about missed days or consistency, use the journal/health data to answer with real numbers.
 CRITICAL: Only report items as "missed" or "not done" if the data explicitly confirms they are not done.
 Never assume something is missed just because you lack data — absence of data is not evidence of absence.
+Only reference tasks and items that appear in the current data above — ignore any tasks mentioned earlier in the conversation that are no longer listed.
 """
             else:
                 system_prompt += f"""

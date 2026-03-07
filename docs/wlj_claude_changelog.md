@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-03-06 — Fix check-in referencing moved tasks via conversation history
+
+**What:** CoS check-in responses ("what's left for today?") would reference tasks that had been moved to future dates, even though the database (Task.due_date, CalendarEvent.start_dt) correctly showed the new date. Root cause: the LLM was picking up task names from earlier messages in the same conversation when they WERE due today, and repeating them despite the current system prompt data not including them.
+
+**Fix:** Added an authoritative data guard to the check-in, analysis, and task/priorities system prompts: "The data above is the AUTHORITATIVE current state. Only reference tasks that appear in the sections above. If something was mentioned earlier in the conversation but is NOT listed above, it has been moved, completed, or rescheduled — do NOT mention it."
+
+**Files:**
+- `apps/ai/personal_assistant.py` — prompt guards on 3 briefing paths (check-in, analysis, task/priorities)
+
+---
+
 ## 2026-03-06 — Fix stale CoS context after task mutation ("What's for Dinner" bug)
 
 **What:** Fixed two-layer staleness bug where CoS continued reporting a task on its old date after a user moved it via chat (e.g., "move dinner to Sunday" — CoS still said it was due Wednesday).

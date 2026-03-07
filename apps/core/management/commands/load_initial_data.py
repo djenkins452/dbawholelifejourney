@@ -973,6 +973,28 @@ class Command(BaseCommand):
                         'fixture', f'Marked complete (data exists): {e}'
                     )
 
+        # =====================================================================
+        # GUIDE SYNC: Populate Data Dictionary + User Guide from sources
+        # =====================================================================
+        # These are idempotent and fast — run on every deploy to keep
+        # guide content in sync with docs/WLJ_Data_Dictionary.md and
+        # HelpTopic/HelpArticle records.
+        try:
+            call_command('sync_data_dictionary', verbosity=0)
+            if verbosity >= 1:
+                self.stdout.write('  Synced Data Dictionary guide')
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.WARNING(f'  sync_data_dictionary failed: {e}'))
+
+        try:
+            call_command('sync_user_guide', verbosity=0)
+            if verbosity >= 1:
+                self.stdout.write('  Synced User Guide')
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.WARNING(f'  sync_user_guide failed: {e}'))
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))

@@ -629,9 +629,11 @@ def invalidate_notification_count_cache(user_id):
     Invalidate notification count cache for a specific user.
 
     Call this when notifications are created, read, or deleted.
+    Clears both the template context cache and the API endpoint cache.
     """
     from django.core.cache import cache
     cache.delete(f'notification_count_user_{user_id}')
+    cache.delete(f'notification_count_{user_id}')
 
 
 # URL path prefix to help context ID mapping for pages that don't use HelpContextMixin.

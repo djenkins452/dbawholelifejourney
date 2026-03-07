@@ -46,11 +46,11 @@ Executive briefing (executive_briefing.py):
 
 | File | Change | Lines |
 |------|--------|-------|
-| `apps/ai/situational_awareness.py` | **NEW** — Core SA builder + formatter with 7 data signals, pattern classification, accountability gate, fatigue scanning | ~350 lines |
+| `apps/ai/situational_awareness.py` | **NEW** — Core SA builder + formatter with 7 data signals, pattern classification, accountability gate, fatigue scanning, dynamic user priority model (v8.1) | ~430 lines |
 | `apps/core/ai_orchestrator/cos_context.py` | Added parallel builder, SA block injection, Step 7 to mandatory eval | ~25 lines added |
 | `apps/ai/personal_assistant.py` | SA injection into check-in path after LOW-DATA DAY HANDLING | ~10 lines added |
 | `apps/ai/executive_briefing.py` | `_build_pattern_section()` + briefing integration | ~55 lines added |
-| `apps/ai/tests/test_situational_awareness.py` | **NEW** — 24 tests covering builder, formatter, integration | ~300 lines |
+| `apps/ai/tests/test_situational_awareness.py` | **NEW** — 30 tests covering builder, formatter, dynamic priorities, integration | ~360 lines |
 
 ---
 
@@ -66,14 +66,17 @@ Executive briefing (executive_briefing.py):
 
 ---
 
-## Accountability Gate
+## Accountability Gate (v8.1: Dynamic Priority Model)
 
-Drift/accountability framing ONLY triggers when priority is provable:
-- Active `HabitGoal` exists for that domain
-- Active routine/habit in the system
-- User explicitly declared it as a priority
+Drift/accountability framing ONLY triggers when priority is provable. Sources checked (in priority order):
+1. **PersonalOperatingBlueprint** — `tier1_protected_behaviors` (identity-protected behaviors)
+2. **NonNegotiable records** — Active non-negotiable declarations with `behavior_key`
+3. **GovernanceProfile** — `commitment_level` = `non_negotiable` or `important` per module
+4. **HabitGoal fallback** — Active goal with matching name keywords (used when no blueprint/governance exists)
 
-Without evidence → informational only (softer tone).
+Without evidence from any source → informational only (softer tone).
+
+The priority model is fully dynamic — each user's non-negotiables, life pillars, and module commitments are loaded at SA build time and injected as rule #4 and the USER PRIORITY MODEL section.
 
 ---
 
@@ -129,9 +132,15 @@ Without evidence → informational only (softer tone).
 | `test_one_off_rule_in_output` | PASS | One-off guidance rule present |
 | `test_emotional_context_in_output` | PASS | Emotional context guidance present |
 | `test_guidance_rules_always_present` | PASS | Core discipline rule always present |
+| `test_dynamic_non_negotiables_in_output` | PASS | User non-negotiables appear in formatted output |
+| `test_no_blueprint_shows_ask_prompt` | PASS | No blueprint → "ask what matters most" |
+| `test_drift_with_governance_non_negotiable` | PASS | GovernanceProfile non_negotiable → drift signal |
+| `test_drift_with_blueprint_tier1` | PASS | Blueprint tier1_protected → drift signal |
+| `test_no_drift_without_priority` | PASS | No priority data → NOT drift |
+| `test_priority_model_in_result` | PASS | user_priority_model included in SA result |
 | `test_sa_in_parallel_builders` | PASS | SA key in build_cos_context() output |
 
-**24/24 tests pass. 73/73 existing PA + briefing tests pass. 0 regressions.**
+**30/30 tests pass. 73/73 existing PA + briefing tests pass. 0 regressions.**
 
 ---
 
@@ -161,6 +170,7 @@ SA adds pattern awareness WITHOUT creating new AI paths — all data flows throu
 6. **User-only fatigue scanning** — Prevents feedback loops from assistant message amplification
 7. **Mood as weak signal** — Never anchors major guidance on mood averages alone
 8. **Separation of concerns** — SA provides pattern data; time context from existing builders
+9. **Dynamic priority model (v8.1)** — No hardcoded priorities. Queries Blueprint (tier1, NonNegotiable), GovernanceProfile (commitment_level), and HabitGoal (fallback). Each user's priorities are uniquely represented
 
 ---
 

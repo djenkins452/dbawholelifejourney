@@ -421,8 +421,138 @@ class TestSituationalAwarenessFormatter(TestCase):
         }
         output = format_situational_awareness_injection(sa_data)
         self.assertIn('PATTERN-AWARE GUIDANCE RULES:', output)
-        self.assertIn('CORE DISCIPLINE: workout = non-negotiable', output)
-        self.assertIn('Bike ride = optional extra', output)
+        # Without a priority model, rule 4 should suggest asking user
+        self.assertIn('NON-NEGOTIABLES:', output)
+
+    def test_dynamic_non_negotiables_in_output(self):
+        """User-defined non-negotiables appear in formatted output."""
+        sa_data = {
+            'lines': ["Workout pattern: 5 of 7 days — consistent"],
+            'momentum_signals': ['workout'],
+            'drift_signals': [],
+            'one_off_sensitive_domains': ['workout'],
+            'emotional_context': 'none',
+            'user_priority_model': {
+                'non_negotiables': ['Morning Prayer', 'Workout', 'Bible Reading'],
+                'non_negotiable_keys': {'WORKOUT', 'FAITH_BLOCK', 'MEDS_ADHERENCE'},
+                'pillars_ranked': ['FAITH', 'HEALTH_DISCIPLINE', 'PURPOSE'],
+                'module_commitments': {},
+                'has_blueprint': True,
+            },
+        }
+        output = format_situational_awareness_injection(sa_data)
+        self.assertIn('Morning Prayer', output)
+        self.assertIn('Workout', output)
+        self.assertIn('Bible Reading', output)
+        self.assertIn('Daily non-negotiables:', output)
+        self.assertIn('Life pillars (ranked):', output)
+        self.assertIn('Faith > Health Discipline > Purpose', output)
+
+    def test_no_blueprint_shows_ask_prompt(self):
+        """No blueprint → rule suggests asking what matters most."""
+        sa_data = {
+            'lines': ["Workout pattern: 5 of 7 days — consistent"],
+            'momentum_signals': [],
+            'drift_signals': [],
+            'one_off_sensitive_domains': [],
+            'emotional_context': 'none',
+            'user_priority_model': {
+                'non_negotiables': [],
+                'non_negotiable_keys': set(),
+                'pillars_ranked': [],
+                'module_commitments': {},
+                'has_blueprint': False,
+            },
+        }
+        output = format_situational_awareness_injection(sa_data)
+        self.assertIn('ask what matters most', output)
+
+
+class TestDynamicPriorityModel(SATestMixin, TestCase):
+    """Test that SA uses the user's actual blueprint/governance for priorities."""
+
+    def setUp(self):
+        self.user = self.create_user(email='priority@example.com')
+        self.enable_ai(self.user)
+
+    def test_drift_with_governance_non_negotiable(self):
+        """Slipping domain with GovernanceProfile non_negotiable → drift signal."""
+        from apps.core.ai_governance.models import GovernanceProfile
+        from apps.journal.models import JournalEntry
+        today = timezone.now().date()
+
+        # Create governance profile marking journal as non-negotiable
+        GovernanceProfile.objects.create(
+            user=self.user,
+            module_key='journal',
+            display_name='Journaling',
+            commitment_level='non_negotiable',
+        )
+
+        # Create old journal entry to establish history
+        JournalEntry.objects.create(
+            user=self.user,
+            title="Old entry",
+            body="Test content",
+            entry_date=today - timedelta(days=10),
+        )
+
+        result = build_situational_awareness(self.user)
+        self.assertIn('journaling', result['drift_signals'])
+
+    def test_drift_with_blueprint_tier1(self):
+        """Slipping domain with tier1_protected → drift signal."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        from apps.health.models import DailyHealthSummary
+        today = timezone.now().date()
+
+        # Create blueprint with WORKOUT as tier1
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        bp.tier1_protected_behaviors = ['WORKOUT']
+        bp.save()
+
+        # Create workout data: slipping (1 of 7 days)
+        for i in range(1, 8):
+            DailyHealthSummary.objects.create(
+                user=self.user,
+                summary_date=today - timedelta(days=i),
+                workout_count=1 if i == 1 else 0,
+            )
+
+        result = build_situational_awareness(self.user)
+        self.assertIn('workout', result['drift_signals'])
+
+    def test_no_drift_without_priority(self):
+        """Slipping domain without any priority declaration → NOT drift."""
+        from apps.health.models import DailyHealthSummary
+        today = timezone.now().date()
+
+        # Slipping workout data, no blueprint, no governance, no goal
+        for i in range(1, 8):
+            DailyHealthSummary.objects.create(
+                user=self.user,
+                summary_date=today - timedelta(days=i),
+                workout_count=1 if i == 1 else 0,
+            )
+
+        result = build_situational_awareness(self.user)
+        self.assertNotIn('workout', result['drift_signals'])
+
+    def test_priority_model_in_result(self):
+        """user_priority_model is included in SA result."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        bp.tier1_protected_behaviors = ['WORKOUT', 'FAITH_BLOCK']
+        bp.pillars_ranked = ['FAITH', 'HEALTH_DISCIPLINE']
+        bp.save()
+
+        result = build_situational_awareness(self.user)
+        pm = result.get('user_priority_model', {})
+        self.assertTrue(pm.get('has_blueprint'))
+        self.assertIn('WORKOUT', pm.get('non_negotiable_keys', set()))
+        self.assertIn('FAITH_BLOCK', pm.get('non_negotiable_keys', set()))
+        self.assertEqual(pm['pillars_ranked'], ['FAITH', 'HEALTH_DISCIPLINE'])
 
 
 class TestSituationalAwarenessIntegration(SATestMixin, TestCase):

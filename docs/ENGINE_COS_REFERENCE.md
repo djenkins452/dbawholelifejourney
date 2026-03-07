@@ -236,7 +236,7 @@ Uses `ThreadPoolExecutor(max_workers=6)`.
 | Image Analyses | `_build_recent_image_analyses()` | **SAE scan** | recent_analyses |
 | Meals | `_build_meals_context()` | **SAE meals**, HouseholdMembership | meals_context |
 | Faith | `_build_faith_context()` | **SAE faith** | faith_context |
-| Situational Awareness (v8) | `_build_situational_awareness_context()` | DailyHealthSummary, WeightEntry, JournalEntry, AssistantMessage, HabitGoal, medicine_utils, streak_service | momentum_signals, drift_signals, one_off_sensitive_domains, emotional_context |
+| Situational Awareness (v8/v8.1) | `_build_situational_awareness_context()` | DailyHealthSummary, WeightEntry, JournalEntry, AssistantMessage, HabitGoal, medicine_utils, streak_service, PersonalOperatingBlueprint, GovernanceProfile, NonNegotiable | momentum_signals, drift_signals, one_off_sensitive_domains, emotional_context, user_priority_model |
 
 ### System Prompt Assembly (Priority Order)
 

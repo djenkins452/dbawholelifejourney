@@ -168,6 +168,16 @@ urlpatterns = [
     path("admin-guide/<slug:section_key>/", views.AdminGuideSectionView.as_view(), name="admin_guide_section"),
     path("admin-guide/<slug:section_key>/<slug:slug>/", views.AdminGuideArticleView.as_view(), name="admin_guide_article"),
 
+    # Data Dictionary
+    path("data-dictionary/", views.DataDictionaryHomeView.as_view(), name="data_dictionary_home"),
+    path("data-dictionary/<slug:section_key>/", views.DataDictionarySectionView.as_view(), name="data_dictionary_section"),
+    path("data-dictionary/<slug:section_key>/<slug:slug>/", views.DataDictionaryArticleView.as_view(), name="data_dictionary_article"),
+
+    # User Guide (accessible by all logged-in users)
+    path("user-guide/", views.UserGuideHomeView.as_view(), name="user_guide_home"),
+    path("user-guide/<slug:section_key>/", views.UserGuideSectionView.as_view(), name="user_guide_section"),
+    path("user-guide/<slug:section_key>/<slug:slug>/", views.UserGuideArticleView.as_view(), name="user_guide_article"),
+
     # Claude Code API - Ready Tasks (for "What's Next?" protocol)
     path("api/claude/ready-tasks/", views.ReadyTasksAPIView.as_view(), name="api_claude_ready_tasks"),
     path("api/claude/tasks/<int:pk>/status/", views.UpdateTaskStatusAPIView.as_view(), name="api_claude_task_status"),

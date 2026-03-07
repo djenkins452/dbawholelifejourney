@@ -14,7 +14,7 @@ the app's design, rather than using Django's default admin.
 """
 
 from django.contrib import messages
-from django.contrib.auth.mixins import UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db import models
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -5028,9 +5028,10 @@ class TestItemBulkUpdateAPIView(AdminRequiredMixin, View):
 # Admin Guide Views
 # ==============================================================================
 
-def _guide_sections_queryset():
+def _guide_sections_queryset(guide_type='admin'):
     """Return active guide sections with their active articles prefetched."""
     return AdminGuideSection.objects.filter(
+        guide_type=guide_type,
         is_active=True
     ).prefetch_related(
         models.Prefetch(
@@ -5047,7 +5048,7 @@ class AdminGuideHomeView(HelpContextMixin, AdminRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        sections = _guide_sections_queryset()
+        sections = _guide_sections_queryset('admin')
         context['sections'] = sections
         first_section = sections.first()
         if first_section:
@@ -5063,10 +5064,11 @@ class AdminGuideSectionView(HelpContextMixin, AdminRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        sections = _guide_sections_queryset()
+        sections = _guide_sections_queryset('admin')
         context['sections'] = sections
         current_section = get_object_or_404(
-            AdminGuideSection, section_key=self.kwargs['section_key'], is_active=True
+            AdminGuideSection, guide_type='admin',
+            section_key=self.kwargs['section_key'], is_active=True
         )
         context['current_section'] = current_section
         context['current_article'] = current_section.articles.filter(is_active=True).first()
@@ -5080,10 +5082,11 @@ class AdminGuideArticleView(HelpContextMixin, AdminRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        sections = _guide_sections_queryset()
+        sections = _guide_sections_queryset('admin')
         context['sections'] = sections
         current_section = get_object_or_404(
-            AdminGuideSection, section_key=self.kwargs['section_key'], is_active=True
+            AdminGuideSection, guide_type='admin',
+            section_key=self.kwargs['section_key'], is_active=True
         )
         current_article = get_object_or_404(
             AdminGuideArticle,
@@ -5102,12 +5105,15 @@ class AdminGuideManageView(HelpContextMixin, AdminRequiredMixin, ListView):
 
     def get_queryset(self):
         return AdminGuideArticle.objects.filter(
+            section__guide_type='admin',
             is_active=True
         ).select_related('section').order_by('section__order', 'order')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['sections'] = AdminGuideSection.objects.filter(is_active=True)
+        context['sections'] = AdminGuideSection.objects.filter(
+            guide_type='admin', is_active=True
+        )
         return context
 
 
@@ -5152,6 +5158,126 @@ class AdminGuideSyncCosView(AdminRequiredMixin, View):
             messages.error(request, f"CoS doc sync failed: {e}")
 
         return redirect('admin_console:admin_guide_manage')
+
+
+# ==============================================================================
+# Data Dictionary Views
+# ==============================================================================
+
+class DataDictionaryHomeView(HelpContextMixin, AdminRequiredMixin, TemplateView):
+    """Data Dictionary home — shows sidebar + first section's first article."""
+    template_name = "admin_console/data_dictionary/home.html"
+    help_context_id = "DATA_DICTIONARY_HOME"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        sections = _guide_sections_queryset('data_dictionary')
+        context['sections'] = sections
+        first_section = sections.first()
+        if first_section:
+            context['current_section'] = first_section
+            context['current_article'] = first_section.articles.first()
+        return context
+
+
+class DataDictionarySectionView(HelpContextMixin, AdminRequiredMixin, TemplateView):
+    """Display a data dictionary section's first article."""
+    template_name = "admin_console/data_dictionary/home.html"
+    help_context_id = "DATA_DICTIONARY_HOME"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        sections = _guide_sections_queryset('data_dictionary')
+        context['sections'] = sections
+        current_section = get_object_or_404(
+            AdminGuideSection, guide_type='data_dictionary',
+            section_key=self.kwargs['section_key'], is_active=True
+        )
+        context['current_section'] = current_section
+        context['current_article'] = current_section.articles.filter(is_active=True).first()
+        return context
+
+
+class DataDictionaryArticleView(HelpContextMixin, AdminRequiredMixin, TemplateView):
+    """Display a specific data dictionary article."""
+    template_name = "admin_console/data_dictionary/home.html"
+    help_context_id = "DATA_DICTIONARY_HOME"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        sections = _guide_sections_queryset('data_dictionary')
+        context['sections'] = sections
+        current_section = get_object_or_404(
+            AdminGuideSection, guide_type='data_dictionary',
+            section_key=self.kwargs['section_key'], is_active=True
+        )
+        current_article = get_object_or_404(
+            AdminGuideArticle,
+            section=current_section, slug=self.kwargs['slug'], is_active=True
+        )
+        context['current_section'] = current_section
+        context['current_article'] = current_article
+        return context
+
+
+# ==============================================================================
+# User Guide Views (accessible by all logged-in users)
+# ==============================================================================
+
+class UserGuideHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    """User Guide home — shows sidebar + first section's first article."""
+    template_name = "admin_console/user_guide/home.html"
+    help_context_id = "USER_GUIDE_HOME"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        sections = _guide_sections_queryset('user')
+        context['sections'] = sections
+        first_section = sections.first()
+        if first_section:
+            context['current_section'] = first_section
+            context['current_article'] = first_section.articles.first()
+        return context
+
+
+class UserGuideSectionView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    """Display a user guide section's first article."""
+    template_name = "admin_console/user_guide/home.html"
+    help_context_id = "USER_GUIDE_HOME"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        sections = _guide_sections_queryset('user')
+        context['sections'] = sections
+        current_section = get_object_or_404(
+            AdminGuideSection, guide_type='user',
+            section_key=self.kwargs['section_key'], is_active=True
+        )
+        context['current_section'] = current_section
+        context['current_article'] = current_section.articles.filter(is_active=True).first()
+        return context
+
+
+class UserGuideArticleView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    """Display a specific user guide article."""
+    template_name = "admin_console/user_guide/home.html"
+    help_context_id = "USER_GUIDE_HOME"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        sections = _guide_sections_queryset('user')
+        context['sections'] = sections
+        current_section = get_object_or_404(
+            AdminGuideSection, guide_type='user',
+            section_key=self.kwargs['section_key'], is_active=True
+        )
+        current_article = get_object_or_404(
+            AdminGuideArticle,
+            section=current_section, slug=self.kwargs['slug'], is_active=True
+        )
+        context['current_section'] = current_section
+        context['current_article'] = current_article
+        return context
 
 
 # ==============================================================================

@@ -1470,12 +1470,25 @@ class TestItem(models.Model):
 # Admin Guide Models
 # ==============================================================================
 
+GUIDE_TYPE_CHOICES = [
+    ('admin', 'Admin Guide'),
+    ('data_dictionary', 'Data Dictionary'),
+    ('user', 'User Guide'),
+]
+
+
 class AdminGuideSection(models.Model):
-    """A section in the Admin Guide documentation."""
+    """A section in a guide (Admin Guide, Data Dictionary, or User Guide)."""
+    guide_type = models.CharField(
+        max_length=20,
+        choices=GUIDE_TYPE_CHOICES,
+        default='admin',
+        db_index=True,
+        help_text="Which guide this section belongs to"
+    )
     section_key = models.SlugField(
         max_length=100,
-        unique=True,
-        help_text="Unique identifier for this section"
+        help_text="Unique identifier for this section within its guide"
     )
     title = models.CharField(max_length=200)
     icon = models.CharField(
@@ -1494,6 +1507,7 @@ class AdminGuideSection(models.Model):
 
     class Meta:
         ordering = ['order', 'title']
+        unique_together = [('guide_type', 'section_key')]
         verbose_name = 'Admin Guide Section'
         verbose_name_plural = 'Admin Guide Sections'
 
@@ -1502,7 +1516,7 @@ class AdminGuideSection(models.Model):
 
 
 class AdminGuideArticle(models.Model):
-    """An article within an Admin Guide section. Content is Markdown."""
+    """An article within a guide section. Content is Markdown."""
     section = models.ForeignKey(
         AdminGuideSection,
         on_delete=models.CASCADE,

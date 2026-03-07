@@ -935,6 +935,9 @@ class Command(BaseCommand):
         # One-time: Rebuild health summaries after body composition pipeline fix
         self._rebuild_health_summaries_body_comp_fix(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Guides Hub (Data Dictionary + User Guide)
+        self._reset_guides_hub_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5591,3 +5594,35 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Body comp backfill/rebuild FAILED: {e}'))
+
+    def _reset_guides_hub_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 138), teaching_destinations (PKs 176-178),
+        and help_topics (PKs 146-147) for the Guides Hub feature.
+        """
+        reset_tracker_name = 'reset_guides_hub_2026_03_07'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for loader_name in ['release_notes', 'teaching_destinations', 'help_topics']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader_name} loader for Guides Hub')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Guides Hub (Data Dictionary + User Guide)',
+                'command',
+                'One-time reset to reload release_notes PK 138, teaching_destinations PKs 176-178, help_topics PKs 146-147'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Guides Hub fixtures FAILED: {e}'))

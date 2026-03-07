@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Guides Hub: Data Dictionary & User Guide
+
+- **What:** Created a "Guides" section on the Admin Console dashboard with three guides: Admin Guide (moved from Admin Sections), Data Dictionary (new — synced from docs/WLJ_Data_Dictionary.md), and User Guide (new — synced from HelpTopic/HelpArticle models). Added User Guide link to profile dropdown for all users. Added `guide_type` field to AdminGuideSection/AdminGuideArticle models. Created `sync_data_dictionary` and `sync_user_guide` management commands.
+- **Why:** Admin Guide was buried in the Admin Sections grid. Data Dictionary needed a browsable web interface. User Guide needed to be auto-generated from existing help content and accessible to all users.
+- **Files:**
+  - `apps/admin_console/models.py` — Added `guide_type` field + `GUIDE_TYPE_CHOICES`
+  - `apps/admin_console/views.py` — 6 new views (DataDictionary + UserGuide Home/Section/Article), updated `_guide_sections_queryset()` to filter by guide_type
+  - `apps/admin_console/urls.py` — 6 new URL patterns for data-dictionary/ and user-guide/
+  - `templates/admin_console/dashboard.html` — Added Guides section, moved Admin Guide card
+  - `templates/admin_console/data_dictionary/home.html` — New template (based on admin_guide)
+  - `templates/admin_console/user_guide/home.html` — New template (based on admin_guide)
+  - `templates/components/desktop_top_bar.html` — Added User Guide link to profile dropdown
+  - `apps/admin_console/management/commands/sync_data_dictionary.py` — New sync command
+  - `apps/admin_console/management/commands/sync_user_guide.py` — New sync command
+  - `apps/admin_console/migrations/0032_add_guide_type_to_guide_models.py` — New migration
+  - `apps/core/fixtures/release_notes.json` — PK 138
+  - `apps/help/fixtures/teaching_destinations.json` — PKs 176-178
+  - `apps/help/fixtures/help_topics.json` — PKs 146-147
+  - `apps/core/management/commands/load_initial_data.py` — Reset method for fixtures
+
 ## 2026-03-06 — Data Dictionary: Fix all table names, add master listing
 - **What:** Fixed ~50 incorrect table names verified against Django ORM, added master table listing (all 280+ WLJ tables), added 8 missing apps (calendar_engine, cos, meals, notes, relationships, owner_finance, assistant, dashboard)
 - **Why:** Table names were wrong (assumed Django defaults but many models use custom `db_table`) — couldn't look them up in DBeaver

@@ -858,11 +858,13 @@ The following are forbidden in ALL responses:
 - Dashboard or report-style formatting
 - Motivational filler or cheerleading
 - Vague prioritization without naming specific tasks
-- Generic productivity templates ("prioritize your tasks", "create a morning routine", "time block your day", "start with the most important task") when user context is available
+- Generic productivity templates ("prioritize your tasks", "create a morning routine", "time block your day", "start with the most important task", "Eisenhower Matrix", "Pomodoro Technique", "review your priorities", "set daily objectives") when user context is available
 - Generic disclaimers ("consult your healthcare provider", "talk to your doctor", "seek professional advice") UNLESS the user explicitly asks for medical/professional advice or the situation involves genuine safety risk
 - Injecting schedule, task, or medication information when the user did not ask about it and it does not directly answer their question
 - Context dumping — attaching operational data (schedule blocks, medication status, task counts) to a response where it adds no value to the answer
 - Falling back to generic LLM knowledge when you have the user's actual data to reason from
+- Mirroring decision questions back without a recommendation ("What do you think?" / "How does that sound?" WITHOUT first stating your recommendation)
+- Responding to strategic/advisory questions with empathy templates instead of operational analysis
 
 ### SECTION 9 — HEALTH INTELLIGENCE ENFORCEMENT (ABSOLUTE)
 
@@ -6458,36 +6460,66 @@ Rules for this response:
         return random.choice(style_fallbacks)
 
     def _is_personal_reflection(self, message: str) -> bool:
-        """Check if the message is a personal reflection or emotional sharing."""
+        """
+        Check if the message is a personal reflection or emotional sharing.
+
+        v6: Tightened to avoid misclassifying strategic/advisory questions.
+        Only catches genuine introspection and emotional processing, NOT:
+        - improvement questions ("what would make the biggest improvement")
+        - prioritization questions ("what should I focus on")
+        - advisory questions ("should I work out today")
+        - strategic planning questions ("how should I structure my day")
+        """
         msg_lower = message.lower()
 
-        # Indicators of personal reflection/emotional sharing
-        reflection_indicators = [
-            'i feel', 'i felt', 'i\'m feeling', 'feeling',
-            'i\'ve been', 'i have been', 'i was',
-            'my life', 'my mood', 'my journey',
-            'improved', 'better', 'worse', 'struggling',
-            'grateful', 'thankful', 'blessed',
-            'closer to god', 'faith', 'spiritual',
-            'accomplishing', 'accomplished', 'achieving',
-            'journaling', 'reflecting', 'meditation',
-            'happy', 'sad', 'anxious', 'excited', 'proud',
-            'since', 'lately', 'recently',
+        # v6: EXCLUDE strategic/advisory/decision questions first.
+        # These should NEVER be classified as reflections.
+        strategic_indicators = [
+            'what should', 'how should', 'should i',
+            'what would', 'what could', 'what can',
+            'what is the', 'what are the',
+            'improve', 'improvement', 'prioritize', 'priority',
+            'focus on', 'structure', 'recommend', 'biggest',
+            'highest impact', 'single habit', 'best approach',
+            'what do you think', 'what would you',
+            'if you were', 'chief of staff',
+            'start tracking', 'work out', 'workout',
+            '?',  # Questions are almost never pure reflections
+        ]
+        if any(ind in msg_lower for ind in strategic_indicators):
+            return False
+
+        # Genuine reflection indicators — emotional processing, introspection
+        # Use PHRASE-level matching (not substring) to avoid false positives
+        reflection_phrases = [
+            'i feel ', 'i felt ', 'i\'m feeling ',
+            'i\'ve been struggling', 'i have been struggling',
+            'i\'m struggling', 'i was struggling',
+            'feeling overwhelmed', 'feeling anxious', 'feeling sad',
+            'feeling stressed', 'feeling down', 'feeling lost',
+            'today was hard', 'today was tough', 'today was rough',
+            'i\'m grateful', 'i\'m thankful', 'i\'m blessed',
+            'i\'m happy', 'i\'m sad', 'i\'m anxious',
+            'i\'m proud', 'i\'m excited',
+            'closer to god', 'my faith journey',
+            'i\'ve been journaling', 'i\'ve been reflecting',
         ]
 
-        # Check for multiple indicators (more confident detection)
-        indicator_count = sum(1 for ind in reflection_indicators if ind in msg_lower)
+        # Require at least 1 genuine reflection phrase
+        has_reflection_phrase = any(phrase in msg_lower for phrase in reflection_phrases)
 
-        # Also check for first-person sharing patterns
-        first_person_sharing = (
-            msg_lower.startswith('i ') or
-            msg_lower.startswith('i\'') or
-            ' i ' in msg_lower or
-            'my ' in msg_lower
-        )
+        # Also require the message to be first-person emotional sharing
+        # (starts with "I" or "My" and contains emotional content)
+        emotional_words = [
+            'struggling', 'overwhelmed', 'anxious', 'stressed',
+            'sad', 'happy', 'grateful', 'thankful', 'blessed',
+            'proud', 'excited', 'scared', 'worried', 'hurt',
+            'lonely', 'frustrated', 'angry', 'peaceful', 'hopeful',
+        ]
+        has_emotion = any(word in msg_lower for word in emotional_words)
+        starts_first_person = msg_lower.startswith('i ') or msg_lower.startswith('i\'')
 
-        # Consider it a reflection if there are 2+ indicators or if first-person + 1 indicator
-        return indicator_count >= 2 or (first_person_sharing and indicator_count >= 1)
+        return has_reflection_phrase or (starts_first_person and has_emotion)
 
     def _get_reflection_response(self, message: str) -> str:
         """Generate a meaningful response to personal reflections."""

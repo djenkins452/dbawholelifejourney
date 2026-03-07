@@ -1,12 +1,20 @@
-web: python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file - --timeout 300
+web: python manage.py migrate --noinput && python manage.py sync_data_dictionary && python manage.py sync_user_guide && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file - --timeout 300
 worker: celery -A config worker --loglevel=info --concurrency=2
 beat: celery -A config beat --loglevel=info
-# Updated: 2026-02-28 — Boot Architecture Hardening
+# Updated: 2026-03-07 — Added guide sync commands to boot
 #
 # Web service startup (minimal, deterministic, safe):
 #   - migrate: Apply pending DB migrations (Django-tracked, safe)
+#   - sync_data_dictionary: Sync Data Dictionary from docs/WLJ_Data_Dictionary.md (idempotent, ~2s)
+#   - sync_user_guide: Sync User Guide from HelpTopic/HelpArticle records (idempotent, ~1s)
 #   - collectstatic: Gather static files (idempotent, no DB/cache)
 #   - gunicorn: WSGI server (APScheduler starts inside wsgi.py)
+#
+# Guide sync commands are safe for boot:
+#   - Idempotent (skip unchanged content via hash comparison)
+#   - Fast (~2-3 seconds total)
+#   - No cache/Redis dependency
+#   - Only create/update AdminGuideSection + AdminGuideArticle records
 #
 # REMOVED FROM BOOT (2026-02-28):
 #   - load_initial_data: Now manual-only. Run via: python manage.py load_initial_data

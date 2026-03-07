@@ -9,6 +9,12 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Fix Data Dictionary empty on production
+
+- **What:** Added `sync_data_dictionary` and `sync_user_guide` commands directly to Procfile web startup chain (after migrate, before collectstatic). Fixed error handling in `load_initial_data.py` so sync failures are always logged to stderr regardless of verbosity level.
+- **Why:** The Data Dictionary and User Guide pages were empty on production because `load_initial_data` was removed from the Procfile boot sequence (Boot Architecture Hardening, 2026-02-28). The sync commands added to `load_initial_data.py` never ran. The guide sync commands are safe for boot — idempotent, fast (~2-3s), no cache/Redis dependency.
+- **Files:** `Procfile`, `apps/core/management/commands/load_initial_data.py`
+
 ## 2026-03-07 — Update App Review Guide with all current modules
 
 - **What:** Updated the Apple App Store review guide at `/app-review/` to include all current modules: Meals & Nutrition, People & Relationships, Notes, Capture (Audio), and Chief of Staff (AI). Updated feature grid (6→10 cards), feature locations table (10→15 rows), HealthKit data types (+Lean Body Mass, BMI), video script (added AI and module tour steps), and native iOS justification (+Contact Import, Camera/Photo).

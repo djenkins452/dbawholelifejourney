@@ -42,6 +42,30 @@ DATA_NOT_FOUND_CLARIFYING_MESSAGE = (
     "Would you like to log some? I can help you find where to do that."
 )
 
+# Navigation links for data types — used by CoS context injection
+DATA_TYPE_NAVIGATION = {
+    'weight': ('Weight Tracking', '/health/weight/'),
+    'food': ('Nutrition Log', '/health/nutrition/'),
+    'sleep': ('Sleep Tracker', '/health/sleep/'),
+    'heart_rate': ('Heart Rate', '/health/heart-rate/'),
+    'blood_pressure': ('Blood Pressure', '/health/blood-pressure/'),
+    'blood_oxygen': ('Blood Oxygen', '/health/blood-pressure/'),
+    'glucose': ('Glucose', '/health/glucose/'),
+    'medication': ('Medicines', '/medical/medicines/'),
+    'workout': ('Fitness', '/health/fitness/'),
+    'fasting': ('Fasting Tracker', '/health/fasting/'),
+    'steps': ('Step Tracker', '/health/steps/'),
+    'journal': ('Journal', '/journal/'),
+    'mood': ('Journal', '/journal/'),
+    'goals': ('Goals', '/purpose/goals/'),
+    'task': ('Tasks', '/life/tasks/'),
+    'faith': ('Faith Dashboard', '/faith/'),
+    'health_summary': ('Dashboard', '/dashboard/'),
+    'mobility': ('Fitness', '/health/fitness/'),
+    'dietary_nutrients': ('Nutrition Log', '/health/nutrition/'),
+    'user': ('Settings', '/user/preferences/'),
+}
+
 # User-facing message when user confirms data exists but assistant can't see it
 DATA_VISIBILITY_ISSUE_MESSAGE = (
     "Thank you for confirming. I've notified the admin about this data visibility issue. "
@@ -232,7 +256,7 @@ def process_assistant_message(
         #
         # Instead of treating as a gap, ask user to clarify
         primary_data_type = queryable_types[0] if queryable_types else 'data'
-        friendly_name = _get_friendly_data_type_name(primary_data_type)
+        friendly_name = get_friendly_data_type_name(primary_data_type)
 
         result['needs_clarification'] = True
         result['clarifying_question'] = DATA_NOT_FOUND_CLARIFYING_MESSAGE.format(
@@ -248,7 +272,7 @@ def process_assistant_message(
     return result
 
 
-def _get_friendly_data_type_name(data_type: str) -> str:
+def get_friendly_data_type_name(data_type: str) -> str:
     """Convert internal data type name to user-friendly display name."""
     friendly_names = {
         'glucose': 'blood glucose',
@@ -473,7 +497,7 @@ def handle_data_visibility_confirmation(
             'issue_resolved': True,
         }
 
-    friendly_name = _get_friendly_data_type_name(data_type)
+    friendly_name = get_friendly_data_type_name(data_type)
 
     if not user_confirms_data_exists:
         # User doesn't have data - this is expected, no action needed

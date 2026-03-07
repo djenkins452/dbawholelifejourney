@@ -14,6 +14,12 @@
 
 ---
 ## 2026-03-07 — Fix Data Dictionary empty on production
+## 2026-03-07 — Embed Data Dictionary in migration (no file dependency)
+
+- **What:** Created migration 0035 that embeds the full Data Dictionary markdown (gzip+base64 encoded, 36KB) directly in the migration file. Parses sections/articles inline using Django ORM — zero file system dependency.
+- **Why:** Railway/Nixpacks doesn't include `docs/` directory files at runtime. Migrations 0033 and 0034 both failed silently because `docs/WLJ_Data_Dictionary.md` wasn't available. The User Guide worked because it reads from DB (HelpTopic/HelpArticle), not from a file.
+- **Files:** `apps/admin_console/migrations/0035_embed_data_dictionary.py`
+
 ## 2026-03-07 — Fix Data Dictionary file path on production (migration 0034)
 
 - **What:** Created migration 0034 with robust file path resolution (tries BASE_DIR, parent dir, and migration-relative paths) plus diagnostic output. Fixed `sync_data_dictionary` command to raise `FileNotFoundError` instead of silently returning. Migration 0033 ran on production but `sync_data_dictionary` silently returned because the docs file wasn't found at the expected path.

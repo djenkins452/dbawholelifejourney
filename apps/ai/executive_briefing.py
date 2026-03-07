@@ -148,6 +148,9 @@ def build_executive_briefing(user, conversation) -> str:
         # Section C: Health gate (meds, fasting, workout)
         sections.append(_build_health_gate_section(user, today))
 
+        # Section C.5: Behavioral pattern awareness (v8)
+        sections.append(_build_pattern_section(user))
+
         # Section D: Day overview narrative
         sections.append(_build_day_overview_section(user, user_now, today))
 
@@ -759,6 +762,65 @@ def _build_health_gate_section(user, today) -> str:
         return ""
 
     return "\n".join(lines)
+
+
+def _build_pattern_section(user) -> str:
+    """
+    v8: Build behavioral pattern context for morning briefing.
+
+    Injects momentum, drift, one-off sensitivity, and emotional context
+    so the LLM can weave pattern observations into the briefing narrative.
+    """
+    try:
+        from apps.ai.situational_awareness import build_situational_awareness
+        sa = build_situational_awareness(user)
+
+        if not sa or not sa.get('lines'):
+            return ""
+
+        parts = []
+
+        momentum = sa.get('momentum_signals', [])
+        drift = sa.get('drift_signals', [])
+        one_off = sa.get('one_off_sensitive_domains', [])
+        emotional = sa.get('emotional_context', 'none')
+
+        if momentum:
+            parts.append(
+                f"PATTERN CONTEXT: User has been consistent with "
+                f"{', '.join(momentum)}. Reinforce — do not recommend "
+                f"these as new improvements."
+            )
+
+        if drift:
+            parts.append(
+                f"DRIFT CONTEXT: {', '.join(drift)} has dropped off "
+                f"(active goal exists). Frame as recommit-or-deprioritize, "
+                f"not guilt."
+            )
+
+        if one_off:
+            parts.append(
+                f"ONE-OFF CONTEXT: {', '.join(one_off)} is recently "
+                f"consistent but may not be done yet today. "
+                f"Gentle nudge only — not failure."
+            )
+
+        if emotional != 'none':
+            parts.append(
+                f"EMOTIONAL CONTEXT: {emotional} signals detected in "
+                f"recent conversations. Reduce pressure in this briefing. "
+                f"Prioritize care and stability."
+            )
+
+        if not parts:
+            return ""
+
+        return "\n".join(parts)
+
+    except Exception as e:
+        logger.debug("Executive briefing: pattern section unavailable: %s", e)
+        return ""
 
 
 def _build_day_overview_section(user, user_now, today) -> str:

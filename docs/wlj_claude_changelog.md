@@ -14,6 +14,15 @@
 
 ---
 
+## 2026-03-07 — Fix CoS early-return personal data short-circuit
+
+- **What:** Removed the hard-coded template early-return in `personal_assistant.py` that bypassed the LLM when personal data queries found no records. When a user asks about weight, sleep, medications, etc. and no data exists, the CoS now receives structured context about the data gap and generates an intelligent response instead of returning `"I don't have any {X} entries in your records yet."` Added `_build_missing_data_context()` helper that injects: data domain queried, navigation links, and strict health grounding rules to prevent hallucination. Added `DATA_TYPE_NAVIGATION` mapping to `assistant/views.py`.
+- **Why:** 58% of CoS responses were identical hard-coded templates that bypassed the LLM entirely. The CoS never saw these questions — `process_assistant_message()` detected a personal data query, found no DB records, and returned a template string before the CoS pipeline could run. This prevented the CoS from using secondary context (priorities, forecasts, intelligence summaries) or showing personality.
+- **Files:** `apps/ai/personal_assistant.py`, `assistant/views.py`
+- **Evaluation:** Overall score improved from 4.4/10 → 5.9/10. Template responses eliminated (58% → 0%). Navigation links now appear in 10/19 responses. Persistent medication hallucination identified as separate issue in CoS system prompt layer.
+
+---
+
 ## 2026-03-07 — Fix duplicate PKs in fixture files
 
 - **What:** Renumbered duplicate PKs introduced by concurrent worktree merges: `release_notes.json` pk 138→141, `help_topics.json` pk 146→148, `teaching_destinations.json` pk 176→179 and 177→180.

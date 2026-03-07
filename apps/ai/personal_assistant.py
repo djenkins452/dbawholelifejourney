@@ -33,7 +33,11 @@ from .models import (
     AssistantConversation, AssistantMessage,
     UserStateSnapshot, DailyPriority, ReflectionPromptQueue
 )
-from assistant.views import process_assistant_message
+from assistant.views import (
+    process_assistant_message,
+    DATA_TYPE_NAVIGATION,
+    get_friendly_data_type_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +95,71 @@ CHECKIN_PATTERNS = frozenset([
     'things to do', 'to-do list',
     'anything left',
 ])
+
+
+# =============================================================================
+# HEALTH-SENSITIVE CLAIM GROUNDING
+# =============================================================================
+# These data domains require strict factual grounding. The CoS must NOT state
+# specific values for these unless the exact values appear in the structured
+# CoS context or direct query results.
+GROUNDED_HEALTH_DOMAINS = frozenset([
+    'weight', 'body_fat', 'lean_mass', 'blood_pressure', 'heart_rate',
+    'glucose', 'spo2', 'sleep', 'medication', 'calories', 'macros',
+    'protein', 'body_composition', 'blood_oxygen',
+])
+
+
+def _build_missing_data_context(personal_data_result: dict) -> str:
+    """Build a structured context block for personal data queries with no direct data.
+
+    Instead of returning a hard-coded template string, this injects context into the
+    system prompt so the CoS can generate an intelligent, contextual response that:
+    - Acknowledges the data gap honestly
+    - Uses secondary context (priorities, forecasts, intelligence summaries)
+    - Provides relevant navigation links
+    - Applies general reasoning where appropriate
+    - Never fabricates specific health values
+    """
+    data_type = personal_data_result.get('awaiting_data_type', 'data')
+    friendly_name = get_friendly_data_type_name(data_type)
+    nav_info = DATA_TYPE_NAVIGATION.get(data_type)
+    nav_link = f"[{nav_info[0]}]({nav_info[1]})" if nav_info else None
+
+    context_lines = [
+        "",
+        "=== PERSONAL DATA QUERY — NO DIRECT DATA ===",
+        f"The user is asking about: {friendly_name}",
+        f"Data source searched: {data_type}",
+        "Direct records found: NONE",
+        "",
+        "RESPONSE GUIDANCE:",
+        f"- Acknowledge honestly that no {friendly_name} data has been logged yet",
+    ]
+
+    if nav_link:
+        context_lines.append(
+            f"- Direct the user to log data: {nav_link}"
+        )
+
+    context_lines.extend([
+        "- Use your operational context above (priorities, forecasts, health intelligence,",
+        "  watch areas) to still provide useful, personalized guidance",
+        "- If the question allows general reasoning (e.g., 'why does sleep matter for fat loss'),",
+        "  provide helpful general guidance alongside the data gap acknowledgment",
+        "- Apply your coaching personality and executive tone",
+        "",
+        "STRICT GROUNDING RULE FOR THIS RESPONSE:",
+        f"You have NO {friendly_name} records for this user. Do NOT state, imply, or invent",
+        "specific values for: weight, body fat %, lean mass, blood pressure, heart rate,",
+        "glucose, SpO2, sleep hours/quality, medication names/doses/schedules, calorie counts,",
+        "or macro values. These may ONLY be stated when exact values appear in the CoS",
+        "operational context above. Saying 'I don't have that data yet' is ALWAYS better",
+        "than fabricating a number or schedule.",
+        "=== END PERSONAL DATA QUERY ===",
+    ])
+
+    return "\n".join(context_lines)
 
 
 # =============================================================================
@@ -4657,25 +4726,23 @@ Rules for voice responses:
             base_system_prompt=system_prompt,
         )
 
-        # If personal data was found, use the enhanced prompt
+        # If personal data was found, use the enhanced prompt with grounded data
         if personal_data_result['is_personal_query'] and personal_data_result['has_data']:
             system_prompt = personal_data_result['system_prompt']
             logger.debug(
                 f"Personal data context injected for data types: {personal_data_result['data_types']}"
             )
 
-        # If clarification is needed (data query but no data found), ask the user
-        if personal_data_result.get('needs_clarification'):
-            # Store the awaiting data type in conversation metadata for follow-up
-            conversation.metadata = conversation.metadata or {}
-            conversation.metadata['awaiting_data_visibility_confirmation'] = True
-            conversation.metadata['awaiting_data_type'] = personal_data_result.get('awaiting_data_type')
-            conversation.save(update_fields=['metadata'])
-
+        # If personal data was queried but NOT found, inject structured context
+        # so CoS can respond intelligently instead of returning a template string.
+        # The LLM sees the gap and can use secondary context (priorities, forecasts,
+        # intelligence summaries, navigation links) to provide a helpful response.
+        elif personal_data_result.get('needs_clarification'):
+            system_prompt += _build_missing_data_context(personal_data_result)
             logger.info(
-                f"Asking user to verify data visibility for {personal_data_result.get('awaiting_data_type')}"
+                f"Missing-data context injected for {personal_data_result.get('awaiting_data_type')}, "
+                f"CoS will generate response"
             )
-            return personal_data_result['clarifying_question']
 
         # Check if this is a web search query (weather, news, etc.)
         # Handle these with web search before falling back to general AI

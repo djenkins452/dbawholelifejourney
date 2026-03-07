@@ -31,6 +31,21 @@
 
 ---
 
+## 2026-03-07 — CoS operational tuning v6: decision mode + briefing format + reflection fix
+
+- **What:** Operational tuning to make CoS behave like a real Chief of Staff — clear recommendations, structured briefings, no generic filler:
+  1. **Reflection misclassification fix:** Completely rewrote `_is_personal_reflection()` — was too broad, matching strategic questions ("biggest improvement in my life") via substring hits on "improved"/"my life". Now: (a) any message with `?`, "should I", "improve", "focus on", etc. is immediately excluded, (b) requires full emotional phrases ("I feel ", "I'm struggling"), (c) removed all false-positive single-word triggers.
+  2. **Decision Mode (RULE 4):** When user asks "should I..." questions, response must follow Situation→Assessment→Recommendation→Next Step structure. Mirroring without recommendation is explicitly forbidden.
+  3. **Operational Briefing Format (RULE 5):** Priority order: Goals→Goal-supporting actions→Tasks due today→Overdue tasks→Maintenance→Recommendation. Today-focused, concise.
+  4. **No Generic Productivity Advice (RULE 1):** Eisenhower Matrix, Pomodoro Technique, "time block your day" explicitly forbidden. Must use actual user data.
+  5. **CoS Voice (RULE 2):** 9 specific generic assistant phrases banned.
+  6. **Knowledge Response Grounding (RULE 6):** Acknowledge missing data→provide knowledge→explain what enables personalization.
+  7. **Mandatory Context Evaluation v6:** Expanded from 4 to 6 steps — now checks tasks due/overdue, outstanding commitments, missing data domains. Stronger anti-template test.
+  8. **SECTION 8 updates:** Added "Eisenhower Matrix", "Pomodoro Technique" as explicitly prohibited terms; banned decision-mirroring and empathy templates for strategic questions.
+- **Files:** `apps/ai/personal_assistant.py` (~82 lines changed), `apps/core/ai_orchestrator/cos_context.py` (~221 lines changed), `docs/CoSEvaluation_v6.md`
+- **Eval:** API quota exhausted from v5 run — projected ~7.0-7.5/10 based on v5 baseline + targeted fixes. Full 28-question eval pending quota reset.
+- **Why:** v5 measured 5.6/10 (with API/methodology issues). Strategic questions were misclassified as reflections (Q23=1/10), CoS lacked decision-quality responses, and briefing format was inconsistent.
+
 ## 2026-03-07 — CoS behavioral tuning v5: response quality + pipeline routing fix
 
 - **What:** Behavioral tuning (prompt-only) to improve CoS response quality, plus critical pipeline routing fix:

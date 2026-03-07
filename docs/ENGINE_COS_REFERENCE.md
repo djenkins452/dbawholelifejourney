@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-07
+**Last updated:** 2026-03-07 (v6 operational tuning)
 
 ---
 
@@ -250,7 +250,9 @@ System prompt layers (highest priority first):
 ├─ 5. Learned user profile
 ├─ 6. format_cos_system_injection(cos_context) ← THE MAIN CONTEXT
 │     └─ v4: Data State Snapshot moved to END (highest recency weight)
-│     └─ v4: RESPONSE QUALITY RULES appended (anti-generic-response)
+│     └─ v5: RESPONSE QUALITY RULES + CoS Voice + Missing Data Framing
+│     └─ v6: Consolidated CHIEF OF STAFF OPERATIONAL RULES (6 rules)
+│     └─ v6: MANDATORY CONTEXT EVALUATION (6 steps + anti-template)
 ├─ 7. Base prompt + coaching style + faith
 ├─ 8. Pending reflections
 └─ 9. Greeting context
@@ -275,6 +277,42 @@ System prompt layers (highest priority first):
 **Change:** `_build_data_state_snapshot()` now includes `active_tasks` and `completed_tasks_today` counts. The snapshot is injected at the END of `format_cos_system_injection()` (just before "END SITUATIONAL AWARENESS") for maximum recency weight — LLMs weight later-appearing context more heavily.
 
 **Grounding rules:** Snapshot includes "ABSOLUTE GROUNDING RULES" that instruct the LLM to use exact counts or say "no data logged" — never estimate or infer.
+
+### v5 Pipeline Routing Fix + Voice Enforcement (2026-03-07)
+
+**Problem:** `needs_web_search()` in `web_search_service.py` had overly broad regex that caught personal/CoS questions (e.g., "How should I structure my day?") and routed them to gpt-4o-mini with NO CoS context. Root cause of persistent Eisenhower Matrix responses.
+
+**Fix:**
+1. **PERSONAL_DATA_EXCLUSIONS** — 18 new regex patterns in `web_search_service.py` prevent personal/advisory questions from being intercepted by the web search path.
+2. **Guard in `_generate_response()`** — Skip web search when personal data query already detected.
+3. **RESPONSE QUALITY RULES** — CoS voice enforcement, missing-data framing ("not logged yet" instead of "unable to access"), knowledge response grounding.
+
+**Files changed:** `apps/ai/web_search_service.py`, `apps/ai/personal_assistant.py`, `apps/core/ai_orchestrator/cos_context.py`
+
+**Evaluation report:** `docs/CoSEvaluation_v5.md`
+
+### v6 Operational Tuning — Decision Mode + Briefing Format (2026-03-07)
+
+**Changes:** Consolidated all prompt rules into single `CHIEF OF STAFF OPERATIONAL RULES (v6)` block with 6 rules:
+
+| Rule | Purpose | Key Behavior |
+|------|---------|-------------|
+| RULE 1 | No Generic Productivity Advice | Eisenhower Matrix, Pomodoro explicitly forbidden |
+| RULE 2 | Chief of Staff Voice | 9 banned generic assistant phrases |
+| RULE 3 | Missing Data Framing | "not logged yet" + actionable tracking link |
+| RULE 4 | Decision Mode | Situation→Assessment→Recommendation→Next Step for "should I..." |
+| RULE 5 | Operational Briefing Format | Goals→Actions→Tasks→Overdue→Maintenance→Recommendation |
+| RULE 6 | Knowledge Response Grounding | Acknowledge missing data→provide knowledge→suggest tracking |
+
+**Additional v6 changes:**
+- **Mandatory Context Evaluation** expanded to 6 steps (from 4) — now explicitly checks tasks due/overdue, outstanding commitments, missing data domains
+- **Anti-template test** strengthened: "does it reference the user's actual task count, workout status, goal state, or time context? If not, rewrite."
+- **`_is_personal_reflection()` rewritten** — strategic exclusions (`?`, "should I", "improve", etc.) prevent strategic questions from being misclassified as emotional reflections. Now requires phrase-level matching ("I feel ", "I'm struggling") instead of single-word triggers.
+- **SECTION 8** — added "Eisenhower Matrix", "Pomodoro Technique" as explicitly prohibited; banned decision-mirroring and empathy templates for strategic questions.
+
+**Files changed:** `apps/ai/personal_assistant.py`, `apps/core/ai_orchestrator/cos_context.py`
+
+**Evaluation report:** `docs/CoSEvaluation_v6.md` (projected ~7.0-7.5/10; full eval pending API quota reset)
 
 ### CoS Context Injection Output
 

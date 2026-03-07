@@ -2230,5 +2230,21 @@
       "created_at": "2026-03-07T00:00:00Z",
       "updated_at": "2026-03-07T00:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 140,
+    "fields": {
+      "title": "Friendlier Chat Error Recovery",
+      "description": "When Beth hits a hiccup, she now responds with a friendly message and a one-tap retry button instead of a cold error screen. Messages rotate so you never see the same one twice, and the tone gently shifts if the issue persists.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-07T00:00:00Z",
+      "updated_at": "2026-03-07T00:00:00Z"
+    }
   }
 ]

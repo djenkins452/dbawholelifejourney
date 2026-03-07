@@ -31,6 +31,19 @@
 
 ---
 
+## 2026-03-07 — CoS v8.1: Dynamic User Priority Model
+
+- **What:** Replaces hardcoded priority assumptions ("workout = non-negotiable, bike ride = optional") in the Situational Awareness layer with dynamic lookups from each user's actual declared priorities:
+  1. **`_get_user_priority_model(user)`**: Queries PersonalOperatingBlueprint (tier1_protected_behaviors, pillars_ranked, NonNegotiable records) and GovernanceProfile (commitment_level per module) to build a complete priority picture per user.
+  2. **`_domain_has_priority()` / `_domain_is_non_negotiable()`**: Check SA domains against user's blueprint behavior keys and governance module commitments. Drift only flagged for domains with proven priority from any source.
+  3. **`_has_proven_priority_fallback()`**: When no blueprint or governance data exists, falls back to keyword-matching against active HabitGoal names.
+  4. **Dynamic formatter rule #4**: Shows user's actual non-negotiables (e.g., "NON-NEGOTIABLES: Morning Prayer, Workout = user-declared non-negotiable") or prompts "ask what matters most" if none declared.
+  5. **USER PRIORITY MODEL section**: Injects daily non-negotiables and ranked life pillars with hierarchy: non-negotiables > strategic mission > goal-supporting habits > operational tasks > optional activities.
+  6. **Bug fix**: `_get_user_priority_model()` had an early return when no blueprint exists, which skipped GovernanceProfile queries entirely. Fixed to always check both sources independently.
+- **Files:** `apps/ai/situational_awareness.py` (~+80 lines), `apps/ai/tests/test_situational_awareness.py` (~+60 lines, now 30 tests)
+- **Tests:** 30/30 SA tests pass + 12/12 briefing + 61/61 PA. 0 regressions.
+- **Why:** v8 hardcoded "workout = non-negotiable" for every user. The system already has rich priority infrastructure (Blueprint calibration, GovernanceProfile, NonNegotiable records). The CoS must dynamically adapt to each individual user's declared priorities rather than assuming one-size-fits-all.
+
 ## 2026-03-07 — CoS v8: Situational Awareness + Predictive Guidance
 
 - **What:** Transforms CoS from state-aware to pattern-aware by adding a deterministic Situational Awareness Summary (SA) context block. All computations are DB queries + math — no LLM calls:
@@ -41,7 +54,7 @@
   5. **Fatigue scanning:** Only scans user-authored messages (never assistant/system) to prevent feedback loops. Requires 2+ conversations with keywords.
   6. **Parallel builder integration:** Added as 13th parallel builder in cos_context.py via ThreadPoolExecutor. Zero added latency.
   7. **Triple injection:** SA feeds (a) regular CoS responses via cos_context pipeline, (b) check-in responses via explicit injection in personal_assistant.py, (c) proactive briefings via _build_pattern_section() in executive_briefing.py.
-  8. **Pattern-Aware Guidance Rules:** 6 rules injected with SA block — momentum reinforcement, drift accountability, one-off sensitivity, core discipline (workout=non-negotiable, bike=optional), emotional context modulation, mood as weak signal.
+  8. **Pattern-Aware Guidance Rules:** 6 rules injected with SA block — momentum reinforcement, drift accountability, one-off sensitivity, dynamic non-negotiable protection (from user's blueprint/governance), emotional context modulation, mood as weak signal.
   9. **Step 7 added to Mandatory Context Evaluation:** "READ the Situational Awareness Summary. Note momentum, drift, one-off sensitive domains, and emotional context."
 - **Files:** `apps/ai/situational_awareness.py` (~350 lines), `apps/core/ai_orchestrator/cos_context.py` (~25 lines), `apps/ai/personal_assistant.py` (~10 lines), `apps/ai/executive_briefing.py` (~55 lines), `apps/ai/tests/test_situational_awareness.py` (~300 lines), `docs/CoSEvaluation_v8.md`
 - **Tests:** 24/24 new tests pass + 73/73 existing PA + briefing tests pass. 0 regressions.

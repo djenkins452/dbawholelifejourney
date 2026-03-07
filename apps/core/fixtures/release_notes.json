@@ -2268,7 +2268,7 @@
     "pk": 143,
     "fields": {
       "title": "Smarter Pattern Awareness",
-      "description": "Beth now tracks your behavioral patterns over time — workout consistency, weight tracking, journaling, medication adherence, and more. She can distinguish a single missed day from a real habit break, reinforce your momentum when you’re consistent, and respectfully call out drift when a declared priority slips. Your CoS just got materially smarter.",
+      "description": "Beth now tracks your behavioral patterns over time — workout consistency, weight tracking, journaling, medication adherence, and more. She can distinguish a single missed day from a real habit break, reinforce your momentum when you’re consistent, and respectfully call out drift when a declared priority slips. Priorities are fully personalized — Beth uses your calibration profile, governance settings, and declared non-negotiables to know what matters most to you.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-07",

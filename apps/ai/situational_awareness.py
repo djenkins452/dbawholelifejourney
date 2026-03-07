@@ -53,20 +53,21 @@ MOOD_SCORES = {
     'difficult': 1,
 }
 
-# ── Workout / bike ride keyword detection ──
-WORKOUT_KEYWORDS = frozenset({
-    'workout', 'exercise', 'gym', 'training', 'lift',
-    'strength', 'cardio', 'crossfit', 'weight training',
-})
-BIKE_KEYWORDS = frozenset({
-    'bike', 'cycling', 'ride', 'bicycle', 'biking',
-})
-
-# ── Journal-related goal keywords (for accountability gate) ──
-JOURNAL_GOAL_KEYWORDS = frozenset({
-    'journal', 'journaling', 'writing', 'reflection',
-    'diary', 'gratitude',
-})
+# ── Domain-to-behavior-key mapping ──
+# Maps SA domains to behavior keys used in PersonalOperatingBlueprint
+# and module keys used in GovernanceProfile.
+DOMAIN_BEHAVIOR_KEYS = {
+    'workout': ['WORKOUT', 'EXERCISE', 'GYM'],
+    'weight_tracking': ['WEIGHT', 'WEIGHT_TRACKING'],
+    'journaling': ['JOURNAL', 'JOURNALING', 'REFLECTION'],
+    'medication': ['MEDS_ADHERENCE', 'MEDICATION'],
+}
+DOMAIN_MODULE_KEYS = {
+    'workout': ['health.workouts', 'health.fitness', 'health'],
+    'weight_tracking': ['health.weight', 'health'],
+    'journaling': ['journal'],
+    'medication': ['health.medication', 'health'],
+}
 
 
 def _classify_consistency(days_active, window=7):
@@ -79,11 +80,138 @@ def _classify_consistency(days_active, window=7):
         return 'slipping'
 
 
-def _has_proven_priority(user, domain_keywords):
+def _get_user_priority_model(user):
     """
-    Check if user has an active goal/habit matching this domain.
-    Only returns True when accountability framing is justified.
+    Build a dynamic priority model from the user's blueprint and governance data.
+
+    Returns a dict with:
+        non_negotiables: list of display names the user declared non-negotiable
+        non_negotiable_keys: set of behavior keys (uppercased) that are tier1/non-negotiable
+        module_commitments: dict of module_key → commitment_level
+        pillars_ranked: ordered list of pillar names
+        has_blueprint: bool — whether user has configured a blueprint
+
+    This replaces hardcoded priority assumptions with the user's actual declared priorities.
     """
+    result = {
+        'non_negotiables': [],
+        'non_negotiable_keys': set(),
+        'module_commitments': {},
+        'pillars_ranked': [],
+        'has_blueprint': False,
+    }
+
+    try:
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+
+        blueprint = PersonalOperatingBlueprint.objects.filter(user=user).first()
+        if blueprint:
+            result['has_blueprint'] = True
+            result['pillars_ranked'] = blueprint.pillars_ranked or []
+
+            # Tier 1 protected behaviors (identity-protected)
+            tier1 = blueprint.tier1_protected_behaviors or []
+            result['non_negotiable_keys'] = {k.upper() for k in tier1}
+
+            # Active NonNegotiable records (have display names)
+            for nn in blueprint.non_negotiables.filter(is_active=True):
+                result['non_negotiables'].append(nn.display_name)
+                result['non_negotiable_keys'].add(nn.behavior_key.upper())
+
+    except Exception as e:
+        logger.debug("SA: blueprint unavailable: %s", e)
+
+    try:
+        from apps.core.ai_governance.models import GovernanceProfile
+
+        for gp in GovernanceProfile.objects.filter(user=user):
+            result['module_commitments'][gp.module_key] = {
+                'level': gp.commitment_level,
+                'display_name': gp.display_name,
+                'escalation': gp.escalation_preference,
+            }
+            # GovernanceProfile non_negotiable also counts
+            if gp.commitment_level == 'non_negotiable':
+                result['non_negotiable_keys'].add(gp.module_key.upper())
+                if gp.display_name:
+                    result['non_negotiables'].append(gp.display_name)
+
+    except Exception as e:
+        logger.debug("SA: governance profile unavailable: %s", e)
+
+    # Deduplicate non_negotiable display names
+    seen = set()
+    deduped = []
+    for name in result['non_negotiables']:
+        if name.lower() not in seen:
+            seen.add(name.lower())
+            deduped.append(name)
+    result['non_negotiables'] = deduped
+
+    return result
+
+
+def _domain_has_priority(domain, priority_model):
+    """
+    Check if a domain has proven priority via the user's blueprint/governance.
+
+    Sources checked (in order):
+    1. tier1_protected_behaviors (behavior keys)
+    2. Active NonNegotiable records (behavior keys)
+    3. GovernanceProfile with commitment_level = non_negotiable or important
+    4. Active HabitGoal with matching name (fallback)
+    """
+    # Check behavior keys against tier1 + non-negotiable records
+    behavior_keys = DOMAIN_BEHAVIOR_KEYS.get(domain, [])
+    nn_keys = priority_model.get('non_negotiable_keys', set())
+    for bk in behavior_keys:
+        if bk.upper() in nn_keys:
+            return True
+
+    # Check GovernanceProfile module commitments
+    module_keys = DOMAIN_MODULE_KEYS.get(domain, [])
+    commitments = priority_model.get('module_commitments', {})
+    for mk in module_keys:
+        commitment = commitments.get(mk, {})
+        if commitment.get('level') in ('non_negotiable', 'important'):
+            return True
+
+    return False
+
+
+def _domain_is_non_negotiable(domain, priority_model):
+    """Check if a domain is specifically non-negotiable (not just important)."""
+    behavior_keys = DOMAIN_BEHAVIOR_KEYS.get(domain, [])
+    nn_keys = priority_model.get('non_negotiable_keys', set())
+    for bk in behavior_keys:
+        if bk.upper() in nn_keys:
+            return True
+
+    module_keys = DOMAIN_MODULE_KEYS.get(domain, [])
+    commitments = priority_model.get('module_commitments', {})
+    for mk in module_keys:
+        commitment = commitments.get(mk, {})
+        if commitment.get('level') == 'non_negotiable':
+            return True
+
+    return False
+
+
+def _has_proven_priority_fallback(user, domain):
+    """
+    Fallback: check if user has an active HabitGoal matching this domain.
+    Used when blueprint/governance data is not available.
+    """
+    domain_keywords = {
+        'workout': ['workout', 'exercise', 'gym', 'training', 'lift', 'strength'],
+        'weight_tracking': ['weight'],
+        'journaling': ['journal', 'journaling', 'writing', 'reflection', 'diary'],
+        'medication': ['medication', 'medicine', 'meds'],
+    }
+    keywords = domain_keywords.get(domain, [])
+    if not keywords:
+        return False
+
     try:
         from apps.purpose.models import HabitGoal
         active_goals = HabitGoal.objects.filter(
@@ -93,7 +221,7 @@ def _has_proven_priority(user, domain_keywords):
         name_lower_set = {n.lower() for n in active_goals}
         return any(
             kw in name
-            for kw in domain_keywords
+            for kw in keywords
             for name in name_lower_set
         )
     except Exception:
@@ -206,15 +334,11 @@ def _get_journal_pattern(user, today):
         else:
             line = f"Journaling: {recent_dates} entries in last 7 days — {classification}"
 
-        # Accountability gate: only flag as drift if proven priority
-        has_priority = _has_proven_priority(user, JOURNAL_GOAL_KEYWORDS)
-
         return {
             'domain': 'journaling',
             'days_active': recent_dates,
             'total_days': 7,
             'classification': classification,
-            'has_proven_priority': has_priority,
             'days_since_last': days_since_last,
             'line': line,
         }
@@ -421,6 +545,7 @@ def build_situational_awareness(user) -> dict:
         'drift_signals': [],
         'one_off_sensitive_domains': [],
         'emotional_context': 'none',
+        'user_priority_model': {},
     }
 
     try:
@@ -428,6 +553,23 @@ def build_situational_awareness(user) -> dict:
         today = get_user_today(user)
     except Exception:
         today = timezone.now().date()
+
+    # ── 0. Load user priority model (dynamic, from blueprint/governance) ──
+    priority_model = _get_user_priority_model(user)
+    result['user_priority_model'] = priority_model
+
+    def _check_drift(domain, pattern_data):
+        """Check if a slipping domain should be flagged as drift."""
+        # First: check blueprint/governance data (if any exists)
+        has_priority_data = (
+            priority_model.get('has_blueprint')
+            or priority_model.get('module_commitments')
+            or priority_model.get('non_negotiable_keys')
+        )
+        if has_priority_data:
+            return _domain_has_priority(domain, priority_model)
+        # Fallback: check HabitGoal names (keyword-based)
+        return _has_proven_priority_fallback(user, domain)
 
     # ── 1. Workout consistency ──
     workout = _get_workout_pattern(user, today)
@@ -437,8 +579,7 @@ def build_situational_awareness(user) -> dict:
             result['momentum_signals'].append('workout')
             result['one_off_sensitive_domains'].append('workout')
         elif workout['classification'] == 'slipping':
-            # Accountability only if workout goal exists
-            if _has_proven_priority(user, WORKOUT_KEYWORDS):
+            if _check_drift('workout', workout):
                 result['drift_signals'].append('workout')
 
     # ── 2. Weight tracking ──
@@ -449,7 +590,8 @@ def build_situational_awareness(user) -> dict:
             result['momentum_signals'].append('weight_tracking')
             result['one_off_sensitive_domains'].append('weight_tracking')
         elif weight['classification'] == 'slipping':
-            result['drift_signals'].append('weight_tracking')
+            if _check_drift('weight_tracking', weight):
+                result['drift_signals'].append('weight_tracking')
 
     # ── 3. Journal consistency ──
     journal = _get_journal_pattern(user, today)
@@ -459,7 +601,7 @@ def build_situational_awareness(user) -> dict:
             result['momentum_signals'].append('journaling')
             result['one_off_sensitive_domains'].append('journaling')
         elif journal['classification'] == 'slipping':
-            if journal.get('has_proven_priority'):
+            if _check_drift('journaling', journal):
                 result['drift_signals'].append('journaling')
 
     # ── 4. Mood trend (weak signal) ──
@@ -474,7 +616,8 @@ def build_situational_awareness(user) -> dict:
         if meds['adherence_rate'] >= 85:
             result['momentum_signals'].append('medication')
         elif meds['adherence_rate'] < 60:
-            result['drift_signals'].append('medication')
+            if _check_drift('medication', meds):
+                result['drift_signals'].append('medication')
 
     # ── 6. Fatigue / distress signals ──
     fatigue = _get_fatigue_signals(user)
@@ -539,7 +682,28 @@ def format_situational_awareness_injection(sa_data: dict) -> str:
             f"reduce pressure, prioritize care"
         )
 
-    lines.append("")
+    # ── Dynamic priority hierarchy from user's blueprint ──
+    priority_model = sa_data.get('user_priority_model', {})
+    nn_names = priority_model.get('non_negotiables', [])
+    pillars = priority_model.get('pillars_ranked', [])
+
+    if nn_names or pillars:
+        lines.append("USER PRIORITY MODEL (from calibration):")
+        if nn_names:
+            lines.append(
+                f"  Daily non-negotiables: {', '.join(nn_names)}"
+            )
+        if pillars:
+            pillar_display = [p.replace('_', ' ').title() for p in pillars]
+            lines.append(
+                f"  Life pillars (ranked): {' > '.join(pillar_display)}"
+            )
+        lines.append(
+            "  Priority hierarchy: non-negotiables > strategic mission > "
+            "goal-supporting habits > operational tasks > optional activities"
+        )
+        lines.append("")
+
     lines.append("PATTERN-AWARE GUIDANCE RULES:")
     lines.append(
         "1. MOMENTUM domains: reinforce consistency, "
@@ -554,10 +718,22 @@ def format_situational_awareness_injection(sa_data: dict) -> str:
         "incomplete today, frame as 'not yet completed' — gentle nudge, "
         "never failure"
     )
-    lines.append(
-        "4. CORE DISCIPLINE: workout = non-negotiable. "
-        "Bike ride = optional extra. Protect core first."
-    )
+
+    # Rule 4: Dynamic non-negotiable discipline rule
+    if nn_names:
+        nn_str = ', '.join(nn_names)
+        lines.append(
+            f"4. NON-NEGOTIABLES: {nn_str} = user-declared non-negotiable. "
+            f"Protect these first. Reduce intensity before recommending skip. "
+            f"Optional activities drop first."
+        )
+    else:
+        lines.append(
+            "4. NON-NEGOTIABLES: use the user's declared priorities to "
+            "determine what is protected vs optional. "
+            "If no priorities are declared, ask what matters most."
+        )
+
     lines.append(
         "5. EMOTIONAL CONTEXT distress: reduce pressure, "
         "prioritize care and stability"

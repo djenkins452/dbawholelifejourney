@@ -9,6 +9,11 @@
 
 # WLJ Change History
 
+## 2026-03-06 — Data Dictionary: Fix all table names, add master listing
+- **What:** Fixed ~50 incorrect table names verified against Django ORM, added master table listing (all 280+ WLJ tables), added 8 missing apps (calendar_engine, cos, meals, notes, relationships, owner_finance, assistant, dashboard)
+- **Why:** Table names were wrong (assumed Django defaults but many models use custom `db_table`) — couldn't look them up in DBeaver
+- **Files:** `docs/WLJ_Data_Dictionary.md` (updated)
+
 ## 2026-03-06 — Comprehensive Data Dictionary Document
 - **What:** Created `docs/WLJ_Data_Dictionary.md` — a complete data dictionary for every table and field in the WLJ database
 - **Why:** Needed a searchable reference to find where engines write data, what fields mean, and how tables relate

@@ -64,6 +64,7 @@ def get_openai_client():
             _shared_openai_client = OpenAI(
                 api_key=api_key,
                 timeout=LLM_TIMEOUT_SECONDS,
+                max_retries=5,  # SDK handles Retry-After headers on 429s
             )
             logger.info("OpenAI client initialized (shared singleton)")
             return _shared_openai_client
@@ -418,12 +419,27 @@ class AIService:
             except Exception as e:
                 elapsed = time.monotonic() - start_time
                 last_error = e
-                logger.warning(
-                    "LLM error endpoint=%s attempt=%d/%d latency=%.2fs error=%s",
-                    endpoint, attempt, LLM_MAX_RETRIES, elapsed, e,
-                )
+                # Rate-limit errors need longer backoff (API may say "wait 24s")
+                try:
+                    from openai import RateLimitError
+                    is_rate_limit = isinstance(e, RateLimitError)
+                except ImportError:
+                    is_rate_limit = '429' in str(e)
+                if is_rate_limit:
+                    logger.warning(
+                        "LLM RATE LIMITED endpoint=%s attempt=%d/%d latency=%.2fs",
+                        endpoint, attempt, LLM_MAX_RETRIES, elapsed,
+                    )
+                else:
+                    logger.warning(
+                        "LLM error endpoint=%s attempt=%d/%d latency=%.2fs error=%s",
+                        endpoint, attempt, LLM_MAX_RETRIES, elapsed, e,
+                    )
                 if attempt < LLM_MAX_RETRIES:
-                    backoff = LLM_BASE_BACKOFF_SECONDS * (2 ** (attempt - 1))
+                    if is_rate_limit:
+                        backoff = 30.0  # Wait 30s — typical 429 says ~24s
+                    else:
+                        backoff = LLM_BASE_BACKOFF_SECONDS * (2 ** (attempt - 1))
                     time.sleep(backoff)
 
         # All retries exhausted
@@ -530,12 +546,26 @@ class AIService:
             except Exception as e:
                 elapsed = time.monotonic() - start_time
                 last_error = e
-                logger.warning(
-                    "LLM STREAM error endpoint=%s attempt=%d/%d latency=%.2fs error=%s",
-                    endpoint, attempt, LLM_MAX_RETRIES, elapsed, e,
-                )
+                try:
+                    from openai import RateLimitError
+                    is_rate_limit = isinstance(e, RateLimitError)
+                except ImportError:
+                    is_rate_limit = '429' in str(e)
+                if is_rate_limit:
+                    logger.warning(
+                        "LLM STREAM RATE LIMITED endpoint=%s attempt=%d/%d latency=%.2fs",
+                        endpoint, attempt, LLM_MAX_RETRIES, elapsed,
+                    )
+                else:
+                    logger.warning(
+                        "LLM STREAM error endpoint=%s attempt=%d/%d latency=%.2fs error=%s",
+                        endpoint, attempt, LLM_MAX_RETRIES, elapsed, e,
+                    )
                 if attempt < LLM_MAX_RETRIES:
-                    backoff = LLM_BASE_BACKOFF_SECONDS * (2 ** (attempt - 1))
+                    if is_rate_limit:
+                        backoff = 30.0
+                    else:
+                        backoff = LLM_BASE_BACKOFF_SECONDS * (2 ** (attempt - 1))
                     time.sleep(backoff)
                 # Reset start_time for next attempt
                 start_time = time.monotonic()

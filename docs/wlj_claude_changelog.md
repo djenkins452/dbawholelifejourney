@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-07 — Fix OpenAI 429 rate limit handling
+
+- **What:** Production Sentry alert: `RateLimitError` on gpt-4o with 30K TPM limit. The retry loop used 1s/2s/4s backoff, but 429 errors say "wait 24s." Added `max_retries=5` to OpenAI client (SDK respects `Retry-After` headers natively) and rate-limit-aware 30s backoff in both `_call_api` and `_call_api_stream` retry loops.
+- **Why:** CoS system prompt is ~20K tokens; two requests in a minute exceed 30K TPM. The short backoff meant retries all failed too.
+- **Files:** `apps/ai/services.py` — OpenAI client `max_retries=5`, rate-limit detection with 30s backoff in both API methods
+
+---
+
 ## 2026-03-07 — Fix admin guide section ordering test
 
 - **What:** `test_section_ordering` assumed `objects.all()` would only return 2 test-created sections, but `load_initial_data` creates pre-existing AdminGuideSection records during test DB setup. Test now uses unique section_keys and filters its queryset.

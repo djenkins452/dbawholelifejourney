@@ -23,6 +23,9 @@ urlpatterns = [
     # Pre-Warm / Readiness
     path('api/wake/', views.AssistantWakeView.as_view(), name='api_wake'),
 
+    # Proactive Daily Executive Briefing (v7)
+    path('api/briefing/', views.ProactiveBriefingView.as_view(), name='api_briefing'),
+
     # Conversation / Chat
     path('api/chat/', views.AssistantChatView.as_view(), name='api_chat'),
     path('api/chat/stream/', views.AssistantChatStreamView.as_view(), name='api_chat_stream'),

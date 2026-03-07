@@ -7,6 +7,20 @@
 # =======================================================================
 # WLJ Change History
 
+## 2026-03-07 — CoS v7+v7.1: Proactive Daily Executive Briefing Engine
+
+- **What:** First proactive intelligence behavior — CoS automatically delivers a Daily Executive Briefing when the user opens the chat interface:
+  1. **Proactive briefing trigger:** Frontend calls `POST /assistant/api/briefing/` when chat drawer opens. Backend method `generate_proactive_briefing()` calls `_generate_response("briefing")` through the full CoS pipeline. Only the assistant response is saved (`is_proactive=True`). No fake user message.
+  2. **v7.1 Timestamp cooldown:** `last_briefing_at` ISO timestamp for precise 4-hour gap detection (not just date-based). Prevents incorrect skipping on same-day return after gap.
+  3. **v7.1 Server-side idempotency:** Checks for recent proactive `state_assessment` message within 2 minutes before creating. Prevents duplicates from browser refresh, multiple tabs, or slow retries.
+  4. **v7.1 Synthetic message leakage prevention:** Check-in preamble switches to "SYSTEM-INITIATED DAILY ORIENTATION" when triggered by synthetic `"briefing"` message. CoS greets naturally instead of saying "you asked for a briefing."
+  5. **v7.1 Frontend safety:** `briefingDrawerOpen` flag ensures trigger only fires on actual drawer open, not every `refreshHistory()` call. `briefingRequested` flag prevents duplicate requests in browser session.
+  6. **v7.1 Delivery metadata:** `delivery_reason` (`first_open` / `return_after_gap`) + `generated_at` timestamp stored for analytics.
+  7. **Low-data day handling:** Instructions to prioritize goals, routines, and missing tracking on empty days. Never default to generic filler.
+- **Files:** `apps/ai/personal_assistant.py` (~150 lines), `apps/ai/views.py` (~45 lines), `apps/ai/urls.py`, `templates/components/chat_widget.html` (~95 lines), `apps/ai/tests/test_proactive_briefing.py` (~200 lines), `docs/CoSEvaluation_v7.md`
+- **Tests:** 12/12 new tests pass + 61/61 existing PA tests pass. Covers cooldown, idempotency, metadata, fallback detection, view endpoints, auth.
+- **Why:** v4-v6 stabilized CoS but it was still reactive. A real Chief of Staff delivers a briefing when the executive walks in. This is the first step toward proactive intelligence delivery.
+
 ## 2026-03-07 — CoS operational tuning v6: decision mode + briefing format + reflection fix
 
 - **What:** Operational tuning to make CoS behave like a real Chief of Staff — clear recommendations, structured briefings, no generic filler:

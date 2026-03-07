@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-07 (v6 operational tuning)
+**Last updated:** 2026-03-07 (v7+v7.1 proactive briefing engine)
 
 ---
 
@@ -313,6 +313,35 @@ System prompt layers (highest priority first):
 **Files changed:** `apps/ai/personal_assistant.py`, `apps/core/ai_orchestrator/cos_context.py`
 
 **Evaluation report:** `docs/CoSEvaluation_v6.md` (projected ~7.0-7.5/10; full eval pending API quota reset)
+
+### v7+v7.1 Proactive Daily Executive Briefing Engine (2026-03-07)
+
+**Change:** First proactive intelligence behavior — CoS automatically generates a Daily Executive Briefing when the user opens the chat interface.
+
+**Architecture:**
+```
+User opens chat → loadHistory() → maybeTriggerBriefing()
+  → POST /assistant/api/briefing/
+  → PersonalAssistant.generate_proactive_briefing()
+    → Cooldown check (last_briefing_at timestamp, 4-hour window)
+    → Idempotency check (recent proactive state_assessment within 2 min)
+    → _generate_response("briefing") ← FULL CoS PIPELINE
+    → Save as AssistantMessage(is_proactive=True)
+```
+
+**v7.1 Hardening:**
+- Timestamp-based cooldown (`last_briefing_at` ISO, not just date)
+- Server-side idempotency (2-minute dedup)
+- Synthetic message leakage prevention ("SYSTEM-INITIATED DAILY ORIENTATION")
+- Frontend trigger safety (`briefingDrawerOpen` + `briefingRequested` flags)
+- Delivery context metadata (`delivery_reason`, `generated_at`)
+- Low-data day handling (goals + routines + missing tracking)
+
+**Files changed:** `apps/ai/personal_assistant.py`, `apps/ai/views.py`, `apps/ai/urls.py`, `templates/components/chat_widget.html`
+
+**New endpoint:** `POST /assistant/api/briefing/` → `ProactiveBriefingView`
+
+**Evaluation report:** `docs/CoSEvaluation_v7.md`
 
 ### CoS Context Injection Output
 

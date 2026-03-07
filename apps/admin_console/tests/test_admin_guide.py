@@ -33,9 +33,11 @@ class AdminGuideModelTests(TestCase):
         self.assertTrue(section.is_active)
 
     def test_section_ordering(self):
-        s2 = AdminGuideSection.objects.create(section_key='b', title='B', order=20)
-        s1 = AdminGuideSection.objects.create(section_key='a', title='A', order=10)
-        sections = list(AdminGuideSection.objects.all())
+        s2 = AdminGuideSection.objects.create(section_key='zz-b', title='ZZ-B', order=9990)
+        s1 = AdminGuideSection.objects.create(section_key='zz-a', title='ZZ-A', order=9980)
+        sections = list(
+            AdminGuideSection.objects.filter(section_key__startswith='zz-')
+        )
         self.assertEqual(sections[0], s1)
         self.assertEqual(sections[1], s2)
 

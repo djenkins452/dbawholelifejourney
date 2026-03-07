@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-07 — Fix admin guide section ordering test
+
+- **What:** `test_section_ordering` assumed `objects.all()` would only return 2 test-created sections, but `load_initial_data` creates pre-existing AdminGuideSection records during test DB setup. Test now uses unique section_keys and filters its queryset.
+- **Why:** CI failure — pre-existing "Architecture Overview" section appeared before test data.
+- **Files:** `apps/admin_console/tests/test_admin_guide.py`
+
+---
+
 ## 2026-03-07 — Fix duplicate PKs in fixture files
 
 - **What:** Renumbered duplicate PKs introduced by concurrent worktree merges: `release_notes.json` pk 138→141, `help_topics.json` pk 146→148, `teaching_destinations.json` pk 176→179 and 177→180.

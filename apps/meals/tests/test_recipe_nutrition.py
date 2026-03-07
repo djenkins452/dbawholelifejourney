@@ -9,7 +9,14 @@ multi-user isolation, confidence scoring, and diabetes flagging.
 from decimal import Decimal
 
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import TestCase, override_settings
+
+LOCMEM_CACHE = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'recipe-nutrition-test',
+    }
+}
 
 from apps.health.models import FoodItem
 from apps.meals.models import Ingredient, RecipeIngredient
@@ -317,6 +324,7 @@ class TestRecipeNutritionDiabetes(NutritionTestDataMixin, TestCase):
 # Caching tests
 # =============================================================================
 
+@override_settings(CACHES=LOCMEM_CACHE)
 class TestRecipeNutritionCache(NutritionTestDataMixin, TestCase):
     """Caching tests for recipe nutrition."""
 

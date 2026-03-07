@@ -39,6 +39,7 @@ import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from django.conf import settings
 from django.db import close_old_connections
 from django.utils import timezone
 
@@ -1051,33 +1052,47 @@ def build_cos_context(user):
         'personal_assistant': prefs.personal_assistant_enabled,
     }
 
-    # Run all builders in parallel
-    try:
-        def _run_builder(builder_fn):
-            """Execute a builder in a thread with proper DB connection handling."""
-            close_old_connections()
-            try:
-                return builder_fn(user, prefs)
-            finally:
-                close_old_connections()
+    # Run all builders — parallel when possible, sequential on SQLite
+    # (in-memory SQLite gives each thread a separate empty database)
+    _use_threading = 'sqlite' not in settings.DATABASES.get(
+        'default', {}
+    ).get('ENGINE', '')
 
-        with ThreadPoolExecutor(max_workers=_PARALLEL_MAX_WORKERS) as executor:
-            futures = {
-                executor.submit(_run_builder, b): b
-                for b in _PARALLEL_BUILDERS
-            }
-            for future in as_completed(futures, timeout=10):
+    if _use_threading:
+        try:
+            def _run_builder(builder_fn):
+                """Execute a builder in a thread with proper DB connection handling."""
+                close_old_connections()
                 try:
-                    updates = future.result(timeout=5)
+                    return builder_fn(user, prefs)
+                finally:
+                    close_old_connections()
+
+            with ThreadPoolExecutor(max_workers=_PARALLEL_MAX_WORKERS) as executor:
+                futures = {
+                    executor.submit(_run_builder, b): b
+                    for b in _PARALLEL_BUILDERS
+                }
+                for future in as_completed(futures, timeout=10):
+                    try:
+                        updates = future.result(timeout=5)
+                        if updates:
+                            context.update(updates)
+                    except Exception as e:
+                        logger.debug("Parallel context builder failed: %s", e)
+
+        except Exception as e:
+            logger.warning(
+                "Parallel context assembly failed, falling back to sequential: %s", e
+            )
+            for builder in _PARALLEL_BUILDERS:
+                try:
+                    updates = builder(user, prefs)
                     if updates:
                         context.update(updates)
-                except Exception as e:
-                    logger.debug("Parallel context builder failed: %s", e)
-
-    except Exception as e:
-        logger.warning(
-            "Parallel context assembly failed, falling back to sequential: %s", e
-        )
+                except Exception as be:
+                    logger.debug("Sequential context builder failed: %s", be)
+    else:
         for builder in _PARALLEL_BUILDERS:
             try:
                 updates = builder(user, prefs)

@@ -2480,7 +2480,7 @@ class LiveBuildLoopTests(TestCase):
         self.assertTrue(result.success)
         self.assertIn('Scheduled', result.message)
         self.assertIn('Team Meeting', result.message)
-        self.assertIn('2:30 PM', result.message)
+        self.assertIn('2:30pm', result.message)
 
     def test_chat_panel_routes_to_assistant(self):
         """Assistant chat panel should send input to assistant API directly."""

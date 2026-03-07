@@ -9,6 +9,40 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Fix 39 CI test failures across cache, ThreadPoolExecutor, and test mock issues
+
+**What:** GitHub Actions CI was failing with 35 test failures + 4 errors across 9,069 tests. Three root causes identified and fixed.
+
+**Root cause 1: DummyCache in test settings (25 failures)**
+Tests for readiness cache, task matching clarification state, scheduling context, CoS context invalidation, and recipe nutrition caching all depend on real cache operations. Test settings use `DummyCache` which silently discards all writes, so `cache.get()` always returned `None`.
+
+**Fix:** Added `@override_settings(CACHES=LocMemCache)` to all cache-dependent test classes.
+
+**Root cause 2: ThreadPoolExecutor + in-memory SQLite (10 failures)**
+`build_cos_context()` runs builders in parallel via `ThreadPoolExecutor`. In tests, each thread gets a new DB connection to in-memory SQLite — a separate empty database. Test data created in the test transaction was invisible to builder threads, causing blueprint_state, governance_profile, pressure_snapshot, and cross_domain_correlations to return empty/missing.
+
+**Fix:** Added SQLite detection in `build_cos_context()` — uses sequential execution when DB engine is SQLite, preserving parallel execution for PostgreSQL in production.
+
+**Root cause 3: Test assertion/mock mismatches (4 failures)**
+- Recipe scan test mocked `extract_from_bytes` returning a dict, but view expects a list (service API changed)
+- Time format test expected `'2:30 PM'` but `friendly_time()` returns `'2:30pm'`
+- Commitment serialization test used "by tomorrow" (no specific time), triggering tightening question instead of confirmation
+
+**Files:**
+- `apps/core/ai_orchestrator/cos_context.py` — Sequential fallback for SQLite, added `django.conf.settings` import
+- `apps/ai/tests/test_readiness_cache.py` — Added `@override_settings(CACHES=LOCMEM_CACHE)` to 4 test classes
+- `apps/ai/tests/test_task_matching.py` — Added `@override_settings(CACHES=LOCMEM_CACHE)` to `TestClarificationState`
+- `apps/ai/tests/test_scheduling_reliability.py` — Added `@override_settings(CACHES=LOCMEM_CACHE)` to 3 test classes
+- `apps/life/tests/test_cos_context_invalidation.py` — Added `@override_settings(CACHES=LOCMEM_CACHE)` to 2 test classes
+- `apps/meals/tests/test_recipe_nutrition.py` — Added `@override_settings(CACHES=LOCMEM_CACHE)` to `TestRecipeNutritionCache`
+- `apps/life/tests/test_recipe_scan.py` — Fixed mock return value from dict to list
+- `apps/core/blueprint/tests.py` — Fixed time format assertion `'2:30 PM'` → `'2:30pm'`
+- `apps/core/tests/test_phase5_commitment_pipeline.py` — Added specific time "by 5pm tomorrow" to test message
+
+**Verification:** All 420 tests across affected modules pass.
+
+---
+
 ## 2026-03-07 — Fix CoS response behavior: enforce answer-first policy, suppress context dumping
 
 **What:** CoS responses were injecting unrelated context (medication schedules, task counts, schedule blocks) into answers about unrelated topics, adding generic disclaimers ("consult your healthcare provider"), and failing to prioritize the user's actual question. Example: asking "Do any of these medicines break a fast?" returned incorrect reasoning, a medical disclaimer, and unrelated medication schedule data.

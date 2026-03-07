@@ -20,6 +20,13 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
+LOCMEM_CACHE = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'scheduling-reliability-test',
+    }
+}
+
 from apps.users.models import User
 
 
@@ -138,6 +145,7 @@ class AuthoritativeLocalDateTimeTests(TestCase):
         self.assertTrue(any('no user supplied' in m for m in cm.output))
 
 
+@override_settings(CACHES=LOCMEM_CACHE)
 class ParameterInheritanceTests(TestCase):
     """Part 2: Strict parameter inheritance for 'same' / clone events."""
 
@@ -340,6 +348,7 @@ class ParameterInheritanceTests(TestCase):
         self.assertTrue(result.success)
 
 
+@override_settings(CACHES=LOCMEM_CACHE)
 class SafetyInvariantTests(TestCase):
     """Part 3: Runtime invariant checks."""
 
@@ -421,6 +430,7 @@ class SafetyInvariantTests(TestCase):
         )
 
 
+@override_settings(CACHES=LOCMEM_CACHE)
 class DebugLoggingTests(TestCase):
     """Part 4: Debug logging at scheduling decision points."""
 

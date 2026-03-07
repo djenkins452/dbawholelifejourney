@@ -479,7 +479,7 @@ class ECCCrossMessageContinuityTest(_PipelineTestMixin, TestCase):
         pa = self._build_pa()
         conversation = pa.get_or_create_conversation()
         pa.send_message(
-            "I will decide on the vendor by tomorrow. "
+            "I will decide on the vendor by 5pm tomorrow. "
             "Done means the contract is signed.",
             conversation=conversation,
         )

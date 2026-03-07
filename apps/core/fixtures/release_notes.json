@@ -4,7 +4,7 @@
     "pk": 138,
     "fields": {
       "title": "Health Intelligence Dashboard",
-      "description": "See your body composition intelligence at a glance — fat loss phase, plateau risk, muscle preservation status, and fat loss quality now appear on your dashboard. Tap through to the full Health Intelligence page for trend charts, detailed explanations of what your numbers mean, risk warnings, and your scan history.",
+      "description": "See your body composition intelligence at a glance \u2014 fat loss phase, plateau risk, muscle preservation status, and fat loss quality now appear on your dashboard. Tap through to the full Health Intelligence page for trend charts, detailed explanations of what your numbers mean, risk warnings, and your scan history.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-05",
@@ -36,7 +36,7 @@
     "pk": 135,
     "fields": {
       "title": "Smarter Task & Habit Completion",
-      "description": "When you tell your Chief of Staff you finished something — like prayer time, Bible reading, or a workout — she now handles both sides automatically: logs the habit AND marks the task complete. She also knows your schedule in real time, so if you're chatting during workout time, she'll give you a friendly heads-up. And when she's not sure what you mean, she'll ask instead of guessing wrong.",
+      "description": "When you tell your Chief of Staff you finished something \u2014 like prayer time, Bible reading, or a workout \u2014 she now handles both sides automatically: logs the habit AND marks the task complete. She also knows your schedule in real time, so if you're chatting during workout time, she'll give you a friendly heads-up. And when she's not sure what you mean, she'll ask instead of guessing wrong.",
       "entry_type": "enhancement",
       "version": "",
       "release_date": "2026-03-04",
@@ -52,7 +52,7 @@
     "pk": 134,
     "fields": {
       "title": "Email Your Medicine List",
-      "description": "Ask your Chief of Staff to email your medicine list — perfect for doctor visits. Just say \"email me my medicine list\" or \"send my medicines to doc@example.com\" and you'll receive a professional email with all your active medications, doses, schedules, prescribing doctors, and 30-day adherence stats for each medicine. Adherence is color-coded (green/yellow/red) so you can see consistency at a glance.",
+      "description": "Ask your Chief of Staff to email your medicine list \u2014 perfect for doctor visits. Just say \"email me my medicine list\" or \"send my medicines to doc@example.com\" and you'll receive a professional email with all your active medications, doses, schedules, prescribing doctors, and 30-day adherence stats for each medicine. Adherence is color-coded (green/yellow/red) so you can see consistency at a glance.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-04",
@@ -2213,6 +2213,22 @@
       "learn_more_url": "",
       "created_at": "2026-03-04T00:00:00Z",
       "updated_at": "2026-03-04T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 138,
+    "fields": {
+      "title": "Guides Hub: Data Dictionary & User Guide",
+      "description": "The Admin Console now has a dedicated Guides section with three guides: Admin Guide (system docs), Data Dictionary (complete database reference with tables, fields, and engine mappings), and User Guide (how-to documentation built from help topics). The User Guide is also accessible from the profile dropdown menu for all users.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-07T00:00:00Z",
+      "updated_at": "2026-03-07T00:00:00Z"
     }
   }
 ]

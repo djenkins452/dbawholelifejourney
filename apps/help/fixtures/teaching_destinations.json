@@ -431,7 +431,7 @@
       "destination_id": "medication-tracking",
       "name": "Medication Tracker",
       "path_description": "Health - Physical - Medicine",
-      "explanation": "Track your medications, schedules, and adherence. You can also ask CoS to email your medicine list to yourself or a doctor — includes doses, schedules, and 30-day adherence stats.",
+      "explanation": "Track your medications, schedules, and adherence. You can also ask CoS to email your medicine list to yourself or a doctor \u2014 includes doses, schedules, and 30-day adherence stats.",
       "url": "/health/physical/medicine/",
       "keywords": "medicine, medication, meds, pills, prescriptions, drug, medicine tracker, take medicine, medication schedule, email medicine list, send medicine list, email medications",
       "module": "health",
@@ -2965,6 +2965,57 @@
       "is_active": true,
       "created_at": "2026-03-04T00:00:00Z",
       "updated_at": "2026-03-04T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 176,
+    "fields": {
+      "destination_id": "data-dictionary",
+      "name": "Data Dictionary",
+      "path_description": "Admin Console - Guides - Data Dictionary",
+      "explanation": "Complete database reference with all tables, fields, engine mappings, and relationship documentation.",
+      "url": "/admin-console/data-dictionary/",
+      "keywords": "data dictionary,database,tables,fields,columns,schema,engine mappings,database reference,table names,PIE,SAE,PRIE",
+      "module": "admin_console",
+      "sort_order": 230,
+      "is_active": true,
+      "created_at": "2026-03-07T00:00:00Z",
+      "updated_at": "2026-03-07T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 177,
+    "fields": {
+      "destination_id": "user-guide",
+      "name": "User Guide",
+      "path_description": "Admin Console - Guides - User Guide",
+      "explanation": "Comprehensive how-to documentation for using Whole Life Journey features.",
+      "url": "/admin-console/user-guide/",
+      "keywords": "user guide,help,how to,documentation,guide,instructions,tutorial,getting started",
+      "module": "admin_console",
+      "sort_order": 231,
+      "is_active": true,
+      "created_at": "2026-03-07T00:00:00Z",
+      "updated_at": "2026-03-07T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 178,
+    "fields": {
+      "destination_id": "admin-guide",
+      "name": "Admin Guide",
+      "path_description": "Admin Console - Guides - Admin Guide",
+      "explanation": "System documentation and architecture reference for administrators.",
+      "url": "/admin-console/admin-guide/",
+      "keywords": "admin guide,system documentation,architecture,admin docs,configuration guide",
+      "module": "admin_console",
+      "sort_order": 232,
+      "is_active": true,
+      "created_at": "2026-03-07T00:00:00Z",
+      "updated_at": "2026-03-07T00:00:00Z"
     }
   }
 ]

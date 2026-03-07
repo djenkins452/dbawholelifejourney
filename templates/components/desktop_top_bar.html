@@ -118,6 +118,13 @@
                         </svg>
                         What's New
                     </a>
+                    <a href="{% url 'admin_console:user_guide_home' %}" class="desktop-profile-link" role="menuitem">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                        </svg>
+                        User Guide
+                    </a>
                     {% if quick_links_list %}
                     <hr class="desktop-profile-divider">
                     {% for ql in quick_links_list %}

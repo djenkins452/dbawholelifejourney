@@ -221,6 +221,14 @@
             </svg>
         </a>
 
+    </div>
+
+    <!-- Guides Section -->
+    <div class="section-divider mt-8 mb-4">
+        <h2 class="section-title">Guides</h2>
+    </div>
+
+    <div class="admin-grid">
         <!-- Admin Guide -->
         <a href="{% url 'admin_console:admin_guide_home' %}" class="admin-card">
             <div class="admin-card-icon" style="background: color-mix(in srgb, #6366f1 15%, transparent);">
@@ -238,6 +246,40 @@
             </svg>
         </a>
 
+        <!-- Data Dictionary -->
+        <a href="{% url 'admin_console:data_dictionary_home' %}" class="admin-card">
+            <div class="admin-card-icon" style="background: color-mix(in srgb, #0891b2 15%, transparent);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+                </svg>
+            </div>
+            <div class="admin-card-content">
+                <h3>Data Dictionary</h3>
+                <p>Database tables, fields, engines</p>
+            </div>
+            <svg class="admin-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+
+        <!-- User Guide -->
+        <a href="{% url 'admin_console:user_guide_home' %}" class="admin-card">
+            <div class="admin-card-icon" style="background: color-mix(in srgb, #059669 15%, transparent);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                </svg>
+            </div>
+            <div class="admin-card-content">
+                <h3>User Guide</h3>
+                <p>How to use Whole Life Journey</p>
+            </div>
+            <svg class="admin-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
     </div>
 
     <!-- Owner Tools Section (superuser only) -->

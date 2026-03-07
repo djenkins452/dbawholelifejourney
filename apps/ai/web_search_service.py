@@ -78,6 +78,28 @@ PERSONAL_DATA_EXCLUSIONS = [
     r'\bwhat\s+did\s+i\b',
     r'\bshow\s+me\s+my\b',
     r'\blast\s+(?:time|week|month|entry|workout|meal|fast|prayer|journal)\b',
+    # v5: Personal advice / CoS-addressed questions must go through CoS pipeline
+    r'\bmy\s+(?:day|schedule|priorities|life|routine|focus|habits?)\b',
+    r'\bfor\s+(?:me|today|this\s+week|this\s+month)\b',
+    r'\bshould\s+i\b',
+    r'\bstructure\s+my\b',
+    r'\bprioritize\b',
+    r'\bfocus\s+on\b',
+    r'\bimprove\s+my\b',
+    r'\bbased\s+on\s+my\b',
+    r'\bam\s+i\s+on\s+track\b',
+    r'\bmy\s+(?:size|height|body)\b',
+    r'\bsomeone\s+my\s+size\b',
+    r'\bencourage\s+me\b',
+    r'\bremind\s+me\b',
+    r'\bhow\s+are\s+you\b',
+    r'\bchief\s+of\s+staff\b',
+    r'\bbiggest\s+(?:impact|improvement|difference)\b',
+    r'\bhighest\s+impact\b',
+    r'\bsingle\s+habit\b',
+    r'\bwhat\s+(?:habit|metric|health\s+metric)\s+should\b',
+    r'\bstart\s+tracking\b',
+    r'\bhow\s+(?:should|do)\s+i\b.*\btoday\b',
 ]
 
 

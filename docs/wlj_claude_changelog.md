@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-07 — Fix midnight-crossing CI test failures
+
+- **What:** Two tests failed intermittently when CI ran near midnight UTC. `test_collision_detection_daily_overload` created 5 deadlines using `now + hours` which crossed into the next day, splitting counts below the >3 threshold. `test_schedule_load_classification` created events with `self.now + timedelta(days=1, hours=i)` where late-night `now` pushed events past midnight into the wrong date.
+- **Why:** Both tests used `timezone.now()` without pinning the hour, making them time-of-day dependent.
+- **Fix:** Pin base time to 8am so all test items land on the same calendar day regardless of when CI runs.
+- **Files:** `apps/core/tests/test_phase2_time_authority.py`, `apps/cos/tests/test_cos_cx.py`
+
+---
+
 ## 2026-03-07 — Fix OpenAI 429 rate limit handling
 
 - **What:** Production Sentry alert: `RateLimitError` on gpt-4o with 30K TPM limit. The retry loop used 1s/2s/4s backoff, but 429 errors say "wait 24s." Added `max_retries=5` to OpenAI client (SDK respects `Retry-After` headers natively) and rate-limit-aware 30s backoff in both `_call_api` and `_call_api_stream` retry loops.

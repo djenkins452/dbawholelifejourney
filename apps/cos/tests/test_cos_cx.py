@@ -539,7 +539,9 @@ class BehaviorForecastTests(TestCase):
         from apps.cos.intelligence.behavior_forecast import _get_schedule_load
         from apps.calendar_engine.models import CalendarEvent
 
-        tomorrow = self.now.date() + timedelta(days=1)
+        # Pin to morning so +1 day + 0..5 hours all land on the same date
+        base = self.now.replace(hour=8, minute=0, second=0, microsecond=0)
+        tomorrow = base.date() + timedelta(days=1)
 
         # No events = light
         load = _get_schedule_load(self.user, tomorrow)
@@ -550,8 +552,8 @@ class BehaviorForecastTests(TestCase):
             CalendarEvent.objects.create(
                 user=self.user,
                 title=f"Event {i}",
-                start_dt=self.now + timedelta(days=1, hours=i),
-                end_dt=self.now + timedelta(days=1, hours=i + 1),
+                start_dt=base + timedelta(days=1, hours=i),
+                end_dt=base + timedelta(days=1, hours=i + 1),
                 idempotency_key=uuid4().hex,
             )
         load = _get_schedule_load(self.user, tomorrow)
@@ -562,8 +564,8 @@ class BehaviorForecastTests(TestCase):
             CalendarEvent.objects.create(
                 user=self.user,
                 title=f"Event {i}",
-                start_dt=self.now + timedelta(days=1, hours=i),
-                end_dt=self.now + timedelta(days=1, hours=i + 1),
+                start_dt=base + timedelta(days=1, hours=i),
+                end_dt=base + timedelta(days=1, hours=i + 1),
                 idempotency_key=uuid4().hex,
             )
         load = _get_schedule_load(self.user, tomorrow)

@@ -445,10 +445,11 @@ class DeadlineSnapshotTests(TestCase):
         """Days with >3 deadlines flagged as daily overload."""
         from apps.core.blueprint.deadline_engine import _detect_collisions
 
-        now = timezone.now()
+        # Use a fixed morning time so all 5 deadlines land on the same day
+        now = timezone.now().replace(hour=8, minute=0, second=0, microsecond=0)
         deadlines = [
             (now + timedelta(hours=i), f'Task {i}')
-            for i in range(1, 6)  # 5 deadlines same day
+            for i in range(1, 6)  # 5 deadlines same day (9am-1pm)
         ]
         flags = _detect_collisions(deadlines)
         overload_flags = [f for f in flags if f['type'] == 'daily_overload']

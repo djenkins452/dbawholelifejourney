@@ -9,6 +9,16 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Friendly chat error messages with retry button
+
+**What:** When the AI chat hit a server error (API timeout, token limit, OpenAI failure), users saw cold generic messages like "The server encountered an error" or "Sorry, I had trouble responding. Please try again." Replaced all error messages with a friendly error card: "Oops, that didn't work. Would you like to try again?" with Yes/No buttons. "Yes" re-sends the last message automatically; "No" dismisses with a warm message.
+
+**Files:** `templates/components/chat_widget.html` (CSS + JS `addErrorWithRetry()` function + 5 error call sites updated)
+
+**Why:** Better UX — friendlier tone and actionable retry instead of dead-end text.
+
+---
+
 ## 2026-03-07 — Fix generic "create a daily schedule" response + consolidate check-in patterns
 
 **What:** Beth responded to "What does my day look like?" with generic life-coach advice ("consider creating a daily schedule that includes morning routine, work hours, breaks...") instead of pulling the user's actual tasks, calendar, and medications. Root cause: 4 separate copies of the check-in detection pattern list scattered across `personal_assistant.py` that could drift out of sync, plus no explicit guard against generic template responses.

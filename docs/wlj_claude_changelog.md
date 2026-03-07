@@ -9,6 +9,29 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Fix CoS response behavior: enforce answer-first policy, suppress context dumping
+
+**What:** CoS responses were injecting unrelated context (medication schedules, task counts, schedule blocks) into answers about unrelated topics, adding generic disclaimers ("consult your healthcare provider"), and failing to prioritize the user's actual question. Example: asking "Do any of these medicines break a fast?" returned incorrect reasoning, a medical disclaimer, and unrelated medication schedule data.
+
+**Root cause:** Three prompt-level issues:
+1. No explicit response ordering policy — no rule enforcing "answer first, context optional"
+2. `SCHEDULE AWARENESS` directive told the AI to PROACTIVELY inject schedule data into every response
+3. No explicit ban on generic disclaimers or context dumping in the prohibited behaviors list
+
+**Fix — four changes:**
+1. **Response Policy (new section):** Added mandatory 3-step response order to `PERSONAL_ASSISTANT_BASE_PROMPT`: (1) Direct Answer, (2) Explanation, (3) Optional Context with a relevance test. Also added page-aware reasoning directive for when users reference "items on this page."
+2. **Anti-disclaimer + anti-dump rules:** Added 4 new prohibited behaviors to both `COS_PROACTIVE_INTELLIGENCE_PROMPT` Section 8 and the base prompt "WHAT YOU NEVER DO" list: no generic disclaimers, no unrelated schedule/task/medication injection, no context dumping, no falling back to generic LLM knowledge.
+3. **Schedule Awareness rewrite:** Changed `format_cos_system_injection()` SCHEDULE AWARENESS from proactive ("PROACTIVELY mention [NOW] block") to relevance-gated ("use schedule ONLY when relevant to what the user is asking").
+4. **Context Relevance Filter:** Added new `CONTEXT RELEVANCE FILTER` directive to the operational intelligence preamble making clear that operational data is reference material, not content to inject into every response.
+
+**Files:**
+- `apps/ai/personal_assistant.py` — New RESPONSE POLICY section, expanded prohibited behaviors in both WHAT YOU NEVER DO and Section 8
+- `apps/core/ai_orchestrator/cos_context.py` — Rewrote SCHEDULE AWARENESS, added CONTEXT RELEVANCE FILTER to preamble
+
+**No engines, APIs, or database changes. Response policy only.**
+
+---
+
 ## 2026-03-07 — Friendly chat error messages with retry button
 
 **What:** When the AI chat hit a server error (API timeout, token limit, OpenAI failure), users saw cold generic messages like "The server encountered an error" or "Sorry, I had trouble responding. Please try again." Replaced all error messages with a friendly error card: "Oops, that didn't work. Would you like to try again?" with Yes/No buttons. "Yes" re-sends the last message automatically; "No" dismisses with a warm message.

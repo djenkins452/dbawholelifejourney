@@ -1574,6 +1574,17 @@ def format_cos_system_injection(context):
     )
     lines.append("")
     lines.append(
+        "CONTEXT RELEVANCE FILTER: The data below is REFERENCE MATERIAL, not "
+        "content to inject into every response. Use it when the user asks about "
+        "it or when it directly answers their question. Do NOT attach schedule "
+        "updates, medication status, task counts, or health metrics to responses "
+        "about unrelated topics. A response about fasting does not need a "
+        "medication schedule. A question about a recipe does not need task "
+        "reminders. Answer the question — nothing more, unless the extra context "
+        "genuinely helps."
+    )
+    lines.append("")
+    lines.append(
         "HONESTY RULE: ONLY state facts that appear in the data below. "
         "If a data point is missing from this context, say 'I don't have that "
         "data right now' — NEVER guess, estimate, or echo back a number the user "
@@ -1591,16 +1602,16 @@ def format_cos_system_injection(context):
     )
     lines.append("")
     lines.append(
-        "SCHEDULE AWARENESS: When the user interacts with you, CHECK the "
-        "schedule below for a [NOW] block. If there is a [NOW] block and the "
-        "user is chatting instead of doing that activity, PROACTIVELY mention it. "
-        "For example: 'Your workout is scheduled right now — want me to mark "
-        "something complete and let you get to it?' or 'Heads up, you're in your "
-        "Bible reading block right now.' Be helpful, not nagging — mention it once, "
-        "then respect their choice. If the user is reporting completion of the [NOW] "
-        "activity, acknowledge it positively without nagging. If you're unsure what "
-        "the user wants, ASK — don't assume. A good Chief of Staff asks clarifying "
-        "questions rather than guessing wrong."
+        "SCHEDULE AWARENESS: You have the user's schedule below for reference. "
+        "Use it ONLY when relevant to what the user is asking or during daily "
+        "orientation. Do NOT proactively inject schedule information into every "
+        "response — only mention schedule items when: (1) the user asks about "
+        "their schedule, tasks, or what to do next, (2) you are delivering the "
+        "daily orientation, or (3) the user is reporting completion of a scheduled "
+        "activity. If the user asks about an unrelated topic (a question, analysis, "
+        "or general conversation), do NOT append schedule updates. A good Chief of "
+        "Staff knows when to surface information and when to stay focused on "
+        "the question at hand."
     )
     lines.append("")
 

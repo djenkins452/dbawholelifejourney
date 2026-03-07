@@ -34,25 +34,25 @@
                     <span class="feature-icon">&#x2764;</span>
                     <h3>Health Tracking</h3>
                     <span class="module-badge">Optional Module</span>
-                    <p>Weight, heart rate, blood pressure, sleep, nutrition, medications, blood glucose, and more</p>
+                    <p>Weight, heart rate, blood pressure, sleep, nutrition, medications, blood glucose, workouts, body composition, and more</p>
                 </div>
                 <div class="feature-card">
                     <span class="feature-icon">&#x1F4DD;</span>
                     <h3>Journaling</h3>
                     <span class="module-badge">Optional Module</span>
-                    <p>Daily journal entries with mood tracking and emotion tags</p>
+                    <p>Daily journal entries with mood tracking, emotion tags, and AI-powered reflections</p>
                 </div>
                 <div class="feature-card">
                     <span class="feature-icon">&#x1F3AF;</span>
                     <h3>Goals & Habits</h3>
                     <span class="module-badge">Optional Module</span>
-                    <p>Set goals, track habits, and monitor progress</p>
+                    <p>Set goals, track habits, and monitor progress with streaks</p>
                 </div>
                 <div class="feature-card">
                     <span class="feature-icon">&#x1F4C5;</span>
                     <h3>Life Organization</h3>
                     <span class="module-badge">Optional Module</span>
-                    <p>Tasks, calendar, recipes, documents, and more</p>
+                    <p>Tasks, calendar events, routines, documents, and task management</p>
                 </div>
                 <div class="feature-card">
                     <span class="feature-icon">&#x271D;</span>
@@ -61,10 +61,34 @@
                     <p>Prayer tracking, Bible reading plans, scripture study</p>
                 </div>
                 <div class="feature-card">
-                    <span class="feature-icon">&#x1F916;</span>
-                    <h3>AI Assistant</h3>
+                    <span class="feature-icon">&#x1F35F;</span>
+                    <h3>Meals & Nutrition</h3>
                     <span class="module-badge">Optional Module</span>
-                    <p>Personalized coaching, insights, and guidance</p>
+                    <p>Recipe management, meal planning, pantry tracking, barcode scanning, photo-based recipe import</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">&#x1F465;</span>
+                    <h3>People & Relationships</h3>
+                    <span class="module-badge">Optional Module</span>
+                    <p>Contact management, relationship tracking, interaction logging, iOS contact import</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">&#x1F4CB;</span>
+                    <h3>Notes</h3>
+                    <span class="module-badge">Optional Module</span>
+                    <p>Quick notes with folders, tags, and search</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">&#x1F3A4;</span>
+                    <h3>Capture</h3>
+                    <span class="module-badge">Optional Module</span>
+                    <p>Audio recording with AI transcription and intelligent routing to journals, notes, or tasks</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">&#x1F916;</span>
+                    <h3>Chief of Staff (AI)</h3>
+                    <span class="module-badge">Optional Module</span>
+                    <p>Conversational AI assistant with proactive check-ins, personalized coaching, report generation, and deterministic action handling</p>
                 </div>
             </div>
 
@@ -83,10 +107,12 @@
                     While the core app is web-based, the native iOS wrapper provides essential functionality:
                 </p>
                 <ul>
-                    <li><strong>HealthKit Integration</strong> - Sync health data from Apple Health (steps, heart rate, sleep, etc.)</li>
+                    <li><strong>HealthKit Integration</strong> - Sync health data from Apple Health (steps, heart rate, sleep, body composition, etc.)</li>
+                    <li><strong>Contact Import</strong> - Import contacts from the iOS address book for the People module</li>
                     <li><strong>Native Settings</strong> - iOS-native settings screen for HealthKit permissions</li>
                     <li><strong>Secure Token Storage</strong> - Keychain-based authentication</li>
-                    <li><strong>Push Notifications</strong> - Native notification support (future)</li>
+                    <li><strong>Push Notifications</strong> - Native notification support</li>
+                    <li><strong>Camera / Photo Access</strong> - Recipe photo import, barcode scanning, document capture</li>
                 </ul>
             </div>
         </section>
@@ -140,51 +166,76 @@
                     <tr>
                         <td>Dashboard</td>
                         <td>Home (first screen after login)</td>
-                        <td>Customizable tiles showing overview</td>
+                        <td>Customizable tiles showing daily overview</td>
                     </tr>
                     <tr>
                         <td>Health Tracking</td>
-                        <td>Health tab in bottom navigation</td>
-                        <td>Weight, heart rate, sleep, nutrition, etc.</td>
+                        <td>Health tab in sidebar</td>
+                        <td>Weight, heart rate, sleep, nutrition, workouts, blood pressure, blood glucose, medications, body composition</td>
                     </tr>
                     <tr>
                         <td>HealthKit Sync</td>
                         <td>iOS Settings (gear icon) &gt; Health</td>
-                        <td>Native iOS screen for Apple Health sync</td>
+                        <td>Native iOS screen for Apple Health data sync</td>
                     </tr>
                     <tr>
                         <td>Journal</td>
-                        <td>Journal tab in bottom navigation</td>
-                        <td>Create entries with mood and emotions</td>
+                        <td>Journal tab in sidebar</td>
+                        <td>Create entries with mood, emotions, and AI reflections</td>
+                    </tr>
+                    <tr>
+                        <td>Faith</td>
+                        <td>Faith tab in sidebar</td>
+                        <td>Prayer tracking, Bible reading plans</td>
                     </tr>
                     <tr>
                         <td>Goals & Habits</td>
-                        <td>Goals tab in bottom navigation</td>
-                        <td>Track personal goals and daily habits</td>
+                        <td>Goals tab in sidebar</td>
+                        <td>Track personal goals and daily habits with streaks</td>
                     </tr>
                     <tr>
-                        <td>Tasks & Calendar</td>
-                        <td>Organize tab in bottom navigation</td>
-                        <td>To-do lists and calendar view</td>
+                        <td>Organize (Tasks & Calendar)</td>
+                        <td>Organize tab in sidebar</td>
+                        <td>To-do lists, calendar events, and recurring routines</td>
                     </tr>
                     <tr>
-                        <td>AI Assistant</td>
-                        <td>Chat bubble (bottom right)</td>
-                        <td>Personalized guidance and insights</td>
+                        <td>Meals & Nutrition</td>
+                        <td>Meals tab in sidebar</td>
+                        <td>Recipes, meal planning, pantry, barcode scanner, photo import</td>
+                    </tr>
+                    <tr>
+                        <td>People & Relationships</td>
+                        <td>People tab in sidebar</td>
+                        <td>Contact management, relationship tracking, iOS contact import</td>
+                    </tr>
+                    <tr>
+                        <td>Notes</td>
+                        <td>Notes tab in sidebar</td>
+                        <td>Quick notes with folders and tags</td>
+                    </tr>
+                    <tr>
+                        <td>Capture (Audio)</td>
+                        <td>Capture tab in sidebar</td>
+                        <td>Voice recording → AI transcription → auto-routes to journal/notes/tasks</td>
+                    </tr>
+                    <tr>
+                        <td>Chief of Staff (AI)</td>
+                        <td>Chief of Staff tab in sidebar, or chat bubble</td>
+                        <td>Conversational AI: coaching, reports, proactive check-ins, action handling</td>
                     </tr>
                     <tr>
                         <td>Settings</td>
-                        <td>More &gt; Preferences</td>
-                        <td>Theme, notifications, modules</td>
+                        <td>Profile icon &gt; Preferences</td>
+                        <td>Theme, notifications, active modules</td>
                     </tr>
                     <tr>
                         <td>Profile</td>
-                        <td>More &gt; Profile</td>
-                        <td>Account info and delete account</td>
+                        <td>Profile icon &gt; Profile</td>
+                        <td>Account info, avatar, and delete account</td>
                     </tr>
                     <tr>
                         <td>Subscription</td>
-                        <td>More &gt; Profile &gt; Subscription</td>
+                        <td>Profile icon &gt; Profile &gt; Subscription</td>
                         <td>View plan, billing history, cancel</td>
                     </tr>
                 </tbody>
@@ -213,7 +264,7 @@
                 <div class="data-type">Steps</div>
                 <div class="data-type">Heart Rate</div>
                 <div class="data-type">Weight</div>
-                <div class="data-type">Sleep</div>
+                <div class="data-type">Sleep Analysis</div>
                 <div class="data-type">Blood Pressure</div>
                 <div class="data-type">Blood Glucose</div>
                 <div class="data-type">Blood Oxygen</div>
@@ -222,6 +273,8 @@
                 <div class="data-type">Workouts</div>
                 <div class="data-type">Water Intake</div>
                 <div class="data-type">Body Fat %</div>
+                <div class="data-type">Lean Body Mass</div>
+                <div class="data-type">BMI</div>
             </div>
 
             <div class="info-box info-box-important">
@@ -324,32 +377,42 @@
 
             <div class="video-script">
                 <div class="script-step">
-                    <span class="step-time">0:00 - 0:10</span>
+                    <span class="step-time">0:00 - 0:08</span>
                     <span class="step-title">Login</span>
-                    <p>Open app → Enter credentials → Sign In → Dashboard loads</p>
+                    <p>Open app → Enter credentials → Sign In → Dashboard loads with tiles</p>
                 </div>
                 <div class="script-step">
-                    <span class="step-time">0:10 - 0:25</span>
+                    <span class="step-time">0:08 - 0:20</span>
                     <span class="step-title">HealthKit</span>
                     <p>Tap gear icon (top-right) → Native Settings → Authorize HealthKit → Show toggles → Sync Now</p>
                 </div>
                 <div class="script-step">
-                    <span class="step-time">0:25 - 0:35</span>
+                    <span class="step-time">0:20 - 0:30</span>
                     <span class="step-title">Health Data</span>
-                    <p>Back to web → Health tab → Weight chart → Steps</p>
+                    <p>Back to web → Health tab → Weight chart → Steps → Show synced data</p>
                 </div>
                 <div class="script-step">
-                    <span class="step-time">0:35 - 0:45</span>
+                    <span class="step-time">0:30 - 0:38</span>
+                    <span class="step-title">AI Chief of Staff</span>
+                    <p>Tap Chief of Staff in sidebar → Show chat → Ask a question → AI responds</p>
+                </div>
+                <div class="script-step">
+                    <span class="step-time">0:38 - 0:45</span>
+                    <span class="step-title">Key Modules</span>
+                    <p>Quick tour: Meals → People → Notes → Capture (show sidebar navigation)</p>
+                </div>
+                <div class="script-step">
+                    <span class="step-time">0:45 - 0:52</span>
                     <span class="step-title">Subscription</span>
-                    <p>More → Profile → Subscription → Show subscription status and options</p>
+                    <p>Profile icon → Profile → Subscription → Show status and options</p>
                 </div>
                 <div class="script-step">
-                    <span class="step-time">0:45 - 0:55</span>
+                    <span class="step-time">0:52 - 0:58</span>
                     <span class="step-title">Delete Account</span>
-                    <p>More → Profile → Delete Account button → Show confirmation (don't confirm)</p>
+                    <p>Profile → Delete Account button → Show confirmation dialog (don't confirm)</p>
                 </div>
                 <div class="script-step">
-                    <span class="step-time">0:55 - 1:00</span>
+                    <span class="step-time">0:58 - 1:00</span>
                     <span class="step-title">End</span>
                     <p>Return to Dashboard → Stop recording</p>
                 </div>

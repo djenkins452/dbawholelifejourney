@@ -1469,11 +1469,83 @@
         hasMessages = true;
     }
 
+    // =========================================================================
+    // FRIENDLY ERROR RECOVERY — rotating messages with retry button
+    // =========================================================================
+
+    var ERROR_MESSAGES = {
+        friendly: [
+            "Shucks\u2026 something didn\u2019t quite work that time. Want to try again?",
+            "Hmm\u2026 that didn\u2019t go as planned. Should we give it another try?",
+            "Looks like something slipped for a second. Want me to try that again?",
+            "Oh dear, that didn\u2019t land right. Should we try it one more time?",
+            "Well that was a tiny bump in the road. Want to run it again?",
+            "Something didn\u2019t quite connect on my end. Want to try again?",
+            "That didn\u2019t quite stick the landing. Should we give it another shot?",
+            "Oops\u2026 looks like I missed that one. Want me to try again?",
+            "That didn\u2019t behave the way it should have. Want to run it again?",
+            "Looks like we hit a small hiccup. Want to try again?"
+        ],
+        playful: [
+            "Well\u2026 that went a little sideways. Want to try again?",
+            "Hmm\u2026 looks like the digital gremlins got involved. Should we try again?",
+            "That didn\u2019t quite cooperate. Want to give it another shot?",
+            "Well that was unexpected. Want to try it again?",
+            "Looks like the gears slipped for a moment. Should we run it again?",
+            "Okay\u2026 that didn\u2019t behave itself. Want to try again?",
+            "Something behind the curtain tripped for a second. Want to try again?",
+            "Well that didn\u2019t quite stick. Should we give it another go?",
+            "Looks like something zigged when it should\u2019ve zagged. Want to try again?",
+            "That didn\u2019t go quite how we planned. Want to run it again?"
+        ],
+        professional: [
+            "It looks like something didn\u2019t connect properly. Would you like to try again?",
+            "An unexpected issue occurred. Would you like to retry?",
+            "Something interrupted that request. Should we try again?",
+            "It seems that action didn\u2019t complete. Want to try again?",
+            "A connection issue occurred. Would you like to retry?",
+            "That request didn\u2019t go through. Should we try again?",
+            "Something prevented that from completing. Want to try again?",
+            "It appears something briefly failed. Would you like to retry?",
+            "The request didn\u2019t complete successfully. Should we try again?",
+            "Something went wrong processing that request. Want to retry?"
+        ]
+    };
+
+    var errorRetryCount = 0;
+    var recentErrorMessages = [];
+
+    function pickErrorMessage() {
+        // Tone rotation: attempt 1 → friendly, 2 → playful, 3+ → professional
+        errorRetryCount++;
+        var tone;
+        if (errorRetryCount <= 1) tone = 'friendly';
+        else if (errorRetryCount === 2) tone = 'playful';
+        else tone = 'professional';
+
+        var pool = ERROR_MESSAGES[tone].filter(function(m) {
+            return recentErrorMessages.indexOf(m) === -1;
+        });
+
+        // Fallback if all filtered out (shouldn't happen with 10 msgs and 3 buffer)
+        if (pool.length === 0) pool = ERROR_MESSAGES[tone];
+
+        var chosen = pool[Math.floor(Math.random() * pool.length)];
+
+        // Track recent messages to avoid repeats
+        recentErrorMessages.push(chosen);
+        if (recentErrorMessages.length > 3) recentErrorMessages.shift();
+
+        return chosen;
+    }
+
     // Show friendly error with retry button
     function addErrorWithRetry(savedMessage, sentImages, sendContext) {
         // Remove empty state if present
         var emptyState = messagesContainer.querySelector('.assistant-empty');
         if (emptyState) emptyState.remove();
+
+        var friendlyMsg = pickErrorMessage();
 
         var msg = document.createElement('div');
         msg.className = 'assistant-message assistant';
@@ -1482,7 +1554,7 @@
         card.className = 'assistant-error-card';
 
         var text = document.createElement('p');
-        text.textContent = "Oops, that didn\u2019t work. Would you like to try again?";
+        text.textContent = friendlyMsg;
         card.appendChild(text);
 
         var actions = document.createElement('div');
@@ -1585,6 +1657,7 @@
     function finalizeStreamingMessage(msgEl, text) {
         msgEl.innerHTML = formatAssistantMessage(text);
         hasMessages = true;
+        errorRetryCount = 0; // Reset tone rotation on success
     }
 
     // ==========================================================================
@@ -1673,6 +1746,7 @@
                 hideTyping();
                 if (data.success) {
                     addMessage(data.response, false);
+                    errorRetryCount = 0;
                 } else {
                     addErrorWithRetry(savedMessage, null, sendContext);
                 }
@@ -1820,6 +1894,7 @@
 
                 if (data.success) {
                     addMessage(data.response, false);
+                    errorRetryCount = 0; // Reset tone rotation on success
                     if (voiceConversationMode && 'speechSynthesis' in window) {
                         speakResponse(data.response);
                     }

@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Fix morning briefing missing non-routine tasks + field name bugs
+
+**What:** The executive briefing only reported `is_routine=True` tasks (routines like Wake Up, Prayer Time), completely missing non-routine tasks like "Workout" that are due today. The day overview section only showed calendar events. Additionally, the check-in path didn't query tasks with `due_date=None` (which appear in the "Now" bucket on the task page). Three query bugs using wrong field names (`completed=False`, `is_complete=False` instead of `is_completed=False`) caused silent empty results in overdue task counting and proactive intelligence.
+
+**Fix — four changes:**
+1. **Briefing day overview**: Added task section to `_build_day_overview_section()` that queries overdue tasks, non-routine tasks due today, tasks with no due date ("Now" bucket), and completed tasks — all previously invisible to the briefing.
+2. **Check-in no-date tasks**: Added `due_date__isnull=True` query to the check-in data injection so tasks without due dates (shown in "Now" on task page) appear in check-in responses.
+3. **Field name bugs**: Fixed `completed=False` → `is_completed=False` in `_build_gap_context_section()`, and `is_complete=False` → `is_completed=False` in two places in `assistant_intelligence.py` (`get_tomorrow_load()` and `get_overdue_tasks()`).
+4. **Test update**: Updated `test_empty_health_data` to expect anti-hallucination guard text instead of empty string.
+
+**Files:**
+- `apps/ai/executive_briefing.py` — Added task queries to day overview, fixed field name bug
+- `apps/ai/personal_assistant.py` — Added no-date task query in check-in path
+- `apps/ai/assistant_intelligence.py` — Fixed `is_complete` → `is_completed` (2 places)
+- `apps/ai/tests/test_executive_briefing.py` — Updated test expectation
+
+---
+
 ## 2026-03-07 — Fix hallucinated routine completions + routine recurrence gap
 
 **What:** Beth claimed "You've completed your workout and prayer time today" when the user had done neither. Investigation found: (1) NO routine tasks existed for today in the database — the recurrence chain breaks when yesterday's task isn't completed because `mark_complete()` is the only thing that creates the next occurrence. (2) The executive briefing instruction explicitly told the LLM "Lead with accomplishments! Celebrate!" even when zero completion data existed, causing pure hallucination.

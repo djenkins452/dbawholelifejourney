@@ -4179,6 +4179,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     ).exclude(status='deleted')
 
                     current_time = timezone.now().time()
+                    day_of_week = today.weekday()  # 0=Mon, 6=Sun
                     taken_meds = []
                     overdue_meds = []    # Past scheduled time and NOT taken
                     upcoming_meds = []   # Scheduled time is in the future
@@ -4198,6 +4199,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             continue
 
                         for sched in schedules:
+                            # Skip schedules that don't apply today
+                            # (e.g., Mounjaro is Thursday-only)
+                            if not sched.applies_to_day(day_of_week):
+                                continue
                             # Check THIS SPECIFIC schedule/dose, not just any dose
                             taken = MedicineLog.objects.filter(
                                 medicine=med,

@@ -466,6 +466,7 @@ def _build_health_gate_section(user, today) -> str:
 
         if active_meds.exists():
             current_time = timezone.now().time()
+            day_of_week = today.weekday()  # 0=Mon, 6=Sun
             total_scheduled = 0
             taken_count = 0
             overdue_count = 0
@@ -473,6 +474,10 @@ def _build_health_gate_section(user, today) -> str:
             for med in active_meds:
                 schedules = med.schedules.all()
                 for sched in schedules:
+                    # Skip schedules that don't apply today
+                    # (e.g., Mounjaro is Thursday-only)
+                    if not sched.applies_to_day(day_of_week):
+                        continue
                     total_scheduled += 1
                     taken = MedicineLog.objects.filter(
                         medicine=med,

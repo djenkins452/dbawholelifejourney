@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Fix medications ignoring day-of-week schedule (Mounjaro on Saturday bug)
+
+**What:** Beth reported Mounjaro as overdue on Saturday even though Mounjaro is only scheduled for Thursdays. Root cause: three code paths that query medication schedules iterated ALL schedules for ALL active medicines without checking `schedule.applies_to_day(day_of_week)`. This caused every medicine to appear on every day regardless of its actual schedule.
+
+**Fix:** Added `sched.applies_to_day(day_of_week)` filtering in 3 locations:
+1. `executive_briefing.py` (`_build_health_gate_section`) — morning briefing health gate
+2. `personal_assistant.py` (check-in medication section) — check-in/task query path
+3. `assistant_intelligence.py` (proactive check-in) — also fixed two bugs: `applies_to_day(today)` → `applies_to_day(today.weekday())` (was passing date object, not int), and `schedule.time` → `schedule.scheduled_time` (wrong attribute name)
+
+**Files:**
+- `apps/ai/executive_briefing.py` — Added day-of-week filter in health gate
+- `apps/ai/personal_assistant.py` — Added day-of-week filter in check-in med section
+- `apps/ai/assistant_intelligence.py` — Fixed applies_to_day arg type + attribute name
+
+---
+
 ## 2026-03-06 — Prevent correction messages from escalating to deletion
 
 **What:** When the user corrected Beth's stale data ("You won't find them for today any longer"), the intent service misinterpreted it as a `mutate_task(action='delete')` request. The safety engine correctly blocked the deletion but responded with "I wasn't sure if you wanted to delete those tasks" — suggesting a destructive action when the user was simply correcting bad information.

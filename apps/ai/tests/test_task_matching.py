@@ -11,8 +11,15 @@
 from datetime import time
 
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
+
+LOCMEM_CACHE = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'task-matching-test',
+    }
+}
 
 from apps.ai.action_handlers import ActionHandler
 from apps.ai.intent_service import IntentService, IntentResult
@@ -191,6 +198,7 @@ class TestMultipleMatchesReturnsCandidates(TestCase):
         self.assertTrue(len(result.created_object['candidates']) >= 2)
 
 
+@override_settings(CACHES=LOCMEM_CACHE)
 class TestClarificationState(TestCase):
     """Test pending clarification state storage, retrieval, and resolution."""
 

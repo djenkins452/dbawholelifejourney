@@ -24,9 +24,17 @@ import datetime as dt
 from unittest.mock import patch, MagicMock
 
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from apps.users.models import User
+
+
+LOCMEM_CACHE = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'cos-invalidation-test',
+    }
+}
 
 
 class CosContextInvalidationMixin:
@@ -49,6 +57,7 @@ class CosContextInvalidationMixin:
         cache.clear()
 
 
+@override_settings(CACHES=LOCMEM_CACHE)
 class TaskSaveInvalidatesCosCache(CosContextInvalidationMixin, TestCase):
     """
     Regression: Task post_save signal must invalidate CoS context cache.
@@ -190,6 +199,7 @@ class TaskSaveInvalidatesCosCache(CosContextInvalidationMixin, TestCase):
         )
 
 
+@override_settings(CACHES=LOCMEM_CACHE)
 class InRequestCacheInvalidationTest(CosContextInvalidationMixin, TestCase):
     """
     Regression: In-request _cos_context_cache must be cleared after action

@@ -21,6 +21,14 @@ from django.test import TestCase, Client, RequestFactory, override_settings
 User = get_user_model()
 
 
+LOCMEM_CACHE = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'readiness-cache-test',
+    }
+}
+
+
 class ReadinessTestMixin:
     """Common setup for readiness cache tests."""
 
@@ -45,6 +53,7 @@ class ReadinessTestMixin:
 # CACHE SERVICE TESTS
 # =============================================================================
 
+@override_settings(CACHES=LOCMEM_CACHE)
 class TestReadinessCache(ReadinessTestMixin, TestCase):
     """Test the core cache service functions."""
 
@@ -109,6 +118,7 @@ class TestReadinessCache(ReadinessTestMixin, TestCase):
 # READINESS STATE TESTS
 # =============================================================================
 
+@override_settings(CACHES=LOCMEM_CACHE)
 class TestReadinessState(ReadinessTestMixin, TestCase):
     """Test readiness state tracking."""
 
@@ -136,6 +146,7 @@ class TestReadinessState(ReadinessTestMixin, TestCase):
 # ACTIVE USER TRACKING TESTS
 # =============================================================================
 
+@override_settings(CACHES=LOCMEM_CACHE)
 class TestActiveUserTracking(ReadinessTestMixin, TestCase):
     """Test active user tracking for keep-alive."""
 
@@ -173,6 +184,7 @@ class TestActiveUserTracking(ReadinessTestMixin, TestCase):
 # PREWARM FUNCTION TESTS
 # =============================================================================
 
+@override_settings(CACHES=LOCMEM_CACHE)
 class TestPrewarm(ReadinessTestMixin, TestCase):
     """Test the prewarm_cos_context function."""
 

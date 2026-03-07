@@ -139,7 +139,7 @@ class RecipeScanProcessViewTest(RecipeScanTestBase):
     )
     def test_process_returns_extracted_data(self, mock_extract):
         self._login()
-        mock_extract.return_value = {
+        mock_extract.return_value = [{
             "title": "Test Recipe",
             "description": "A tasty dish",
             "ingredients": "2 cups flour\n1 tsp salt",
@@ -152,7 +152,7 @@ class RecipeScanProcessViewTest(RecipeScanTestBase):
             "source": "Test Cookbook",
             "notes": "",
             "confidence": 0.9,
-        }
+        }]
 
         photo = self._make_test_image()
         response = self.client.post(

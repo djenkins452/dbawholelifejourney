@@ -1715,10 +1715,14 @@ def format_cos_system_injection(context):
         lines.append(f"Active Fast: In progress (target: {fast.get('target_hours', 0)}h)")
 
     # Today's schedule blocks (with temporal awareness)
+    # IMPORTANT: Schedule blocks show what was PLANNED, not necessarily what
+    # was DONE. A block in the past without [done] tag was scheduled but may
+    # not have been completed. Only blocks explicitly marked [done] are confirmed.
+    # NEVER assume a past-time block was completed just because the time has passed.
     blocks = context.get('today_blocks_summary', [])
     if blocks:
         lines.append("")
-        lines.append("Today's Schedule:")
+        lines.append("Today's Schedule (PLANNED blocks — only [done] means completed):")
         now = timezone.localtime()
         current_time = now.time()
         current_block_title = None
@@ -1744,6 +1748,9 @@ def format_cos_system_injection(context):
                         status = "[NEXT]" + (" [locked]" if b['locked'] else "")
                         next_block_title = b['title']
                         next_block_time = b['start']
+                    elif current_time > b_end:
+                        # Past block NOT marked done — explicitly label it
+                        status = "[not completed]"
                 except (ValueError, TypeError):
                     pass
             lines.append(f"  {b['start']}-{b['end']} {b['title']} {status}")

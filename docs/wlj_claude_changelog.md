@@ -9,6 +9,30 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Fix CoS data fabrication: workout/prayer false completion + stale schedule blocks
+
+**What:** CoS was fabricating data — claiming the user completed workout and prayer when they hadn't, showing a completed task ("pick up truck at 9 AM") as "coming up" even though it was marked done 45 minutes ago, and dumping medication schedule info unsolicited. Three root causes:
+
+1. **Routine task/activity model disconnect:** The executive briefing's routine task section reported Task model items (like "Workout", "Prayer Time") as completed with "Celebrate this warmly!" instruction. But actual workout completion is tracked by `WorkoutSession` model, not `Task`. The AI saw conflicting signals ("Routines Completed: Workout, Prayer Time. Celebrate warmly!" vs "Workout: not yet logged") and the celebratory instruction won.
+
+2. **Past schedule blocks assumed completed:** Schedule blocks for past times showed no status tag (empty string), so the AI assumed past-time blocks like "6:00-6:30 Prayer Time" were done just because the time passed. No explicit "[not completed]" label existed.
+
+3. **"How have I been doing?" unmatched:** This phrase matched NONE of the check-in or analysis patterns, so it went through the normal response path with no data-driven context injection — the AI just guessed from schedule blocks.
+
+**Fix — five changes:**
+1. **Deduplicate routine tasks from dedicated checks:** In `_build_health_gate_section()`, routine tasks with names matching workout/prayer/reading/medication keywords are now filtered out since those activities are already checked by dedicated models (WorkoutSession, UserReadingProgress, MedicineLog). Removed "Celebrate this warmly!" bias instruction.
+2. **Explicit [not completed] label:** Past-time schedule blocks without [done] are now tagged `[not completed]`. Schedule header changed to "PLANNED blocks — only [done] means completed".
+3. **Explicit calendar labels:** Check-in calendar events now use [DONE]/[TODO] text labels grouped into COMPLETED/REMAINING sections instead of ambiguous `✓`/`·` symbols.
+4. **Pattern coverage:** Added "how have i been doing" and "how have i been" to analysis detection patterns so the data-driven path fires.
+5. **Anti-fabrication rules:** Added explicit rules to check-in injection: workout status is ONLY from the "Workout:" line, reading from "Reading plan:" line. HEALTH & ROUTINES section marked as AUTHORITATIVE with override note.
+
+**Files:**
+- `apps/ai/personal_assistant.py` — Calendar labels, anti-fabrication rules, analysis pattern additions, AUTHORITATIVE markers
+- `apps/ai/executive_briefing.py` — Routine task deduplication, removed celebration bias
+- `apps/core/ai_orchestrator/cos_context.py` — [not completed] tag for past blocks, schedule header clarification
+
+---
+
 ## 2026-03-07 — Guides Hub: Data Dictionary & User Guide
 
 - **What:** Created a "Guides" section on the Admin Console dashboard with three guides: Admin Guide (moved from Admin Sections), Data Dictionary (new — synced from docs/WLJ_Data_Dictionary.md), and User Guide (new — synced from HelpTopic/HelpArticle models). Added User Guide link to profile dropdown for all users. Added `guide_type` field to AdminGuideSection/AdminGuideArticle models. Created `sync_data_dictionary` and `sync_user_guide` management commands.

@@ -94,6 +94,15 @@ CHECKIN_PATTERNS = frozenset([
     'tasks today', 'tasks for today',
     'things to do', 'to-do list',
     'anything left',
+    # Advisory / planning queries (Part 3 — v4 expansion)
+    'structure my day', 'what matters most',
+    'biggest improvement', 'biggest difference', 'biggest impact',
+    'highest impact', 'what single habit',
+    'what would you tell me', 'if you were my chief of staff',
+    'if you were my cos', 'what should my priorities',
+    'what would make the biggest', 'most important thing',
+    'top priority', 'where should i start',
+    'what would improve my life', 'what should i change',
 ])
 
 
@@ -3699,6 +3708,35 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         # (e.g., "what time is it?" queries). Urgency messaging is part of time context.
         system_prompt = self._build_system_prompt(include_time_context=True)
 
+        # ── v4: Functional query detection ──────────────────────────────
+        # Suppress calibration injection for ANY functional query.
+        # The calibration MANDATORY OVERRIDE tells the LLM "only listen
+        # and ask calibration questions" — this conflicts with check-ins,
+        # status requests, data queries, and advice questions, causing the
+        # LLM to hallucinate (e.g., "3 of 5 tasks" fabrication).
+        #
+        # Calibration should ONLY be active when the user is answering
+        # a calibration question (short statements without question marks
+        # or imperative verbs). For everything else, suppress it.
+        _msg_lower_early = (message or '').lower()
+        _is_functional_query = (
+            '?' in (message or '')
+            or any(m in _msg_lower_early for m in [
+                'what ', 'how ', 'why ', 'when ', 'where ', 'which ',
+                'tell me', 'remind me', 'encourage', 'explain',
+                'help me', 'show me', 'should i', 'am i', 'do i',
+                'can i', 'will i', 'would you',
+            ])
+            or any(p in _msg_lower_early for p in CHECKIN_PATTERNS)
+        )
+        if _is_functional_query:
+            logger.info(
+                "v4_CALIBRATION_SKIP user=%s msg=%r — functional query "
+                "detected, suppressing calibration injection",
+                self.user.id, (message or '')[:80],
+            )
+        # ────────────────────────────────────────────────────────────────
+
         # ================================================================
         # UNIFIED CoS SYSTEM PROMPT — PRIORITY-ORDERED
         #
@@ -3708,6 +3746,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         #
         # Order:
         #   1. Calibration override (if active — supersedes everything)
+        #      EXCEPT: suppressed for check-in/advisory queries (v4)
         #   2. Recalibration (if non-negotiables being missed)
         #   3. Governance alignment (if in progress)
         #   4. Personality & relationship (POST_CALIBRATION_PERSONALITY)
@@ -3729,6 +3768,12 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
                 # Layer 1-3: Special session overrides (calibration, recal, alignment)
                 # These are mutually exclusive in practice — only one is active
+                #
+                # v4: Calibration injection is SUPPRESSED for check-in/advisory
+                # queries. The calibration MANDATORY OVERRIDE conflicts with
+                # check-in briefing instructions, causing hallucinated task
+                # counts. Check-in queries have their own comprehensive data
+                # injection and don't need calibration context.
                 try:
                     from apps.core.blueprint.cos_governance import (
                         build_calibration_system_injection,
@@ -3738,13 +3783,15 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     )
                     cal_state = get_calibration_state(self.user)
                     logger.info(
-                        "Calibration check: user=%s state=%s",
+                        "Calibration check: user=%s state=%s checkin_skip=%s",
                         self.user.email,
                         {k: v for k, v in (cal_state or {}).items()
-                         if k != 'next_question'} if cal_state else None
+                         if k != 'next_question'} if cal_state else None,
+                        _is_functional_query,
                     )
                     if (cal_state and cal_state['active']
-                            and not cal_state['paused']):
+                            and not cal_state['paused']
+                            and not _is_functional_query):
                         cal_injection = build_calibration_system_injection(
                             self.user)
                         logger.info(
@@ -4133,6 +4180,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'my priorities', 'my tasks', 'overdue', 'due today', 'to do',
             'what remains', 'what still needs', 'focus on', 'left to do',
             'what needs to be done', 'what\'s remaining', 'how many tasks',
+            # v4: Advisory planning queries that need full briefing data
+            'prioritize', 'structure my day', 'should i do today',
+            'my priorities', 'biggest improvement', 'biggest difference',
+            'highest impact', 'most important', 'top priority',
         ])
 
         # Also check for broader analysis questions about habits, consistency, focus areas
@@ -4151,6 +4202,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'my health', 'my vitals', 'vital signs', 'see my data',
             'see any data', 'new data', 'new activity', 'synced data',
             'apple health',
+            # v4: Habit and improvement queries
+            'habits', 'my habits', 'habit', 'improve my life',
+            'on track', 'am i on track',
         ])
 
         # Check-in / day assessment — user wants a full CoS briefing.

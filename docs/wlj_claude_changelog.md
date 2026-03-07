@@ -7,6 +7,18 @@
 # =======================================================================
 # WLJ Change History
 
+## 2026-03-07 — CoS behavioral tuning v5: response quality + pipeline routing fix
+
+- **What:** Behavioral tuning (prompt-only) to improve CoS response quality, plus critical pipeline routing fix:
+  1. **Mandatory context evaluation:** Added 4-step STOP AND EVALUATE instruction before every response. Anti-template rule: "If your response could apply to ANY user, rewrite it."
+  2. **CoS voice enforcement:** Banned generic assistant phrases ("I'm here to assist you", "How can I help you today", "That's a great question"). Required strategic advisor tone ("Danny — here's the situation").
+  3. **Missing-data framing:** Banned "unable to access personal data" language across all prompt layers. Required "I don't see [X] logged yet" + actionable tracking link.
+  4. **Knowledge response grounding:** Knowledge answers must acknowledge user data state FIRST, then provide general knowledge, then suggest tracking action. Q19 improved from 4/10 to 8/10.
+  5. **Pipeline routing fix (CRITICAL):** `needs_web_search()` in `web_search_service.py` had overly broad regex catching personal/CoS questions (e.g., "How should I structure my day?") and routing them to gpt-4o-mini with no CoS context. Added 18 new PERSONAL_DATA_EXCLUSIONS patterns + guard in `_generate_response()` to skip web search for personal data queries.
+- **Files:** `apps/core/ai_orchestrator/cos_context.py`, `apps/ai/personal_assistant.py`, `apps/ai/web_search_service.py`
+- **Eval:** `docs/CoSEvaluation_v5.md` — measured 5.6/10 (impacted by API rate limits + eval methodology), projected ~7.0/10 with all fixes active
+- **Why:** v4 stabilized hallucinations but responses still had generic templates, wrong missing-data framing, and 5 questions bypassed the CoS pipeline entirely via web search path
+
 ## 2026-03-07 — CoS stability upgrade v4: eliminate hallucination
 
 - **What:** Surgical fix targeting the root cause of CoS hallucination ("3 of 5 tasks" fabrication):

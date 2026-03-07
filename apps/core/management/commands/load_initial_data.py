@@ -984,16 +984,16 @@ class Command(BaseCommand):
             if verbosity >= 1:
                 self.stdout.write('  Synced Data Dictionary guide')
         except Exception as e:
-            if verbosity >= 1:
-                self.stdout.write(self.style.WARNING(f'  sync_data_dictionary failed: {e}'))
+            # Always log sync failures — never suppress errors
+            self.stderr.write(self.style.WARNING(f'  sync_data_dictionary failed: {e}'))
 
         try:
             call_command('sync_user_guide', verbosity=0)
             if verbosity >= 1:
                 self.stdout.write('  Synced User Guide')
         except Exception as e:
-            if verbosity >= 1:
-                self.stdout.write(self.style.WARNING(f'  sync_user_guide failed: {e}'))
+            # Always log sync failures — never suppress errors
+            self.stderr.write(self.style.WARNING(f'  sync_user_guide failed: {e}'))
 
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:

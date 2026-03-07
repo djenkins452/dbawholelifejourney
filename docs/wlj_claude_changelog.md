@@ -7,6 +7,20 @@
 # =======================================================================
 # WLJ Change History
 
+## 2026-03-07 — CoS stability + grounding upgrade (v3)
+
+- **What:** Multi-part upgrade to the Chief of Staff AI assistant to reduce hallucination and improve response quality:
+  1. **Model upgrade:** Added `COS_MODEL` setting (defaults to `gpt-4o`) so the CoS uses gpt-4o while other AI features remain on gpt-4o-mini. Added `model` override parameter to `_call_api()` and `_call_api_stream()` in services.py.
+  2. **Data state snapshot:** Added `_build_data_state_snapshot()` to `cos_context.py` that queries live record counts (weight, medications, sleep, goals, journal, nutrition, relationships) and generates explicit grounding rules for zero-data domains (e.g., "weight_entries = 0 → Do NOT reference the user's weight").
+  3. **Reasoning hierarchy:** Added "Chief of Staff Thinking Order" (6-step chain) to the system prompt: check data state → filter to present data → apply user priorities → generate grounded guidance → add navigation links → verify no hallucination.
+  4. **Context relevance enforcement:** Added rules preventing the CoS from appending unrelated operational data (tasks, medications) to knowledge-based answers about general topics.
+  5. **Sparse data behavior:** Added explicit good/bad examples showing how to respond when the user has minimal data logged.
+- **Why:** v2 evaluation (5.9/10) showed persistent medication hallucination (37%), "3 of 5 tasks" hallucination, and context relevance violations. These prompt-level interventions target the root causes.
+- **Files:** `config/settings.py`, `apps/ai/services.py`, `apps/ai/personal_assistant.py`, `apps/core/ai_orchestrator/cos_context.py`, `docs/CoSEvaluation_v3.md`
+- **Evaluation:** v3 scored 5.8/10 overall. Medication hallucination reduced (37% → 21%). Q24 scored 9/10 (best ever). "3 of 5 tasks" hallucination persisted — likely caused by calibration injection at stage 0/11. Target of 7.5+ not yet met.
+
+---
+
 ## 2026-03-07 — Fix CoS early-return personal data short-circuit
 
 - **What:** Removed the hard-coded template early-return in `personal_assistant.py` that bypassed the LLM when personal data queries found no records. When a user asks about weight, sleep, medications, etc. and no data exists, the CoS now receives structured context about the data gap and generates an intelligent response instead of returning `"I don't have any {X} entries in your records yet."` Added `_build_missing_data_context()` helper that injects: data domain queried, navigation links, and strict health grounding rules to prevent hallucination. Added `DATA_TYPE_NAVIGATION` mapping to `assistant/views.py`.

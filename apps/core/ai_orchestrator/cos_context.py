@@ -1553,6 +1553,72 @@ def _detect_session_mode(user):
         return 'daily_brief'
 
 
+def _build_data_state_snapshot(user) -> str:
+    """Build a structured data state snapshot showing record counts per domain.
+
+    This tells the LLM exactly which data categories are empty vs populated,
+    preventing hallucination of specific items from empty categories.
+    """
+    counts = {}
+    try:
+        from apps.health.models import (
+            WeightEntry, SleepEntry, MedicineLog, Medicine,
+            FoodEntry, BloodPressureEntry, WorkoutSession,
+        )
+        from apps.purpose.models import LifeGoal
+        from apps.journal.models import JournalEntry
+
+        counts['weight_entries'] = WeightEntry.objects.filter(user=user).count()
+        counts['sleep_entries'] = SleepEntry.objects.filter(user=user).count()
+        counts['active_medications'] = Medicine.objects.filter(user=user).count()
+        counts['nutrition_entries'] = FoodEntry.objects.filter(user=user).count()
+        counts['blood_pressure_entries'] = BloodPressureEntry.objects.filter(user=user).count()
+        counts['workout_sessions'] = WorkoutSession.objects.filter(user=user).count()
+        counts['goals_defined'] = LifeGoal.objects.filter(user=user).count()
+        counts['journal_entries'] = JournalEntry.objects.filter(user=user).count()
+    except Exception as e:
+        logger.warning("Failed to build data state snapshot: %s", e)
+        return ""
+
+    lines = [
+        "=== USER DATA STATE (record counts — use for grounding) ===",
+    ]
+    for key, count in counts.items():
+        lines.append(f"  {key}: {count}")
+
+    # Build explicit zero-data grounding rules
+    zero_domains = [k for k, v in counts.items() if v == 0]
+    if zero_domains:
+        lines.append("")
+        lines.append("GROUNDING RULE — ZERO-DATA DOMAINS:")
+        lines.append(
+            "The following categories have ZERO records. You MUST NOT reference "
+            "specific items from these categories. Never say medication is due, "
+            "never cite task counts, never quote weight values — for any domain "
+            "listed below with 0 records."
+        )
+        domain_examples = {
+            'active_medications': "Do NOT say 'medication is due' or 'make sure to take your meds'",
+            'weight_entries': "Do NOT mention a specific weight value",
+            'sleep_entries': "Do NOT cite sleep hours or quality scores",
+            'nutrition_entries': "Do NOT reference meals, calories, or macros logged",
+            'blood_pressure_entries': "Do NOT cite blood pressure readings",
+            'workout_sessions': "Do NOT reference specific workout sessions completed",
+            'goals_defined': "Do NOT reference goals by name or count",
+            'journal_entries': "Do NOT reference journal entries or mood logs",
+        }
+        for domain in zero_domains:
+            example = domain_examples.get(domain, f"Do NOT reference specific {domain}")
+            lines.append(f"  • {domain} = 0 → {example}")
+        lines.append(
+            "You MAY suggest the user start tracking these domains, "
+            "but NEVER imply data exists when it does not."
+        )
+
+    lines.append("=== END DATA STATE ===")
+    return "\n".join(lines)
+
+
 def format_cos_system_injection(context):
     """
     Format the CoS context as a system prompt injection string.
@@ -1627,6 +1693,70 @@ def format_cos_system_injection(context):
         "or general conversation), do NOT append schedule updates. A good Chief of "
         "Staff knows when to surface information and when to stay focused on "
         "the question at hand."
+    )
+    lines.append("")
+
+    # ── PART 2: Data State Snapshot (grounding against hallucination) ──
+    _cos_user = context.get('_user')
+    if _cos_user:
+        try:
+            snapshot = _build_data_state_snapshot(_cos_user)
+            if snapshot:
+                lines.append(snapshot)
+                lines.append("")
+        except Exception:
+            pass  # Snapshot must never break CoS
+
+    # ── PART 3: Chief of Staff Reasoning Hierarchy ──
+    lines.append(
+        "=== CHIEF OF STAFF THINKING ORDER ===\n"
+        "When answering questions, follow this reasoning order:\n"
+        "1. Use DIRECT USER DATA if available (exact values from context above)\n"
+        "2. Use DERIVED INTELLIGENCE (health intelligence summaries, pattern insights, watch areas)\n"
+        "3. Use BEHAVIORAL FORECASTS and signals (completion probabilities, drift risk)\n"
+        "4. Use LIFE PRIORITIES and identity context (ranked priorities, non-negotiable commitments)\n"
+        "5. Use GENERAL EXPERTISE and reasoning (domain knowledge, best practices)\n"
+        "6. If information is still missing after steps 1-5, ACKNOWLEDGE the gap honestly\n"
+        "\n"
+        "CRITICAL: Never stop at step 6 if steps 2-5 provide useful guidance. "
+        "Even without direct data, your operational context contains priorities, "
+        "forecasts, intelligence summaries, and watch areas that can inform a "
+        "helpful, personalized response.\n"
+        "=== END THINKING ORDER ==="
+    )
+    lines.append("")
+
+    # ── PART 4: Strengthened Context Relevance Rule ──
+    lines.append(
+        "=== CONTEXT RELEVANCE ENFORCEMENT ===\n"
+        "Do NOT inject unrelated reminders, signals, or data into responses.\n"
+        "Examples of violations:\n"
+        "  • A question about sleep science → Do NOT append task reminders\n"
+        "  • A question about nutrition → Do NOT append medication reminders\n"
+        "  • A request for encouragement → Do NOT append health metric summaries\n"
+        "  • A general knowledge question → Do NOT append schedule updates\n"
+        "\n"
+        "Only reference a data domain if it is DIRECTLY relevant to the user's "
+        "question. When in doubt, leave it out.\n"
+        "=== END CONTEXT RELEVANCE ==="
+    )
+    lines.append("")
+
+    # ── PART 5: Sparse Data Behavior ──
+    lines.append(
+        "=== SPARSE DATA BEHAVIOR ===\n"
+        "When user data is limited or missing, do NOT fall back to generic responses.\n"
+        "Instead, follow this pattern:\n"
+        "1. Acknowledge the missing data specifically\n"
+        "2. Explain why tracking that data matters for THEIR priorities\n"
+        "3. Provide guidance based on their life priorities and available context\n"
+        "4. Offer the next best action with a link to the relevant app page\n"
+        "\n"
+        "Example — BAD: 'I don't have weight data.'\n"
+        "Example — GOOD: 'You haven't logged weight yet. Since Health Discipline "
+        "is one of your top priorities, getting a baseline weight logged would be "
+        "a strong first step. Head to [Weight Tracking](/health/weight/) to start.'\n"
+        "=== END SPARSE DATA BEHAVIOR ==="
     )
     lines.append("")
 

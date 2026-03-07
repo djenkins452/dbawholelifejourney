@@ -9,6 +9,12 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Professional styling for Data Dictionary and User Guide
+
+- **What:** Overhauled CSS for both Data Dictionary and User Guide templates with professional documentation styling. Dark code blocks (#1e293b), blue gradient table headers, alternating row colors with hover highlights, accent-colored h3 headings, bordered h2 sections, proper inline code styling, subtle box shadows. Removed `nl2br` extension from markdown filter (was breaking code blocks and tables). Added `fenced_code` extension.
+- **Why:** Initial rendering was plain/ugly — gray code blocks, basic tables, no visual hierarchy. Now looks like professional reference documentation (Stripe/Django docs quality).
+- **Files:** `templates/admin_console/data_dictionary/home.html`, `templates/admin_console/user_guide/home.html`, `apps/admin_console/templatetags/admin_guide_filters.py`
+
 ## 2026-03-07 — Embed Data Dictionary in migration (no file dependency)
 
 - **What:** Created migration 0035 that embeds the full Data Dictionary markdown (gzip+base64 encoded, 36KB) directly in the migration file. Parses sections/articles inline using Django ORM — zero file system dependency.

@@ -986,7 +986,21 @@ _PARALLEL_BUILDERS = [
     lambda user, prefs: _build_recent_image_analyses(user),
     lambda user, prefs: _build_meals_context(user),
     lambda user, prefs: _build_faith_context(user),
+    lambda user, prefs: _build_situational_awareness_context(user),
 ]
+
+
+def _build_situational_awareness_context(user):
+    """v8: Build situational awareness patterns for CoS pipeline."""
+    try:
+        from apps.ai.situational_awareness import build_situational_awareness
+        sa_data = build_situational_awareness(user)
+        if sa_data and sa_data.get('lines'):
+            return {'situational_awareness': sa_data}
+        return {}
+    except Exception as e:
+        logger.debug("CoS context: situational awareness unavailable: %s", e)
+        return {}
 
 
 def build_cos_context(user):
@@ -1725,8 +1739,10 @@ def format_cos_system_injection(context):
         "STEP 4 — CHECK time of day and hours remaining.\n"
         "STEP 5 — SCAN for outstanding commitments: workout, routines, habits.\n"
         "STEP 6 — NOTE any missing data domains (no weight, no sleep, no goals, etc.).\n"
+        "STEP 7 — READ the Situational Awareness Summary (if present). Note momentum, "
+        "drift, one-off sensitive domains, and emotional context.\n"
         "\n"
-        "Only AFTER completing all six steps, generate your response using this "
+        "Only AFTER completing all steps, generate your response using this "
         "reasoning hierarchy:\n"
         "1. Use DIRECT USER DATA if available (exact values from context above)\n"
         "2. Use DERIVED INTELLIGENCE (health intelligence summaries, pattern insights)\n"
@@ -2419,6 +2435,20 @@ def format_cos_system_injection(context):
                     lines.append(_cp_block)
         except Exception:
             pass  # Consistency protection must never break CoS
+
+    # ── v8: Situational Awareness Summary ──
+    sa_data = context.get('situational_awareness')
+    if sa_data and sa_data.get('lines'):
+        try:
+            from apps.ai.situational_awareness import (
+                format_situational_awareness_injection,
+            )
+            sa_block = format_situational_awareness_injection(sa_data)
+            if sa_block:
+                lines.append("")
+                lines.append(sa_block)
+        except Exception:
+            pass  # SA must never break CoS
 
     # ── v4 PART 4: Data State Snapshot (FINAL POSITION — highest recency weight) ──
     # Moved to END of prompt so the model weights it more heavily.

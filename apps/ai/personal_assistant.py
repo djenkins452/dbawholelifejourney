@@ -4676,7 +4676,21 @@ If few or no tasks/events exist, the briefing must still be useful. Prioritize:
 3. Missing tracking that unlocks intelligence ("I don't see any weight entries logged yet — tracking that would help me spot trends")
 4. One clear recommendation — even if it's just "Your plate is clear. Good day to focus on [goal]."
 Never default to generic productivity filler. An empty day is a briefing opportunity, not a void.
+"""
+                # v8: Inject situational awareness into check-in prompt
+                try:
+                    from apps.ai.situational_awareness import (
+                        build_situational_awareness,
+                        format_situational_awareness_injection,
+                    )
+                    _sa_data = build_situational_awareness(self.user)
+                    _sa_block = format_situational_awareness_injection(_sa_data)
+                    if _sa_block:
+                        system_prompt += f"\n\n{_sa_block}"
+                except Exception:
+                    pass  # SA must never break check-in path
 
+                system_prompt += """
 ANTI-FABRICATION RULES (ABSOLUTE):
 - NEVER claim an activity is completed unless it EXPLICITLY appears under COMPLETED, ALREADY TAKEN, or [DONE] sections above.
 - Workout status is ONLY determined by the "Workout:" line in HEALTH & ROUTINES. If it says "not yet logged", the user has NOT worked out — regardless of what any routine task says.

@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-07 (v7+v7.1 proactive briefing engine)
+**Last updated:** 2026-03-07 (v8 situational awareness + predictive guidance)
 
 ---
 
@@ -215,7 +215,7 @@ User Message
       └─ 9. Post-Response Intelligence (async)
 ```
 
-### Context Builder (12 Parallel Builders)
+### Context Builder (13 Parallel Builders)
 
 **Function:** `build_cos_context(user)` — `apps/core/ai_orchestrator/cos_context.py:1068`
 Uses `ThreadPoolExecutor(max_workers=6)`.
@@ -236,6 +236,7 @@ Uses `ThreadPoolExecutor(max_workers=6)`.
 | Image Analyses | `_build_recent_image_analyses()` | **SAE scan** | recent_analyses |
 | Meals | `_build_meals_context()` | **SAE meals**, HouseholdMembership | meals_context |
 | Faith | `_build_faith_context()` | **SAE faith** | faith_context |
+| Situational Awareness (v8) | `_build_situational_awareness_context()` | DailyHealthSummary, WeightEntry, JournalEntry, AssistantMessage, HabitGoal, medicine_utils, streak_service | momentum_signals, drift_signals, one_off_sensitive_domains, emotional_context |
 
 ### System Prompt Assembly (Priority Order)
 
@@ -252,7 +253,8 @@ System prompt layers (highest priority first):
 │     └─ v4: Data State Snapshot moved to END (highest recency weight)
 │     └─ v5: RESPONSE QUALITY RULES + CoS Voice + Missing Data Framing
 │     └─ v6: Consolidated CHIEF OF STAFF OPERATIONAL RULES (6 rules)
-│     └─ v6: MANDATORY CONTEXT EVALUATION (6 steps + anti-template)
+│     └─ v6: MANDATORY CONTEXT EVALUATION (7 steps + anti-template)
+│     └─ v8: SITUATIONAL AWARENESS SUMMARY (pattern-aware guidance rules)
 ├─ 7. Base prompt + coaching style + faith
 ├─ 8. Pending reflections
 └─ 9. Greeting context

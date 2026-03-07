@@ -31,6 +31,22 @@
 
 ---
 
+## 2026-03-07 — CoS v8: Situational Awareness + Predictive Guidance
+
+- **What:** Transforms CoS from state-aware to pattern-aware by adding a deterministic Situational Awareness Summary (SA) context block. All computations are DB queries + math — no LLM calls:
+  1. **Situational Awareness builder** (`apps/ai/situational_awareness.py`): Gathers 7-14 day behavioral patterns across 7 data signals — workout consistency (DailyHealthSummary), weight tracking (WeightEntry), journal consistency (JournalEntry), mood trend (weak signal), medication adherence (existing utility), fatigue/distress keywords (user messages only), goal streaks (streak_service).
+  2. **Pattern classification:** Conservative 3-tier system: consistent (5-7/7 days), mixed (3-4/7), slipping (0-2/7). "Not yet logged today" in a consistent domain is NOT drift.
+  3. **Accountability gate:** Drift framing only triggers when priority is provable (active HabitGoal exists). Without evidence → informational only.
+  4. **One-off sensitive domains:** Consistent domains where a single miss should receive a gentle nudge, never failure framing.
+  5. **Fatigue scanning:** Only scans user-authored messages (never assistant/system) to prevent feedback loops. Requires 2+ conversations with keywords.
+  6. **Parallel builder integration:** Added as 13th parallel builder in cos_context.py via ThreadPoolExecutor. Zero added latency.
+  7. **Triple injection:** SA feeds (a) regular CoS responses via cos_context pipeline, (b) check-in responses via explicit injection in personal_assistant.py, (c) proactive briefings via _build_pattern_section() in executive_briefing.py.
+  8. **Pattern-Aware Guidance Rules:** 6 rules injected with SA block — momentum reinforcement, drift accountability, one-off sensitivity, core discipline (workout=non-negotiable, bike=optional), emotional context modulation, mood as weak signal.
+  9. **Step 7 added to Mandatory Context Evaluation:** "READ the Situational Awareness Summary. Note momentum, drift, one-off sensitive domains, and emotional context."
+- **Files:** `apps/ai/situational_awareness.py` (~350 lines), `apps/core/ai_orchestrator/cos_context.py` (~25 lines), `apps/ai/personal_assistant.py` (~10 lines), `apps/ai/executive_briefing.py` (~55 lines), `apps/ai/tests/test_situational_awareness.py` (~300 lines), `docs/CoSEvaluation_v8.md`
+- **Tests:** 24/24 new tests pass + 73/73 existing PA + briefing tests pass. 0 regressions.
+- **Why:** v4-v7 gave CoS knowledge of current state but no memory of patterns. CoS couldn't distinguish a one-off miss from true drift, recommended things the user already does consistently, and couldn't reinforce momentum. v8 enables pattern-aware executive guidance.
+
 ## 2026-03-07 — CoS v7+v7.1: Proactive Daily Executive Briefing Engine
 
 - **What:** First proactive intelligence behavior — CoS automatically delivers a Daily Executive Briefing when the user opens the chat interface:

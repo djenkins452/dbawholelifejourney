@@ -9,6 +9,12 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Fix: Guides Hub sync on deploy
+
+- **What:** Added `sync_data_dictionary` and `sync_user_guide` calls to `load_initial_data.py` so they run automatically on every deploy.
+- **Why:** Sidebar was empty on production — sync commands ran locally but not in the deployed environment.
+- **Files:** `apps/core/management/commands/load_initial_data.py` (added guide sync section)
+
 ## 2026-03-07 — Guides Hub: Data Dictionary & User Guide
 
 - **What:** Created a "Guides" section on the Admin Console dashboard with three guides: Admin Guide (moved from Admin Sections), Data Dictionary (new — synced from docs/WLJ_Data_Dictionary.md), and User Guide (new — synced from HelpTopic/HelpArticle models). Added User Guide link to profile dropdown for all users. Added `guide_type` field to AdminGuideSection/AdminGuideArticle models. Created `sync_data_dictionary` and `sync_user_guide` management commands.

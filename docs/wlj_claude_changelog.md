@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-03-07 — CoS response policy: combine facts with coaching naturally
+
+**What:** The response policy treated factual data and advice as separate modes — the AI either dumped data robotically or gave generic advice. Users need BOTH: real numbers AND coaching on what they mean and how to improve.
+
+**Fix:** Rewrote the RESPONSE POLICY to use layered steps that combine naturally:
+1. **Facts First** — anti-fabrication rules apply here (data claims must be real)
+2. **Reasoning & Advice** — free to interpret, suggest, and coach (anti-fabrication does NOT apply to advice)
+3. **Optional Context** — only if relevant
+
+Key distinction codified: "Your protein averaged 150g" = data claim (must be real). "Try front-loading breakfast with a 40g shake" = advice (freely offered). Both belong in the same response.
+
+Also relaxed overly aggressive rules that prevented coaching:
+- "Offer unsolicited life coaching" → "Offer generic advice that ignores user data"
+- "Add uninvited task reminders" → only when unrelated to the question
+- Added "Combine facts with coaching naturally" to WHAT YOU ALWAYS DO
+
+**Files:** `apps/ai/personal_assistant.py` — RESPONSE POLICY rewrite, WHAT YOU NEVER DO/ALWAYS DO updates
+
+---
+
 ## 2026-03-07 — Fix CoS data fabrication: workout/prayer false completion + stale schedule blocks
 
 **What:** CoS was fabricating data — claiming the user completed workout and prayer when they hadn't, showing a completed task ("pick up truck at 9 AM") as "coming up" even though it was marked done 45 minutes ago, and dumping medication schedule info unsolicited. Three root causes:

@@ -576,11 +576,11 @@ class IntelligentCheckInService:
             )
 
             for schedule in schedules:
-                if not schedule.applies_to_day(today):
+                if not schedule.applies_to_day(today.weekday()):
                     continue
 
                 # Check if this dose time has passed
-                scheduled_time = schedule.time
+                scheduled_time = schedule.scheduled_time
                 if current_time < scheduled_time:
                     continue  # Not time yet
 

@@ -1558,6 +1558,10 @@ def _build_data_state_snapshot(user) -> str:
 
     This tells the LLM exactly which data categories are empty vs populated,
     preventing hallucination of specific items from empty categories.
+
+    v4: Added active_tasks and completed_tasks_today counts. Strengthened
+    grounding rules with MUST enforcement. Covers all domains listed in
+    the CoS evaluation.
     """
     counts = {}
     try:
@@ -1567,6 +1571,10 @@ def _build_data_state_snapshot(user) -> str:
         )
         from apps.purpose.models import LifeGoal
         from apps.journal.models import JournalEntry
+        from apps.life.models import Task as LifeTask
+        from apps.core.utils import get_user_today
+
+        today = get_user_today(user)
 
         counts['weight_entries'] = WeightEntry.objects.filter(user=user).count()
         counts['sleep_entries'] = SleepEntry.objects.filter(user=user).count()
@@ -1576,12 +1584,22 @@ def _build_data_state_snapshot(user) -> str:
         counts['workout_sessions'] = WorkoutSession.objects.filter(user=user).count()
         counts['goals_defined'] = LifeGoal.objects.filter(user=user).count()
         counts['journal_entries'] = JournalEntry.objects.filter(user=user).count()
+        # v4: Task counts — key for preventing "3 of 5 tasks" hallucination
+        counts['active_tasks'] = LifeTask.objects.filter(
+            user=user, is_completed=False
+        ).exclude(status='deleted').count()
+        counts['completed_tasks_today'] = LifeTask.objects.filter(
+            user=user, is_completed=True, completed_at__date=today
+        ).exclude(status='deleted').count()
     except Exception as e:
         logger.warning("Failed to build data state snapshot: %s", e)
         return ""
 
     lines = [
-        "=== USER DATA STATE (record counts — use for grounding) ===",
+        "========== AUTHORITATIVE DATA STATE ==========",
+        "These are the EXACT record counts from the database.",
+        "If a domain shows 0 records, you MUST NOT reference specific",
+        "items from that domain. Violation = hallucination.",
     ]
     for key, count in counts.items():
         lines.append(f"  {key}: {count}")
@@ -1590,32 +1608,32 @@ def _build_data_state_snapshot(user) -> str:
     zero_domains = [k for k, v in counts.items() if v == 0]
     if zero_domains:
         lines.append("")
-        lines.append("GROUNDING RULE — ZERO-DATA DOMAINS:")
+        lines.append("ABSOLUTE GROUNDING RULES FOR ZERO-DATA DOMAINS:")
         lines.append(
-            "The following categories have ZERO records. You MUST NOT reference "
-            "specific items from these categories. Never say medication is due, "
-            "never cite task counts, never quote weight values — for any domain "
-            "listed below with 0 records."
+            "If a domain shows 0 records you MUST NOT reference specific items "
+            "from that domain. This is non-negotiable."
         )
         domain_examples = {
-            'active_medications': "Do NOT say 'medication is due' or 'make sure to take your meds'",
-            'weight_entries': "Do NOT mention a specific weight value",
-            'sleep_entries': "Do NOT cite sleep hours or quality scores",
-            'nutrition_entries': "Do NOT reference meals, calories, or macros logged",
-            'blood_pressure_entries': "Do NOT cite blood pressure readings",
-            'workout_sessions': "Do NOT reference specific workout sessions completed",
-            'goals_defined': "Do NOT reference goals by name or count",
-            'journal_entries': "Do NOT reference journal entries or mood logs",
+            'active_medications': "NEVER say 'medication is due' or 'make sure to take your meds'",
+            'weight_entries': "NEVER mention a specific weight value or weight trend",
+            'sleep_entries': "NEVER cite sleep hours or quality scores",
+            'nutrition_entries': "NEVER reference meals, calories, or macros logged",
+            'blood_pressure_entries': "NEVER cite blood pressure readings",
+            'workout_sessions': "NEVER reference specific workout sessions completed",
+            'goals_defined': "NEVER reference goals by name or count",
+            'journal_entries': "NEVER reference journal entries or mood logs",
+            'active_tasks': "NEVER say 'you completed X of Y tasks' or reference task names",
+            'completed_tasks_today': "NEVER claim tasks were completed today if count is 0",
         }
         for domain in zero_domains:
-            example = domain_examples.get(domain, f"Do NOT reference specific {domain}")
+            example = domain_examples.get(domain, f"NEVER reference specific {domain}")
             lines.append(f"  • {domain} = 0 → {example}")
         lines.append(
-            "You MAY suggest the user start tracking these domains, "
+            "\nYou MAY suggest the user start tracking these domains, "
             "but NEVER imply data exists when it does not."
         )
 
-    lines.append("=== END DATA STATE ===")
+    lines.append("========== END DATA STATE ==========")
     return "\n".join(lines)
 
 
@@ -1695,17 +1713,6 @@ def format_cos_system_injection(context):
         "the question at hand."
     )
     lines.append("")
-
-    # ── PART 2: Data State Snapshot (grounding against hallucination) ──
-    _cos_user = context.get('_user')
-    if _cos_user:
-        try:
-            snapshot = _build_data_state_snapshot(_cos_user)
-            if snapshot:
-                lines.append(snapshot)
-                lines.append("")
-        except Exception:
-            pass  # Snapshot must never break CoS
 
     # ── PART 3: Chief of Staff Reasoning Hierarchy ──
     lines.append(
@@ -2396,6 +2403,48 @@ def format_cos_system_injection(context):
                     lines.append(_cp_block)
         except Exception:
             pass  # Consistency protection must never break CoS
+
+    # ── v4 PART 4: Data State Snapshot (FINAL POSITION — highest recency weight) ──
+    # Moved to END of prompt so the model weights it more heavily.
+    # Contains exact DB record counts and ABSOLUTE grounding rules.
+    _cos_user_final = context.get('_user')
+    if _cos_user_final:
+        try:
+            snapshot = _build_data_state_snapshot(_cos_user_final)
+            if snapshot:
+                lines.append("")
+                lines.append(snapshot)
+        except Exception:
+            pass  # Snapshot must never break CoS
+
+    # ── v4 PART 5: Anti-Generic Response Rules ──
+    lines.append("")
+    lines.append(
+        "=== RESPONSE QUALITY RULES ===\n"
+        "The Chief of Staff MUST avoid generic productivity advice when user "
+        "context is available. Your responses should feel like they came from "
+        "someone who KNOWS this person, not a generic life coach.\n"
+        "\n"
+        "BAD (generic): 'Consider using the Pomodoro Technique.'\n"
+        "BAD (generic): 'Try to get 7-9 hours of sleep.'\n"
+        "BAD (generic): 'Create a morning routine.'\n"
+        "BAD (generic): 'Consider journaling your thoughts.'\n"
+        "\n"
+        "GOOD (personalized): 'Since Health Discipline is one of your "
+        "priorities, logging your weight today would unlock health insights. "
+        "Head to [Weight Tracking](/health/weight/) to start.'\n"
+        "GOOD (personalized): 'You have 1 active task and no medications "
+        "to track yet. Your most impactful next step is [setting a goal]"
+        "(/purpose/goals/).'\n"
+        "\n"
+        "Before giving generic advice, check these sources IN ORDER:\n"
+        "1. User priorities (Declared Priorities section above)\n"
+        "2. Time context (time of day, hours remaining)\n"
+        "3. System intelligence (insights, predictions, guidance)\n"
+        "4. Available data (what's logged vs what's empty)\n"
+        "Only if ALL four are empty should you resort to general knowledge.\n"
+        "=== END RESPONSE QUALITY RULES ==="
+    )
 
     lines.append("")
     lines.append("=== END SITUATIONAL AWARENESS ===")

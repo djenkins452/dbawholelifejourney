@@ -1504,8 +1504,15 @@ def build_calibration_system_injection(user):
         lines.append("")
 
     # Inject what the system knows so the AI can reference it
+    # v4: Wrapped with isolation markers to prevent data leakage
     if snapshot['has_data']:
         lines.append("## WHAT YOU ALREADY KNOW ABOUT THIS PERSON")
+        lines.append(
+            "NOTE: The data below is CALIBRATION CONTEXT for making informed "
+            "questions. It is NOT operational data for briefings or status "
+            "reports. When responding to check-in or status queries, use the "
+            "CHECK-IN DATA sections, not this calibration summary."
+        )
         lines.append(data_summary)
         if snapshot.get('modules_active'):
             lines.append(

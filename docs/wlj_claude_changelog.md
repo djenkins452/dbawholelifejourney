@@ -7,6 +7,20 @@
 # =======================================================================
 # WLJ Change History
 
+## 2026-03-07 — CoS stability upgrade v4: eliminate hallucination
+
+- **What:** Surgical fix targeting the root cause of CoS hallucination ("3 of 5 tasks" fabrication):
+  1. **Calibration injection suppression:** When calibration is active, the 6000+ char MANDATORY OVERRIDE was conflicting with check-in/operational data, causing the LLM to fabricate task/medication counts. v4 suppresses calibration injection for any functional query (containing ?, question words, or imperatives). Calibration is now only active when the user is answering calibration questions.
+  2. **Expanded check-in patterns:** Added 15 new advisory/planning patterns to CHECKIN_PATTERNS (e.g., 'structure my day', 'biggest improvement', 'highest impact', 'if you were my chief of staff'). Also expanded `is_asking_about_tasks` and `is_asking_for_analysis` with additional phrases.
+  3. **Strengthened data state grounding:** Moved Data State Snapshot to END of prompt (higher recency weight). Added `active_tasks` and `completed_tasks_today` counts. Strengthened grounding rules with ABSOLUTE/NEVER language.
+  4. **Anti-generic response rules:** Added RESPONSE QUALITY RULES section preventing generic productivity advice (e.g., "Pomodoro Technique") when user context is available.
+  5. **Calibration data isolation:** Added isolation markers to calibration data summary in cos_governance.py.
+- **Why:** v3 evaluation showed "3 of 5 tasks" hallucination in 8/24 responses. Root cause was the calibration MANDATORY OVERRIDE conflicting with operational data — the LLM saw both "only ask calibration questions" AND "give a briefing" and fabricated data to bridge the conflict.
+- **Files:** `apps/ai/personal_assistant.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/core/blueprint/cos_governance.py`, `docs/CoSEvaluation_v4.md`
+- **Evaluation:** v4 scored 6.0/10 overall. Task hallucination eliminated (8/24 → 0/24). Medication hallucination near-eliminated (5/24 → 1/24). 3 generic responses remain (model behavior issue, not pipeline).
+
+---
+
 ## 2026-03-07 — CoS stability + grounding upgrade (v3)
 
 - **What:** Multi-part upgrade to the Chief of Staff AI assistant to reduce hallucination and improve response quality:

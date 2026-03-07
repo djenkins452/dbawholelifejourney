@@ -109,6 +109,48 @@ class IntentService:
         results = self.recognize_intents(user_message, user, conversation_history=conversation_history)
         return results[0] if results else IntentResult(intent_type='no_action')
 
+    # ── Correction detection ──────────────────────────────────────
+    # Phrases indicating the user is CORRECTING or CHALLENGING Beth's
+    # information — not requesting an action.  If any of these match,
+    # intent recognition returns no_action immediately so the message
+    # goes to the conversational LLM (which can look up real data).
+    #
+    # Root cause: "You won't find them for today any longer" was
+    # misinterpreted as mutate_task(action='delete') by OpenAI, blocked
+    # by the safety engine, and the canned response suggested deletion
+    # — the exact opposite of what the user wanted.
+    _CORRECTION_PATTERNS = [
+        # Challenging accuracy
+        'you better check', 'better double check', 'double check that',
+        'check again', 'look again', 'try again',
+        "that's wrong", "that's not right", "that's incorrect",
+        "that's not correct", "that is wrong", "that is not right",
+        "you're wrong", "you are wrong",
+        "no that's wrong", "no that's not",
+        # Stating something can't be found / doesn't exist
+        "you won't find", "won't find them", "won't find it",
+        "can't find them", "can't find it",
+        "don't see them", "don't see it",
+        "shouldn't be there", "shouldn't be on",
+        "not for today", "not due today", "not on my list",
+        "no longer due", "no longer on",
+        # Asking where info came from
+        "where are you getting", "where did you get",
+        "where are you finding", "where did you find",
+        "where is that coming from", "where did that come from",
+        # Correcting a previous statement
+        "I didn't say", "I never said", "I didn't ask",
+        "I never asked", "I didn't mean",
+        # Telling Beth she's wrong about data
+        "not anymore", "not any more",
+        "any longer",  # "won't find them for today any longer"
+    ]
+
+    def _is_correction_message(self, user_message: str) -> bool:
+        """Return True if the message is a user correction, not an action request."""
+        msg_lower = user_message.lower()
+        return any(pattern in msg_lower for pattern in self._CORRECTION_PATTERNS)
+
     def recognize_intents(self, user_message: str, user, conversation_history: list = None) -> List[IntentResult]:
         """
         Recognize one or more user intents from natural language message.
@@ -128,6 +170,18 @@ class IntentService:
         """
         if not self.is_available:
             logger.warning("Intent service not available - returning empty list")
+            return [IntentResult(intent_type='no_action')]
+
+        # ── Correction filter: skip intent recognition entirely ──
+        # When the user is correcting or challenging Beth's information
+        # (e.g. "You won't find them for today any longer"), send to the
+        # conversational LLM — never interpret as an action request.
+        if self._is_correction_message(user_message):
+            logger.info(
+                "[INTENT_CORRECTION_FILTER] Skipping intent recognition — "
+                "user is correcting info: %r",
+                user_message[:100],
+            )
             return [IntentResult(intent_type='no_action')]
 
         try:

@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-03-06 — Prevent correction messages from escalating to deletion
+
+**What:** When the user corrected Beth's stale data ("You won't find them for today any longer"), the intent service misinterpreted it as a `mutate_task(action='delete')` request. The safety engine correctly blocked the deletion but responded with "I wasn't sure if you wanted to delete those tasks" — suggesting a destructive action when the user was simply correcting bad information.
+
+**Root cause:** Two problems: (1) OpenAI function calling interpreted "won't find them" + task conversation history as a delete intent. No pre-filter existed to detect correction/challenge phrases. (2) The safety engine's blocked-delete response assumed the user wanted to delete and encouraged them to do so explicitly.
+
+**Fix:** (1) Added `_CORRECTION_PATTERNS` list and `_is_correction_message()` to `IntentService`. When the user's message matches correction patterns ("you better double check", "won't find them", "that's wrong", "where are you getting that", etc.), `recognize_intents()` returns `no_action` immediately — no OpenAI call, no forced retry, just sends the message to the conversational LLM. (2) Changed the safety engine's blocked-delete response from suggesting deletion to acknowledging a potential error: "I may have gotten that wrong — let me know what you'd like me to do."
+
+**Files:**
+- `apps/ai/intent_service.py` — Added correction detection filter at start of `recognize_intents()`
+- `apps/core/ai_orchestrator/safety_engine.py` — Changed `delete_not_explicit` response text
+
+---
+
 ## 2026-03-06 — Fix streaming path using stale data for check-in queries
 
 **What:** Check-in queries ("what's left today?") via the assistant panel (streaming path) were still returning stale task data despite fixes to the non-streaming path. Root cause: the streaming path used `_build_fast_context()` which loads 20 messages of conversation history and uses cached CoS context — it never went through the full `_generate_response()` pipeline where the zero-history treatment and direct DB query injection were implemented.

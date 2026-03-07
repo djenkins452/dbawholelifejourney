@@ -78,9 +78,10 @@ def validate_action(enriched_action):
                 is_safe=False,
                 reason="delete_not_explicit",
                 user_message=(
-                    "I wasn't sure if you wanted to delete those tasks. "
-                    "If you'd like to remove a task, just say "
-                    "\"delete [task name]\" and I'll take care of it."
+                    "I may have gotten that wrong — let me know what "
+                    "you'd like me to do. I can look up your current "
+                    "tasks, reschedule items, or update anything that's "
+                    "out of date."
                 ),
             )
 

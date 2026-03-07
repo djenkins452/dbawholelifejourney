@@ -2969,7 +2969,7 @@
   },
   {
     "model": "help.teachingdestination",
-    "pk": 176,
+    "pk": 179,
     "fields": {
       "destination_id": "data-dictionary",
       "name": "Data Dictionary",
@@ -2986,7 +2986,7 @@
   },
   {
     "model": "help.teachingdestination",
-    "pk": 177,
+    "pk": 180,
     "fields": {
       "destination_id": "user-guide",
       "name": "User Guide",

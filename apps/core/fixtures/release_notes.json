@@ -2217,7 +2217,7 @@
   },
   {
     "model": "core.releasenote",
-    "pk": 138,
+    "pk": 141,
     "fields": {
       "title": "Guides Hub: Data Dictionary & User Guide",
       "description": "The Admin Console now has a dedicated Guides section with three guides: Admin Guide (system docs), Data Dictionary (complete database reference with tables, fields, and engine mappings), and User Guide (how-to documentation built from help topics). The User Guide is also accessible from the profile dropdown menu for all users.",

@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Fix duplicate PKs in fixture files
+
+- **What:** Renumbered duplicate PKs introduced by concurrent worktree merges: `release_notes.json` pk 138→141, `help_topics.json` pk 146→148, `teaching_destinations.json` pk 176→179 and 177→180.
+- **Why:** Fixture validation test (`test_no_duplicate_pks`) was failing because the Guides Hub entries reused PKs already assigned to Health Intelligence entries.
+- **Files:** `apps/core/fixtures/release_notes.json`, `apps/help/fixtures/help_topics.json`, `apps/help/fixtures/teaching_destinations.json`
+
+---
+
 ## 2026-03-07 — Update App Review Guide with all current modules
 
 - **What:** Updated the Apple App Store review guide at `/app-review/` to include all current modules: Meals & Nutrition, People & Relationships, Notes, Capture (Audio), and Chief of Staff (AI). Updated feature grid (6→10 cards), feature locations table (10→15 rows), HealthKit data types (+Lean Body Mass, BMI), video script (added AI and module tour steps), and native iOS justification (+Contact Import, Camera/Photo).

@@ -305,6 +305,57 @@ class AssistantWakeView(LoginRequiredMixin, AssistantMixin, View):
         })
 
 
+class ProactiveBriefingView(LoginRequiredMixin, AssistantMixin, View):
+    """
+    Generate a proactive daily executive briefing on chat open (v7).
+
+    Called by the frontend when the chat drawer opens and no recent
+    briefing has been delivered. Goes through the full CoS pipeline
+    (_generate_response) for hallucination protection.
+
+    POST /assistant/api/briefing/
+
+    Returns:
+        - 200 with briefing content if generated
+        - 200 with 'skipped': True if briefing not needed (cooldown)
+        - 200 with 'error' if PA not enabled
+        - 500 on failure
+    """
+
+    def post(self, request, *args, **kwargs):
+        enabled, error = self.check_personal_assistant_enabled()
+        if not enabled:
+            return JsonResponse({
+                'success': False,
+                'error': error,
+            }, status=200)
+
+        try:
+            assistant = self.get_assistant()
+            result = assistant.generate_proactive_briefing()
+
+            if result is None:
+                return JsonResponse({
+                    'success': True,
+                    'skipped': True,
+                    'reason': 'Briefing already delivered or not needed',
+                })
+
+            return JsonResponse({
+                'success': True,
+                'response': result['response'],
+                'message_id': result['message_id'],
+                'is_proactive': True,
+            })
+
+        except Exception as e:
+            logger.error("Proactive briefing error: %s", e, exc_info=True)
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to generate briefing',
+            }, status=500)
+
+
 # =============================================================================
 # CONVERSATION / CHAT
 # =============================================================================

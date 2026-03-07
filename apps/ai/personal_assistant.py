@@ -2462,6 +2462,154 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         """Get or create today's conversation."""
         return AssistantConversation.get_or_create_active(self.user)
 
+    def generate_proactive_briefing(self) -> Optional[dict]:
+        """
+        Generate a proactive daily executive briefing (v7).
+
+        Goes through the FULL _generate_response() pipeline with a synthetic
+        check-in message. Saves ONLY the assistant response (no fake user
+        message). Uses timestamp-based cooldown (v7.1) for precise gap control.
+
+        Returns:
+            dict with 'response' (str) and 'message_id' (int),
+            or None if briefing is not needed or LLM is unavailable.
+        """
+        try:
+            from apps.core.utils import get_user_now, get_user_today
+            from apps.ai.executive_briefing import _compute_session_gap
+
+            conversation = self.get_or_create_conversation()
+            user_now = get_user_now(self.user)
+            today = get_user_today(self.user)
+            metadata = conversation.metadata or {}
+
+            # ── v7.1 Part 1: Timestamp-based cooldown ──────────────────
+            last_briefing_date = metadata.get('last_briefing_date')
+            last_briefing_at = metadata.get('last_briefing_at')
+            is_first_of_day = last_briefing_date != str(today)
+
+            if not is_first_of_day:
+                # Same day — check if 4+ hours since last briefing
+                if last_briefing_at:
+                    from django.utils.dateparse import parse_datetime
+                    last_ts = parse_datetime(last_briefing_at)
+                    if last_ts and (timezone.now() - last_ts).total_seconds() < 4 * 3600:
+                        logger.info(
+                            "v7_BRIEFING_COOLDOWN user=%s reason=timestamp "
+                            "last_at=%s",
+                            self.user.id, last_briefing_at,
+                        )
+                        return None
+                else:
+                    # No timestamp but same date — check session gap
+                    gap_hours = _compute_session_gap(conversation)
+                    if gap_hours is None or gap_hours < 4:
+                        logger.info(
+                            "v7_BRIEFING_COOLDOWN user=%s reason=date+gap "
+                            "gap_hours=%s",
+                            self.user.id, gap_hours,
+                        )
+                        return None
+
+            # ── v7.1 Part 2: Server-side idempotency ──────────────────
+            # Prevent duplicate briefings from concurrent requests
+            recent_briefing = conversation.messages.filter(
+                role='assistant',
+                is_proactive=True,
+                message_type='state_assessment',
+                created_at__gte=timezone.now() - timedelta(minutes=2),
+            ).first()
+            if recent_briefing:
+                logger.info(
+                    "v7_BRIEFING_IDEMPOTENT user=%s existing_msg=%s",
+                    self.user.id, recent_briefing.id,
+                )
+                return {
+                    'response': recent_briefing.content,
+                    'message_id': recent_briefing.id,
+                }
+
+            # ── v7.1 Part 5: Determine delivery reason ────────────────
+            delivery_reason = 'first_open' if is_first_of_day else 'return_after_gap'
+
+            # ── Generate through full CoS pipeline ─────────────────────
+            # "briefing" matches CHECKIN_PATTERNS → triggers full check-in
+            # path in _generate_response() with task/goal/med data injection,
+            # history drop, executive briefing context, and all v4-v6
+            # hallucination protections.
+            logger.info(
+                "v7_BRIEFING_GENERATE user=%s reason=%s",
+                self.user.id, delivery_reason,
+            )
+            response_text = self._generate_response(
+                message="briefing",
+                conversation=conversation,
+            )
+
+            # Detect fallback responses — don't save these as briefings
+            if not response_text or len(response_text) < 50:
+                logger.warning(
+                    "v7_BRIEFING_FALLBACK user=%s len=%s",
+                    self.user.id, len(response_text) if response_text else 0,
+                )
+                return None
+
+            # Check for known fallback patterns
+            _fallback_indicators = [
+                "What do you need to get done",
+                "What's the priority right now",
+                "What's blocking progress",
+                "I'm here to help",
+                "Let's think about what would help",
+                "What can I help you move forward on",
+            ]
+            if any(ind in (response_text or '') for ind in _fallback_indicators):
+                logger.warning(
+                    "v7_BRIEFING_FALLBACK_PATTERN user=%s",
+                    self.user.id,
+                )
+                return None
+
+            # Save ONLY the assistant response (no fake user message)
+            assistant_msg = AssistantMessage.objects.create(
+                conversation=conversation,
+                role='assistant',
+                content=response_text,
+                message_type='state_assessment',
+                is_proactive=True,
+                metadata={
+                    'check_in_type': 'daily_executive_briefing',
+                    'delivery_reason': delivery_reason,
+                    'generated_at': timezone.now().isoformat(),
+                },
+            )
+
+            # ── v7.1 Part 1: Store ISO timestamp for precise cooldown ──
+            metadata['last_briefing_at'] = timezone.now().isoformat()
+            # Keep last_briefing_date for build_executive_briefing() compat
+            metadata['last_briefing_date'] = str(today)
+            conversation.metadata = metadata
+            conversation.updated_at = timezone.now()
+            conversation.save(update_fields=['metadata', 'updated_at'])
+
+            logger.info(
+                "v7_BRIEFING_DELIVERED user=%s msg_id=%s reason=%s len=%s",
+                self.user.id, assistant_msg.id, delivery_reason,
+                len(response_text),
+            )
+
+            return {
+                'response': response_text,
+                'message_id': assistant_msg.id,
+            }
+
+        except Exception as e:
+            logger.error(
+                "v7_BRIEFING_ERROR user=%s error=%s",
+                self.user.id, e, exc_info=True,
+            )
+            return None
+
     def send_message(
         self,
         message: str,
@@ -4457,10 +4605,28 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 except Exception:
                     calendar_details = day_overview or 'Calendar data unavailable.'
 
+                # v7: Distinguish system-initiated briefings from user requests
+                # Prevents synthetic trigger "briefing" from leaking into response
+                if message_lower.strip() == 'briefing':
+                    _checkin_preamble = (
+                        "SYSTEM-INITIATED DAILY ORIENTATION — the user just "
+                        "opened the system. Deliver a proactive Chief of Staff "
+                        "executive briefing. Do NOT reference any trigger "
+                        "message or say the user 'requested' or 'asked for' "
+                        "a briefing. Begin naturally: 'Danny — here\\'s where "
+                        "things stand.' or similar CoS greeting."
+                    )
+                else:
+                    _checkin_preamble = (
+                        "USER IS REQUESTING A CHECK-IN / DAY BRIEFING — give "
+                        "a complete Chief of Staff assessment. This is a "
+                        "user-initiated request."
+                    )
+
                 system_prompt += f"""
 
-USER IS REQUESTING A CHECK-IN / DAY BRIEFING — give a complete Chief of Staff assessment.
-This is a user-initiated request. List SPECIFIC items by name so they can take action. Never give vague counts without the actual items.
+{_checkin_preamble}
+List SPECIFIC items by name so they can take action. Never give vague counts without the actual items.
 
 TODAY'S CALENDAR:
 {calendar_details}
@@ -4502,6 +4668,14 @@ INSTRUCTIONS:
 - Be concise — this person wants an actionable list, not a motivational summary or day review.
 - CRITICAL: The data above is the AUTHORITATIVE current state. Only reference tasks, calendar items, and medications that appear in the sections above. If something was mentioned earlier in the conversation but is NOT listed above, it has been moved, completed, or rescheduled — do NOT mention it.
 - NEVER give generic scheduling advice ("consider creating a daily schedule", "aim for 7-9 hours of sleep"). You have the user's ACTUAL data above — use it. If the data sections are empty, tell them what's empty (e.g., "You have no tasks due today") — do NOT fall back to generic advice.
+
+LOW-DATA DAY HANDLING (v7):
+If few or no tasks/events exist, the briefing must still be useful. Prioritize:
+1. Goals — remind the user of their declared priorities
+2. Goal-supporting actions — workout status, routines, habits
+3. Missing tracking that unlocks intelligence ("I don't see any weight entries logged yet — tracking that would help me spot trends")
+4. One clear recommendation — even if it's just "Your plate is clear. Good day to focus on [goal]."
+Never default to generic productivity filler. An empty day is a briefing opportunity, not a void.
 
 ANTI-FABRICATION RULES (ABSOLUTE):
 - NEVER claim an activity is completed unless it EXPLICITLY appears under COMPLETED, ALREADY TAKEN, or [DONE] sections above.

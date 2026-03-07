@@ -418,6 +418,23 @@
     line-height: 1.5;
 }
 
+/* v7: Proactive briefing loading indicator */
+.briefing-loading-indicator {
+    color: var(--text-secondary, #666);
+    font-style: italic;
+    font-size: 14px;
+    padding: 8px 0;
+}
+.briefing-dots span {
+    animation: briefing-dot-blink 1.4s infinite both;
+}
+.briefing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.briefing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes briefing-dot-blink {
+    0%, 80%, 100% { opacity: 0; }
+    40% { opacity: 1; }
+}
+
 /* Input Area */
 .assistant-input-area {
     padding: 16px 20px;
@@ -1309,6 +1326,8 @@
     // Open drawer
     function openDrawer(skipSave = false) {
         isOpen = true;
+        // v7: Mark that drawer is being opened (enables briefing trigger)
+        briefingDrawerOpen = true;
         // Recalculate viewport height when opening (browser chrome may have changed)
         setMobileViewportHeight();
         // Enable transition animation on first open (not on page load)
@@ -1397,6 +1416,9 @@
                 showEmptyState();
             }
 
+            // v7: Trigger proactive briefing after history loads
+            maybeTriggerBriefing(data);
+
         } catch (error) {
             console.error('Error loading history:', error);
             loadingEl.innerHTML = '<p>Unable to load conversation. Please try again.</p>';
@@ -1413,6 +1435,90 @@
             </div>
         `;
     }
+
+    // ── v7: Proactive Daily Executive Briefing ──────────────────────
+    // Triggers a CoS briefing when the chat opens and no recent
+    // briefing has been delivered. Goes through the full pipeline.
+    var briefingRequested = false;
+    var briefingDrawerOpen = false;  // Track if trigger came from drawer open
+
+    async function maybeTriggerBriefing(historyData) {
+        // v7.1 Part 4: Only trigger on drawer open, not on every refresh
+        if (briefingRequested) return;
+        if (!briefingDrawerOpen) return;
+        briefingDrawerOpen = false;  // Reset after checking
+
+        var messages = (historyData && historyData.messages) || [];
+        var lastAssistantMsg = null;
+        for (var i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role === 'assistant' && messages[i].content && messages[i].content.trim()) {
+                lastAssistantMsg = messages[i];
+                break;
+            }
+        }
+
+        var needsBriefing = false;
+        if (!lastAssistantMsg) {
+            needsBriefing = true;
+        } else {
+            var lastDate = new Date(lastAssistantMsg.created_at);
+            var now = new Date();
+            var isToday = lastDate.toDateString() === now.toDateString();
+            var hoursSince = (now - lastDate) / (1000 * 60 * 60);
+            if (!isToday || hoursSince >= 4) {
+                needsBriefing = true;
+            }
+        }
+
+        if (!needsBriefing) return;
+
+        briefingRequested = true;
+        showBriefingLoading();
+
+        try {
+            var response = await fetch('/assistant/api/briefing/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
+                },
+                body: JSON.stringify({}),
+            });
+
+            var result = await response.json();
+            hideBriefingLoading();
+
+            if (result.success && result.response && !result.skipped) {
+                var emptyState = messagesContainer.querySelector('.assistant-empty');
+                if (emptyState) emptyState.remove();
+                addMessage(result.response, false, true);
+                hasMessages = true;
+            }
+        } catch (error) {
+            console.error('Briefing request failed:', error);
+            hideBriefingLoading();
+        }
+    }
+
+    function showBriefingLoading() {
+        var emptyState = messagesContainer.querySelector('.assistant-empty');
+        if (emptyState) emptyState.remove();
+
+        var loadingDiv = document.createElement('div');
+        loadingDiv.id = 'briefing-loading';
+        loadingDiv.className = 'assistant-message assistant';
+        loadingDiv.innerHTML = '<div class="briefing-loading-indicator">' +
+            '<span class="briefing-dots"><span>.</span><span>.</span><span>.</span></span> ' +
+            'Preparing your briefing</div>';
+        messagesContainer.appendChild(loadingDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function hideBriefingLoading() {
+        var loadingDiv = document.getElementById('briefing-loading');
+        if (loadingDiv) loadingDiv.remove();
+    }
+    // ── End v7 Proactive Briefing ───────────────────────────────────
 
     // Add message to chat (with optional image for user messages)
     function addMessage(content, isUser, scroll, imageDataUrls) {

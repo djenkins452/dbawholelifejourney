@@ -2246,5 +2246,21 @@
       "created_at": "2026-03-07T00:00:00Z",
       "updated_at": "2026-03-07T00:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 142,
+    "fields": {
+      "title": "Proactive Daily Executive Briefing",
+      "description": "Beth now greets you with a personalized executive briefing when you open the chat \u2014 your goals, today\u2019s tasks, overdue items, workout status, and a clear recommendation for where to start. No need to ask \u2014 she delivers intelligence automatically, just like a real Chief of Staff.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-07",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-03-07T22:00:00Z",
+      "updated_at": "2026-03-07T22:00:00Z"
+    }
   }
 ]

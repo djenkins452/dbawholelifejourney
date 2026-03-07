@@ -236,7 +236,7 @@ Auto-created when User is created. Stores all user settings.
 **File:** `apps/core/ai_state/models.py`
 
 #### `core.UserState`
-**Table:** `core_userstate`
+**Table:** `core_user_state`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -360,7 +360,7 @@ Auto-created when User is created. Stores all user settings.
 **File:** `apps/core/ai_insights/models.py`
 
 #### `core.Insight`
-**Table:** `core_insight`
+**Table:** `core_ai_insight`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -395,7 +395,7 @@ Auto-created when User is created. Stores all user settings.
 **File:** `apps/core/ai_predictions/models.py`
 
 #### `core.Prediction`
-**Table:** `core_prediction`
+**Table:** `core_ai_prediction`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -428,7 +428,7 @@ Auto-created when User is created. Stores all user settings.
 **File:** `apps/core/ai_guidance/models.py`
 
 #### `core.GuidanceItem`
-**Table:** `core_guidanceitem`
+**Table:** `core_guidance_item`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -471,7 +471,7 @@ Auto-created when User is created. Stores all user settings.
 **File:** `apps/core/ai_briefing/models.py`
 
 #### `core.DailyBriefing`
-**Table:** `core_dailybriefing`
+**Table:** `core_daily_briefing`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -498,7 +498,7 @@ Auto-created when User is created. Stores all user settings.
 **File:** `apps/core/ai_weekly_report/models.py`
 
 #### `core.WeeklyIntelligenceReport`
-**Table:** `core_weeklyintelligencereport`
+**Table:** `core_weekly_intelligence_report`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -525,7 +525,7 @@ Auto-created when User is created. Stores all user settings.
 **File:** `apps/core/ai_delivery/models.py`
 
 #### `core.DeliveredNotification`
-**Table:** `core_deliverednotification`
+**Table:** `core_delivered_notification`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -556,7 +556,7 @@ Auto-created when User is created. Stores all user settings.
 **File:** `apps/core/ai_explain/models.py`
 
 #### `core.ExplainRecord`
-**Table:** `core_explainrecord`
+**Table:** `core_explain_record`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -580,7 +580,7 @@ Auto-created when User is created. Stores all user settings.
 **File:** `apps/core/ai_arbitration/models.py`
 
 #### `core.ArbitrationDecisionLog`
-**Table:** `core_arbitrationdecisionlog`
+**Table:** `core_arbitration_decision_log`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -604,7 +604,7 @@ Auto-created when User is created. Stores all user settings.
 | `created_at` | DateTimeField | auto_now_add |
 
 #### `core.DailyCapacityLog`
-**Table:** `core_dailycapacitylog`
+**Table:** `core_daily_capacity_log`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -619,7 +619,7 @@ Auto-created when User is created. Stores all user settings.
 | `open_loop_count` | IntegerField | Unresolved items |
 
 #### `core.ScenarioHistory`
-**Table:** `core_scenariohistory`
+**Table:** `core_scenario_history`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -632,7 +632,7 @@ Auto-created when User is created. Stores all user settings.
 | `surfaced_count` | IntegerField | Items surfaced |
 
 #### `core.WeightAdjustment`
-**Table:** `core_weightadjustment`
+**Table:** `core_weight_adjustment`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -644,7 +644,7 @@ Auto-created when User is created. Stores all user settings.
 | `last_updated` | DateTimeField | |
 
 #### `core.InterventionResponseLog`
-**Table:** `core_interventionresponselog`
+**Table:** `core_intervention_response_log`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -657,7 +657,7 @@ Auto-created when User is created. Stores all user settings.
 | `overrode_count` | IntegerField | |
 
 #### `core.RecentNudgeMemory`
-**Table:** `core_recentnudgememory`
+**Table:** `core_recent_nudge_memory`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -678,7 +678,7 @@ Auto-created when User is created. Stores all user settings.
 **File:** `apps/core/ai_eae/models.py`
 
 #### `core.EAEState`
-**Table:** `core_eaestate`
+**Table:** `ai_eae_eaestate`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -698,7 +698,7 @@ Auto-created when User is created. Stores all user settings.
 | `updated_at` | DateTimeField | auto_now |
 
 #### `core.EAEDecisionLog`
-**Table:** `core_eaedecisionlog`
+**Table:** `ai_eae_eaedecisionlog`
 
 Append-only audit trail of every EAE prioritization decision.
 
@@ -725,7 +725,7 @@ Append-only audit trail of every EAE prioritization decision.
 | `arbitration_duration_ms` | IntegerField | |
 
 #### `core.EAEOverride`
-**Table:** `core_eaeoverride`
+**Table:** `ai_eae_eaeoverride`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -739,7 +739,7 @@ Append-only audit trail of every EAE prioritization decision.
 | `updated_at` | DateTimeField | |
 
 #### `core.EAEEscalationEvent`
-**Table:** `core_eaeescalationevent`
+**Table:** `ai_eae_eaeescalationevent`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -760,7 +760,7 @@ Append-only audit trail of every EAE prioritization decision.
 **File:** `apps/core/ai_cross_domain/models.py`
 
 #### `core.DomainCorrelation`
-**Table:** `core_domaincorrelation`
+**Table:** `core_domain_correlation`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -792,7 +792,7 @@ Append-only audit trail of every EAE prioritization decision.
 **File:** `apps/core/ai_learning/models.py`
 
 #### `core.UserLearnedProfile`
-**Table:** `core_userlearnedprofile`
+**Table:** `core_user_learned_profile`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -818,7 +818,7 @@ Append-only audit trail of every EAE prioritization decision.
 All JSON fields are lists of extracted strings, injected into the AI system prompt to personalize responses.
 
 #### `core.LearningExtraction`
-**Table:** `core_learningextraction`
+**Table:** `core_learning_extraction`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -840,7 +840,7 @@ All JSON fields are lists of extracted strings, injected into the AI system prom
 **File:** `apps/core/ai_memory/models.py`
 
 #### `core.LearnedMapping`
-**Table:** `core_learnedmapping`
+**Table:** `core_learned_mapping`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -856,7 +856,7 @@ All JSON fields are lists of extracted strings, injected into the AI system prom
 | `updated_at` | DateTimeField | |
 
 #### `core.ContextSnapshot`
-**Table:** `core_contextsnapshot`
+**Table:** `core_context_snapshot`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -867,7 +867,7 @@ All JSON fields are lists of extracted strings, injected into the AI system prom
 | `created_at` | DateTimeField | |
 
 #### `core.ClarificationLog`
-**Table:** `core_clarificationlog`
+**Table:** `core_clarification_log`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1002,7 +1002,7 @@ All JSON fields are lists of extracted strings, injected into the AI system prom
 | `created_at` | DateTimeField | |
 
 #### `core.FrictionGateLog`
-**Table:** `core_frictiongatelog`
+**Table:** `core_frictiongatelog` *(Blueprint model — may be embedded in blueprint tables)*
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1081,7 +1081,7 @@ Append-only audit log of system self-detected errors.
 **File:** `apps/core/ai_feedback/models.py`
 
 #### `core.PredictionOutcome`
-**Table:** `core_predictionoutcome`
+**Table:** `core_prediction_outcome`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1094,7 +1094,7 @@ Append-only audit log of system self-detected errors.
 | `validated_at` | DateTimeField | |
 
 #### `core.PredictionAccuracyProfile`
-**Table:** `core_predictionaccuracyprofile`
+**Table:** `core_prediction_accuracy_profile`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1108,7 +1108,7 @@ Append-only audit log of system self-detected errors.
 | `last_validated_at` | DateTimeField | |
 
 #### `core.InsightEngagement`
-**Table:** `core_insightengagement`
+**Table:** `core_insight_engagement`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1118,7 +1118,7 @@ Append-only audit log of system self-detected errors.
 | `event_at` | DateTimeField | |
 
 #### `core.InsightEngagementProfile`
-**Table:** `core_insightengagementprofile`
+**Table:** `core_insight_engagement_profile`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1132,7 +1132,7 @@ Append-only audit log of system self-detected errors.
 | `last_updated` | DateTimeField | |
 
 #### `core.BriefingEngagement`
-**Table:** `core_briefingengagement`
+**Table:** `core_briefing_engagement`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1144,7 +1144,7 @@ Append-only audit log of system self-detected errors.
 | `scrolled_to_end` | BooleanField | |
 
 #### `core.BriefingEngagementProfile`
-**Table:** `core_briefingengagementprofile`
+**Table:** `core_briefing_engagement_profile`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1159,7 +1159,7 @@ Append-only audit log of system self-detected errors.
 | `last_updated` | DateTimeField | |
 
 #### `core.InterventionEffectivenessProfile`
-**Table:** `core_interventioneffectivenessprofile`
+**Table:** `core_intervention_effectiveness_profile`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1215,7 +1215,7 @@ Daily system-wide metrics across all intelligence engines.
 | `created_at` | DateTimeField | |
 
 #### `core.EngineRun`
-**Table:** `core_enginerun`
+**Table:** `core_diag_engine_run`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1235,7 +1235,7 @@ Daily system-wide metrics across all intelligence engines.
 | `created_at` | DateTimeField | |
 
 #### `core.EngineSpan`
-**Table:** `core_enginespan`
+**Table:** `core_diag_engine_span`
 
 Sub-steps within an engine run for fine-grained tracing.
 
@@ -1251,7 +1251,7 @@ Sub-steps within an engine run for fine-grained tracing.
 | `metadata` | JSONField | |
 
 #### `core.DecisionRecord`
-**Table:** `core_decisionrecord`
+**Table:** `core_diag_decision_record`
 
 Captures WHY an engine made a specific decision.
 
@@ -1269,7 +1269,7 @@ Captures WHY an engine made a specific decision.
 | `created_at` | DateTimeField | |
 
 #### `core.EngineExpectedCadence`
-**Table:** `core_engineexpectedcadence`
+**Table:** `core_engine_expected_cadence`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1282,7 +1282,7 @@ Captures WHY an engine made a specific decision.
 | `updated_at` | DateTimeField | |
 
 #### `core.EngineHeartbeat`
-**Table:** `core_engineheartbeat`
+**Table:** `core_engine_heartbeat`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1301,7 +1301,7 @@ Captures WHY an engine made a specific decision.
 Uses IOCD tables above plus these additional models:
 
 #### `core.OpsAnomaly`
-**Table:** `core_opsanomaly`
+**Table:** `core_ops_anomaly`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1320,7 +1320,7 @@ Uses IOCD tables above plus these additional models:
 | `updated_at` | DateTimeField | |
 
 #### `core.OpsNarrativeSnapshot`
-**Table:** `core_opsnarrativesnapshot`
+**Table:** `core_ops_narrative_snapshot`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1333,7 +1333,7 @@ Uses IOCD tables above plus these additional models:
 | `supporting_metrics` | JSONField | |
 
 #### `core.SystemIntegritySnapshot`
-**Table:** `core_systemintegritysnapshot`
+**Table:** `core_system_integrity_snapshot`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1343,7 +1343,7 @@ Uses IOCD tables above plus these additional models:
 | `created_at` | DateTimeField | |
 
 #### `core.SAMEExecutionLog`
-**Table:** `core_sameexecutionlog`
+**Table:** `core_same_execution_log`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1358,7 +1358,7 @@ Uses IOCD tables above plus these additional models:
 | `created_at` | DateTimeField | |
 
 #### `core.AdminIntervention`
-**Table:** `core_adminintervention`
+**Table:** `core_admin_intervention`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1381,7 +1381,7 @@ Uses IOCD tables above plus these additional models:
 **File:** `apps/core/ai_scheduler/scheduler_registry.py`
 
 #### `core.SchedulerHeartbeat`
-**Table:** `core_schedulerheartbeat`
+**Table:** `core_scheduler_heartbeat`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1413,8 +1413,8 @@ Uses IOCD tables above plus these additional models:
 
 **File:** `apps/journal/models.py`
 
-#### `journal.Entry` (UserOwnedModel)
-**Table:** `journal_entry`
+#### `journal.JournalEntry` (UserOwnedModel)
+**Table:** `journal_journalentry`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1436,13 +1436,13 @@ Uses IOCD tables above plus these additional models:
 **SAE reads:** Last entry date, entry frequency, mood distribution → `UserState.state_data.journal`
 **PIE watches:** Mood trends, journaling frequency changes
 
-#### `journal.Gratitude` (UserOwnedModel)
-**Table:** `journal_gratitude`
+#### `journal.Emotion` (UserOwnedModel)
+**Table:** `journal_emotion`
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `user` | FK → User | |
-| `content` | TextField | What user is grateful for |
+| `content` | TextField | Emotion/gratitude content |
 | `entry_date` | DateField | |
 | `category` | CharField | blank=True |
 
@@ -1541,7 +1541,7 @@ Uses IOCD tables above plus these additional models:
 | `notes` | TextField | blank=True |
 
 #### `health.NutritionEntry` (UserOwnedModel)
-**Table:** `health_nutritionentry`
+**Table:** `health_foodentry`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1559,7 +1559,7 @@ Uses IOCD tables above plus these additional models:
 **SAE reads:** calorie_avg_7d, protein_avg_7d, macro_compliance
 
 #### `health.FastingEntry` (UserOwnedModel)
-**Table:** `health_fastingentry`
+**Table:** `health_fastingwindow`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1574,7 +1574,7 @@ Uses IOCD tables above plus these additional models:
 **SAE reads:** rolling_7d_hours, avg_fast_duration, compliance_score
 
 #### `health.WorkoutEntry` (UserOwnedModel)
-**Table:** `health_workoutentry`
+**Table:** `health_workoutsession`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1620,7 +1620,7 @@ Uses IOCD tables above plus these additional models:
 **SAE reads:** weight_goal, weight_goal_target_date, weight_goal_remaining, weight_goal_on_track
 
 #### `health.TransformationScore` (TimeStampedModel)
-**Table:** `health_transformationscore`
+**Table:** `health_transformationprotocol`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1658,7 +1658,7 @@ Meal planning and pantry management models. SAE reads pantry counts, expiring it
 **SAE reads:** answered_prayers count, recent_prayer_titles, urgent_prayers count
 
 #### `faith.ScriptureReading` (UserOwnedModel)
-**Table:** `faith_scripturereading`
+**Table:** `faith_userreadingprogress`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1674,7 +1674,7 @@ Meal planning and pantry management models. SAE reads pantry counts, expiring it
 **SAE reads:** reading_streak, last_scripture_read
 
 #### `faith.BibleReadingPlan` (UserOwnedModel)
-**Table:** `faith_biblereadingplan`
+**Table:** `faith_userreadingplan`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1687,7 +1687,7 @@ Meal planning and pantry management models. SAE reads pantry counts, expiring it
 | `total_days` | IntegerField | |
 
 #### `faith.Reflection` (UserOwnedModel)
-**Table:** `faith_reflection`
+**Table:** `purpose_reflection`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1736,7 +1736,7 @@ Meal planning and pantry management models. SAE reads pantry counts, expiring it
 **Cross-reference:** `medical.MedicalDocument.organize_document` → links to this table for medical documents.
 
 #### `life.Person` (UserOwnedModel)
-**Table:** `life_person`
+**Table:** `relationships_person`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -1750,7 +1750,7 @@ Meal planning and pantry management models. SAE reads pantry counts, expiring it
 | `notes` | TextField | blank=True |
 
 #### `life.HouseholdMember` (UserOwnedModel)
-**Table:** `life_householdmember`
+**Table:** `meals_household` (members via `meals_householdmembership`)
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -2335,7 +2335,7 @@ Uses **encrypted fields** (Fernet AES-256) for sensitive security assessment dat
 **File:** `apps/core/ai_relationships/models.py`
 
 #### `core.Person` (Relationship tracking)
-**Table:** `core_person` (distinct from `life_person`)
+**Table:** `ai_relationships_person` (distinct from `relationships_person`)
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -2345,7 +2345,7 @@ Uses **encrypted fields** (Fernet AES-256) for sensitive security assessment dat
 | `is_active` | BooleanField | |
 
 #### `core.Relationship`
-**Table:** `core_relationship`
+**Table:** `ai_relationships_relationship`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -2357,7 +2357,7 @@ Uses **encrypted fields** (Fernet AES-256) for sensitive security assessment dat
 | `last_interaction` | DateTimeField | null=True |
 
 #### `core.InteractionSignal`
-**Table:** `core_interactionsignal`
+**Table:** `ai_relationships_interactionsignal`
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -2375,25 +2375,25 @@ Uses **encrypted fields** (Fernet AES-256) for sensitive security assessment dat
 
 | Engine | Reads From | Writes To | Schedule |
 |--------|-----------|-----------|----------|
-| **SAE** | All domain tables (health_*, journal_*, faith_*, etc.) | `core_userstate` | Post-action + 5m |
-| **PIE** | `core_userstate` + domain events | `core_insight` | Post-action + 5m |
-| **PRIE** | `core_userstate` + historical data | `core_prediction` | Post-action + 1h |
-| **PGE** | `core_userstate`, `core_insight`, `core_prediction` | `core_guidanceitem` | 6h |
-| **DBE** | `core_userstate`, `core_insight`, `core_prediction`, `core_guidanceitem` | `core_dailybriefing` | 24h (morning) |
-| **WIRE** | All engine tables | `core_weeklyintelligencereport` | 7d |
-| **DNE** | `core_guidanceitem`, `core_dailybriefing`, `core_weeklyintelligencereport` | `core_deliverednotification` | 10m |
-| **E3** | Engine output tables | `core_explainrecord` | With parent engine |
-| **UAL** | `core_userstate`, domain signals | `core_arbitrationdecisionlog`, `core_dailycapacitylog`, `core_scenariohistory` | 5m |
-| **EAE** | Signal queue | `core_eaestate`, `core_eaedecisionlog`, `core_eaeescalationevent` | Per-request |
-| **CDCE** | Historical time series | `core_domaincorrelation` | 6h |
-| **GLOE** | Chat transcripts | `core_userlearnedprofile`, `core_learningextraction` | 6h |
-| **SLCME** | User clarifications | `core_learnedmapping`, `core_clarificationlog` | Real-time |
+| **SAE** | All domain tables (health_*, journal_*, faith_*, etc.) | `core_user_state` | Post-action + 5m |
+| **PIE** | `core_user_state` + domain events | `core_ai_insight` | Post-action + 5m |
+| **PRIE** | `core_user_state` + historical data | `core_ai_prediction` | Post-action + 1h |
+| **PGE** | `core_user_state`, `core_ai_insight`, `core_ai_prediction` | `core_guidance_item` | 6h |
+| **DBE** | `core_user_state`, `core_ai_insight`, `core_ai_prediction`, `core_guidance_item` | `core_daily_briefing` | 24h (morning) |
+| **WIRE** | All engine tables | `core_weekly_intelligence_report` | 7d |
+| **DNE** | `core_guidance_item`, `core_daily_briefing`, `core_weekly_intelligence_report` | `core_delivered_notification` | 10m |
+| **E3** | Engine output tables | `core_explain_record` | With parent engine |
+| **UAL** | `core_user_state`, domain signals | `core_arbitration_decision_log`, `core_daily_capacity_log`, `core_scenario_history` | 5m |
+| **EAE** | Signal queue | `ai_eae_eaestate`, `ai_eae_eaedecisionlog`, `ai_eae_eaeescalationevent` | Per-request |
+| **CDCE** | Historical time series | `core_domain_correlation` | 6h |
+| **GLOE** | Chat transcripts | `core_user_learned_profile`, `core_learning_extraction` | 6h |
+| **SLCME** | User clarifications | `core_learned_mapping`, `core_clarification_log` | Real-time |
 | **Blueprint** | `core_governanceprofile`, domain schedules | `core_architectureplan`, `core_scheduledblock`, `core_driftscore` | 24h (7 PM) |
 | **Governance** | User alignment sessions | `core_governanceprofile`, `core_governancealignmentsession` | Real-time |
-| **Feedback** | User interactions | `core_insightengagement`, `core_predictionoutcome`, `core_briefingengagement` | Real-time |
-| **IOCD** | All engine runs | `core_enginerun`, `core_enginespan`, `core_decisionrecord`, `core_intelligencemetricssnapshot` | With engines |
-| **SAME** | `core_engineheartbeat`, `core_enginerun` | `core_opsanomaly`, `core_opsnarrativesnapshot`, `core_systemintegritysnapshot` | 60s |
-| **ISE** | Registry config | `core_schedulerheartbeat` | 5m tick |
+| **Feedback** | User interactions | `core_insight_engagement`, `core_prediction_outcome`, `core_briefing_engagement` | Real-time |
+| **IOCD** | All engine runs | `core_diag_engine_run`, `core_diag_engine_span`, `core_diag_decision_record`, `core_intelligencemetricssnapshot` | With engines |
+| **SAME** | `core_engine_heartbeat`, `core_diag_engine_run` | `core_ops_anomaly`, `core_ops_narrative_snapshot`, `core_system_integrity_snapshot` | 60s |
+| **ISE** | Registry config | `core_scheduler_heartbeat` | 5m tick |
 
 ---
 
@@ -2416,19 +2416,19 @@ WHERE u.id = ?
 ```sql
 -- Follow the full intelligence pipeline for a user
 -- 1. SAE truth layer
-SELECT state_data FROM core_userstate WHERE user_id = ?
+SELECT state_data FROM core_user_state WHERE user_id = ?
 
 -- 2. PIE insights generated from state
-SELECT * FROM core_insight WHERE user_id = ? AND status = 'new' ORDER BY created_at DESC
+SELECT * FROM core_ai_insight WHERE user_id = ? AND status = 'new' ORDER BY created_at DESC
 
 -- 3. PRIE predictions
-SELECT * FROM core_prediction WHERE user_id = ? AND status = 'active'
+SELECT * FROM core_ai_prediction WHERE user_id = ? AND status = 'active'
 
 -- 4. PGE guidance synthesized from insights + predictions
-SELECT * FROM core_guidanceitem WHERE user_id = ? AND is_active = TRUE ORDER BY priority
+SELECT * FROM core_guidance_item WHERE user_id = ? AND is_active = TRUE ORDER BY priority
 
 -- 5. DNE delivery audit
-SELECT * FROM core_deliverednotification WHERE user_id = ? ORDER BY delivered_at DESC
+SELECT * FROM core_delivered_notification WHERE user_id = ? ORDER BY delivered_at DESC
 ```
 
 ### PIE Evidence Trail
@@ -2436,8 +2436,8 @@ SELECT * FROM core_deliverednotification WHERE user_id = ? ORDER BY delivered_at
 ```sql
 -- Trace a PIE insight back to its evidence
 SELECT i.*, e.explanation, e.evidence
-FROM core_insight i
-LEFT JOIN core_explainrecord e ON e.source_object_id = CAST(i.id AS VARCHAR)
+FROM core_ai_insight i
+LEFT JOIN core_explain_record e ON e.source_object_id = CAST(i.id AS VARCHAR)
   AND e.source_engine = 'PIE'
 WHERE i.user_id = ? AND i.insight_type = 'weight_trend_up'
 ```
@@ -2451,7 +2451,7 @@ SELECT
   us.state_data->'health'->'weight_current' as sae_weight,
   us.state_data->'health'->'weight_trend' as sae_trend
 FROM health_weightentry w
-JOIN core_userstate us ON us.user_id = w.user_id
+JOIN core_user_state us ON us.user_id = w.user_id
 WHERE w.user_id = ? AND w.status = 'active'
 ORDER BY w.entry_date DESC
 ```
@@ -2491,8 +2491,8 @@ ORDER BY lr.collected_at DESC
 SELECT a.dominant_scenario, a.confidence_level, a.capacity_state,
   a.surfaced_items, a.suppressed_items, a.narrative,
   dc.capacity_score, dc.sleep_deficit, dc.emotional_load
-FROM core_arbitrationdecisionlog a
-LEFT JOIN core_dailycapacitylog dc ON dc.user_id = a.user_id AND dc.date = DATE(a.timestamp)
+FROM core_arbitration_decision_log a
+LEFT JOIN core_daily_capacity_log dc ON dc.user_id = a.user_id AND dc.date = DATE(a.timestamp)
 WHERE a.user_id = ?
 ORDER BY a.timestamp DESC
 ```
@@ -2502,13 +2502,13 @@ ORDER BY a.timestamp DESC
 ```sql
 -- Find slow or failing engine runs
 SELECT engine_name, status, duration_ms, error_message, started_at
-FROM core_enginerun
+FROM core_diag_engine_run
 WHERE status = 'error' OR duration_ms > 5000
 ORDER BY started_at DESC LIMIT 50
 
 -- Active anomalies
 SELECT severity, engine_name, anomaly_type, summary, evidence
-FROM core_opsanomaly
+FROM core_ops_anomaly
 WHERE is_active = TRUE
 ORDER BY severity, created_at DESC
 ```
@@ -2530,7 +2530,7 @@ ORDER BY sb.time_start
 ```sql
 -- Active correlations for a user
 SELECT domain_a, domain_b, correlation_type, strength, direction, narrative
-FROM core_domaincorrelation
+FROM core_domain_correlation
 WHERE user_id = ? AND status = 'active'
 ORDER BY strength_score DESC
 ```
@@ -2543,36 +2543,36 @@ Quick reference for finding where specific concepts live in the database:
 
 | Keyword | Tables | Engine | Notes |
 |---------|--------|--------|-------|
-| **PIE** | `core_insight` | PIE | Proactive Insight Engine. Rule-based insights |
-| **PRIE** | `core_prediction` | PRIE | Predictive Intelligence Engine. Regression projections |
-| **SAE** | `core_userstate` | SAE | State Awareness Engine. Single truth layer |
-| **PGE** | `core_guidanceitem` | PGE | Proactive Guidance Engine. Actionable guidance |
-| **CoS** | No own tables — reads from `core_userstate`, `core_insight`, `core_prediction`, `core_guidanceitem` | Context Builder | Context of Self. Assembles AI system prompt |
-| **DBE** | `core_dailybriefing` | DBE | Daily Briefing Engine |
-| **WIRE** | `core_weeklyintelligencereport` | WIRE | Weekly reports |
-| **DNE** | `core_deliverednotification` | DNE | Delivery & Notification Engine |
-| **EAE** | `core_eaestate`, `core_eaedecisionlog`, `core_eaeoverride`, `core_eaeescalationevent` | EAE | Executive Arbitration Engine |
-| **UAL** | `core_arbitrationdecisionlog`, `core_dailycapacitylog`, `core_scenariohistory`, `core_weightadjustment` | UAL | Unified Arbitration Logic |
-| **CDCE** | `core_domaincorrelation` | CDCE | Cross-Domain Correlation Engine |
-| **GLOE** | `core_userlearnedprofile`, `core_learningextraction` | GLOE | Guidance Learning & Optimization |
-| **SLCME** | `core_learnedmapping`, `core_contextsnapshot`, `core_clarificationlog` | SLCME | Self-Learning Context Memory |
-| **ISE** | `core_schedulerheartbeat` | ISE | Intelligence Scheduling Engine |
-| **SAME** | `core_opsanomaly`, `core_opsnarrativesnapshot`, `core_systemintegritysnapshot`, `core_sameexecutionlog` | SAME | System Anomaly Monitoring |
-| **IOCD** | `core_enginerun`, `core_enginespan`, `core_decisionrecord`, `core_engineheartbeat`, `core_engineexpectedcadence`, `core_intelligencemetricssnapshot` | IOCD | Intelligence Observability |
+| **PIE** | `core_ai_insight` | PIE | Proactive Insight Engine. Rule-based insights |
+| **PRIE** | `core_ai_prediction` | PRIE | Predictive Intelligence Engine. Regression projections |
+| **SAE** | `core_user_state` | SAE | State Awareness Engine. Single truth layer |
+| **PGE** | `core_guidance_item` | PGE | Proactive Guidance Engine. Actionable guidance |
+| **CoS** | No own tables — reads from `core_user_state`, `core_ai_insight`, `core_ai_prediction`, `core_guidance_item` | Context Builder | Context of Self. Assembles AI system prompt |
+| **DBE** | `core_daily_briefing` | DBE | Daily Briefing Engine |
+| **WIRE** | `core_weekly_intelligence_report` | WIRE | Weekly reports |
+| **DNE** | `core_delivered_notification` | DNE | Delivery & Notification Engine |
+| **EAE** | `ai_eae_eaestate`, `ai_eae_eaedecisionlog`, `ai_eae_eaeoverride`, `ai_eae_eaeescalationevent` | EAE | Executive Arbitration Engine |
+| **UAL** | `core_arbitration_decision_log`, `core_daily_capacity_log`, `core_scenario_history`, `core_weight_adjustment` | UAL | Unified Arbitration Logic |
+| **CDCE** | `core_domain_correlation` | CDCE | Cross-Domain Correlation Engine |
+| **GLOE** | `core_user_learned_profile`, `core_learning_extraction` | GLOE | Guidance Learning & Optimization |
+| **SLCME** | `core_learned_mapping`, `core_context_snapshot`, `core_clarification_log` | SLCME | Self-Learning Context Memory |
+| **ISE** | `core_scheduler_heartbeat` | ISE | Intelligence Scheduling Engine |
+| **SAME** | `core_ops_anomaly`, `core_ops_narrative_snapshot`, `core_system_integrity_snapshot`, `core_same_execution_log` | SAME | System Anomaly Monitoring |
+| **IOCD** | `core_diag_engine_run`, `core_diag_engine_span`, `core_diag_decision_record`, `core_engine_heartbeat`, `core_engine_expected_cadence`, `core_intelligencemetricssnapshot` | IOCD | Intelligence Observability |
 | **Blueprint** | `core_personaloperatingblueprint`, `core_nonnegotiable`, `core_architectureplan`, `core_scheduledblock`, `core_driftevent`, `core_driftscore`, `core_interventionlog`, `core_frictiongatelog` | Blueprint | Schedule architecture & drift detection |
 | **Governance** | `core_governanceprofile`, `core_governancealignmentsession`, `core_selferror` | Governance | Module commitment levels |
-| **Feedback** | `core_predictionoutcome`, `core_predictionaccuracyprofile`, `core_insightengagement`, `core_insightengagementprofile`, `core_briefingengagement`, `core_briefingengagementprofile`, `core_interventioneffectivenessprofile` | Feedback Loop | Engagement tracking & calibration |
-| **Weight** | `health_weightentry`, `health_weightgoal`, `health_transformationscore` | Domain | Weight tracking & goals |
+| **Feedback** | `core_prediction_outcome`, `core_prediction_accuracy_profile`, `core_insight_engagement`, `core_insight_engagement_profile`, `core_briefing_engagement`, `core_briefing_engagement_profile`, `core_intervention_effectiveness_profile` | Feedback Loop | Engagement tracking & calibration |
+| **Weight** | `health_weightentry`, `health_weightgoal`, `health_transformationprotocol` | Domain | Weight tracking & goals |
 | **Sleep** | `health_sleepentry` | Domain | Sleep tracking |
 | **Blood Pressure** | `health_bloodpressureentry` | Domain | BP tracking |
 | **Glucose** | `health_glucoseentry` | Domain | Blood sugar tracking |
 | **Medicine** | `health_medicineschedule`, `health_medicinelog` | Domain | Medicine schedules & logging |
-| **Nutrition** | `health_nutritionentry` | Domain | Food/calorie tracking |
-| **Fasting** | `health_fastingentry` | Domain | Intermittent fasting |
-| **Workout** | `health_workoutentry`, `health_exerciseset` | Domain | Exercise tracking |
+| **Nutrition** | `health_foodentry` | Domain | Food/calorie tracking |
+| **Fasting** | `health_fastingwindow` | Domain | Intermittent fasting |
+| **Workout** | `health_workoutsession`, `health_exerciseset` | Domain | Exercise tracking |
 | **Prayer** | `faith_prayerrequest` | Domain | Prayer tracking |
-| **Scripture** | `faith_scripturereading`, `faith_biblereadingplan` | Domain | Bible reading |
-| **Journal** | `journal_entry`, `journal_gratitude` | Domain | Journaling |
+| **Scripture** | `faith_userreadingprogress`, `faith_userreadingplan` | Domain | Bible reading |
+| **Journal** | `journal_journalentry`, `journal_emotion` | Domain | Journaling |
 | **Lab Results** | `medical_labresult`, `medical_labtestcatalog`, `medical_labpanel` | Domain | Medical lab data |
 | **Finance** | `finance_financialaccount`, `finance_transaction`, `finance_budget`, `finance_financialgoal` | Domain | Financial tracking |
 | **SMS** | `sms_smsnotification`, `sms_smsresponse` | DNE/Domain | Text message notifications |
@@ -2580,14 +2580,508 @@ Quick reference for finding where specific concepts live in the database:
 | **Coaching Style** | `ai_coachingstyle` | AI | AI personality customization |
 | **Soft Delete** | Any `UserOwnedModel` or `SoftDeleteModel` — `status` field | Framework | `active`/`archived`/`deleted` |
 | **Drift** | `core_driftevent`, `core_driftscore` | Blueprint | Behavioral drift from commitments |
-| **Escalation** | `core_eaeescalationevent`, `core_interventionlog` | EAE/Blueprint | Escalation level changes |
-| **Capacity** | `core_dailycapacitylog` | UAL | User cognitive/emotional capacity |
-| **Anomaly** | `core_opsanomaly` | SAME | System health anomalies |
-| **Correlation** | `core_domaincorrelation` | CDCE | Cross-domain data correlations |
+| **Escalation** | `ai_eae_eaeescalationevent`, `core_interventionlog` | EAE/Blueprint | Escalation level changes |
+| **Capacity** | `core_daily_capacity_log` | UAL | User cognitive/emotional capacity |
+| **Anomaly** | `core_ops_anomaly` | SAME | System health anomalies |
+| **Correlation** | `core_domain_correlation` | CDCE | Cross-domain data correlations |
 | **Noise Budget** | `core_eaestate.noise_budget_used_today` | EAE | Daily notification limit |
-| **Override** | `core_eaeoverride` | EAE | User signal suppression (3-strike) |
+| **Override** | `ai_eae_eaeoverride` | EAE | User signal suppression (3-strike) |
 | **Dedupe** | `dedupe_key` field on Insight, Prediction, GuidanceItem, DomainCorrelation | Multiple | Prevents duplicate intelligence outputs |
+| **Calendar** | `calendar_engine_calendarevent`, `calendar_engine_recurrencerule` | Domain | Calendar events & scheduling |
+| **Meals** | `meals_mealplan`, `meals_pantryitem`, `meals_ingredient`, `meals_receipt` | Domain | Meal planning & pantry |
+| **Notes** | `notes_note`, `notes_noteattachment`, `notes_noteimage` | Domain | Quick notes & attachments |
+| **CoS Reflections** | `cos_cosreflection`, `cos_cospromptschedule`, `cos_cosgoalsuggestion` | CoS | Contextual reflections & prompts |
+| **Tasks** | `life_task` | Domain | User tasks & to-dos |
+| **Pets** | `life_pet`, `life_petrecord` | Domain | Pet tracking |
+| **Inventory** | `life_inventoryitem`, `life_inventoryphoto` | Domain | Home inventory |
+| **Relationships** | `relationships_person`, `relationships_relationshipinteraction`, `relationships_mention` | Domain | People & interaction tracking |
+| **Owner Finance** | `owner_finance_llmusageevent`, `owner_finance_dailycostrollup`, `owner_finance_budgetguardrail` | Admin | Platform cost tracking |
+| **Conversation** | `ai_assistantconversation`, `ai_assistantmessage` | AI | Chat history |
+| **LLM Usage** | `owner_finance_llmusageevent`, `owner_finance_llmpricebook` | Admin | AI cost tracking per call |
 
 ---
 
-*This document was auto-generated from Django model definitions on 2026-03-06.*
+## 10. Master Table Listing
+
+Every table in the WLJ database, verified against Django ORM. Use these exact names in DBeaver.
+
+### admin_console (18 tables)
+| Table | Model |
+|-------|-------|
+| `admin_console_adminactivitylog` | AdminActivityLog |
+| `admin_console_adminguidearticle` | AdminGuideArticle |
+| `admin_console_adminguidesection` | AdminGuideSection |
+| `admin_console_adminproject` | AdminProject |
+| `admin_console_adminprojectphase` | AdminProjectPhase |
+| `admin_console_admintask` | AdminTask |
+| `admin_console_admintaskcategoryconfig` | AdminTaskCategoryConfig |
+| `admin_console_admintaskeffortconfig` | AdminTaskEffortConfig |
+| `admin_console_admintaskpriorityconfig` | AdminTaskPriorityConfig |
+| `admin_console_admintaskstatusconfig` | AdminTaskStatusConfig |
+| `admin_console_dataloadconfig` | DataLoadConfig |
+| `admin_console_emailnotificationtemplate` | EmailNotificationTemplate |
+| `admin_console_systemannouncement` | SystemAnnouncement |
+| `admin_console_systemannouncementdismissal` | SystemAnnouncementDismissal |
+| `admin_console_testcycle` | TestCycle |
+| `admin_console_testitem` | TestItem |
+| `admin_console_testphase` | TestPhase |
+| `admin_console_uitestrun` | UITestRun |
+
+### ai (17 tables)
+| Table | Model |
+|-------|-------|
+| `ai_aiinsight` | AIInsight |
+| `ai_aipromptconfig` | AIPromptConfig |
+| `ai_aiusagelog` | AIUsageLog |
+| `ai_assistantconversation` | AssistantConversation |
+| `ai_assistantmessage` | AssistantMessage |
+| `ai_behavioralpattern` | BehavioralPattern |
+| `ai_coachingstyle` | CoachingStyle |
+| `ai_conversationmemory` | ConversationMemory |
+| `ai_correctionrecord` | CorrectionRecord |
+| `ai_dailypriority` | DailyPriority |
+| `ai_messageimage` | MessageImage |
+| `ai_reflectionpromptqueue` | ReflectionPromptQueue |
+| `ai_responsepreference` | ResponsePreference |
+| `ai_trendanalysis` | TrendAnalysis |
+| `ai_userstatesnapshot` | UserStateSnapshot |
+| `ai_valuesguardrailpattern` | ValuesGuardrailPattern |
+| `ai_valuesredirectsuggestion` | ValuesRedirectSuggestion |
+
+### ai_eae (4 tables)
+| Table | Model |
+|-------|-------|
+| `ai_eae_eaedecisionlog` | EAEDecisionLog |
+| `ai_eae_eaeescalationevent` | EAEEscalationEvent |
+| `ai_eae_eaeoverride` | EAEOverride |
+| `ai_eae_eaestate` | EAEState |
+
+### ai_relationships (3 tables)
+| Table | Model |
+|-------|-------|
+| `ai_relationships_interactionsignal` | InteractionSignal |
+| `ai_relationships_person` | Person |
+| `ai_relationships_relationship` | Relationship |
+
+### assistant (2 tables)
+| Table | Model |
+|-------|-------|
+| `assistant_improvementtaskmodel` | ImprovementTaskModel |
+| `assistant_safetylimitoverride` | SafetyLimitOverride |
+
+### billing (11 tables)
+| Table | Model |
+|-------|-------|
+| `billing_billingconfiguration` | BillingConfiguration |
+| `billing_billingprofile` | BillingProfile |
+| `billing_credittransaction` | CreditTransaction |
+| `billing_featuresuggestion` | FeatureSuggestion |
+| `billing_foundingmemberpayout` | FoundingMemberPayout |
+| `billing_paymentauditlog` | PaymentAuditLog |
+| `billing_promocodeusage` | PromoCodeUsage |
+| `billing_referralqualification` | ReferralQualification |
+| `billing_referralreward` | ReferralReward |
+| `billing_vippromocode` | VIPPromoCode |
+| `billing_vippromocodeusage` | VIPPromoCodeUsage |
+
+### brain_training (7 tables)
+| Table | Model |
+|-------|-------|
+| `brain_training_challenge` | Challenge |
+| `brain_training_challengequeue` | ChallengeQueue |
+| `brain_training_dailystats` | DailyStats |
+| `brain_training_game` | Game |
+| `brain_training_gamesession` | GameSession |
+| `brain_training_usergamestats` | UserGameStats |
+| `brain_training_useroverallstats` | UserOverallStats |
+
+### calendar_engine (5 tables)
+| Table | Model |
+|-------|-------|
+| `calendar_engine_calendarevent` | CalendarEvent |
+| `calendar_engine_calendaroverridelog` | CalendarOverrideLog |
+| `calendar_engine_declinedsuggestion` | DeclinedSuggestion |
+| `calendar_engine_recurrenceexception` | RecurrenceException |
+| `calendar_engine_recurrencerule` | RecurrenceRule |
+
+### capture (2 tables)
+| Table | Model |
+|-------|-------|
+| `capture_captureentry` | CaptureEntry |
+| `capture_pendingcapture` | PendingCapture |
+
+### core — Intelligence & Platform (70+ tables)
+| Table | Model | Engine |
+|-------|-------|--------|
+| `core_admin_intervention` | AdminIntervention | SAME |
+| `core_ai_insight` | Insight | PIE |
+| `core_ai_prediction` | Prediction | PRIE |
+| `core_apirequestlog` | APIRequestLog | — |
+| `core_arbitration_decision_log` | ArbitrationDecisionLog | UAL |
+| `core_architectureplan` | ArchitecturePlan | Blueprint |
+| `core_behavioraltrend` | BehavioralTrend | — |
+| `core_briefing_engagement` | BriefingEngagement | Feedback |
+| `core_briefing_engagement_profile` | BriefingEngagementProfile | Feedback |
+| `core_camerascan` | CameraScan | — |
+| `core_category` | Category | — |
+| `core_choicecategory` | ChoiceCategory | — |
+| `core_choiceoption` | ChoiceOption | — |
+| `core_clarification_log` | ClarificationLog | SLCME |
+| `core_commitment` | Commitment | Governance |
+| `core_commitmentanalytics` | CommitmentAnalytics | Governance |
+| `core_commitmentrenegotiation` | CommitmentRenegotiation | Governance |
+| `core_context_snapshot` | ContextSnapshot | SLCME |
+| `core_daily_briefing` | DailyBriefing | DBE |
+| `core_daily_capacity_log` | DailyCapacityLog | UAL |
+| `core_deadlinesnapshot` | DeadlineSnapshot | — |
+| `core_delivered_notification` | DeliveredNotification | DNE |
+| `core_diag_decision_record` | DecisionRecord | IOCD |
+| `core_diag_engine_run` | EngineRun | IOCD |
+| `core_diag_engine_span` | EngineSpan | IOCD |
+| `core_domain_correlation` | DomainCorrelation | CDCE |
+| `core_drift_signal` | DriftSignal | Blueprint |
+| `core_driftevent` | DriftEvent | Blueprint |
+| `core_driftscore` | DriftScore | Blueprint |
+| `core_engine_execution_log` | EngineExecutionLog | IOCD |
+| `core_engine_expected_cadence` | EngineExpectedCadence | IOCD |
+| `core_engine_heartbeat` | EngineHeartbeat | IOCD |
+| `core_engine_run_token` | EngineRunToken | IOCD |
+| `core_escalationevent` | EscalationEvent | Blueprint |
+| `core_escalationstate` | EscalationState | Blueprint |
+| `core_eventreflection` | EventReflection | — |
+| `core_execution_log` | ExecutionLog | — |
+| `core_explain_record` | ExplainRecord | E3 |
+| `core_favoritepage` | FavoritePage | — |
+| `core_governancealignmentsession` | GovernanceAlignmentSession | Governance |
+| `core_governanceprofile` | GovernanceProfile | Governance |
+| `core_guidance_item` | GuidanceItem | PGE |
+| `core_guidance_learning_event` | GuidanceLearningEvent | GLOE |
+| `core_guidance_learning_profile` | GuidanceLearningProfile | GLOE |
+| `core_insight_engagement` | InsightEngagement | Feedback |
+| `core_insight_engagement_profile` | InsightEngagementProfile | Feedback |
+| `core_intelligencemetricssnapshot` | IntelligenceMetricsSnapshot | IOCD |
+| `core_intervention_effectiveness_profile` | InterventionEffectivenessProfile | Feedback |
+| `core_intervention_response_log` | InterventionResponseLog | UAL |
+| `core_interventionlog` | InterventionLog | Blueprint |
+| `core_learned_mapping` | LearnedMapping | SLCME |
+| `core_learning_extraction` | LearningExtraction | GLOE |
+| `core_nonnegotiable` | NonNegotiable | Blueprint |
+| `core_notification` | Notification | — |
+| `core_ops_anomaly` | OpsAnomaly | SAME |
+| `core_ops_narrative_snapshot` | OpsNarrativeSnapshot | SAME |
+| `core_pageview` | PageView | — |
+| `core_personaloperatingblueprint` | PersonalOperatingBlueprint | Blueprint |
+| `core_prediction_accuracy_profile` | PredictionAccuracyProfile | Feedback |
+| `core_prediction_outcome` | PredictionOutcome | Feedback |
+| `core_pressuresnapshot` | PressureSnapshot | — |
+| `core_pressureweightconfig` | PressureWeightConfig | — |
+| `core_protectiveactionlog` | ProtectiveActionLog | — |
+| `core_protectivealert` | ProtectiveAlert | — |
+| `core_protectiverecommendation` | ProtectiveRecommendation | — |
+| `core_quality_metric_aggregate` | QualityMetricAggregate | IOCD |
+| `core_quality_suppression` | QualitySuppressionRecord | IOCD |
+| `core_recent_nudge_memory` | RecentNudgeMemory | UAL |
+| `core_releasenote` | ReleaseNote | — |
+| `core_same_execution_log` | SAMEExecutionLog | SAME |
+| `core_scenario_history` | ScenarioHistory | UAL |
+| `core_scheduled_intelligence_task` | ScheduledIntelligenceTask | ISE |
+| `core_scheduledblock` | ScheduledBlock | Blueprint |
+| `core_scheduler_heartbeat` | SchedulerHeartbeat | ISE |
+| `core_scheduler_lock` | SchedulerLock | ISE |
+| `core_selferror` | SelfError | Governance |
+| `core_semantic_decision_log` | SemanticDecisionLog | — |
+| `core_siteconfiguration` | SiteConfiguration | — |
+| `core_system_integrity_snapshot` | SystemIntegritySnapshot | SAME |
+| `core_tag` | Tag | — |
+| `core_testrun` | TestRun | — |
+| `core_testrundetail` | TestRunDetail | — |
+| `core_theme` | Theme | — |
+| `core_tier1overrideevent` | Tier1OverrideEvent | Blueprint |
+| `core_user_learned_profile` | UserLearnedProfile | GLOE |
+| `core_user_state` | UserState | SAE |
+| `core_useractivitypattern` | UserActivityPattern | — |
+| `core_userdailyactivity` | UserDailyActivity | — |
+| `core_userpriorityprofile` | UserPriorityProfile | — |
+| `core_userreleasenoteview` | UserReleaseNoteView | — |
+| `core_weekly_intelligence_report` | WeeklyIntelligenceReport | WIRE |
+| `core_weight_adjustment` | WeightAdjustment | UAL |
+
+### cos (4 tables)
+| Table | Model |
+|-------|-------|
+| `cos_cosautoshiftlog` | CosAutoShiftLog |
+| `cos_cosgoalsuggestion` | CosGoalSuggestion |
+| `cos_cospromptschedule` | CosPromptSchedule |
+| `cos_cosreflection` | CosReflection |
+
+### dashboard (1 table)
+| Table | Model |
+|-------|-------|
+| `dashboard_dailyencouragement` | DailyEncouragement |
+
+### faith (14 tables)
+| Table | Model |
+|-------|-------|
+| `faith_biblebookmark` | BibleBookmark |
+| `faith_biblehighlight` | BibleHighlight |
+| `faith_biblestudynote` | BibleStudyNote |
+| `faith_dailyverse` | DailyVerse |
+| `faith_faithmilestone` | FaithMilestone |
+| `faith_prayerrequest` | PrayerRequest |
+| `faith_readingplanassessment` | ReadingPlanAssessment |
+| `faith_readingplanday` | ReadingPlanDay |
+| `faith_readingplantemplate` | ReadingPlanTemplate |
+| `faith_savedverse` | SavedVerse |
+| `faith_scriptureverse` | ScriptureVerse |
+| `faith_userassessmentresponse` | UserAssessmentResponse |
+| `faith_userreadingplan` | UserReadingPlan |
+| `faith_userreadingprogress` | UserReadingProgress |
+
+### finance (12 tables)
+| Table | Model |
+|-------|-------|
+| `finance_bankconnection` | BankConnection |
+| `finance_bankintegrationlog` | BankIntegrationLog |
+| `finance_budget` | Budget |
+| `finance_financeauditlog` | FinanceAuditLog |
+| `finance_financialaccount` | FinancialAccount |
+| `finance_financialgoal` | FinancialGoal |
+| `finance_financialmetricsnapshot` | FinancialMetricSnapshot |
+| `finance_payee` | Payee |
+| `finance_recurringtransaction` | RecurringTransaction |
+| `finance_transaction` | Transaction |
+| `finance_transactioncategory` | TransactionCategory |
+| `finance_transactionimport` | TransactionImport |
+
+### health (38 tables)
+| Table | Model |
+|-------|-------|
+| `health_audioexposureentry` | AudioExposureEntry |
+| `health_bloodoxygenentry` | BloodOxygenEntry |
+| `health_bloodpressureentry` | BloodPressureEntry |
+| `health_bodycompositionentry` | BodyCompositionEntry |
+| `health_bodytemperatureentry` | BodyTemperatureEntry |
+| `health_cardiodetails` | CardioDetails |
+| `health_classdetails` | ClassDetails |
+| `health_customfood` | CustomFood |
+| `health_cycle` | Cycle |
+| `health_cycledailylog` | CycleDailyLog |
+| `health_cycleprediction` | CyclePrediction |
+| `health_cyclesettings` | CycleSettings |
+| `health_dailyhealthsummary` | DailyHealthSummary |
+| `health_dailynutritionsummary` | DailyNutritionSummary |
+| `health_dexcomcredential` | DexcomCredential |
+| `health_dietarynutriententry` | DietaryNutrientEntry |
+| `health_exercise` | Exercise |
+| `health_exerciseset` | ExerciseSet |
+| `health_fastingwindow` | FastingWindow |
+| `health_foodentry` | FoodEntry |
+| `health_fooditem` | FoodItem |
+| `health_fooditemoverride` | FoodItemOverride |
+| `health_glucoseentry` | GlucoseEntry |
+| `health_healthprofile` | HealthProfile |
+| `health_heartrateentry` | HeartRateEntry |
+| `health_heartrateevententry` | HeartRateEventEntry |
+| `health_insightresult` | InsightResult |
+| `health_mealtemplate` | MealTemplate |
+| `health_mealtemplateitem` | MealTemplateItem |
+| `health_medicalprovider` | MedicalProvider |
+| `health_medicine` | Medicine |
+| `health_medicinelog` | MedicineLog |
+| `health_medicineschedule` | MedicineSchedule |
+| `health_mobilityentry` | MobilityEntry |
+| `health_nutritionentryaudit` | NutritionEntryAudit |
+| `health_nutritiongoals` | NutritionGoals |
+| `health_nutritionlabelevidence` | NutritionLabelEvidence |
+| `health_personalrecord` | PersonalRecord |
+| `health_providerstaff` | ProviderStaff |
+| `health_sleepentry` | SleepEntry |
+| `health_stepsentry` | StepsEntry |
+| `health_templateexercise` | TemplateExercise |
+| `health_templateexerciseset` | TemplateExerciseSet |
+| `health_transformationprotocol` | TransformationProtocol |
+| `health_waterentry` | WaterEntry |
+| `health_weightentry` | WeightEntry |
+| `health_workoutexercise` | WorkoutExercise |
+| `health_workoutplan` | WorkoutPlan |
+| `health_workoutschedule` | WorkoutSchedule |
+| `health_workoutsession` | WorkoutSession |
+| `health_workouttemplate` | WorkoutTemplate |
+
+### help (7 tables)
+| Table | Model |
+|-------|-------|
+| `help_adminhelptopic` | AdminHelpTopic |
+| `help_helparticle` | HelpArticle |
+| `help_helpcategory` | HelpCategory |
+| `help_helpconversation` | HelpConversation |
+| `help_helpmessage` | HelpMessage |
+| `help_helptopic` | HelpTopic |
+| `help_teachingdestination` | TeachingDestination |
+
+### journal (4 tables)
+| Table | Model |
+|-------|-------|
+| `journal_emotion` | Emotion |
+| `journal_entrylink` | EntryLink |
+| `journal_journalentry` | JournalEntry |
+| `journal_journalprompt` | JournalPrompt |
+
+### life (17 tables)
+| Table | Model |
+|-------|-------|
+| `life_document` | Document |
+| `life_gmailcredential` | GmailCredential |
+| `life_googlecalendarcredential` | GoogleCalendarCredential |
+| `life_inventoryitem` | InventoryItem |
+| `life_inventoryphoto` | InventoryPhoto |
+| `life_lifeevent` | LifeEvent |
+| `life_maintenancelog` | MaintenanceLog |
+| `life_pet` | Pet |
+| `life_petrecord` | PetRecord |
+| `life_processedemail` | ProcessedEmail |
+| `life_project` | Project |
+| `life_recipe` | Recipe |
+| `life_recipebulkimportphoto` | RecipeBulkImportPhoto |
+| `life_recipebulkimportsession` | RecipeBulkImportSession |
+| `life_shoppingitem` | ShoppingItem |
+| `life_shoppinglist` | ShoppingList |
+| `life_significantevent` | SignificantEvent |
+| `life_task` | Task |
+
+### meals (14 tables)
+| Table | Model |
+|-------|-------|
+| `meals_dietaryprofile` | DietaryProfile |
+| `meals_household` | Household |
+| `meals_householdmembership` | HouseholdMembership |
+| `meals_ingredient` | Ingredient |
+| `meals_inventorytransaction` | InventoryTransaction |
+| `meals_mealplan` | MealPlan |
+| `meals_mealplanentry` | MealPlanEntry |
+| `meals_pantryitem` | PantryItem |
+| `meals_pantryphotodetection` | PantryPhotoDetection |
+| `meals_pantryphotoupload` | PantryPhotoUpload |
+| `meals_pantryscansession` | PantryScanSession |
+| `meals_receipt` | Receipt |
+| `meals_receiptitem` | ReceiptItem |
+| `meals_recipeingredient` | RecipeIngredient |
+
+### medical (9 tables)
+| Table | Model |
+|-------|-------|
+| `medical_importbatch` | ImportBatch |
+| `medical_importerrorrow` | ImportErrorRow |
+| `medical_labeducationcontent` | LabEducationContent |
+| `medical_labpanel` | LabPanel |
+| `medical_labresult` | LabResult |
+| `medical_labtestalias` | LabTestAlias |
+| `medical_labtestcatalog` | LabTestCatalog |
+| `medical_medicalauditlog` | MedicalAuditLog |
+| `medical_medicaldocument` | MedicalDocument |
+
+### mobile (4 tables)
+| Table | Model |
+|-------|-------|
+| `mobile_healthingestionrun` | HealthIngestionRun |
+| `mobile_mobileapitoken` | MobileAPIToken |
+| `mobile_mobiledevice` | MobileDevice |
+| `mobile_mobiletokenexchangecode` | MobileTokenExchangeCode |
+
+### notes (3 tables)
+| Table | Model |
+|-------|-------|
+| `notes_note` | Note |
+| `notes_noteattachment` | NoteAttachment |
+| `notes_noteimage` | NoteImage |
+
+### owner_finance (7 tables)
+| Table | Model |
+|-------|-------|
+| `owner_finance_budgetguardrail` | BudgetGuardrail |
+| `owner_finance_dailycostrollup` | DailyCostRollup |
+| `owner_finance_llmpricebook` | LLMPriceBook |
+| `owner_finance_llmusageevent` | LLMUsageEvent |
+| `owner_finance_thirdpartyvendor` | ThirdPartyVendor |
+| `owner_finance_usersubscriptionsnapshot` | UserSubscriptionSnapshot |
+| `owner_finance_vendorbillingrecord` | VendorBillingRecord |
+
+### purpose (12 tables)
+| Table | Model |
+|-------|-------|
+| `purpose_annualdirection` | AnnualDirection |
+| `purpose_changeintention` | ChangeIntention |
+| `purpose_goalinsight` | GoalInsight |
+| `purpose_goalmilestone` | GoalMilestone |
+| `purpose_habitentry` | HabitEntry |
+| `purpose_habitgoal` | HabitGoal |
+| `purpose_lifedomain` | LifeDomain |
+| `purpose_lifegoal` | LifeGoal |
+| `purpose_planningaction` | PlanningAction |
+| `purpose_reflection` | Reflection |
+| `purpose_reflectionprompt` | ReflectionPrompt |
+| `purpose_reflectionresponse` | ReflectionResponse |
+
+### relationships (4 tables)
+| Table | Model |
+|-------|-------|
+| `relationships_mention` | Mention |
+| `relationships_person` | Person |
+| `relationships_persongroup` | PersonGroup |
+| `relationships_relationshipinteraction` | RelationshipInteraction |
+
+### scan (3 tables)
+| Table | Model |
+|-------|-------|
+| `scan_imageanalysis` | ImageAnalysis |
+| `scan_scanconsent` | ScanConsent |
+| `scan_scanlog` | ScanLog |
+
+### security (6 tables)
+| Table | Model |
+|-------|-------|
+| `security_acknowledgedfinding` | AcknowledgedFinding |
+| `security_securityauditlog` | SecurityAuditLog |
+| `security_securityfinding` | SecurityFinding |
+| `security_securityrun` | SecurityRun |
+| `security_securityscore` | SecurityScore |
+| `security_securitytest` | SecurityTest |
+
+### sms (2 tables)
+| Table | Model |
+|-------|-------|
+| `sms_smsnotification` | SMSNotification |
+| `sms_smsresponse` | SMSResponse |
+
+### users (13 tables)
+| Table | Model |
+|-------|-------|
+| `users_account_deletion_audit` | AccountDeletionAudit |
+| `users_allowed_international_email` | AllowedInternationalEmail |
+| `users_disposable_email_domain` | DisposableEmailDomain |
+| `users_externallink` | ExternalLink |
+| `users_ip_blocklist` | IPBlocklist |
+| `users_mfaemailcode` | MFAEmailCode |
+| `users_moduledefinition` | ModuleDefinition |
+| `users_signup_attempt` | SignupAttempt |
+| `users_termsacceptance` | TermsAcceptance |
+| `users_user` | User |
+| `users_usermodulepreference` | UserModulePreference |
+| `users_userpreferences` | UserPreferences |
+| `users_webauthncredential` | WebAuthnCredential |
+
+### Third-Party Tables (also in database)
+| Prefix | Package | Purpose |
+|--------|---------|---------|
+| `account_*` | django-allauth | Email verification & social auth |
+| `auth_*` | Django auth | Groups & permissions |
+| `axes_*` | django-axes | Login attempt throttling |
+| `django_apscheduler_*` | APScheduler | Background job scheduling |
+| `djstripe_*` | dj-stripe | Stripe payment integration (50+ tables) |
+| `django_content_type` | Django | Content type registry for GenericFK |
+| `django_session` | Django | Session storage |
+| `django_site` | Django sites | Multi-site support |
+
+---
+
+*This document was generated from Django model definitions and verified against the production database on 2026-03-06. Table names are authoritative — use exactly as shown in DBeaver.*

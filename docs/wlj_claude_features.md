@@ -53,7 +53,7 @@ For core project context, see `CLAUDE.md` (project root).
 34. [Nutrition Log Upgrade](#nutrition-log-upgrade) *(Feb 2026)*
 35. [Intelligence Engine Stack](#intelligence-engine-stack) *(Jan-Feb 2026)*
 36. [Body Transformation Protocol](#body-transformation-protocol) *(Feb 2026)*
-37. [Admin Guide](#admin-guide) *(Feb 2026)*
+37. [Guides Hub (Admin Guide, Data Dictionary, User Guide)](#guides-hub) *(Feb-Mar 2026)*
 38. [Workout Plans & Training Splits](#workout-plans--training-splits) *(Feb 2026)*
 39. [Data Export & Report Generation](#data-export--report-generation) *(Mar 2026)*
 40. [Additional Jan-Feb 2026 Enhancements](#additional-jan-feb-2026-enhancements)
@@ -3026,22 +3026,48 @@ All 4 post-execution engines are wired:
 
 ---
 
-## Admin Guide
+## Guides Hub
 
 ### Overview
-Staff documentation system providing a comprehensive guide to the WLJ system. Available at `/admin-console/guide/`.
+Centralized documentation system with three guides accessible from the Admin Console dashboard "Guides" section. Admin Guide and Data Dictionary are admin-only; User Guide is accessible to all logged-in users (also linked in profile dropdown).
 
-### Structure
-- **20 sections, 54+ articles** covering system overview, intelligence architecture, all engines, modules, security, deployment, and developer reference
-- **Core articles** — Code-maintained, auto-synced on deploy, locked from editing
-- **Supplemental articles** — Created/edited by staff from the Manage Articles page
-- **Auto-synchronizing** — CoS documentation registry keeps admin guide in sync with code
+### Three Guides
+
+**Admin Guide** (`/admin-console/guide/`)
+- 20 sections, 54+ articles covering system overview, intelligence architecture, all engines, modules, security, deployment, and developer reference
+- Core articles auto-synced from CoS documentation registry; supplemental articles editable by staff
+
+**Data Dictionary** (`/admin-console/data-dictionary/`)
+- 10 sections, 89 articles — complete database reference for all tables, fields, types, relationships, and engine mappings
+- Source: `docs/WLJ_Data_Dictionary.md` (synced via `sync_data_dictionary` management command)
+- Embedded in migration 0035 for production deployment; also synced on boot via Procfile
+- Professional styling: dark code blocks, blue gradient table headers, alternating rows, hover highlights
+
+**User Guide** (`/admin-console/user-guide/`)
+- 11 sections, 23+ articles auto-generated from HelpTopic and HelpArticle records
+- Synced via `sync_user_guide` management command on every deploy
+- Accessible to all logged-in users; linked in desktop profile dropdown
+
+### Architecture
+- All three guides share the `AdminGuideSection` and `AdminGuideArticle` models with a `guide_type` discriminator field (`admin`, `data_dictionary`, `user`)
+- `unique_together = [('guide_type', 'section_key')]` prevents cross-guide slug collisions
+- Two-column layout: sticky sidebar with collapsible sections + main content area with markdown rendering
+- Responsive: collapses to single column on mobile with accordion sidebar
 
 ### Key Files
-- `apps/admin_console/models.py` — AdminGuideSection, AdminGuideArticle
-- `apps/admin_console/views.py` — AdminGuideView, AdminGuideManageView
-- `apps/admin_console/fixtures/admin_guide.json` — Fixture content
-- `templates/admin_console/guide/` — Guide templates
+- `apps/admin_console/models.py` — AdminGuideSection, AdminGuideArticle (guide_type field)
+- `apps/admin_console/views.py` — 9 view classes (3 per guide: Home, Section, Article)
+- `apps/admin_console/urls.py` — 9 URL patterns (3 per guide)
+- `apps/admin_console/templatetags/admin_guide_filters.py` — `render_markdown` filter
+- `apps/admin_console/management/commands/sync_data_dictionary.py` — Data Dictionary sync
+- `apps/admin_console/management/commands/sync_user_guide.py` — User Guide sync
+- `templates/admin_console/data_dictionary/home.html` — Data Dictionary template
+- `templates/admin_console/user_guide/home.html` — User Guide template
+- `templates/admin_console/admin_guide/home.html` — Admin Guide template
+- `docs/WLJ_Data_Dictionary.md` — Source markdown for Data Dictionary
+
+### Tests
+- `apps/admin_console/tests/test_admin_guide.py` — Guide model and view tests
 
 ---
 

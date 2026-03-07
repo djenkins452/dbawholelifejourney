@@ -54,7 +54,7 @@ body.has-desktop-nav .desktop-main-area {
     flex-shrink: 0;
 }
 
-.ap-tcc-link {
+.ap-header-icon-btn {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -64,6 +64,25 @@ body.has-desktop-nav .desktop-main-area {
     color: var(--color-text-muted);
     transition: color 0.15s, background 0.15s;
     margin-left: auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+.ap-header-icon-btn:hover {
+    color: var(--color-danger, #e74c3c);
+    background: var(--color-border);
+}
+.ap-tcc-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-md, 6px);
+    color: var(--color-text-muted);
+    transition: color 0.15s, background 0.15s;
+    margin-left: 4px;
 }
 .ap-tcc-link:hover {
     color: var(--color-accent);

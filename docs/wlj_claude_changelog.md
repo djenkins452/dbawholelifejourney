@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Fix generic "create a daily schedule" response + consolidate check-in patterns
+
+**What:** Beth responded to "What does my day look like?" with generic life-coach advice ("consider creating a daily schedule that includes morning routine, work hours, breaks...") instead of pulling the user's actual tasks, calendar, and medications. Root cause: 4 separate copies of the check-in detection pattern list scattered across `personal_assistant.py` that could drift out of sync, plus no explicit guard against generic template responses.
+
+**Fix — three changes:**
+1. **Consolidated patterns**: Extracted all check-in detection phrases into a single `CHECKIN_PATTERNS` frozenset constant at module level. All 3 pattern checks (prefilter non-streaming, prefilter streaming, `_generate_response()` internal) now reference the same constant. Adding/removing a phrase applies to all paths automatically.
+2. **Anti-generic guard**: Added explicit instructions to the base system prompt, check-in injection, and analysis injection: "NEVER give generic scheduling advice or life-coach templates. You have the user's ACTUAL data — use it." Added bad/good examples directly in the base prompt.
+3. **Logging**: Added `logger.info` at all 3 check-in detection points (prefilter non-stream, prefilter stream, internal `_generate_response`) so we can trace exactly which path fired (or didn't) when a bad response is reported.
+
+**Files:**
+- `apps/ai/personal_assistant.py` — New `CHECKIN_PATTERNS` constant, replaced 3 inline pattern lists, added anti-generic guards to base prompt + check-in + analysis injections, added 3 logging points
+
+---
+
 ## 2026-03-07 — Fix morning briefing missing non-routine tasks + field name bugs
 
 **What:** The executive briefing only reported `is_routine=True` tasks (routines like Wake Up, Prayer Time), completely missing non-routine tasks like "Workout" that are due today. The day overview section only showed calendar events. Additionally, the check-in path didn't query tasks with `due_date=None` (which appear in the "Now" bucket on the task page). Three query bugs using wrong field names (`completed=False`, `is_complete=False` instead of `is_completed=False`) caused silent empty results in overdue task counting and proactive intelligence.

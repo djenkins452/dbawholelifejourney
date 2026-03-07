@@ -39,6 +39,61 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
+# CHECK-IN / STATUS QUERY PATTERNS
+# =============================================================================
+# Single source of truth for phrases that indicate the user is requesting
+# a status check-in, day overview, or task briefing. Used in:
+#   1. send_message() prefilter (non-streaming)
+#   2. send_message_stream() prefilter (streaming)
+#   3. _generate_response() internal check-in detection
+# IMPORTANT: When adding patterns here, they apply to ALL paths automatically.
+CHECKIN_PATTERNS = frozenset([
+    # Explicit check-in
+    'check in', 'checking in', 'check-in', 'checkin',
+    # Day overview
+    "how's my day", 'how is my day', 'how does my day look',
+    "how's my schedule", "what's my day look like",
+    'give me a rundown', 'brief me', 'briefing', 'daily briefing',
+    'what do i have today', "what's on my plate", 'whats on my plate',
+    'status update', 'status report', 'give me my status',
+    'what am i looking at today', 'run down my day',
+    # Remaining / left
+    "what's left", 'whats left', 'what is left',
+    "what's remaining", 'whats remaining',
+    'what do i have left', 'what do i still need',
+    "what's left for me", 'whats left for me',
+    'what still needs to be done', "what haven't i done",
+    # Cross-domain check-in
+    'meds and journal', 'journal and meds',
+    'meds and reading', 'reading and meds',
+    # Broad day-overview fragments
+    'my day look', 'day look like', 'day ahead',
+    'what does my day', 'what is my day',
+    'plan for today', 'plan for the day',
+    'today look like', 'today looking like',
+    'what should i do today', 'what should i focus on',
+    'what do i need to do', 'walk me through my day',
+    'my schedule today', 'my schedule look',
+    'what am i doing today', 'what have i got today',
+    'where do i stand', 'where am i at',
+    'catch me up', 'fill me in',
+    # Task-oriented queries
+    'have to do today', 'to do today',
+    "haven't completed", 'havent completed',
+    "haven't done", 'havent done',
+    "haven't finished", 'havent finished',
+    'still need to do', 'need to finish',
+    'left to do', 'left to finish',
+    'still outstanding', 'still pending',
+    'incomplete today', 'not done today',
+    'remaining today', 'remaining for today',
+    'tasks today', 'tasks for today',
+    'things to do', 'to-do list',
+    'anything left',
+])
+
+
+# =============================================================================
 # PERSONAL ASSISTANT SYSTEM PROMPTS
 # =============================================================================
 
@@ -60,11 +115,17 @@ The user must TRUST that you:
 
 **CRITICAL**: If you have data about what they're asking, LEAD WITH THE DATA. Don't hedge. Don't add caveats. Just answer.
 
+**NEVER give generic life-coach advice.** This is a personalized assistant with real user data. If someone asks "What does my day look like?", answer with THEIR actual tasks, calendar, and medications — never with generic templates like "consider creating a morning routine" or "aim for 7-9 hours of sleep." If you don't have specific data, say "I don't see any [tasks/events] for today" — not generic advice.
+
 Example:
 - User: "What was my blood pressure this week?"
 - BAD: "I'd need to check your records. Would you like me to look that up?"
 - BAD: "I don't have that information."
 - GOOD: "Your BP this week averaged 128/82. Your last reading was 125/80 yesterday morning."
+
+- User: "What does my day look like?"
+- BAD: "Consider creating a daily schedule that includes morning routine, work hours, breaks..."
+- GOOD: "You've got Workout on your plate today, plus 2 overdue tasks. Medications: Atorvastatin and Metformin still need to be taken."
 
 ## CONVERSATIONAL INTELLIGENCE
 
@@ -2637,48 +2698,14 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 # "No events found"). Check-in queries need the full CoS
                 # _generate_response flow with the check-in context injection.
                 _msg_lower_precheck = message.lower()
-                _is_checkin_prefilter = any(p in _msg_lower_precheck for p in [
-                    'check in', 'checking in', 'check-in', 'checkin',
-                    "what's left", 'whats left', 'what is left',
-                    "what's remaining", 'whats remaining',
-                    'what do i have left', 'what do i still need',
-                    'meds and journal', 'journal and meds',
-                    'meds and reading', 'reading and meds',
-                    'brief me', 'briefing', 'daily briefing',
-                    'run down my day', 'give me a rundown',
-                    'give me my status', 'status update', 'status report',
-                    "how's my day", 'how is my day',
-                    "what's on my plate", 'whats on my plate',
-                    "what's left for me", 'whats left for me',
-                    'what still needs to be done', 'what haven\'t i done',
-                    # Broad day-overview phrases (catch variants like
-                    # "what does my day look like", "how's my day look", etc.)
-                    'my day look', 'day look like', 'day ahead',
-                    'what does my day', 'what is my day',
-                    'plan for today', 'plan for the day',
-                    'today look like', 'today looking like',
-                    'what should i do today', 'what should i focus on',
-                    'what do i need to do', 'walk me through my day',
-                    'my schedule today', 'my schedule look',
-                    'what am i doing today', 'what have i got today',
-                    'where do i stand', 'where am i at',
-                    'catch me up', 'fill me in',
-                    # Task-oriented queries — must catch BEFORE intent service
-                    # routes them to read_task (which returns raw list, not CoS briefing)
-                    'have to do today', 'to do today',
-                    "haven't completed", 'havent completed',
-                    "haven't done", 'havent done',
-                    "haven't finished", 'havent finished',
-                    'still need to do', 'need to finish',
-                    'left to do', 'left to finish',
-                    'still outstanding', 'still pending',
-                    'incomplete today', 'not done today',
-                    'remaining today', 'remaining for today',
-                    'tasks today', 'tasks for today',
-                    'things to do', 'to-do list',
-                    'anything left',
-                ])
+                _is_checkin_prefilter = any(
+                    p in _msg_lower_precheck for p in CHECKIN_PATTERNS
+                )
                 if _is_checkin_prefilter:
+                    logger.info(
+                        "CHECKIN_PREFILTER user=%s path=non_stream msg=%r",
+                        self.user.id, message[:80],
+                    )
                     response = self._generate_response(
                         message, conversation,
                         page_context=page_context,
@@ -4014,48 +4041,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         ])
 
         # Check-in / day assessment — user wants a full CoS briefing.
-        # Uses broad fragments (e.g. 'my day look') to catch natural
-        # phrasing variants without needing every permutation.
-        is_requesting_checkin = any(phrase in message_lower for phrase in [
-            'check in', 'checking in', 'check-in', 'checkin',
-            'how is my day', 'how\'s my day',
-            'how does my day look', 'how\'s my schedule',
-            'what\'s my day look like', 'give me a rundown',
-            'brief me', 'briefing', 'daily briefing',
-            'what do i have today', 'what\'s on my plate',
-            'status update', 'status report', 'give me my status',
-            'what am i looking at today', 'run down my day',
-            "what's left", 'whats left', 'what is left',
-            "what's remaining", 'whats remaining',
-            'what do i have left', 'what do i still need',
-            'meds and journal', 'journal and meds',
-            'meds and reading', 'reading and meds',
-            "what's left for me", 'whats left for me',
-            'what still needs to be done', 'what haven\'t i done',
-            # Broad day-overview fragments (catch all natural variants)
-            'my day look', 'day look like', 'day ahead',
-            'what does my day', 'what is my day',
-            'plan for today', 'plan for the day',
-            'today look like', 'today looking like',
-            'what should i do today', 'what should i focus on',
-            'what do i need to do', 'walk me through my day',
-            'my schedule today', 'my schedule look',
-            'what am i doing today', 'what have i got today',
-            'where do i stand', 'where am i at',
-            'catch me up', 'fill me in',
-            # Task-oriented queries
-            'have to do today', 'to do today',
-            "haven't completed", 'havent completed',
-            "haven't done", 'havent done',
-            "haven't finished", 'havent finished',
-            'still need to do', 'need to finish',
-            'left to do', 'left to finish',
-            'still outstanding', 'still pending',
-            'incomplete today', 'not done today',
-            'remaining today', 'remaining for today',
-            'tasks today', 'tasks for today',
-            'things to do', 'to-do list',
-        ])
+        # Uses the module-level CHECKIN_PATTERNS constant (single source of truth).
+        is_requesting_checkin = any(
+            phrase in message_lower for phrase in CHECKIN_PATTERNS
+        )
 
         # Upgrade task queries to full check-in briefing. The lightweight
         # counts-only path ("2 tasks remaining") is useless — the user asking
@@ -4070,6 +4059,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             # — even just a few messages — contaminates the response with
             # stale task references the LLM parrots despite prompt guards.
             # Check-in responses are purely data-driven; zero history needed.
+            logger.info(
+                "CHECKIN_DETECT user=%s tasks=%s analysis=%s checkin=%s msg=%r",
+                self.user.id, is_asking_about_tasks, is_asking_for_analysis,
+                is_requesting_checkin, message[:80],
+            )
             history = conversation.messages.none()
 
             # User is asking about tasks or wants analysis - include full state context
@@ -4307,6 +4301,7 @@ INSTRUCTIONS:
 - End with a prioritized recommendation if there are multiple items.
 - Be concise — this person wants an actionable list, not a motivational summary or day review.
 - CRITICAL: The data above is the AUTHORITATIVE current state. Only reference tasks, calendar items, and medications that appear in the sections above. If something was mentioned earlier in the conversation but is NOT listed above, it has been moved, completed, or rescheduled — do NOT mention it.
+- NEVER give generic scheduling advice ("consider creating a daily schedule", "aim for 7-9 hours of sleep"). You have the user's ACTUAL data above — use it. If the data sections are empty, tell them what's empty (e.g., "You have no tasks due today") — do NOT fall back to generic advice.
 """
             elif is_asking_for_analysis:
                 faith = state.get('faith', {})
@@ -4333,6 +4328,7 @@ If they ask about missed days or consistency, use the journal/health data to ans
 CRITICAL: Only report items as "missed" or "not done" if the data explicitly confirms they are not done.
 Never assume something is missed just because you lack data — absence of data is not evidence of absence.
 Only reference tasks and items that appear in the current data above — ignore any tasks mentioned earlier in the conversation that are no longer listed.
+NEVER give generic scheduling advice or life-coach templates. You have their ACTUAL data — use it.
 """
             else:
                 system_prompt += f"""
@@ -5665,56 +5661,16 @@ Rules for this response:
                 if not _direct_response:
                     _msg_lower_stream = message.lower()
                     _is_checkin_stream = any(
-                        p in _msg_lower_stream for p in [
-                            'check in', 'checking in', 'check-in',
-                            'checkin',
-                            "what's left", 'whats left', 'what is left',
-                            "what's remaining", 'whats remaining',
-                            'what do i have left',
-                            'what do i still need',
-                            'meds and journal', 'journal and meds',
-                            'meds and reading', 'reading and meds',
-                            'brief me', 'briefing', 'daily briefing',
-                            'run down my day', 'give me a rundown',
-                            'give me my status', 'status update',
-                            'status report',
-                            "how's my day", 'how is my day',
-                            "what's on my plate", 'whats on my plate',
-                            "what's left for me", 'whats left for me',
-                            'what still needs to be done',
-                            "what haven't i done",
-                            'my day look', 'day look like', 'day ahead',
-                            'what does my day', 'what is my day',
-                            'plan for today', 'plan for the day',
-                            'today look like', 'today looking like',
-                            'what should i do today',
-                            'what should i focus on',
-                            'what do i need to do',
-                            'walk me through my day',
-                            'my schedule today', 'my schedule look',
-                            'what am i doing today',
-                            'what have i got today',
-                            'where do i stand', 'where am i at',
-                            'catch me up', 'fill me in',
-                            'have to do today', 'to do today',
-                            "haven't completed", 'havent completed',
-                            "haven't done", 'havent done',
-                            "haven't finished", 'havent finished',
-                            'still need to do', 'need to finish',
-                            'left to do', 'left to finish',
-                            'still outstanding', 'still pending',
-                            'incomplete today', 'not done today',
-                            'remaining today', 'remaining for today',
-                            'tasks today', 'tasks for today',
-                            'things to do', 'to-do list',
-                            'anything left',
-                        ]
+                        p in _msg_lower_stream for p in CHECKIN_PATTERNS
                     )
                     if _is_checkin_stream:
                         # Skip intent service — go straight to LLM
                         # with full CoS context (handled below at the
                         # _generate_response_stream block).
-                        pass  # fall through to streaming LLM
+                        logger.info(
+                            "CHECKIN_PREFILTER user=%s path=stream msg=%r",
+                            self.user.id, message[:80],
+                        )
                     else:
                         _direct_response = None  # allow intent processing
 

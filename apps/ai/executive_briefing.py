@@ -774,50 +774,126 @@ def _build_day_overview_section(user, user_now, today) -> str:
                 "Today's Schedule: No calendar events. "
                 "Open day — ask what they want to focus on."
             )
-            return "\n".join(lines)
+        else:
+            # Count and summarize
+            total = len(event_list)
+            completed = sum(1 for e in event_list if e.status == 'completed')
+            remaining = total - completed
 
-        # Count and summarize
-        total = len(event_list)
-        completed = sum(1 for e in event_list if e.status == 'completed')
-        remaining = total - completed
+            # Calculate total scheduled minutes for capacity
+            total_minutes = 0
+            for e in event_list:
+                if hasattr(e, 'duration_minutes') and e.duration_minutes:
+                    total_minutes += e.duration_minutes
 
-        # Calculate total scheduled minutes for capacity
-        total_minutes = 0
-        for e in event_list:
-            if hasattr(e, 'duration_minutes') and e.duration_minutes:
-                total_minutes += e.duration_minutes
+            # Detect conflicts (overlapping time ranges)
+            conflicts = []
+            for i, e1 in enumerate(event_list):
+                for e2 in event_list[i + 1:]:
+                    if e1.end_dt and e2.start_dt and e1.end_dt > e2.start_dt:
+                        conflicts.append(
+                            f"'{e1.title}' overlaps with '{e2.title}'"
+                        )
 
-        # Detect conflicts (overlapping time ranges)
-        conflicts = []
-        for i, e1 in enumerate(event_list):
-            for e2 in event_list[i + 1:]:
-                if e1.end_dt and e2.start_dt and e1.end_dt > e2.start_dt:
-                    conflicts.append(f"'{e1.title}' overlaps with '{e2.title}'")
-
-        lines.append(f"Today's Schedule: {total} events ({remaining} remaining).")
-
-        if total_minutes > 0:
-            hours = total_minutes / 60
-            capacity_pct = min(100, int((total_minutes / (16 * 60)) * 100))
             lines.append(
-                f"Scheduled: {hours:.1f}h ({capacity_pct}% of waking hours)."
+                f"Today's Schedule: {total} events ({remaining} remaining)."
             )
-            if capacity_pct > 85:
+
+            if total_minutes > 0:
+                hours = total_minutes / 60
+                capacity_pct = min(100, int((total_minutes / (16 * 60)) * 100))
                 lines.append(
-                    "OVERLOAD RISK: Schedule is packed. "
-                    "Suggest what could move or be dropped."
+                    f"Scheduled: {hours:.1f}h ({capacity_pct}% of waking hours)."
                 )
+                if capacity_pct > 85:
+                    lines.append(
+                        "OVERLOAD RISK: Schedule is packed. "
+                        "Suggest what could move or be dropped."
+                    )
 
-        if conflicts:
-            lines.append(f"Conflicts: {'; '.join(conflicts[:3])}.")
+            if conflicts:
+                lines.append(f"Conflicts: {'; '.join(conflicts[:3])}.")
 
+    except Exception:
+        pass
+
+    # ── Tasks due today and overdue (non-routine — routines handled by health gate) ──
+    try:
+        from apps.life.models import Task
+
+        # Overdue tasks (any type)
+        overdue_tasks = list(
+            Task.objects.filter(
+                user=user, is_completed=False, due_date__lt=today
+            )
+            .exclude(status='deleted')
+            .exclude(deleted_at__isnull=False)
+            .values_list('title', flat=True)[:8]
+        )
+
+        # Non-routine tasks due today (routines already in health gate)
+        due_today_tasks = list(
+            Task.objects.filter(
+                user=user, is_completed=False, due_date=today,
+                is_routine=False,
+            )
+            .exclude(status='deleted')
+            .exclude(deleted_at__isnull=False)
+            .values_list('title', flat=True)[:8]
+        )
+
+        # Tasks with no due date (appear in "Now" bucket on task page)
+        no_date_tasks = list(
+            Task.objects.filter(
+                user=user, is_completed=False, due_date__isnull=True,
+            )
+            .exclude(status='deleted')
+            .exclude(deleted_at__isnull=False)
+            .values_list('title', flat=True)[:5]
+        )
+
+        # Completed today (non-routine)
+        completed_today = list(
+            Task.objects.filter(
+                user=user, is_completed=True, is_routine=False,
+                completed_at__date=today,
+            )
+            .exclude(status='deleted')
+            .exclude(deleted_at__isnull=False)
+            .values_list('title', flat=True)[:5]
+        )
+
+        if completed_today:
+            lines.append(
+                f"Tasks Completed Today: {', '.join(completed_today)}. "
+                "Acknowledge these accomplishments."
+            )
+        if overdue_tasks:
+            lines.append(
+                f"Overdue Tasks: {', '.join(overdue_tasks)}. "
+                "Mention gently — ask if they want to tackle, reschedule, "
+                "or remove any of these."
+            )
+        if due_today_tasks:
+            lines.append(
+                f"Tasks Due Today: {', '.join(due_today_tasks)}. "
+                "Mention these as part of what's on their plate."
+            )
+        if no_date_tasks:
+            lines.append(
+                f"Open Tasks (no due date): {', '.join(no_date_tasks)}. "
+                "These are on their list but not time-bound."
+            )
+        if not overdue_tasks and not due_today_tasks and not completed_today:
+            lines.append("Tasks: No tasks due today or overdue.")
+    except Exception as e:
+        logger.warning("Failed to load tasks for day overview: %s", e)
+
+    if lines:
         lines.append(
             "Present their day as a narrative, not a list. "
             "Highlight what matters NOW and what's coming up soon."
         )
-
-    except Exception:
-        pass
 
     return "\n".join(lines) if lines else ""
 
@@ -937,7 +1013,7 @@ def _build_gap_context_section(user, gap_hours, today) -> str:
             overdue = Task.objects.filter(
                 user=user,
                 due_date__lt=today,
-                completed=False,
+                is_completed=False,
             ).exclude(status='deleted').count()
             if overdue > 0:
                 lines.append(f"  - {overdue} tasks now overdue")

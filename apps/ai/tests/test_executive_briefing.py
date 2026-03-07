@@ -200,11 +200,13 @@ class TestHealthGate(ExecutiveBriefingTestMixin, TestCase):
     """Test health gate section (medication, fasting, workout)."""
 
     def test_empty_health_data(self):
-        """Should return empty string when no health data."""
+        """Should return anti-hallucination guard when no health data."""
         user = self.create_user()
         today = date.today()
         result = _build_health_gate_section(user, today)
-        self.assertEqual(result, "")
+        # With no routines, the anti-hallucination guard fires
+        self.assertIn("No routine tasks found", result)
+        self.assertIn("Do NOT claim", result)
 
     def test_medication_not_taken(self):
         """Should flag untaken medication."""

@@ -4121,6 +4121,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     due_today_tasks = list(LifeTask.objects.filter(
                         user=self.user, is_completed=False, due_date=today
                     ).exclude(status='deleted').values_list('title', flat=True)[:10])
+                    # Tasks with no due date show in "Now" on the task page
+                    no_date_tasks = list(LifeTask.objects.filter(
+                        user=self.user, is_completed=False, due_date__isnull=True
+                    ).exclude(status='deleted').values_list('title', flat=True)[:5])
                     completed_today_tasks = list(LifeTask.objects.filter(
                         user=self.user, is_completed=True, completed_at__date=today
                     ).exclude(status='deleted').values_list('title', flat=True)[:10])
@@ -4130,6 +4134,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         parts.append(f"OVERDUE ({len(overdue_tasks)}):\n" + '\n'.join(f'  • {t}' for t in overdue_tasks))
                     if due_today_tasks:
                         parts.append(f"DUE TODAY ({len(due_today_tasks)}):\n" + '\n'.join(f'  • {t}' for t in due_today_tasks))
+                    if no_date_tasks:
+                        parts.append(f"OPEN TASKS (no due date):\n" + '\n'.join(f'  • {t}' for t in no_date_tasks))
                     if completed_today_tasks:
                         parts.append(f"COMPLETED TODAY ({len(completed_today_tasks)}):\n" + '\n'.join(f'  ✓ {t}' for t in completed_today_tasks))
                     if not parts:

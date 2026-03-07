@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-03-06 — Fix streaming path using stale data for check-in queries
+
+**What:** Check-in queries ("what's left today?") via the assistant panel (streaming path) were still returning stale task data despite fixes to the non-streaming path. Root cause: the streaming path used `_build_fast_context()` which loads 20 messages of conversation history and uses cached CoS context — it never went through the full `_generate_response()` pipeline where the zero-history treatment and direct DB query injection were implemented.
+
+**Fix:** When `_is_checkin_stream` is detected in `send_message_stream()`, pass `is_checkin=True` to `_generate_response_stream()`, which forces it to skip the fast context path and use the full `_generate_response()` pipeline. This ensures check-in queries get: (a) zero conversation history, (b) direct DB queries for tasks/calendar/meds, (c) authoritative data guard prompt.
+
+**Files:**
+- `apps/ai/personal_assistant.py` — Added `is_checkin` param to `_generate_response_stream()`, skip fast path when True; pass `_is_checkin_stream` from `send_message_stream()`
+
+---
+
 ## 2026-03-06 — Fix check-in: lead with remaining items, not recap; authoritative data guard
 
 **What:** Two check-in issues: (1) "what's left?" responses recapped completed items (wake-up, workout, etc.) instead of leading with remaining items — caused by prompt instruction "Note what IS done too." (2) LLM referenced moved/rescheduled tasks from conversation history despite current data not listing them.

@@ -5315,18 +5315,24 @@ Rules for this response:
         page_context: dict = None,
         cos_context_cache: dict = None,
         assistant_message=None,
+        is_checkin: bool = False,
     ):
         """
         Streaming version of _generate_response.
 
         Uses fast context path (cache-only, ~80-200ms) when viable, falling
-        back to the full _generate_response pipeline when calibration is active.
+        back to the full _generate_response pipeline when calibration is active
+        or when the user is requesting a check-in (which needs direct DB queries
+        and zero conversation history to avoid stale data contamination).
         Kicks off deferred cache warming in a background thread on fast path.
 
         Args:
             assistant_message: Optional pre-created AssistantMessage record.
                 Created by send_message_stream() before streaming starts.
                 Updated with final content after stream completes.
+            is_checkin: If True, skip fast path and use full pipeline so that
+                the check-in data injection (direct DB queries for tasks,
+                calendar, meds) and zero-history treatment are applied.
 
         Yields: str chunks of the response text.
         """
@@ -5337,11 +5343,21 @@ Rules for this response:
 
         try:
             # PHASE 1: Try fast context (80-200ms, cache-only)
-            ctx = self._build_fast_context(
-                message, conversation,
-                page_context=page_context,
-                cos_context_cache=cos_context_cache,
-            )
+            # Check-in queries MUST use the full pipeline to get:
+            #   (a) Zero conversation history (prevents stale task contamination)
+            #   (b) Direct DB queries for tasks, calendar, meds (not cached CoS)
+            if is_checkin:
+                ctx = None  # Force full pipeline path
+                logger.info(
+                    "FAST_CTX_SKIP user=%s reason=checkin_query",
+                    self.user.id,
+                )
+            else:
+                ctx = self._build_fast_context(
+                    message, conversation,
+                    page_context=page_context,
+                    cos_context_cache=cos_context_cache,
+                )
 
             if ctx is None:
                 # Fast path not viable (calibration active) → full pipeline
@@ -5844,6 +5860,7 @@ Rules for this response:
                         page_context=page_context,
                         cos_context_cache=_cos_context_cache,
                         assistant_message=assistant_msg,
+                        is_checkin=_is_checkin_stream,
                     ):
                         chunks.append(chunk)
                         yield {'type': 'token', 'content': chunk}

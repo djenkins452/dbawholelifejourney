@@ -64,6 +64,8 @@ except ImportError:
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o')
 OPENAI_VISION_MODEL = os.environ.get('OPENAI_VISION_MODEL', 'gpt-4o')
+# CoS assistant uses gpt-4o regardless of the default model — quality matters here.
+COS_MODEL = os.environ.get('COS_MODEL', 'gpt-4o')
 
 # FatSecret API credentials for food search and barcode lookup
 FATSECRET_CLIENT_ID = os.environ.get('FATSECRET_CLIENT_ID')

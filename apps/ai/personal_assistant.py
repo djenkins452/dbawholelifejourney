@@ -5092,6 +5092,8 @@ Rules for this response:
         try:
             import time as _t_llm
             _t_llm_start = _t_llm.monotonic()
+            from django.conf import settings as django_settings
+            _cos_model = getattr(django_settings, 'COS_MODEL', None)
             response = ai_service._call_api(
                 system_prompt,
                 user_prompt,
@@ -5103,6 +5105,7 @@ Rules for this response:
                 user=self.user,
                 conversation_history=conversation_history,
                 all_images=all_images,
+                model=_cos_model,
             ) or self._get_fallback_response(message)
             logger.warning("COS LLM call took %.1f ms", (_t_llm.monotonic() - _t_llm_start) * 1000)
 
@@ -5546,6 +5549,8 @@ Rules for this response:
             from .services import ai_service
 
             try:
+                from django.conf import settings as django_settings
+                _cos_model_stream = getattr(django_settings, 'COS_MODEL', None)
                 for chunk in ai_service._call_api_stream(
                     ctx['system_prompt'],
                     ctx['user_prompt'],
@@ -5554,6 +5559,7 @@ Rules for this response:
                     endpoint='cos_chat',
                     user=self.user,
                     conversation_history=ctx['conversation_history'],
+                    model=_cos_model_stream,
                 ):
                     full_text += chunk
 

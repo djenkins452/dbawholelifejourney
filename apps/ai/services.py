@@ -311,6 +311,7 @@ class AIService:
         user=None,
         conversation_history: list = None,
         all_images: list = None,
+        model: str = None,
     ) -> Optional[str]:
         """
         Make an API call to OpenAI with retry, backoff, and observability.
@@ -379,8 +380,9 @@ class AIService:
         for attempt in range(1, LLM_MAX_RETRIES + 1):
             start_time = time.monotonic()
             try:
+                effective_model = model or self.model
                 response = self.client.chat.completions.create(
-                    model=self.model,
+                    model=effective_model,
                     messages=messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
@@ -396,7 +398,7 @@ class AIService:
 
                 logger.info(
                     "LLM OK endpoint=%s model=%s tokens=%d latency=%.2fs attempt=%d",
-                    endpoint, self.model, total_tokens, elapsed, attempt,
+                    endpoint, effective_model, total_tokens, elapsed, attempt,
                 )
 
                 self._log_usage(
@@ -450,6 +452,7 @@ class AIService:
         endpoint: str = 'general',
         user=None,
         conversation_history: list = None,
+        model: str = None,
     ):
         """
         Streaming variant of _call_api. Yields content chunks as they arrive.
@@ -484,8 +487,9 @@ class AIService:
 
         for attempt in range(1, LLM_MAX_RETRIES + 1):
             try:
+                effective_model = model or self.model
                 stream = self.client.chat.completions.create(
-                    model=self.model,
+                    model=effective_model,
                     messages=messages,
                     max_tokens=max_tokens,
                     temperature=temperature,

@@ -4,8 +4,7 @@
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
 # Last Updated: 2026-03-04 (session close documentation audit)
-# =======================================================================
-# WLJ Change History
+# ================================================================# WLJ Change History
 
 ## 2026-03-07 — Fix duplicate PKs in fixture files
 
@@ -15,9 +14,11 @@
 
 ---
 ## 2026-03-07 — Fix Data Dictionary empty on production
+## 2026-03-07 — Fix Data Dictionary empty on production (data migration)
 
-- **What:** Added `sync_data_dictionary` and `sync_user_guide` commands directly to Procfile web startup chain (after migrate, before collectstatic). Fixed error handling in `load_initial_data.py` so sync failures are always logged to stderr regardless of verbosity level.
-- **Why:** The Data Dictionary and User Guide pages were empty on production because `load_initial_data` was removed from the Procfile boot sequence (Boot Architecture Hardening, 2026-02-28). The sync commands added to `load_initial_data.py` never ran. The guide sync commands are safe for boot — idempotent, fast (~2-3s), no cache/Redis dependency.
+- **What:** Created data migration `0033_populate_guide_content` that calls `sync_data_dictionary` and `sync_user_guide` during `migrate --noinput`. This guarantees the guide content is populated on production regardless of whether Railway uses the Procfile or a Custom Start Command. Also added sync commands to Procfile for future re-syncs.
+- **Why:** Previous fixes (adding to load_initial_data, adding to Procfile) didn't work because Railway uses a Custom Start Command that overrides the Procfile, and load_initial_data was removed from boot. The `migrate` command is the one thing guaranteed to run on every deploy.
+- **Files:** `apps/admin_console/migrations/0033_populate_guide_content.py`, `Procfile`
 - **Files:** `Procfile`, `apps/core/management/commands/load_initial_data.py`
 
 ## 2026-03-07 — Update App Review Guide with all current modules

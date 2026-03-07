@@ -357,6 +357,23 @@
     30% { transform: translateY(-4px); opacity: 1; }
 }
 
+/* Error card with retry */
+.assistant-error-card {
+    text-align: center;
+    padding: 4px 0;
+}
+.assistant-error-card p {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    line-height: 1.5;
+}
+.assistant-error-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 10px;
+}
+
 /* Streaming cursor */
 .streaming-cursor {
     display: inline-block;
@@ -1452,6 +1469,56 @@
         hasMessages = true;
     }
 
+    // Show friendly error with retry button
+    function addErrorWithRetry(savedMessage, sentImages, sendContext) {
+        // Remove empty state if present
+        var emptyState = messagesContainer.querySelector('.assistant-empty');
+        if (emptyState) emptyState.remove();
+
+        var msg = document.createElement('div');
+        msg.className = 'assistant-message assistant';
+
+        var card = document.createElement('div');
+        card.className = 'assistant-error-card';
+
+        var text = document.createElement('p');
+        text.textContent = "Oops, that didn\u2019t work. Would you like to try again?";
+        card.appendChild(text);
+
+        var actions = document.createElement('div');
+        actions.className = 'assistant-error-actions';
+
+        var yesBtn = document.createElement('button');
+        yesBtn.className = 'btn btn-primary btn-sm';
+        yesBtn.textContent = 'Yes, try again';
+
+        var noBtn = document.createElement('button');
+        noBtn.className = 'btn btn-ghost btn-sm';
+        noBtn.textContent = 'No, thanks';
+
+        actions.appendChild(yesBtn);
+        actions.appendChild(noBtn);
+        card.appendChild(actions);
+        msg.appendChild(card);
+        messagesContainer.appendChild(msg);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        hasMessages = true;
+
+        yesBtn.addEventListener('click', function() {
+            msg.remove();
+            // Re-send the message
+            input.value = savedMessage || '';
+            attachedImages = (sentImages || []).slice();
+            currentPageContext = sendContext || null;
+            sendMessage();
+        });
+
+        noBtn.addEventListener('click', function() {
+            actions.remove();
+            text.textContent = "No worries \u2014 just ask whenever you\u2019re ready!";
+        });
+    }
+
     // Show typing indicator
     function showTyping() {
         const typing = document.createElement('div');
@@ -1607,7 +1674,7 @@
                 if (data.success) {
                     addMessage(data.response, false);
                 } else {
-                    addMessage(data.error || 'Something went wrong.', false);
+                    addErrorWithRetry(savedMessage, null, sendContext);
                 }
                 return;
             }
@@ -1661,7 +1728,13 @@
                     } else if (eventType === 'done') {
                         finalizeStreamingMessage(msgEl, fullText);
                     } else if (eventType === 'error') {
-                        finalizeStreamingMessage(msgEl, fullText || (evt.error || 'Stream error'));
+                        if (fullText) {
+                            finalizeStreamingMessage(msgEl, fullText);
+                        } else {
+                            if (msgEl && msgEl.parentNode) msgEl.remove();
+                            hideTyping();
+                            addErrorWithRetry(savedMessage, null, sendContext);
+                        }
                     }
                 }
             }
@@ -1685,7 +1758,7 @@
             if (msgEl && msgEl.parentNode) msgEl.remove();
 
             if (error.name === 'AbortError') {
-                addMessage('Request timed out. Please try again.', false);
+                addErrorWithRetry(savedMessage, null, sendContext);
             } else {
                 // Fallback to non-streaming
                 console.warn('Streaming failed, falling back:', error);
@@ -1751,7 +1824,7 @@
                         speakResponse(data.response);
                     }
                 } else {
-                    addMessage(data.error || 'Sorry, something went wrong. Please try again.', false);
+                    addErrorWithRetry(savedMessage, sentImages, sendContext);
                 }
                 return;
 
@@ -1764,16 +1837,7 @@
                 }
 
                 hideTyping();
-                if (error.name === 'AbortError') {
-                    addMessage('Request timed out. Please try again.', false);
-                } else {
-                    addMessage('Sorry, I had trouble responding. Please try again.', false);
-                }
-
-                if (savedMessage) {
-                    input.value = savedMessage;
-                    updateSendButton();
-                }
+                addErrorWithRetry(savedMessage, sentImages, sendContext);
             }
         }
     }

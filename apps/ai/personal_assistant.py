@@ -4054,6 +4054,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'my habits', 'my consistency', 'my streaks', 'my patterns',
             'missed', 'skipped', 'how many days',
             'since i started', 'how consistent', 'how am i doing',
+            'how have i been doing', 'how have i been',
             'how have i done', 'how did i do', 'how\'s my day',
             'where am i', 'where do i need', 'where should i',
             'what areas', 'which areas',
@@ -4263,6 +4264,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     med_details = 'Medication data unavailable.'
 
                 # Calendar: actual event names with times
+                # Use explicit text labels (not just symbols) so the AI
+                # cannot confuse completed items with upcoming ones.
                 calendar_details = ''
                 try:
                     from apps.calendar_engine.models import CalendarEvent
@@ -4273,12 +4276,22 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     ).order_by('start_dt')[:15]
 
                     if events.exists():
-                        cal_lines = []
+                        completed_events = []
+                        upcoming_events = []
                         for evt in events:
                             local_start = evt.start_dt.astimezone(user_now.tzinfo)
                             time_str = local_start.strftime('%I:%M %p').lstrip('0')
-                            status_mark = '✓' if evt.status == 'completed' else '·'
-                            cal_lines.append(f"  {status_mark} {time_str} — {evt.title}")
+                            if evt.status == 'completed':
+                                completed_events.append(f"  [DONE] {time_str} — {evt.title}")
+                            else:
+                                upcoming_events.append(f"  [TODO] {time_str} — {evt.title}")
+                        cal_lines = []
+                        if completed_events:
+                            cal_lines.append("COMPLETED:")
+                            cal_lines.extend(completed_events)
+                        if upcoming_events:
+                            cal_lines.append("REMAINING:")
+                            cal_lines.extend(upcoming_events)
                         calendar_details = '\n'.join(cal_lines)
                     else:
                         calendar_details = 'No events scheduled today.'
@@ -4296,10 +4309,14 @@ TODAY'S CALENDAR:
 MEDICATIONS:
 {med_details}
 
-HEALTH & ROUTINES:
+HEALTH & ROUTINES (AUTHORITATIVE — these override any conflicting data elsewhere):
 {health_gate or 'No health gate data available.'}
 - Reading plan / Quiet Time: {reading_status}
 - Workout: {workout_status}
+NOTE: The "Reading plan" and "Workout" lines above are checked against ACTUAL
+activity logs (WorkoutSession, UserReadingProgress), NOT routine task completion.
+These values are AUTHORITATIVE. If a routine task says "Workout" is completed
+but the line above says "not yet logged", trust the line above.
 
 TASKS:
 {task_details}
@@ -4326,6 +4343,13 @@ INSTRUCTIONS:
 - Be concise — this person wants an actionable list, not a motivational summary or day review.
 - CRITICAL: The data above is the AUTHORITATIVE current state. Only reference tasks, calendar items, and medications that appear in the sections above. If something was mentioned earlier in the conversation but is NOT listed above, it has been moved, completed, or rescheduled — do NOT mention it.
 - NEVER give generic scheduling advice ("consider creating a daily schedule", "aim for 7-9 hours of sleep"). You have the user's ACTUAL data above — use it. If the data sections are empty, tell them what's empty (e.g., "You have no tasks due today") — do NOT fall back to generic advice.
+
+ANTI-FABRICATION RULES (ABSOLUTE):
+- NEVER claim an activity is completed unless it EXPLICITLY appears under COMPLETED, ALREADY TAKEN, or [DONE] sections above.
+- Workout status is ONLY determined by the "Workout:" line in HEALTH & ROUTINES. If it says "not yet logged", the user has NOT worked out — regardless of what any routine task says.
+- Reading/prayer status is ONLY determined by the "Reading plan / Quiet Time:" line. If it says "not yet done today", it has NOT been done.
+- Calendar events marked [DONE] are COMPLETED. Events marked [TODO] are NOT completed. Never reverse these.
+- If you are not 100% certain something was completed based on the data above, do NOT claim it was completed. Say you don't see a log for it.
 """
             elif is_asking_for_analysis:
                 faith = state.get('faith', {})

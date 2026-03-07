@@ -707,6 +707,12 @@ def _build_health_gate_section(user, today) -> str:
         pass
 
     # Routine task check (daily routines modeled as tasks)
+    # IMPORTANT: Routine tasks are ORGANIZATIONAL items only. Actual activity
+    # completion is tracked by dedicated models (WorkoutSession for workouts,
+    # UserReadingProgress for reading, MedicineLog for meds). A routine task
+    # being marked complete does NOT prove the activity actually happened.
+    # The dedicated checks above (workout, reading plan, medication) are
+    # AUTHORITATIVE — routine task status is supplementary.
     try:
         from apps.life.models import Task
         completed_routines = list(Task.objects.filter(
@@ -718,27 +724,27 @@ def _build_health_gate_section(user, today) -> str:
             due_date=today,
         ).values_list('title', flat=True)[:5])
 
+        # Filter out routine tasks that duplicate dedicated checks above
+        # to prevent conflicting signals. The workout/reading/medication
+        # checks above are authoritative — don't report these again here.
+        dedupe_keywords = {'workout', 'prayer', 'pray', 'bible', 'scripture',
+                           'reading', 'quiet time', 'devotion', 'medication',
+                           'medicine', 'meds'}
+        def _is_dedicated_activity(title):
+            return any(kw in title.lower() for kw in dedupe_keywords)
+
+        completed_routines = [t for t in completed_routines if not _is_dedicated_activity(t)]
+        pending_routines = [t for t in pending_routines if not _is_dedicated_activity(t)]
+
         total_routines = len(completed_routines) + len(pending_routines)
         if completed_routines and total_routines > 0:
-            completion_ratio = len(completed_routines) / total_routines
-            if completion_ratio >= 0.7:
-                # Most/all routines done — celebrate broadly
-                lines.append(
-                    f"Routines Completed: {', '.join(completed_routines)}. "
-                    "Celebrate this warmly! Summarize with energy "
-                    "(e.g., 'You've already knocked out your morning routine!')."
-                )
-            else:
-                # Only some routines done — acknowledge but don't overstate
-                lines.append(
-                    f"Routines Completed So Far: {', '.join(completed_routines)}. "
-                    "Acknowledge briefly but do NOT say they've 'knocked out' "
-                    "or 'completed' their morning routine — they're still in progress."
-                )
+            lines.append(
+                f"Routine Tasks Completed: {', '.join(completed_routines)}. "
+                "Acknowledge briefly."
+            )
         if pending_routines:
             lines.append(
-                f"Routines Still Ahead: {', '.join(pending_routines)}. "
-                "Mention these naturally as what's coming up, not as things they missed."
+                f"Routine Tasks Remaining: {', '.join(pending_routines)}."
             )
         if not completed_routines and not pending_routines:
             lines.append(

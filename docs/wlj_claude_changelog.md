@@ -9,6 +9,12 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Fix Data Dictionary file path on production (migration 0034)
+
+- **What:** Created migration 0034 with robust file path resolution (tries BASE_DIR, parent dir, and migration-relative paths) plus diagnostic output. Fixed `sync_data_dictionary` command to raise `FileNotFoundError` instead of silently returning. Migration 0033 ran on production but `sync_data_dictionary` silently returned because the docs file wasn't found at the expected path.
+- **Why:** User Guide populated (reads from DB) but Data Dictionary stayed empty (reads from file). Needed path fallbacks for Railway's directory layout.
+- **Files:** `apps/admin_console/migrations/0034_populate_data_dictionary.py`, `apps/admin_console/management/commands/sync_data_dictionary.py`
+
 ## 2026-03-07 — Fix Data Dictionary empty on production (data migration)
 
 - **What:** Created data migration `0033_populate_guide_content` that calls `sync_data_dictionary` and `sync_user_guide` during `migrate --noinput`. This guarantees the guide content is populated on production regardless of whether Railway uses the Procfile or a Custom Start Command. Also added sync commands to Procfile for future re-syncs.

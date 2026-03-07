@@ -13,7 +13,7 @@
 
 **What:** Two check-in issues: (1) "what's left?" responses recapped completed items (wake-up, workout, etc.) instead of leading with remaining items — caused by prompt instruction "Note what IS done too." (2) LLM referenced moved/rescheduled tasks from conversation history despite current data not listing them.
 
-**Fix:** Three-layer fix: (1) Rewrote check-in instructions to lead with remaining items, not recap. (2) Added authoritative data guard telling LLM to ignore stale items from conversation history. (3) Truncated conversation history from 40 to 4 messages for check-in/task queries — long-running conversations (weeks of history) were contaminating responses with stale task references that overpowered the prompt guard.
+**Fix:** Three-layer fix: (1) Rewrote check-in instructions to lead with remaining items, not recap. (2) Added authoritative data guard telling LLM to ignore stale items from conversation history. (3) Dropped ALL conversation history for check-in/task/analysis queries — even 4 recent messages contaminated responses. Check-in is purely data-driven from the system prompt. Also added a clear conversation (trash) icon button next to the calendar icon in the assistant panel header.
 
 **Files:**
 - `apps/ai/personal_assistant.py` — check-in prompt rewrite + history truncation for check-in/task/analysis paths

@@ -4064,12 +4064,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             is_requesting_checkin = True
 
         if is_asking_about_tasks or is_asking_for_analysis or is_requesting_checkin:
-            # Truncate history for check-in/task queries. The system prompt
-            # injects AUTHORITATIVE current-state data (tasks, calendar, meds).
-            # Long conversation history (40 msgs spanning weeks) contaminates
-            # the response with stale task references from days/weeks ago.
-            # Keep only the last 4 messages for conversational continuity.
-            history = conversation.messages.order_by('-created_at')[:4]
+            # Drop ALL conversation history for check-in/task queries.
+            # The system prompt injects AUTHORITATIVE current-state data
+            # (tasks, calendar, meds, goals, prayers). Conversation history
+            # — even just a few messages — contaminates the response with
+            # stale task references the LLM parrots despite prompt guards.
+            # Check-in responses are purely data-driven; zero history needed.
+            history = conversation.messages.none()
 
             # User is asking about tasks or wants analysis - include full state context
             state = self.assess_current_state()

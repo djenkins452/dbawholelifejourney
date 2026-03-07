@@ -9,13 +9,18 @@
 
 # WLJ Change History
 
-## 2026-03-07 — Friendly chat error messages with retry button
+## 2026-03-07 — Friendly chat error recovery with rotating messages and retry button
 
-**What:** When the AI chat hit a server error (API timeout, token limit, OpenAI failure), users saw cold generic messages like "The server encountered an error" or "Sorry, I had trouble responding. Please try again." Replaced all error messages with a friendly error card: "Oops, that didn't work. Would you like to try again?" with Yes/No buttons. "Yes" re-sends the last message automatically; "No" dismisses with a warm message.
+**What:** When the AI chat hit a server error, users saw cold generic messages. Replaced with a full error recovery system:
+- **30-message library** across 3 tone groups (friendly, playful, professional)
+- **Tone escalation**: attempt 1 → friendly, attempt 2 → playful, attempt 3+ → professional
+- **No-repeat buffer**: tracks last 3 messages shown, never repeats consecutively
+- **Retry buttons**: "Yes, try again" re-sends the last message; "No, thanks" dismisses gracefully
+- **Auto-reset**: retry counter resets on any successful response
 
-**Files:** `templates/components/chat_widget.html` (CSS + JS `addErrorWithRetry()` function + 5 error call sites updated)
+**Files:** `templates/components/chat_widget.html` (CSS + JS `addErrorWithRetry()` + `pickErrorMessage()` + `ERROR_MESSAGES` library + 5 error call sites + 3 success-path resets)
 
-**Why:** Better UX — friendlier tone and actionable retry instead of dead-end text.
+**Why:** Make the assistant feel human and helpful during errors, not mechanical.
 
 ---
 

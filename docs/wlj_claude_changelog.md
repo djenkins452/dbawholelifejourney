@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-03-07 — Fix hallucinated routine completions + routine recurrence gap
+
+**What:** Beth claimed "You've completed your workout and prayer time today" when the user had done neither. Investigation found: (1) NO routine tasks existed for today in the database — the recurrence chain breaks when yesterday's task isn't completed because `mark_complete()` is the only thing that creates the next occurrence. (2) The executive briefing instruction explicitly told the LLM "Lead with accomplishments! Celebrate!" even when zero completion data existed, causing pure hallucination.
+
+**Fix — three changes:**
+1. **Anti-hallucination**: Changed briefing instruction from "celebrate accomplishments" to "NEVER claim something is completed unless EXPLICITLY listed as completed." Added explicit "No routine tasks found for today" signal when queries return empty.
+2. **Routine recurrence gap fill**: Added `_ensure_routine_tasks_for_today()` that runs on first-of-day interaction. Finds all routine task titles, checks if today's instance exists, creates it if missing. Respects recurrence patterns (M-F tasks won't be created on weekends).
+3. **Briefing instruction rewrite**: Removed language that encouraged fabrication ("You've been on fire today", "knocked out X, Y, Z").
+
+**Files:**
+- `apps/ai/executive_briefing.py` — New `_ensure_routine_tasks_for_today()` function, anti-hallucination signals, rewritten briefing instruction
+
+---
+
 ## 2026-03-07 — Fix medications ignoring day-of-week schedule (Mounjaro on Saturday bug)
 
 **What:** Beth reported Mounjaro as overdue on Saturday even though Mounjaro is only scheduled for Thursdays. Root cause: three code paths that query medication schedules iterated ALL schedules for ALL active medicines without checking `schedule.applies_to_day(day_of_week)`. This caused every medicine to appear on every day regardless of its actual schedule.

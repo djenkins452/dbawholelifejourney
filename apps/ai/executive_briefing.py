@@ -112,8 +112,14 @@ def build_executive_briefing(user, conversation) -> str:
         conversation.metadata = metadata
         conversation.save(update_fields=['metadata'])
 
-        # Auto-complete "Wake Up" routine task on first-of-day interaction
+        # Ensure routine tasks exist for today (fills recurrence gaps)
+        # and auto-complete "Wake Up" on first-of-day interaction.
         if is_first_of_day:
+            try:
+                _ensure_routine_tasks_for_today(user, today)
+            except Exception as e:
+                logger.debug("Routine task ensure failed: %s", e)
+
             try:
                 from apps.life.models import Task
                 wake_task = Task.objects.filter(
@@ -173,11 +179,12 @@ def build_executive_briefing(user, conversation) -> str:
             "Do NOT present it as a bullet list or data dump. "
             "Present the day as a narrative — like a real Chief of Staff "
             "briefing their executive over coffee. "
-            "IMPORTANT: Lead with accomplishments first! Celebrate what "
-            "they've already done today before shifting to what's ahead. "
-            "Say something like 'You've been on fire today' or 'You've "
-            "already knocked out X, Y, and Z — that's solid.' "
-            "Then transition to what's next and what needs attention. "
+            "If the data above lists completed routines or tasks, "
+            "briefly acknowledge them. But NEVER claim something is "
+            "completed unless it is EXPLICITLY listed as completed above. "
+            "If no completed routines or tasks are listed, do NOT "
+            "fabricate accomplishments — just greet warmly and move to "
+            "what's ahead. "
             "Prioritize health gates (meds, etc.), then events and "
             "relationships, then the day overview. "
             "End by inviting the user to shape their day: "
@@ -294,6 +301,94 @@ def get_conversation_memory(conversation) -> str:
 # ===========================================================================
 # Private helpers
 # ===========================================================================
+
+
+def _ensure_routine_tasks_for_today(user, today):
+    """
+    Ensure all recurring routine tasks have an instance for today.
+
+    The recurrence system only creates the next occurrence when the current one
+    is completed via mark_complete(). If the user skips a day (doesn't complete
+    yesterday's routine task), today's instance is never created, breaking the
+    entire routine chain.
+
+    This function finds the most recent instance of each routine task and
+    creates today's instance if missing.
+    """
+    from apps.life.models import Task
+    from apps.life.services.recurrence import RecurrencePattern
+
+    # Find all distinct routine task titles for this user
+    routine_titles = list(
+        Task.objects.filter(user=user, is_routine=True, is_recurring=True)
+        .exclude(status='deleted')
+        .exclude(deleted_at__isnull=False)
+        .values_list('title', flat=True)
+        .distinct()
+    )
+
+    created_count = 0
+    for title in routine_titles:
+        # Get the most recent instance as a template
+        template_task = (
+            Task.objects.filter(
+                user=user, title=title, is_routine=True,
+            )
+            .exclude(status='deleted')
+            .exclude(deleted_at__isnull=False)
+            .order_by('-due_date')
+            .first()
+        )
+        if not template_task:
+            continue
+
+        # Respect recurrence pattern — don't create M-F tasks on weekends
+        if template_task.recurrence_pattern:
+            try:
+                pattern = RecurrencePattern(template_task.recurrence_pattern)
+                if pattern.weekdays and today.weekday() not in pattern.weekdays:
+                    continue  # Today is not a scheduled day for this routine
+            except Exception:
+                pass  # If pattern parsing fails, proceed with creation
+
+        # Check if an instance already exists for today
+        exists_today = Task.objects.filter(
+            user=user,
+            title=template_task.title,
+            is_routine=True,
+            due_date=today,
+        ).exclude(status='deleted').exclude(deleted_at__isnull=False).exists()
+
+        if exists_today:
+            continue
+
+        # Create today's instance from the most recent template
+        Task.objects.create(
+            user=user,
+            title=template_task.title,
+            notes=template_task.notes,
+            project=template_task.project,
+            priority=template_task.priority,
+            effort=template_task.effort,
+            due_date=today,
+            is_recurring=True,
+            recurrence_pattern=template_task.recurrence_pattern,
+            start_date=template_task.start_date,
+            end_date=template_task.end_date,
+            is_routine=True,
+            scheduled_time=template_task.scheduled_time,
+            scheduled_end_time=template_task.scheduled_end_time,
+            estimated_duration_minutes=template_task.estimated_duration_minutes,
+            module=template_task.module,
+        )
+        created_count += 1
+
+    if created_count > 0:
+        logger.info(
+            "Ensured %d routine tasks for today user=%s",
+            created_count, user.email,
+        )
+
 
 def _compute_session_gap(conversation) -> Optional[float]:
     """
@@ -644,6 +739,12 @@ def _build_health_gate_section(user, today) -> str:
             lines.append(
                 f"Routines Still Ahead: {', '.join(pending_routines)}. "
                 "Mention these naturally as what's coming up, not as things they missed."
+            )
+        if not completed_routines and not pending_routines:
+            lines.append(
+                "Routines: No routine tasks found for today. "
+                "Do NOT claim the user has completed any routines — "
+                "only mention routines if they are explicitly listed above."
             )
     except Exception:
         pass

@@ -4278,14 +4278,15 @@ TIME CONTEXT:
 - ~{time_context.get('hours_remaining', 'unknown')} hours until bedtime
 
 INSTRUCTIONS:
-- LIST the specific outstanding items BY NAME so the user can knock them out.
+- Lead with what's REMAINING — the user is asking what's LEFT, not for a recap of their day.
+- Do NOT list completed items unless the user explicitly asks "how did my day go" or "recap."
+- LIST outstanding items BY NAME so they can take action.
 - Group by urgency: overdue first, then due today, then upcoming.
 - For meds, list what's NOT taken yet by name — don't just say "74% adherence."
 - For tasks, list each overdue/due-today task by title — don't just say "2 tasks due."
-- For prayers, list them if fewer than 8; summarize if more.
-- Note what IS done too (briefly) so they see progress.
-- End with a prioritized recommendation: "Here's what I'd tackle first: ..."
-- Be concise but SPECIFIC — this person wants an actionable list, not a motivational summary.
+- If there are no tasks due today and nothing overdue, say so clearly.
+- End with a prioritized recommendation if there are multiple items.
+- Be concise — this person wants an actionable list, not a motivational summary or day review.
 - CRITICAL: The data above is the AUTHORITATIVE current state. Only reference tasks, calendar items, and medications that appear in the sections above. If something was mentioned earlier in the conversation but is NOT listed above, it has been moved, completed, or rescheduled — do NOT mention it.
 """
             elif is_asking_for_analysis:

@@ -1298,12 +1298,21 @@ class NotificationCountView(LoginRequiredMixin, View):
 
     GET returns JSON with:
     - unread_count: number of unread notifications
+
+    Cached for 30 seconds per user to reduce DB load from
+    polling (JS calls this every 60 seconds per user).
     """
 
     def get(self, request, *args, **kwargs):
+        from django.core.cache import cache
+
         from .models import Notification
 
-        unread_count = Notification.get_unread_count(request.user)
+        cache_key = f'notification_count_{request.user.pk}'
+        unread_count = cache.get(cache_key)
+        if unread_count is None:
+            unread_count = Notification.get_unread_count(request.user)
+            cache.set(cache_key, unread_count, 30)  # 30-second TTL
         return JsonResponse({'unread_count': unread_count})
 
 

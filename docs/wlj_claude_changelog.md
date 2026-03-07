@@ -31,6 +31,13 @@
 
 ---
 
+## 2026-03-07 — HOTFIX: Fix 524 timeout — ThreadPool DB connection leak + notification caching
+
+- **What:** Production 524 timeout caused by ThreadPoolExecutor threads in CoS context builder leaking database connections. `close_old_connections()` only closes connections older than `CONN_MAX_AGE` (600s) — new thread connections stayed open and exhausted Railway PostgreSQL connection pool. Also added 30-second cache to notification count API endpoint to reduce polling DB pressure.
+- **Root cause:** `_run_builder()` in cos_context.py used `close_old_connections()` in finally block, which does nothing for brand-new connections. Replaced with `connection.close()` which explicitly releases the connection immediately.
+- **Files:** `apps/core/ai_orchestrator/cos_context.py` (connection.close fix), `apps/core/views.py` (notification count caching), `apps/core/context_processors.py` (cache invalidation for API key)
+- **Why:** After v8/v8.1 deploy, 13 parallel builders × 6 thread pool workers created connections that were never released. With Railway's ~20-25 connection limit, pool exhausted within minutes, causing all subsequent requests (including simple notification count/check) to hang indefinitely → Cloudflare 524.
+
 ## 2026-03-07 — CoS v8.1: Dynamic User Priority Model
 
 - **What:** Replaces hardcoded priority assumptions ("workout = non-negotiable, bike ride = optional") in the Situational Awareness layer with dynamic lookups from each user's actual declared priorities:

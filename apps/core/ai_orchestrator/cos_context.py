@@ -40,7 +40,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from django.conf import settings
-from django.db import close_old_connections
+from django.db import close_old_connections, connection
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -1076,11 +1076,14 @@ def build_cos_context(user):
         try:
             def _run_builder(builder_fn):
                 """Execute a builder in a thread with proper DB connection handling."""
-                close_old_connections()
                 try:
                     return builder_fn(user, prefs)
                 finally:
-                    close_old_connections()
+                    # CRITICAL: Explicitly close this thread's DB connection.
+                    # close_old_connections() only closes connections older than
+                    # CONN_MAX_AGE (600s) — brand new thread connections stay open
+                    # and exhaust the Railway PostgreSQL connection pool.
+                    connection.close()
 
             with ThreadPoolExecutor(max_workers=_PARALLEL_MAX_WORKERS) as executor:
                 futures = {

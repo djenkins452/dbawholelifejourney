@@ -83,7 +83,7 @@ def _faith_task_completed_today(user, today: date) -> bool:
         return Task.objects.filter(
             user=user,
             module='faith',
-            is_completed=True,
+            completion_status='completed',
             completed_at__date=today,
         ).exists()
     except Exception:

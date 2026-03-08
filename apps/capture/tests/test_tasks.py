@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+from celery.exceptions import Retry
 from django.test import TestCase
 
 from apps.capture.models import CaptureEntry
@@ -36,7 +37,6 @@ class ProcessCaptureEntryTests(TestCase):
 
         self.assertFalse(result['success'])
         self.assertIn('not found', result['message'])
-        self.assertFalse(result['should_retry'])
 
     def test_wrong_status_rejected(self):
         """Test that entries not in transcribing status are rejected."""
@@ -47,7 +47,6 @@ class ProcessCaptureEntryTests(TestCase):
 
         self.assertFalse(result['success'])
         self.assertIn('not ready for processing', result['message'])
-        self.assertFalse(result['should_retry'])
 
     @patch('apps.capture.services.summarization.SummarizationService.summarize_transcript')
     @patch('apps.capture.services.transcription.TranscriptionService.transcribe_audio')
@@ -66,7 +65,7 @@ class ProcessCaptureEntryTests(TestCase):
 
         self.assertTrue(result['success'])
         self.assertEqual(result['message'], 'Processing complete')
-        self.assertFalse(result['should_retry'])
+        self.assertFalse(result['retried'])
 
         # Verify both services were called
         mock_transcribe.assert_called_once()
@@ -84,20 +83,17 @@ class ProcessCaptureEntryTests(TestCase):
 
         self.assertFalse(result['success'])
         self.assertIn('Transcription failed', result['message'])
-        self.assertFalse(result['should_retry'])
 
     @patch('apps.capture.services.transcription.TranscriptionService.transcribe_audio')
     def test_transcription_failure_retryable(self, mock_transcribe):
-        """Test retryable transcription failure."""
+        """Test retryable transcription failure raises Celery Retry."""
         mock_transcribe.return_value = {
             'success': False,
             'error': 'Rate limit exceeded'
         }
 
-        result = process_capture_entry(str(self.entry.id))
-
-        self.assertFalse(result['success'])
-        self.assertTrue(result['should_retry'])
+        with self.assertRaises(Retry):
+            process_capture_entry(str(self.entry.id))
 
     @patch('apps.capture.services.summarization.SummarizationService.summarize_transcript')
     @patch('apps.capture.services.transcription.TranscriptionService.transcribe_audio')
@@ -116,13 +112,11 @@ class ProcessCaptureEntryTests(TestCase):
 
         self.assertFalse(result['success'])
         self.assertIn('Summarization failed', result['message'])
-        # Non-retryable because it's an auth error
-        self.assertFalse(result['should_retry'])
 
     @patch('apps.capture.services.summarization.SummarizationService.summarize_transcript')
     @patch('apps.capture.services.transcription.TranscriptionService.transcribe_audio')
     def test_summarization_failure_retryable(self, mock_transcribe, mock_summarize):
-        """Test retryable summarization failure."""
+        """Test retryable summarization failure raises Celery Retry."""
         mock_transcribe.return_value = {
             'success': True,
             'transcript': 'Test transcript'
@@ -132,41 +126,64 @@ class ProcessCaptureEntryTests(TestCase):
             'error': 'Service temporarily unavailable'
         }
 
-        result = process_capture_entry(str(self.entry.id))
-
-        self.assertFalse(result['success'])
-        self.assertTrue(result['should_retry'])
+        with self.assertRaises(Retry):
+            process_capture_entry(str(self.entry.id))
 
     @patch('apps.capture.services.transcription.TranscriptionService.transcribe_audio')
     def test_max_retries_exceeded(self, mock_transcribe):
-        """Test that retries stop after MAX_RETRIES."""
+        """Test that retries stop after MAX_RETRIES (falls through to return)."""
         mock_transcribe.return_value = {
             'success': False,
             'error': 'Rate limit exceeded'
         }
 
-        # Simulate being at max retries
+        # At max retries, the retryable check is skipped — returns dict instead
         result = process_capture_entry(str(self.entry.id), retry_count=MAX_RETRIES)
 
         self.assertFalse(result['success'])
-        self.assertFalse(result['should_retry'])
+        self.assertTrue(result['retried'])
 
     @patch('apps.capture.services.transcription.TranscriptionService.transcribe_audio')
     def test_unexpected_exception(self, mock_transcribe):
-        """Test handling of unexpected exceptions."""
+        """Test handling of unexpected exceptions raises Retry."""
         mock_transcribe.side_effect = Exception("Unexpected error")
 
-        result = process_capture_entry(str(self.entry.id))
-
-        self.assertFalse(result['success'])
-        self.assertIn('Unexpected error', result['message'])
+        # Unexpected exceptions trigger Celery retry when retries remain
+        with self.assertRaises((Retry, Exception)):
+            process_capture_entry(str(self.entry.id))
 
         # Entry should be marked as failed
         self.entry.refresh_from_db()
         self.assertEqual(self.entry.status, CaptureEntry.STATUS_FAILED)
 
-    def test_retry_count_tracked(self):
+    @patch('apps.capture.services.transcription.TranscriptionService.transcribe_audio')
+    def test_unexpected_exception_at_max_retries(self, mock_transcribe):
+        """Test unexpected exception at max retries returns error dict."""
+        mock_transcribe.side_effect = Exception("Unexpected error")
+
+        result = process_capture_entry(str(self.entry.id), retry_count=MAX_RETRIES)
+
+        self.assertFalse(result['success'])
+        self.assertIn('Unexpected error', result['message'])
+        self.assertTrue(result['retried'])
+
+        # Entry should be marked as failed
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.status, CaptureEntry.STATUS_FAILED)
+
+    @patch('apps.capture.services.summarization.SummarizationService.summarize_transcript')
+    @patch('apps.capture.services.transcription.TranscriptionService.transcribe_audio')
+    def test_retry_count_tracked(self, mock_transcribe, mock_summarize):
         """Test that retry count is properly tracked in results."""
+        mock_transcribe.return_value = {
+            'success': True,
+            'transcript': 'Test transcript'
+        }
+        mock_summarize.return_value = {
+            'success': True,
+            'summary': '## BLUF\nTest summary'
+        }
+
         result = process_capture_entry(str(self.entry.id), retry_count=2)
 
         # Whether success or failure, retried should be True
@@ -187,13 +204,12 @@ class ProcessPendingCapturesTests(TestCase):
         """Test when there are no pending entries."""
         result = process_pending_captures()
 
-        self.assertEqual(result['processed'], 0)
-        self.assertEqual(result['succeeded'], 0)
-        self.assertEqual(result['failed'], 0)
+        self.assertEqual(result['dispatched'], 0)
+        self.assertEqual(len(result['entry_ids']), 0)
 
     @patch('apps.capture.tasks.process_capture_entry')
     def test_processes_pending_entries(self, mock_process):
-        """Test that pending entries are processed."""
+        """Test that pending entries are dispatched."""
         # Create entries in transcribing status
         CaptureEntry.objects.create(
             user=self.user,
@@ -206,16 +222,15 @@ class ProcessPendingCapturesTests(TestCase):
             audio_file_url='https://s3.example.com/audio2.mp3'
         )
 
-        mock_process.return_value = {'success': True, 'message': 'Complete'}
-
         result = process_pending_captures()
 
-        self.assertEqual(result['processed'], 2)
-        self.assertEqual(mock_process.call_count, 2)
+        self.assertEqual(result['dispatched'], 2)
+        # delay() is called on each entry
+        self.assertEqual(mock_process.delay.call_count, 2)
 
     @patch('apps.capture.tasks.process_capture_entry')
     def test_only_processes_transcribing_status(self, mock_process):
-        """Test that only entries in transcribing status are processed."""
+        """Test that only entries in transcribing status are dispatched."""
         # Create entries in various statuses
         CaptureEntry.objects.create(
             user=self.user,
@@ -233,12 +248,10 @@ class ProcessPendingCapturesTests(TestCase):
             audio_file_url='https://s3.example.com/audio3.mp3'
         )
 
-        mock_process.return_value = {'success': True, 'message': 'Complete'}
-
         result = process_pending_captures()
 
-        # Only the transcribing entry should be processed
-        self.assertEqual(result['processed'], 1)
+        # Only the transcribing entry should be dispatched
+        self.assertEqual(result['dispatched'], 1)
 
 
 class IsRetryableErrorTests(TestCase):

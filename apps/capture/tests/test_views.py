@@ -1,6 +1,7 @@
 """Tests for capture views."""
 
 import json
+from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -1042,7 +1043,8 @@ class CaptureSubmitViewTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('not in uploading status', response.json().get('error', ''))
 
-    def test_confirm_upload_success(self):
+    @patch('apps.capture.tasks.process_capture_entry')
+    def test_confirm_upload_success(self, mock_process):
         """confirm_upload updates status to transcribing."""
         import json
         entry = CaptureEntry.objects.create(

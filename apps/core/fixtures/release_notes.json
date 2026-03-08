@@ -1,7 +1,7 @@
 [
   {
     "model": "core.releasenote",
-    "pk": 141,
+    "pk": 146,
     "fields": {
       "title": "Faster, Smarter Receipt Processing",
       "description": "Receipt scanning just got a major upgrade: images are now compressed before processing (faster uploads), processing happens in the background so you're not waiting, duplicate receipts are automatically detected, and each receipt now shows a financial breakdown with subtotal, tax, and payment method.",

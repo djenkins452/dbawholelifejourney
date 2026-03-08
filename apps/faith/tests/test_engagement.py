@@ -84,7 +84,7 @@ class IsEngagedTodayTests(FaithEngagementTestCase):
             user=self.user,
             title="Go to Church",
             module="faith",
-            is_completed=True,
+            completion_status='completed',
             completed_at=timezone.now(),
         )
         self.assertTrue(is_faith_engaged_today(self.user, self.today))
@@ -95,7 +95,7 @@ class IsEngagedTodayTests(FaithEngagementTestCase):
             user=self.user,
             title="Workout",
             module="health",
-            is_completed=True,
+            completion_status='completed',
             completed_at=timezone.now(),
         )
         self.assertFalse(is_faith_engaged_today(self.user, self.today))
@@ -106,7 +106,7 @@ class IsEngagedTodayTests(FaithEngagementTestCase):
             user=self.user,
             title="Buy groceries",
             module="",
-            is_completed=True,
+            completion_status='completed',
             completed_at=timezone.now(),
         )
         self.assertFalse(is_faith_engaged_today(self.user, self.today))
@@ -118,7 +118,7 @@ class IsEngagedTodayTests(FaithEngagementTestCase):
             user=self.user,
             title="Go to Church",
             module="faith",
-            is_completed=True,
+            completion_status='completed',
             completed_at=yesterday,
         )
         self.assertFalse(is_faith_engaged_today(self.user, self.today))
@@ -149,7 +149,7 @@ class GetEngagementDetailsTests(FaithEngagementTestCase):
             user=self.user,
             title="Go to Church",
             module="faith",
-            is_completed=True,
+            completion_status='completed',
             completed_at=timezone.now(),
         )
 
@@ -165,7 +165,7 @@ class GetEngagementDetailsTests(FaithEngagementTestCase):
             user=self.user,
             title="Go to Church",
             module="faith",
-            is_completed=True,
+            completion_status='completed',
             completed_at=timezone.now(),
         )
 

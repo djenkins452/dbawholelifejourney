@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Fix CI test failures (round 2): capture tasks, faith engagement, duplicate PKs
+
+- **Duplicate PK 141 in release_notes.json:** "Faster, Smarter Receipt Processing" shared pk=141 with "Guides Hub". Changed to pk=146.
+- **Capture task tests (12 errors):** Tests expected old dict-return pattern (`should_retry`, `processed`) but task was refactored to Celery `self.retry()` (raises `Retry` exception) and `process_pending_captures` returns `dispatched` not `processed`. Rewrote tests to match Celery task behavior.
+- **Faith engagement tests (5 errors):** `Task.objects.create(is_completed=True)` fails because `is_completed` is now a read-only property (backed by `completion_status`). Changed tests to use `completion_status='completed'`.
+- **Faith engagement function bug:** `_faith_task_completed_today()` queried `is_completed=True` (property, not DB field). Fixed to use `completion_status='completed'`.
+- **Capture view test (Redis connection):** `test_confirm_upload_success` called `.delay()` without mocking, which tried to connect to Redis (unavailable in CI). Added `@patch('apps.capture.tasks.process_capture_entry')`.
+
+**Files:** `apps/core/fixtures/release_notes.json`, `apps/capture/tests/test_tasks.py`, `apps/capture/tests/test_views.py`, `apps/faith/tests/test_engagement.py`, `apps/faith/engagement.py`
+
 ## 2026-03-08 — Receipt Ingestion Hardening (4 improvements)
 
 - **Improvements:** Image compression, async Celery processing, financial fields, receipt deduplication

@@ -30,4 +30,7 @@ urlpatterns = [
 
     # File upload (for recovery scenarios)
     path('file-upload/', views.CaptureFileUploadView.as_view(), name='file_upload'),
+
+    # Service Worker background sync upload (CSRF-exempt, session-authed)
+    path('sw-upload/', views.CaptureServiceWorkerUploadView.as_view(), name='sw_upload'),
 ]

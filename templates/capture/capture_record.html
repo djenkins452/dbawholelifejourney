@@ -348,8 +348,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const MAX_DURATION_MS = 60 * 60 * 1000; // 60 minutes
     const POLLING_INTERVAL_MS = 2000;
     const BACKUP_INTERVAL_MS = 30000; // 30 seconds
-    const MAX_UPLOAD_RETRIES = 3;
-    const RETRY_DELAYS = [2000, 5000, 10000]; // Exponential backoff
+    const MAX_UPLOAD_RETRIES = 5;
+    const RETRY_DELAYS = [2000, 5000, 10000, 20000, 30000]; // Exponential backoff
+    const OFFLINE_CHECK_INTERVAL = 3000; // Poll for connectivity every 3s
 
     // IndexedDB configuration
     const DB_NAME = 'WLJCaptureQueue';
@@ -1078,6 +1079,28 @@ document.addEventListener('DOMContentLoaded', function() {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    async function waitForConnection(retryIndicator) {
+        if (navigator.onLine) return;
+        retryIndicator.style.display = 'block';
+        retryIndicator.textContent = 'No internet connection — waiting to reconnect...';
+        return new Promise(resolve => {
+            const onOnline = () => {
+                window.removeEventListener('online', onOnline);
+                clearInterval(pollId);
+                resolve();
+            };
+            window.addEventListener('online', onOnline);
+            // Fallback poll in case 'online' event doesn't fire reliably
+            const pollId = setInterval(() => {
+                if (navigator.onLine) {
+                    clearInterval(pollId);
+                    window.removeEventListener('online', onOnline);
+                    resolve();
+                }
+            }, OFFLINE_CHECK_INTERVAL);
+        });
+    }
+
     async function submitRecording() {
         if (!audioBlob || !currentClientId) {
             showError('No recording to submit');
@@ -1132,6 +1155,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
             for (let attempt = 0; attempt < MAX_UPLOAD_RETRIES; attempt++) {
                 if (attempt > 0) {
+                    // Wait for network before retrying
+                    await waitForConnection(retryIndicator);
                     retryIndicator.style.display = 'block';
                     retryIndicator.textContent = `Connection issue - retry ${attempt + 1}/${MAX_UPLOAD_RETRIES}...`;
                     await sleep(RETRY_DELAYS[Math.min(attempt - 1, RETRY_DELAYS.length - 1)]);
@@ -1204,6 +1229,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function performUpload(urlData, mimeType, onProgress) {
+        // Dynamic timeout: 2 min base + 1 min per 5MB (handles large files on slow cellular)
+        const uploadTimeoutMs = Math.max(120000, 60000 * Math.ceil(audioBlob.size / (5 * 1024 * 1024)));
+
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
 
@@ -1230,7 +1258,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 xhr.onerror = () => reject(new Error('Network error during upload'));
                 xhr.ontimeout = () => reject(new Error('Upload timed out'));
-                xhr.timeout = 120000; // 2 minutes
+                xhr.timeout = uploadTimeoutMs;
                 xhr.send(formData);
             } else {
                 xhr.open('PUT', urlData.upload_url);
@@ -1252,7 +1280,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 xhr.onerror = () => reject(new Error('Network error during upload'));
                 xhr.ontimeout = () => reject(new Error('Upload timed out'));
-                xhr.timeout = 120000;
+                xhr.timeout = uploadTimeoutMs;
                 xhr.send(audioBlob);
             }
         });

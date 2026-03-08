@@ -222,6 +222,34 @@ def delete_audio_file(key: str) -> bool:
         raise CaptureStorageError(f"Failed to delete audio file: {e}")
 
 
+def verify_audio_exists(key: str) -> bool:
+    """
+    Verify that an audio file exists in S3 via HEAD request.
+
+    Used to confirm a browser-side presigned URL upload actually succeeded
+    before advancing the entry to 'transcribing' status.
+
+    Args:
+        key: The S3 object key
+
+    Returns:
+        bool: True if the file exists in S3
+    """
+    if not is_storage_configured():
+        return True  # Mock mode — no storage to verify
+
+    try:
+        client = _get_s3_client()
+        client.head_object(
+            Bucket=settings.CAPTURE_AUDIO_BUCKET,
+            Key=key,
+        )
+        return True
+    except Exception as e:
+        logger.warning(f"Audio file not found in S3 (key={key}): {e}")
+        return False
+
+
 def is_storage_configured() -> bool:
     """
     Check if S3 storage is properly configured.

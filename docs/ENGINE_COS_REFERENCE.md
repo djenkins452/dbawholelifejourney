@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-08 (COAS — CoS Operational Awareness System)
+**Last updated:** 2026-03-08 (Engine telemetry + Celery execution architecture fix)
 
 ---
 
@@ -493,6 +493,22 @@ DNE (delivery_engine.py) → DeliveredNotification (in-app / email / SMS)
 
 **Evaluation report:** `docs/CoSEvaluation_v4.md`
 
+### BUG 5: ISE Engines Missing EngineRun Telemetry — FIXED (2026-03-08)
+
+**Severity:** High — COAS monitoring was blind to ISE-scheduled engines.
+
+**Root cause:** ISE scheduler runner functions (`scheduler_runner.py`) executed engine logic directly without creating `EngineRun` records. Heartbeat calculator treated `last_run_at=NULL` as `status="OK"`, giving perfect scores to engines that never ran.
+
+**Fix:**
+1. Created `engine_runtime.py` with `run_engine()` telemetry wrapper
+2. ISE scheduler now dispatches to Celery workers (with direct-execution fallback)
+3. All 29 ISE tasks create EngineRun records via telemetry wrapper
+4. Heartbeat `NEVER_RUN` status replaces false `OK` for unexecuted engines
+5. Fixed ENGINE_CADENCES mismatches: GLOE, PGE, DNE, ICQG
+6. Added GLOE to ALL_ENGINES (was missing)
+
+**Files:** `apps/core/engine_runtime.py` (NEW), `apps/core/tasks.py`, `apps/core/ai_scheduler/scheduler_engine.py`, `apps/core/ai_observability/heartbeat.py`, `apps/core/ai_observability/models.py`, `apps/core/ai_observability/ops_aggregates.py`
+
 ### GAP 3: CoS Bypasses SAE Truth Layer
 
 **Severity:** Medium — potential data drift.
@@ -640,9 +656,10 @@ When the user asks a health intelligence question with a brevity keyword ("keep 
 | `apps/core/ai_insights/insight_engine.py` | PIE — insight generation |
 | `apps/core/ai_predictions/prediction_engine.py` | PRIE — predictions |
 | `apps/core/ai_guidance/guidance_engine.py` | PGE — guidance |
-| `apps/core/ai_scheduler/scheduler_engine.py` | ISE — scheduler |
+| `apps/core/ai_scheduler/scheduler_engine.py` | ISE — scheduler (dispatches to Celery) |
 | `apps/core/ai_scheduler/scheduler_registry.py` | ISE — 42+ task registry |
 | `apps/core/ai_scheduler/scheduler_runner.py` | ISE — task runner functions |
+| `apps/core/engine_runtime.py` | Engine telemetry wrapper (EngineRun records) |
 | `apps/core/ai_observability/same_engine.py` | SAME — monitoring |
 | `apps/core/ai_delivery/delivery_engine.py` | DNE — notification delivery |
 

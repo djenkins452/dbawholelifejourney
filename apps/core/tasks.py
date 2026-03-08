@@ -12,11 +12,13 @@ Description:
     Currently handles:
     - SAME (System Autonomous Monitoring Engine) cycle execution
     - ISE (Intelligence Scheduler Engine) cycle execution (redundant trigger)
+    - ISE engine execution (dispatched from scheduler with EngineRun telemetry)
 
 Tasks:
     - run_same_cycle_task: Triggers SAME monitoring cycle every 60 seconds
     - run_ise_cycle_task: Triggers ISE scheduler cycle every 5 minutes
       (redundant with APScheduler — ensures ISE survives scheduler thread death)
+    - run_ise_engine_task: Executes individual ISE engines with EngineRun telemetry
 
 Note:
     The DB lock in run_same_cycle() prevents duplicate execution even if
@@ -275,7 +277,118 @@ def _complete_execution_log(execution_log, status, duration_ms, error_detail="")
 
 
 # =========================================================================
-# PER-ENGINE EXECUTION TASK
+# ISE ENGINE EXECUTION TASK (Dispatched from scheduler)
+# =========================================================================
+
+
+@shared_task(
+    bind=True,
+    name="apps.core.tasks.run_ise_engine_task",
+    max_retries=1,
+    default_retry_delay=30,
+    acks_late=True,
+    reject_on_worker_lost=True,
+    time_limit=600,
+    soft_time_limit=300,
+)
+def run_ise_engine_task(self, task_name):
+    """
+    Execute an ISE-scheduled engine in a Celery worker with EngineRun telemetry.
+
+    Dispatched by the ISE scheduler (scheduler_engine._execute_task) when a
+    task is due. Wraps the runner function with run_engine() to create
+    EngineRun records visible to COAS monitoring.
+
+    Updates ScheduledIntelligenceTask status after completion.
+
+    Args:
+        task_name: ISE task name from scheduler_registry (e.g.,
+            "update_learning_profiles", "generate_daily_briefings").
+    """
+    task_id = self.request.id or "local"
+    start = time.monotonic()
+    logger.info(
+        "ISE engine task starting: %s (task_id=%s)", task_name, task_id,
+    )
+
+    try:
+        from apps.core.ai_scheduler.scheduler_registry import get_task_function
+        from apps.core.engine_runtime import get_engine_name, run_engine
+
+        task_func = get_task_function(task_name)
+        if not task_func:
+            _update_ise_task_status(task_name, "failed", f"No runner for {task_name}")
+            raise ValueError(f"No runner registered for ISE task: {task_name}")
+
+        engine_name = get_engine_name(task_name)
+        result = run_engine(engine_name, task_func)
+
+        duration_ms = int((time.monotonic() - start) * 1000)
+        _update_ise_task_status(task_name, "success")
+        logger.info(
+            "ISE engine task completed: %s (%dms, task_id=%s)",
+            task_name, duration_ms, task_id,
+        )
+        return {
+            "status": "ok",
+            "task_name": task_name,
+            "engine": engine_name,
+            "duration_ms": duration_ms,
+            "result": result if isinstance(result, dict) else None,
+        }
+
+    except SoftTimeLimitExceeded:
+        duration_ms = int((time.monotonic() - start) * 1000)
+        _update_ise_task_status(task_name, "failed", "Soft time limit exceeded")
+        logger.warning(
+            "ISE engine task hit soft time limit: %s (%dms)", task_name, duration_ms,
+        )
+        return {"status": "timeout", "task_name": task_name}
+
+    except Exception as exc:
+        duration_ms = int((time.monotonic() - start) * 1000)
+        _update_ise_task_status(task_name, "failed", str(exc)[:1000])
+        logger.exception(
+            "ISE engine task failed: %s (%dms)", task_name, duration_ms,
+        )
+        try:
+            raise self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            logger.error(
+                "ISE engine task max retries exceeded: %s (task_id=%s)",
+                task_name, task_id,
+            )
+            return {"status": "failed", "task_name": task_name}
+
+
+def _update_ise_task_status(task_name, status, error=""):
+    """Update ScheduledIntelligenceTask status after Celery execution."""
+    try:
+        from django.db.models import F
+
+        from apps.core.ai_scheduler.scheduler_models import ScheduledIntelligenceTask
+
+        updates = {
+            "last_status": status,
+            "last_error": error[:1000] if error else "",
+        }
+        ScheduledIntelligenceTask.objects.filter(
+            task_name=task_name,
+        ).update(**updates)
+
+        # Increment run_count atomically on success
+        if status == "success":
+            ScheduledIntelligenceTask.objects.filter(
+                task_name=task_name,
+            ).update(run_count=F("run_count") + 1)
+    except Exception:
+        logger.warning(
+            "Failed to update ISE task status for %s", task_name, exc_info=True,
+        )
+
+
+# =========================================================================
+# PER-ENGINE EXECUTION TASK (Manual trigger from Ops Wall)
 # =========================================================================
 
 

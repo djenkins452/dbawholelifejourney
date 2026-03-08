@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Engine Telemetry + Celery Execution Architecture Fix
+
+- **Root cause:** ISE-scheduled engines (DBE, GLOE, PGE, WIRE, DNE, ICQG, UAL/SAE/PIE/PRIE synthetics) did NOT create EngineRun records. COAS health monitoring couldn't see them — engines that never ran showed status="OK". Additionally, all engines ran synchronously in a single APScheduler thread, creating a bottleneck.
+- **Phase 1 — Engine telemetry wrapper:** Created `apps/core/engine_runtime.py` with `run_engine(engine_name, fn)` that creates EngineRun records with timing, status, and error capture for every ISE engine execution.
+- **Phase 2+4 — Celery dispatch:** Modified `apps/core/ai_scheduler/scheduler_engine.py` so ISE scheduler only decides WHAT runs, then dispatches to Celery workers via `run_ise_engine_task.delay()`. Falls back to direct execution with telemetry if Celery is unavailable.
+- **Phase 3 — Celery task:** Added `run_ise_engine_task` to `apps/core/tasks.py` — executes engine runner with EngineRun telemetry, updates ScheduledIntelligenceTask status after completion.
+- **Phase 5 — Heartbeat fix:** Changed `apps/core/ai_observability/heartbeat.py` so engines with `last_run_at=NULL` get `status="NEVER_RUN"` instead of `"OK"`. Added NEVER_RUN to EngineHeartbeat STATUS_CHOICES.
+- **Phase 6 — Cadence consistency:** Fixed ENGINE_CADENCES in `ops_aggregates.py` to match actual scheduler intervals: GLOE 86400→21600, PGE 3600→21600, DNE 3600→600, ICQG 3600→604800. Added GLOE to ALL_ENGINES (was missing).
+- **Files:** `apps/core/engine_runtime.py` (NEW), `apps/core/tasks.py`, `apps/core/ai_scheduler/scheduler_engine.py`, `apps/core/ai_observability/heartbeat.py`, `apps/core/ai_observability/models.py`, `apps/core/ai_observability/ops_aggregates.py`, `apps/core/migrations/0102_alter_engineheartbeat_status.py` (NEW)
+
+---
+
 ## 2026-03-08 — Fix Morning CoS Briefing Metadata Poisoning + Desktop Briefing Gap
 
 - **Root cause:** `build_executive_briefing()` marked `last_briefing_date` immediately upon building briefing text (line 111-113), BEFORE the LLM processed it or the user saw it. If the subsequent LLM call failed or returned a weak response, the flag was already burned — no briefing could fire for the rest of the day. This caused the user to receive generic "I'm here to help you stay on track" fallback instead of a data-rich morning orientation.

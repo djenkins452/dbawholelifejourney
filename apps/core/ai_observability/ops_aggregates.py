@@ -16,22 +16,29 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-# Expected cadences for anomaly detection (seconds)
+# Expected cadences for anomaly detection (seconds).
+# Values must match the actual ISE scheduler_registry intervals so that
+# COAS heartbeat monitoring correctly flags late/missed engines.
+#
+# UAL/SAE/PIE also fire per-request during chat, but synthetic batch
+# execution guarantees a minimum cadence even during idle periods.
 ENGINE_CADENCES = {
-    "UAL": 1800,  # Per-request — 30m allows for normal inactivity windows
+    "UAL": 1800,  # Per-request + synthetic every 5m; 30m allows inactivity
     "SAE": 1800,
     "PIE": 1800,
     "PRIE": 3600,  # Hourly via scheduler
-    "PGE": 3600,
-    "ICQG": 3600,
+    "PGE": 21600,  # Every 6 hours (was 3600 — mismatched scheduler)
+    "ICQG": 604800,  # Weekly (was 3600 — mismatched scheduler)
     "DBE": 86400,  # Daily
     "WIRE": 604800,  # Weekly
-    "DNE": 3600,
-    "GLOE": 86400,
+    "DNE": 600,  # Every 10 minutes (was 3600 — mismatched scheduler)
+    "GLOE": 21600,  # Every 6 hours (was 86400 — mismatched scheduler)
 }
 
-# All instrumented engines
-ALL_ENGINES = ["UAL", "SAE", "PIE", "PRIE", "PGE", "ICQG", "DBE", "WIRE", "DNE"]
+# All instrumented engines (must include all ENGINE_CADENCES keys)
+ALL_ENGINES = [
+    "UAL", "SAE", "PIE", "PRIE", "PGE", "ICQG", "DBE", "WIRE", "DNE", "GLOE",
+]
 
 
 def get_engine_pulse(engine_name):

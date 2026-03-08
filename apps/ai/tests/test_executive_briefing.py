@@ -22,6 +22,7 @@ from django.utils import timezone
 from apps.ai.models import AssistantConversation, AssistantMessage
 from apps.ai.executive_briefing import (
     build_executive_briefing,
+    mark_briefing_delivered,
     maybe_generate_rolling_summary,
     get_conversation_memory,
     _compute_session_gap,
@@ -102,6 +103,9 @@ class TestFirstOfDayGate(ExecutiveBriefingTestMixin, TestCase):
         # First call delivers the briefing
         result1 = build_executive_briefing(self.user, self.conversation)
         self.assertIn("EXECUTIVE BRIEFING", result1)
+
+        # Mark delivery (caller responsibility per deferred-marking design)
+        mark_briefing_delivered(self.conversation)
 
         # Refresh conversation from DB
         self.conversation.refresh_from_db()

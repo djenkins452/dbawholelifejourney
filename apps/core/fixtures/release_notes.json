@@ -1,7 +1,7 @@
 [
   {
     "model": "core.releasenote",
-    "pk": 140,
+    "pk": 144,
     "fields": {
       "title": "Receipt Photo Scanning",
       "description": "Snap a photo of any receipt and the system automatically extracts items, classifies the receipt type (grocery, restaurant, or retail), and routes data to the right place — grocery items go to your Pantry, restaurant visits get logged in Health, and all purchases are tracked in Finance. You can review and edit detected items before confirming.",

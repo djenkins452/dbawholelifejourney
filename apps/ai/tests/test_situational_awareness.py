@@ -564,7 +564,12 @@ class TestSituationalAwarenessIntegration(SATestMixin, TestCase):
 
     @patch('apps.ai.situational_awareness.build_situational_awareness')
     def test_sa_in_parallel_builders(self, mock_build_sa):
-        """build_cos_context() includes situational_awareness key."""
+        """build_cos_context() includes situational_awareness key when enabled.
+
+        SA builder is temporarily disabled in cos_context._PARALLEL_BUILDERS
+        for production stability (524 timeout investigation). This test
+        verifies the builder is disabled and will need updating when re-enabled.
+        """
         mock_build_sa.return_value = {
             'lines': ["Workout pattern: 5 of 7 days — consistent"],
             'momentum_signals': ['workout'],
@@ -575,8 +580,5 @@ class TestSituationalAwarenessIntegration(SATestMixin, TestCase):
 
         from apps.core.ai_orchestrator.cos_context import build_cos_context
         context = build_cos_context(self.user)
-        self.assertIn('situational_awareness', context)
-        self.assertEqual(
-            context['situational_awareness']['momentum_signals'],
-            ['workout'],
-        )
+        # SA builder is currently disabled — verify it's absent
+        self.assertNotIn('situational_awareness', context)

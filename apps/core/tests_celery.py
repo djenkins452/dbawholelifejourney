@@ -257,11 +257,11 @@ class NoAPSchedulerSAMERemnantTest(TestCase):
         self.assertIn("Celery Beat", source)
 
     def test_apscheduler_job_count_updated(self):
-        """wsgi.py should say 15 jobs, not 16."""
+        """wsgi.py should say 14 jobs, not 15."""
         import inspect
 
         import config.wsgi
 
         source = inspect.getsource(config.wsgi)
-        self.assertIn("15 jobs", source)
-        self.assertNotIn("16 jobs", source)
+        self.assertIn("14 jobs", source)
+        self.assertNotIn("15 jobs", source)

@@ -4,7 +4,7 @@
 {% block title %}Receipts — Meals — Whole Life Journey{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302a">
+<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260308a">
 {% endblock %}
 
 {% block content %}
@@ -15,24 +15,125 @@
         <h1>Receipt Upload</h1>
     </div>
 
-    <!-- Upload Form -->
-    <div class="receipt-form">
-        <h2 style="font-size: var(--font-size-base); font-weight: 600; margin: 0 0 var(--space-2);">Paste Receipt Text</h2>
-        <p style="font-size: var(--font-size-sm); color: var(--color-text-muted); margin: 0 0 var(--space-4);">
-            Paste your grocery receipt text below. The system will parse items, match them to ingredients, and update your pantry automatically.
-        </p>
-        <form method="post" action="{% url 'meals:receipts' %}">
+    <!-- Tab Selector -->
+    <div class="receipt-tabs" id="receipt-tabs">
+        <button type="button" class="receipt-tab active" data-tab="upload">
+            Upload Image
+        </button>
+        <button type="button" class="receipt-tab" data-tab="camera">
+            Take Photo
+        </button>
+        <button type="button" class="receipt-tab" data-tab="text">
+            Paste Text
+        </button>
+    </div>
+
+    <!-- Upload Image Tab -->
+    <div class="receipt-tab-content active" id="tab-upload">
+        <form method="post" action="{% url 'meals:receipts' %}" enctype="multipart/form-data" id="upload-form">
             {% csrf_token %}
-            <div class="form-group">
-                <textarea name="receipt_text" class="receipt-textarea" placeholder="WALMART SUPERCENTER&#10;03/01/2026&#10;&#10;BANANAS          $0.68&#10;CHICKEN BREAST   $7.99&#10;MILK 1GAL        $3.49&#10;...&#10;&#10;TOTAL            $45.23" required></textarea>
+            <div class="receipt-drop-zone" id="upload-zone">
+                <div class="drop-zone-content" id="upload-zone-content">
+                    <div class="drop-zone-icon">&#128206;</div>
+                    <h2 class="drop-zone-title">Drop receipt image or PDF here</h2>
+                    <p class="drop-zone-subtitle">or click to browse</p>
+                    <input type="file" id="file-input" name="receipt_image"
+                           accept=".jpg,.jpeg,.png,.webp,.heic,.pdf,image/jpeg,image/png,image/webp,image/heic,application/pdf"
+                           style="display: none;">
+                    <button type="button" id="browse-btn" class="btn btn-primary">Browse Files</button>
+                    <p class="drop-zone-formats">JPG, PNG, HEIC, PDF &middot; Max 10 MB</p>
+                </div>
             </div>
-            <button type="submit" class="btn btn-primary">Process Receipt</button>
+
+            <!-- File Preview (hidden until file selected) -->
+            <div id="file-preview" style="display: none;">
+                <div class="receipt-file-preview">
+                    <div class="file-preview-icon" id="preview-icon">&#128206;</div>
+                    <div class="file-preview-info">
+                        <div class="file-preview-name" id="preview-name"></div>
+                        <div class="file-preview-size" id="preview-size"></div>
+                    </div>
+                    <button type="button" id="remove-file" class="btn btn-ghost btn-sm">Remove</button>
+                </div>
+                <div style="display: flex; gap: var(--space-3); justify-content: flex-end; margin-top: var(--space-4);">
+                    <button type="submit" id="process-btn" class="btn btn-primary">Process Receipt</button>
+                </div>
+            </div>
+
+            <!-- Processing Spinner (hidden until submit) -->
+            <div id="processing-spinner" style="display: none;">
+                <div class="receipt-processing">
+                    <div class="spinner"></div>
+                    <h2>Processing receipt...</h2>
+                    <p>Extracting items with Vision AI</p>
+                </div>
+            </div>
         </form>
+    </div>
+
+    <!-- Camera Tab -->
+    <div class="receipt-tab-content" id="tab-camera">
+        <form method="post" action="{% url 'meals:receipts' %}" enctype="multipart/form-data" id="camera-form">
+            {% csrf_token %}
+            <div class="receipt-drop-zone" id="camera-zone">
+                <div class="drop-zone-content">
+                    <div class="drop-zone-icon">&#128247;</div>
+                    <h2 class="drop-zone-title">Take a photo of your receipt</h2>
+                    <p class="drop-zone-subtitle">Uses your device camera</p>
+                    <input type="file" id="camera-input" name="receipt_image"
+                           accept="image/jpeg,image/png,image/webp,image/heic"
+                           capture="environment" style="display: none;">
+                    <button type="button" id="camera-btn" class="btn btn-primary">Open Camera</button>
+                </div>
+            </div>
+
+            <!-- Camera file preview -->
+            <div id="camera-preview" style="display: none;">
+                <div class="receipt-file-preview">
+                    <img id="camera-preview-img" src="" alt="Receipt preview"
+                         style="width: 120px; height: auto; border-radius: 8px; object-fit: cover;">
+                    <div class="file-preview-info">
+                        <div class="file-preview-name" id="camera-preview-name"></div>
+                        <div class="file-preview-size" id="camera-preview-size"></div>
+                    </div>
+                    <button type="button" id="camera-remove" class="btn btn-ghost btn-sm">Retake</button>
+                </div>
+                <div style="display: flex; gap: var(--space-3); justify-content: flex-end; margin-top: var(--space-4);">
+                    <button type="submit" id="camera-process-btn" class="btn btn-primary">Process Receipt</button>
+                </div>
+            </div>
+
+            <!-- Camera Processing Spinner -->
+            <div id="camera-processing" style="display: none;">
+                <div class="receipt-processing">
+                    <div class="spinner"></div>
+                    <h2>Processing receipt...</h2>
+                    <p>Extracting items with Vision AI</p>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Paste Text Tab -->
+    <div class="receipt-tab-content" id="tab-text">
+        <div class="receipt-form">
+            <h2 style="font-size: var(--font-size-base); font-weight: 600; margin: 0 0 var(--space-2);">Paste Receipt Text</h2>
+            <p style="font-size: var(--font-size-sm); color: var(--color-text-muted); margin: 0 0 var(--space-4);">
+                Paste your receipt text below. The system will parse items and match them to ingredients.
+            </p>
+            <form method="post" action="{% url 'meals:receipts' %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <textarea name="receipt_text" class="receipt-textarea" placeholder="WALMART SUPERCENTER&#10;03/01/2026&#10;&#10;BANANAS          $0.68&#10;CHICKEN BREAST   $7.99&#10;MILK 1GAL        $3.49&#10;...&#10;&#10;TOTAL            $45.23" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Process Receipt</button>
+            </form>
+        </div>
     </div>
 
     <!-- Receipt History -->
     {% if receipts %}
-    <div class="section-header">
+    <div class="section-header" style="margin-top: var(--space-6);">
         <h2 class="section-title">Receipt History</h2>
     </div>
     <div class="receipt-history">
@@ -41,8 +142,10 @@
                 <tr>
                     <th>Date</th>
                     <th>Store</th>
+                    <th>Type</th>
                     <th>Total</th>
                     <th>Items</th>
+                    <th>Status</th>
                     <th></th>
                 </tr>
             </thead>
@@ -51,9 +154,27 @@
                 <tr>
                     <td>{{ receipt.receipt_date|date:"M d, Y" }}</td>
                     <td>{{ receipt.store|default:"Unknown" }}</td>
+                    <td>
+                        <span class="receipt-type-badge receipt-type-{{ receipt.receipt_type }}">
+                            {{ receipt.get_receipt_type_display }}
+                        </span>
+                    </td>
                     <td>${{ receipt.total|floatformat:2 }}</td>
                     <td>{{ receipt.items.count }}</td>
-                    <td><a href="{% url 'meals:receipt_detail' pk=receipt.pk %}" class="btn btn-outline btn-sm">View</a></td>
+                    <td>
+                        {% if receipt.confirmation_status == "pending" %}
+                        <span class="receipt-status-badge status-pending">Pending</span>
+                        {% elif receipt.confirmation_status == "confirmed" %}
+                        <span class="receipt-status-badge status-confirmed">Confirmed</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if receipt.confirmation_status == "pending" %}
+                        <a href="{% url 'meals:receipt_confirm' pk=receipt.pk %}" class="btn btn-primary btn-sm">Review</a>
+                        {% else %}
+                        <a href="{% url 'meals:receipt_detail' pk=receipt.pk %}" class="btn btn-outline btn-sm">View</a>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -61,8 +182,299 @@
     </div>
     {% else %}
     <div style="text-align: center; padding: var(--space-4); color: var(--color-text-muted); font-size: var(--font-size-sm);">
-        No receipts uploaded yet. Paste a receipt above to get started.
+        No receipts uploaded yet. Upload a receipt image or paste text above.
     </div>
     {% endif %}
 </div>
+
+<style nonce="{{ csp_nonce }}">
+.receipt-tabs {
+    display: flex;
+    gap: var(--space-1);
+    margin-bottom: var(--space-4);
+    border-bottom: 2px solid var(--color-border);
+    padding-bottom: 0;
+}
+.receipt-tab {
+    padding: var(--space-3) var(--space-4);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    min-height: 44px;
+    transition: color 0.2s, border-color 0.2s;
+}
+.receipt-tab:hover {
+    color: var(--color-text);
+}
+.receipt-tab.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+.receipt-tab-content {
+    display: none;
+}
+.receipt-tab-content.active {
+    display: block;
+}
+.receipt-drop-zone {
+    border: 2px dashed var(--color-border);
+    border-radius: 12px;
+    padding: var(--space-6);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+.receipt-drop-zone:hover,
+.receipt-drop-zone.drag-over {
+    border-color: var(--color-primary);
+    background: var(--color-primary-bg, rgba(var(--color-primary-rgb, 59, 130, 246), 0.05));
+}
+.drop-zone-icon {
+    font-size: 3rem;
+    margin-bottom: var(--space-3);
+}
+.drop-zone-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0 0 var(--space-2);
+}
+.drop-zone-subtitle {
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-4);
+    font-size: var(--font-size-sm);
+}
+.drop-zone-formats {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    margin-top: var(--space-4);
+}
+.receipt-file-preview {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: 8px;
+    margin-top: var(--space-4);
+}
+.file-preview-icon {
+    font-size: 2rem;
+}
+.file-preview-info {
+    flex: 1;
+    min-width: 0;
+}
+.file-preview-name {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.file-preview-size {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+.receipt-processing {
+    text-align: center;
+    padding: var(--space-6) 0;
+}
+.receipt-processing h2 {
+    font-size: var(--font-size-lg);
+    margin: var(--space-4) 0 var(--space-2);
+}
+.receipt-processing p {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+.receipt-type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+.receipt-type-grocery { background: #dcfce7; color: #166534; }
+.receipt-type-restaurant { background: #fef3c7; color: #92400e; }
+.receipt-type-retail { background: #dbeafe; color: #1e40af; }
+.receipt-type-unknown { background: #f3f4f6; color: #6b7280; }
+.receipt-status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+.status-pending { background: #fef3c7; color: #92400e; }
+.status-confirmed { background: #dcfce7; color: #166534; }
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--color-border);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+@media (max-width: 480px) {
+    .receipt-tabs {
+        gap: 0;
+    }
+    .receipt-tab {
+        flex: 1;
+        padding: var(--space-2) var(--space-2);
+        font-size: var(--font-size-xs);
+    }
+    .receipt-drop-zone {
+        padding: var(--space-4);
+    }
+    .receipt-table th:nth-child(5),
+    .receipt-table td:nth-child(5) {
+        display: none;
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    var MAX_SIZE = 10 * 1024 * 1024;
+
+    // Tab switching
+    var tabs = document.querySelectorAll('.receipt-tab');
+    tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            tabs.forEach(function(t) { t.classList.remove('active'); });
+            tab.classList.add('active');
+            document.querySelectorAll('.receipt-tab-content').forEach(function(c) {
+                c.classList.remove('active');
+            });
+            var target = document.getElementById('tab-' + tab.getAttribute('data-tab'));
+            if (target) target.classList.add('active');
+        });
+    });
+
+    // --- Upload Tab ---
+    var uploadZone = document.getElementById('upload-zone');
+    var fileInput = document.getElementById('file-input');
+    var browseBtn = document.getElementById('browse-btn');
+    var filePreview = document.getElementById('file-preview');
+    var uploadZoneContent = document.getElementById('upload-zone-content');
+    var removeBtn = document.getElementById('remove-file');
+    var uploadForm = document.getElementById('upload-form');
+    var processingSpinner = document.getElementById('processing-spinner');
+
+    browseBtn.addEventListener('click', function() { fileInput.click(); });
+    uploadZone.addEventListener('click', function(e) {
+        if (e.target === uploadZone || e.target.closest('.drop-zone-content') === uploadZoneContent) {
+            fileInput.click();
+        }
+    });
+
+    // Drag-and-drop
+    uploadZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadZone.classList.add('drag-over');
+    });
+    uploadZone.addEventListener('dragleave', function() {
+        uploadZone.classList.remove('drag-over');
+    });
+    uploadZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadZone.classList.remove('drag-over');
+        if (e.dataTransfer.files.length > 0) {
+            fileInput.files = e.dataTransfer.files;
+            showFilePreview(fileInput.files[0], 'upload');
+        }
+    });
+
+    fileInput.addEventListener('change', function() {
+        if (fileInput.files.length > 0) {
+            showFilePreview(fileInput.files[0], 'upload');
+        }
+    });
+
+    removeBtn.addEventListener('click', function() {
+        fileInput.value = '';
+        filePreview.style.display = 'none';
+        uploadZone.style.display = '';
+    });
+
+    uploadForm.addEventListener('submit', function() {
+        filePreview.style.display = 'none';
+        uploadZone.style.display = 'none';
+        processingSpinner.style.display = '';
+    });
+
+    function showFilePreview(file, mode) {
+        if (file.size > MAX_SIZE) {
+            alert('File too large. Maximum size is 10 MB.');
+            return;
+        }
+        if (mode === 'upload') {
+            document.getElementById('preview-name').textContent = file.name;
+            document.getElementById('preview-size').textContent = formatSize(file.size);
+            uploadZone.style.display = 'none';
+            filePreview.style.display = '';
+        }
+    }
+
+    // --- Camera Tab ---
+    var cameraInput = document.getElementById('camera-input');
+    var cameraBtn = document.getElementById('camera-btn');
+    var cameraZone = document.getElementById('camera-zone');
+    var cameraPreview = document.getElementById('camera-preview');
+    var cameraRemove = document.getElementById('camera-remove');
+    var cameraForm = document.getElementById('camera-form');
+    var cameraProcessing = document.getElementById('camera-processing');
+
+    cameraBtn.addEventListener('click', function() { cameraInput.click(); });
+
+    cameraInput.addEventListener('change', function() {
+        if (cameraInput.files.length > 0) {
+            var file = cameraInput.files[0];
+            if (file.size > MAX_SIZE) {
+                alert('File too large. Maximum size is 10 MB.');
+                return;
+            }
+            document.getElementById('camera-preview-name').textContent = file.name;
+            document.getElementById('camera-preview-size').textContent = formatSize(file.size);
+
+            // Show image preview
+            var reader = new FileReader();
+            reader.addEventListener('load', function(e) {
+                document.getElementById('camera-preview-img').src = e.target.result;
+            });
+            reader.readAsDataURL(file);
+
+            cameraZone.style.display = 'none';
+            cameraPreview.style.display = '';
+        }
+    });
+
+    cameraRemove.addEventListener('click', function() {
+        cameraInput.value = '';
+        cameraPreview.style.display = 'none';
+        cameraZone.style.display = '';
+    });
+
+    cameraForm.addEventListener('submit', function() {
+        cameraPreview.style.display = 'none';
+        cameraZone.style.display = 'none';
+        cameraProcessing.style.display = '';
+    });
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+});
+</script>
 {% endblock %}

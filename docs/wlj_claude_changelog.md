@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Re-enable APScheduler with burst prevention safeguards
+
+- **What:** APScheduler was disabled during the outage because all overdue jobs fired simultaneously on restart, saturating DB connections. Re-enabled with safeguards to prevent recurrence.
+- **Safeguards added:**
+  1. `misfire_grace_time=1` on all cron jobs — missed jobs skip, wait for next scheduled time
+  2. `coalesce=True` on all jobs — multiple missed fires collapse to one execution
+  3. Staggered `next_run_time` on interval jobs: lock refresh +1m, SMS +2m, capture +3m, ISE +5m
+  4. Removed direct `send_pending_sms()` call at boot (caused immediate DB load)
+- **Effect:** After a restart/deploy, cron jobs wait for their next scheduled time instead of all firing at once. Interval jobs start gradually over 5 minutes instead of simultaneously.
+- **Files:** `config/wsgi.py`
+
+---
+
 ## 2026-03-08 — Dashboard restoration Phase 1+2: engine-first architecture
 
 - **What:** Restored dashboard from emergency safe mode using engine-first architecture. UI only READS pre-computed data from DB/cache — never calls OpenAI or runs engines during a request.

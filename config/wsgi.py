@@ -56,13 +56,6 @@ def start_scheduler():
 
     logger = logging.getLogger('scheduler')
 
-    # EMERGENCY 2026-03-08: Scheduler disabled to stop DB connection saturation.
-    # After downtime, all overdue jobs fire simultaneously, exhausting DB pool
-    # and starving web requests (journal save 30s+, dashboard 524).
-    # Re-enable once system is stable by removing this block.
-    logger.warning("APScheduler DISABLED (emergency mode) — re-enable in wsgi.py when stable")
-    return
-
     # Layer 1: Skip in development
     if settings.DEBUG:
         logger.info("Scheduler skipped: DEBUG mode is enabled")
@@ -95,6 +88,19 @@ def start_scheduler():
         # Jobs are re-registered on each startup anyway with replace_existing=True
         scheduler = BackgroundScheduler(timezone=settings.TIME_ZONE)
 
+        # ── BURST PREVENTION (2026-03-08) ──────────────────────────
+        # After downtime, ALL overdue cron jobs fire at once and
+        # interval jobs fire immediately — this saturated DB connections
+        # and caused a production outage.
+        #
+        # Safety measures:
+        #   misfire_grace_time=1   → Missed cron jobs SKIP (wait for next)
+        #   coalesce=True          → Multiple missed fires collapse to one
+        #   next_run_time (stagger)→ Interval jobs start 1-5 min after boot
+        # ───────────────────────────────────────────────────────────
+        from datetime import datetime, timedelta
+        now = datetime.now()
+
         # =====================================================================
         # SMS Jobs
         # =====================================================================
@@ -105,15 +111,19 @@ def start_scheduler():
             trigger=CronTrigger(hour=0, minute=0),
             id="schedule_daily_sms_reminders",
             max_instances=1,
+            coalesce=True,
+            misfire_grace_time=1,
             replace_existing=True,
         )
 
-        # Job 2: Send pending SMS every 5 minutes
+        # Job 2: Send pending SMS every 5 minutes (start 2 min after boot)
         scheduler.add_job(
             'apps.sms.jobs:send_pending_sms',
             trigger=IntervalTrigger(minutes=5),
             id="send_pending_sms",
             max_instances=1,
+            coalesce=True,
+            next_run_time=now + timedelta(minutes=2),
             replace_existing=True,
         )
 
@@ -122,14 +132,13 @@ def start_scheduler():
         # =====================================================================
 
         # Job 3: Recalculate task priorities at 6:00 AM UTC (1:00 AM EST)
-        # This ensures tasks update correctly for US Eastern timezone users.
-        # Running at 1:00 AM EST gives time for the day to "turn over" in user's timezone
-        # while still updating priorities early enough to be accurate all day.
         scheduler.add_job(
             'apps.life.jobs:recalculate_task_priorities',
             trigger=CronTrigger(hour=6, minute=0),
             id="recalculate_task_priorities",
             max_instances=1,
+            coalesce=True,
+            misfire_grace_time=1,
             replace_existing=True,
         )
 
@@ -139,74 +148,78 @@ def start_scheduler():
             trigger=CronTrigger(hour=6, minute=5),
             id="process_recurring_tasks",
             max_instances=1,
+            coalesce=True,
+            misfire_grace_time=1,
             replace_existing=True,
         )
 
         # =====================================================================
-        # Core Jobs (CISO Review 2026-01-12)
+        # Core Jobs
         # =====================================================================
 
         # Job 5: Soft-delete cleanup weekly on Sunday at 3:00 AM UTC
-        # Permanently deletes records that have been soft-deleted past retention period
         scheduler.add_job(
             'apps.core.jobs:cleanup_soft_deletes',
             trigger=CronTrigger(day_of_week='sun', hour=3, minute=0),
             id="cleanup_soft_deletes",
             max_instances=1,
+            coalesce=True,
+            misfire_grace_time=1,
             replace_existing=True,
         )
 
-        # =====================================================================
-        # Faith Module Jobs
-        # =====================================================================
-
         # Job 7: Generate faith reminders at 6:00 AM UTC (1:00 AM EST)
-        # Creates in-app/email notifications for prayers and reading plans
         scheduler.add_job(
             'apps.core.jobs:generate_faith_reminders',
             trigger=CronTrigger(hour=6, minute=0),
             id="generate_faith_reminders",
             max_instances=1,
+            coalesce=True,
+            misfire_grace_time=1,
             replace_existing=True,
         )
 
         # Job 9: Morning health reminders at 12:00 PM UTC (7:00 AM EST)
-        # Creates medicine reminders for pending doses
         scheduler.add_job(
             'apps.core.jobs:generate_health_reminders_morning',
             trigger=CronTrigger(hour=12, minute=0),
             id="generate_health_reminders_morning",
             max_instances=1,
+            coalesce=True,
+            misfire_grace_time=1,
             replace_existing=True,
         )
 
         # Job 10: Evening health reminders at 12:00 AM UTC (7:00 PM EST)
-        # Creates medicine, workout, and journal reminders
         scheduler.add_job(
             'apps.core.jobs:generate_health_reminders_evening',
             trigger=CronTrigger(hour=0, minute=0),
             id="generate_health_reminders_evening",
             max_instances=1,
+            coalesce=True,
+            misfire_grace_time=1,
             replace_existing=True,
         )
 
         # Job 11: Send daily digest emails at 9:45 AM UTC (4:45 AM EST)
-        # Sends email digest to users with pending notifications
         scheduler.add_job(
             'apps.core.jobs:send_notification_digest',
             trigger=CronTrigger(hour=9, minute=45),
             id="send_notification_digest",
             max_instances=1,
+            coalesce=True,
+            misfire_grace_time=1,
             replace_existing=True,
         )
 
         # Job 12: Generate birthday/anniversary reminders at 12:00 PM UTC (7:00 AM EST)
-        # Notifies users about birthdays, memorials, and anniversaries
         scheduler.add_job(
             'apps.core.jobs:generate_birthday_reminders',
             trigger=CronTrigger(hour=12, minute=0),
             id="generate_birthday_reminders",
             max_instances=1,
+            coalesce=True,
+            misfire_grace_time=1,
             replace_existing=True,
         )
 
@@ -215,12 +228,13 @@ def start_scheduler():
         # =====================================================================
 
         # Job 13: Compute user activity patterns at 7:00 AM UTC (2:00 AM EST)
-        # Analyzes daily interaction data to personalize insight timing
         scheduler.add_job(
             'apps.core.jobs:compute_activity_patterns',
             trigger=CronTrigger(hour=7, minute=0),
             id="compute_activity_patterns",
             max_instances=1,
+            coalesce=True,
+            misfire_grace_time=1,
             replace_existing=True,
         )
 
@@ -228,23 +242,25 @@ def start_scheduler():
         # Capture Jobs
         # =====================================================================
 
-        # Job 6: Send audio expiration reminder emails daily at 08:00 UTC (3:00 AM EST)
-        # Notifies users when their audio files will expire in 2 days
+        # Job 6: Send audio expiration reminder emails daily at 08:00 UTC
         scheduler.add_job(
             'apps.capture.jobs:send_expiration_reminders',
             trigger=CronTrigger(hour=8, minute=0),
             id="send_expiration_reminders",
             max_instances=1,
+            coalesce=True,
+            misfire_grace_time=1,
             replace_existing=True,
         )
 
-        # Job 8: Send pending capture reminder notifications hourly
-        # Reminds users about recordings that haven't been uploaded
+        # Job 8: Send pending capture reminders hourly (start 3 min after boot)
         scheduler.add_job(
             'apps.capture.jobs:send_pending_capture_reminders',
             trigger=IntervalTrigger(hours=1),
             id="send_pending_capture_reminders",
             max_instances=1,
+            coalesce=True,
+            next_run_time=now + timedelta(minutes=3),
             replace_existing=True,
         )
 
@@ -252,24 +268,25 @@ def start_scheduler():
         # Intelligence Scheduler (ISE)
         # =====================================================================
 
-        # Job 14: Intelligence Scheduler Engine every 5 minutes
-        # Orchestrates DBE (daily briefings), GLOE (learning profiles),
-        # PGE (guidance refresh) based on each task's configured interval
+        # Job 14: Intelligence Scheduler Engine every 5 min (start 5 min after boot)
         scheduler.add_job(
             'apps.core.jobs:run_intelligence_scheduler',
             trigger=IntervalTrigger(minutes=5),
             id="run_intelligence_scheduler",
             max_instances=1,
+            coalesce=True,
+            next_run_time=now + timedelta(minutes=5),
             replace_existing=True,
         )
 
-        # Job 15: Refresh scheduler DB lock every 4 minutes
-        # Keeps the singleton lock alive so stale detection works correctly
+        # Job 15: Refresh scheduler DB lock every 4 min (start 1 min after boot)
         scheduler.add_job(
             'apps.core.ai_scheduler.scheduler_lock:refresh_scheduler_lock',
             trigger=IntervalTrigger(minutes=4),
             id="refresh_scheduler_lock",
             max_instances=1,
+            coalesce=True,
+            next_run_time=now + timedelta(minutes=1),
             replace_existing=True,
         )
 
@@ -310,9 +327,8 @@ def start_scheduler():
                 pass  # Best-effort — lock will expire naturally
         atexit.register(_shutdown_scheduler)
 
-        # Run initial SMS send check
-        from apps.sms.jobs import send_pending_sms
-        send_pending_sms()
+        # NOTE: Removed direct send_pending_sms() call at boot (2026-03-08).
+        # It caused immediate DB load on startup. SMS job starts 2 min after boot.
 
     except Exception as e:
         logger.exception(f"FAILED to start background scheduler: {e}")

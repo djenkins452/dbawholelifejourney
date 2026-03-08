@@ -31,6 +31,13 @@
 
 ---
 
+## 2026-03-08 — EMERGENCY FIX: Restore collectstatic to Procfile (404 routing failure)
+
+- **What:** Every route returned 404 after Procfile was stripped to bare `gunicorn config.wsgi` during 524 debugging. Root cause: WhiteNoise's `CompressedManifestStaticFilesStorage` requires `collectstatic` to generate `staticfiles/manifest.json`. Without it, every template rendering fails with `ValueError: Missing staticfiles manifest entry` when resolving static file URLs (logo, CSS, JS), causing 500 errors that appear as 404s.
+- **Fix:** Restored Procfile to: `python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file - --timeout 300`. Kept sync commands out for now (not related to the outage).
+- **Files:** `Procfile`
+- **Why:** During 524 timeout debugging, Procfile was progressively stripped. Removing `collectstatic` broke all routes because WhiteNoise manifest-based storage can't resolve any static file URL without the manifest.
+
 ## 2026-03-08 — EMERGENCY: Disable SA builder + reduce connection pool to restore site
 
 - **What:** Site still 524 after connection.close fix. Emergency measures: (1) Disabled SA builder from parallel builders, (2) Set CONN_MAX_AGE=0 (close connections after each request), (3) Reduced ThreadPool max_workers from 6 to 3.

@@ -457,7 +457,7 @@ class ScheduleAnalyzer:
         tasks_due = Task.objects.filter(
             user=self.user,
             due_date=tomorrow,
-            is_completed=False,
+            completion_status='pending',
         ).count()
 
         # Count calendar events
@@ -494,7 +494,7 @@ class ScheduleAnalyzer:
         overdue = Task.objects.filter(
             user=self.user,
             due_date__lt=today,
-            is_completed=False,
+            completion_status='pending',
         ).values('id', 'title', 'due_date')[:5]  # Max 5
 
         return list(overdue)

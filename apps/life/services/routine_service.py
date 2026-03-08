@@ -208,7 +208,7 @@ class RoutineTaskService:
             task = Task.objects.filter(
                 user=user,
                 is_routine=True,
-                is_completed=False,
+                completion_status='pending',
                 due_date=today,
                 title__icontains=keyword,
             ).first()

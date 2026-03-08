@@ -468,12 +468,12 @@ class DashboardIntegrationTest(DashboardTestMixin, TestCase):
         Task.objects.create(
             user=self.user,
             title="Incomplete task",
-            is_completed=False
+            completion_status='pending'
         )
         Task.objects.create(
             user=self.user,
             title="Complete task",
-            is_completed=True
+            completion_status='completed'
         )
         
         response = self.client.get(reverse('dashboard:home'))

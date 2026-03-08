@@ -314,7 +314,7 @@ def _check_purpose_behavior(user, priority, since) -> Optional[PriorityConflict]
         # Check task progress — respect partial progress
         from apps.life.models import Task
         active_tasks = Task.objects.filter(
-            user=user, is_completed=False,
+            user=user, completion_status='pending',
         )
         total_active = active_tasks.count()
         # Tasks with progress > 0 count as "worked on"

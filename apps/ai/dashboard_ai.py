@@ -362,21 +362,21 @@ class DashboardAI:
                 # Tasks completed today
                 data['completed_tasks_today'] = Task.objects.filter(
                     user=self.user,
-                    is_completed=True,
+                    completion_status='completed',
                     completed_at__date=today
                 ).count()
 
                 # Overdue tasks
                 data['overdue_tasks'] = Task.objects.filter(
                     user=self.user,
-                    is_completed=False,
+                    completion_status='pending',
                     due_date__lt=today
                 ).count()
 
                 # Tasks due today (not overdue, but actionable)
                 data['tasks_due_today'] = Task.objects.filter(
                     user=self.user,
-                    is_completed=False,
+                    completion_status='pending',
                     due_date=today
                 ).count()
 

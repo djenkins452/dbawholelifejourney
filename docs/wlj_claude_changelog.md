@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Add Task Status System (Pending / Completed / Skipped)
+
+- **Why:** Tasks only supported two states (pending/completed), which caused incorrect behavior for missed recurring tasks (e.g., marking a workout "completed" when it was actually missed). The CoS assistant also incorrectly marked tasks completed when users explicitly rejected the action.
+- **What:** Introduced a three-state completion system:
+  - **Model changes:** Replaced `is_completed` BooleanField with `completion_status` CharField (pending/completed/skipped). Added `is_completed` and `is_skipped` as read-only properties for backward compatibility. Added `mark_skipped()` method that handles recurrence (next occurrence still generates). Named `completion_status` to avoid conflict with SoftDeleteModel's existing `status` field.
+  - **Migration:** `apps/life/migrations/0021_task_completion_status.py` — adds field, migrates data from is_completed, removes old field, updates ordering.
+  - **UI changes:** Task list now shows Complete (checkmark) and Skip (dash) buttons. Added "Skipped" filter tab. Skipped tasks display with amber badge and strikethrough. AJAX handlers for skip action with visual feedback.
+  - **AI intent:** Full 7-point registration for `skip_task` intent (skip/pass phrasing). `handle_skip_task()` action handler resolves tasks by keyword, appends skip reason to notes.
+  - **Data integrity:** Skipped tasks do NOT count as completed in Project.progress_percentage or any statistics queries. Skipped tasks are NOT marked as overdue.
+  - **Recurring tasks:** Skipping a recurring task creates the next occurrence normally (identical to completion behavior).
+  - **Codebase-wide update:** Updated ~80 ORM queries across 30+ files from `is_completed=True/False` to `completion_status='completed'/'pending'`. Carefully preserved references to other models (BlueprintBlock, DailyPriority, ShoppingList, ReadingPlanProgress) that also have `is_completed` fields.
+- **Files modified:** `apps/life/models.py`, `apps/life/views.py`, `apps/life/urls.py`, `apps/life/admin.py`, `apps/life/signals.py`, `apps/life/services/recurrence.py`, `apps/life/services/routine_service.py`, `apps/life/management/commands/*.py`, `apps/ai/action_handlers.py`, `apps/ai/intent_service.py`, `apps/ai/intents/life_intents.py`, `apps/ai/intents/__init__.py`, `apps/ai/search_service.py`, `apps/ai/personal_assistant.py`, `apps/ai/executive_briefing.py`, `apps/ai/assistant_intelligence.py`, `apps/ai/dashboard_ai.py`, `apps/ai/trend_tracking.py`, `apps/core/ai_orchestrator/intent_engine.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/core/blueprint/cos_governance.py`, `apps/core/blueprint/priority_conflict_detector.py`, `apps/core/ai_arbitration/signal_collector.py`, `apps/core/management/commands/load_initial_data.py`, `apps/cos/context/*.py`, `apps/dashboard/views.py`, `apps/sms/scheduler.py`, `apps/sms/services.py`, `apps/calendar_engine/services/*.py`, `apps/users/views.py`, `assistant/data_service.py`, `templates/life/task_list.html`, all related test files
+- **Tests:** 408 tests pass (life models, views, recurrence, AI task matching, intent registration, comprehensive tests)
+
 ## 2026-03-08 — Add skip_task AI intent
 
 - **Why:** Users need to be able to skip tasks via the AI assistant (e.g., "skip my workout task"). Previously only complete_task existed; skipping required manual UI interaction.

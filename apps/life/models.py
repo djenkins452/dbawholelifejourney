@@ -144,7 +144,7 @@ class Project(UserOwnedModel):
     
     @property
     def completed_task_count(self):
-        return self.tasks.filter(is_completed=True).count()
+        return self.tasks.filter(completion_status='completed').count()
     
     @property
     def progress_percentage(self):
@@ -223,7 +223,17 @@ class Task(UserOwnedModel):
     due_date = models.DateField(null=True, blank=True)
 
     # Completion
-    is_completed = models.BooleanField(default=False)
+    COMPLETION_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('skipped', 'Skipped'),
+    ]
+    completion_status = models.CharField(
+        max_length=20,
+        choices=COMPLETION_STATUS_CHOICES,
+        default='pending',
+        db_index=True,
+    )
     completed_at = models.DateTimeField(null=True, blank=True)
 
     # Partial progress (Phase 1 — CoS Foundational Restructure)
@@ -301,7 +311,7 @@ class Task(UserOwnedModel):
     )
     
     class Meta:
-        ordering = ['is_completed', 'priority', 'scheduled_time', '-created_at']
+        ordering = ['completion_status', 'priority', 'scheduled_time', '-created_at']
         verbose_name = "Task"
         verbose_name_plural = "Tasks"
     
@@ -311,15 +321,25 @@ class Task(UserOwnedModel):
     def get_absolute_url(self):
         return reverse('life:task_detail', kwargs={'pk': self.pk})
 
+    @property
+    def is_completed(self):
+        """Backward-compatible property: True when completion_status is 'completed'."""
+        return self.completion_status == 'completed'
+
+    @property
+    def is_skipped(self):
+        """True when completion_status is 'skipped'."""
+        return self.completion_status == 'skipped'
+
     def mark_complete(self):
         """
         Mark task as completed.
         If recurring, automatically creates the next occurrence.
         Syncs CalendarEvent status and triggers CoS reflection for routines.
         """
-        self.is_completed = True
+        self.completion_status = 'completed'
         self.completed_at = timezone.now()
-        self.save(update_fields=['is_completed', 'completed_at', 'updated_at'])
+        self.save(update_fields=['completion_status', 'completed_at', 'updated_at'])
 
         # Handle recurrence
         if self.is_recurring and self.recurrence_pattern:
@@ -340,16 +360,38 @@ class Task(UserOwnedModel):
                 fire_intelligence(self.user, self.module, self.pk, "task_completed")
             except Exception:
                 pass  # Must never break task completion
-    
+
+    def mark_skipped(self):
+        """
+        Mark task as skipped (intentionally not completed).
+        If recurring, automatically creates the next occurrence.
+        Skipped tasks do NOT count as completed in statistics.
+        """
+        self.completion_status = 'skipped'
+        self.save(update_fields=['completion_status', 'updated_at'])
+
+        # Handle recurrence — next occurrence should still generate
+        if self.is_recurring and self.recurrence_pattern:
+            from apps.life.services.recurrence import RecurrenceService
+            RecurrenceService.process_completed_recurring_task(self)
+
+        # Fire intelligence for module-linked tasks (track the skip)
+        if self.module:
+            try:
+                from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+                fire_intelligence(self.user, self.module, self.pk, "task_skipped")
+            except Exception:
+                pass  # Must never break task skip
+
     def mark_incomplete(self):
-        """Mark task as not completed."""
-        self.is_completed = False
+        """Mark task as not completed (reset to pending)."""
+        self.completion_status = 'pending'
         self.completed_at = None
-        self.save(update_fields=['is_completed', 'completed_at', 'updated_at'])
-    
+        self.save(update_fields=['completion_status', 'completed_at', 'updated_at'])
+
     @property
     def is_overdue(self):
-        if self.due_date and not self.is_completed:
+        if self.due_date and self.completion_status == 'pending':
             user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
             return self.due_date < user_today
         return False

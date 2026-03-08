@@ -86,7 +86,7 @@ class ProjectModelTest(TestCase):
                 user=self.user,
                 title=f'Task {i}',
                 project=project,
-                is_completed=(i < 2)
+                completion_status='completed' if i < 2 else 'pending'
             )
         self.assertEqual(project.progress_percentage, 50)
 
@@ -133,7 +133,7 @@ class TaskModelTest(TestCase):
         task = Task.objects.create(
             user=self.user,
             title='Toggle me',
-            is_completed=True,
+            completion_status='completed',
             completed_at=timezone.now()
         )
         task.mark_incomplete()
@@ -156,9 +156,90 @@ class TaskModelTest(TestCase):
             user=self.user,
             title='Done task',
             due_date=date.today() - timedelta(days=1),
-            is_completed=True
+            completion_status='completed'
         )
         self.assertFalse(task.is_overdue)
+
+    def test_mark_skipped(self):
+        """mark_skipped() sets completion_status to 'skipped'."""
+        task = Task.objects.create(
+            user=self.user,
+            title='Skip me'
+        )
+        task.mark_skipped()
+        task.refresh_from_db()
+
+        self.assertEqual(task.completion_status, 'skipped')
+        self.assertTrue(task.is_skipped)
+        self.assertFalse(task.is_completed)
+        self.assertIsNone(task.completed_at)  # Skipped does not set completed_at
+
+    def test_skipped_task_not_overdue(self):
+        """Skipped tasks are not overdue."""
+        task = Task.objects.create(
+            user=self.user,
+            title='Skipped task',
+            due_date=date.today() - timedelta(days=1),
+            completion_status='skipped'
+        )
+        self.assertFalse(task.is_overdue)
+
+    def test_skipped_not_counted_as_completed(self):
+        """Skipped tasks do not count toward completion metrics."""
+        project = Project.objects.create(
+            user=self.user,
+            title='Test project'
+        )
+        Task.objects.create(user=self.user, title='Done', project=project, completion_status='completed')
+        Task.objects.create(user=self.user, title='Skipped', project=project, completion_status='skipped')
+        Task.objects.create(user=self.user, title='Pending', project=project, completion_status='pending')
+
+        self.assertEqual(project.completed_task_count, 1)
+        self.assertEqual(project.task_count, 3)
+        # 1/3 = 33%
+        self.assertEqual(project.progress_percentage, 33)
+
+    def test_recurring_task_generates_next_after_skip(self):
+        """Skipping a recurring task creates the next occurrence."""
+        task = Task.objects.create(
+            user=self.user,
+            title='Daily workout',
+            due_date=date.today(),
+            is_recurring=True,
+            recurrence_pattern='daily',
+        )
+        task.mark_skipped()
+
+        # Next occurrence should exist
+        next_task = Task.objects.filter(
+            user=self.user,
+            title='Daily workout',
+            completion_status='pending',
+        ).first()
+        self.assertIsNotNone(next_task)
+        self.assertEqual(next_task.due_date, date.today() + timedelta(days=1))
+
+    def test_is_completed_property(self):
+        """is_completed property reflects completion_status."""
+        task = Task.objects.create(user=self.user, title='Test')
+        self.assertFalse(task.is_completed)
+
+        task.mark_complete()
+        self.assertTrue(task.is_completed)
+
+        task.mark_incomplete()
+        self.assertFalse(task.is_completed)
+
+    def test_is_skipped_property(self):
+        """is_skipped property reflects completion_status."""
+        task = Task.objects.create(user=self.user, title='Test')
+        self.assertFalse(task.is_skipped)
+
+        task.mark_skipped()
+        self.assertTrue(task.is_skipped)
+
+        task.mark_incomplete()
+        self.assertFalse(task.is_skipped)
 
 
 class LifeEventModelTest(TestCase):

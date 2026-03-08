@@ -258,7 +258,7 @@ class SMSScheduler:
         tasks = Task.objects.filter(
             user=user,
             status='active',
-            is_completed=False,
+            completion_status='pending',
             due_date=date
         )
 

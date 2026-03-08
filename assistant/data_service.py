@@ -1920,18 +1920,18 @@ class PersonalDataService:
 
         today = get_user_today(self.user)
         total = queryset.count()
-        completed = queryset.filter(is_completed=True).count()
+        completed = queryset.filter(completion_status='completed').count()
         pending = total - completed
 
         # Overdue: not completed, due date in the past
         overdue = queryset.filter(
-            is_completed=False,
+            completion_status='pending',
             due_date__lt=today
         ).count()
 
         # Due today: not completed, due date is today
         due_today = queryset.filter(
-            is_completed=False,
+            completion_status='pending',
             due_date=today
         ).count()
 
@@ -1940,7 +1940,7 @@ class PersonalDataService:
         # Include individual upcoming/today tasks with full details
         upcoming_tasks = []
         today_tasks = queryset.filter(
-            is_completed=False,
+            completion_status='pending',
             due_date__lte=today + timedelta(days=7),  # next 7 days
         ).order_by('due_date', 'scheduled_time')[:10]
 

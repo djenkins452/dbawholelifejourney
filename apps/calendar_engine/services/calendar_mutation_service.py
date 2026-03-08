@@ -427,7 +427,7 @@ class CalendarMutationService:
                     notes=event.description or "",
                     due_date=due_date,
                     scheduled_time=scheduled_time,
-                    is_completed=False,
+                    completion_status='pending',
                 )
             finally:
                 post_save.connect(handle_task_saved, sender=Task)

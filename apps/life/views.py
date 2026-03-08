@@ -92,13 +92,13 @@ class LifeHomeView(HelpContextMixin, LifeAccessMixin, TemplateView):
         # Tasks by priority
         context['now_tasks'] = Task.objects.filter(
             user=user,
-            is_completed=False,
+            completion_status='pending',
             priority='now'
         )[:5]
-        
+
         context['soon_tasks'] = Task.objects.filter(
             user=user,
-            is_completed=False,
+            completion_status='pending',
             priority='soon'
         )[:5]
         
@@ -119,8 +119,8 @@ class LifeHomeView(HelpContextMixin, LifeAccessMixin, TemplateView):
         # Quick stats
         context['stats'] = {
             'active_projects': Project.objects.filter(user=user, status='active').count(),
-            'pending_tasks': Task.objects.filter(user=user, is_completed=False).count(),
-            'completed_tasks': Task.objects.filter(user=user, is_completed=True).count(),
+            'pending_tasks': Task.objects.filter(user=user, completion_status='pending').count(),
+            'completed_tasks': Task.objects.filter(user=user, completion_status='completed').count(),
             'inventory_items': InventoryItem.objects.filter(user=user).count(),
             'pets': Pet.objects.filter(user=user, is_active=True).count(),
             'maintenance_logs': MaintenanceLog.objects.filter(user=user).count(),
@@ -130,7 +130,7 @@ class LifeHomeView(HelpContextMixin, LifeAccessMixin, TemplateView):
         # Overdue tasks
         context['overdue_tasks'] = Task.objects.filter(
             user=user,
-            is_completed=False,
+            completion_status='pending',
             due_date__lt=today
         ).count()
 
@@ -173,7 +173,7 @@ class ProjectListView(LifeAccessMixin, ListView):
         
         return queryset.annotate(
             task_total=Count('tasks'),
-            task_done=Count('tasks', filter=Q(tasks__is_completed=True))
+            task_done=Count('tasks', filter=Q(tasks__completion_status='completed'))
         ).order_by('priority', '-updated_at')
     
     def get_context_data(self, **kwargs):
@@ -204,7 +204,7 @@ class ProjectDetailView(LifeAccessMixin, DetailView):
         )
         context['tasks'] = self.object.tasks.annotate(
             priority_order=priority_order
-        ).order_by('is_completed', 'priority_order', '-created_at')
+        ).order_by('completion_status', 'priority_order', '-created_at')
         context['events'] = self.object.events.order_by('start_date')[:5]
         context['user_today'] = get_user_today(self.request.user)
         return context
@@ -291,9 +291,11 @@ class TaskListView(HelpContextMixin, LifeAccessMixin, ListView):
         # Filter by completion
         show = self.request.GET.get('show', 'active')
         if show == 'active':
-            queryset = queryset.filter(is_completed=False)
+            queryset = queryset.filter(completion_status='pending')
         elif show == 'completed':
-            queryset = queryset.filter(is_completed=True)
+            queryset = queryset.filter(completion_status='completed')
+        elif show == 'skipped':
+            queryset = queryset.filter(completion_status='skipped')
 
         # Filter by priority
         priority = self.request.GET.get('priority')
@@ -317,7 +319,7 @@ class TaskListView(HelpContextMixin, LifeAccessMixin, ListView):
         return queryset.select_related('project').annotate(
             priority_order=priority_order
         ).order_by(
-            'is_completed', 'priority_order',
+            'completion_status', 'priority_order',
             F('scheduled_time').asc(nulls_last=True),
             'due_date', '-created_at',
         )
@@ -334,8 +336,9 @@ class TaskListView(HelpContextMixin, LifeAccessMixin, ListView):
         )
         # Total task counts for display
         all_tasks = Task.objects.filter(user=self.request.user)
-        context['total_active_count'] = all_tasks.filter(is_completed=False).count()
-        context['total_completed_count'] = all_tasks.filter(is_completed=True).count()
+        context['total_active_count'] = all_tasks.filter(completion_status='pending').count()
+        context['total_completed_count'] = all_tasks.filter(completion_status='completed').count()
+        context['total_skipped_count'] = all_tasks.filter(completion_status='skipped').count()
         context['total_all_count'] = all_tasks.count()
         return context
 
@@ -465,6 +468,7 @@ class TaskToggleView(LifeAccessMixin, View):
             return JsonResponse({
                 'success': True,
                 'is_completed': task.is_completed,
+                'completion_status': task.completion_status,
                 'task_id': task.pk,
             })
 
@@ -480,6 +484,34 @@ class TaskToggleView(LifeAccessMixin, View):
                 return redirect(next_url)
             return redirect(f"{reverse('life:task_list')}?task_completed=1")
 
+        if next_url:
+            return redirect(next_url)
+        return redirect('life:task_list')
+
+
+class TaskSkipView(LifeAccessMixin, View):
+    """Mark a task as skipped."""
+
+    def post(self, request, pk):
+        from django.http import JsonResponse
+
+        task = get_object_or_404(Task, pk=pk, user=request.user)
+
+        try:
+            task.mark_skipped()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Error skipping task {pk}: {e}")
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True,
+                'completion_status': task.completion_status,
+                'task_id': task.pk,
+            })
+
+        from apps.core.utils import get_safe_redirect_url
+        next_url = get_safe_redirect_url(request)
         if next_url:
             return redirect(next_url)
         return redirect('life:task_list')

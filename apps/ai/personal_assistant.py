@@ -1368,16 +1368,16 @@ class PersonalAssistant:
         from apps.life.models import Task
 
         tasks = Task.objects.filter(user=self.user)
-        incomplete = tasks.filter(is_completed=False)
+        incomplete = tasks.filter(completion_status='pending')
 
         return {
             'tasks_total': tasks.count(),
             'tasks_completed_today': tasks.filter(
-                is_completed=True,
+                completion_status='completed',
                 completed_at__date=today
             ).count(),
             'tasks_completed_week': tasks.filter(
-                is_completed=True,
+                completion_status='completed',
                 completed_at__date__gte=week_ago
             ).count(),
             'tasks_overdue': incomplete.filter(due_date__lt=today).count(),
@@ -2239,7 +2239,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         # Overdue tasks first
         overdue = Task.objects.filter(
             user=self.user,
-            is_completed=False,
+            completion_status='pending',
             due_date__lt=today
         ).order_by('due_date')[:2]
 
@@ -2256,7 +2256,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         if len(priorities) < 2:
             due_today = Task.objects.filter(
                 user=self.user,
-                is_completed=False,
+                completion_status='pending',
                 due_date=today
             ).order_by('priority')[:2 - len(priorities)]
 
@@ -4457,17 +4457,17 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 try:
                     from apps.life.models import Task as LifeTask
                     overdue_tasks = list(LifeTask.objects.filter(
-                        user=self.user, is_completed=False, due_date__lt=today
+                        user=self.user, completion_status='pending', due_date__lt=today
                     ).exclude(status='deleted').values_list('title', flat=True)[:10])
                     due_today_tasks = list(LifeTask.objects.filter(
-                        user=self.user, is_completed=False, due_date=today
+                        user=self.user, completion_status='pending', due_date=today
                     ).exclude(status='deleted').values_list('title', flat=True)[:10])
                     # Tasks with no due date show in "Now" on the task page
                     no_date_tasks = list(LifeTask.objects.filter(
-                        user=self.user, is_completed=False, due_date__isnull=True
+                        user=self.user, completion_status='pending', due_date__isnull=True
                     ).exclude(status='deleted').values_list('title', flat=True)[:5])
                     completed_today_tasks = list(LifeTask.objects.filter(
-                        user=self.user, is_completed=True, completed_at__date=today
+                        user=self.user, completion_status='completed', completed_at__date=today
                     ).exclude(status='deleted').values_list('title', flat=True)[:10])
 
                     parts = []

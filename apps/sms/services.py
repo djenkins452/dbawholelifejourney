@@ -752,9 +752,9 @@ class SMSNotificationService:
             from apps.life.models import Task
 
             task = Task.objects.get(pk=notification.object_id)
-            task.is_completed = True
+            task.completion_status = 'completed'
             task.completed_at = timezone.now()
-            task.save(update_fields=['is_completed', 'completed_at', 'updated_at'])
+            task.save(update_fields=['completion_status', 'completed_at', 'updated_at'])
             return f"Task '{task.title}' marked complete"
         except Exception as e:
             logger.error(f"Failed to complete task: {e}")

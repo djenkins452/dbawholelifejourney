@@ -38,7 +38,7 @@ class Command(BaseCommand):
 
         # Get all incomplete tasks with a due date
         tasks_with_due_date = Task.objects.filter(
-            is_completed=False,
+            completion_status='pending',
             due_date__isnull=False
         ).select_related('user', 'user__preferences')
 

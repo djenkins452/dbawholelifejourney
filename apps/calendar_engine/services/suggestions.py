@@ -123,7 +123,7 @@ def get_items_due_soon(user):
     # Tasks due soon without execution blocks
     tasks = Task.objects.filter(
         user=user,
-        is_completed=False,
+        completion_status='pending',
         due_date__isnull=False,
         due_date__lte=lookahead.date(),
         due_date__gte=now.date(),

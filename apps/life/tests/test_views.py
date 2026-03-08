@@ -243,7 +243,7 @@ class TaskViewTest(TestCase):
 
     def test_task_toggle_completes_task(self):
         """Toggling an incomplete task marks it complete."""
-        task = Task.objects.create(user=self.user, title='Toggle Test', is_completed=False)
+        task = Task.objects.create(user=self.user, title='Toggle Test', completion_status='pending')
 
         self.client.post(reverse('life:task_toggle', kwargs={'pk': task.pk}))
 
@@ -253,7 +253,7 @@ class TaskViewTest(TestCase):
 
     def test_task_toggle_uncompletes_task(self):
         """Toggling a completed task marks it incomplete (undo)."""
-        task = Task.objects.create(user=self.user, title='Undo Test', is_completed=True)
+        task = Task.objects.create(user=self.user, title='Undo Test', completion_status='completed')
 
         self.client.post(reverse('life:task_toggle', kwargs={'pk': task.pk}))
 
@@ -263,7 +263,7 @@ class TaskViewTest(TestCase):
 
     def test_completed_task_shows_toggle_button(self):
         """Completed tasks have a checked toggle button for undo."""
-        task = Task.objects.create(user=self.user, title='Completed Task', is_completed=True)
+        task = Task.objects.create(user=self.user, title='Completed Task', completion_status='completed')
 
         response = self.client.get(reverse('life:task_list') + '?show=all')
 
@@ -273,13 +273,48 @@ class TaskViewTest(TestCase):
 
     def test_incomplete_task_no_undo_link(self):
         """Incomplete tasks do not display an Undo link."""
-        Task.objects.create(user=self.user, title='Active Task', is_completed=False)
+        Task.objects.create(user=self.user, title='Active Task', completion_status='pending')
 
         response = self.client.get(reverse('life:task_list'))
         content = response.content.decode()
 
         # Count occurrences - there should be no Undo buttons for incomplete tasks
         self.assertNotIn('class="task-undo"', content)
+
+    def test_task_skip_marks_task_skipped(self):
+        """POST to task_skip endpoint marks the task as skipped."""
+        task = Task.objects.create(user=self.user, title='Skip Test')
+
+        self.client.post(reverse('life:task_skip', kwargs={'pk': task.pk}))
+
+        task.refresh_from_db()
+        self.assertEqual(task.completion_status, 'skipped')
+        self.assertTrue(task.is_skipped)
+        self.assertFalse(task.is_completed)
+
+    def test_task_skip_ajax_response(self):
+        """Task skip via AJAX returns JSON response."""
+        task = Task.objects.create(user=self.user, title='Ajax Skip')
+
+        response = self.client.post(
+            reverse('life:task_skip', kwargs={'pk': task.pk}),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(data['completion_status'], 'skipped')
+
+    def test_task_list_skipped_filter(self):
+        """Task list shows skipped tasks when ?show=skipped."""
+        Task.objects.create(user=self.user, title='Skipped Task', completion_status='skipped')
+        Task.objects.create(user=self.user, title='Active Task', completion_status='pending')
+
+        response = self.client.get(reverse('life:task_list') + '?show=skipped')
+
+        self.assertContains(response, 'Skipped Task')
+        self.assertNotContains(response, 'Active Task')
 
     def test_task_create_preselects_project_from_query_param(self):
         """Task create form pre-selects project when ?project=ID is passed."""
@@ -407,12 +442,12 @@ class TaskViewTest(TestCase):
         Task.objects.create(
             user=self.user,
             title='Active meeting task',
-            is_completed=False
+            completion_status='pending'
         )
         Task.objects.create(
             user=self.user,
             title='Completed meeting task',
-            is_completed=True
+            completion_status='completed'
         )
 
         # Search with active filter

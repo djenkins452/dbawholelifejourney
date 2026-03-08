@@ -2353,7 +2353,7 @@ class ExportAccountDataView(LoginRequiredMixin, View):
         try:
             from apps.life.models import Task, LifeEvent, Project
             data['tasks'] = list(Task.all_objects.filter(user=user).values(
-                'id', 'title', 'description', 'due_date', 'is_completed', 'priority', 'created_at'
+                'id', 'title', 'description', 'due_date', 'completion_status', 'priority', 'created_at'
             ))
             data['events'] = list(LifeEvent.all_objects.filter(user=user).values(
                 'id', 'title', 'description', 'start_datetime', 'end_datetime', 'location', 'created_at'

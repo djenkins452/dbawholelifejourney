@@ -840,7 +840,7 @@ class RealTimeSignalTests(SMSTestMixin, TestCase):
             user=self.user,
             title='Test Task',
             due_date=today,
-            is_completed=False,
+            completion_status='pending',
         )
 
         # Check that an SMS was scheduled (will be for 9 AM)

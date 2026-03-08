@@ -461,12 +461,12 @@ def _collect_upcoming_events(user, now):
         today = now.date()
         events["overdue_tasks"] = Task.objects.filter(
             user=user,
-            is_completed=False,
+            completion_status='pending',
             due_date__lt=today,
         ).count()
         events["approaching_deadlines"] = Task.objects.filter(
             user=user,
-            is_completed=False,
+            completion_status='pending',
             due_date__gte=today,
             due_date__lte=today + timedelta(days=3),
         ).count()

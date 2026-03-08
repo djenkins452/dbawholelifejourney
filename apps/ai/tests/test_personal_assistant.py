@@ -100,18 +100,21 @@ class AssistantTestMixin:
             entry_date=entry_date
         )
 
-    def create_task(self, user, title="Test Task", due_date=None, is_completed=False):
+    def create_task(self, user, title="Test Task", due_date=None, is_completed=False, completion_status=None):
         """Create a task for testing."""
         from apps.life.models import Task
         from apps.core.utils import get_user_today
 
         if due_date is None:
             due_date = get_user_today(user)
+        # Support both old is_completed kwarg and new completion_status
+        if completion_status is None:
+            completion_status = 'completed' if is_completed else 'pending'
         return Task.objects.create(
             user=user,
             title=title,
             due_date=due_date,
-            is_completed=is_completed
+            completion_status=completion_status
         )
 
     def create_goal(self, user, title="Test Goal", status='active'):

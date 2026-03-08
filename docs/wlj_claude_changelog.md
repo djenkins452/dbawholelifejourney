@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Fix streaming fallback persistence bug
+
+- **Root cause:** When OpenAI API fails (429 quota exceeded, timeouts), the `_generate_response_stream` finally block saved the literal string `"[Response interrupted]"` to the DB. The caller's safety net in `send_message_stream` generated a proper fallback response and yielded it to the client, but could not overwrite the DB record because the guard condition `not assistant_msg.content` was False (content was already `"[Response interrupted]"`). Result: user sees a fallback in-session, but "[Response interrupted]" in persistent chat history.
+- **Fix:** Changed the finally block to leave `content=''` when zero tokens are received, allowing the caller's safety net to save the real fallback response. Partial responses (some tokens received before disconnect) are still saved. Also replaced `"[Response error]"` sentinel in the top-level except with a proper fallback message.
+- **Files:** `apps/ai/personal_assistant.py` (3 edits in `_generate_response_stream` finally block + `send_message_stream` error handling)
+- **Note:** The "[Response interrupted]" occurrences on 2026-03-08 were caused by OpenAI insufficient_quota (billing balance at -$0.13), not a streaming architecture defect.
+
 ## 2026-03-08 — Fix migration conflict (0102 merge)
 
 - **Root cause:** Two migrations both numbered 0102 in `core` app — `0102_add_cos_situation_state` (from CoS reliability session) and `0102_alter_engineheartbeat_status` (from engine telemetry session). Both depended on 0101, creating a diamond conflict that blocked Railway deployment.

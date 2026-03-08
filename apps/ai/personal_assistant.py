@@ -5946,17 +5946,28 @@ Rules for this response:
                 # normal completion (already saved above → no-op),
                 # exception, client disconnect (GeneratorExit), worker crash
                 if assistant_message and not assistant_message.content:
-                    final_content = full_text or "[Response interrupted]"
-                    assistant_message.content = final_content
-                    try:
-                        assistant_message.save(update_fields=['content'])
-                    except Exception:
-                        pass  # DB may be unavailable on worker crash
-                    logger.warning(
-                        "STREAM_MSG_FINALIZED id=%s len=%d user=%s interrupted=%s",
-                        assistant_message.id, len(final_content),
-                        self.user.id, full_text == "",
-                    )
+                    if full_text:
+                        # Partial response received — save what we have
+                        assistant_message.content = full_text
+                        try:
+                            assistant_message.save(update_fields=['content'])
+                        except Exception:
+                            pass  # DB may be unavailable on worker crash
+                        logger.warning(
+                            "STREAM_MSG_FINALIZED id=%s len=%d user=%s partial=True",
+                            assistant_message.id, len(full_text), self.user.id,
+                        )
+                    else:
+                        # Zero tokens received (API failure, client disconnect).
+                        # Leave content empty — send_message_stream's safety net
+                        # will save a proper fallback if the generator exits
+                        # normally. For GeneratorExit (client disconnect), the
+                        # empty placeholder is filtered by the frontend.
+                        logger.warning(
+                            "STREAM_MSG_EMPTY id=%s user=%s — zero tokens received, "
+                            "deferring to caller safety net",
+                            assistant_message.id, self.user.id,
+                        )
 
         except Exception as e:
             logger.error(
@@ -5965,7 +5976,7 @@ Rules for this response:
                 self.user.id, e, exc_info=True,
             )
             fallback = self._get_fallback_response(message)
-            if assistant_message and not assistant_message.content:
+            if assistant_message and (not assistant_message.content or assistant_message.content == ''):
                 assistant_message.content = full_text or fallback
                 assistant_message.message_type = 'fallback'
                 try:
@@ -6414,7 +6425,7 @@ Rules for this response:
                 yield {'type': 'token', 'content': response_text}
             # Ensure placeholder is not left empty on error — mark as fallback
             if not assistant_msg.content:
-                assistant_msg.content = response_text or "[Response error]"
+                assistant_msg.content = response_text or self._get_fallback_response(message)
                 assistant_msg.message_type = 'fallback'
                 try:
                     assistant_msg.save(update_fields=['content', 'message_type'])

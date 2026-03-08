@@ -143,28 +143,10 @@ class FaithHomeView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMixin, Te
             plan_status="active",
         ).select_related("template").first()
 
-        # Generate AI insight if user has AI enabled and consented
+        # AI insight — read from cache/engine only, never call OpenAI on page load
+        # TODO: Replace with cached insight from DBE/PGE once stable
         context['ai_insight'] = None
-        context['ai_enabled'] = False
-        try:
-            prefs = user.preferences
-            if prefs.ai_enabled and prefs.ai_data_consent:
-                context['ai_enabled'] = True
-                from apps.ai.services import ai_service
-                todays_verse = context.get('todays_verse')
-                faith_data = {
-                    'active_prayers': context['active_prayers'].count() if hasattr(context.get('active_prayers'), 'count') else len(context.get('active_prayers', [])),
-                    'answered_prayers': context.get('answered_prayers_count', 0),
-                    'recent_reflections': len(context.get('recent_reflections', [])),
-                    'milestones': context['milestones'].count() if hasattr(context.get('milestones'), 'count') else len(context.get('milestones', [])),
-                    'todays_verse': todays_verse['verse'].reference if todays_verse and todays_verse.get('verse') else None,
-                }
-                context['ai_insight'] = ai_service.generate_faith_home_insight(
-                    faith_data,
-                    coaching_style=prefs.ai_coaching_style
-                )
-        except Exception:
-            pass
+        context['ai_enabled'] = getattr(user.preferences, 'ai_enabled', False)
 
         return context
 

@@ -810,28 +810,10 @@ class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             user=user
         ).annotate(entry_count=Count('journal_entries')).order_by('-entry_count')[:10]
 
-        # Generate AI insight if user has AI enabled and consented
+        # AI insight — read from cache/engine only, never call OpenAI on page load
+        # TODO: Replace with cached insight from DBE/PGE once stable
         context['ai_insight'] = None
-        context['ai_enabled'] = False
-        try:
-            prefs = user.preferences
-            if prefs.ai_enabled and prefs.ai_data_consent:
-                context['ai_enabled'] = True
-                from apps.ai.services import ai_service
-                journal_data = {
-                    'total': context['stats']['total'],
-                    'this_week': context['stats']['this_week'],
-                    'this_month': context['stats']['this_month'],
-                    'streak': context['stats']['streak'],
-                    'mood_stats': context['mood_stats'],
-                }
-                context['ai_insight'] = ai_service.generate_journal_home_insight(
-                    journal_data,
-                    faith_enabled=prefs.faith_enabled,
-                    coaching_style=prefs.ai_coaching_style
-                )
-        except Exception:
-            pass
+        context['ai_enabled'] = getattr(user.preferences, 'ai_enabled', False)
 
         return context
     

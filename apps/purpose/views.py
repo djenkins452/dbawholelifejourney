@@ -123,30 +123,10 @@ class PurposeHomeView(HelpContextMixin, PurposeAccessMixin, TemplateView):
             user=user
         ).order_by('-year', '-created_at')[:3]
 
-        # Generate AI insight if user has AI enabled and consented
+        # AI insight — read from cache/engine only, never call OpenAI on page load
+        # TODO: Replace with cached insight from DBE/PGE once stable
         context['ai_insight'] = None
-        context['ai_enabled'] = False
-        try:
-            prefs = user.preferences
-            if prefs.ai_enabled and prefs.ai_data_consent:
-                context['ai_enabled'] = True
-                from apps.ai.services import ai_service
-                direction = context.get('current_direction')
-                purpose_data = {
-                    'word_of_year': direction.word_of_year if direction else None,
-                    'annual_theme': direction.theme if direction else None,
-                    'active_goals': context['stats']['active_goals'],
-                    'completed_goals': context['stats']['completed_goals'],
-                    'active_intentions': context['stats']['active_intentions'],
-                    'domains': len(context.get('goals_by_domain', {})),
-                }
-                context['ai_insight'] = ai_service.generate_purpose_home_insight(
-                    purpose_data,
-                    faith_enabled=prefs.faith_enabled,
-                    coaching_style=prefs.ai_coaching_style
-                )
-        except Exception:
-            pass
+        context['ai_enabled'] = getattr(user.preferences, 'ai_enabled', False)
 
         return context
 

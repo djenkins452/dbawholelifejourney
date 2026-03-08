@@ -137,30 +137,10 @@ class LifeHomeView(HelpContextMixin, LifeAccessMixin, TemplateView):
         # User's today for template date comparisons
         context['user_today'] = today
 
-        # Generate AI insight if user has AI enabled and consented
+        # AI insight — read from cache/engine only, never call OpenAI on page load
+        # TODO: Replace with cached insight from DBE/PGE once stable
         context['ai_insight'] = None
-        context['ai_enabled'] = False
-        try:
-            prefs = user.preferences
-            if prefs.ai_enabled and prefs.ai_data_consent:
-                context['ai_enabled'] = True
-                from apps.ai.services import ai_service
-                life_data = {
-                    'active_projects': context['stats']['active_projects'],
-                    'pending_tasks': context['stats']['pending_tasks'],
-                    'completed_tasks': context['stats']['completed_tasks'],
-                    'overdue_tasks': context.get('overdue_tasks', 0),
-                    'todays_events': context['todays_events'].count() if hasattr(context.get('todays_events'), 'count') else len(context.get('todays_events', [])),
-                    'upcoming_events': context['upcoming_events'].count() if hasattr(context.get('upcoming_events'), 'count') else len(context.get('upcoming_events', [])),
-                    'now_tasks': context['now_tasks'].count() if hasattr(context.get('now_tasks'), 'count') else len(context.get('now_tasks', [])),
-                }
-                context['ai_insight'] = ai_service.generate_life_home_insight(
-                    life_data,
-                    faith_enabled=prefs.faith_enabled,
-                    coaching_style=prefs.ai_coaching_style
-                )
-        except Exception:
-            pass
+        context['ai_enabled'] = getattr(user.preferences, 'ai_enabled', False)
 
         return context
 

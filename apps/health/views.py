@@ -444,36 +444,10 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         except Exception:
             pass
 
-        # Generate AI insight if user has AI enabled and consented
+        # AI insight — read from cache/engine only, never call OpenAI on page load
+        # TODO: Replace with cached insight from DBE/PGE once stable
         context['ai_insight'] = None
-        context['ai_enabled'] = False
-        try:
-            prefs = user.preferences
-            if prefs.ai_enabled and prefs.ai_data_consent:
-                context['ai_enabled'] = True
-                from apps.ai.services import ai_service
-                health_data = {
-                    'weight_count': context.get('weight_count', 0),
-                    'weight_change_30d': context.get('weight_change_30d'),
-                    'fasts_this_month': context.get('fasts_this_month', 0),
-                    'avg_fast_duration': context.get('avg_fast_duration'),
-                    'avg_resting_hr': context.get('avg_resting_hr'),
-                    'avg_fasting_glucose': context.get('avg_fasting_glucose'),
-                    'avg_blood_pressure': f"{context.get('avg_systolic')}/{context.get('avg_diastolic')}" if context.get('avg_systolic') else None,
-                    'has_heart_rate': 'latest_heart_rate' in context,
-                    'has_glucose': 'latest_glucose' in context,
-                    'has_blood_pressure': 'latest_blood_pressure' in context,
-                    'sleep_count': context.get('sleep_count', 0),
-                    'avg_sleep_hours': context.get('avg_sleep_hours'),
-                    'avg_sleep_quality': context.get('avg_sleep_quality'),
-                }
-                context['ai_insight'] = ai_service.generate_health_home_insight(
-                    health_data,
-                    faith_enabled=prefs.faith_enabled,
-                    coaching_style=prefs.ai_coaching_style
-                )
-        except Exception:
-            pass
+        context['ai_enabled'] = getattr(user.preferences, 'ai_enabled', False)
 
         # Labs & Vitals summary
         try:
@@ -5931,41 +5905,10 @@ class GlucoseDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
         context['chart_data'] = chart_data
 
-        # Generate AI insight if user has AI enabled and consented
+        # AI insight — read from cache/engine only, never call OpenAI on page load
+        # TODO: Replace with cached insight from DBE/PGE once stable
         context['ai_insight'] = None
-        context['ai_enabled'] = False
-        try:
-            prefs = user.preferences
-            if prefs.ai_enabled and prefs.ai_data_consent:
-                context['ai_enabled'] = True
-                from apps.ai.services import ai_service
-
-                # Build glucose data for AI
-                glucose_data = {
-                    'reading_count': glucose_entries.count(),
-                    'avg_glucose': context.get('avg_glucose'),
-                    'min_glucose': context.get('min_glucose'),
-                    'max_glucose': context.get('max_glucose'),
-                    'time_in_range': context.get('time_in_range'),
-                    'low_count': context.get('low_count', 0),
-                    'high_count': context.get('high_count', 0),
-                }
-
-                # Add latest reading info
-                if context.get('latest_reading'):
-                    latest = context['latest_reading']
-                    glucose_data['latest_value'] = float(latest.value)
-                    glucose_data['latest_status'] = latest.glucose_status
-
-                # Generate insight with user's coaching style
-                context['ai_insight'] = ai_service.generate_glucose_insight(
-                    glucose_data,
-                    faith_enabled=prefs.faith_enabled,
-                    coaching_style=prefs.ai_coaching_style
-                )
-        except Exception:
-            # Don't fail the page if AI fails
-            pass
+        context['ai_enabled'] = getattr(user.preferences, 'ai_enabled', False)
 
         return context
 

@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Remove synchronous OpenAI calls from all module home views
+
+- **What:** Every module home page (Journal, Life, Faith, Health, Purpose, Glucose) made a synchronous `ai_service.generate_*_insight()` call on every page load. The `_call_api` method has its OWN retry loop (`LLM_MAX_RETRIES=3`) with 30-second rate-limit backoff — totaling 69 seconds on a 429. This is architecturally wrong: engines (DBE, PGE, SAE) exist to pre-compute insights in the background.
+- **Fix:**
+  1. Removed all 6 synchronous OpenAI calls from module home `get_context_data` methods
+  2. Set `LLM_MAX_RETRIES` from 3 to 1 (single attempt, no retries)
+  3. Views now set `ai_insight = None` — templates gracefully handle missing insights
+- **Files:** `apps/ai/services.py`, `apps/life/views.py`, `apps/journal/views.py`, `apps/faith/views.py`, `apps/health/views.py`, `apps/purpose/views.py`
+- **TODO:** Wire cached insights from DBE/PGE engines into these views once system is stable
+
+---
+
 ## 2026-03-08 — Fix site-wide slowness: OpenAI timeout + Gunicorn workers
 
 - **What:** All pages slow (15-30s) even after 7 hours with APScheduler disabled. Root cause: every module home page (Journal, Life, Faith, Health, Purpose) makes a synchronous OpenAI API call in `get_context_data`. With `LLM_TIMEOUT_SECONDS=15` and only 1-2 Gunicorn workers (no `--workers` flag!), each OpenAI call blocks a worker for up to 15 seconds. Two concurrent users = entire site freezes. Gunicorn `--timeout 300` (5 minutes!) allowed workers to hang forever.

@@ -157,6 +157,8 @@
 
                             {% if task.completion_status == 'skipped' %}
                             <span class="task-status-badge task-status-skipped">Skipped</span>
+                            {% elif task.completion_status == 'completed' %}
+                            <span class="task-status-badge task-status-completed">Done</span>
                             {% endif %}
 
                             {% if task.due_date %}
@@ -603,6 +605,11 @@
 .task-status-skipped {
     background: color-mix(in srgb, #f59e0b 15%, transparent);
     color: #b45309;
+}
+
+.task-status-completed {
+    background: color-mix(in srgb, #22c55e 15%, transparent);
+    color: #16a34a;
 }
 
 /* Clickable row link - takes user to edit page */

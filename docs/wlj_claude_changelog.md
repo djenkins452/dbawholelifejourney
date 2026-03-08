@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Add skip button & status badges to Organize summary page
+
+- **Problem:** The Organize page (`/life/`) showed task items without the skip button or any visible status indicator. Only the task detail list page (`/life/tasks/`) had skip support. Users expected to see and use skip functionality from the summary page.
+- **Changes:**
+  - **Organize page (`templates/life/home.html`):** Added skip button (circle-with-dash icon) to Now and Soon task items. Added status badges ("Done" green, "Skipped" amber) for completed/skipped tasks. Added AJAX handler for skip action with visual feedback (strikethrough + badge). Added CSS for skip button, status badges, and checkbox states.
+  - **Task list page (`templates/life/task_list.html`):** Added "Done" badge for completed tasks (previously only showed badge for skipped).
+  - **Task edit form (`templates/life/task_form.html`):** Added Status dropdown (Pending/Completed/Skipped) to the edit form so users can change task status directly.
+  - **TaskUpdateView (`apps/life/views.py`):** Added `completion_status` to form fields with label "Status".
+- **Files:** `templates/life/home.html`, `templates/life/task_list.html`, `templates/life/task_form.html`, `apps/life/views.py`
+- **Tests:** 42 view tests pass
+
 ## 2026-03-08 — Fix CI test failures (round 2): capture tasks, faith engagement, duplicate PKs
 
 - **Duplicate PK 141 in release_notes.json:** "Faster, Smarter Receipt Processing" shared pk=141 with "Guides Hub". Changed to pk=146.

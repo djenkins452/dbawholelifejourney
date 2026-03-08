@@ -444,9 +444,9 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         except Exception:
             pass
 
-        # AI insight — read from cache/engine only, never call OpenAI on page load
-        # TODO: Replace with cached insight from DBE/PGE once stable
-        context['ai_insight'] = None
+        # AI insight — engine-first: read latest PIE insight (no OpenAI)
+        from apps.core.ai_insights.services import get_module_insight
+        context['ai_insight'] = get_module_insight(user, 'health')
         context['ai_enabled'] = getattr(user.preferences, 'ai_enabled', False)
 
         # Labs & Vitals summary
@@ -5905,9 +5905,9 @@ class GlucoseDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
         context['chart_data'] = chart_data
 
-        # AI insight — read from cache/engine only, never call OpenAI on page load
-        # TODO: Replace with cached insight from DBE/PGE once stable
-        context['ai_insight'] = None
+        # AI insight — engine-first: read latest PIE insight (no OpenAI)
+        from apps.core.ai_insights.services import get_module_insight
+        context['ai_insight'] = get_module_insight(user, 'health')
         context['ai_enabled'] = getattr(user.preferences, 'ai_enabled', False)
 
         return context

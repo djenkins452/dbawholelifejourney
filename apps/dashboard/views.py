@@ -179,8 +179,8 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             context["command_brief"] = command_brief
             context["command_mode"] = self._get_command_mode(user, prefs, command_brief)
 
-            # Still disabled — requires wiring to engine-stored insights:
-            context["ai_insights"] = None
+            # Phase 4: AI insights from engine-stored data (no OpenAI)
+            context["ai_insights"] = self._get_ai_insights(user, prefs, user_data)
 
             return context
         except Exception as e:
@@ -1405,10 +1405,15 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         }
     
     def _get_ai_insights(self, user, prefs, user_data):
-        """Get AI-generated insights."""
+        """
+        Get AI insights from engine-stored data (no OpenAI calls).
+
+        Engine-first architecture: reads cached AIInsight, PIE Insight,
+        and GuidanceItem records. Never calls OpenAI during page load.
+        """
         try:
             # Check if user is truly new (no meaningful data yet)
-            # If so, show onboarding guidance instead of AI-generated insight
+            # If so, show onboarding guidance instead of engine insight
             onboarding_insight = self._get_new_user_onboarding_insight(user, prefs, user_data)
             if onboarding_insight:
                 return {
@@ -1419,26 +1424,9 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                     "is_onboarding": True,
                 }
 
-            from apps.ai.dashboard_ai import DashboardAI
-
-            dashboard_ai = DashboardAI(user)
-
-            # Get or generate daily insight — with timeout to avoid blocking sync workers
-            daily_insight = None
-            weekly_summary = None
-            try:
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(dashboard_ai.get_daily_insight)
-                    daily_insight = future.result(timeout=5)
-            except FuturesTimeout:
-                logger.warning("DashboardAI.get_daily_insight() timed out (5s)")
-            except Exception:
-                pass
-
-            try:
-                weekly_summary = dashboard_ai.get_weekly_summary()
-            except Exception:
-                pass
+            # Engine-first: read stored insights, never call OpenAI
+            from apps.core.ai_insights.services import get_stored_daily_insight
+            daily_insight = get_stored_daily_insight(user)
 
             # Check for things to celebrate (respects module enabled flags)
             celebrations = self._check_for_celebrations(user_data, prefs)
@@ -1448,7 +1436,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
             return {
                 "daily_insight": daily_insight,
-                "weekly_summary": weekly_summary,
+                "weekly_summary": None,
                 "celebrations": celebrations,
                 "nudges": nudges,
             }

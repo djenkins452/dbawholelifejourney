@@ -810,9 +810,9 @@ class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             user=user
         ).annotate(entry_count=Count('journal_entries')).order_by('-entry_count')[:10]
 
-        # AI insight — read from cache/engine only, never call OpenAI on page load
-        # TODO: Replace with cached insight from DBE/PGE once stable
-        context['ai_insight'] = None
+        # AI insight — engine-first: read latest PIE insight (no OpenAI)
+        from apps.core.ai_insights.services import get_module_insight
+        context['ai_insight'] = get_module_insight(user, 'journal')
         context['ai_enabled'] = getattr(user.preferences, 'ai_enabled', False)
 
         return context

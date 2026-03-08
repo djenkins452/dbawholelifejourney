@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Phase 4: Restore AI Insights (Engine-First, No OpenAI)
+
+- **What:** Restored AI insight tiles on the dashboard and all 5 module home pages. Completely replaced the old `_get_ai_insights()` which called OpenAI directly (root cause of production outage) with engine-first reads from stored data.
+- **New service:** Created `apps/core/ai_insights/services.py` — centralized helper with two functions:
+  - `get_stored_daily_insight(user)` — cascading fallback: cached AIInsight → PIE dashboard/global insight → PIE any-module insight → GuidanceItem → None
+  - `get_module_insight(user, module_name)` — reads latest PIE insight for a specific module
+- **Safety measures:** 48-hour freshness window on PIE queries, 500-char truncation limit, dashboard/global module priority in fallback chain
+- **Dashboard changes:** Rewrote `_get_ai_insights()` in views.py — removed DashboardAI import and ThreadPoolExecutor, replaced with single `get_stored_daily_insight()` call. Re-enabled in `get_context_data()`.
+- **Module views:** Replaced `ai_insight = None` with `get_module_insight(user, '<module>')` in all 5 module home pages.
+- **Index verification:** All 3 queried tables have sufficient indexes — no migrations needed.
+- **Files:** `apps/core/ai_insights/services.py` (NEW), `apps/dashboard/views.py`, `apps/health/views.py`, `apps/journal/views.py`, `apps/faith/views.py`, `apps/life/views.py`, `apps/purpose/views.py`
+- **Tests:** 1940 tests passed across all 6 affected apps
+
+---
+
 ## 2026-03-08 — Phase 3: Restore Command Brief & Command Mode on dashboard
 
 - **What:** Re-enabled command brief and command mode on the dashboard. Both are 100% DB reads — no OpenAI calls. Traced every function call: architecture_engine, drift_engine, alignment_engine, recovery_engine, human_language, weekly_pressure, reflection_engine, cos_governance — all pure DB queries and local math.

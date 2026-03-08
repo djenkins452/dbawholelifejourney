@@ -1836,6 +1836,16 @@ class PersonalRecord(UserOwnedModel):
         ordering = ["-achieved_date"]
         verbose_name = "personal record"
         verbose_name_plural = "personal records"
+        indexes = [
+            models.Index(
+                fields=["user", "exercise"],
+                name="pr_user_exercise_idx",
+            ),
+            models.Index(
+                fields=["user", "achieved_date"],
+                name="pr_user_date_idx",
+            ),
+        ]
 
     def __str__(self):
         return f"PR: {self.exercise.name} - {self.weight}lbs x {self.reps} ({self.get_pr_type_display()})"

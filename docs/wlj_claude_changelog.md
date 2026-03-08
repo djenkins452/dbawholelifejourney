@@ -6,6 +6,12 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Add database indexes for PersonalRecord queries
+
+- **Why:** PR detection queries `PersonalRecord` by `(user, exercise)` for lookups and `(user, achieved_date)` for the `prs_30d` count used by the plateau rule. Without indexes, these become full table scans as PR history grows.
+- **Added:** `pr_user_exercise_idx` on `(user, exercise)` and `pr_user_date_idx` on `(user, achieved_date)`
+- **Files:** `apps/health/models.py`, `apps/health/migrations/0056_add_pr_indexes.py`
+
 ## 2026-03-08 — Implement automatic PR detection for workout sets
 
 - **Root cause:** The `PersonalRecord` model and `ExerciseSet.is_pr` flag existed but had no automatic detection logic. PRs were only recorded if manually flagged by the user or AI. The `StrengthPlateauRule` checked `prs_30d` (always 0), producing false "strength plateau" insights for every active user, including Danny who was actively increasing weights/reps/sets.

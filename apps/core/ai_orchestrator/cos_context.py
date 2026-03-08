@@ -46,7 +46,7 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 # Max worker threads for parallel context assembly
-_PARALLEL_MAX_WORKERS = 6
+_PARALLEL_MAX_WORKERS = 3  # Reduced from 6 to limit DB connection usage
 
 
 # =========================================================================
@@ -986,7 +986,9 @@ _PARALLEL_BUILDERS = [
     lambda user, prefs: _build_recent_image_analyses(user),
     lambda user, prefs: _build_meals_context(user),
     lambda user, prefs: _build_faith_context(user),
-    lambda user, prefs: _build_situational_awareness_context(user),
+    # v8 SA builder temporarily disabled for production stability debugging.
+    # Re-enable after confirming 524 timeout root cause.
+    # lambda user, prefs: _build_situational_awareness_context(user),
 ]
 
 

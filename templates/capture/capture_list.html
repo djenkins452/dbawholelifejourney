@@ -60,6 +60,21 @@
         {% endif %}
     </div>
 
+    <!-- Local recordings banner (populated by JS from IndexedDB) -->
+    <div id="local-recordings-banner" class="card mb-4" style="display: none; padding: 1rem 1.5rem; border-left: 4px solid #f59e0b; background: #fffbeb;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+            <div>
+                <span style="font-weight: 600; color: #92400e;">&#128190; <span id="local-recordings-count">1</span> unsaved recording<span id="local-recordings-plural">s</span> on this device</span>
+                <p style="font-size: 0.8125rem; color: #92400e; margin: 0.25rem 0 0;">
+                    These recordings are saved locally and waiting to be uploaded.
+                </p>
+            </div>
+            <a href="{% url 'capture:record' %}" class="btn btn-primary btn-sm">
+                Upload Now
+            </a>
+        </div>
+    </div>
+
     {% if active_category or active_subcategory or search_query %}
     <div class="filter-summary mb-4" style="font-size: 0.875rem; color: var(--color-text-secondary);">
         Showing {{ filtered_count }} result{{ filtered_count|pluralize }}
@@ -656,4 +671,79 @@
     });
 </script>
 <script src="{% static 'js/dynamic-search.js' %}" nonce="{{ csp_nonce }}"></script>
+<script nonce="{{ csp_nonce }}">
+// Check IndexedDB for unsaved local recordings
+(function() {
+    const DB_NAME = 'WLJCaptureQueue';
+    const DB_VERSION = 1;
+    const RECORDINGS_STORE = 'recordings';
+    const MAX_AGE_DAYS = 7;
+
+    function checkLocalRecordings() {
+        try {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+            request.onerror = function() { /* IndexedDB not available */ };
+            request.onupgradeneeded = function(event) {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains(RECORDINGS_STORE)) {
+                    const store = db.createObjectStore(RECORDINGS_STORE, { keyPath: 'clientId' });
+                    store.createIndex('uploadStatus', 'uploadStatus', { unique: false });
+                    store.createIndex('createdAt', 'createdAt', { unique: false });
+                }
+            };
+            request.onsuccess = function() {
+                const db = request.result;
+                try {
+                    const tx = db.transaction(RECORDINGS_STORE, 'readonly');
+                    const store = tx.objectStore(RECORDINGS_STORE);
+                    const cursorReq = store.openCursor();
+                    let pendingCount = 0;
+                    const cutoff = Date.now() - (MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
+
+                    cursorReq.onsuccess = function(event) {
+                        const cursor = event.target.result;
+                        if (cursor) {
+                            const record = cursor.value;
+                            if (record.uploadStatus !== 'completed' &&
+                                record.uploadStatus !== 'abandoned' &&
+                                record.uploadStatus !== 'uploaded' &&
+                                record.createdAt > cutoff) {
+                                pendingCount++;
+                            }
+                            cursor.continue();
+                        } else {
+                            db.close();
+                            if (pendingCount > 0) {
+                                showBanner(pendingCount);
+                            }
+                        }
+                    };
+                    cursorReq.onerror = function() { db.close(); };
+                } catch (e) {
+                    db.close();
+                }
+            };
+        } catch (e) {
+            /* IndexedDB not supported */
+        }
+    }
+
+    function showBanner(count) {
+        var banner = document.getElementById('local-recordings-banner');
+        var countEl = document.getElementById('local-recordings-count');
+        var pluralEl = document.getElementById('local-recordings-plural');
+        if (banner) {
+            countEl.textContent = count;
+            pluralEl.textContent = count === 1 ? '' : 's';
+            banner.style.display = 'block';
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', checkLocalRecordings);
+    } else {
+        checkLocalRecordings();
+    }
+})();
+</script>
 {% endblock %}

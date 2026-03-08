@@ -47,6 +47,8 @@
         <p id="recovery-info" style="color: var(--color-text-secondary); margin-bottom: 0.5rem;">
             Duration: --:--
         </p>
+        <p id="recovery-age" style="font-size: 0.8125rem; color: var(--color-text-secondary); margin-bottom: 0.5rem; display: none;">
+        </p>
         <p id="recovery-partial-note" style="font-size: 0.875rem; color: #f59e0b; margin-bottom: 1.5rem; display: none;">
             &#9888; This recording was interrupted and may be incomplete.
         </p>
@@ -106,7 +108,7 @@
             </div>
             <!-- Backup indicator -->
             <p id="backup-indicator" style="font-size: 0.75rem; color: #059669; margin-bottom: 1.5rem; display: none;">
-                &#128190; Auto-saving every 30 seconds
+                &#128190; Auto-saving every 10 seconds
             </p>
             <p style="color: var(--color-text-secondary); margin-bottom: 2rem; font-size: 0.875rem;">
                 Maximum: 60 minutes
@@ -347,7 +349,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const MAX_DURATION_MS = 60 * 60 * 1000; // 60 minutes
     const POLLING_INTERVAL_MS = 2000;
-    const BACKUP_INTERVAL_MS = 30000; // 30 seconds
+    const BACKUP_INTERVAL_MS = 10000; // 10 seconds — minimize data loss on crash
     const MAX_UPLOAD_RETRIES = 5;
     const RETRY_DELAYS = [2000, 5000, 10000, 20000, 30000]; // Exponential backoff
     const OFFLINE_CHECK_INTERVAL = 3000; // Poll for connectivity every 3s
@@ -781,6 +783,36 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // Emergency backup when tab goes to background or page is being unloaded.
+    // On iOS, the OS can kill background tabs without firing beforeunload.
+    // visibilitychange + pagehide ensure we save before that happens.
+    async function emergencyBackup() {
+        if (!isRecording || !currentClientId || audioChunks.length === 0) return;
+        try {
+            const mimeType = mediaRecorder?.mimeType || 'audio/webm';
+            const currentBlob = new Blob(audioChunks, { type: mimeType });
+            let currentPausedTime = pausedTime;
+            if (isPaused && pauseStartTime) {
+                currentPausedTime += Date.now() - pauseStartTime;
+            }
+            const currentDuration = Date.now() - recordingStartTime - currentPausedTime;
+            await updateRecordingBackup(currentClientId, currentBlob, currentDuration);
+            console.log('[Capture] Emergency backup saved');
+        } catch (e) {
+            console.error('[Capture] Emergency backup failed:', e);
+        }
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            emergencyBackup();
+        }
+    });
+
+    window.addEventListener('pagehide', () => {
+        emergencyBackup();
+    });
 
     // =============================================================================
     // Recording Functions
@@ -1348,6 +1380,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
         document.getElementById('recovery-info').textContent = 'Duration: ' + formatTime(recording.durationMs);
 
+        // Show recording age
+        const recoveryAge = document.getElementById('recovery-age');
+        if (recording.createdAt) {
+            const ageMs = Date.now() - recording.createdAt;
+            const ageMinutes = Math.floor(ageMs / 60000);
+            const ageHours = Math.floor(ageMs / 3600000);
+            const ageDays = Math.floor(ageMs / 86400000);
+            let ageText;
+            if (ageDays > 0) {
+                ageText = `Saved ${ageDays} day${ageDays > 1 ? 's' : ''} ago`;
+            } else if (ageHours > 0) {
+                ageText = `Saved ${ageHours} hour${ageHours > 1 ? 's' : ''} ago`;
+            } else {
+                ageText = `Saved ${ageMinutes} minute${ageMinutes !== 1 ? 's' : ''} ago`;
+            }
+            recoveryAge.textContent = ageText;
+            recoveryAge.style.display = 'block';
+        }
+
         if (recording.isPartial) {
             document.getElementById('recovery-partial-note').style.display = 'block';
         } else {
@@ -1522,15 +1573,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (pendingRecording) {
             // Check if recording is recent (within last 24 hours)
-            const hoursSinceRecording = (Date.now() - pendingRecording.createdAt) / (1000 * 60 * 60);
+            const daysSinceRecording = (Date.now() - pendingRecording.createdAt) / (1000 * 60 * 60 * 24);
 
-            if (hoursSinceRecording < 24) {
+            if (daysSinceRecording < 7) {
                 // Show recovery prompt
                 await showRecoveryPrompt(pendingRecording);
-                console.log(`Found pending recording from ${Math.round(hoursSinceRecording * 60)} minutes ago`);
+                const ageText = daysSinceRecording < 1
+                    ? `${Math.round(daysSinceRecording * 24 * 60)} minutes`
+                    : `${Math.round(daysSinceRecording)} days`;
+                console.log(`Found pending recording from ${ageText} ago`);
                 return;
             } else {
-                // Recording is too old, clean it up
+                // Recording is over 7 days old, clean it up
                 await deleteRecording(pendingRecording.clientId);
             }
         }

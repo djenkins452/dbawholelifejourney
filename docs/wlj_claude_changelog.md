@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Phase 2A: Durable local recording — harden IndexedDB persistence
+
+- **Problem:** Although IndexedDB persistence existed, several gaps could still lose recordings:
+  1. No emergency backup when tab goes to background (iOS kills background tabs without `beforeunload`)
+  2. Periodic backup interval was 30 seconds — up to 30s of audio lost on hard crash
+  3. Stale recordings silently deleted after 24 hours — too aggressive
+  4. No indication of pending local recordings on the Capture List page
+  5. Recovery prompt didn't show how old the recording was
+- **Changes:**
+  - Added `visibilitychange` and `pagehide` event handlers for immediate IndexedDB backup when tab loses focus or page is being unloaded (critical for iOS)
+  - Reduced periodic backup interval from 30 seconds to 10 seconds to minimize data loss on crash
+  - Extended stale recording window from 24 hours to 7 days — recordings are preserved much longer before cleanup
+  - Added pending local recordings banner to Capture List page — scans IndexedDB and shows amber banner with count + "Upload Now" link when unsaved recordings exist
+  - Recovery prompt now shows recording age ("Saved 5 minutes ago", "Saved 2 days ago")
+- **Files changed:**
+  - `templates/capture/capture_record.html` — emergency backup handlers, reduced backup interval, extended stale window, recovery age display
+  - `templates/capture/capture_list.html` — IndexedDB-powered pending recordings banner
+
 ## 2026-03-08 — Capture stabilization: prevent data loss and improve upload reliability
 
 - **Problem:** The Capture feature lost audio recordings on weak cellular signal because:

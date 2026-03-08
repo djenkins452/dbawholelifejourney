@@ -461,6 +461,9 @@ LIFE/TASKS:
 - "add a task today at 5pm - 6pm to Gather Tax Papers" → create_task(title="Gather Tax Papers", due_date="today", scheduled_time="17:00", end_time="18:00")
 - "task from 2pm to 3:30pm tomorrow: Team sync" → create_task(title="Team sync", due_date="tomorrow", scheduled_time="14:00", end_time="15:30")
 - "I finished the laundry task" → complete_task(task_keyword="laundry")
+- "skip the grocery task" → skip_task(task_keyword="grocery")
+- "I'm going to pass on the dentist task" → skip_task(task_keyword="dentist")
+- "skip my workout task, not feeling well" → skip_task(task_keyword="workout", reason="not feeling well")
 - "what time is my jeep task?" → read_task(task_keyword="jeep")
 - "show me my tasks for today" → read_task(date_filter="today")
 - "when is the grocery task due?" → read_task(task_keyword="grocery")
@@ -658,6 +661,11 @@ Examples:
             'verbs': {'complete', 'finish', 'done'},
             'keywords': {'task', 'to-do', 'todo', 'to do'},
             'function': 'complete_task',
+        },
+        'task_skip': {
+            'verbs': {'skip', 'pass'},
+            'keywords': {'task', 'to-do', 'todo', 'to do'},
+            'function': 'skip_task',
         },
         'task_mutate': {
             'verbs': {
@@ -1159,6 +1167,9 @@ Examples:
 
             elif intent_type == 'complete_task':
                 return handler.handle_complete_task(**parameters)
+
+            elif intent_type == 'skip_task':
+                return handler.handle_skip_task(**parameters)
 
             elif intent_type == 'read_task':
                 return handler.handle_read_task(**parameters)

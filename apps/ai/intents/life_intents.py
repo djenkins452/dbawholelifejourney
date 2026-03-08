@@ -131,6 +131,27 @@ LIFE_INTENT_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "skip_task",
+            "description": "Mark a task as skipped. Use when user says they want to skip, pass on, or intentionally not do a task. NOT the same as completing.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_keyword": {
+                        "type": "string",
+                        "description": "Keywords to identify which task to skip"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Optional reason for skipping"
+                    }
+                },
+                "required": ["task_keyword"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "read_task",
             "description": "Look up task details. Use when user asks about a specific task's time, due date, status, or details. Examples: 'what time is my jeep task?', 'when is the grocery task due?', 'show me my tasks for today'.",
             "parameters": {

@@ -229,7 +229,7 @@ class ActionHandler:
 
         base_qs = Task.objects.filter(user=self.user, status='active')
         if not include_completed:
-            base_qs = base_qs.filter(is_completed=False)
+            base_qs = base_qs.filter(completion_status='pending')
 
         query_stripped = query.strip()
 
@@ -2972,7 +2972,7 @@ class ActionHandler:
                 week_end = today + dt.timedelta(days=(6 - today.weekday()))
                 due_this_week = Task.objects.filter(
                     user=self.user,
-                    is_completed=False,
+                    completion_status='pending',
                     status='active',
                     due_date__lte=week_end,
                 ).count()
@@ -3226,6 +3226,77 @@ class ActionHandler:
                 success=False,
                 message="Sorry, I couldn't complete that task.",
                 error=str(e)
+            )
+
+    def handle_skip_task(self, task_keyword: str, reason: str = "", **kwargs) -> ActionResult:
+        """Mark a task as skipped (intentionally not completed)."""
+        from apps.life.models import Task
+
+        try:
+            resolved_id = kwargs.get('_resolved_id')
+            if resolved_id:
+                try:
+                    tasks = [Task.objects.get(
+                        pk=resolved_id, user=self.user, status='active',
+                    )]
+                except Task.DoesNotExist:
+                    return ActionResult(
+                        success=False,
+                        message="That task no longer exists.",
+                        error='task_not_found',
+                        action_type='skip_task',
+                    )
+            else:
+                tasks, _ = self._resolve_tasks_by_query(task_keyword)
+
+            count = len(tasks)
+
+            if count == 0:
+                return ActionResult(
+                    success=False,
+                    message=f"I couldn't find a pending task matching '{task_keyword}'.",
+                    error='task_not_found',
+                    action_type='skip_task',
+                )
+            elif count == 1:
+                task = tasks[0]
+                if reason:
+                    task.notes = (task.notes + "\nSkipped: " + reason).strip() if task.notes else "Skipped: " + reason
+                    task.save(update_fields=['notes', 'updated_at'])
+                task.mark_skipped()
+
+                return ActionResult(
+                    success=True,
+                    message=f"Skipped: {task.title}",
+                    created_object={
+                        'model': 'Task',
+                        'id': task.id,
+                        'title': task.title,
+                        'completion_status': 'skipped',
+                    },
+                    action_type='skip_task',
+                    confirmation_detail=self._build_confirmation(
+                        what=task.title,
+                        where="Organize > Tasks",
+                    )
+                )
+            else:
+                candidates = [{'id': t.id, 'title': t.title} for t in tasks[:5]]
+                titles = [f"• {c['title']}" for c in candidates]
+                return ActionResult(
+                    success=False,
+                    message=f"I found {count} tasks matching '{task_keyword}':\n" + "\n".join(titles) + "\nWhich one?",
+                    error='multiple_matches',
+                    action_type='skip_task',
+                    created_object={'candidates': candidates},
+                )
+
+        except Exception as e:
+            logger.error(f"Error skipping task: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't skip that task.",
+                error=str(e),
             )
 
     def handle_mutate_task(
@@ -3558,7 +3629,7 @@ class ActionHandler:
             qs = Task.objects.filter(user=self.user, status='active')
 
             if not include_completed:
-                qs = qs.filter(is_completed=False)
+                qs = qs.filter(completion_status='pending')
 
             # Keyword filter
             if task_keyword:
@@ -3578,7 +3649,7 @@ class ActionHandler:
                     week_end = today + dt.timedelta(days=(6 - today.weekday()))
                     qs = qs.filter(due_date__gte=today, due_date__lte=week_end)
                 elif df == 'overdue':
-                    qs = qs.filter(due_date__lt=today, is_completed=False)
+                    qs = qs.filter(due_date__lt=today, completion_status='pending')
                 else:
                     try:
                         filter_date = dt.datetime.strptime(df, '%Y-%m-%d').date()

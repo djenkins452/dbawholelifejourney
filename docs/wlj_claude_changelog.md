@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Fix site-wide slowness: OpenAI timeout + Gunicorn workers
+
+- **What:** All pages slow (15-30s) even after 7 hours with APScheduler disabled. Root cause: every module home page (Journal, Life, Faith, Health, Purpose) makes a synchronous OpenAI API call in `get_context_data`. With `LLM_TIMEOUT_SECONDS=15` and only 1-2 Gunicorn workers (no `--workers` flag!), each OpenAI call blocks a worker for up to 15 seconds. Two concurrent users = entire site freezes. Gunicorn `--timeout 300` (5 minutes!) allowed workers to hang forever.
+- **Fix:**
+  1. Reduced `LLM_TIMEOUT_SECONDS` from 15 to 3 — OpenAI calls fast-fail if slow
+  2. Added `--workers 4` to Procfile — 4x concurrency
+  3. Reduced `--timeout` from 300 to 30 — kill stuck workers faster
+- **Files:** `apps/ai/services.py`, `Procfile`
+
+---
+
 ## 2026-03-08 — EMERGENCY: Disable APScheduler + skip all dashboard heavy calls
 
 - **What:** Journal save 30+ seconds, dashboard still 524 even with ThreadPoolExecutor timeout. Root cause: APScheduler runs inside Gunicorn with 15 jobs. After downtime, ALL overdue jobs fire simultaneously, saturating PostgreSQL connections. Even simple DB writes (journal save) starved.

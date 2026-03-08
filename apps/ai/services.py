@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # LLM call resilience defaults
 LLM_MAX_RETRIES = 3
 LLM_BASE_BACKOFF_SECONDS = 1.0  # doubles each retry: 1s, 2s, 4s
-LLM_TIMEOUT_SECONDS = 15  # per-request timeout
+LLM_TIMEOUT_SECONDS = 3  # per-request timeout (emergency: fast-fail to unblock sync workers)
 
 # ==========================================================================
 # OpenAI Client Singleton — Thread-safe, connection-pooling

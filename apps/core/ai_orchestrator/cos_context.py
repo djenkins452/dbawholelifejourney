@@ -453,6 +453,11 @@ def _build_health_and_vitals(user):
                 if fitness.get('recent_workouts'):
                     health_signals['recent_workouts'] = fitness['recent_workouts']
 
+            # Per-exercise progress (plateau detection, e1RM trends)
+            exercise_progress = fitness.get('exercise_progress', [])
+            if exercise_progress:
+                health_signals['exercise_progress'] = exercise_progress
+
             hr_events = get_state_value(user, 'health.heart_rate_events_7d')
             if hr_events and hr_events > 0:
                 health_signals['heart_rate_events_7d'] = hr_events
@@ -2304,6 +2309,39 @@ def format_cos_system_injection(context):
             lines.append("Health Signals (7-day):")
             for hl in health_lines:
                 lines.append(f"  {hl}")
+
+    # Per-exercise strength progress — exercise-specific trends and plateau status
+    exercise_progress = health_sig.get('exercise_progress', []) if health_sig else []
+    if exercise_progress:
+        lines.append("")
+        lines.append(
+            "EXERCISE PROGRESS (30-day, use when discussing specific exercises or workout progress):"
+        )
+        for ep in exercise_progress:
+            name = ep.get('exercise', 'Unknown')
+            status = ep.get('status', 'unknown')
+            trend = ep.get('trend', 'unknown')
+            sets_30d = ep.get('sets_30d', 0)
+            prs = ep.get('prs_30d', 0)
+            best_e1rm = ep.get('best_e1rm')
+            recent_e1rm = ep.get('recent_e1rm')
+
+            # Build a concise one-line summary per exercise
+            status_labels = {
+                'improving': '↑ improving',
+                'plateau': '→ plateau',
+                'regressing': '↓ regressing',
+                'new': '★ new',
+            }
+            status_label = status_labels.get(status, status)
+
+            parts = [f"{name}: {status_label}"]
+            if recent_e1rm:
+                parts.append(f"e1RM {recent_e1rm:.0f}")
+            if prs > 0:
+                parts.append(f"{prs} PR{'s' if prs != 1 else ''} this month")
+            parts.append(f"{sets_30d} sets / 30d")
+            lines.append(f"  {' | '.join(parts)}")
 
     # Health Intelligence Engine — system-calculated scores, protein, trends
     # These are the AUTHORITATIVE values CoS MUST use (never LLM guesses)

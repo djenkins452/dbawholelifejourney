@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-08 (Engine telemetry + Celery execution architecture fix)
+**Last updated:** 2026-03-08 (Exercise progress data piped to CoS prompt for Beth)
 
 ---
 
@@ -227,7 +227,7 @@ Uses `ThreadPoolExecutor(max_workers=6)`.
 | Blueprint & Governance | `_build_blueprint_and_governance()` | Blueprint, Persona | operating_style, protected_tiers, persona |
 | Plan & Alignment | `_build_plan_and_alignment()` | ArchitecturePlan, Drift | capacity, alignment_score, drift_probability |
 | Pressure & Deadlines | `_build_pressure_and_deadlines()` | **SAE intervention** | weekly_pressure, deadline_snapshot |
-| Health & Vitals | `_build_health_and_vitals()` | **SAE health/fitness**, FastingSession, medicine_utils | weight, trend, vitals, workouts, fasting, medication |
+| Health & Vitals | `_build_health_and_vitals()` | **SAE health/fitness**, FastingSession, medicine_utils | weight, trend, vitals, workouts, fasting, medication, **exercise_progress** (per-exercise e1RM trends & plateau status) |
 | Calendar Events | `_build_calendar_events()` | CalendarEvent (live) | events with time_status markers |
 | Intelligence Signals | `_build_intelligence_signals()` | Insight, Prediction, Guidance (engine output) | active insights/predictions/guidance |
 | People & Mood | `_build_people_and_mood()` | JournalEntry, Relationships | mood_trends, relationship_signals |

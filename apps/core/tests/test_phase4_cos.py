@@ -11,7 +11,7 @@ Tests for:
 
 from unittest.mock import patch, MagicMock
 
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from apps.users.models import User
 
@@ -1890,3 +1890,156 @@ class EnforcementEscalationLadderTest(TestCase):
         output = _format_decision_branch_injection(gate, ACTIVATION_CLEAN)
         self.assertIn('This pattern ends now', output)
         self.assertNotIn('Shortest possible', output)
+
+
+class ExerciseProgressInCoSTest(SimpleTestCase):
+    """Tests that per-exercise progress data flows through to Beth's prompt.
+
+    Uses SimpleTestCase — all tests work with pre-built context dicts or mocks,
+    no database needed.
+    """
+
+    def _make_context_with_exercise_progress(self, exercise_progress):
+        """Build a minimal CoS context dict with exercise_progress in health_signals."""
+        return {
+            'health_signals': {
+                'exercise_progress': exercise_progress,
+                'workout_count_7d': 3,
+            },
+            'active_insights': [],
+            'active_predictions': [],
+            'active_guidance': [],
+            'cross_domain_correlations': [],
+        }
+
+    def test_exercise_progress_rendered_in_prompt(self):
+        """Exercise progress data appears in the formatted prompt output."""
+        from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
+
+        context = self._make_context_with_exercise_progress([
+            {
+                'exercise': 'Bench Press',
+                'status': 'plateau',
+                'trend': 'flat',
+                'sets_30d': 18,
+                'prs_30d': 0,
+                'best_e1rm': 208.1,
+                'recent_e1rm': 208.1,
+                'prior_e1rm': 207.0,
+                'sessions_30d': 6,
+            },
+            {
+                'exercise': 'Squat',
+                'status': 'improving',
+                'trend': 'up',
+                'sets_30d': 24,
+                'prs_30d': 2,
+                'best_e1rm': 315.0,
+                'recent_e1rm': 315.0,
+                'prior_e1rm': 295.0,
+                'sessions_30d': 6,
+            },
+        ])
+        output = format_cos_system_injection(context)
+        self.assertIn('EXERCISE PROGRESS', output)
+        self.assertIn('Bench Press', output)
+        self.assertIn('plateau', output)
+        self.assertIn('Squat', output)
+        self.assertIn('improving', output)
+
+    def test_exercise_progress_shows_pr_count(self):
+        """PR count is rendered when > 0."""
+        from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
+
+        context = self._make_context_with_exercise_progress([
+            {
+                'exercise': 'Deadlift',
+                'status': 'improving',
+                'trend': 'up',
+                'sets_30d': 12,
+                'prs_30d': 3,
+                'best_e1rm': 405.0,
+                'recent_e1rm': 405.0,
+                'prior_e1rm': 380.0,
+                'sessions_30d': 4,
+            },
+        ])
+        output = format_cos_system_injection(context)
+        self.assertIn('3 PRs this month', output)
+        self.assertIn('e1RM 405', output)
+
+    def test_exercise_progress_shows_singular_pr(self):
+        """Single PR rendered without 's'."""
+        from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
+
+        context = self._make_context_with_exercise_progress([
+            {
+                'exercise': 'OHP',
+                'status': 'improving',
+                'trend': 'up',
+                'sets_30d': 8,
+                'prs_30d': 1,
+                'best_e1rm': 135.0,
+                'recent_e1rm': 135.0,
+                'prior_e1rm': 130.0,
+                'sessions_30d': 3,
+            },
+        ])
+        output = format_cos_system_injection(context)
+        self.assertIn('1 PR this month', output)
+        self.assertNotIn('1 PRs', output)
+
+    def test_no_exercise_progress_no_section(self):
+        """When exercise_progress is empty, section is omitted."""
+        from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
+
+        context = self._make_context_with_exercise_progress([])
+        output = format_cos_system_injection(context)
+        self.assertNotIn('EXERCISE PROGRESS', output)
+
+    def test_exercise_progress_missing_from_health_signals(self):
+        """When exercise_progress key is missing entirely, no crash."""
+        from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
+
+        context = {
+            'health_signals': {'workout_count_7d': 3},
+            'active_insights': [],
+            'active_predictions': [],
+            'active_guidance': [],
+            'cross_domain_correlations': [],
+        }
+        output = format_cos_system_injection(context)
+        self.assertNotIn('EXERCISE PROGRESS', output)
+
+    @patch('apps.core.ai_state.state_engine.get_module_state')
+    @patch('apps.core.ai_state.state_engine.get_state_value', return_value=None)
+    def test_exercise_progress_flows_from_sae_to_health_signals(
+        self, mock_get_sv, mock_get_state
+    ):
+        """_build_health_and_vitals grabs exercise_progress from fitness state."""
+        from apps.core.ai_orchestrator.cos_context import _build_health_and_vitals
+
+        mock_user = MagicMock()
+        mock_user.pk = 999
+
+        mock_get_state.return_value = {
+            'workouts_7d': 4,
+            'exercise_progress': [
+                {
+                    'exercise': 'Bench Press',
+                    'status': 'plateau',
+                    'trend': 'flat',
+                    'sets_30d': 18,
+                    'prs_30d': 0,
+                    'best_e1rm': 208.1,
+                    'recent_e1rm': 208.1,
+                },
+            ],
+        }
+
+        result = _build_health_and_vitals(mock_user)
+
+        health_signals = result.get('health_signals', {})
+        self.assertIn('exercise_progress', health_signals)
+        self.assertEqual(len(health_signals['exercise_progress']), 1)
+        self.assertEqual(health_signals['exercise_progress'][0]['exercise'], 'Bench Press')

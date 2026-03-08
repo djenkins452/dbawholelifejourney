@@ -1,4 +1,4 @@
-web: python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file - --timeout 300
+web: gunicorn config.wsgi --log-file - --timeout 300
 worker: celery -A config worker --loglevel=info --concurrency=2
 beat: celery -A config beat --loglevel=info
 # Updated: 2026-03-07 — Added guide sync commands to boot

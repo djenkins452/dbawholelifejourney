@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — EMERGENCY: Disable APScheduler + skip all dashboard heavy calls
+
+- **What:** Journal save 30+ seconds, dashboard still 524 even with ThreadPoolExecutor timeout. Root cause: APScheduler runs inside Gunicorn with 15 jobs. After downtime, ALL overdue jobs fire simultaneously, saturating PostgreSQL connections. Even simple DB writes (journal save) starved.
+- **Fix:**
+  1. Disabled APScheduler entirely in `config/wsgi.py` (early return with warning log)
+  2. Dashboard `get_context_data` now skips ALL heavy calls (AI, engines, data gathering) — returns safe defaults only (basic page with module flags)
+  3. No more ThreadPoolExecutor (zombie threads held DB connections)
+- **Files:** `config/wsgi.py`, `apps/dashboard/views.py`
+- **To restore:** Remove early return in `wsgi.py:start_scheduler()`, restore dashboard calls in `get_context_data`
+
+---
+
 ## 2026-03-08 — EMERGENCY: Dashboard safe mode — 8s hard timeout on all heavy calls
 
 - **What:** First fix (max_retries=0) deployed but dashboard still 524. The entire heavy context chain (AI insights, engine calls, data gathering, command brief) collectively blocks for 2+ minutes even without OpenAI retries.

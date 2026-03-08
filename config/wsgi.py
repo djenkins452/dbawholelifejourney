@@ -56,6 +56,13 @@ def start_scheduler():
 
     logger = logging.getLogger('scheduler')
 
+    # EMERGENCY 2026-03-08: Scheduler disabled to stop DB connection saturation.
+    # After downtime, all overdue jobs fire simultaneously, exhausting DB pool
+    # and starving web requests (journal save 30s+, dashboard 524).
+    # Re-enable once system is stable by removing this block.
+    logger.warning("APScheduler DISABLED (emergency mode) — re-enable in wsgi.py when stable")
+    return
+
     # Layer 1: Skip in development
     if settings.DEBUG:
         logger.info("Scheduler skipped: DEBUG mode is enabled")

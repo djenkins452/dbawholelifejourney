@@ -109,111 +109,14 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             context["finances_enabled"] = prefs.finances_enabled
             context["ai_enabled"] = prefs.ai_enabled
 
-            # ── EMERGENCY SAFE MODE ──────────────────────────────────
-            # All heavy AI/engine calls run inside a single thread with
-            # a hard 8-second deadline. If ANYTHING blocks (OpenAI 429
-            # retries, slow DB, hung engine), the dashboard still renders
-            # with safe defaults.  Remove this wrapper once stable.
-            # ─────────────────────────────────────────────────────────
-            def _load_heavy_context():
-                """All potentially-slow calls bundled together."""
-                heavy = {}
-
-                # Gather all user data
-                user_data = self._gather_comprehensive_data(user, prefs)
-                heavy["user_data"] = user_data
-
-                # AI Insights
-                if prefs.ai_enabled:
-                    heavy["ai_insights"] = self._get_ai_insights(user, prefs, user_data)
-                else:
-                    heavy["ai_insights"] = None
-
-                # Quick stats
-                heavy["quick_stats"] = self._get_quick_stats(user_data)
-
-                # Weather
-                heavy["weather"] = self._get_weather_data(user)
-
-                # AI Profile nudge
-                heavy["show_ai_profile_nudge"] = self._should_show_ai_profile_nudge(prefs)
-
-                # Quarterly Review
-                heavy["quarterly_review"] = self._get_quarterly_review(user, prefs, user_data)
-
-                # SAE state
-                try:
-                    from apps.core.ai_state.state_engine import get_user_state
-                    heavy["user_state"] = get_user_state(user)
-                except Exception:
-                    heavy["user_state"] = {}
-
-                # Daily Briefing — DB read only, skip generation
-                try:
-                    from apps.core.ai_briefing.briefing_engine import get_todays_briefing
-                    briefing = get_todays_briefing(user)
-                    heavy["daily_briefing"] = briefing
-                    if briefing:
-                        try:
-                            from apps.core.ai_feedback.briefing_tracker import record_briefing_opened
-                            record_briefing_opened(user, "daily_briefing", briefing.id)
-                        except Exception:
-                            pass
-                except Exception:
-                    heavy["daily_briefing"] = None
-
-                # Weekly Report — DB read only
-                try:
-                    from apps.core.ai_weekly_report.report_engine import get_latest_weekly_report
-                    report = get_latest_weekly_report(user)
-                    heavy["weekly_report"] = report
-                    if report:
-                        try:
-                            from apps.core.ai_feedback.briefing_tracker import record_briefing_opened
-                            record_briefing_opened(user, "weekly_report", report.id)
-                        except Exception:
-                            pass
-                except Exception:
-                    heavy["weekly_report"] = None
-
-                # Guidance
-                try:
-                    from apps.core.ai_guidance.guidance_engine import get_active_guidance
-                    heavy["guidance_items"] = list(get_active_guidance(user, limit=5))
-                except Exception:
-                    heavy["guidance_items"] = []
-
-                # Command Brief
-                heavy["command_brief"] = self._get_command_brief(user, prefs)
-
-                # Command Mode
-                heavy["command_mode"] = self._get_command_mode(
-                    user, prefs, heavy.get("command_brief"),
-                )
-
-                # Dashboard tiles
-                config_service = DashboardConfigService(user)
-                heavy["dashboard_tiles"] = config_service.get_config().get('tiles', [])
-                heavy["dashboard_setup_complete"] = prefs.dashboard_setup_complete
-                heavy["show_dashboard_setup_banner"] = not prefs.dashboard_setup_complete
-
-                # Relational Health
-                try:
-                    from apps.relationships.services import RelationalHealthService
-                    heavy["relational_health"] = RelationalHealthService.compute_health(user)
-                except Exception:
-                    heavy["relational_health"] = None
-
-                # Getting started
-                getting_started = self._get_getting_started_content(user, user_data, prefs)
-                all_steps_completed = all(step["completed"] for step in getting_started["steps"])
-                heavy["is_new_user"] = not all_steps_completed
-                heavy["getting_started_content"] = getting_started
-
-                return heavy
-
-            # Safe defaults if the heavy context times out
-            SAFE_DEFAULTS = {
+            # ── EMERGENCY SAFE MODE (2026-03-08) ─────────────────────
+            # ALL heavy calls (AI, engines, data gathering) SKIPPED.
+            # APScheduler saturated DB connections after downtime,
+            # making even simple queries take 30+ seconds.
+            # Scheduler is also disabled in wsgi.py.
+            # TODO: Re-enable calls incrementally once DB is stable.
+            # ──────────────────────────────────────────────────────────
+            context.update({
                 "user_data": {},
                 "ai_insights": None,
                 "quick_stats": {},
@@ -229,23 +132,10 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 "dashboard_tiles": [],
                 "dashboard_setup_complete": prefs.dashboard_setup_complete,
                 "show_dashboard_setup_banner": not prefs.dashboard_setup_complete,
-                "finances_enabled": prefs.finances_enabled,
                 "relational_health": None,
                 "is_new_user": True,
                 "getting_started_content": {"steps": []},
-            }
-
-            try:
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(_load_heavy_context)
-                    heavy = future.result(timeout=8)
-                context.update(heavy)
-            except FuturesTimeout:
-                logger.error("Dashboard heavy context timed out (8s) — rendering safe mode")
-                context.update(SAFE_DEFAULTS)
-            except Exception as e:
-                logger.error(f"Dashboard heavy context failed: {e}", exc_info=True)
-                context.update(SAFE_DEFAULTS)
+            })
 
             return context
         except Exception as e:

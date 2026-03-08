@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — EMERGENCY: Dashboard safe mode — 8s hard timeout on all heavy calls
+
+- **What:** First fix (max_retries=0) deployed but dashboard still 524. The entire heavy context chain (AI insights, engine calls, data gathering, command brief) collectively blocks for 2+ minutes even without OpenAI retries.
+- **Fix:** Wrapped ALL heavy dashboard calls in a single `ThreadPoolExecutor` with 8-second hard timeout. If anything blocks, dashboard renders with safe defaults (empty tiles, no AI insights). Users see a basic dashboard instead of a 524.
+- **Files:** `apps/dashboard/views.py`
+
+---
+
 ## 2026-03-08 — EMERGENCY: Fix dashboard 524 timeout from OpenAI retry blocking
 
 - **What:** Dashboard returned 524 (Cloudflare timeout) because synchronous OpenAI API calls with `max_retries=5` blocked both Gunicorn sync workers for 30+ seconds each when OpenAI returned 429 (rate limited). APScheduler burst after downtime triggered the rate limit.

@@ -100,108 +100,152 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # Get daily encouragement (fallback if AI unavailable)
             context["encouragement"] = self._get_daily_encouragement(prefs.faith_enabled)
 
-            # Gather all user data for AI
-            user_data = self._gather_comprehensive_data(user, prefs)
-            context["user_data"] = user_data
-
-            # AI Insights (if enabled)
-            context["ai_enabled"] = prefs.ai_enabled
-            if prefs.ai_enabled:
-                context["ai_insights"] = self._get_ai_insights(user, prefs, user_data)
-            else:
-                context["ai_insights"] = None
-
-            # Quick stats for the header
-            context["quick_stats"] = self._get_quick_stats(user_data)
-
-            # Weather data (if user has location set)
-            context["weather"] = self._get_weather_data(user)
-
             # Module enabled flags for conditional display
             context["journal_enabled"] = prefs.journal_enabled
             context["health_enabled"] = prefs.health_enabled
             context["life_enabled"] = prefs.life_enabled
             context["purpose_enabled"] = prefs.purpose_enabled
             context["capture_enabled"] = prefs.capture_enabled
-
-            # AI Profile nudge - shown when AI is enabled but profile is empty/short
-            context["show_ai_profile_nudge"] = self._should_show_ai_profile_nudge(prefs)
-
-            # Quarterly Review tile - shows at start of each quarter
-            context["quarterly_review"] = self._get_quarterly_review(user, prefs, user_data)
-
-            # State Awareness Engine (SAE) — current state snapshot for tile
-            try:
-                from apps.core.ai_state.state_engine import get_user_state
-                context["user_state"] = get_user_state(user)
-            except Exception:
-                context["user_state"] = {}
-
-            # Daily Briefing Engine (DBE) — today's intelligence summary
-            try:
-                from apps.core.ai_briefing.briefing_engine import get_todays_briefing
-                briefing = get_todays_briefing(user)
-                context["daily_briefing"] = briefing
-                # Phase 4: Record briefing opened for engagement tracking
-                if briefing:
-                    try:
-                        from apps.core.ai_feedback.briefing_tracker import record_briefing_opened
-                        record_briefing_opened(user, "daily_briefing", briefing.id)
-                    except Exception:
-                        pass
-            except Exception:
-                context["daily_briefing"] = None
-
-            # Weekly Intelligence Report (WIRE) — latest weekly summary
-            try:
-                from apps.core.ai_weekly_report.report_engine import get_latest_weekly_report
-                report = get_latest_weekly_report(user)
-                context["weekly_report"] = report
-                # Phase 4: Record report opened for engagement tracking
-                if report:
-                    try:
-                        from apps.core.ai_feedback.briefing_tracker import record_briefing_opened
-                        record_briefing_opened(user, "weekly_report", report.id)
-                    except Exception:
-                        pass
-            except Exception:
-                context["weekly_report"] = None
-
-            # Proactive Guidance (PGE) — top items for dashboard tile
-            try:
-                from apps.core.ai_guidance.guidance_engine import get_active_guidance
-                context["guidance_items"] = list(get_active_guidance(user, limit=5))
-            except Exception:
-                context["guidance_items"] = []
-
-            # Chief of Staff — Command Brief (auto-architecture enforcement)
-            context["command_brief"] = self._get_command_brief(user, prefs)
-
-            # Chief of Staff — Command Mode (conversation-first login)
-            context["command_mode"] = self._get_command_mode(user, prefs, context.get("command_brief"))
-
-            # Dashboard tile configuration
-            config_service = DashboardConfigService(user)
-            context["dashboard_tiles"] = config_service.get_config().get('tiles', [])
-            context["dashboard_setup_complete"] = prefs.dashboard_setup_complete
-            context["show_dashboard_setup_banner"] = not prefs.dashboard_setup_complete
-
-            # Finance module flag
             context["finances_enabled"] = prefs.finances_enabled
+            context["ai_enabled"] = prefs.ai_enabled
 
-            # Relational Health (Phase R2) — summary for dashboard tile
+            # ── EMERGENCY SAFE MODE ──────────────────────────────────
+            # All heavy AI/engine calls run inside a single thread with
+            # a hard 8-second deadline. If ANYTHING blocks (OpenAI 429
+            # retries, slow DB, hung engine), the dashboard still renders
+            # with safe defaults.  Remove this wrapper once stable.
+            # ─────────────────────────────────────────────────────────
+            def _load_heavy_context():
+                """All potentially-slow calls bundled together."""
+                heavy = {}
+
+                # Gather all user data
+                user_data = self._gather_comprehensive_data(user, prefs)
+                heavy["user_data"] = user_data
+
+                # AI Insights
+                if prefs.ai_enabled:
+                    heavy["ai_insights"] = self._get_ai_insights(user, prefs, user_data)
+                else:
+                    heavy["ai_insights"] = None
+
+                # Quick stats
+                heavy["quick_stats"] = self._get_quick_stats(user_data)
+
+                # Weather
+                heavy["weather"] = self._get_weather_data(user)
+
+                # AI Profile nudge
+                heavy["show_ai_profile_nudge"] = self._should_show_ai_profile_nudge(prefs)
+
+                # Quarterly Review
+                heavy["quarterly_review"] = self._get_quarterly_review(user, prefs, user_data)
+
+                # SAE state
+                try:
+                    from apps.core.ai_state.state_engine import get_user_state
+                    heavy["user_state"] = get_user_state(user)
+                except Exception:
+                    heavy["user_state"] = {}
+
+                # Daily Briefing — DB read only, skip generation
+                try:
+                    from apps.core.ai_briefing.briefing_engine import get_todays_briefing
+                    briefing = get_todays_briefing(user)
+                    heavy["daily_briefing"] = briefing
+                    if briefing:
+                        try:
+                            from apps.core.ai_feedback.briefing_tracker import record_briefing_opened
+                            record_briefing_opened(user, "daily_briefing", briefing.id)
+                        except Exception:
+                            pass
+                except Exception:
+                    heavy["daily_briefing"] = None
+
+                # Weekly Report — DB read only
+                try:
+                    from apps.core.ai_weekly_report.report_engine import get_latest_weekly_report
+                    report = get_latest_weekly_report(user)
+                    heavy["weekly_report"] = report
+                    if report:
+                        try:
+                            from apps.core.ai_feedback.briefing_tracker import record_briefing_opened
+                            record_briefing_opened(user, "weekly_report", report.id)
+                        except Exception:
+                            pass
+                except Exception:
+                    heavy["weekly_report"] = None
+
+                # Guidance
+                try:
+                    from apps.core.ai_guidance.guidance_engine import get_active_guidance
+                    heavy["guidance_items"] = list(get_active_guidance(user, limit=5))
+                except Exception:
+                    heavy["guidance_items"] = []
+
+                # Command Brief
+                heavy["command_brief"] = self._get_command_brief(user, prefs)
+
+                # Command Mode
+                heavy["command_mode"] = self._get_command_mode(
+                    user, prefs, heavy.get("command_brief"),
+                )
+
+                # Dashboard tiles
+                config_service = DashboardConfigService(user)
+                heavy["dashboard_tiles"] = config_service.get_config().get('tiles', [])
+                heavy["dashboard_setup_complete"] = prefs.dashboard_setup_complete
+                heavy["show_dashboard_setup_banner"] = not prefs.dashboard_setup_complete
+
+                # Relational Health
+                try:
+                    from apps.relationships.services import RelationalHealthService
+                    heavy["relational_health"] = RelationalHealthService.compute_health(user)
+                except Exception:
+                    heavy["relational_health"] = None
+
+                # Getting started
+                getting_started = self._get_getting_started_content(user, user_data, prefs)
+                all_steps_completed = all(step["completed"] for step in getting_started["steps"])
+                heavy["is_new_user"] = not all_steps_completed
+                heavy["getting_started_content"] = getting_started
+
+                return heavy
+
+            # Safe defaults if the heavy context times out
+            SAFE_DEFAULTS = {
+                "user_data": {},
+                "ai_insights": None,
+                "quick_stats": {},
+                "weather": None,
+                "show_ai_profile_nudge": False,
+                "quarterly_review": None,
+                "user_state": {},
+                "daily_briefing": None,
+                "weekly_report": None,
+                "guidance_items": [],
+                "command_brief": None,
+                "command_mode": None,
+                "dashboard_tiles": [],
+                "dashboard_setup_complete": prefs.dashboard_setup_complete,
+                "show_dashboard_setup_banner": not prefs.dashboard_setup_complete,
+                "finances_enabled": prefs.finances_enabled,
+                "relational_health": None,
+                "is_new_user": True,
+                "getting_started_content": {"steps": []},
+            }
+
             try:
-                from apps.relationships.services import RelationalHealthService
-                context["relational_health"] = RelationalHealthService.compute_health(user)
-            except Exception:
-                context["relational_health"] = None
-
-            # New user detection for getting started tile
-            # Show tile if user hasn't completed ALL onboarding steps
-            getting_started = self._get_getting_started_content(user, user_data, prefs)
-            all_steps_completed = all(step["completed"] for step in getting_started["steps"])
-            context["is_new_user"] = not all_steps_completed
-            context["getting_started_content"] = getting_started
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(_load_heavy_context)
+                    heavy = future.result(timeout=8)
+                context.update(heavy)
+            except FuturesTimeout:
+                logger.error("Dashboard heavy context timed out (8s) — rendering safe mode")
+                context.update(SAFE_DEFAULTS)
+            except Exception as e:
+                logger.error(f"Dashboard heavy context failed: {e}", exc_info=True)
+                context.update(SAFE_DEFAULTS)
 
             return context
         except Exception as e:

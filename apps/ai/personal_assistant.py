@@ -2544,12 +2544,18 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             response_text = self._generate_response(
                 message="briefing",
                 conversation=conversation,
+                _defer_briefing_marking=True,  # We handle marking after quality checks
             )
 
-            # Detect fallback responses — don't save these as briefings
+            # Detect fallback responses — don't save these as briefings.
+            # Because build_executive_briefing() no longer marks
+            # last_briefing_date prematurely, returning None here is
+            # safe — the next message will get a fresh briefing attempt.
             if not response_text or len(response_text) < 50:
                 logger.warning(
-                    "v7_BRIEFING_FALLBACK user=%s len=%s",
+                    "v7_BRIEFING_FALLBACK user=%s len=%s — LLM returned "
+                    "short/empty response. Briefing not delivered; will "
+                    "retry on next interaction.",
                     self.user.id, len(response_text) if response_text else 0,
                 )
                 return None
@@ -2560,13 +2566,19 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 "What's the priority right now",
                 "What's blocking progress",
                 "I'm here to help",
+                "I'm here to assist",
                 "Let's think about what would help",
                 "What can I help you move forward on",
+                "How can I help",
+                "What needs your attention",
             ]
             if any(ind in (response_text or '') for ind in _fallback_indicators):
                 logger.warning(
-                    "v7_BRIEFING_FALLBACK_PATTERN user=%s",
-                    self.user.id,
+                    "v7_BRIEFING_FALLBACK_PATTERN user=%s — LLM generated "
+                    "a generic/weak response instead of a data-rich briefing. "
+                    "Briefing not delivered; will retry on next interaction. "
+                    "Preview: %s",
+                    self.user.id, (response_text or '')[:120],
                 )
                 return None
 
@@ -2585,9 +2597,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             )
 
             # ── v7.1 Part 1: Store ISO timestamp for precise cooldown ──
+            # Also mark briefing as delivered via canonical helper
+            from apps.ai.executive_briefing import mark_briefing_delivered
+            mark_briefing_delivered(conversation)
+            metadata = conversation.metadata or {}  # Re-read after mark
             metadata['last_briefing_at'] = timezone.now().isoformat()
-            # Keep last_briefing_date for build_executive_briefing() compat
-            metadata['last_briefing_date'] = str(today)
             conversation.metadata = metadata
             conversation.updated_at = timezone.now()
             conversation.save(update_fields=['metadata', 'updated_at'])
@@ -3842,6 +3856,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         cos_context_cache: dict = None,
         _return_context_only: bool = False,
         all_images: list = None,
+        _defer_briefing_marking: bool = False,
     ) -> str:
         """Generate AI response to user message using coaching style.
 
@@ -5359,7 +5374,7 @@ Rules for this response:
             _t_llm_start = _t_llm.monotonic()
             from django.conf import settings as django_settings
             _cos_model = getattr(django_settings, 'COS_MODEL', None)
-            response = ai_service._call_api(
+            _llm_response = ai_service._call_api(
                 system_prompt,
                 user_prompt,
                 max_tokens=max_tokens,
@@ -5371,8 +5386,52 @@ Rules for this response:
                 conversation_history=conversation_history,
                 all_images=all_images,
                 model=_cos_model,
-            ) or self._get_fallback_response(message)
+            )
+            _used_fallback = not _llm_response
+            response = _llm_response or self._get_fallback_response(message)
             logger.warning("COS LLM call took %.1f ms", (_t_llm.monotonic() - _t_llm_start) * 1000)
+
+            # ── Defensive: Log when briefing context is wasted ──────────
+            # If a briefing was injected but the LLM returned nothing (or
+            # a weak generic response), log prominently so we can detect
+            # silent degradation patterns in production.
+            if briefing and _used_fallback:
+                logger.error(
+                    "BRIEFING_LLM_FALLBACK user=%s — Executive briefing was "
+                    "injected but LLM returned empty/null. The user will "
+                    "receive a generic fallback instead of a morning briefing. "
+                    "Briefing NOT marked as delivered; will retry on next message.",
+                    self.user.id,
+                )
+            elif briefing and not _defer_briefing_marking:
+                # Check for weak/generic responses that ignore briefing data
+                _weak_indicators = [
+                    "I'm here to help",
+                    "I'm here to assist",
+                    "How can I help",
+                    "What can I help",
+                    "What needs your attention",
+                    "What do you need to get done",
+                    "What's the priority right now",
+                ]
+                _is_weak = any(ind in (response or '') for ind in _weak_indicators)
+                if _is_weak:
+                    logger.warning(
+                        "BRIEFING_WEAK_RESPONSE user=%s len=%s — LLM returned "
+                        "a generic response despite executive briefing injection. "
+                        "Briefing NOT marked as delivered; will retry on next message. "
+                        "Response preview: %s",
+                        self.user.id, len(response or ''),
+                        (response or '')[:120],
+                    )
+                    # Don't mark — let the next message get a fresh briefing attempt
+                else:
+                    # Good response with briefing data — mark as delivered
+                    try:
+                        from apps.ai.executive_briefing import mark_briefing_delivered
+                        mark_briefing_delivered(conversation)
+                    except Exception:
+                        pass  # Non-fatal — briefing was still delivered
 
             # =============================================================
             # STRICT_HEALTH_STATUS: Deterministic 4-line enforcement
@@ -5513,11 +5572,13 @@ Rules for this response:
             pass
 
         # --- f2) Executive briefing (first-of-day or gap re-entry)
+        _fast_briefing_built = False
         try:
             from apps.ai.executive_briefing import build_executive_briefing
             briefing = build_executive_briefing(self.user, conversation)
             if briefing:
                 system_prompt += "\n\n" + briefing
+                _fast_briefing_built = True
         except Exception:
             pass
 
@@ -5677,6 +5738,7 @@ Rules for this response:
             'max_tokens': max_tokens,
             'temperature': temperature,
             'conversation_history': conversation_history,
+            'briefing_built': _fast_briefing_built,
         }
 
     # -----------------------------------------------------------------
@@ -5847,6 +5909,14 @@ Rules for this response:
                         "STREAM_MSG_SAVED id=%s len=%d user=%s",
                         assistant_message.id, len(full_text), self.user.id,
                     )
+
+                # Mark executive briefing as delivered after successful stream
+                if ctx and ctx.get('briefing_built') and full_text:
+                    try:
+                        from apps.ai.executive_briefing import mark_briefing_delivered
+                        mark_briefing_delivered(conversation)
+                    except Exception:
+                        pass
 
             finally:
                 # GUARANTEE placeholder is finalized on ALL exit paths:

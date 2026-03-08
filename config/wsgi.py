@@ -102,30 +102,9 @@ def start_scheduler():
         now = datetime.now()
 
         # =====================================================================
-        # SMS Jobs
+        # SMS Jobs — DISABLED (Twilio not configured)
+        # Uncomment when SMS/Twilio integration is ready.
         # =====================================================================
-
-        # Job 1: Daily SMS scheduling at midnight
-        scheduler.add_job(
-            'apps.sms.jobs:schedule_daily_reminders',
-            trigger=CronTrigger(hour=0, minute=0),
-            id="schedule_daily_sms_reminders",
-            max_instances=1,
-            coalesce=True,
-            misfire_grace_time=1,
-            replace_existing=True,
-        )
-
-        # Job 2: Send pending SMS every 5 minutes (start 2 min after boot)
-        scheduler.add_job(
-            'apps.sms.jobs:send_pending_sms',
-            trigger=IntervalTrigger(minutes=5),
-            id="send_pending_sms",
-            max_instances=1,
-            coalesce=True,
-            next_run_time=now + timedelta(minutes=2),
-            replace_existing=True,
-        )
 
         # =====================================================================
         # Life Module Jobs (Tasks)
@@ -297,10 +276,9 @@ def start_scheduler():
         _scheduler_instance = scheduler
 
         logger.info("=" * 60)
-        logger.info("APScheduler STARTED successfully with 15 jobs:")
+        logger.info("APScheduler STARTED successfully with 13 jobs:")
         logger.info("  (SAME monitoring moved to Celery Beat)")
-        logger.info("  - SMS: schedule_daily_sms_reminders (daily at 00:00 UTC) [on hold]")
-        logger.info("  - SMS: send_pending_sms (every 5 minutes) [on hold]")
+        logger.info("  (SMS jobs DISABLED — Twilio not configured)")
         logger.info("  - Life: recalculate_task_priorities (daily at 06:00 UTC / 01:00 EST)")
         logger.info("  - Life: process_recurring_tasks (daily at 06:05 UTC / 01:05 EST)")
         logger.info("  - Core: cleanup_soft_deletes (weekly on Sunday at 03:00 UTC)")

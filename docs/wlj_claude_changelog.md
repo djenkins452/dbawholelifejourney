@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Disable SMS/Twilio scheduler jobs (not in use)
+
+- **What:** Disabled both SMS scheduler jobs (schedule_daily_sms_reminders, send_pending_sms) since Twilio is not configured and no SMS functionality is active.
+- **Why:** Eliminates wasted resources running jobs that have no effect. Reduces APScheduler from 15 to 13 active jobs.
+- **Files:** `config/wsgi.py`
+
+---
+
 ## 2026-03-08 — Re-enable APScheduler with burst prevention safeguards
 
 - **What:** APScheduler was disabled during the outage because all overdue jobs fired simultaneously on restart, saturating DB connections. Re-enabled with safeguards to prevent recurrence.

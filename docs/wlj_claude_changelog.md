@@ -6,6 +6,34 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Capture stabilization: prevent data loss and improve upload reliability
+
+- **Problem:** The Capture feature lost audio recordings on weak cellular signal because:
+  1. Service Worker background sync uploads always failed with 403 (CSRF token function returned null)
+  2. Processing used daemon threads killed on Gunicorn worker recycling, leaving entries stuck in 'transcribing'
+  3. Upload timeouts were hardcoded at 2 minutes (insufficient for 50MB files on slow connections)
+  4. No network-awareness in upload retry logic
+- **Phase 0 fixes (data loss prevention):**
+  - Converted `process_capture_entry` and `process_pending_captures` to Celery `@shared_task` with 10-minute soft time limit (was daemon threads)
+  - Replaced all 4 `threading.Thread(daemon=True)` calls in views.py with `process_capture_entry.delay()`
+  - Created CSRF-exempt `/capture/sw-upload/` endpoint for Service Worker (follows SleepEntryListCreateView pattern)
+  - Fixed service-worker.js to use new endpoint and removed dead `getCookie()` function
+  - Added Celery Beat schedule to catch stuck entries every 5 minutes
+- **Phase 1 fixes (upload reliability):**
+  - Added `verify_audio_exists()` HEAD check in storage.py — confirm_upload now verifies file is in S3 before advancing status
+  - Dynamic upload timeout: 2 min base + 1 min per 5MB (50MB file gets 12 min instead of 2)
+  - Network-aware retry: `waitForConnection()` pauses upload when offline, resumes when `online` event fires
+  - Increased upload retries from 3 to 5 with longer backoff delays
+  - Service Worker: increased retries to 5, added offline check before upload attempt
+- **Files changed:**
+  - `apps/capture/tasks.py` — Celery @shared_task with SoftTimeLimitExceeded handling
+  - `apps/capture/views.py` — Replaced 4 daemon threads, added CaptureServiceWorkerUploadView, S3 verification
+  - `apps/capture/urls.py` — Added sw-upload/ route
+  - `apps/capture/storage.py` — Added verify_audio_exists()
+  - `static/js/service-worker.js` — Fixed CSRF, updated URL, increased retries, offline check
+  - `templates/capture/capture_record.html` — Dynamic timeout, waitForConnection(), increased retries
+  - `config/settings.py` — Added capture Beat schedule
+
 ## 2026-03-08 — Add skip_task AI intent
 
 - **Why:** Users need to be able to skip tasks via the AI assistant (e.g., "skip my workout task"). Previously only complete_task existed; skipping required manual UI interaction.

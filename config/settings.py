@@ -1090,6 +1090,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "health.build_nightly_health_summaries",
         "schedule": crontab(hour=3, minute=0),  # 3:00 AM UTC = 10:00 PM EST
     },
+    "capture-process-stuck-entries-every-5-min": {
+        "task": "capture.process_pending_captures",
+        "schedule": 300.0,  # Every 5 minutes — catch entries stuck in 'transcribing'
+    },
 }
 
 # Worker settings

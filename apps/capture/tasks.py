@@ -1,10 +1,8 @@
 """
-Background task functions for capture processing.
+Celery tasks for capture processing.
 
-This module provides task definitions for processing capture entries
-asynchronously. Tasks can be run:
-1. Immediately via process_capture_entry() for on-demand processing
-2. Periodically via APScheduler for processing pending entries
+This module provides Celery task definitions for processing capture entries
+asynchronously. Tasks run on the Celery worker, surviving Gunicorn restarts.
 
 The processing pipeline:
 1. Transcribe audio using Whisper API (transcription service)
@@ -14,23 +12,22 @@ The processing pipeline:
 Usage:
     from apps.capture.tasks import process_capture_entry
 
-    # Process a single entry (can be called synchronously or scheduled)
-    result = process_capture_entry(entry_id)
+    # Dispatch to Celery worker (non-blocking)
+    process_capture_entry.delay(str(entry.id))
 
-    if result['success']:
-        print(f"Entry processed successfully")
-    else:
-        print(f"Processing failed: {result['error']}")
+    # Or call synchronously (e.g., in tests)
+    result = process_capture_entry(str(entry.id))
 """
 
 import logging
 
+from celery import shared_task
+from celery.exceptions import SoftTimeLimitExceeded
 
 logger = logging.getLogger(__name__)
 
 # Task settings
 MAX_RETRIES = 3
-TASK_TIMEOUT_SECONDS = 600  # 10 minutes
 
 
 class CaptureProcessingError(Exception):
@@ -42,19 +39,30 @@ class CaptureProcessingError(Exception):
         self.retryable = retryable
 
 
+@shared_task(
+    name="capture.process_capture_entry",
+    bind=True,
+    max_retries=MAX_RETRIES,
+    soft_time_limit=600,       # 10 minutes (transcription + summarization)
+    time_limit=660,            # 11 minutes hard kill
+    acks_late=True,
+    default_retry_delay=30,
+)
 def process_capture_entry(
+    self,
     entry_id: str,
     retry_count: int = 0
 ) -> dict:
     """
     Process a single capture entry through the full pipeline.
 
-    This is the main task function that orchestrates:
+    This is the main Celery task that orchestrates:
     1. Transcription via Whisper API
     2. Summarization via OpenAI API
     3. Status updates
 
     Args:
+        self: Celery task instance (bound task)
         entry_id: UUID string of the CaptureEntry to process
         retry_count: Current retry attempt (0 = first attempt)
 
@@ -64,7 +72,6 @@ def process_capture_entry(
             - message: str
             - entry_id: str
             - retried: bool (if this was a retry)
-            - should_retry: bool (if failed and should retry)
     """
     from apps.capture.models import CaptureEntry
     from apps.capture.services import transcription_service, summarization_service
@@ -81,7 +88,6 @@ def process_capture_entry(
             'message': f"Entry {entry_id} not found",
             'entry_id': entry_id,
             'retried': retry_count > 0,
-            'should_retry': False
         }
 
     # Verify entry is in correct status (transcribing or failed with retries remaining)
@@ -94,7 +100,6 @@ def process_capture_entry(
             'message': f"Entry not ready for processing (status: {entry.status})",
             'entry_id': entry_id,
             'retried': retry_count > 0,
-            'should_retry': False
         }
 
     try:
@@ -106,23 +111,20 @@ def process_capture_entry(
             error_msg = transcription_result.get('error', 'Transcription failed')
             logger.error(f"Entry {entry_id}: Transcription failed - {error_msg}")
 
-            # Check if should retry
             if _is_retryable_error(error_msg) and retry_count < MAX_RETRIES:
-                return {
-                    'success': False,
-                    'message': f"Transcription failed: {error_msg}",
-                    'entry_id': entry_id,
-                    'retried': retry_count > 0,
-                    'should_retry': True
-                }
+                backoff = min(2 ** (retry_count + 1), 30)
+                logger.info(f"Entry {entry_id}: Scheduling retry in {backoff}s (attempt {retry_count + 1})")
+                raise self.retry(
+                    countdown=backoff,
+                    kwargs={'entry_id': entry_id, 'retry_count': retry_count + 1},
+                )
 
-            # Entry status already set to failed by transcription service
+            # Non-retryable — entry status already set to failed by transcription service
             return {
                 'success': False,
                 'message': f"Transcription failed: {error_msg}",
                 'entry_id': entry_id,
                 'retried': retry_count > 0,
-                'should_retry': False
             }
 
         # Step 2: Summarization
@@ -135,26 +137,23 @@ def process_capture_entry(
             error_msg = summarization_result.get('error', 'Summarization failed')
             logger.error(f"Entry {entry_id}: Summarization failed - {error_msg}")
 
-            # Check if should retry
             if _is_retryable_error(error_msg) and retry_count < MAX_RETRIES:
                 # Reset status back to transcribing for retry
                 entry.status = CaptureEntry.STATUS_TRANSCRIBING
                 entry.save(update_fields=['status'])
-                return {
-                    'success': False,
-                    'message': f"Summarization failed: {error_msg}",
-                    'entry_id': entry_id,
-                    'retried': retry_count > 0,
-                    'should_retry': True
-                }
+                backoff = min(2 ** (retry_count + 1), 30)
+                logger.info(f"Entry {entry_id}: Scheduling retry in {backoff}s (attempt {retry_count + 1})")
+                raise self.retry(
+                    countdown=backoff,
+                    kwargs={'entry_id': entry_id, 'retry_count': retry_count + 1},
+                )
 
-            # Entry status already set to failed by summarization service
+            # Non-retryable — entry status already set to failed by summarization service
             return {
                 'success': False,
                 'message': f"Summarization failed: {error_msg}",
                 'entry_id': entry_id,
                 'retried': retry_count > 0,
-                'should_retry': False
             }
 
         # Success! Entry status already set to 'ready' by summarization service
@@ -171,7 +170,36 @@ def process_capture_entry(
             'message': 'Processing complete',
             'entry_id': entry_id,
             'retried': retry_count > 0,
-            'should_retry': False
+        }
+
+    except SoftTimeLimitExceeded:
+        logger.error(f"Entry {entry_id}: Processing timed out (soft limit exceeded)")
+        try:
+            entry.status = CaptureEntry.STATUS_FAILED
+            entry.error_message = "Processing timed out. Your recording may be too long. Please try again."
+            entry.save(update_fields=['status', 'error_message'])
+        except Exception:
+            logger.error(f"Entry {entry_id}: Failed to update status after timeout")
+        return {
+            'success': False,
+            'message': 'Processing timed out',
+            'entry_id': entry_id,
+            'retried': retry_count > 0,
+        }
+
+    except self.MaxRetriesExceededError:
+        logger.error(f"Entry {entry_id}: Max retries exceeded")
+        try:
+            entry.status = CaptureEntry.STATUS_FAILED
+            entry.error_message = "Processing failed after multiple attempts. Please try again later."
+            entry.save(update_fields=['status', 'error_message'])
+        except Exception:
+            logger.error(f"Entry {entry_id}: Failed to update status after max retries")
+        return {
+            'success': False,
+            'message': 'Max retries exceeded',
+            'entry_id': entry_id,
+            'retried': True,
         }
 
     except Exception as e:
@@ -185,73 +213,72 @@ def process_capture_entry(
         except Exception:
             logger.error(f"Entry {entry_id}: Failed to update status after error")
 
+        # Retry if retryable
+        if retry_count < MAX_RETRIES:
+            backoff = min(2 ** (retry_count + 1), 30)
+            try:
+                raise self.retry(
+                    countdown=backoff,
+                    kwargs={'entry_id': entry_id, 'retry_count': retry_count + 1},
+                    exc=e,
+                )
+            except self.MaxRetriesExceededError:
+                pass
+
         return {
             'success': False,
             'message': f"Unexpected error: {str(e)}",
             'entry_id': entry_id,
             'retried': retry_count > 0,
-            'should_retry': retry_count < MAX_RETRIES
         }
 
 
+@shared_task(
+    name="capture.process_pending_captures",
+    soft_time_limit=120,
+    time_limit=180,
+    acks_late=True,
+)
 def process_pending_captures() -> dict:
     """
-    Process all capture entries that are pending transcription.
+    Find and dispatch processing for entries stuck in 'transcribing' status.
 
-    This is a periodic task that can be scheduled via APScheduler
-    to process any entries stuck in 'transcribing' status.
+    This periodic task (Celery Beat, every 5 minutes) catches entries that
+    were orphaned by previous daemon thread processing or worker crashes.
+    Each entry is dispatched as a separate Celery task for parallel processing.
 
     Returns:
-        dict with processing results:
-            - processed: int (number of entries processed)
-            - succeeded: int (number of successful completions)
-            - failed: int (number of failures)
-            - entries: list of entry_id results
+        dict with dispatch results:
+            - dispatched: int (number of entries dispatched)
+            - entry_ids: list of dispatched entry IDs
     """
     from apps.capture.models import CaptureEntry
 
     logger.info("Running process_pending_captures job...")
 
-    # Find all entries in 'transcribing' status
+    # Find all entries stuck in 'transcribing' status
     pending_entries = CaptureEntry.objects.filter(
         status=CaptureEntry.STATUS_TRANSCRIBING
     ).order_by('created_at')
 
-    results = {
-        'processed': 0,
-        'succeeded': 0,
-        'failed': 0,
-        'entries': []
-    }
+    dispatched = 0
+    entry_ids = []
 
     for entry in pending_entries:
-        results['processed'] += 1
-        logger.info(f"Processing pending entry {entry.id}")
+        logger.info(f"Dispatching stuck entry {entry.id} for processing")
+        process_capture_entry.delay(str(entry.id))
+        dispatched += 1
+        entry_ids.append(str(entry.id))
 
-        result = process_capture_entry(str(entry.id))
-        results['entries'].append(result)
-
-        if result['success']:
-            results['succeeded'] += 1
-        else:
-            results['failed'] += 1
-
-            # Handle retry if needed
-            if result.get('should_retry'):
-                retry_result = _retry_with_backoff(str(entry.id), 1)
-                if retry_result['success']:
-                    results['failed'] -= 1
-                    results['succeeded'] += 1
-
-    if results['processed'] > 0:
-        logger.info(
-            f"Processed {results['processed']} pending captures: "
-            f"{results['succeeded']} succeeded, {results['failed']} failed"
-        )
+    if dispatched > 0:
+        logger.info(f"Dispatched {dispatched} stuck capture entries for processing")
     else:
-        logger.debug("No pending captures to process")
+        logger.debug("No stuck captures to process")
 
-    return results
+    return {
+        'dispatched': dispatched,
+        'entry_ids': entry_ids,
+    }
 
 
 def _is_retryable_error(error_msg: str) -> bool:
@@ -364,34 +391,6 @@ def _complete_pending_capture(entry) -> None:
 
     except Exception as e:
         logger.warning(f"Failed to complete PendingCapture for entry {entry.id}: {e}")
-
-
-def _retry_with_backoff(entry_id: str, retry_count: int) -> dict:
-    """
-    Retry processing with exponential backoff.
-
-    Args:
-        entry_id: UUID string of the entry to retry
-        retry_count: Current retry number (1, 2, 3...)
-
-    Returns:
-        Result dict from process_capture_entry
-    """
-    import time
-
-    # Calculate backoff delay: 2^retry_count seconds (2, 4, 8 seconds)
-    delay = min(2 ** retry_count, 30)  # Cap at 30 seconds
-
-    logger.info(f"Retrying entry {entry_id} in {delay} seconds (attempt {retry_count + 1}/{MAX_RETRIES})")
-    time.sleep(delay)
-
-    result = process_capture_entry(entry_id, retry_count=retry_count)
-
-    # Continue retrying if needed
-    if not result['success'] and result.get('should_retry') and retry_count < MAX_RETRIES:
-        return _retry_with_backoff(entry_id, retry_count + 1)
-
-    return result
 
 
 def get_processing_queue_status() -> dict:

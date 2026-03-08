@@ -27,8 +27,8 @@ const DB_VERSION = 1;
 const RECORDINGS_STORE = 'recordings';
 
 // Upload configuration
-const MAX_UPLOAD_ATTEMPTS = 3;
-const RETRY_DELAYS = [2000, 5000, 10000]; // Exponential backoff
+const MAX_UPLOAD_ATTEMPTS = 5;
+const RETRY_DELAYS = [2000, 5000, 15000, 30000, 60000]; // Generous backoff for weak cellular
 
 /**
  * Service Worker Installation
@@ -345,6 +345,12 @@ async function processRecording(recording) {
 
     console.log(`[SW] Processing recording ${clientId}, attempt ${uploadAttempts + 1}`);
 
+    // Defer upload if offline — background sync will re-trigger when online
+    if (!isOnline()) {
+        console.log(`[SW] Offline, deferring upload for ${clientId}`);
+        return;
+    }
+
     // Check if max attempts reached
     if (uploadAttempts >= MAX_UPLOAD_ATTEMPTS) {
         console.log(`[SW] Max attempts reached for ${clientId}, marking as failed`);
@@ -372,14 +378,10 @@ async function processRecording(recording) {
         formData.append('duration_seconds', Math.round((durationMs || 0) / 1000));
         formData.append('is_partial', recording.isPartial ? 'true' : 'false');
 
-        // Get CSRF token from cookie
-        const csrfToken = getCookie('csrftoken');
-
-        // Upload to server
-        const response = await fetch('/capture/upload/', {
+        // Upload to CSRF-exempt Service Worker endpoint (session-authed)
+        const response = await fetch('/capture/sw-upload/', {
             method: 'POST',
             body: formData,
-            headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {},
             credentials: 'same-origin'
         });
 
@@ -433,13 +435,10 @@ async function processRecording(recording) {
  */
 async function updateServerStatus(serverId, status) {
     try {
-        const csrfToken = getCookie('csrftoken');
-
         await fetch(`/capture/pending/${serverId}/status/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {})
             },
             body: JSON.stringify({ status }),
             credentials: 'same-origin'
@@ -489,16 +488,6 @@ async function notifyClients(message) {
 // ============================================================================
 // Utility Functions
 // ============================================================================
-
-/**
- * Get a cookie value by name
- */
-function getCookie(name) {
-    // Service workers don't have direct access to document.cookie
-    // This will be called from the context where cookies are available
-    // For SW, we rely on credentials: 'same-origin' to send cookies automatically
-    return null;
-}
 
 /**
  * Check if we're online

@@ -12,7 +12,9 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import DetailView, ListView, TemplateView
 
 from .models import CaptureEntry, PendingCapture
@@ -544,29 +546,24 @@ class CaptureSubmitView(LoginRequiredMixin, View):
                 'error': f'Entry is not in uploading status (current: {entry.status})'
             }, status=400)
 
+        # Verify the file actually exists in S3 before advancing status
+        if is_storage_configured() and entry.audio_file_url:
+            from .storage import verify_audio_exists
+            if not verify_audio_exists(entry.audio_file_url):
+                logger.warning(f"Upload confirmation failed: file not found in S3 for entry {entry.id}")
+                return JsonResponse({
+                    'error': 'Upload verification failed. The file was not found. Please try uploading again.'
+                }, status=400)
+
         # Update status to transcribing
         entry.status = CaptureEntry.STATUS_TRANSCRIBING
         entry.save()
 
         logger.info(f"Confirmed upload for entry {entry.id}, status now: transcribing")
 
-        # Trigger async processing in a background thread
-        # This prevents blocking the HTTP response while processing occurs
-        import threading
+        # Dispatch to Celery worker for async processing
         from apps.capture.tasks import process_capture_entry
-
-        def run_processing():
-            try:
-                result = process_capture_entry(str(entry.id))
-                if result['success']:
-                    logger.info(f"Entry {entry.id} processing completed successfully")
-                else:
-                    logger.warning(f"Entry {entry.id} processing failed: {result.get('message')}")
-            except Exception as e:
-                logger.exception(f"Entry {entry.id} processing thread error: {e}")
-
-        thread = threading.Thread(target=run_processing, daemon=True)
-        thread.start()
+        process_capture_entry.delay(str(entry.id))
 
         return JsonResponse({
             'success': True,
@@ -710,22 +707,9 @@ class CaptureCloudinaryUploadView(LoginRequiredMixin, View):
 
             logger.info(f"Uploaded audio to Cloudinary for entry {entry.id}")
 
-            # Trigger async processing
-            import threading
+            # Dispatch to Celery worker for async processing
             from apps.capture.tasks import process_capture_entry
-
-            def run_processing():
-                try:
-                    proc_result = process_capture_entry(str(entry.id))
-                    if proc_result['success']:
-                        logger.info(f"Entry {entry.id} processing completed successfully")
-                    else:
-                        logger.warning(f"Entry {entry.id} processing failed: {proc_result.get('message')}")
-                except Exception as e:
-                    logger.exception(f"Entry {entry.id} processing thread error: {e}")
-
-            thread = threading.Thread(target=run_processing, daemon=True)
-            thread.start()
+            process_capture_entry.delay(str(entry.id))
 
             return JsonResponse({
                 'success': True,
@@ -1088,21 +1072,8 @@ class CaptureRetryView(LoginRequiredMixin, View):
 
         logger.info(f"Retrying capture entry {entry.id} for user {user_log_id(request.user)}")
 
-        # Trigger async processing in a background thread
-        import threading
-
-        def run_processing():
-            try:
-                result = process_capture_entry(str(entry.id))
-                if result['success']:
-                    logger.info(f"Retry for entry {entry.id} completed successfully")
-                else:
-                    logger.warning(f"Retry for entry {entry.id} failed: {result.get('message')}")
-            except Exception as e:
-                logger.exception(f"Retry thread error for entry {entry.id}: {e}")
-
-        thread = threading.Thread(target=run_processing, daemon=True)
-        thread.start()
+        # Dispatch to Celery worker for async processing
+        process_capture_entry.delay(str(entry.id))
 
         return JsonResponse({
             'success': True,
@@ -1506,22 +1477,20 @@ class CaptureFileUploadView(LoginRequiredMixin, View):
         })
 
     def _start_processing(self, entry):
-        """Start async processing for the entry."""
+        """Dispatch async processing to Celery worker."""
         from .tasks import process_capture_entry
-        import threading
+        process_capture_entry.delay(str(entry.id))
 
-        def run_processing():
-            try:
-                result = process_capture_entry(str(entry.id))
-                if result['success']:
-                    logger.info(f"File upload processing for entry {entry.id} completed")
-                else:
-                    logger.warning(
-                        f"File upload processing for entry {entry.id} failed: "
-                        f"{result.get('message')}"
-                    )
-            except Exception as e:
-                logger.exception(f"Processing thread error for entry {entry.id}: {e}")
 
-        thread = threading.Thread(target=run_processing, daemon=True)
-        thread.start()
+@method_decorator(csrf_exempt, name='dispatch')
+class CaptureServiceWorkerUploadView(CaptureFileUploadView):
+    """
+    CSRF-exempt upload endpoint for Service Worker background sync.
+
+    Service Workers cannot access document.cookie for CSRF tokens.
+    Authentication is handled via session cookie (credentials: 'same-origin').
+
+    Pattern follows apps/health/views_sleep_api.py (SleepEntryListCreateView):
+    @csrf_exempt + LoginRequiredMixin for device/background upload contexts.
+    """
+    pass

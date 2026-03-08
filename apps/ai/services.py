@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # LLM call resilience defaults
 LLM_MAX_RETRIES = 3
 LLM_BASE_BACKOFF_SECONDS = 1.0  # doubles each retry: 1s, 2s, 4s
-LLM_TIMEOUT_SECONDS = 40  # per-request timeout
+LLM_TIMEOUT_SECONDS = 15  # per-request timeout
 
 # ==========================================================================
 # OpenAI Client Singleton — Thread-safe, connection-pooling
@@ -64,7 +64,7 @@ def get_openai_client():
             _shared_openai_client = OpenAI(
                 api_key=api_key,
                 timeout=LLM_TIMEOUT_SECONDS,
-                max_retries=5,  # SDK handles Retry-After headers on 429s
+                max_retries=0,  # No retries — 429s fail immediately to avoid blocking sync workers
             )
             logger.info("OpenAI client initialized (shared singleton)")
             return _shared_openai_client

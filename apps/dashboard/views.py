@@ -41,6 +41,7 @@ Copyright:
 import json
 import logging
 import random
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from datetime import timedelta
 from django.db import models
 from django.db.models import Count
@@ -274,10 +275,15 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             blueprint = blueprint_engine.get_blueprint(user)
             if getattr(blueprint, 'auto_architect_enabled', True):
                 try:
-                    plan = architecture_engine.run_architecture_pass(
-                        user, target_date=today,
-                    )
+                    with ThreadPoolExecutor(max_workers=1) as executor:
+                        future = executor.submit(
+                            architecture_engine.run_architecture_pass,
+                            user, target_date=today,
+                        )
+                        plan = future.result(timeout=5)
                     brief['auto_generated'] = True
+                except FuturesTimeout:
+                    logger.warning("Architecture pass timed out (5s) for dashboard")
                 except Exception:
                     pass
 
@@ -1456,11 +1462,22 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
             dashboard_ai = DashboardAI(user)
 
-            # Get or generate daily insight
-            daily_insight = dashboard_ai.get_daily_insight()
+            # Get or generate daily insight — with timeout to avoid blocking sync workers
+            daily_insight = None
+            weekly_summary = None
+            try:
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(dashboard_ai.get_daily_insight)
+                    daily_insight = future.result(timeout=5)
+            except FuturesTimeout:
+                logger.warning("DashboardAI.get_daily_insight() timed out (5s)")
+            except Exception:
+                pass
 
-            # Get weekly summary if it's been generated
-            weekly_summary = dashboard_ai.get_weekly_summary()
+            try:
+                weekly_summary = dashboard_ai.get_weekly_summary()
+            except Exception:
+                pass
 
             # Check for things to celebrate (respects module enabled flags)
             celebrations = self._check_for_celebrations(user_data, prefs)
@@ -1475,8 +1492,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 "nudges": nudges,
             }
         except Exception as e:
-            import logging
-            logging.error(f"AI insights error: {e}")
+            logger.error(f"AI insights error: {e}")
             return None
 
     def _is_new_user(self, user_data, prefs):

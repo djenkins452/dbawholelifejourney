@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — EMERGENCY: Fix dashboard 524 timeout from OpenAI retry blocking
+
+- **What:** Dashboard returned 524 (Cloudflare timeout) because synchronous OpenAI API calls with `max_retries=5` blocked both Gunicorn sync workers for 30+ seconds each when OpenAI returned 429 (rate limited). APScheduler burst after downtime triggered the rate limit.
+- **Fix:**
+  1. Reduced OpenAI client `max_retries` from 5 to 0 — 429s now fail immediately instead of blocking for 30+ seconds
+  2. Reduced `LLM_TIMEOUT_SECONDS` from 40 to 15
+  3. Wrapped `_get_ai_insights()` and `_get_command_brief()` OpenAI calls in 5-second `ThreadPoolExecutor` timeouts so dashboard always renders even if OpenAI is slow
+- **Files:** `apps/ai/services.py`, `apps/dashboard/views.py`
+
+---
+
 ## 2026-03-07 — Fix midnight-crossing CI test failures
 
 - **What:** Two tests failed intermittently when CI ran near midnight UTC. `test_collision_detection_daily_overload` created 5 deadlines using `now + hours` which crossed into the next day, splitting counts below the >3 threshold. `test_schedule_load_classification` created events with `self.now + timedelta(days=1, hours=i)` where late-night `now` pushed events past midnight into the wrong date.

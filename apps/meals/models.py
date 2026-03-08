@@ -630,8 +630,34 @@ class MealPlanEntry(TimeStampedModel):
 
 class Receipt(UserOwnedModel):
     """
-    A grocery receipt parsed from OCR.
+    A receipt parsed from OCR or text input.
+
+    Supports image-based ingestion (camera/upload via Vision AI)
+    and text-based ingestion (manual paste). Receipt type determines
+    domain routing on confirmation.
     """
+
+    # Receipt type classification
+    RECEIPT_TYPE_GROCERY = "grocery"
+    RECEIPT_TYPE_RESTAURANT = "restaurant"
+    RECEIPT_TYPE_RETAIL = "retail"
+    RECEIPT_TYPE_UNKNOWN = "unknown"
+    RECEIPT_TYPE_CHOICES = [
+        (RECEIPT_TYPE_GROCERY, "Grocery"),
+        (RECEIPT_TYPE_RESTAURANT, "Restaurant"),
+        (RECEIPT_TYPE_RETAIL, "Retail"),
+        (RECEIPT_TYPE_UNKNOWN, "Unknown"),
+    ]
+
+    # Confirmation status (separate from SoftDeleteModel.status)
+    CONFIRM_PENDING = "pending"
+    CONFIRM_CONFIRMED = "confirmed"
+    CONFIRM_CANCELLED = "cancelled"
+    CONFIRM_CHOICES = [
+        (CONFIRM_PENDING, "Pending Confirmation"),
+        (CONFIRM_CONFIRMED, "Confirmed"),
+        (CONFIRM_CANCELLED, "Cancelled"),
+    ]
 
     household = models.ForeignKey(
         Household,
@@ -640,7 +666,7 @@ class Receipt(UserOwnedModel):
     )
     raw_text = models.TextField(
         blank=True,
-        help_text="Raw OCR text from receipt",
+        help_text="Raw OCR text or pasted text from receipt",
     )
     parsed_json = models.JSONField(
         default=dict,
@@ -660,6 +686,29 @@ class Receipt(UserOwnedModel):
     receipt_date = models.DateField(
         null=True,
         blank=True,
+    )
+
+    # Image upload (Phase: Receipt Ingestion)
+    image = models.ImageField(
+        upload_to="receipts/%Y/%m/",
+        blank=True,
+        null=True,
+        help_text="Uploaded receipt image",
+    )
+
+    # Receipt type and status (Phase: Receipt Ingestion)
+    receipt_type = models.CharField(
+        max_length=20,
+        choices=RECEIPT_TYPE_CHOICES,
+        default=RECEIPT_TYPE_UNKNOWN,
+        db_index=True,
+        help_text="Classification determines domain routing",
+    )
+    confirmation_status = models.CharField(
+        max_length=20,
+        choices=CONFIRM_CHOICES,
+        default=CONFIRM_PENDING,
+        db_index=True,
     )
 
     # Link to scan if came from Vision AI
@@ -724,6 +773,13 @@ class ReceiptItem(TimeStampedModel):
         decimal_places=2,
         default=Decimal("0"),
         help_text="Confidence of ingredient match (0-1)",
+    )
+
+    # Category from Vision AI classification
+    category = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Item category (e.g., produce, dairy, meat)",
     )
 
     class Meta:

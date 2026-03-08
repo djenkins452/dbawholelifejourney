@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Confirm Receipt — Meals — Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260308a">
+{% endblock %}
+
+{% block content %}
+<div class="meals-page">
+    {% include "meals/partials/_subnav.html" with active="receipts" %}
+
+    <div class="meals-page-header">
+        <div>
+            <h1>Confirm Receipt</h1>
+            <p class="section-subtitle">
+                {% if receipt.store %}{{ receipt.store }} &middot; {% endif %}
+                {{ receipt.receipt_date|date:"M d, Y" }}
+                {% if receipt.total %} &middot; Total: ${{ receipt.total|floatformat:2 }}{% endif %}
+            </p>
+        </div>
+        <a href="{% url 'meals:receipts' %}" class="btn btn-outline btn-sm">Back to Receipts</a>
+    </div>
+
+    {% if receipt.image %}
+    <div class="receipt-image-preview">
+        <img src="{{ receipt.image.url }}" alt="Receipt image"
+             style="max-width: 200px; max-height: 300px; border-radius: 8px; object-fit: contain; cursor: pointer;"
+             id="receipt-thumb">
+    </div>
+    {% endif %}
+
+    {% if items %}
+    <form method="post" action="{% url 'meals:receipt_confirm' pk=receipt.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="confirm">
+
+        <!-- Receipt Type Selector -->
+        <div class="receipt-type-selector">
+            <label for="receipt_type" class="receipt-type-label">Receipt Type:</label>
+            <select name="receipt_type" id="receipt_type" class="receipt-type-select">
+                {% for value, label in receipt_types %}
+                <option value="{{ value }}" {% if receipt.receipt_type == value %}selected{% endif %}>
+                    {{ label }}
+                </option>
+                {% endfor %}
+            </select>
+            <div class="receipt-routing-hint" id="routing-hint">
+                <!-- Updated via JS based on selection -->
+            </div>
+        </div>
+
+        <!-- Select All Bar -->
+        <div class="receipt-select-bar">
+            <label class="select-all-label">
+                <input type="checkbox" id="select-all-checkbox">
+                <span>Select All</span>
+            </label>
+            <span class="receipt-item-count" id="select-count">{{ items|length }} items</span>
+        </div>
+
+        <!-- Item List -->
+        <div class="receipt-items-list">
+            {% for item in items %}
+            <div class="receipt-confirm-item">
+                <div class="receipt-item-row">
+                    <div class="receipt-item-check">
+                        <input type="checkbox" name="confirmed_items" value="{{ item.pk }}"
+                               id="item_{{ item.pk }}" class="item-checkbox" checked>
+                        <label for="item_{{ item.pk }}" class="visually-hidden">{{ item.raw_name }}</label>
+                    </div>
+
+                    <div class="receipt-item-info">
+                        <div class="receipt-item-name">{{ item.raw_name }}</div>
+                        {% if item.ingredient %}
+                        <div class="receipt-item-match">
+                            Matched: {{ item.ingredient.canonical_name }}
+                            <span class="receipt-confidence">{{ item.match_confidence|floatformat:0 }}%</span>
+                        </div>
+                        {% else %}
+                        <div class="receipt-item-match unmatched">No ingredient match</div>
+                        {% endif %}
+                        {% if item.category %}
+                        <span class="receipt-item-category">{{ item.category }}</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="receipt-item-fields">
+                        <div class="receipt-item-field">
+                            <label for="qty_{{ item.pk }}" class="field-label-sm">Qty</label>
+                            <input type="number" name="qty_{{ item.pk }}" id="qty_{{ item.pk }}"
+                                   value="{{ item.quantity|floatformat:0 }}"
+                                   min="0.1" step="0.1" class="receipt-field-input qty-input">
+                        </div>
+                        <div class="receipt-item-field">
+                            <label for="price_{{ item.pk }}" class="field-label-sm">Price</label>
+                            <input type="number" name="price_{{ item.pk }}" id="price_{{ item.pk }}"
+                                   value="{{ item.raw_price|floatformat:2 }}"
+                                   min="0" step="0.01" class="receipt-field-input price-input">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Actions -->
+        <div class="receipt-confirm-actions">
+            <button type="submit" class="btn btn-primary">Confirm Items</button>
+            <button type="submit" name="action" value="cancel" class="btn btn-ghost">Cancel</button>
+        </div>
+    </form>
+
+    {% else %}
+    <div style="text-align: center; padding: var(--space-6); color: var(--color-text-muted);">
+        <p>No items were detected in this receipt.</p>
+        <a href="{% url 'meals:receipts' %}" class="btn btn-primary" style="margin-top: var(--space-4);">Back to Receipts</a>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.receipt-image-preview {
+    margin-bottom: var(--space-4);
+}
+.receipt-type-selector {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border-radius: 8px;
+    margin-bottom: var(--space-4);
+    flex-wrap: wrap;
+}
+.receipt-type-label {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+}
+.receipt-type-select {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-size: 16px;
+    background: var(--color-bg);
+    min-height: 44px;
+}
+.receipt-routing-hint {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    flex-basis: 100%;
+    margin-top: var(--space-1);
+}
+.receipt-select-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border-radius: 8px 8px 0 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.select-all-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font-weight: 500;
+    min-height: 44px;
+}
+.receipt-item-count {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+.receipt-items-list {
+    border: 1px solid var(--color-border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    margin-bottom: var(--space-4);
+}
+.receipt-confirm-item {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+.receipt-confirm-item:last-child {
+    border-bottom: none;
+}
+.receipt-item-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+}
+.receipt-item-check {
+    padding-top: var(--space-1);
+    min-width: 24px;
+}
+.receipt-item-check input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+.receipt-item-info {
+    flex: 1;
+    min-width: 0;
+}
+.receipt-item-name {
+    font-weight: 500;
+    word-break: break-word;
+}
+.receipt-item-match {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-top: 2px;
+}
+.receipt-item-match.unmatched {
+    color: var(--color-warning, #d97706);
+    font-style: italic;
+}
+.receipt-confidence {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: #dcfce7;
+    color: #166534;
+    font-size: var(--font-size-xs);
+    margin-left: var(--space-1);
+}
+.receipt-item-category {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: #f3f4f6;
+    color: #6b7280;
+    font-size: var(--font-size-xs);
+    margin-top: 2px;
+}
+.receipt-item-fields {
+    display: flex;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+.receipt-item-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.field-label-sm {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+.receipt-field-input {
+    width: 72px;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    font-size: 16px;
+    min-height: 36px;
+}
+.receipt-field-input.qty-input { width: 56px; }
+.receipt-field-input.price-input { width: 80px; }
+.receipt-confirm-actions {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: flex-end;
+    padding: var(--space-4) 0;
+}
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+@media (max-width: 480px) {
+    .receipt-item-row {
+        flex-wrap: wrap;
+    }
+    .receipt-item-fields {
+        width: 100%;
+        padding-left: 32px;
+        margin-top: var(--space-2);
+    }
+    .receipt-type-selector {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+
+    // Select All
+    var selectAll = document.getElementById('select-all-checkbox');
+    var checkboxes = document.querySelectorAll('.item-checkbox');
+    var countEl = document.getElementById('select-count');
+
+    function updateCount() {
+        var checked = document.querySelectorAll('.item-checkbox:checked').length;
+        var total = checkboxes.length;
+        countEl.textContent = checked + ' of ' + total + ' selected';
+        selectAll.checked = checked === total;
+        selectAll.indeterminate = checked > 0 && checked < total;
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(function(cb) { cb.checked = selectAll.checked; });
+            updateCount();
+        });
+    }
+
+    checkboxes.forEach(function(cb) {
+        cb.addEventListener('change', updateCount);
+    });
+
+    updateCount();
+
+    // Routing hint based on receipt type
+    var typeSelect = document.getElementById('receipt_type');
+    var hintEl = document.getElementById('routing-hint');
+
+    var hints = {
+        'grocery': 'Items will be added to your Pantry and a transaction logged to Finance.',
+        'restaurant': 'A meal entry will be logged to Health and a transaction to Finance.',
+        'retail': 'A transaction will be logged to Finance.',
+        'unknown': 'Receipt will be saved but no domain updates will occur.'
+    };
+
+    function updateHint() {
+        if (hintEl && typeSelect) {
+            hintEl.textContent = hints[typeSelect.value] || '';
+        }
+    }
+
+    if (typeSelect) {
+        typeSelect.addEventListener('change', updateHint);
+        updateHint();
+    }
+})();
+</script>
+{% endblock %}

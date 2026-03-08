@@ -662,6 +662,16 @@ class GeneratePlanView(LoginRequiredMixin, MealsHouseholdMixin, View):
 # Receipt Upload
 # =============================================================================
 
+# File validation constants (shared with pantry scan)
+MAX_RECEIPT_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+ALLOWED_RECEIPT_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/heic",
+    "application/pdf",
+}
+
 
 class ReceiptUploadView(
     HelpContextMixin, LoginRequiredMixin, MealsHouseholdMixin, TemplateView
@@ -669,7 +679,12 @@ class ReceiptUploadView(
     """
     Receipt upload and history.
 
-    Supports manual text entry and shows match confidence for parsed items.
+    Supports three ingestion modes:
+    1. Camera capture (mobile)
+    2. File upload (image or PDF, with drag-and-drop)
+    3. Text paste (existing feature)
+
+    All modes create a pending Receipt and redirect to confirmation.
     """
 
     template_name = "meals/receipt_upload.html"
@@ -679,9 +694,10 @@ class ReceiptUploadView(
         context = super().get_context_data(**kwargs)
         household = self.get_household()
 
-        # Recent receipts
+        # Show confirmed and pending receipts in history
         context["receipts"] = (
             Receipt.objects.filter(household=household)
+            .exclude(confirmation_status=Receipt.CONFIRM_CANCELLED)
             .order_by("-receipt_date", "-created_at")[:20]
         )
         context["household"] = household
@@ -693,6 +709,7 @@ class ReceiptUploadView(
         if not date_str:
             return timezone.now().date()
         from datetime import datetime as dt
+
         for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%m-%d-%Y", "%m/%d/%y"):
             try:
                 return dt.strptime(date_str, fmt).date()
@@ -701,24 +718,129 @@ class ReceiptUploadView(
         return timezone.now().date()
 
     def post(self, request, *args, **kwargs):
-        """Handle receipt text submission."""
+        """Handle receipt submission (image or text)."""
         household = self.get_household()
+
+        uploaded_file = request.FILES.get("receipt_image")
         raw_text = request.POST.get("receipt_text", "").strip()
 
-        if not raw_text:
-            messages.error(request, "Please enter receipt text.")
+        if uploaded_file:
+            return self._process_image_upload(request, household, uploaded_file)
+        elif raw_text:
+            return self._process_text_upload(request, household, raw_text)
+        else:
+            messages.error(
+                request, "Please upload a receipt image or paste receipt text."
+            )
             return redirect("meals:receipts")
 
+    def _process_image_upload(self, request, household, uploaded_file):
+        """Handle image/PDF receipt upload via Vision AI."""
+        # Validate file size
+        if uploaded_file.size > MAX_RECEIPT_UPLOAD_SIZE:
+            messages.error(request, "File too large. Maximum size is 10 MB.")
+            return redirect("meals:receipts")
+
+        # Validate file type
+        content_type = uploaded_file.content_type or ""
+        if content_type not in ALLOWED_RECEIPT_TYPES:
+            messages.error(
+                request,
+                "Unsupported file type. Please upload a JPG, PNG, HEIC, or PDF.",
+            )
+            return redirect("meals:receipts")
+
+        # Read file into memory (in-memory pattern from PantryScanStartView)
+        raw_bytes = uploaded_file.read()
+
+        # Process through Vision service
+        from apps.meals.services.receipt_vision import ReceiptVisionService
+
+        service = ReceiptVisionService()
+
+        if content_type == "application/pdf":
+            vision_result = service.process_pdf(raw_bytes)
+        else:
+            vision_result = service.process_image(raw_bytes, content_type)
+
+        if vision_result.error:
+            messages.error(
+                request,
+                f"Could not process receipt: {vision_result.error}",
+            )
+            return redirect("meals:receipts")
+
+        # If PDF text extraction returned raw text, parse it with text parser
+        if vision_result.source == "pdf_text":
+            return self._process_text_upload(
+                request, household, vision_result.raw_text, uploaded_file
+            )
+
+        # Create receipt from Vision result
+        receipt = Receipt.objects.create(
+            user=request.user,
+            household=household,
+            raw_text=vision_result.raw_text,
+            parsed_json={
+                "store": vision_result.store,
+                "date": vision_result.date,
+                "items": vision_result.items,
+                "source": vision_result.source,
+            },
+            store=vision_result.store or "",
+            total=vision_result.total or Decimal("0"),
+            receipt_date=self._parse_date(vision_result.date),
+            receipt_type=vision_result.receipt_type,
+            confirmation_status=Receipt.CONFIRM_PENDING,
+            created_via=Receipt.CREATED_VIA_AI_CAMERA,
+        )
+
+        # Save the image to the receipt (Cloudinary in prod, local in dev)
+        uploaded_file.seek(0)
+        receipt.image.save(uploaded_file.name, uploaded_file, save=True)
+
+        # Create ReceiptItem entries from Vision items
+        from apps.meals.services.ingredient_matching import match_ingredient_name
+
+        for item_data in vision_result.items:
+            name = item_data.get("name", "")
+            if not name:
+                continue
+
+            match = match_ingredient_name(name)
+            price = item_data.get("price")
+
+            ReceiptItem.objects.create(
+                receipt=receipt,
+                ingredient=Ingredient.objects.filter(
+                    pk=match.ingredient_id
+                ).first()
+                if match.ingredient_id
+                else None,
+                raw_name=name,
+                raw_price=Decimal(str(price)) if price else None,
+                quantity=Decimal(str(item_data.get("quantity", 1))),
+                unit="each",
+                match_confidence=match.confidence,
+                category=item_data.get("category", ""),
+            )
+
+        messages.info(
+            request,
+            f"Receipt from {vision_result.store or 'unknown store'} processed. "
+            f"Please review and confirm the items below.",
+        )
+        return redirect("meals:receipt_confirm", pk=receipt.pk)
+
+    def _process_text_upload(self, request, household, raw_text, uploaded_file=None):
+        """Handle text paste (creates pending receipt for confirmation)."""
         from apps.meals.services.receipt_parser import (
             match_receipt_items,
             parse_receipt_text,
-            process_receipt_to_pantry,
         )
 
-        # Parse the receipt
         parsed = parse_receipt_text(raw_text)
 
-        # Create receipt record
         receipt = Receipt.objects.create(
             user=request.user,
             household=household,
@@ -727,42 +849,55 @@ class ReceiptUploadView(
                 "store": parsed.store,
                 "date": parsed.date,
                 "items": [
-                    {"name": i.name, "price": float(i.price) if i.price else None, "qty": float(i.quantity) if i.quantity else None}
+                    {
+                        "name": i.raw_name,
+                        "price": float(i.price) if i.price else None,
+                        "qty": float(i.quantity) if i.quantity else None,
+                    }
                     for i in parsed.items
                 ],
             },
             store=parsed.store or "",
             total=parsed.total or Decimal("0"),
             receipt_date=self._parse_date(parsed.date),
+            receipt_type=Receipt.RECEIPT_TYPE_GROCERY,  # Default for text paste
+            confirmation_status=Receipt.CONFIRM_PENDING,
         )
+
+        # Save PDF if text was extracted from a PDF upload
+        if uploaded_file:
+            uploaded_file.seek(0)
+            receipt.image.save(uploaded_file.name, uploaded_file, save=True)
 
         # Match items to ingredients
         matched = match_receipt_items(parsed)
         for item, match in matched:
             ReceiptItem.objects.create(
                 receipt=receipt,
-                ingredient=match.ingredient if match and match.ingredient else None,
-                raw_name=item.name,
+                ingredient=Ingredient.objects.filter(
+                    pk=match.ingredient_id
+                ).first()
+                if match.ingredient_id
+                else None,
+                raw_name=item.raw_name,
                 raw_price=item.price,
                 quantity=item.quantity or Decimal("1"),
                 unit=item.unit or "each",
                 match_confidence=match.confidence if match else Decimal("0"),
             )
 
-        # Auto-update pantry
-        created, updated = process_receipt_to_pantry(receipt, household)
-
-        messages.success(
+        messages.info(
             request,
-            f"Receipt processed: {created} new items added, {updated} items updated in pantry.",
+            f"Receipt parsed with {len(parsed.items)} items. "
+            f"Please review and confirm below.",
         )
-        return redirect("meals:receipt_detail", pk=receipt.pk)
+        return redirect("meals:receipt_confirm", pk=receipt.pk)
 
 
 class ReceiptDetailView(
     HelpContextMixin, LoginRequiredMixin, MealsHouseholdMixin, DetailView
 ):
-    """Show parsed receipt details with match confidence."""
+    """Show parsed receipt details with match confidence and routing summary."""
 
     template_name = "meals/receipt_detail.html"
     help_context_id = "MEALS_RECEIPTS"
@@ -774,8 +909,124 @@ class ReceiptDetailView(
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["items"] = self.object.items.all().select_related("ingredient")
+        receipt = self.object
+        context["items"] = receipt.items.all().select_related("ingredient")
+        context["is_confirmed"] = (
+            receipt.confirmation_status == Receipt.CONFIRM_CONFIRMED
+        )
+        context["is_pending"] = (
+            receipt.confirmation_status == Receipt.CONFIRM_PENDING
+        )
+
+        # Show routing summary for confirmed receipts
+        if context["is_confirmed"]:
+            context["routed_to_pantry"] = receipt.receipt_type == "grocery"
+            context["routed_to_health"] = receipt.receipt_type == "restaurant"
+            context["routed_to_finance"] = receipt.receipt_type in (
+                "grocery",
+                "restaurant",
+                "retail",
+            )
         return context
+
+
+# =============================================================================
+# Receipt Confirmation
+# =============================================================================
+
+
+class ReceiptConfirmView(
+    HelpContextMixin, LoginRequiredMixin, MealsHouseholdMixin, TemplateView
+):
+    """
+    Display parsed receipt items for user review and confirmation.
+
+    GET: Show parsed items with editable fields, receipt type selector.
+    POST: Confirm selected items, trigger domain routing.
+    """
+
+    template_name = "meals/receipt_confirm.html"
+    help_context_id = "MEALS_RECEIPTS"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        household = self.get_household()
+        receipt = get_object_or_404(
+            Receipt,
+            pk=self.kwargs["pk"],
+            household=household,
+            confirmation_status=Receipt.CONFIRM_PENDING,
+        )
+        context["receipt"] = receipt
+        context["items"] = receipt.items.all().select_related("ingredient")
+        context["receipt_types"] = Receipt.RECEIPT_TYPE_CHOICES
+        return context
+
+    def post(self, request, *args, **kwargs):
+        household = self.get_household()
+        receipt = get_object_or_404(
+            Receipt,
+            pk=self.kwargs["pk"],
+            household=household,
+            confirmation_status=Receipt.CONFIRM_PENDING,
+        )
+
+        action = request.POST.get("action")
+
+        if action == "cancel":
+            receipt.confirmation_status = Receipt.CONFIRM_CANCELLED
+            receipt.save(update_fields=["confirmation_status", "updated_at"])
+            messages.info(request, "Receipt cancelled.")
+            return redirect("meals:receipts")
+
+        # Get user-confirmed receipt type
+        receipt_type = request.POST.get("receipt_type", receipt.receipt_type)
+
+        # Get confirmed item IDs (checkboxes)
+        confirmed_ids = [
+            int(x) for x in request.POST.getlist("confirmed_items") if x.isdigit()
+        ]
+
+        # Get quantity/price overrides from editable fields
+        quantity_overrides = {}
+        price_overrides = {}
+        for item_id in confirmed_ids:
+            qty_val = request.POST.get(f"qty_{item_id}")
+            price_val = request.POST.get(f"price_{item_id}")
+            if qty_val:
+                try:
+                    quantity_overrides[item_id] = Decimal(qty_val)
+                except Exception:
+                    pass
+            if price_val:
+                try:
+                    price_overrides[item_id] = Decimal(price_val)
+                except Exception:
+                    pass
+
+        # Execute domain routing
+        from apps.meals.services.receipt_routing import ReceiptRoutingService
+
+        routing_service = ReceiptRoutingService()
+        result = routing_service.route_receipt(
+            receipt=receipt,
+            household=household,
+            receipt_type=receipt_type,
+            confirmed_item_ids=confirmed_ids,
+            quantity_overrides=quantity_overrides,
+            price_overrides=price_overrides,
+            user=request.user,
+        )
+
+        # Mark receipt confirmed
+        receipt.receipt_type = receipt_type
+        receipt.confirmation_status = Receipt.CONFIRM_CONFIRMED
+        receipt.save(
+            update_fields=["receipt_type", "confirmation_status", "updated_at"]
+        )
+
+        messages.success(request, result.summary_message)
+        return redirect("meals:receipt_detail", pk=receipt.pk)
 
 
 # =============================================================================

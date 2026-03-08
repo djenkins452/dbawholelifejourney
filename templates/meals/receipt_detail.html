@@ -4,7 +4,7 @@
 {% block title %}Receipt Detail — Meals — Whole Life Journey{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260302a">
+<link rel="stylesheet" href="{% static 'css/meals.css' %}?v=20260308a">
 {% endblock %}
 
 {% block content %}
@@ -14,10 +14,49 @@
     <div class="meals-page-header">
         <div>
             <h1>Receipt: {{ receipt.store|default:"Unknown Store" }}</h1>
-            <p class="section-subtitle">{{ receipt.receipt_date|date:"F d, Y" }} &middot; Total: ${{ receipt.total|floatformat:2 }}</p>
+            <p class="section-subtitle">
+                {{ receipt.receipt_date|date:"F d, Y" }} &middot; Total: ${{ receipt.total|floatformat:2 }}
+                &middot;
+                <span class="receipt-type-badge receipt-type-{{ receipt.receipt_type }}">
+                    {{ receipt.get_receipt_type_display }}
+                </span>
+                {% if is_confirmed %}
+                <span class="receipt-status-badge status-confirmed">Confirmed</span>
+                {% elif is_pending %}
+                <span class="receipt-status-badge status-pending">Pending</span>
+                {% endif %}
+            </p>
         </div>
-        <a href="{% url 'meals:receipts' %}" class="btn btn-outline btn-sm">Back to Receipts</a>
+        <div style="display: flex; gap: var(--space-2);">
+            {% if is_pending %}
+            <a href="{% url 'meals:receipt_confirm' pk=receipt.pk %}" class="btn btn-primary btn-sm">Review &amp; Confirm</a>
+            {% endif %}
+            <a href="{% url 'meals:receipts' %}" class="btn btn-outline btn-sm">Back to Receipts</a>
+        </div>
     </div>
+
+    {% if receipt.image %}
+    <div style="margin-bottom: var(--space-4);">
+        <img src="{{ receipt.image.url }}" alt="Receipt image"
+             style="max-width: 200px; max-height: 300px; border-radius: 8px; object-fit: contain;">
+    </div>
+    {% endif %}
+
+    {% if is_confirmed %}
+    <!-- Routing Summary -->
+    <div class="receipt-routing-summary">
+        <span class="routing-label">Data sent to:</span>
+        {% if routed_to_pantry %}
+        <span class="routing-badge routing-pantry">Pantry</span>
+        {% endif %}
+        {% if routed_to_health %}
+        <span class="routing-badge routing-health">Health</span>
+        {% endif %}
+        {% if routed_to_finance %}
+        <span class="routing-badge routing-finance">Finance</span>
+        {% endif %}
+    </div>
+    {% endif %}
 
     <!-- Parsed Items -->
     <div class="recipe-section">
@@ -30,6 +69,9 @@
                 <span class="receipt-item-match">
                     &rarr; {{ item.ingredient.canonical_name }}
                 </span>
+                {% endif %}
+                {% if item.category %}
+                <span class="receipt-item-category">{{ item.category }}</span>
                 {% endif %}
             </div>
             <div style="display: flex; align-items: center; gap: var(--space-3);">
@@ -50,4 +92,61 @@
         {% endfor %}
     </div>
 </div>
+
+<style nonce="{{ csp_nonce }}">
+.receipt-type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+.receipt-type-grocery { background: #dcfce7; color: #166534; }
+.receipt-type-restaurant { background: #fef3c7; color: #92400e; }
+.receipt-type-retail { background: #dbeafe; color: #1e40af; }
+.receipt-type-unknown { background: #f3f4f6; color: #6b7280; }
+.receipt-status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+.status-pending { background: #fef3c7; color: #92400e; }
+.status-confirmed { background: #dcfce7; color: #166534; }
+.receipt-routing-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border-radius: 8px;
+    margin-bottom: var(--space-4);
+    flex-wrap: wrap;
+}
+.routing-label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+.routing-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+}
+.routing-pantry { background: #dcfce7; color: #166534; }
+.routing-health { background: #fce7f3; color: #9d174d; }
+.routing-finance { background: #dbeafe; color: #1e40af; }
+.receipt-item-category {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: #f3f4f6;
+    color: #6b7280;
+    font-size: var(--font-size-xs);
+    margin-left: var(--space-1);
+}
+</style>
 {% endblock %}

@@ -300,14 +300,18 @@ class TestReceiptUploadView(TestUserMixin, TestCase):
         self.assertEqual(response.status_code, 302)
 
     def test_receipt_upload_processes(self):
-        """Receipt upload creates receipt and items."""
-        receipt_text = "WALMART\n03/01/2026\nBANANAS $0.68\nCHICKEN $7.99\nTOTAL $8.67"
+        """Receipt text upload creates pending receipt and redirects to confirm."""
+        receipt_text = "WALMART\n03/01/2026\nBANANAS          $0.68\nCHICKEN          $7.99\nTOTAL            $8.67"
         response = self.client.post(
             reverse("meals:receipts"),
             {"receipt_text": receipt_text},
         )
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(Receipt.objects.filter(household=self.household).exists())
+        receipt = Receipt.objects.filter(household=self.household).first()
+        self.assertIsNotNone(receipt)
+        self.assertEqual(receipt.confirmation_status, Receipt.CONFIRM_PENDING)
+        # Should redirect to confirm page
+        self.assertIn("confirm", response.url)
 
     def test_receipt_detail_view(self):
         receipt = Receipt.objects.create(
@@ -317,6 +321,7 @@ class TestReceiptUploadView(TestUserMixin, TestCase):
             store="WALMART",
             total=Decimal("10.00"),
             receipt_date=timezone.now().date(),
+            confirmation_status=Receipt.CONFIRM_CONFIRMED,
         )
         response = self.client.get(
             reverse("meals:receipt_detail", kwargs={"pk": receipt.pk})

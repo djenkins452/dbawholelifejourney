@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Intelligent Receipt Ingestion System (major feature)
+
+- **Feature:** Image-based receipt ingestion with Vision AI, receipt classification, user confirmation, and domain routing
+- **What it does:**
+  - Users can take a photo, upload an image/PDF, or paste text of a receipt
+  - GPT-4o Vision API extracts store, items, prices, total, and classifies receipt type (grocery/restaurant/retail/unknown)
+  - User reviews and confirms detected items before any domain updates
+  - Domain routing: grocery→Pantry, restaurant→Health FoodEntry, all→Finance Transaction
+  - Existing text paste feature now also requires confirmation (breaking change from auto-pantry-update)
+- **Models:** Added `image` (ImageField), `receipt_type`, `confirmation_status` to Receipt; `category` to ReceiptItem
+- **New services:** `receipt_vision.py` (Vision API), `receipt_routing.py` (domain routing)
+- **New views:** `ReceiptConfirmView` at `receipts/<pk>/confirm/`
+- **Templates:** Rewrote `receipt_upload.html` (tabbed UI: Upload Image / Take Photo / Paste Text + drag-and-drop), created `receipt_confirm.html`, updated `receipt_detail.html` (type badges, routing summary)
+- **Tests:** 27 new tests covering models, vision service, upload view, confirm view, routing service
+- **Files:** `apps/meals/models.py`, `apps/meals/views.py`, `apps/meals/urls.py`, `apps/meals/services/receipt_vision.py` (new), `apps/meals/services/receipt_routing.py` (new), `templates/meals/receipt_upload.html`, `templates/meals/receipt_confirm.html` (new), `templates/meals/receipt_detail.html`, `apps/meals/tests/test_receipt_ingestion.py` (new), `apps/meals/tests/test_views.py`, migration `0005_receipt_ingestion_fields`
+
 ## 2026-03-08 — Fix SituationState missing from CoS prompts on cached context (critical)
 
 - **Root cause:** `build_cos_context()` stored the user as `_user` in the context dict. The readiness cache strips all keys starting with `_` before caching (to avoid serializing Django model instances). When `format_cos_system_injection()` ran on cached context, `context.get('_user')` returned None, causing the entire SituationState block to be skipped — along with Session Mode, Coaching Mode, COS-CX Intelligence, Consistency Protection, Data State Snapshot, and Declared Priorities (8 blocks total). This affected the majority of CoS responses since cache hits are the normal path.

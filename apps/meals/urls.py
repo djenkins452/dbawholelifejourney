@@ -38,6 +38,11 @@ urlpatterns = [
         views.ReceiptDetailView.as_view(),
         name="receipt_detail",
     ),
+    path(
+        "receipts/<int:pk>/confirm/",
+        views.ReceiptConfirmView.as_view(),
+        name="receipt_confirm",
+    ),
     # Recipe Intelligence Detail
     path(
         "recipe/<int:pk>/",

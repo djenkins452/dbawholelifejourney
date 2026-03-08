@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Exercise-specific plateau detection
+
+- **Problem:** The `StrengthPlateauRule` was global — it checked aggregate PR count and volume trend across ALL exercises. A user plateauing on bench press while progressing on squat got a generic "strength plateau" insight. Beth couldn't say which exercises were stalled.
+- **Fix:** Refactored plateau detection to evaluate progress per exercise using e1RM trends, PR frequency, and session counts.
+- **State builder** (`build_fitness_state`): Added `exercise_progress` list with per-exercise metrics:
+  - `sessions_30d`, `sets_30d`, `prs_30d` per exercise
+  - `recent_e1rm` (last 14d) vs `prior_e1rm` (15-30d) for trend calculation
+  - `trend` (up/flat/down/new) and `status` (improving/plateau/regressing/new)
+  - Minimum threshold: 4 working sets required before an exercise is analyzed
+- **Plateau rule** (`StrengthPlateauRule`): Now names specific exercises in insights:
+  - "Your bench press appears to be plateauing. However, your squat is still progressing."
+  - Falls back to global logic if `exercise_progress` is unavailable (backwards compat)
+- **Tests:** 14 new exercise-specific tests added (8 in plateau rule tests, 6 in PR detection integration tests)
+- **Files:**
+  - `apps/core/ai_state/state_builder.py` — Added `_build_exercise_progress()` helper
+  - `apps/core/ai_insights/rules_transformation.py` — Refactored `StrengthPlateauRule` with `_evaluate_per_exercise()`, `_build_message()`, `_evaluate_global_fallback()`
+  - `apps/core/ai_insights/tests_transformation.py` — 8 new exercise-specific tests
+  - `apps/health/tests/test_pr_detection.py` — 2 new integration tests
+
 ## 2026-03-08 — Add database indexes for PersonalRecord queries
 
 - **Why:** PR detection queries `PersonalRecord` by `(user, exercise)` for lookups and `(user, achieved_date)` for the `prs_30d` count used by the plateau rule. Without indexes, these become full table scans as PR history grows.

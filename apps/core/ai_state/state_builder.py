@@ -842,7 +842,128 @@ def build_fitness_state(user):
         consistency = min(state["workouts_7d"] / weekly_avg_30d, 1.5)
         state["workout_consistency_score"] = round(consistency * 100, 1)
 
+    # ── Per-exercise progress analysis ─────────────────────────
+    state["exercise_progress"] = _build_exercise_progress(user, cutoff_30d)
+
     return state
+
+
+def _build_exercise_progress(user, cutoff_30d):
+    """
+    Build per-exercise progress analysis for the last 30 days.
+
+    For each resistance exercise with ≥4 working sets in 30 days, computes:
+    - session count, set count, PR count
+    - e1RM trend (recent 14d vs prior 15-30d)
+    - status: improving / plateau / regressing / new
+
+    Returns list of dicts sorted by exercise name.
+    """
+    from collections import defaultdict
+
+    from django.db.models import Count
+
+    from apps.health.models import ExerciseSet, PersonalRecord
+    from apps.health.pr_utils import brzycki_1rm
+
+    cutoff_14d = get_current_time() - timedelta(days=14)
+
+    # 1. Get all non-warmup resistance sets in the last 30 days
+    sets_qs = ExerciseSet.objects.filter(
+        workout_exercise__session__user=user,
+        workout_exercise__session__date__gte=cutoff_30d.date(),
+        workout_exercise__session__status="active",
+        workout_exercise__exercise__category="resistance",
+        is_warmup=False,
+        weight__isnull=False,
+        reps__isnull=False,
+    ).select_related(
+        "workout_exercise__exercise",
+        "workout_exercise__session",
+    )
+
+    # Group sets by exercise
+    exercise_data = defaultdict(lambda: {
+        "sessions": set(),
+        "sets_30d": 0,
+        "recent_e1rms": [],   # last 14 days
+        "prior_e1rms": [],    # 15-30 day window
+    })
+
+    for s in sets_qs:
+        ex = s.workout_exercise.exercise
+        session_date = s.workout_exercise.session.date
+        data = exercise_data[ex]
+        data["sessions"].add(s.workout_exercise.session_id)
+        data["sets_30d"] += 1
+
+        e1rm = brzycki_1rm(s.weight, s.reps)
+        if session_date >= cutoff_14d.date():
+            data["recent_e1rms"].append(e1rm)
+        else:
+            data["prior_e1rms"].append(e1rm)
+
+    # 2. Get PR counts per exercise in the last 30 days
+    pr_counts = dict(
+        PersonalRecord.objects.filter(
+            user=user,
+            achieved_date__gte=cutoff_30d.date(),
+        ).values_list("exercise_id").annotate(
+            count=Count("id")
+        ).values_list("exercise_id", "count")
+    )
+
+    # 3. Build progress list
+    progress = []
+    for exercise, data in exercise_data.items():
+        # Minimum threshold: 4 working sets
+        if data["sets_30d"] < 4:
+            continue
+
+        sessions_30d = len(data["sessions"])
+        prs_30d = pr_counts.get(exercise.id, 0)
+
+        recent_best = max(data["recent_e1rms"]) if data["recent_e1rms"] else 0
+        prior_best = max(data["prior_e1rms"]) if data["prior_e1rms"] else 0
+
+        # Determine trend
+        if not data["prior_e1rms"]:
+            trend = "new"
+        elif prior_best > 0:
+            ratio = recent_best / prior_best if recent_best > 0 else 0
+            if ratio > 1.02:
+                trend = "up"
+            elif ratio < 0.95:
+                trend = "down"
+            else:
+                trend = "flat"
+        else:
+            trend = "new"
+
+        # Determine status
+        if trend == "new":
+            status = "new"
+        elif prs_30d > 0 or trend == "up":
+            status = "improving"
+        elif trend == "down":
+            status = "regressing"
+        else:
+            status = "plateau"
+
+        progress.append({
+            "exercise": exercise.name,
+            "sessions_30d": sessions_30d,
+            "sets_30d": data["sets_30d"],
+            "prs_30d": prs_30d,
+            "best_e1rm": round(max(recent_best, prior_best), 1),
+            "recent_e1rm": round(recent_best, 1) if recent_best else None,
+            "prior_e1rm": round(prior_best, 1) if prior_best else None,
+            "trend": trend,
+            "status": status,
+        })
+
+    progress.sort(key=lambda x: x["exercise"])
+    return progress
 
 
 # ── Transformation State (Composite — SAE only, no DB) ──────────

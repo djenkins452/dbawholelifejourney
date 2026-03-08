@@ -588,7 +588,7 @@ class PlateauRuleIntegrationTest(PRTestMixin, TestCase):
         self.assertGreater(prs_30d, 0)
 
     def test_plateau_rule_suppressed_with_prs(self):
-        """Plateau rule should not fire when prs_30d > 0."""
+        """Global fallback: suppressed when prs_30d > 0."""
         from apps.core.ai_insights.rules_transformation import StrengthPlateauRule
 
         rule = StrengthPlateauRule()
@@ -607,7 +607,7 @@ class PlateauRuleIntegrationTest(PRTestMixin, TestCase):
         self.assertEqual(result, [])
 
     def test_plateau_rule_suppressed_with_increasing_trend(self):
-        """Plateau rule should not fire when strength trend is increasing, even with 0 PRs."""
+        """Global fallback: suppressed when trend is increasing, even with 0 PRs."""
         from apps.core.ai_insights.rules_transformation import StrengthPlateauRule
 
         rule = StrengthPlateauRule()
@@ -626,7 +626,7 @@ class PlateauRuleIntegrationTest(PRTestMixin, TestCase):
         self.assertEqual(result, [])
 
     def test_plateau_rule_fires_with_stable_trend_and_no_prs(self):
-        """Plateau rule should fire when no PRs AND trend is stable/decreasing."""
+        """Global fallback: fires when no PRs AND trend is stable/decreasing."""
         from apps.core.ai_insights.rules_transformation import StrengthPlateauRule
 
         rule = StrengthPlateauRule()
@@ -644,6 +644,66 @@ class PlateauRuleIntegrationTest(PRTestMixin, TestCase):
         result = rule.evaluate(user, event)
         self.assertEqual(len(result), 1)
         self.assertIn("plateau", result[0]["title"].lower())
+
+    def test_exercise_specific_plateau_names_exercise(self):
+        """Exercise-specific: insight should name the specific plateauing exercise."""
+        from apps.core.ai_insights.rules_transformation import StrengthPlateauRule
+
+        rule = StrengthPlateauRule()
+        event = {
+            "module": "health",
+            "user_state": {
+                "fitness": {
+                    "workouts_30d": 12,
+                    "prs_30d": 0,
+                    "exercise_progress": [
+                        {"exercise": "Bench Press", "sessions_30d": 6,
+                         "sets_30d": 18, "prs_30d": 0, "best_e1rm": 208,
+                         "recent_e1rm": 208, "prior_e1rm": 208,
+                         "trend": "flat", "status": "plateau"},
+                        {"exercise": "Squat", "sessions_30d": 5,
+                         "sets_30d": 15, "prs_30d": 2, "best_e1rm": 300,
+                         "recent_e1rm": 300, "prior_e1rm": 280,
+                         "trend": "up", "status": "improving"},
+                    ],
+                }
+            }
+        }
+        user = self.create_user()
+        result = rule.evaluate(user, event)
+        self.assertEqual(len(result), 1)
+        msg = result[0]["message"].lower()
+        self.assertIn("bench press", msg)
+        self.assertIn("squat", msg)
+        self.assertIn("progressing", msg)
+
+    def test_exercise_specific_no_plateau_when_all_improving(self):
+        """Exercise-specific: no insight when all exercises are improving."""
+        from apps.core.ai_insights.rules_transformation import StrengthPlateauRule
+
+        rule = StrengthPlateauRule()
+        event = {
+            "module": "health",
+            "user_state": {
+                "fitness": {
+                    "workouts_30d": 12,
+                    "prs_30d": 3,
+                    "exercise_progress": [
+                        {"exercise": "Bench Press", "sessions_30d": 6,
+                         "sets_30d": 18, "prs_30d": 2, "best_e1rm": 220,
+                         "recent_e1rm": 220, "prior_e1rm": 208,
+                         "trend": "up", "status": "improving"},
+                        {"exercise": "Squat", "sessions_30d": 5,
+                         "sets_30d": 15, "prs_30d": 1, "best_e1rm": 300,
+                         "recent_e1rm": 300, "prior_e1rm": 285,
+                         "trend": "up", "status": "improving"},
+                    ],
+                }
+            }
+        }
+        user = self.create_user()
+        result = rule.evaluate(user, event)
+        self.assertEqual(result, [])
 
 
 # =============================================================================

@@ -290,7 +290,10 @@ class TestStrengthPlateauRule(TestCase):
         event = {"module": "health"}
         self.assertTrue(self.rule.applies(self.user, event))
 
+    # ── Global fallback tests (no exercise_progress in state) ──
+
     def test_triggers_plateau_detected(self):
+        """Global fallback: fires when 0 PRs and no exercise_progress."""
         event = {
             "module": "health",
             "user_state": {
@@ -330,6 +333,117 @@ class TestStrengthPlateauRule(TestCase):
         }
         insights = self.rule.evaluate(self.user, event)
         self.assertEqual(len(insights), 0)
+
+    # ── Exercise-specific plateau tests ──
+
+    def _make_event(self, exercise_progress):
+        return {
+            "module": "health",
+            "user_state": {
+                "fitness": {
+                    "workouts_30d": 12,
+                    "prs_30d": 0,
+                    "exercise_progress": exercise_progress,
+                }
+            },
+        }
+
+    def test_one_exercise_plateau_one_improving(self):
+        """Insight should fire and name only the plateauing exercise."""
+        progress = [
+            {"exercise": "Bench Press", "sessions_30d": 6, "sets_30d": 18,
+             "prs_30d": 0, "best_e1rm": 208, "recent_e1rm": 208,
+             "prior_e1rm": 208, "trend": "flat", "status": "plateau"},
+            {"exercise": "Squat", "sessions_30d": 5, "sets_30d": 15,
+             "prs_30d": 2, "best_e1rm": 300, "recent_e1rm": 300,
+             "prior_e1rm": 285, "trend": "up", "status": "improving"},
+        ]
+        insights = self.rule.evaluate(self.user, self._make_event(progress))
+        self.assertEqual(len(insights), 1)
+        msg = insights[0]["message"].lower()
+        self.assertIn("bench press", msg)
+        self.assertIn("squat", msg)
+        self.assertIn("progressing", msg)
+
+    def test_all_exercises_improving_no_insight(self):
+        """No insight when all exercises are improving."""
+        progress = [
+            {"exercise": "Bench Press", "sessions_30d": 6, "sets_30d": 18,
+             "prs_30d": 2, "best_e1rm": 220, "recent_e1rm": 220,
+             "prior_e1rm": 208, "trend": "up", "status": "improving"},
+            {"exercise": "Squat", "sessions_30d": 5, "sets_30d": 15,
+             "prs_30d": 1, "best_e1rm": 300, "recent_e1rm": 300,
+             "prior_e1rm": 285, "trend": "up", "status": "improving"},
+        ]
+        insights = self.rule.evaluate(self.user, self._make_event(progress))
+        self.assertEqual(len(insights), 0)
+
+    def test_all_exercises_plateau(self):
+        """Insight should name all plateauing exercises."""
+        progress = [
+            {"exercise": "Bench Press", "sessions_30d": 6, "sets_30d": 18,
+             "prs_30d": 0, "best_e1rm": 208, "recent_e1rm": 208,
+             "prior_e1rm": 208, "trend": "flat", "status": "plateau"},
+            {"exercise": "Overhead Press", "sessions_30d": 4, "sets_30d": 12,
+             "prs_30d": 0, "best_e1rm": 130, "recent_e1rm": 130,
+             "prior_e1rm": 130, "trend": "flat", "status": "plateau"},
+        ]
+        insights = self.rule.evaluate(self.user, self._make_event(progress))
+        self.assertEqual(len(insights), 1)
+        msg = insights[0]["message"].lower()
+        self.assertIn("bench press", msg)
+        self.assertIn("overhead press", msg)
+
+    def test_regressing_exercise_triggers_insight(self):
+        """Regressing exercises should also trigger the insight."""
+        progress = [
+            {"exercise": "Bench Press", "sessions_30d": 6, "sets_30d": 18,
+             "prs_30d": 0, "best_e1rm": 208, "recent_e1rm": 195,
+             "prior_e1rm": 208, "trend": "down", "status": "regressing"},
+        ]
+        insights = self.rule.evaluate(self.user, self._make_event(progress))
+        self.assertEqual(len(insights), 1)
+        msg = insights[0]["message"].lower()
+        self.assertIn("bench press", msg)
+
+    def test_empty_exercise_progress_no_insight(self):
+        """Empty exercise_progress list means no exercises meet threshold."""
+        insights = self.rule.evaluate(self.user, self._make_event([]))
+        self.assertEqual(len(insights), 0)
+
+    def test_only_new_exercises_no_insight(self):
+        """Exercises with status='new' should not trigger plateau."""
+        progress = [
+            {"exercise": "Romanian Deadlift", "sessions_30d": 2, "sets_30d": 6,
+             "prs_30d": 1, "best_e1rm": 200, "recent_e1rm": 200,
+             "prior_e1rm": None, "trend": "new", "status": "new"},
+        ]
+        insights = self.rule.evaluate(self.user, self._make_event(progress))
+        self.assertEqual(len(insights), 0)
+
+    def test_evidence_includes_exercise_progress(self):
+        """Evidence should contain the full exercise_progress data."""
+        progress = [
+            {"exercise": "Bench Press", "sessions_30d": 6, "sets_30d": 18,
+             "prs_30d": 0, "best_e1rm": 208, "recent_e1rm": 208,
+             "prior_e1rm": 208, "trend": "flat", "status": "plateau"},
+        ]
+        insights = self.rule.evaluate(self.user, self._make_event(progress))
+        self.assertEqual(len(insights), 1)
+        evidence = insights[0]["evidence"]
+        self.assertIn("exercise_progress", evidence)
+        self.assertEqual(evidence["plateauing"], ["Bench Press"])
+        self.assertEqual(evidence["improving"], [])
+
+    def test_title_says_exercise_plateau(self):
+        """Title should say 'Exercise plateau' not generic 'Strength plateau'."""
+        progress = [
+            {"exercise": "Squat", "sessions_30d": 6, "sets_30d": 18,
+             "prs_30d": 0, "best_e1rm": 300, "recent_e1rm": 300,
+             "prior_e1rm": 300, "trend": "flat", "status": "plateau"},
+        ]
+        insights = self.rule.evaluate(self.user, self._make_event(progress))
+        self.assertEqual(insights[0]["title"], "Exercise plateau detected")
 
 
 # ── TransformationMomentumRule ─────────────────────────────────

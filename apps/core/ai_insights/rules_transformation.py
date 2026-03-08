@@ -430,14 +430,13 @@ class WorkoutConsistencyRule(BaseInsightRule):
 
 @register
 class StrengthPlateauRule(BaseInsightRule):
-    """Detect strength plateaus using PR frequency and e1RM trend.
+    """Detect exercise-specific strength plateaus.
 
-    A true plateau requires BOTH:
-    - No personal records in the last 30 days (prs_30d == 0)
-    - Strength trend is NOT increasing (volume not growing week-over-week)
+    Uses per-exercise progress data from the SAE fitness state to identify
+    which specific exercises are plateauing, improving, or regressing.
+    Produces coach-like insights that name the specific exercises involved.
 
-    If the user has no PRs but their volume is still increasing, they're
-    progressing — just haven't hit a formal PR threshold yet.
+    Falls back to global plateau detection if exercise_progress is unavailable.
     """
 
     rule_name = "strength_plateau"
@@ -452,31 +451,130 @@ class StrengthPlateauRule(BaseInsightRule):
     def evaluate(self, user, event):
         user_state = event.get("user_state", {})
         fitness = user_state.get("fitness", {})
-
-        prs_30d = fitness.get("prs_30d", 0)
         workouts_30d = fitness.get("workouts_30d", 0)
-        strength_trend = fitness.get("strength_trend_score", "insufficient_data")
 
-        # Must be training consistently (8+ workouts in 30 days)
+        # Must be training consistently
         if workouts_30d < 8:
             return []
 
-        # If they have PRs, no plateau
-        if prs_30d > 0:
-            return []
+        exercise_progress = fitness.get("exercise_progress")
+        if exercise_progress is not None:
+            return self._evaluate_per_exercise(user, fitness, exercise_progress)
+        return self._evaluate_global_fallback(user, fitness)
 
-        # If volume is still increasing, they're progressing even without
-        # a formal PR — don't fire a false plateau
-        if strength_trend == "increasing":
+    def _evaluate_per_exercise(self, user, fitness, exercise_progress):
+        """Exercise-specific plateau detection."""
+        plateauing = [e for e in exercise_progress if e["status"] == "plateau"]
+        improving = [e for e in exercise_progress if e["status"] == "improving"]
+        regressing = [e for e in exercise_progress if e["status"] == "regressing"]
+
+        if not plateauing and not regressing:
             return []
 
         window_start, window_end = get_time_window(days=30)
 
-        trend_detail = ""
-        if strength_trend == "decreasing":
-            trend_detail = " Your training volume has also been declining."
-        elif strength_trend == "stable":
-            trend_detail = " Your training volume has been stable."
+        # Build exercise-specific message
+        stalled = plateauing + regressing
+        stalled_names = [e["exercise"].lower() for e in stalled]
+        improving_names = [e["exercise"].lower() for e in improving]
+
+        message = self._build_message(stalled, improving, stalled_names, improving_names)
+
+        return [
+            {
+                "severity": "info",
+                "title": "Exercise plateau detected",
+                "message": message,
+                "confidence_score": 0.75,
+                "explain_why": (
+                    f"Rule: {self.rule_name}. "
+                    f"Plateauing: {', '.join(e['exercise'] for e in plateauing) or 'none'}. "
+                    f"Regressing: {', '.join(e['exercise'] for e in regressing) or 'none'}. "
+                    f"Improving: {', '.join(e['exercise'] for e in improving) or 'none'}."
+                ),
+                "evidence": {
+                    "rule_name": self.rule_name,
+                    "exercise_progress": exercise_progress,
+                    "plateauing": [e["exercise"] for e in plateauing],
+                    "improving": [e["exercise"] for e in improving],
+                    "regressing": [e["exercise"] for e in regressing],
+                    "window_start": str(window_start.date()),
+                    "window_end": str(window_end.date()),
+                },
+                "dedupe_key": build_dedupe_key(
+                    user.id,
+                    self.insight_type,
+                    window_start.date(),
+                    window_end.date(),
+                ),
+            }
+        ]
+
+    @staticmethod
+    def _build_message(stalled, improving, stalled_names, improving_names):
+        """Build a coach-like message naming specific exercises."""
+        # Format stalled exercise names
+        if len(stalled_names) == 1:
+            stalled_str = f"your {stalled_names[0]}"
+        elif len(stalled_names) == 2:
+            stalled_str = f"your {stalled_names[0]} and {stalled_names[1]}"
+        else:
+            stalled_str = (
+                "your " + ", ".join(stalled_names[:-1]) + f", and {stalled_names[-1]}"
+            )
+
+        # Classify stalled exercises
+        plateau_names = [e["exercise"].lower() for e in stalled if e["status"] == "plateau"]
+        regressing_names = [e["exercise"].lower() for e in stalled if e["status"] == "regressing"]
+
+        if plateau_names and regressing_names:
+            verb = "appears stalled"
+            if len(regressing_names) == 1:
+                detail = f", and your {regressing_names[0]} volume is declining"
+            else:
+                detail = ", with some exercises also declining in volume"
+        elif regressing_names:
+            verb = "has been declining"
+            detail = ""
+        else:
+            verb = "appears to be plateauing" if len(stalled) == 1 else "appear to be plateauing"
+            detail = ""
+
+        msg = f"{stalled_str.capitalize()} {verb}{detail}."
+
+        if improving_names:
+            if len(improving_names) == 1:
+                msg += f" However, your {improving_names[0]} is still progressing."
+            elif len(improving_names) == 2:
+                msg += (
+                    f" However, your {improving_names[0]} and "
+                    f"{improving_names[1]} are still progressing."
+                )
+            else:
+                msg += (
+                    f" However, {len(improving_names)} other exercises "
+                    f"are still progressing."
+                )
+
+        msg += (
+            " Consider adjusting your programming for the stalled lifts "
+            "— progressive overload, deload weeks, or exercise variations "
+            "may help break through."
+        )
+        return msg
+
+    def _evaluate_global_fallback(self, user, fitness):
+        """Fallback: global plateau detection for legacy cached state."""
+        prs_30d = fitness.get("prs_30d", 0)
+        workouts_30d = fitness.get("workouts_30d", 0)
+        strength_trend = fitness.get("strength_trend_score", "insufficient_data")
+
+        if prs_30d > 0:
+            return []
+        if strength_trend == "increasing":
+            return []
+
+        window_start, window_end = get_time_window(days=30)
 
         return [
             {
@@ -484,15 +582,14 @@ class StrengthPlateauRule(BaseInsightRule):
                 "title": "Strength plateau detected",
                 "message": (
                     f"You've completed {workouts_30d} workouts in the last 30 days "
-                    f"without setting any personal records.{trend_detail} "
+                    f"without setting any personal records. "
                     f"Consider adjusting your programming — progressive overload, "
                     f"deload weeks, or exercise variations may help break through."
                 ),
                 "confidence_score": 0.72,
                 "explain_why": (
                     f"Rule: {self.rule_name}. 30-day workouts: {workouts_30d}, "
-                    f"30-day PRs: 0, strength trend: {strength_trend} "
-                    f"(threshold: 8+ workouts with 0 PRs and non-increasing trend)."
+                    f"30-day PRs: 0, strength trend: {strength_trend}."
                 ),
                 "evidence": {
                     "rule_name": self.rule_name,

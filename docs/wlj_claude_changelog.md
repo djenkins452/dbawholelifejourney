@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Add skip_task AI intent
+
+- **Why:** Users need to be able to skip tasks via the AI assistant (e.g., "skip my workout task"). Previously only complete_task existed; skipping required manual UI interaction.
+- **What:** Added full 7-point intent registration for `skip_task`:
+  1. Tool definition in `apps/ai/intents/life_intents.py`
+  2. Handler map in `apps/ai/intents/__init__.py`
+  3. Engine category in `apps/core/ai_orchestrator/intent_engine.py` (LIFE_INTENTS)
+  4. Execute dispatcher in `apps/ai/intent_service.py`
+  5. Action handler `handle_skip_task()` in `apps/ai/action_handlers.py`
+  6. System prompt examples for skip/pass phrasing
+  7. NON_TIME_INTENTS in `apps/ai/tests/test_intent_registration.py`
+- **Also added:** Keyword-based fallback routing for "skip"/"pass" verbs
+- **Files:** `apps/ai/intents/life_intents.py`, `apps/ai/intents/__init__.py`, `apps/core/ai_orchestrator/intent_engine.py`, `apps/ai/intent_service.py`, `apps/ai/action_handlers.py`, `apps/ai/tests/test_intent_registration.py`, `docs/wlj_claude_changelog.md`
+- **Tests:** All 10 intent registration gate tests pass
+
 ## 2026-03-08 — Add database indexes for PersonalRecord queries
 
 - **Why:** PR detection queries `PersonalRecord` by `(user, exercise)` for lookups and `(user, achieved_date)` for the `prs_30d` count used by the plateau rule. Without indexes, these become full table scans as PR history grows.

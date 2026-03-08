@@ -59,6 +59,7 @@ LIFE_INTENTS = {
     "create_task",
     "create_routine_task",
     "complete_task",
+    "skip_task",
     "read_task",
     "mutate_task",
     "create_event",

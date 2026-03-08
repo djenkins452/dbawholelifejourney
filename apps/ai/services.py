@@ -33,7 +33,31 @@ logger = logging.getLogger(__name__)
 # LLM call resilience defaults
 LLM_MAX_RETRIES = 1  # Single attempt — no retries on sync page loads
 LLM_BASE_BACKOFF_SECONDS = 1.0  # doubles each retry: 1s, 2s, 4s
-LLM_TIMEOUT_SECONDS = 3  # per-request timeout (emergency: fast-fail to unblock sync workers)
+LLM_TIMEOUT_SECONDS = 3  # per-request timeout for lightweight utilities (fast-fail to unblock sync workers)
+
+# Per-endpoint timeout strategy: CoS chat and briefing flows need longer
+# timeouts because they involve large system prompts (50+ context keys)
+# and generate substantial responses. The 3s default was causing silent
+# fallbacks on ~20% of streaming CoS requests.
+LLM_TIMEOUT_COS_CHAT = 45  # CoS chat/briefing — large prompt, long response
+LLM_TIMEOUT_INTENT = 10    # Intent recognition — structured output, moderate
+LLM_TIMEOUT_UTILITY = 3    # Lightweight utilities (summary, extraction, etc.)
+
+# Endpoint → timeout mapping
+ENDPOINT_TIMEOUTS = {
+    'cos_chat': LLM_TIMEOUT_COS_CHAT,
+    'cos_briefing': LLM_TIMEOUT_COS_CHAT,
+    'executive_briefing': LLM_TIMEOUT_COS_CHAT,
+    'proactive_briefing': LLM_TIMEOUT_COS_CHAT,
+    'intent_recognition': LLM_TIMEOUT_INTENT,
+    'journal_reflection': LLM_TIMEOUT_INTENT,
+    # Everything else uses LLM_TIMEOUT_UTILITY (default)
+}
+
+
+def get_timeout_for_endpoint(endpoint: str) -> int:
+    """Return the appropriate timeout for a given endpoint."""
+    return ENDPOINT_TIMEOUTS.get(endpoint, LLM_TIMEOUT_UTILITY)
 
 # ==========================================================================
 # OpenAI Client Singleton — Thread-safe, connection-pooling
@@ -63,7 +87,7 @@ def get_openai_client():
             from openai import OpenAI
             _shared_openai_client = OpenAI(
                 api_key=api_key,
-                timeout=LLM_TIMEOUT_SECONDS,
+                timeout=LLM_TIMEOUT_COS_CHAT,  # Use longest timeout as client default; per-request overrides apply
                 max_retries=0,  # No retries — 429s fail immediately to avoid blocking sync workers
             )
             logger.info("OpenAI client initialized (shared singleton)")
@@ -383,6 +407,7 @@ class AIService:
         messages.append({"role": "user", "content": user_content})
 
         last_error = None
+        _effective_timeout = get_timeout_for_endpoint(endpoint)
         for attempt in range(1, LLM_MAX_RETRIES + 1):
             start_time = time.monotonic()
             try:
@@ -392,6 +417,7 @@ class AIService:
                     messages=messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
+                    timeout=_effective_timeout,
                 )
                 elapsed = time.monotonic() - start_time
                 result = response.choices[0].message.content.strip()
@@ -511,6 +537,7 @@ class AIService:
         self._last_stream_usage = None
         last_error = None
         start_time = time.monotonic()
+        _effective_timeout = get_timeout_for_endpoint(endpoint)
 
         for attempt in range(1, LLM_MAX_RETRIES + 1):
             try:
@@ -522,6 +549,7 @@ class AIService:
                     temperature=temperature,
                     stream=True,
                     stream_options={"include_usage": True},
+                    timeout=_effective_timeout,
                 )
 
                 for chunk in stream:
@@ -552,6 +580,17 @@ class AIService:
                             elapsed=elapsed,
                         )
 
+                # Zero-token detection: stream completed but yielded nothing
+                if not self._last_stream_usage or (
+                    self._last_stream_usage.get('completion_tokens', 0) == 0
+                ):
+                    elapsed = time.monotonic() - start_time
+                    logger.warning(
+                        "STREAM_EMPTY_RESPONSE endpoint=%s model=%s latency=%.2fs "
+                        "— stream completed but produced zero completion tokens",
+                        endpoint, effective_model, elapsed,
+                    )
+
                 return  # Stream completed successfully
 
             except Exception as e:
@@ -562,11 +601,22 @@ class AIService:
                     is_rate_limit = isinstance(e, RateLimitError)
                 except ImportError:
                     is_rate_limit = '429' in str(e)
+
+                # Detect timeout specifically
+                _is_timeout = 'timeout' in str(e).lower() or 'timed out' in str(e).lower()
+
                 if is_rate_limit:
                     cache.set("openai_rate_limited", True, timeout=120)
                     logger.warning(
                         "LLM STREAM RATE LIMITED endpoint=%s attempt=%d/%d latency=%.2fs — circuit breaker set for 120s",
                         endpoint, attempt, LLM_MAX_RETRIES, elapsed,
+                    )
+                elif _is_timeout:
+                    logger.error(
+                        "LLM_STREAM_TIMEOUT endpoint=%s model=%s timeout=%ds "
+                        "latency=%.2fs — request timed out. This causes silent "
+                        "fallback to generic response.",
+                        endpoint, effective_model, _effective_timeout, elapsed,
                     )
                 else:
                     logger.warning(

@@ -1541,13 +1541,16 @@ def _detect_session_mode(user):
         now = dj_tz.now()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-        # Find the most recent assistant message for this user
+        # Find the most recent non-fallback assistant message for this user.
+        # Fallback messages (message_type='fallback') are excluded so they
+        # don't suppress the daily briefing on the next real interaction.
         last_msg = (
             AssistantMessage.objects
             .filter(
                 conversation__user=user,
                 role='assistant',
             )
+            .exclude(message_type='fallback')
             .order_by('-created_at')
             .values_list('created_at', flat=True)
             .first()
@@ -1677,6 +1680,72 @@ def format_cos_system_injection(context):
         return format_learning_mode_injection(context)
 
     lines = []
+
+    # ── CoS SITUATION AWARENESS (highest priority) ──
+    # Pre-computed by scheduled task every 15 minutes. This is the
+    # single most important context block — it tells CoS what to
+    # focus on without requiring the LLM to interpret 50+ raw signals.
+    _cos_user = context.get('_user')
+    if _cos_user:
+        try:
+            from apps.core.ai_state.models import CoSSituationState
+            sit = CoSSituationState.objects.filter(user=_cos_user).first()
+            if sit and sit.dominant_concern:
+                lines.append("=== CoS SITUATION AWARENESS (PRE-COMPUTED) ===")
+                lines.append("")
+                lines.append(
+                    f"SITUATION MODE: {sit.get_situation_mode_display()}"
+                )
+                if sit.opening_sentence:
+                    lines.append(
+                        f"OPENING FRAME: {sit.opening_sentence}"
+                    )
+                lines.append(
+                    f"DOMINANT CONCERN: {sit.dominant_concern}"
+                )
+                if sit.top_priority:
+                    lines.append(
+                        f"TOP PRIORITY: {sit.top_priority}"
+                    )
+                if sit.changes_since_last_interaction:
+                    change_strs = [
+                        c.get('what', '') for c in sit.changes_since_last_interaction[:5]
+                        if isinstance(c, dict)
+                    ]
+                    if change_strs:
+                        lines.append(
+                            f"CHANGES SINCE LAST INTERACTION: {'; '.join(change_strs)}"
+                        )
+                if sit.escalations:
+                    esc_strs = [
+                        e.get('description', '') for e in sit.escalations[:3]
+                        if isinstance(e, dict)
+                    ]
+                    if esc_strs:
+                        lines.append(
+                            f"ESCALATIONS: {'; '.join(esc_strs)}"
+                        )
+                if sit.resolutions:
+                    res_strs = [
+                        r.get('description', '') for r in sit.resolutions[:3]
+                        if isinstance(r, dict)
+                    ]
+                    if res_strs:
+                        lines.append(
+                            f"RESOLUTIONS: {'; '.join(res_strs)}"
+                        )
+                lines.append(
+                    "DIRECTIVE: Your response MUST reference the dominant concern "
+                    "above. If the user's question is unrelated, address their "
+                    "question first, then briefly acknowledge the concern. "
+                    "The opening frame above is a suggested natural-language start."
+                )
+                lines.append("")
+                lines.append("=== END SITUATION AWARENESS ===")
+                lines.append("")
+        except Exception:
+            pass  # Situation state not yet computed — fall through to raw context
+
     lines.append("=== OPERATIONAL INTELLIGENCE ===")
     lines.append("")
     lines.append(
@@ -1820,12 +1889,80 @@ def format_cos_system_injection(context):
         lines.append(scan_brief)
         lines.append("")
 
-    # ── SESSION MODE (daily_brief vs light interaction) ──
+    # ── SESSION MODE (situation-aware, replaces binary daily_brief/light) ──
     _cos_user = context.get('_user')
     if _cos_user:
         try:
-            _session_mode = _detect_session_mode(_cos_user)
-            if _session_mode == 'daily_brief':
+            # Try situation-aware mode first (from CoSSituationState)
+            _situation_mode = None
+            try:
+                from apps.core.ai_state.models import CoSSituationState
+                sit = CoSSituationState.objects.filter(user=_cos_user).first()
+                if sit:
+                    _situation_mode = sit.situation_mode
+            except Exception:
+                pass
+
+            # Fall back to legacy binary detection if situation model not available
+            _legacy_mode = _detect_session_mode(_cos_user)
+
+            _SESSION_MODE_INSTRUCTIONS = {
+                CoSSituationState.MODE_MORNING_ORIENTATION: (
+                    "SESSION MODE: MORNING ORIENTATION. "
+                    "This is the first interaction today or a significant gap. "
+                    "Deliver the full Daily Brief naturally: acknowledge progress, "
+                    "state outstanding items, identify the most time-sensitive thing, "
+                    "suggest one priority focus, and ask one high-leverage question. "
+                    "After this message, switch to a lighter conversational mode."
+                ),
+                CoSSituationState.MODE_MIDDAY_CHECKPOINT: (
+                    "SESSION MODE: MIDDAY CHECKPOINT. "
+                    "Half the day is done. Briefly acknowledge morning progress, "
+                    "highlight what's still pending, and suggest the most impactful "
+                    "next action. Keep it concise — the user is mid-flow."
+                ),
+                CoSSituationState.MODE_AFTERNOON_FOCUS: (
+                    "SESSION MODE: AFTERNOON FOCUS. "
+                    "Productive hours are winding down. Focus on what can still "
+                    "be completed today. Deprioritize non-essentials. If the user "
+                    "is on track, acknowledge it briefly and don't over-coach."
+                ),
+                CoSSituationState.MODE_EVENING_REVIEW: (
+                    "SESSION MODE: EVENING REVIEW. "
+                    "The day is winding down. Reflect on what was accomplished, "
+                    "note what carries over to tomorrow, and offer a brief evening "
+                    "check-in. Warm, low-pressure tone."
+                ),
+                CoSSituationState.MODE_WEEKEND_REFLECTION: (
+                    "SESSION MODE: WEEKEND REFLECTION. "
+                    "It's the weekend. Keep professional urgency low. Focus on "
+                    "personal reflection, relationship time, and recovery. Only "
+                    "flag truly time-sensitive items."
+                ),
+                CoSSituationState.MODE_URGENT_INTERVENTION: (
+                    "SESSION MODE: URGENT INTERVENTION. "
+                    "A critical signal has been detected (missed medication, "
+                    "deadline breach, health alert). Lead with the urgent item "
+                    "immediately — do not bury it in a general briefing. Be direct "
+                    "and action-oriented."
+                ),
+                CoSSituationState.MODE_CELEBRATION: (
+                    "SESSION MODE: CELEBRATION. "
+                    "The user has achieved something noteworthy. Acknowledge it "
+                    "genuinely and specifically — name the achievement. Then "
+                    "transition naturally to what's next."
+                ),
+                CoSSituationState.MODE_RECOVERY: (
+                    "SESSION MODE: RECOVERY. "
+                    "The user is in recovery mode. Reduce expectations, focus on "
+                    "essentials only, and use an encouraging but low-pressure tone. "
+                    "Protect non-negotiables but defer everything else."
+                ),
+            }
+
+            if _situation_mode and _situation_mode in _SESSION_MODE_INSTRUCTIONS:
+                lines.append(_SESSION_MODE_INSTRUCTIONS[_situation_mode])
+            elif _legacy_mode == 'daily_brief':
                 lines.append(
                     "SESSION MODE: DAILY ORIENTATION. "
                     "This is the first interaction today or 4+ hours have passed. "

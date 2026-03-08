@@ -652,6 +652,7 @@ class AssistantMessage(models.Model):
         ('scripture', 'Scripture Reference'),
         ('priority_list', 'Priority List'),
         ('state_assessment', 'State Assessment'),
+        ('fallback', 'Fallback Response'),
     ]
     message_type = models.CharField(
         max_length=20,

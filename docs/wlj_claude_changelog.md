@@ -6,6 +6,40 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — CoS Reliability + Behavior Architecture Upgrade (5-Phase)
+
+### Phase 1: Streaming Reliability Fix
+- **Root cause:** 3-second global OpenAI timeout caused silent fallbacks on ~20% of CoS chat/briefing requests. Fallback responses were saved as normal `message_type='text'`, suppressing subsequent daily briefings.
+- **Fix 1 — Per-endpoint timeouts:** CoS chat/briefing: 45s, intent recognition: 10s, lightweight utilities: 3s (default). Added `ENDPOINT_TIMEOUTS` mapping and `get_timeout_for_endpoint()`.
+- **Fix 2 — Structured fallback logging:** Added `STREAM_CTX_FALLBACK`, `STREAM_EMPTY_FALLBACK`, `STREAM_AI_UNAVAILABLE_FALLBACK`, `STREAM_EXCEPTION_FALLBACK`, `STREAM_TOPLEVEL_FALLBACK`, `LLM_STREAM_TIMEOUT`, `STREAM_EMPTY_RESPONSE` log markers.
+- **Fix 3 — Fallback contamination prevention:** Added `message_type='fallback'` choice. All fallback saves now mark message as `fallback`. Session mode detection excludes fallback messages so they don't suppress daily briefings.
+- **Files:** `apps/ai/services.py`, `apps/ai/personal_assistant.py`, `apps/ai/models.py`, `apps/core/ai_orchestrator/cos_context.py`
+
+### Phase 2: CoS Situation Model
+- **Problem:** CoS rebuilt awareness from scratch (50+ keys) every message. No delta tracking, no persistent state, no pre-interpreted narrative.
+- **New model:** `CoSSituationState` (OneToOneField per user) with: dominant_concern, top_priority, situation_mode (8 modes), changes_since_last_interaction, escalations, resolutions, opening_sentence, suppressed_signals, user_acknowledged_signals.
+- **Scheduled task:** `compute_cos_situation` runs every 15 minutes via ISE scheduler. Pure logic (no LLM calls). Reads engine outputs (PIE insights, PRIE predictions, PGE guidance, health signals, tasks, drift scores) and distills into pre-interpreted state.
+- **8 situation modes:** morning_orientation, midday_checkpoint, afternoon_focus, evening_review, weekend_reflection, urgent_intervention, celebration, recovery. Replace binary daily_brief/light.
+- **Prompt injection:** Situation awareness block prepended as highest-priority context in `format_cos_system_injection()`.
+- **Files:** `apps/core/ai_state/models.py`, `apps/core/ai_state/situation_computer.py` (new), `apps/core/ai_scheduler/scheduler_registry.py`, `apps/core/ai_orchestrator/cos_context.py`
+
+### Phase 3: True Proactive Delivery
+- **Problem:** Proactive check-ins wrote directly to `AssistantMessage` DB — users only saw them when opening chat. No push/SMS/email.
+- **Fix:** `_create_proactive_message()` now also routes through DNE via `deliver_single()`. High-priority items (medication) get priority=1 (bypasses quiet hours). Standard items get priority=3. Respects user notification preferences.
+- **Files:** `apps/ai/proactive_checkins.py`
+
+### Phase 4: Opening Message Intelligence Parity
+- **Problem:** Opening message used 5-field CoS snapshot vs 50+ fields available in chat.
+- **Fix:** Opening message now includes full `CoSSituationState` fields: dominant_concern, top_priority, situation_mode, opening_sentence, changes_since_last, escalations, resolutions.
+- **Files:** `apps/ai/views.py`
+
+### Phase 5: Signal Prioritization Guardrail
+- **Problem:** No way to detect when LLM ignores highest-priority signal despite having it in context.
+- **Fix:** `_check_priority_alignment()` method checks if LLM response references keywords from dominant concern. Logs `COS_PRIORITY_MISALIGNMENT` when it doesn't. Observe-only (doesn't block response). Applied to both streaming and non-streaming paths.
+- **Files:** `apps/ai/personal_assistant.py`
+
+---
+
 ## 2026-03-08 — Fix Morning CoS Briefing Metadata Poisoning + Desktop Briefing Gap
 
 - **Root cause:** `build_executive_briefing()` marked `last_briefing_date` immediately upon building briefing text (line 111-113), BEFORE the LLM processed it or the user saw it. If the subsequent LLM call failed or returned a weak response, the flag was already burned — no briefing could fire for the rest of the day. This caused the user to receive generic "I'm here to help you stay on track" fallback instead of a data-rich morning orientation.

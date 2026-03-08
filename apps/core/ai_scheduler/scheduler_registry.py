@@ -165,6 +165,12 @@ SCHEDULED_TASKS = {
         "interval_seconds": 300,  # 5 minutes
         "description": "Deliver due CoS prompts to all users.",
     },
+    # --- CoS Situation State (Phase 2 — Behavior Architecture) ---
+    "compute_cos_situation": {
+        "function_path": "apps.core.ai_state.situation_computer.run_situation_compute",
+        "interval_seconds": 900,  # 15 minutes
+        "description": "Compute CoS situation state for all active users (pre-interpreted awareness, no LLM calls).",
+    },
 }
 
 

@@ -485,6 +485,11 @@ class ProactiveCheckInService:
             }
         )
 
+    # Check-in types that warrant immediate push delivery (high priority)
+    _HIGH_PRIORITY_CHECKIN_TYPES = {'medicine', 'grouped_medicine'}
+    # Check-in types that use standard delivery (lower priority)
+    _STANDARD_CHECKIN_TYPES = {'workout', 'journal', 'overdue_task', 'busy_day'}
+
     def _create_proactive_message(
         self,
         content: str,
@@ -493,7 +498,14 @@ class ProactiveCheckInService:
         metadata: dict = None
     ) -> AssistantMessage:
         """
-        Create a proactive assistant message.
+        Create a proactive assistant message AND route through DNE.
+
+        Creates the in-app chat message (so users see it when they open chat)
+        AND creates a DeliveryItem routed through the Delivery Notification
+        Engine for push/SMS/email delivery based on user preferences.
+
+        High-priority check-ins (medication) get priority=1 (bypasses quiet hours).
+        Standard check-ins get priority=3.
 
         Args:
             content: The message content (keep SHORT)
@@ -518,7 +530,61 @@ class ProactiveCheckInService:
 
         logger.debug(f"Created proactive check-in for user {self.user.id}: {message_type}")
 
+        # ── Route through DNE for push/SMS/email delivery ──
+        check_in_type = (metadata or {}).get('check_in_type', '')
+        self._route_through_dne(message, check_in_type, content)
+
         return message
+
+    def _route_through_dne(self, message, check_in_type, content):
+        """
+        Route a proactive check-in through the Delivery Notification Engine.
+
+        This enables push notifications, SMS, and email delivery in addition
+        to the in-app chat message. Respects user notification preferences.
+
+        High-priority items (medication) get priority=1 (bypass quiet hours).
+        Standard items get priority=3.
+        """
+        try:
+            from apps.core.ai_delivery.delivery_engine import deliver_single
+
+            is_high_priority = check_in_type in self._HIGH_PRIORITY_CHECKIN_TYPES
+
+            # Build delivery payload
+            icon = "💊" if 'medicine' in check_in_type else "📋"
+            if check_in_type == 'workout':
+                icon = "🏋️"
+            elif check_in_type == 'journal':
+                icon = "📝"
+
+            payload = {
+                "title": f"Check-in: {check_in_type.replace('_', ' ').title()}",
+                "message": content,
+                "action_url": "/assistant/",
+                "icon": icon,
+                "priority": 1 if is_high_priority else 3,
+            }
+
+            deliver_single(
+                user=self.user,
+                source_engine="COS",
+                source_object=message,
+                payload=payload,
+            )
+
+            logger.info(
+                "COS_PROACTIVE_DNE_ROUTED user=%s type=%s priority=%s",
+                self.user.id, check_in_type,
+                "HIGH" if is_high_priority else "STANDARD",
+            )
+
+        except Exception as e:
+            # DNE routing is best-effort — never block the check-in
+            logger.warning(
+                "COS_PROACTIVE_DNE_FAIL user=%s type=%s error=%s",
+                self.user.id, check_in_type, e,
+            )
 
 
 def get_proactive_service(user):

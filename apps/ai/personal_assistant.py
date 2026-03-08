@@ -5486,6 +5486,15 @@ Rules for this response:
                         conversation_history=conversation_history,
                     ) or response  # Fall back to original if regen fails
 
+            # =============================================================
+            # Phase 5: Signal Prioritization Guardrail
+            # Check if the response acknowledges the dominant concern from
+            # CoSSituationState. If not, log COS_PRIORITY_MISALIGNMENT.
+            # This is observe-only — it doesn't block the response.
+            # =============================================================
+            if response and not _used_fallback:
+                self._check_priority_alignment(response, cos_context)
+
             return response
         except Exception as e:
             logger.error(f"Response generation error: {e}")
@@ -5867,9 +5876,15 @@ Rules for this response:
             if not ctx:
                 fallback = self._get_fallback_response(message)
                 full_text = fallback
+                logger.warning(
+                    "STREAM_CTX_FALLBACK user=%s — context build returned "
+                    "empty/None, returning fallback response to user",
+                    self.user.id,
+                )
                 if assistant_message:
                     assistant_message.content = fallback
-                    assistant_message.save(update_fields=['content'])
+                    assistant_message.message_type = 'fallback'
+                    assistant_message.save(update_fields=['content', 'message_type'])
                 yield fallback
                 return
 
@@ -5918,6 +5933,14 @@ Rules for this response:
                     except Exception:
                         pass
 
+                # Phase 5: Signal Prioritization Guardrail (observe-only)
+                if full_text:
+                    try:
+                        cos_ctx = ctx.get('cos_context') if ctx else None
+                        self._check_priority_alignment(full_text, cos_ctx)
+                    except Exception:
+                        pass
+
             finally:
                 # GUARANTEE placeholder is finalized on ALL exit paths:
                 # normal completion (already saved above → no-op),
@@ -5936,12 +5959,17 @@ Rules for this response:
                     )
 
         except Exception as e:
-            logger.error("Streaming response generation error: %s", e)
+            logger.error(
+                "STREAM_EXCEPTION_FALLBACK user=%s error=%s — streaming "
+                "generation failed, returning fallback response",
+                self.user.id, e, exc_info=True,
+            )
             fallback = self._get_fallback_response(message)
             if assistant_message and not assistant_message.content:
                 assistant_message.content = full_text or fallback
+                assistant_message.message_type = 'fallback'
                 try:
-                    assistant_message.save(update_fields=['content'])
+                    assistant_message.save(update_fields=['content', 'message_type'])
                 except Exception:
                     pass
             yield fallback
@@ -6000,8 +6028,15 @@ Rules for this response:
             # Check AI availability
             if not ai_service.is_available or not AIService.check_user_consent(self.user):
                 response_text = self._get_fallback_response(message)
+                logger.warning(
+                    "STREAM_AI_UNAVAILABLE_FALLBACK user=%s available=%s consent=%s "
+                    "— AI unavailable, returning fallback",
+                    self.user.id, ai_service.is_available,
+                    AIService.check_user_consent(self.user),
+                )
                 assistant_msg.content = response_text
-                assistant_msg.save(update_fields=['content'])
+                assistant_msg.message_type = 'fallback'
+                assistant_msg.save(update_fields=['content', 'message_type'])
                 yield {'type': 'token', 'content': response_text}
             else:
                 # =====================================================
@@ -6310,13 +6345,22 @@ Rules for this response:
 
                     if not response_text:
                         response_text = self._get_fallback_response(message)
+                        logger.warning(
+                            "STREAM_EMPTY_FALLBACK user=%s — stream produced "
+                            "zero tokens, returning fallback response",
+                            self.user.id,
+                        )
                         yield {'type': 'token', 'content': response_text}
 
                     # Safety net: ensure assistant_msg has final content
                     # (normally saved by _generate_response_stream, but guard here)
                     if response_text and not assistant_msg.content:
+                        # Detect if this is a fallback
+                        _is_fallback_text = self._is_fallback_response(response_text)
                         assistant_msg.content = response_text
-                        assistant_msg.save(update_fields=['content'])
+                        if _is_fallback_text:
+                            assistant_msg.message_type = 'fallback'
+                        assistant_msg.save(update_fields=['content', 'message_type'])
 
                     # ── Post-stream validator gate ──
                     # Check for hallucinated action claims in the streamed
@@ -6360,15 +6404,20 @@ Rules for this response:
                         pass
 
         except Exception as e:
-            logger.error("send_message_stream error: %s", e, exc_info=True)
+            logger.error(
+                "STREAM_TOPLEVEL_FALLBACK user=%s error=%s — top-level "
+                "stream exception, returning fallback",
+                self.user.id, e, exc_info=True,
+            )
             if not response_text:
                 response_text = self._get_fallback_response(message)
                 yield {'type': 'token', 'content': response_text}
-            # Ensure placeholder is not left empty on error
+            # Ensure placeholder is not left empty on error — mark as fallback
             if not assistant_msg.content:
                 assistant_msg.content = response_text or "[Response error]"
+                assistant_msg.message_type = 'fallback'
                 try:
-                    assistant_msg.save(update_fields=['content'])
+                    assistant_msg.save(update_fields=['content', 'message_type'])
                 except Exception:
                     pass
 
@@ -6641,6 +6690,61 @@ Rules for this response:
         return None
 
     # -----------------------------------------------------------------
+    # Phase 5: Signal Prioritization Guardrail
+    # -----------------------------------------------------------------
+    def _check_priority_alignment(self, response: str, cos_context: dict = None):
+        """
+        Check if the LLM response references the dominant concern.
+
+        Observe-only — logs COS_PRIORITY_MISALIGNMENT if the response
+        doesn't mention keywords from the dominant concern. Does NOT
+        block or modify the response.
+
+        This enables monitoring of how often the LLM ignores the
+        highest-priority signal despite having it in context.
+        """
+        try:
+            from apps.core.ai_state.models import CoSSituationState
+            sit = CoSSituationState.objects.filter(user=self.user).first()
+
+            if not sit or not sit.dominant_concern:
+                return  # No concern to check against
+
+            concern = sit.dominant_concern.lower()
+            resp_lower = (response or '').lower()
+
+            # Extract significant keywords from the dominant concern
+            # (words longer than 3 chars, excluding common words)
+            _stop_words = {
+                'the', 'and', 'for', 'not', 'yet', 'but', 'has', 'have',
+                'been', 'with', 'this', 'that', 'from', 'your', 'today',
+                'still', 'more', 'than', 'just', 'also', 'about',
+            }
+            concern_keywords = [
+                w for w in concern.split()
+                if len(w) > 3 and w not in _stop_words
+            ]
+
+            if not concern_keywords:
+                return
+
+            # Check if ANY significant keyword appears in the response
+            matched = any(kw in resp_lower for kw in concern_keywords)
+
+            if not matched:
+                logger.warning(
+                    "COS_PRIORITY_MISALIGNMENT user=%s — LLM response does "
+                    "not reference the dominant concern. "
+                    "concern='%s' keywords=%s response_preview='%s'",
+                    self.user.id,
+                    sit.dominant_concern[:80],
+                    concern_keywords[:5],
+                    response[:120],
+                )
+        except Exception:
+            pass  # Guardrail is non-blocking — never fail the response
+
+    # -----------------------------------------------------------------
     # Response-mode classifier (Phase 2B)
     # -----------------------------------------------------------------
     @staticmethod
@@ -6716,6 +6820,26 @@ Rules for this response:
 
         style_fallbacks = fallbacks.get(self.coaching_style, fallbacks['supportive'])
         return random.choice(style_fallbacks)
+
+    # All known fallback strings — used to detect if a saved message is a fallback
+    _ALL_FALLBACK_STRINGS = {
+        "What do you need to get done? Let's focus.",
+        "What's the priority right now?",
+        "What's blocking progress?",
+        "What action can you take in the next hour?",
+        "I'm here to help. What feels most pressing right now?",
+        "Let's think about what would help you most today.",
+        "What's on your mind? We can work through it together.",
+        "Take your time. What would feel like a win today?",
+        "I'm here to help you stay on track. What needs your attention?",
+        "Let's focus on what's most important today. What's on your list?",
+        "What can I help you move forward on?",
+        "What's still on your plate that we can tackle?",
+    }
+
+    def _is_fallback_response(self, text: str) -> bool:
+        """Check if text matches a known fallback response string."""
+        return (text or '').strip() in self._ALL_FALLBACK_STRINGS
 
     def _is_personal_reflection(self, message: str) -> bool:
         """

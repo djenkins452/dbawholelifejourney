@@ -169,36 +169,61 @@ class AssistantOpeningView(LoginRequiredMixin, AssistantMixin, View):
             assistant = self.get_assistant()
             opening = assistant.get_opening_message()
 
-            # Build CoS snapshot for auto-initialized chat
+            # Build CoS snapshot — uses full situation state when available
             cos_snapshot = {}
             try:
+                # Try CoSSituationState first (pre-computed, richer)
+                from apps.core.ai_state.models import CoSSituationState
+                sit = CoSSituationState.objects.filter(
+                    user=request.user,
+                ).first()
+
+                if sit and sit.dominant_concern:
+                    cos_snapshot = {
+                        'alignment': 100,  # Populated below from raw context
+                        'drift_risk': 0,
+                        'capacity': 0,
+                        'tier1_protected': [],
+                        'in_recovery': sit.situation_mode == CoSSituationState.MODE_RECOVERY,
+                        # Situation state fields (Phase 4 parity)
+                        'situation_mode': sit.situation_mode,
+                        'situation_mode_display': sit.get_situation_mode_display(),
+                        'dominant_concern': sit.dominant_concern,
+                        'top_priority': sit.top_priority,
+                        'opening_sentence': sit.opening_sentence,
+                        'changes_since_last': sit.changes_since_last_interaction[:5],
+                        'escalations': sit.escalations[:3],
+                        'resolutions': sit.resolutions[:3],
+                        'messages_since_briefing': sit.messages_since_briefing,
+                    }
+
+                # Enrich with raw alignment/drift/capacity from cos_context
                 from apps.core.ai_orchestrator.cos_context import build_cos_context
                 ctx = build_cos_context(request.user)
-                cos_snapshot = {
-                    'alignment': ctx.get('alignment_score', 100),
-                    'drift_risk': ctx.get('drift_probability', {}).get(
-                        'probability_24h', 0,
-                    ),
-                    'capacity': ctx.get(
-                        'capacity_snapshot', {},
-                    ).get('capacity_pct', 0),
-                    'tier1_protected': ctx.get('protected_tiers', []),
-                    'in_recovery': False,
-                }
-                # Check recovery
-                try:
-                    from apps.core.blueprint.recovery_engine import (
-                        get_recovery_status,
-                    )
-                    rec = get_recovery_status(request.user)
-                    cos_snapshot['in_recovery'] = rec.get(
-                        'in_recovery', False,
-                    )
-                    cos_snapshot['recovery_warnings'] = rec.get(
-                        'recovery_warnings', [],
-                    )
-                except Exception:
-                    pass
+                cos_snapshot['alignment'] = ctx.get('alignment_score', 100)
+                cos_snapshot['drift_risk'] = ctx.get(
+                    'drift_probability', {},
+                ).get('probability_24h', 0)
+                cos_snapshot['capacity'] = ctx.get(
+                    'capacity_snapshot', {},
+                ).get('capacity_pct', 0)
+                cos_snapshot['tier1_protected'] = ctx.get('protected_tiers', [])
+
+                # Check recovery from blueprint if not already set
+                if not cos_snapshot.get('in_recovery'):
+                    try:
+                        from apps.core.blueprint.recovery_engine import (
+                            get_recovery_status,
+                        )
+                        rec = get_recovery_status(request.user)
+                        cos_snapshot['in_recovery'] = rec.get(
+                            'in_recovery', False,
+                        )
+                        cos_snapshot['recovery_warnings'] = rec.get(
+                            'recovery_warnings', [],
+                        )
+                    except Exception:
+                        pass
             except Exception:
                 pass
 

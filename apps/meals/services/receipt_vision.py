@@ -6,9 +6,13 @@ structured receipt data (store, date, items, total, receipt type).
 
 For PDFs: extracts text via pdfplumber first, falls back to
 Vision API only if text extraction yields insufficient content.
+
+Image preprocessing: compresses images before sending to Vision API
+to reduce API costs and latency (resize to 1200px max, JPEG quality 80).
 """
 
 import base64
+import hashlib
 import io
 import json
 import logging
@@ -38,6 +42,7 @@ EXTRACTION RULES:
 3. Extract EVERY line item with name, quantity, and price
 4. Extract subtotal, tax, and total amounts
 5. For grocery items, classify each into a category
+6. Detect the payment method if visible (cash, credit, debit, ebt, mobile)
 
 RESPONSE FORMAT (strict JSON):
 {{
@@ -54,12 +59,18 @@ RESPONSE FORMAT (strict JSON):
   ],
   "subtotal": 45.23,
   "tax": 3.12,
-  "total": 48.35
+  "total": 48.35,
+  "payment_method": "credit"
 }}
 
 Category options for grocery items: produce, dairy, meat, seafood, bakery, frozen, beverage, snack, canned, cereal, condiment, household, health, other
+Payment method options: cash, credit, debit, ebt, mobile, other (omit if not visible)
 
 Respond ONLY with valid JSON. No markdown, no explanation."""
+
+# Compression settings for receipt images
+RECEIPT_MAX_DIMENSION = 1200  # px — receipts don't need high res
+RECEIPT_JPEG_QUALITY = 80  # Good balance of quality vs size
 
 
 @dataclass
@@ -76,6 +87,67 @@ class ReceiptVisionResult:
     raw_text: str = ""
     source: str = "vision_api"  # "vision_api" or "pdf_text"
     error: Optional[str] = None
+    payment_method: str = ""
+    image_hash: str = ""  # SHA-256 of original bytes for deduplication
+
+
+def compress_image_for_api(raw_bytes, content_type="image/jpeg"):
+    """
+    Compress and resize image for Vision API.
+
+    - Resizes to max 1200px on longest side (receipts are text-heavy, not detail-heavy)
+    - Converts to JPEG at quality 80 (significant size reduction)
+    - Strips EXIF data
+    - Returns (compressed_bytes, original_size, compressed_size)
+    """
+    try:
+        from PIL import Image
+
+        img = Image.open(io.BytesIO(raw_bytes))
+        original_size = len(raw_bytes)
+
+        # Resize if larger than max dimension
+        if max(img.size) > RECEIPT_MAX_DIMENSION:
+            img.thumbnail(
+                (RECEIPT_MAX_DIMENSION, RECEIPT_MAX_DIMENSION), Image.LANCZOS
+            )
+
+        # Convert RGBA/P to RGB for JPEG
+        if img.mode in ("RGBA", "P", "LA"):
+            img = img.convert("RGB")
+
+        # Save as JPEG with compression
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=RECEIPT_JPEG_QUALITY, optimize=True)
+        compressed_bytes = buf.getvalue()
+        compressed_size = len(compressed_bytes)
+
+        reduction_pct = (
+            round((1 - compressed_size / original_size) * 100, 1)
+            if original_size > 0
+            else 0
+        )
+        logger.info(
+            "Receipt image compressed: %d KB → %d KB (%.1f%% reduction, %dx%d)",
+            original_size // 1024,
+            compressed_size // 1024,
+            reduction_pct,
+            img.size[0],
+            img.size[1],
+        )
+        return compressed_bytes, original_size, compressed_size
+
+    except ImportError:
+        logger.warning("Pillow not installed, skipping compression")
+        return raw_bytes, len(raw_bytes), len(raw_bytes)
+    except Exception as e:
+        logger.warning("Image compression failed, using original: %s", e)
+        return raw_bytes, len(raw_bytes), len(raw_bytes)
+
+
+def compute_receipt_hash(raw_bytes):
+    """Compute SHA-256 hash of raw file bytes for deduplication."""
+    return hashlib.sha256(raw_bytes).hexdigest()
 
 
 class ReceiptVisionService:
@@ -83,7 +155,7 @@ class ReceiptVisionService:
     Processes receipt images/PDFs through Vision AI.
 
     Flow:
-    1. For images (jpg/png/webp/heic): send to Vision API
+    1. For images (jpg/png/webp/heic): compress, then send to Vision API
     2. For PDFs: try pdfplumber text extraction first
        - If sufficient text found, return as raw_text (skip Vision API)
        - If scanned/image PDF, render first page to image, send to Vision
@@ -112,12 +184,11 @@ class ReceiptVisionService:
                 )
         return self._client
 
-    # Receipt images don't need high resolution — 1536px is enough
-    RECEIPT_MAX_DIMENSION = 1536
-
     def process_image(self, raw_bytes, content_type="image/jpeg"):
         """
         Process image bytes through Vision API.
+
+        Compresses image first, then sends to Vision API.
 
         Args:
             raw_bytes: Raw image file bytes
@@ -126,24 +197,25 @@ class ReceiptVisionService:
         Returns:
             ReceiptVisionResult
         """
-        from apps.scan.services.image_utils import compute_image_hash, resize_for_vision
-
-        base64_data = base64.b64encode(raw_bytes).decode("utf-8")
-
-        # Deduplicate via hash
-        image_hash = compute_image_hash(base64_data)
+        # Compute hash on original bytes for deduplication
+        image_hash = compute_receipt_hash(raw_bytes)
         cache_key = f"receipt_vision:{image_hash}"
         cached = cache.get(cache_key)
         if cached:
             logger.info("Using cached receipt vision result")
             return cached
 
-        # Resize for cost optimization
-        base64_data = resize_for_vision(
-            base64_data, content_type, max_dim=self.RECEIPT_MAX_DIMENSION
+        # Compress image before sending to Vision API
+        compressed_bytes, orig_size, comp_size = compress_image_for_api(
+            raw_bytes, content_type
         )
 
-        result = self._call_vision_api(base64_data, content_type)
+        # Encode compressed bytes as base64
+        base64_data = base64.b64encode(compressed_bytes).decode("utf-8")
+
+        # Always send as JPEG after compression
+        result = self._call_vision_api(base64_data, "image/jpeg")
+        result.image_hash = image_hash
 
         if not result.error:
             cache.set(cache_key, result, 600)  # 10 min cache
@@ -160,6 +232,8 @@ class ReceiptVisionService:
         Returns:
             ReceiptVisionResult
         """
+        pdf_hash = compute_receipt_hash(raw_bytes)
+
         # Try pdfplumber text extraction first (fast, free)
         text_result = self._extract_pdf_text(raw_bytes)
 
@@ -168,10 +242,14 @@ class ReceiptVisionService:
             return ReceiptVisionResult(
                 raw_text=text_result,
                 source="pdf_text",
+                image_hash=pdf_hash,
             )
 
         # Scanned/image PDF — render first page and send to Vision
-        return self._process_pdf_as_image(raw_bytes)
+        result = self._process_pdf_as_image(raw_bytes)
+        if not result.image_hash:
+            result.image_hash = pdf_hash
+        return result
 
     def _extract_pdf_text(self, raw_bytes):
         """Extract text from PDF using pdfplumber."""
@@ -299,6 +377,12 @@ class ReceiptVisionService:
         if total is not None:
             raw_lines.append(f"\nTOTAL    ${total:.2f}" if isinstance(total, (int, float)) else f"\nTOTAL    {total}")
 
+        # Normalize payment method
+        payment_method = data.get("payment_method", "")
+        valid_methods = {"cash", "credit", "debit", "ebt", "mobile", "other"}
+        if payment_method not in valid_methods:
+            payment_method = ""
+
         return ReceiptVisionResult(
             receipt_type=data.get("receipt_type", "unknown"),
             store=store,
@@ -309,6 +393,7 @@ class ReceiptVisionService:
             total=_safe_decimal(data.get("total")),
             raw_text="\n".join(raw_lines),
             source="vision_api",
+            payment_method=payment_method,
         )
 
 

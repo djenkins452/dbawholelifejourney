@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 141,
+    "fields": {
+      "title": "Faster, Smarter Receipt Processing",
+      "description": "Receipt scanning just got a major upgrade: images are now compressed before processing (faster uploads), processing happens in the background so you're not waiting, duplicate receipts are automatically detected, and each receipt now shows a financial breakdown with subtotal, tax, and payment method.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-08",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/meals/receipts/",
+      "created_at": "2026-03-08T21:00:00Z",
+      "updated_at": "2026-03-08T21:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 145,
     "fields": {
       "title": "Skip Tasks You Didn't Do",

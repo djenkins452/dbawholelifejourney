@@ -944,6 +944,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for task skip status feature
         self._reset_task_skip_status_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for receipt hardening improvements (PK 141)
+        self._reset_receipt_hardening_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5691,6 +5694,12 @@ Tasks are sorted by priority (ascending) then creation date.""",
         One-time reset to reload release_notes for task skip status feature (PK 145).
         """
         reset_tracker_name = 'reset_task_skip_status_2026_03_08'
+
+    def _reset_receipt_hardening_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for receipt hardening improvements (PK 141).
+        """
+        reset_tracker_name = 'reset_receipt_hardening_2026_03_08'
         try:
             if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
                 return
@@ -5703,6 +5712,8 @@ Tasks are sorted by priority (ascending) then creation date.""",
                         config.save()
                         if verbosity >= 1:
                             self.stdout.write(f'  Reset {loader_name} loader for task skip status')
+
+                            self.stdout.write(f'  Reset {loader_name} loader for receipt hardening')
                 except DataLoadConfig.DoesNotExist:
                     pass
 
@@ -5711,8 +5722,14 @@ Tasks are sorted by priority (ascending) then creation date.""",
                 'Reset fixtures for task skip status feature',
                 'command',
                 'One-time reset to reload release_notes PK 145'
+
+                'Reset fixtures for receipt hardening improvements',
+                'command',
+                'One-time reset to reload release_notes PK 141'
             )
 
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset task skip status fixtures FAILED: {e}'))
+
+                self.stdout.write(self.style.ERROR(f'Reset receipt hardening fixtures FAILED: {e}'))

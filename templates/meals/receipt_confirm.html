@@ -31,7 +31,26 @@
     </div>
     {% endif %}
 
-    {% if items %}
+    {% if is_processing %}
+    <!-- Processing State — polls for completion -->
+    <div class="receipt-processing-overlay" id="processing-overlay"
+         data-status-url="{{ status_url }}">
+        <div class="processing-spinner"></div>
+        <h3>Processing Receipt...</h3>
+        <p class="processing-subtitle">Extracting items, prices, and store info via AI</p>
+        <p class="processing-elapsed" id="processing-elapsed">0s</p>
+    </div>
+    {% elif is_failed %}
+    <!-- Failed State -->
+    <div class="receipt-failed-notice">
+        <h3>Processing Failed</h3>
+        <p>{{ receipt.processing_error }}</p>
+        <div style="display: flex; gap: var(--space-3); margin-top: var(--space-4);">
+            <a href="{% url 'meals:receipts' %}" class="btn btn-primary btn-sm">Upload Again</a>
+            <a href="{% url 'meals:receipts' %}" class="btn btn-ghost btn-sm">Back to Receipts</a>
+        </div>
+    </div>
+    {% elif items %}
     <form method="post" action="{% url 'meals:receipt_confirm' pk=receipt.pk %}">
         {% csrf_token %}
         <input type="hidden" name="action" value="confirm">
@@ -277,6 +296,53 @@
     clip: rect(0, 0, 0, 0);
     border: 0;
 }
+/* Processing state */
+.receipt-processing-overlay {
+    text-align: center;
+    padding: var(--space-8) var(--space-4);
+    background: var(--color-surface);
+    border-radius: 12px;
+    margin: var(--space-4) 0;
+}
+.receipt-processing-overlay h3 {
+    margin-top: var(--space-4);
+    font-size: var(--font-size-lg);
+}
+.processing-subtitle {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-1);
+}
+.processing-elapsed {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    margin-top: var(--space-3);
+}
+.processing-spinner {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto;
+    border: 3px solid var(--color-border);
+    border-top-color: var(--color-primary, #2563eb);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+/* Failed state */
+.receipt-failed-notice {
+    text-align: center;
+    padding: var(--space-6) var(--space-4);
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 12px;
+    margin: var(--space-4) 0;
+    color: #991b1b;
+}
+.receipt-failed-notice h3 {
+    margin-bottom: var(--space-2);
+}
 @media (max-width: 480px) {
     .receipt-item-row {
         flex-wrap: wrap;
@@ -343,6 +409,59 @@
     if (typeSelect) {
         typeSelect.addEventListener('change', updateHint);
         updateHint();
+    }
+
+    // Async processing: poll for completion
+    var processingOverlay = document.getElementById('processing-overlay');
+    if (processingOverlay) {
+        var statusUrl = processingOverlay.getAttribute('data-status-url');
+        var elapsedEl = document.getElementById('processing-elapsed');
+        var startTime = Date.now();
+        var maxPolls = 60; // 60 x 2s = 2 minutes max
+        var pollCount = 0;
+
+        function updateElapsed() {
+            if (elapsedEl) {
+                var secs = Math.round((Date.now() - startTime) / 1000);
+                elapsedEl.textContent = secs + 's elapsed';
+            }
+        }
+
+        function pollStatus() {
+            pollCount++;
+            if (pollCount > maxPolls) {
+                if (elapsedEl) {
+                    elapsedEl.textContent = 'Taking longer than expected. Please refresh.';
+                }
+                return;
+            }
+
+            updateElapsed();
+
+            fetch(statusUrl)
+                .then(function(resp) { return resp.json(); })
+                .then(function(data) {
+                    if (data.status === 'pending') {
+                        // Processing complete — redirect to confirm page
+                        window.location.reload();
+                    } else if (data.status === 'failed') {
+                        // Processing failed — reload to show error
+                        window.location.reload();
+                    } else {
+                        // Still processing
+                        setTimeout(pollStatus, 2000);
+                    }
+                })
+                .catch(function() {
+                    // Network error — retry
+                    setTimeout(pollStatus, 3000);
+                });
+        }
+
+        // Start polling after 2 seconds
+        setTimeout(pollStatus, 2000);
+        // Update elapsed timer every second
+        setInterval(updateElapsed, 1000);
     }
 })();
 </script>

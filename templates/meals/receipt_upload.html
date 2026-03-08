@@ -162,15 +162,23 @@
                     <td>${{ receipt.total|floatformat:2 }}</td>
                     <td>{{ receipt.items.count }}</td>
                     <td>
-                        {% if receipt.confirmation_status == "pending" %}
+                        {% if receipt.confirmation_status == "processing" %}
+                        <span class="receipt-status-badge status-processing">Processing</span>
+                        {% elif receipt.confirmation_status == "pending" %}
                         <span class="receipt-status-badge status-pending">Pending</span>
                         {% elif receipt.confirmation_status == "confirmed" %}
                         <span class="receipt-status-badge status-confirmed">Confirmed</span>
+                        {% elif receipt.confirmation_status == "failed" %}
+                        <span class="receipt-status-badge status-failed">Failed</span>
                         {% endif %}
                     </td>
                     <td>
-                        {% if receipt.confirmation_status == "pending" %}
+                        {% if receipt.confirmation_status == "processing" %}
+                        <a href="{% url 'meals:receipt_confirm' pk=receipt.pk %}" class="btn btn-primary btn-sm">View</a>
+                        {% elif receipt.confirmation_status == "pending" %}
                         <a href="{% url 'meals:receipt_confirm' pk=receipt.pk %}" class="btn btn-primary btn-sm">Review</a>
+                        {% elif receipt.confirmation_status == "failed" %}
+                        <a href="{% url 'meals:receipt_confirm' pk=receipt.pk %}" class="btn btn-outline btn-sm">Retry</a>
                         {% else %}
                         <a href="{% url 'meals:receipt_detail' pk=receipt.pk %}" class="btn btn-outline btn-sm">View</a>
                         {% endif %}
@@ -309,8 +317,10 @@
     font-size: var(--font-size-xs);
     font-weight: 500;
 }
+.status-processing { background: #dbeafe; color: #1e40af; }
 .status-pending { background: #fef3c7; color: #92400e; }
 .status-confirmed { background: #dcfce7; color: #166534; }
+.status-failed { background: #fee2e2; color: #991b1b; }
 .spinner {
     width: 40px;
     height: 40px;

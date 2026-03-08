@@ -43,6 +43,11 @@ urlpatterns = [
         views.ReceiptConfirmView.as_view(),
         name="receipt_confirm",
     ),
+    path(
+        "receipts/<int:pk>/status/",
+        views.ReceiptProcessingStatusView.as_view(),
+        name="receipt_processing_status",
+    ),
     # Recipe Intelligence Detail
     path(
         "recipe/<int:pk>/",

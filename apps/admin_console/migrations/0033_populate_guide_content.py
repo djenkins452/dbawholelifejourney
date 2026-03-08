@@ -7,25 +7,25 @@ def sync_guides(apps, schema_editor):
     """Run guide sync commands to populate Data Dictionary and User Guide content."""
     from django.core.management import call_command
     from django.db import connection
-    try:
-        call_command('sync_data_dictionary', verbosity=1)
-    except Exception as e:
-        print(f'  sync_data_dictionary failed: {e}')
-        # Reset connection state if transaction was poisoned
-        if connection.needs_rollback:
-            connection.cursor()  # Force transaction cleanup
-    try:
-        # Check if help_helptopic table exists before running sync
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT 1 FROM information_schema.tables WHERE table_name = 'help_helptopic'"
-            )
-            if cursor.fetchone():
-                call_command('sync_user_guide', verbosity=1)
-            else:
-                print('  sync_user_guide skipped: help_helptopic table does not exist yet')
-    except Exception as e:
-        print(f'  sync_user_guide failed: {e}')
+
+    # Each call must be wrapped in a savepoint so that if it fails
+    # (e.g. help_helptopic table doesn't exist yet during test DB creation),
+    # PostgreSQL can roll back just that savepoint without aborting the
+    # entire migration transaction.
+    for cmd_name in ('sync_data_dictionary', 'sync_user_guide'):
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SAVEPOINT _migration_guide_sync")
+            call_command(cmd_name, verbosity=1)
+            with connection.cursor() as cursor:
+                cursor.execute("RELEASE SAVEPOINT _migration_guide_sync")
+        except Exception as e:
+            print(f'  {cmd_name} failed: {e}')
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("ROLLBACK TO SAVEPOINT _migration_guide_sync")
+            except Exception:
+                pass
 
 
 class Migration(migrations.Migration):

@@ -4079,7 +4079,7 @@ A complete household meal intelligence system that transforms WLJ from a nutriti
 - **Dinner Suggestions** — 7-factor deterministic scoring engine ranks recipes against pantry coverage, nutrition alignment, prep time, recency, dietary compliance, emotional context, and decision fatigue
 - **Pantry Intelligence** — Track inventory with confidence scoring, expiration warnings, and confidence decay over time
 - **Photo Scan** — AI detects food items from fridge/pantry photos via OpenAI Vision; review sessions before confirming
-- **Receipt Upload** — Parse grocery receipt text to bulk-update pantry inventory with confidence scoring
+- **Receipt Ingestion** — Photograph or paste receipts; Vision AI extracts items, classifies type (grocery/restaurant/retail), user confirms, then routes to Pantry/Health/Finance. Async Celery processing with polling UI, image compression, SHA-256 deduplication, financial breakdown (subtotal/tax/payment method)
 - **Weekly Meal Planning** — Generate optimized 7-day plans with variety enforcement, nutrition balance, and cost estimation
 - **Recipe Library** — Full recipe management with per-serving nutrition breakdown (18 nutrients), pantry gap analysis, and substitution suggestions
 - **Progressive Activation** — Setup Mode gates intelligence behind minimum data thresholds (5 pantry items, 3 recipes) to prevent low-quality first impressions
@@ -4098,10 +4098,10 @@ A complete household meal intelligence system that transforms WLJ from a nutriti
 | `InventoryTransaction` | Audit trail for pantry adds/uses/adjustments |
 | `MealPlan` | Weekly meal plan header |
 | `MealPlanEntry` | Single day's meal assignment within a plan |
-| `Receipt` | Grocery receipt record with parse results |
-| `ReceiptItem` | Individual line item from a parsed receipt |
+| `Receipt` | Receipt record with image, receipt_type, confirmation_status, financial fields (subtotal/tax/payment_method), receipt_hash for dedup |
+| `ReceiptItem` | Individual line item with category, price, quantity, match_confidence |
 
-### Services (10)
+### Services (12)
 
 | Service | Purpose |
 |---------|---------|
@@ -4114,6 +4114,8 @@ A complete household meal intelligence system that transforms WLJ from a nutriti
 | `dinner_suggestions.py` | Ranked suggestion generation with emotional/faith/finance overlays |
 | `meal_plan_generator.py` | 7-day plan generator with variety and nutrition constraints |
 | `receipt_parser.py` | Parse receipt text → ReceiptItem records with fuzzy matching |
+| `receipt_vision.py` | Vision API receipt processing with image compression and hash dedup |
+| `receipt_routing.py` | Domain routing: grocery→Pantry, restaurant→Health, all→Finance |
 | `activation.py` | ActivationStatus dataclass, threshold checks, activation timestamp logic |
 
 ### Pages

@@ -224,9 +224,19 @@
                 </div>
             </div>
 
-            <!-- 6. Progress (edit only) -->
+            <!-- 6. Status & Progress (edit only) -->
             {% if object %}
             <div class="form-section">
+                <div class="form-group">
+                    <label for="id_completion_status" class="form-label">Status</label>
+                    <select name="completion_status" id="id_completion_status" class="form-select">
+                        <option value="pending" {% if form.completion_status.value == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="completed" {% if form.completion_status.value == 'completed' %}selected{% endif %}>Completed</option>
+                        <option value="skipped" {% if form.completion_status.value == 'skipped' %}selected{% endif %}>Skipped</option>
+                    </select>
+                    <p class="form-help">Pending = active, Completed = done, Skipped = passed on this task.</p>
+                </div>
+
                 <div class="form-group">
                     <label for="id_progress_percentage" class="form-label">Progress</label>
                     <div class="progress-input-row">

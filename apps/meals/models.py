@@ -650,13 +650,17 @@ class Receipt(UserOwnedModel):
     ]
 
     # Confirmation status (separate from SoftDeleteModel.status)
+    CONFIRM_PROCESSING = "processing"
     CONFIRM_PENDING = "pending"
     CONFIRM_CONFIRMED = "confirmed"
     CONFIRM_CANCELLED = "cancelled"
+    CONFIRM_FAILED = "failed"
     CONFIRM_CHOICES = [
+        (CONFIRM_PROCESSING, "Processing"),
         (CONFIRM_PENDING, "Pending Confirmation"),
         (CONFIRM_CONFIRMED, "Confirmed"),
         (CONFIRM_CANCELLED, "Cancelled"),
+        (CONFIRM_FAILED, "Processing Failed"),
     ]
 
     household = models.ForeignKey(
@@ -709,6 +713,62 @@ class Receipt(UserOwnedModel):
         choices=CONFIRM_CHOICES,
         default=CONFIRM_PENDING,
         db_index=True,
+    )
+
+    # Financial breakdown (Phase: Receipt Hardening)
+    subtotal = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Pre-tax subtotal from receipt",
+    )
+    tax_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Tax amount from receipt",
+    )
+
+    PAYMENT_METHOD_CHOICES = [
+        ("", "Unknown"),
+        ("cash", "Cash"),
+        ("credit", "Credit Card"),
+        ("debit", "Debit Card"),
+        ("ebt", "EBT/SNAP"),
+        ("mobile", "Mobile Pay"),
+        ("other", "Other"),
+    ]
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PAYMENT_METHOD_CHOICES,
+        blank=True,
+        default="",
+        help_text="Payment method detected from receipt",
+    )
+
+    # Processing error message (for async failures)
+    processing_error = models.TextField(
+        blank=True,
+        default="",
+        help_text="Error message if async processing failed",
+    )
+
+    # Deduplication (Phase: Receipt Hardening)
+    receipt_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        help_text="SHA-256 hash for deduplication",
+    )
+    duplicate_of = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="duplicates",
+        help_text="Original receipt if this is a detected duplicate",
     )
 
     # Link to scan if came from Vision AI

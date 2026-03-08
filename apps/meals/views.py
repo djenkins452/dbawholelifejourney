@@ -753,7 +753,60 @@ class ReceiptUploadView(
         # Read file into memory (in-memory pattern from PantryScanStartView)
         raw_bytes = uploaded_file.read()
 
-        # Process through Vision service
+        # Check for duplicate receipt before processing
+        from apps.meals.services.receipt_vision import compute_receipt_hash
+
+        file_hash = compute_receipt_hash(raw_bytes)
+        existing = Receipt.objects.filter(
+            household=household,
+            receipt_hash=file_hash,
+        ).exclude(confirmation_status=Receipt.CONFIRM_CANCELLED).first()
+
+        if existing:
+            messages.warning(
+                request,
+                f"This receipt appears to be a duplicate of "
+                f'"{existing.store or "Unknown Store"}" '
+                f"({existing.receipt_date}).",
+            )
+            return redirect("meals:receipt_detail", pk=existing.pk)
+
+        # Create receipt in "processing" state
+        receipt = Receipt.objects.create(
+            user=request.user,
+            household=household,
+            confirmation_status=Receipt.CONFIRM_PROCESSING,
+            receipt_hash=file_hash,
+            created_via=Receipt.CREATED_VIA_AI_CAMERA,
+        )
+
+        # Save the image to the receipt (Cloudinary in prod, local in dev)
+        uploaded_file.seek(0)
+        receipt.image.save(uploaded_file.name, uploaded_file, save=True)
+
+        # Dispatch async processing task
+        try:
+            from apps.meals.tasks import process_receipt_image_task
+
+            process_receipt_image_task.delay(receipt.pk)
+            logger.info(
+                "Receipt %d dispatched for async processing", receipt.pk
+            )
+        except Exception as e:
+            # Celery unavailable — fall back to sync processing
+            logger.warning(
+                "Celery dispatch failed for receipt %d, processing sync: %s",
+                receipt.pk,
+                e,
+            )
+            self._sync_process_image(receipt, raw_bytes, content_type, household)
+            return redirect("meals:receipt_confirm", pk=receipt.pk)
+
+        # Redirect to processing page (polls for completion)
+        return redirect("meals:receipt_confirm", pk=receipt.pk)
+
+    def _sync_process_image(self, receipt, raw_bytes, content_type, household):
+        """Sync fallback when Celery is unavailable."""
         from apps.meals.services.receipt_vision import ReceiptVisionService
 
         service = ReceiptVisionService()
@@ -764,42 +817,36 @@ class ReceiptUploadView(
             vision_result = service.process_image(raw_bytes, content_type)
 
         if vision_result.error:
-            messages.error(
-                request,
-                f"Could not process receipt: {vision_result.error}",
+            receipt.confirmation_status = Receipt.CONFIRM_FAILED
+            receipt.processing_error = vision_result.error
+            receipt.save(
+                update_fields=[
+                    "confirmation_status",
+                    "processing_error",
+                    "updated_at",
+                ]
             )
-            return redirect("meals:receipts")
+            return
 
-        # If PDF text extraction returned raw text, parse it with text parser
-        if vision_result.source == "pdf_text":
-            return self._process_text_upload(
-                request, household, vision_result.raw_text, uploaded_file
-            )
+        # Update receipt with vision results
+        receipt.raw_text = vision_result.raw_text
+        receipt.store = vision_result.store or ""
+        receipt.total = vision_result.total or Decimal("0")
+        receipt.subtotal = vision_result.subtotal
+        receipt.tax_amount = vision_result.tax
+        receipt.payment_method = vision_result.payment_method or ""
+        receipt.receipt_type = vision_result.receipt_type
+        receipt.receipt_date = self._parse_date(vision_result.date)
+        receipt.parsed_json = {
+            "store": vision_result.store,
+            "date": vision_result.date,
+            "items": vision_result.items,
+            "source": vision_result.source,
+        }
+        receipt.confirmation_status = Receipt.CONFIRM_PENDING
+        receipt.save()
 
-        # Create receipt from Vision result
-        receipt = Receipt.objects.create(
-            user=request.user,
-            household=household,
-            raw_text=vision_result.raw_text,
-            parsed_json={
-                "store": vision_result.store,
-                "date": vision_result.date,
-                "items": vision_result.items,
-                "source": vision_result.source,
-            },
-            store=vision_result.store or "",
-            total=vision_result.total or Decimal("0"),
-            receipt_date=self._parse_date(vision_result.date),
-            receipt_type=vision_result.receipt_type,
-            confirmation_status=Receipt.CONFIRM_PENDING,
-            created_via=Receipt.CREATED_VIA_AI_CAMERA,
-        )
-
-        # Save the image to the receipt (Cloudinary in prod, local in dev)
-        uploaded_file.seek(0)
-        receipt.image.save(uploaded_file.name, uploaded_file, save=True)
-
-        # Create ReceiptItem entries from Vision items
+        # Create ReceiptItem entries
         from apps.meals.services.ingredient_matching import match_ingredient_name
 
         for item_data in vision_result.items:
@@ -825,19 +872,35 @@ class ReceiptUploadView(
                 category=item_data.get("category", ""),
             )
 
-        messages.info(
-            request,
-            f"Receipt from {vision_result.store or 'unknown store'} processed. "
-            f"Please review and confirm the items below.",
-        )
-        return redirect("meals:receipt_confirm", pk=receipt.pk)
-
-    def _process_text_upload(self, request, household, raw_text, uploaded_file=None):
+    def _process_text_upload(
+        self, request, household, raw_text, uploaded_file=None, receipt_hash=""
+    ):
         """Handle text paste (creates pending receipt for confirmation)."""
+        import hashlib
+
         from apps.meals.services.receipt_parser import (
             match_receipt_items,
             parse_receipt_text,
         )
+
+        # Compute hash for text-based deduplication
+        if not receipt_hash:
+            receipt_hash = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
+
+            # Check for duplicate
+            existing = Receipt.objects.filter(
+                household=household,
+                receipt_hash=receipt_hash,
+            ).exclude(confirmation_status=Receipt.CONFIRM_CANCELLED).first()
+
+            if existing:
+                messages.warning(
+                    request,
+                    f"This receipt text appears to be a duplicate of "
+                    f'"{existing.store or "Unknown Store"}" '
+                    f"({existing.receipt_date}).",
+                )
+                return redirect("meals:receipt_detail", pk=existing.pk)
 
         parsed = parse_receipt_text(raw_text)
 
@@ -862,6 +925,7 @@ class ReceiptUploadView(
             receipt_date=self._parse_date(parsed.date),
             receipt_type=Receipt.RECEIPT_TYPE_GROCERY,  # Default for text paste
             confirmation_status=Receipt.CONFIRM_PENDING,
+            receipt_hash=receipt_hash,
         )
 
         # Save PDF if text was extracted from a PDF upload
@@ -927,6 +991,11 @@ class ReceiptDetailView(
                 "restaurant",
                 "retail",
             )
+
+        # Financial details
+        context["has_financial_breakdown"] = bool(
+            receipt.subtotal or receipt.tax_amount or receipt.payment_method
+        )
         return context
 
 
@@ -955,11 +1024,30 @@ class ReceiptConfirmView(
             Receipt,
             pk=self.kwargs["pk"],
             household=household,
-            confirmation_status=Receipt.CONFIRM_PENDING,
+            confirmation_status__in=[
+                Receipt.CONFIRM_PENDING,
+                Receipt.CONFIRM_PROCESSING,
+                Receipt.CONFIRM_FAILED,
+            ],
         )
         context["receipt"] = receipt
         context["items"] = receipt.items.all().select_related("ingredient")
         context["receipt_types"] = Receipt.RECEIPT_TYPE_CHOICES
+
+        # Processing state for polling UI
+        context["is_processing"] = (
+            receipt.confirmation_status == Receipt.CONFIRM_PROCESSING
+        )
+        context["is_failed"] = (
+            receipt.confirmation_status == Receipt.CONFIRM_FAILED
+        )
+        if context["is_processing"]:
+            from django.urls import reverse
+
+            context["status_url"] = reverse(
+                "meals:receipt_processing_status", kwargs={"pk": receipt.pk}
+            )
+
         return context
 
     def post(self, request, *args, **kwargs):
@@ -1027,6 +1115,150 @@ class ReceiptConfirmView(
 
         messages.success(request, result.summary_message)
         return redirect("meals:receipt_detail", pk=receipt.pk)
+
+
+# =============================================================================
+# Receipt Processing Status (async polling endpoint)
+# =============================================================================
+
+
+class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View):
+    """
+    JSON endpoint for polling receipt processing status.
+
+    Returns current status of async receipt processing.
+    Also provides a sync fallback: if processing is stuck > 30s,
+    attempts sync processing (same pattern as PantryScanStatusView).
+    """
+
+    def get(self, request, pk):
+        household = self.get_household()
+
+        try:
+            receipt = Receipt.objects.get(pk=pk, household=household)
+        except Receipt.DoesNotExist:
+            return JsonResponse({"status": "error", "message": "Not found"}, status=404)
+
+        status = receipt.confirmation_status
+
+        if status == Receipt.CONFIRM_PROCESSING:
+            # Check if processing is stuck (> 30 seconds old)
+            age_seconds = (timezone.now() - receipt.created_at).total_seconds()
+
+            if age_seconds > 30 and receipt.image:
+                # Sync fallback: process inline
+                logger.info(
+                    "Receipt %d stuck in processing for %.0fs, attempting sync fallback",
+                    pk,
+                    age_seconds,
+                )
+                self._sync_process_receipt(receipt)
+                receipt.refresh_from_db()
+                status = receipt.confirmation_status
+
+        response = {
+            "status": status,
+            "store": receipt.store,
+            "receipt_type": receipt.receipt_type,
+            "items_count": receipt.items.count(),
+        }
+
+        if status == Receipt.CONFIRM_FAILED:
+            response["error"] = receipt.processing_error
+
+        if status == Receipt.CONFIRM_PENDING:
+            from django.urls import reverse
+
+            response["redirect_url"] = reverse(
+                "meals:receipt_confirm", kwargs={"pk": pk}
+            )
+
+        return JsonResponse(response)
+
+    def _sync_process_receipt(self, receipt):
+        """Sync fallback for stuck async processing."""
+        try:
+            import mimetypes
+
+            receipt.image.open("rb")
+            raw_bytes = receipt.image.read()
+            receipt.image.close()
+
+            mime_type, _ = mimetypes.guess_type(receipt.image.name)
+            content_type = mime_type or "image/jpeg"
+
+            from apps.meals.services.receipt_vision import ReceiptVisionService
+
+            service = ReceiptVisionService()
+
+            if content_type == "application/pdf":
+                vision_result = service.process_pdf(raw_bytes)
+            else:
+                vision_result = service.process_image(raw_bytes, content_type)
+
+            if vision_result.error:
+                receipt.confirmation_status = Receipt.CONFIRM_FAILED
+                receipt.processing_error = vision_result.error
+                receipt.save(
+                    update_fields=[
+                        "confirmation_status",
+                        "processing_error",
+                        "updated_at",
+                    ]
+                )
+                return
+
+            # Update receipt with vision results
+            receipt.raw_text = vision_result.raw_text
+            receipt.store = vision_result.store or ""
+            receipt.total = vision_result.total or Decimal("0")
+            receipt.subtotal = vision_result.subtotal
+            receipt.tax_amount = vision_result.tax
+            receipt.payment_method = vision_result.payment_method or ""
+            receipt.receipt_type = vision_result.receipt_type
+            receipt.confirmation_status = Receipt.CONFIRM_PENDING
+            receipt.processing_error = ""
+            receipt.save()
+
+            # Create items
+            from apps.meals.services.ingredient_matching import match_ingredient_name
+
+            for item_data in vision_result.items:
+                name = item_data.get("name", "")
+                if not name:
+                    continue
+                match = match_ingredient_name(name)
+                price = item_data.get("price")
+                ReceiptItem.objects.create(
+                    receipt=receipt,
+                    ingredient=Ingredient.objects.filter(
+                        pk=match.ingredient_id
+                    ).first()
+                    if match.ingredient_id
+                    else None,
+                    raw_name=name,
+                    raw_price=Decimal(str(price)) if price else None,
+                    quantity=Decimal(str(item_data.get("quantity", 1))),
+                    unit="each",
+                    match_confidence=match.confidence,
+                    category=item_data.get("category", ""),
+                )
+
+            logger.info("Receipt %d sync fallback completed successfully", receipt.pk)
+
+        except Exception as e:
+            logger.error(
+                "Receipt %d sync fallback failed: %s", receipt.pk, e, exc_info=True
+            )
+            receipt.confirmation_status = Receipt.CONFIRM_FAILED
+            receipt.processing_error = f"Sync processing failed: {e}"
+            receipt.save(
+                update_fields=[
+                    "confirmation_status",
+                    "processing_error",
+                    "updated_at",
+                ]
+            )
 
 
 # =============================================================================

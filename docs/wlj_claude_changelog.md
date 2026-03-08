@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Receipt Ingestion Hardening (4 improvements)
+
+- **Improvements:** Image compression, async Celery processing, financial fields, receipt deduplication
+- **What changed:**
+  1. **Image compression** — Receipt images are compressed (resize to 1200px max, JPEG quality 80, RGB conversion, EXIF stripped) before Vision API calls, reducing upload size ~50-80%. Self-contained implementation in `receipt_vision.py` (no dependency on scan module).
+  2. **Async Celery processing** — Image uploads now dispatch a `process_receipt_image_task` Celery task with a polling UI (`ReceiptProcessingStatusView`). If Celery is unavailable, falls back to synchronous processing. 2s polling interval, 60 max polls (2 min timeout). Task has `soft_time_limit=60`, `time_limit=90`, `max_retries=1`.
+  3. **Financial fields** — Receipt model gained `subtotal`, `tax_amount`, `payment_method` (8 choices). Vision API prompt updated to extract payment method. Detail view shows financial breakdown section.
+  4. **Receipt deduplication** — SHA-256 hash on raw bytes (`receipt_hash` field, indexed). Both image and text upload paths compute hash and check for duplicates. Duplicates redirect to existing receipt with info message.
+- **New confirmation statuses:** `processing` (async in progress), `failed` (vision error/timeout) — added to existing `pending`/`confirmed`/`cancelled`.
+- **New views:** `ReceiptProcessingStatusView` (JSON polling endpoint at `receipts/<pk>/status/`)
+- **Template updates:** Processing overlay with spinner+timer in `receipt_confirm.html`, failed state notice, financial breakdown in `receipt_detail.html`, processing/failed badges in `receipt_upload.html`.
+- **Bug fix:** Fixed `admin_console.0033_populate_guide_content` migration — wrapped `sync_data_dictionary`/`sync_user_guide` calls in PostgreSQL savepoints so failures don't abort the entire migration transaction. This was blocking all test DB creation.
+- **Tests:** Expanded from 27 to 47 tests — added compression tests, Celery task tests, dedup tests, status view tests, financial field tests.
+- **Files:** `apps/meals/models.py`, `apps/meals/views.py`, `apps/meals/urls.py`, `apps/meals/tasks.py`, `apps/meals/services/receipt_vision.py`, `templates/meals/receipt_confirm.html`, `templates/meals/receipt_detail.html`, `templates/meals/receipt_upload.html`, `apps/meals/tests/test_receipt_ingestion.py`, `apps/admin_console/migrations/0033_populate_guide_content.py`, migrations `0006_receipt_hardening_fields`, `0007_receipt_processing_status`
+
 ## 2026-03-08 — Intelligent Receipt Ingestion System (major feature)
 
 - **Feature:** Image-based receipt ingestion with Vision AI, receipt classification, user confirmation, and domain routing

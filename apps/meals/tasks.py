@@ -1,11 +1,14 @@
 """
 Celery tasks for Meal Intelligence async processing.
 
-Currently handles pantry photo scan processing through Vision AI.
+Handles:
+- Pantry photo scan processing through Vision AI
+- Receipt image processing through Vision AI (async receipt ingestion)
 """
 
 import logging
 import time
+from decimal import Decimal
 
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
@@ -99,3 +102,235 @@ def process_pantry_scan_task(self, session_id):
         "errors": error_count,
         "duration_seconds": round(duration, 2),
     }
+
+
+@shared_task(
+    bind=True,
+    name="apps.meals.tasks.process_receipt_image_task",
+    max_retries=1,
+    default_retry_delay=10,
+    soft_time_limit=60,  # 1 minute — single receipt image
+    time_limit=90,  # Hard kill at 90s
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def process_receipt_image_task(self, receipt_id):
+    """
+    Process a receipt image through Vision AI asynchronously.
+
+    Called from ReceiptUploadView after the image is saved to storage.
+    The receipt is created with confirmation_status=CONFIRM_PROCESSING.
+    On success, updates to CONFIRM_PENDING and creates ReceiptItems.
+    On failure, updates to CONFIRM_FAILED with error message.
+
+    Args:
+        receipt_id: PK of Receipt to process
+    """
+    from apps.meals.models import Ingredient, Receipt, ReceiptItem
+
+    task_id = self.request.id or "local"
+    start = time.monotonic()
+
+    logger.info(
+        "Receipt processing task starting (receipt=%d, task_id=%s)",
+        receipt_id,
+        task_id,
+    )
+
+    try:
+        receipt = Receipt.objects.get(pk=receipt_id)
+    except Receipt.DoesNotExist:
+        logger.error("Receipt %d not found", receipt_id)
+        return {"status": "error", "reason": "receipt_not_found"}
+
+    try:
+        # Read image bytes from storage
+        if not receipt.image:
+            raise ValueError("No image attached to receipt")
+
+        receipt.image.open("rb")
+        raw_bytes = receipt.image.read()
+        receipt.image.close()
+
+        # Determine content type from filename
+        import mimetypes
+
+        mime_type, _ = mimetypes.guess_type(receipt.image.name)
+        content_type = mime_type or "image/jpeg"
+
+        # Process through Vision service
+        from apps.meals.services.receipt_vision import ReceiptVisionService
+
+        service = ReceiptVisionService()
+
+        if content_type == "application/pdf":
+            vision_result = service.process_pdf(raw_bytes)
+        else:
+            vision_result = service.process_image(raw_bytes, content_type)
+
+        if vision_result.error:
+            receipt.confirmation_status = Receipt.CONFIRM_FAILED
+            receipt.processing_error = vision_result.error
+            receipt.save(
+                update_fields=["confirmation_status", "processing_error", "updated_at"]
+            )
+            logger.error(
+                "Receipt %d vision processing failed: %s",
+                receipt_id,
+                vision_result.error,
+            )
+            return {"status": "error", "reason": vision_result.error}
+
+        # If PDF text extraction returned raw text, parse it with text parser
+        if vision_result.source == "pdf_text":
+            from apps.meals.services.receipt_parser import (
+                match_receipt_items,
+                parse_receipt_text,
+            )
+
+            parsed = parse_receipt_text(vision_result.raw_text)
+            receipt.raw_text = vision_result.raw_text
+            receipt.store = parsed.store or ""
+            receipt.total = parsed.total or Decimal("0")
+            receipt.receipt_type = Receipt.RECEIPT_TYPE_GROCERY
+            receipt.parsed_json = {
+                "store": parsed.store,
+                "date": parsed.date,
+                "items": [
+                    {
+                        "name": i.raw_name,
+                        "price": float(i.price) if i.price else None,
+                        "qty": float(i.quantity) if i.quantity else None,
+                    }
+                    for i in parsed.items
+                ],
+            }
+
+            # Parse date
+            if parsed.date:
+                from datetime import datetime as dt
+
+                for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%m-%d-%Y", "%m/%d/%y"):
+                    try:
+                        receipt.receipt_date = dt.strptime(parsed.date, fmt).date()
+                        break
+                    except ValueError:
+                        continue
+
+            # Create receipt items
+            matched = match_receipt_items(parsed)
+            for item, match in matched:
+                ReceiptItem.objects.create(
+                    receipt=receipt,
+                    ingredient=Ingredient.objects.filter(
+                        pk=match.ingredient_id
+                    ).first()
+                    if match.ingredient_id
+                    else None,
+                    raw_name=item.raw_name,
+                    raw_price=item.price,
+                    quantity=item.quantity or Decimal("1"),
+                    unit=item.unit or "each",
+                    match_confidence=match.confidence if match else Decimal("0"),
+                )
+
+        else:
+            # Vision API result — update receipt fields
+            receipt.raw_text = vision_result.raw_text
+            receipt.store = vision_result.store or ""
+            receipt.total = vision_result.total or Decimal("0")
+            receipt.subtotal = vision_result.subtotal
+            receipt.tax_amount = vision_result.tax
+            receipt.payment_method = vision_result.payment_method or ""
+            receipt.receipt_type = vision_result.receipt_type
+            receipt.parsed_json = {
+                "store": vision_result.store,
+                "date": vision_result.date,
+                "items": vision_result.items,
+                "source": vision_result.source,
+            }
+
+            # Parse date
+            if vision_result.date:
+                from datetime import datetime as dt
+
+                for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m-%d-%Y", "%m/%d/%y"):
+                    try:
+                        receipt.receipt_date = dt.strptime(
+                            vision_result.date, fmt
+                        ).date()
+                        break
+                    except ValueError:
+                        continue
+
+            # Create ReceiptItem entries from Vision items
+            from apps.meals.services.ingredient_matching import match_ingredient_name
+
+            for item_data in vision_result.items:
+                name = item_data.get("name", "")
+                if not name:
+                    continue
+
+                match = match_ingredient_name(name)
+                price = item_data.get("price")
+
+                ReceiptItem.objects.create(
+                    receipt=receipt,
+                    ingredient=Ingredient.objects.filter(
+                        pk=match.ingredient_id
+                    ).first()
+                    if match.ingredient_id
+                    else None,
+                    raw_name=name,
+                    raw_price=Decimal(str(price)) if price else None,
+                    quantity=Decimal(str(item_data.get("quantity", 1))),
+                    unit="each",
+                    match_confidence=match.confidence,
+                    category=item_data.get("category", ""),
+                )
+
+        # Mark as ready for confirmation
+        receipt.confirmation_status = Receipt.CONFIRM_PENDING
+        receipt.processing_error = ""
+        receipt.save()
+
+        duration = time.monotonic() - start
+        item_count = receipt.items.count()
+        logger.info(
+            "Receipt %d processed successfully: %s, %d items (%.1fs)",
+            receipt_id,
+            receipt.store,
+            item_count,
+            duration,
+        )
+
+        return {
+            "status": "ok",
+            "receipt_id": receipt_id,
+            "store": receipt.store,
+            "items_count": item_count,
+            "duration_seconds": round(duration, 2),
+        }
+
+    except SoftTimeLimitExceeded:
+        logger.warning("Receipt %d processing timed out", receipt_id)
+        receipt.confirmation_status = Receipt.CONFIRM_FAILED
+        receipt.processing_error = "Processing timed out. Please try again."
+        receipt.save(
+            update_fields=["confirmation_status", "processing_error", "updated_at"]
+        )
+        return {"status": "timeout", "receipt_id": receipt_id}
+
+    except Exception as exc:
+        logger.error(
+            "Receipt %d processing failed: %s",
+            receipt_id,
+            exc,
+            exc_info=True,
+        )
+        receipt.confirmation_status = Receipt.CONFIRM_FAILED
+        receipt.processing_error = str(exc)[:500]
+        receipt.save(
+            update_fields=["confirmation_status", "processing_error", "updated_at"]
+        )
+        return {"status": "error", "receipt_id": receipt_id, "reason": str(exc)}

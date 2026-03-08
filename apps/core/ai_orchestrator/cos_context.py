@@ -1033,6 +1033,7 @@ def build_cos_context(user):
 
     context = {
         '_user': user,
+        'user_id': user.id,  # Survives cache (no _ prefix) for format_cos_system_injection
         'blueprint_state': {},
         'protected_tiers': [],
         'capacity_snapshot': {},
@@ -1679,6 +1680,17 @@ def format_cos_system_injection(context):
     if context.get('learning_mode'):
         return format_learning_mode_injection(context)
 
+    # Resolve user for cached contexts where _user was stripped.
+    # build_cos_context stores user_id (no _ prefix) so it survives caching.
+    _cache_hit = '_user' not in context
+    if _cache_hit and 'user_id' in context:
+        from django.contrib.auth import get_user_model
+        _UserModel = get_user_model()
+        try:
+            context['_user'] = _UserModel.objects.get(id=context['user_id'])
+        except _UserModel.DoesNotExist:
+            pass
+
     lines = []
 
     # ── CoS SITUATION AWARENESS (highest priority) ──
@@ -1686,11 +1698,13 @@ def format_cos_system_injection(context):
     # single most important context block — it tells CoS what to
     # focus on without requiring the LLM to interpret 50+ raw signals.
     _cos_user = context.get('_user')
+    _situation_loaded = False
     if _cos_user:
         try:
             from apps.core.ai_state.models import CoSSituationState
             sit = CoSSituationState.objects.filter(user=_cos_user).first()
             if sit and sit.dominant_concern:
+                _situation_loaded = True
                 lines.append("=== CoS SITUATION AWARENESS (PRE-COMPUTED) ===")
                 lines.append("")
                 lines.append(
@@ -1743,8 +1757,27 @@ def format_cos_system_injection(context):
                 lines.append("")
                 lines.append("=== END SITUATION AWARENESS ===")
                 lines.append("")
-        except Exception:
-            pass  # Situation state not yet computed — fall through to raw context
+            else:
+                logger.warning(
+                    "COS_SITUATION_EMPTY user=%s — SituationState row %s",
+                    context.get('user_id', 'unknown'),
+                    'exists_no_concern' if sit else 'missing',
+                )
+        except Exception as e:
+            logger.warning(
+                "COS_SITUATION_ERROR user=%s error=%s",
+                context.get('user_id', 'unknown'), e,
+            )
+    else:
+        logger.warning(
+            "COS_SITUATION_SKIP user=%s — no _user in context (cache bug?)",
+            context.get('user_id', 'unknown'),
+        )
+
+    logger.info(
+        "COS_PROMPT_SITUATION user=%s cache_hit=%s situation_loaded=%s",
+        context.get('user_id', 'unknown'), _cache_hit, _situation_loaded,
+    )
 
     lines.append("=== OPERATIONAL INTELLIGENCE ===")
     lines.append("")

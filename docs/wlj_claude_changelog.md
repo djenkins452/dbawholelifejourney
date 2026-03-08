@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Fix SituationState missing from CoS prompts on cached context (critical)
+
+- **Root cause:** `build_cos_context()` stored the user as `_user` in the context dict. The readiness cache strips all keys starting with `_` before caching (to avoid serializing Django model instances). When `format_cos_system_injection()` ran on cached context, `context.get('_user')` returned None, causing the entire SituationState block to be skipped — along with Session Mode, Coaching Mode, COS-CX Intelligence, Consistency Protection, Data State Snapshot, and Declared Priorities (8 blocks total). This affected the majority of CoS responses since cache hits are the normal path.
+- **Fix:** Added `user_id` (no `_` prefix, survives caching) to the context dict in `build_cos_context()`. At the top of `format_cos_system_injection()`, when `_user` is missing but `user_id` exists, the user is resolved via a single DB lookup and injected back into the context. All 8 downstream usage sites work without changes.
+- **Logging:** Added `COS_PROMPT_SITUATION` log with `cache_hit` and `situation_loaded` flags. Added warnings for missing SituationState rows and resolution failures.
+- **Files:** `apps/core/ai_orchestrator/cos_context.py` (2 changes: context init + format function)
+
 ## 2026-03-08 — Fix streaming fallback persistence bug
 
 - **Root cause:** When OpenAI API fails (429 quota exceeded, timeouts), the `_generate_response_stream` finally block saved the literal string `"[Response interrupted]"` to the DB. The caller's safety net in `send_message_stream` generated a proper fallback response and yielded it to the client, but could not overwrite the DB record because the guard condition `not assistant_msg.content` was False (content was already `"[Response interrupted]"`). Result: user sees a fallback in-session, but "[Response interrupted]" in persistent chat history.

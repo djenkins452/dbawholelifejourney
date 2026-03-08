@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Add OpenAI rate-limit circuit breaker
+
+- **What:** When OpenAI returns 429 (rate limited), all subsequent callers should stop hammering the API immediately — not each discover the 429 independently.
+- **Fix:** Added cache-based circuit breaker to `_call_api()` and `_call_api_stream()`: on 429, sets `cache.set("openai_rate_limited", True, timeout=120)`. Both methods check this flag before attempting any API call and return None immediately if set. Cooldown: 2 minutes.
+- **Files:** `apps/ai/services.py`
+
+---
+
 ## 2026-03-08 — Remove synchronous OpenAI calls from all module home views
 
 - **What:** Every module home page (Journal, Life, Faith, Health, Purpose, Glucose) made a synchronous `ai_service.generate_*_insight()` call on every page load. The `_call_api` method has its OWN retry loop (`LLM_MAX_RETRIES=3`) with 30-second rate-limit backoff — totaling 69 seconds on a 429. This is architecturally wrong: engines (DBE, PGE, SAE) exist to pre-compute insights in the background.

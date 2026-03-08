@@ -344,6 +344,11 @@ class AIService:
             logger.warning("AI service not available - no API key configured")
             return None
 
+        # Circuit breaker: skip if we've been rate-limited recently
+        if cache.get("openai_rate_limited"):
+            logger.info("LLM SKIPPED endpoint=%s — circuit breaker active (rate limited)", endpoint)
+            return None
+
         # Build the user message content — supports multiple images
         if all_images and len(all_images) > 0:
             logger.debug("Sending vision request with %d images", len(all_images))
@@ -426,8 +431,9 @@ class AIService:
                 except ImportError:
                     is_rate_limit = '429' in str(e)
                 if is_rate_limit:
+                    cache.set("openai_rate_limited", True, timeout=120)
                     logger.warning(
-                        "LLM RATE LIMITED endpoint=%s attempt=%d/%d latency=%.2fs",
+                        "LLM RATE LIMITED endpoint=%s attempt=%d/%d latency=%.2fs — circuit breaker set for 120s",
                         endpoint, attempt, LLM_MAX_RETRIES, elapsed,
                     )
                 else:
@@ -492,6 +498,11 @@ class AIService:
             logger.warning("AI service not available for streaming")
             return
 
+        # Circuit breaker: skip if we've been rate-limited recently
+        if cache.get("openai_rate_limited"):
+            logger.info("LLM STREAM SKIPPED endpoint=%s — circuit breaker active", endpoint)
+            return
+
         messages = [{"role": "system", "content": system_prompt}]
         if conversation_history:
             messages.extend(conversation_history)
@@ -552,8 +563,9 @@ class AIService:
                 except ImportError:
                     is_rate_limit = '429' in str(e)
                 if is_rate_limit:
+                    cache.set("openai_rate_limited", True, timeout=120)
                     logger.warning(
-                        "LLM STREAM RATE LIMITED endpoint=%s attempt=%d/%d latency=%.2fs",
+                        "LLM STREAM RATE LIMITED endpoint=%s attempt=%d/%d latency=%.2fs — circuit breaker set for 120s",
                         endpoint, attempt, LLM_MAX_RETRIES, elapsed,
                     )
                 else:

@@ -410,6 +410,7 @@ class EngineHeartbeat(models.Model):
         ("MISSED", "Missed"),
         ("LATE", "Late"),
         ("ERROR", "Error"),
+        ("NEVER_RUN", "Never Run"),
     ]
 
     engine_name = models.CharField(max_length=10, db_index=True)
@@ -419,7 +420,7 @@ class EngineHeartbeat(models.Model):
     status = models.CharField(
         max_length=10,
         choices=STATUS_CHOICES,
-        help_text="OK / MISSED / LATE / ERROR",
+        help_text="OK / MISSED / LATE / ERROR / NEVER_RUN",
     )
     last_run_at = models.DateTimeField(
         null=True,

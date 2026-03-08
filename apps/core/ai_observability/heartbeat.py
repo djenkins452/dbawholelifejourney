@@ -97,8 +97,8 @@ def compute_heartbeats():
 
         # Compute next expected and status
         if last_run_at is None:
-            # Never run — don't flag as missed (could be new install)
-            status = "OK"
+            # Never run — flag accurately so COAS reflects reality
+            status = "NEVER_RUN"
             next_expected_at = None
             lateness = 0
         else:

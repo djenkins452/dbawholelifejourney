@@ -35,9 +35,12 @@
     <!-- Processing State — polls for completion -->
     <div class="receipt-processing-overlay" id="processing-overlay"
          data-status-url="{{ status_url }}">
-        <div class="processing-spinner"></div>
-        <h3>Processing Receipt...</h3>
-        <p class="processing-subtitle">Extracting items, prices, and store info via AI</p>
+        <div class="processing-progress-container">
+            <div class="processing-progress-bar" id="progress-bar" style="width: 0%"></div>
+        </div>
+        <div class="processing-progress-text" id="progress-text">0%</div>
+        <h3 id="processing-title">Processing Receipt...</h3>
+        <p class="processing-subtitle" id="processing-stage">Starting...</p>
         <p class="processing-elapsed" id="processing-elapsed">0s</p>
     </div>
     {% elif is_failed %}
@@ -330,6 +333,27 @@
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+.processing-progress-container {
+    width: 80%;
+    max-width: 300px;
+    height: 8px;
+    background: var(--color-border, #e5e7eb);
+    border-radius: 4px;
+    margin: 0 auto var(--space-2);
+    overflow: hidden;
+}
+.processing-progress-bar {
+    height: 100%;
+    background: var(--color-primary, #2563eb);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+.processing-progress-text {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-primary, #2563eb);
+    margin-bottom: var(--space-2);
+}
 /* Failed state */
 .receipt-failed-notice {
     text-align: center;
@@ -416,14 +440,39 @@
     if (processingOverlay) {
         var statusUrl = processingOverlay.getAttribute('data-status-url');
         var elapsedEl = document.getElementById('processing-elapsed');
+        var progressBar = document.getElementById('progress-bar');
+        var progressText = document.getElementById('progress-text');
+        var stageEl = document.getElementById('processing-stage');
         var startTime = Date.now();
         var maxPolls = 60; // 60 x 2s = 2 minutes max
         var pollCount = 0;
+
+        var stageLabels = {
+            'upload': 'Uploading...',
+            'image_processing': 'Processing image...',
+            'vision_extraction': 'Extracting items with AI...',
+            'item_parsing': 'Parsing items...',
+            'classification': 'Classifying...',
+            'complete': 'Complete!'
+        };
 
         function updateElapsed() {
             if (elapsedEl) {
                 var secs = Math.round((Date.now() - startTime) / 1000);
                 elapsedEl.textContent = secs + 's elapsed';
+            }
+        }
+
+        function updateProgress(progress, stage) {
+            var pct = Math.min(Math.max(progress || 0, 0), 100);
+            if (progressBar) {
+                progressBar.style.width = pct + '%';
+            }
+            if (progressText) {
+                progressText.textContent = pct + '%';
+            }
+            if (stageEl && stage) {
+                stageEl.textContent = stageLabels[stage] || stage;
             }
         }
 
@@ -441,9 +490,13 @@
             fetch(statusUrl)
                 .then(function(resp) { return resp.json(); })
                 .then(function(data) {
+                    // Update progress bar and stage from response
+                    updateProgress(data.progress, data.stage);
+
                     if (data.status === 'pending') {
                         // Processing complete — redirect to confirm page
-                        window.location.reload();
+                        updateProgress(100, 'complete');
+                        setTimeout(function() { window.location.reload(); }, 500);
                     } else if (data.status === 'failed') {
                         // Processing failed — reload to show error
                         window.location.reload();

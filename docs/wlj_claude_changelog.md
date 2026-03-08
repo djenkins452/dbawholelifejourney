@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Receipt Processing Progress Bar UI
+
+- **Enhancement:** Replaced spinner with a progress bar in the receipt processing overlay
+- **What changed:**
+  - Processing overlay now shows a horizontal progress bar (0-100%) with percentage text
+  - Displays current processing stage label (Uploading, Processing image, Extracting items with AI, Parsing items, Classifying, Complete)
+  - Elapsed timer retained below the stage text
+  - Polling JS updated to read `progress` (0-100) and `stage` (string) from the status endpoint JSON response
+  - On completion (`status === 'pending'`), bar fills to 100% with "Complete!" before reloading
+  - Added CSS styles: `.processing-progress-container`, `.processing-progress-bar`, `.processing-progress-text` with smooth 0.5s width transition
+- **Files:** `templates/meals/receipt_confirm.html`
+- **Why:** Gives users meaningful feedback on receipt processing progress instead of an indeterminate spinner
+
 ## 2026-03-08 — Receipt Ingestion Hardening (4 improvements)
 
 - **Improvements:** Image compression, async Celery processing, financial fields, receipt deduplication

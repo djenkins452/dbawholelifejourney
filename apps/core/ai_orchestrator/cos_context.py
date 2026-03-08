@@ -46,7 +46,7 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 # Max worker threads for parallel context assembly
-_PARALLEL_MAX_WORKERS = 3  # Reduced from 6 to limit DB connection usage
+_PARALLEL_MAX_WORKERS = 6
 
 
 # =========================================================================

@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Phase 2: Restore weather tile on dashboard
+
+- **What:** Re-enabled weather tile on the dashboard. Weather uses Open-Meteo (free API, no AI/OpenAI). Was incorrectly grouped with AI features during the outage emergency disable.
+- **Changes:**
+  1. Reduced weather service timeout from 10s to 3s to bound worst-case latency
+  2. Re-enabled `_get_weather_data()` call in dashboard `get_context_data()`
+- **Performance:** 0ms on cache hit (99%+ of loads), ~300-500ms on cache miss (once/hour/user), 3s hard limit. Weather cached 1 hour, geocode cached 24 hours.
+- **Files:** `apps/dashboard/views.py`, `apps/dashboard/services/weather.py`
+
+---
+
 ## 2026-03-08 — Fix scheduler health check for multi-worker Gunicorn
 
 - **What:** Scheduler health endpoint returned `NOT_STARTED` even though APScheduler was running. Only 1 of 4 Gunicorn workers owns the scheduler (DB lock). Health requests hitting the other 3 workers saw `_scheduler_instance = None` and bailed out without checking DB state.

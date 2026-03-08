@@ -171,9 +171,11 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             except Exception:
                 context["guidance_items"] = []
 
-            # Skipped — requires OpenAI / engine execution:
+            # Phase 2: External API with timeout + cache (no AI, no OpenAI)
+            context["weather"] = self._get_weather_data(user)
+
+            # Still disabled — requires OpenAI / engine execution:
             context["ai_insights"] = None
-            context["weather"] = None
             context["command_brief"] = None
             context["command_mode"] = None
 

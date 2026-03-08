@@ -19,10 +19,18 @@
         </a>
     </div>
 
-    <!-- Phase 12: Pantry Photo Scan Buttons -->
+    <!-- Scan & Add Buttons -->
     <div class="scan-location-buttons">
-        <h2 class="scan-section-title">Scan Your Kitchen</h2>
+        <h2 class="scan-section-title">Add to Pantry</h2>
         <div class="scan-buttons-row">
+            <!-- Barcode Scanner -->
+            <button type="button" class="scan-location-btn" id="barcode-scan-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+                    <path d="M3 5h2v14H3zM7 5h1v14H7zM11 5h2v14h-2zM15 5h1v14h-1zM19 5h2v14h-2z"/>
+                </svg>
+                <span>Scan Barcode</span>
+            </button>
+
             <form method="post" action="{% url 'meals:pantry_scan' %}" enctype="multipart/form-data"
                   class="scan-location-form" data-location="fridge">
                 {% csrf_token %}
@@ -49,7 +57,7 @@
                         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                         <circle cx="12" cy="13" r="4"/>
                     </svg>
-                    <span>Scan Pantry Shelf</span>
+                    <span>Scan Pantry</span>
                 </button>
             </form>
 
@@ -68,7 +76,7 @@
                 </button>
             </form>
         </div>
-        <p class="scan-hint">Upload 1-5 photos per scan. AI detects items for your review before adding.</p>
+        <p class="scan-hint">Scan a barcode to add a product, or upload photos for AI detection.</p>
     </div>
 
     {% if pantry_confidence and pantry_confidence.overall_confidence > 0 %}
@@ -110,7 +118,12 @@
             <div class="pantry-item" data-pantry-id="{{ item.pk }}">
                 <div class="pantry-item-info">
                     <div class="pantry-item-name">{{ item.ingredient.canonical_name|title }}</div>
-                    <div class="pantry-item-qty">{{ item.quantity|floatformat:1 }} {{ item.unit }}</div>
+                    <div class="pantry-item-meta">
+                        <span class="pantry-item-qty">{{ item.quantity|floatformat:1 }} {{ item.unit }}</span>
+                        {% if item.storage_location and item.storage_location != "unknown" %}
+                        <span class="storage-badge storage-{{ item.storage_location }}">{{ item.get_storage_location_display }}</span>
+                        {% endif %}
+                    </div>
                 </div>
 
                 {% with confidence=item.confidence_score|floatformat:0 %}
@@ -179,6 +192,86 @@
         </div>
     </div>
     {% endif %}
+    <!-- Barcode Scanner Modal -->
+    <div class="barcode-modal-overlay" id="barcode-modal" style="display:none;">
+        <div class="barcode-modal">
+            <div class="barcode-modal-header">
+                <h3>Scan Barcode</h3>
+                <button type="button" class="barcode-modal-close" id="barcode-close-btn" aria-label="Close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+
+            <!-- Scanner State -->
+            <div id="barcode-scanner-state">
+                <div class="barcode-video-container">
+                    <video id="barcode-video" autoplay playsinline muted></video>
+                    <div class="barcode-crosshair"></div>
+                </div>
+                <p class="barcode-scan-hint">Point camera at a product barcode</p>
+            </div>
+
+            <!-- Loading State -->
+            <div id="barcode-loading-state" style="display:none;">
+                <div class="barcode-loading">
+                    <div class="processing-spinner"></div>
+                    <p>Looking up product...</p>
+                </div>
+            </div>
+
+            <!-- Result State — product found -->
+            <div id="barcode-result-state" style="display:none;">
+                <div class="barcode-product-card">
+                    <h4 id="barcode-product-name"></h4>
+                    <p class="barcode-product-brand" id="barcode-product-brand"></p>
+                    <p class="barcode-product-source" id="barcode-product-source"></p>
+                    <div class="barcode-storage-row">
+                        <label for="barcode-storage" class="field-label-sm">Storage Location</label>
+                        <select id="barcode-storage" class="barcode-storage-select">
+                            <option value="">Auto-detect</option>
+                            <option value="pantry">Pantry</option>
+                            <option value="fridge">Fridge</option>
+                            <option value="freezer">Freezer</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="barcode-result-actions">
+                    <button type="button" class="btn btn-primary" id="barcode-add-btn">Add to Pantry</button>
+                    <button type="button" class="btn btn-ghost" id="barcode-rescan-btn">Scan Another</button>
+                </div>
+            </div>
+
+            <!-- Not Found State -->
+            <div id="barcode-notfound-state" style="display:none;">
+                <div class="barcode-not-found">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="15" y1="9" x2="9" y2="15"/>
+                        <line x1="9" y1="9" x2="15" y2="15"/>
+                    </svg>
+                    <p>Product not found</p>
+                    <p class="barcode-notfound-code" id="barcode-notfound-code"></p>
+                </div>
+                <div class="barcode-result-actions">
+                    <button type="button" class="btn btn-primary" id="barcode-retry-btn">Try Again</button>
+                    <button type="button" class="btn btn-ghost" id="barcode-cancel-btn">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Success State -->
+            <div id="barcode-success-state" style="display:none;">
+                <div class="barcode-success">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" width="48" height="48">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    <p id="barcode-success-msg">Added to pantry!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Scan Processing Overlay -->
     <div class="scan-overlay" id="scan-overlay" style="display:none;">
         <div class="scan-overlay-content">
@@ -200,19 +293,182 @@
     </div>
 </div>
 
+<style nonce="{{ csp_nonce }}">
+/* Storage badges */
+.pantry-item-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+.storage-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+.storage-pantry { background: #fef3c7; color: #92400e; }
+.storage-fridge { background: #dbeafe; color: #1e40af; }
+.storage-freezer { background: #e0e7ff; color: #3730a3; }
+.storage-other { background: #f3f4f6; color: #6b7280; }
+
+/* Barcode Modal */
+.barcode-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+}
+.barcode-modal {
+    background: var(--color-bg, #fff);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 400px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.barcode-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+.barcode-modal-header h3 { margin: 0; }
+.barcode-modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: var(--space-2);
+    border-radius: 6px;
+    color: var(--color-text-muted);
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.barcode-modal-close:hover { background: var(--color-surface); }
+.barcode-video-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4/3;
+    background: #000;
+    overflow: hidden;
+}
+.barcode-video-container video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.barcode-crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 70%;
+    height: 30%;
+    border: 2px solid rgba(255,255,255,0.6);
+    border-radius: 8px;
+}
+.barcode-scan-hint {
+    text-align: center;
+    padding: var(--space-3);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+.barcode-loading {
+    text-align: center;
+    padding: var(--space-8) var(--space-4);
+}
+.barcode-loading .processing-spinner {
+    width: 32px;
+    height: 32px;
+    margin: 0 auto var(--space-3);
+    border: 3px solid var(--color-border);
+    border-top-color: var(--color-primary, #2563eb);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.barcode-product-card {
+    padding: var(--space-4);
+}
+.barcode-product-card h4 {
+    margin: 0 0 var(--space-1);
+    font-size: var(--font-size-base);
+}
+.barcode-product-brand {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin: 0 0 var(--space-1);
+}
+.barcode-product-source {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    margin: 0 0 var(--space-3);
+}
+.barcode-storage-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+}
+.barcode-storage-select {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-size: 16px;
+    min-height: 44px;
+    background: var(--color-bg);
+}
+.barcode-result-actions {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4) var(--space-4);
+}
+.barcode-not-found {
+    text-align: center;
+    padding: var(--space-6) var(--space-4) var(--space-2);
+}
+.barcode-not-found p { margin: var(--space-2) 0; }
+.barcode-notfound-code {
+    font-family: monospace;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+.barcode-success {
+    text-align: center;
+    padding: var(--space-6) var(--space-4);
+}
+.barcode-success p {
+    margin-top: var(--space-3);
+    font-weight: 600;
+    color: #16a34a;
+}
+</style>
+
+<!-- ZXing barcode scanner library -->
+<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
+
 <script nonce="{{ csp_nonce }}">
 (function() {
     'use strict';
 
-    // Pantry item actions (confirm/used)
+    var csrfToken = '{{ csrf_token }}';
+
+    // ── Pantry item actions (confirm/used) ──
     document.addEventListener('click', function(e) {
         var btn = e.target.closest('[data-action]');
         if (!btn) return;
         var action = btn.dataset.action;
         var itemId = btn.dataset.itemId;
-        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')
-            ? document.querySelector('[name=csrfmiddlewaretoken]').value
-            : '{{ csrf_token }}';
         var url;
         if (action === 'confirm') {
             url = '/meals/pantry/' + itemId + '/confirm/';
@@ -224,10 +480,7 @@
         }
         fetch(url, {
             method: 'POST',
-            headers: {
-                'X-CSRFToken': csrfToken,
-                'Content-Type': 'application/json',
-            },
+            headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
         }).then(function(resp) {
             if (resp.ok) {
                 if (action === 'used') {
@@ -235,10 +488,7 @@
                     if (row) row.style.display = 'none';
                 } else if (action === 'confirm') {
                     var meter = btn.closest('.pantry-item').querySelector('.confidence-fill');
-                    if (meter) {
-                        meter.style.width = '100%';
-                        meter.className = 'confidence-fill confidence-high';
-                    }
+                    if (meter) { meter.style.width = '100%'; meter.className = 'confidence-fill confidence-high'; }
                     var val = btn.closest('.pantry-item').querySelector('.confidence-value');
                     if (val) val.textContent = '100%';
                 }
@@ -246,49 +496,32 @@
         });
     });
 
-    // Phase 12: Scan location button handlers
+    // ── Photo scan triggers ──
     document.addEventListener('click', function(e) {
         var triggerBtn = e.target.closest('[data-trigger]');
         if (!triggerBtn) return;
-        var location = triggerBtn.dataset.trigger;
         var form = triggerBtn.closest('.scan-location-form');
         if (!form) return;
         var fileInput = form.querySelector('.scan-file-input');
         if (fileInput) fileInput.click();
     });
 
-    // Auto-submit when files are selected
     document.addEventListener('change', function(e) {
         if (!e.target.classList.contains('scan-file-input')) return;
         var form = e.target.closest('.scan-location-form');
         if (!form) return;
         var files = e.target.files;
         if (!files || files.length === 0) return;
-        if (files.length > 5) {
-            alert('Maximum 5 photos per scan session.');
-            e.target.value = '';
-            return;
-        }
-        // Validate file sizes
+        if (files.length > 5) { alert('Maximum 5 photos per scan session.'); e.target.value = ''; return; }
         for (var i = 0; i < files.length; i++) {
-            if (files[i].size > 10 * 1024 * 1024) {
-                alert('File "' + files[i].name + '" exceeds the 10MB limit.');
-                e.target.value = '';
-                return;
-            }
+            if (files[i].size > 10 * 1024 * 1024) { alert('File "' + files[i].name + '" exceeds 10MB.'); e.target.value = ''; return; }
         }
-        // Show loading overlay
         var overlay = document.getElementById('scan-overlay');
         if (overlay) {
             overlay.style.display = 'flex';
-            // Animate steps over time
             var steps = ['step-upload', 'step-detect', 'step-match'];
             var idx = 0;
-            var titles = [
-                'Uploading photos...',
-                'Detecting food items...',
-                'Matching to ingredients...'
-            ];
+            var titles = ['Uploading photos...', 'Detecting food items...', 'Matching to ingredients...'];
             var details = [
                 'Preparing ' + files.length + ' photo' + (files.length > 1 ? 's' : '') + ' for analysis.',
                 'AI is scanning for food items. This may take 15-30 seconds.',
@@ -299,19 +532,219 @@
                 if (idx < steps.length) {
                     var el = document.getElementById(steps[idx]);
                     if (el) el.classList.add('active');
-                    var titleEl = document.getElementById('scan-overlay-title');
-                    var detailEl = document.getElementById('scan-overlay-detail');
-                    if (titleEl) titleEl.textContent = titles[idx];
-                    if (detailEl) detailEl.textContent = details[idx];
-                } else {
-                    clearInterval(stepInterval);
-                }
+                    document.getElementById('scan-overlay-title').textContent = titles[idx];
+                    document.getElementById('scan-overlay-detail').textContent = details[idx];
+                } else { clearInterval(stepInterval); }
             }, 8000);
         }
-        // Disable button
         var btn = form.querySelector('.scan-location-btn');
         if (btn) btn.disabled = true;
         form.submit();
+    });
+
+    // ── Barcode Scanner ──
+    var modal = document.getElementById('barcode-modal');
+    var video = document.getElementById('barcode-video');
+    var scannerState = document.getElementById('barcode-scanner-state');
+    var loadingState = document.getElementById('barcode-loading-state');
+    var resultState = document.getElementById('barcode-result-state');
+    var notFoundState = document.getElementById('barcode-notfound-state');
+    var successState = document.getElementById('barcode-success-state');
+    var mediaStream = null;
+    var zxingReader = null;
+    var scanInterval = null;
+    var currentProduct = null;
+    var CONFIRM_COUNT = 3;
+    var readCounts = {};
+
+    function showState(state) {
+        [scannerState, loadingState, resultState, notFoundState, successState].forEach(function(s) {
+            if (s) s.style.display = 'none';
+        });
+        if (state) state.style.display = 'block';
+    }
+
+    function stopCamera() {
+        if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(function(t) { t.stop(); });
+            mediaStream = null;
+        }
+        if (video) video.srcObject = null;
+    }
+
+    function closeModal() {
+        stopCamera();
+        modal.style.display = 'none';
+        readCounts = {};
+        currentProduct = null;
+    }
+
+    function startScanner() {
+        showState(scannerState);
+        readCounts = {};
+        currentProduct = null;
+
+        navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        }).then(function(stream) {
+            mediaStream = stream;
+            video.srcObject = stream;
+
+            // Initialize ZXing reader
+            if (!zxingReader && typeof ZXingBrowser !== 'undefined' && ZXingBrowser.BrowserMultiFormatReader) {
+                zxingReader = new ZXingBrowser.BrowserMultiFormatReader();
+            }
+
+            if (!zxingReader) {
+                console.error('ZXing not available');
+                return;
+            }
+
+            // Poll video frames for barcodes
+            var canvas = document.createElement('canvas');
+            var isProcessing = false;
+
+            scanInterval = setInterval(function() {
+                if (isProcessing || !video || video.paused || video.readyState < 2) return;
+                isProcessing = true;
+
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+
+                zxingReader.decodeFromCanvas(canvas).then(function(result) {
+                    isProcessing = false;
+                    if (!result) return;
+                    var code = result.getText();
+                    if (!code) return;
+
+                    // Require multiple consistent reads
+                    readCounts[code] = (readCounts[code] || 0) + 1;
+                    if (readCounts[code] >= CONFIRM_COUNT) {
+                        clearInterval(scanInterval);
+                        scanInterval = null;
+                        handleBarcode(code);
+                    }
+                }).catch(function() {
+                    isProcessing = false;
+                });
+            }, 250);
+
+        }).catch(function(err) {
+            console.error('Camera access denied:', err);
+            alert('Camera access is required for barcode scanning.');
+            closeModal();
+        });
+    }
+
+    function handleBarcode(code) {
+        showState(loadingState);
+        stopCamera();
+
+        // Call existing barcode lookup endpoint
+        fetch('/scan/barcode/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ barcode: code })
+        }).then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            if (data.found) {
+                // Show product result
+                currentProduct = {
+                    barcode: code,
+                    product_name: data.food_name || data.product_name || 'Unknown Product',
+                    brand: data.brand || '',
+                    category: data.category || '',
+                    source: data.source || ''
+                };
+                document.getElementById('barcode-product-name').textContent = currentProduct.product_name;
+                document.getElementById('barcode-product-brand').textContent = currentProduct.brand || '';
+                var sourceLabels = { database: 'Local DB', fatsecret: 'FatSecret', openfoodfacts: 'Open Food Facts', ai: 'AI Estimated' };
+                document.getElementById('barcode-product-source').textContent =
+                    'Source: ' + (sourceLabels[data.source] || data.source || 'Unknown');
+                document.getElementById('barcode-storage').value = '';
+                showState(resultState);
+            } else {
+                document.getElementById('barcode-notfound-code').textContent = 'Barcode: ' + code;
+                showState(notFoundState);
+            }
+        }).catch(function(err) {
+            console.error('Barcode lookup failed:', err);
+            document.getElementById('barcode-notfound-code').textContent = 'Barcode: ' + code;
+            showState(notFoundState);
+        });
+    }
+
+    function addToPantry() {
+        if (!currentProduct) return;
+        var storageSelect = document.getElementById('barcode-storage');
+        var storageVal = storageSelect ? storageSelect.value : '';
+
+        var body = {
+            barcode: currentProduct.barcode,
+            product_name: currentProduct.product_name,
+            brand: currentProduct.brand,
+            category: currentProduct.category
+        };
+        if (storageVal) body.storage_location = storageVal;
+
+        fetch('{% url "meals:pantry_barcode" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        }).then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            if (data.status === 'ok') {
+                var msg = data.created
+                    ? currentProduct.product_name + ' added to pantry'
+                    : currentProduct.product_name + ' quantity updated';
+                if (data.storage_location && data.storage_location !== 'unknown') {
+                    msg += ' (' + data.storage_location + ')';
+                }
+                document.getElementById('barcode-success-msg').textContent = msg;
+                showState(successState);
+                setTimeout(function() { window.location.reload(); }, 1500);
+            } else {
+                alert(data.message || 'Failed to add to pantry');
+            }
+        }).catch(function(err) {
+            console.error('Add to pantry failed:', err);
+            alert('Network error. Please try again.');
+        });
+    }
+
+    // Event listeners (CSP compliant)
+    document.getElementById('barcode-scan-btn').addEventListener('click', function() {
+        modal.style.display = 'flex';
+        startScanner();
+    });
+
+    document.getElementById('barcode-close-btn').addEventListener('click', closeModal);
+
+    document.getElementById('barcode-add-btn').addEventListener('click', addToPantry);
+
+    document.getElementById('barcode-rescan-btn').addEventListener('click', function() {
+        currentProduct = null;
+        readCounts = {};
+        startScanner();
+    });
+
+    document.getElementById('barcode-retry-btn').addEventListener('click', function() {
+        readCounts = {};
+        startScanner();
+    });
+
+    document.getElementById('barcode-cancel-btn').addEventListener('click', closeModal);
+
+    // Close modal on overlay click
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) closeModal();
+    });
+
+    // Close on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.style.display !== 'none') closeModal();
     });
 })();
 </script>

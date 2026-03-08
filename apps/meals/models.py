@@ -441,6 +441,27 @@ class PantryItem(TimeStampedModel):
         help_text="When the user last confirmed this item's presence",
     )
 
+    # Storage location
+    STORAGE_PANTRY = "pantry"
+    STORAGE_FRIDGE = "fridge"
+    STORAGE_FREEZER = "freezer"
+    STORAGE_OTHER = "other"
+    STORAGE_UNKNOWN = "unknown"
+    STORAGE_LOCATION_CHOICES = [
+        (STORAGE_PANTRY, "Pantry"),
+        (STORAGE_FRIDGE, "Fridge"),
+        (STORAGE_FREEZER, "Freezer"),
+        (STORAGE_OTHER, "Other"),
+        (STORAGE_UNKNOWN, "Unknown"),
+    ]
+    storage_location = models.CharField(
+        max_length=10,
+        choices=STORAGE_LOCATION_CHOICES,
+        default=STORAGE_UNKNOWN,
+        db_index=True,
+        help_text="Physical storage location (pantry, fridge, freezer)",
+    )
+
     # Expiration
     expiration_date_estimated = models.DateField(
         null=True,
@@ -498,6 +519,7 @@ class InventoryTransaction(TimeStampedModel):
         ("expiration", "Expired Removal"),
         ("correction", "User Correction"),
         ("photo_scan", "Photo Scan"),
+        ("barcode", "Barcode Scan"),
     ]
 
     pantry_item = models.ForeignKey(
@@ -525,6 +547,47 @@ class InventoryTransaction(TimeStampedModel):
     def __str__(self):
         direction = "+" if self.delta_quantity > 0 else ""
         return f"{direction}{self.delta_quantity} {self.pantry_item.ingredient.canonical_name}"
+
+
+class StorageOverride(TimeStampedModel):
+    """
+    User-defined storage location overrides for product names.
+
+    When a user manually selects a storage location for an item that was
+    classified as 'unknown', this saves the mapping for future auto-classification.
+    Global (not per-household) since storage rules are product-inherent.
+    """
+
+    product_name_lower = models.CharField(
+        max_length=200,
+        unique=True,
+        db_index=True,
+        help_text="Lowercase product name for matching",
+    )
+    product_name_display = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Original casing for display",
+    )
+    storage_location = models.CharField(
+        max_length=10,
+        choices=PantryItem.STORAGE_LOCATION_CHOICES,
+        help_text="User-selected storage location",
+    )
+    set_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="User who set this override",
+    )
+
+    class Meta:
+        verbose_name = "Storage Override"
+        verbose_name_plural = "Storage Overrides"
+
+    def __str__(self):
+        return f"{self.product_name_display} → {self.storage_location}"
 
 
 # =============================================================================
@@ -746,6 +809,34 @@ class Receipt(UserOwnedModel):
         blank=True,
         default="",
         help_text="Payment method detected from receipt",
+    )
+
+    # Processing progress tracking (for async receipt ingestion)
+    STAGE_UPLOAD = "upload"
+    STAGE_IMAGE_PROCESSING = "image_processing"
+    STAGE_VISION_EXTRACTION = "vision_extraction"
+    STAGE_ITEM_PARSING = "item_parsing"
+    STAGE_CLASSIFICATION = "classification"
+    STAGE_COMPLETE = "complete"
+    STAGE_CHOICES = [
+        (STAGE_UPLOAD, "Upload Complete"),
+        (STAGE_IMAGE_PROCESSING, "Image Processing"),
+        (STAGE_VISION_EXTRACTION, "Vision Extraction"),
+        (STAGE_ITEM_PARSING, "Item Parsing"),
+        (STAGE_CLASSIFICATION, "Classification"),
+        (STAGE_COMPLETE, "Complete"),
+    ]
+
+    processing_progress = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Processing progress 0-100",
+    )
+    processing_stage = models.CharField(
+        max_length=20,
+        choices=STAGE_CHOICES,
+        blank=True,
+        default="",
+        help_text="Current processing stage",
     )
 
     # Processing error message (for async failures)

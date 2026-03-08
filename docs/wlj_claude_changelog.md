@@ -6,6 +6,37 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Pantry Storage Intelligence + Barcode Scanner + Receipt Progress Bar
+
+- **Feature: Storage Location Intelligence**
+  - Added `storage_location` field to PantryItem (pantry/fridge/freezer/other/unknown) with db_index
+  - Created `apps/meals/services/storage_classifier.py` — keyword-based classifier with ~200 regex patterns
+  - Added `StorageOverride` model for user-defined overrides that improve future classification
+  - PantryView now groups items by physical location (Fridge, Pantry, Freezer) instead of ingredient category
+  - Storage badges shown on each pantry item row
+  - Receipt routing auto-classifies storage when creating PantryItems from grocery receipts
+  - **Files:** `apps/meals/models.py`, `apps/meals/services/storage_classifier.py`, `apps/meals/services/receipt_routing.py`, `apps/meals/views.py`, `templates/meals/pantry.html`, `apps/meals/migrations/0008_*`, `apps/meals/tests/test_views.py`
+
+- **Feature: Barcode Scanner on Pantry Page**
+  - Added "Scan Barcode" button to pantry page with ZXing.js barcode scanner modal
+  - Camera-based live scanning with multi-read confirmation (3 consistent reads)
+  - Calls existing `/scan/barcode/` endpoint for product lookup (FatSecret/OpenFoodFacts/AI)
+  - Shows product confirmation card with storage location selector (auto-detect or manual)
+  - Creates PantryItem via new `PantryBarcodeLookupView` at `/meals/pantry/barcode/`
+  - User storage overrides saved for future classification
+  - Added `barcode` to `InventoryTransaction.SOURCE_CHOICES`
+  - **Files:** `apps/meals/views.py`, `apps/meals/urls.py`, `apps/meals/models.py`, `templates/meals/pantry.html`, `apps/meals/migrations/0009_*`
+
+- **Enhancement: Receipt Processing Progress Bar**
+  - Added `processing_progress` (0-100) and `processing_stage` fields to Receipt model
+  - Celery task now updates progress at each stage: upload(10)→image_processing(25)→vision_extraction(60)→item_parsing(80)→complete(100)
+  - Added `select_for_update(skip_locked=True)` locking to prevent race conditions between sync fallback and Celery
+  - Replaced spinner with animated progress bar showing percentage and stage label
+  - Sync fallback only triggers if `processing_progress < 25` (indicates Celery hasn't started)
+  - **Files:** `apps/meals/models.py`, `apps/meals/tasks.py`, `apps/meals/views.py`, `templates/meals/receipt_confirm.html`, `apps/meals/migrations/0008_*`
+
+- **Why:** Three improvements to pantry management: know WHERE items are stored, add items by barcode scan, and never see a stuck spinner during receipt processing
+
 ## 2026-03-08 — Receipt Processing Progress Bar UI
 
 - **Enhancement:** Replaced spinner with a progress bar in the receipt processing overlay

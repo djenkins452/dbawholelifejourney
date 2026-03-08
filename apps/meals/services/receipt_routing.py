@@ -124,6 +124,7 @@ class ReceiptRoutingService:
             ReceiptItem,
         )
         from apps.meals.services.ingredient_matching import get_or_create_ingredient
+        from apps.meals.services.storage_classifier import determine_storage_location
 
         confirmed_items = ReceiptItem.objects.filter(
             receipt=receipt, pk__in=confirmed_ids
@@ -140,6 +141,12 @@ class ReceiptRoutingService:
                 item.ingredient = ingredient
                 item.save(update_fields=["ingredient", "updated_at"])
 
+            # Classify storage location
+            storage_location = determine_storage_location(
+                item.raw_name,
+                ingredient.category if ingredient else "",
+            )
+
             # Update or create PantryItem
             pantry_item, created = PantryItem.objects.get_or_create(
                 household=household,
@@ -149,6 +156,7 @@ class ReceiptRoutingService:
                     "unit": item.unit,
                     "confidence_score": Decimal("0.95"),
                     "last_confirmed_at": timezone.now(),
+                    "storage_location": storage_location,
                 },
             )
 
@@ -156,14 +164,17 @@ class ReceiptRoutingService:
                 pantry_item.quantity += item.quantity
                 pantry_item.confidence_score = Decimal("0.95")
                 pantry_item.last_confirmed_at = timezone.now()
-                pantry_item.save(
-                    update_fields=[
-                        "quantity",
-                        "confidence_score",
-                        "last_confirmed_at",
-                        "updated_at",
-                    ]
-                )
+                update_fields = [
+                    "quantity",
+                    "confidence_score",
+                    "last_confirmed_at",
+                    "updated_at",
+                ]
+                # Upgrade storage_location if still unknown and classifier knows better
+                if pantry_item.storage_location == "unknown" and storage_location != "unknown":
+                    pantry_item.storage_location = storage_location
+                    update_fields.append("storage_location")
+                pantry_item.save(update_fields=update_fields)
                 updated_count += 1
             else:
                 created_count += 1

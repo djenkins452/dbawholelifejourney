@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 142,
+    "fields": {
+      "title": "Pantry Storage Intelligence & Barcode Scanner",
+      "description": "Your pantry now organizes items by physical location — Fridge, Pantry, Freezer — with smart auto-classification. Scan any product barcode on the pantry page to instantly add items. Receipt processing now shows a real progress bar instead of a spinner, and won't get stuck thanks to improved error handling.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-08",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/meals/pantry/",
+      "created_at": "2026-03-08T23:55:00Z",
+      "updated_at": "2026-03-08T23:55:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 141,
     "fields": {
       "title": "Faster, Smarter Receipt Processing",

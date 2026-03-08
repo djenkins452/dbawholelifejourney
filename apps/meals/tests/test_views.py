@@ -157,9 +157,12 @@ class TestPantryView(TestUserMixin, TestCase):
         self.assertTemplateUsed(response, "meals/pantry.html")
 
     def test_pantry_grouping(self):
-        """Pantry items are grouped by section."""
+        """Pantry items are grouped by storage location."""
+        # Set storage location so item appears in a named section
+        self.pantry_item.storage_location = "pantry"
+        self.pantry_item.save(update_fields=["storage_location"])
         response = self.client.get(reverse("meals:pantry"))
-        self.assertContains(response, "Pantry Staples")
+        self.assertContains(response, "Pantry")
         self.assertContains(response, "Flour")
 
     def test_pantry_stats(self):

@@ -12,8 +12,16 @@ from decimal import Decimal
 
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
+
+
+def _update_receipt_progress(receipt, stage, progress):
+    """Update receipt processing progress atomically."""
+    receipt.processing_stage = stage
+    receipt.processing_progress = progress
+    receipt.save(update_fields=["processing_stage", "processing_progress", "updated_at"])
 
 
 @shared_task(
@@ -123,6 +131,10 @@ def process_receipt_image_task(self, receipt_id):
     On success, updates to CONFIRM_PENDING and creates ReceiptItems.
     On failure, updates to CONFIRM_FAILED with error message.
 
+    Progress stages:
+        upload (10%) → image_processing (25%) → vision_extraction (60%)
+        → item_parsing (80%) → classification (90%) → complete (100%)
+
     Args:
         receipt_id: PK of Receipt to process
     """
@@ -144,7 +156,23 @@ def process_receipt_image_task(self, receipt_id):
         return {"status": "error", "reason": "receipt_not_found"}
 
     try:
-        # Read image bytes from storage
+        # Acquire lock to prevent concurrent processing (sync fallback race)
+        with transaction.atomic():
+            locked_receipt = (
+                Receipt.objects.select_for_update(skip_locked=True)
+                .filter(pk=receipt_id, confirmation_status=Receipt.CONFIRM_PROCESSING)
+                .first()
+            )
+            if not locked_receipt:
+                logger.info(
+                    "Receipt %d already processed or locked, skipping", receipt_id
+                )
+                return {"status": "skipped", "reason": "already_processed_or_locked"}
+
+            # Stage 1: Upload complete
+            _update_receipt_progress(locked_receipt, Receipt.STAGE_UPLOAD, 10)
+
+        # Read image bytes from storage (outside transaction — I/O)
         if not receipt.image:
             raise ValueError("No image attached to receipt")
 
@@ -158,10 +186,16 @@ def process_receipt_image_task(self, receipt_id):
         mime_type, _ = mimetypes.guess_type(receipt.image.name)
         content_type = mime_type or "image/jpeg"
 
+        # Stage 2: Image processing (compression)
+        _update_receipt_progress(receipt, Receipt.STAGE_IMAGE_PROCESSING, 25)
+
         # Process through Vision service
         from apps.meals.services.receipt_vision import ReceiptVisionService
 
         service = ReceiptVisionService()
+
+        # Stage 3: Vision extraction
+        _update_receipt_progress(receipt, Receipt.STAGE_VISION_EXTRACTION, 60)
 
         if content_type == "application/pdf":
             vision_result = service.process_pdf(raw_bytes)
@@ -171,8 +205,13 @@ def process_receipt_image_task(self, receipt_id):
         if vision_result.error:
             receipt.confirmation_status = Receipt.CONFIRM_FAILED
             receipt.processing_error = vision_result.error
+            receipt.processing_progress = 0
+            receipt.processing_stage = ""
             receipt.save(
-                update_fields=["confirmation_status", "processing_error", "updated_at"]
+                update_fields=[
+                    "confirmation_status", "processing_error",
+                    "processing_progress", "processing_stage", "updated_at",
+                ]
             )
             logger.error(
                 "Receipt %d vision processing failed: %s",
@@ -180,6 +219,9 @@ def process_receipt_image_task(self, receipt_id):
                 vision_result.error,
             )
             return {"status": "error", "reason": vision_result.error}
+
+        # Stage 4: Item parsing
+        _update_receipt_progress(receipt, Receipt.STAGE_ITEM_PARSING, 80)
 
         # If PDF text extraction returned raw text, parse it with text parser
         if vision_result.source == "pdf_text":
@@ -289,6 +331,9 @@ def process_receipt_image_task(self, receipt_id):
                     category=item_data.get("category", ""),
                 )
 
+        # Stage 5: Classification complete
+        _update_receipt_progress(receipt, Receipt.STAGE_COMPLETE, 100)
+
         # Mark as ready for confirmation
         receipt.confirmation_status = Receipt.CONFIRM_PENDING
         receipt.processing_error = ""
@@ -316,8 +361,13 @@ def process_receipt_image_task(self, receipt_id):
         logger.warning("Receipt %d processing timed out", receipt_id)
         receipt.confirmation_status = Receipt.CONFIRM_FAILED
         receipt.processing_error = "Processing timed out. Please try again."
+        receipt.processing_progress = 0
+        receipt.processing_stage = ""
         receipt.save(
-            update_fields=["confirmation_status", "processing_error", "updated_at"]
+            update_fields=[
+                "confirmation_status", "processing_error",
+                "processing_progress", "processing_stage", "updated_at",
+            ]
         )
         return {"status": "timeout", "receipt_id": receipt_id}
 
@@ -330,7 +380,12 @@ def process_receipt_image_task(self, receipt_id):
         )
         receipt.confirmation_status = Receipt.CONFIRM_FAILED
         receipt.processing_error = str(exc)[:500]
+        receipt.processing_progress = 0
+        receipt.processing_stage = ""
         receipt.save(
-            update_fields=["confirmation_status", "processing_error", "updated_at"]
+            update_fields=[
+                "confirmation_status", "processing_error",
+                "processing_progress", "processing_stage", "updated_at",
+            ]
         )
         return {"status": "error", "receipt_id": receipt_id, "reason": str(exc)}

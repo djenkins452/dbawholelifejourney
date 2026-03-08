@@ -28,6 +28,11 @@ urlpatterns = [
         views.PantryUpdateView.as_view(),
         name="pantry_update",
     ),
+    path(
+        "pantry/barcode/",
+        views.PantryBarcodeLookupView.as_view(),
+        name="pantry_barcode",
+    ),
     # Meal Plan
     path("plan/", views.MealPlanView.as_view(), name="plan"),
     path("plan/generate/", views.GeneratePlanView.as_view(), name="plan_generate"),

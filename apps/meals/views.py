@@ -395,20 +395,25 @@ class PantryView(
     HelpContextMixin, LoginRequiredMixin, MealsHouseholdMixin, TemplateView
 ):
     """
-    Pantry Intelligence view — grouped by store section.
+    Pantry Intelligence view — grouped by storage location.
 
-    Displays confidence scores, expiration badges, and inline actions.
+    Groups items by physical location (Fridge, Pantry, Freezer, Other)
+    with confidence scores, expiration badges, and inline actions.
     """
 
     template_name = "meals/pantry.html"
     help_context_id = "MEALS_PANTRY"
 
-    # Map storage types to display sections
-    SECTION_ORDER = [
-        ("refrigerator", "Produce & Fresh"),
-        ("freezer", "Frozen"),
-        ("pantry", "Pantry Staples"),
-    ]
+    # Display labels for storage locations
+    STORAGE_DISPLAY = {
+        "fridge": "Fridge",
+        "pantry": "Pantry",
+        "freezer": "Freezer",
+        "other": "Other",
+        "unknown": "Uncategorized",
+    }
+
+    STORAGE_ORDER = ["fridge", "pantry", "freezer", "other", "unknown"]
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -417,52 +422,24 @@ class PantryView(
         items = (
             PantryItem.objects.filter(household=household, quantity__gt=0)
             .select_related("ingredient")
-            .order_by("ingredient__category", "ingredient__canonical_name")
+            .order_by("storage_location", "ingredient__canonical_name")
         )
 
-        # Group by ingredient category for display
-        CATEGORY_SECTIONS = {
-            "protein": "Meat & Protein",
-            "vegetable": "Produce",
-            "fruit": "Produce",
-            "dairy": "Dairy",
-            "grain": "Pantry Staples",
-            "fat": "Pantry Staples",
-            "spice": "Spices & Seasonings",
-            "condiment": "Condiments",
-            "beverage": "Beverages",
-            "frozen": "Frozen",
-            "other": "Other",
-        }
-
+        # Group by storage location
         sections = {}
         for item in items:
-            category = item.ingredient.category if item.ingredient else "other"
-            section_name = CATEGORY_SECTIONS.get(category, "Other")
+            loc = item.storage_location or "unknown"
+            section_name = self.STORAGE_DISPLAY.get(loc, "Uncategorized")
             if section_name not in sections:
                 sections[section_name] = []
             sections[section_name].append(item)
 
-        # Sort sections in a sensible order
-        SECTION_PRIORITY = [
-            "Produce",
-            "Meat & Protein",
-            "Dairy",
-            "Pantry Staples",
-            "Spices & Seasonings",
-            "Condiments",
-            "Beverages",
-            "Frozen",
-            "Other",
-        ]
+        # Order sections
         ordered_sections = []
-        for name in SECTION_PRIORITY:
+        for loc in self.STORAGE_ORDER:
+            name = self.STORAGE_DISPLAY.get(loc, "Uncategorized")
             if name in sections:
                 ordered_sections.append((name, sections[name]))
-        # Add any remaining
-        for name, items_list in sections.items():
-            if name not in SECTION_PRIORITY:
-                ordered_sections.append((name, items_list))
 
         context["sections"] = ordered_sections
         context["pantry_count"] = items.count()
@@ -545,6 +522,116 @@ class PantryUpdateView(LoginRequiredMixin, MealsHouseholdMixin, View):
             notes="Updated from pantry view",
         )
         return JsonResponse({"status": "ok", "quantity": float(new_qty)})
+
+
+class PantryBarcodeLookupView(LoginRequiredMixin, MealsHouseholdMixin, View):
+    """
+    Create/update a pantry item from a barcode scan.
+
+    The client scans a barcode via the /scan/barcode/ endpoint first,
+    gets product data back, then POSTs here to create the PantryItem.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse(
+                {"status": "error", "message": "Invalid JSON"}, status=400
+            )
+
+        barcode = data.get("barcode", "").strip()
+        product_name = data.get("product_name", "").strip()
+        if not barcode or not product_name:
+            return JsonResponse(
+                {"status": "error", "message": "barcode and product_name are required"},
+                status=400,
+            )
+
+        brand = data.get("brand", "").strip()
+        category = data.get("category", "").strip()
+        user_storage = data.get("storage_location", "").strip()
+
+        household = self.get_household()
+
+        # Resolve or create ingredient
+        from apps.meals.services.ingredient_matching import get_or_create_ingredient
+
+        ingredient = get_or_create_ingredient(
+            product_name, category=category or "other"
+        )
+
+        # Determine storage location
+        from apps.meals.services.storage_classifier import (
+            determine_storage_location,
+            save_user_override,
+        )
+
+        if user_storage:
+            storage_location = user_storage
+            save_user_override(product_name, storage_location, user=request.user)
+        else:
+            storage_location = determine_storage_location(product_name, category)
+
+        # Create or update PantryItem
+        pantry_item, created = PantryItem.objects.get_or_create(
+            household=household,
+            ingredient=ingredient,
+            defaults={
+                "quantity": Decimal("1"),
+                "unit": "piece",
+                "confidence_score": Decimal("0.95"),
+                "last_confirmed_at": timezone.now(),
+                "storage_location": storage_location,
+            },
+        )
+
+        if not created:
+            pantry_item.quantity += Decimal("1")
+            pantry_item.confidence_score = Decimal("0.95")
+            pantry_item.last_confirmed_at = timezone.now()
+            if storage_location and storage_location != "unknown":
+                pantry_item.storage_location = storage_location
+            pantry_item.save(
+                update_fields=[
+                    "quantity",
+                    "confidence_score",
+                    "last_confirmed_at",
+                    "storage_location",
+                    "updated_at",
+                ]
+            )
+        else:
+            # Set estimated expiration for new items
+            if ingredient.shelf_life_days:
+                pantry_item.expiration_date_estimated = timezone.now().date() + timedelta(
+                    days=ingredient.shelf_life_days
+                )
+                pantry_item.save(update_fields=["expiration_date_estimated"])
+
+        # Log inventory transaction
+        InventoryTransaction.objects.create(
+            pantry_item=pantry_item,
+            delta_quantity=Decimal("1"),
+            source="barcode",
+            notes=f"Barcode scan: {barcode}" + (f" ({brand})" if brand else ""),
+        )
+
+        logger.info(
+            "Barcode pantry item %s for household %d: %s (barcode=%s)",
+            "created" if created else "updated",
+            household.pk,
+            product_name,
+            barcode,
+        )
+
+        return JsonResponse({
+            "status": "ok",
+            "pantry_item_id": pantry_item.pk,
+            "product_name": product_name,
+            "storage_location": pantry_item.storage_location,
+            "created": created,
+        })
 
 
 # =============================================================================
@@ -1126,12 +1213,14 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
     """
     JSON endpoint for polling receipt processing status.
 
-    Returns current status of async receipt processing.
-    Also provides a sync fallback: if processing is stuck > 30s,
-    attempts sync processing (same pattern as PantryScanStatusView).
+    Returns current status, progress percentage, and processing stage.
+    Also provides a sync fallback: if processing is stuck > 30s with no
+    progress, attempts sync processing with select_for_update locking.
     """
 
     def get(self, request, pk):
+        from django.db import transaction
+
         household = self.get_household()
 
         try:
@@ -1142,22 +1231,45 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
         status = receipt.confirmation_status
 
         if status == Receipt.CONFIRM_PROCESSING:
-            # Check if processing is stuck (> 30 seconds old)
+            # Check if processing is stuck (> 30 seconds old with no progress)
             age_seconds = (timezone.now() - receipt.created_at).total_seconds()
 
-            if age_seconds > 30 and receipt.image:
-                # Sync fallback: process inline
-                logger.info(
-                    "Receipt %d stuck in processing for %.0fs, attempting sync fallback",
-                    pk,
-                    age_seconds,
-                )
-                self._sync_process_receipt(receipt)
+            if age_seconds > 30 and receipt.image and receipt.processing_progress < 25:
+                # Try to acquire lock — if Celery task holds it, skip fallback
+                try:
+                    with transaction.atomic():
+                        locked = (
+                            Receipt.objects.select_for_update(skip_locked=True)
+                            .filter(
+                                pk=pk,
+                                confirmation_status=Receipt.CONFIRM_PROCESSING,
+                            )
+                            .first()
+                        )
+                        if locked:
+                            logger.info(
+                                "Receipt %d stuck in processing for %.0fs, sync fallback",
+                                pk,
+                                age_seconds,
+                            )
+                            self._sync_process_receipt(locked)
+                        else:
+                            logger.info(
+                                "Receipt %d locked by another process, skipping fallback",
+                                pk,
+                            )
+                except Exception as e:
+                    logger.error(
+                        "Receipt %d sync fallback lock failed: %s", pk, e
+                    )
+
                 receipt.refresh_from_db()
                 status = receipt.confirmation_status
 
         response = {
             "status": status,
+            "progress": receipt.processing_progress,
+            "stage": receipt.processing_stage,
             "store": receipt.store,
             "receipt_type": receipt.receipt_type,
             "items_count": receipt.items.count(),
@@ -1176,7 +1288,7 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
         return JsonResponse(response)
 
     def _sync_process_receipt(self, receipt):
-        """Sync fallback for stuck async processing."""
+        """Sync fallback for stuck async processing. Receipt must be locked."""
         try:
             import mimetypes
 
@@ -1199,11 +1311,12 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
             if vision_result.error:
                 receipt.confirmation_status = Receipt.CONFIRM_FAILED
                 receipt.processing_error = vision_result.error
+                receipt.processing_progress = 0
+                receipt.processing_stage = ""
                 receipt.save(
                     update_fields=[
-                        "confirmation_status",
-                        "processing_error",
-                        "updated_at",
+                        "confirmation_status", "processing_error",
+                        "processing_progress", "processing_stage", "updated_at",
                     ]
                 )
                 return
@@ -1218,6 +1331,8 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
             receipt.receipt_type = vision_result.receipt_type
             receipt.confirmation_status = Receipt.CONFIRM_PENDING
             receipt.processing_error = ""
+            receipt.processing_progress = 100
+            receipt.processing_stage = Receipt.STAGE_COMPLETE
             receipt.save()
 
             # Create items
@@ -1252,11 +1367,12 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
             )
             receipt.confirmation_status = Receipt.CONFIRM_FAILED
             receipt.processing_error = f"Sync processing failed: {e}"
+            receipt.processing_progress = 0
+            receipt.processing_stage = ""
             receipt.save(
                 update_fields=[
-                    "confirmation_status",
-                    "processing_error",
-                    "updated_at",
+                    "confirmation_status", "processing_error",
+                    "processing_progress", "processing_stage", "updated_at",
                 ]
             )
 

@@ -6,6 +6,12 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Fix migration conflict (0102 merge)
+
+- **Root cause:** Two migrations both numbered 0102 in `core` app — `0102_add_cos_situation_state` (from CoS reliability session) and `0102_alter_engineheartbeat_status` (from engine telemetry session). Both depended on 0101, creating a diamond conflict that blocked Railway deployment.
+- **Fix:** Created merge migration `0103_merge_20260308_1405.py` via `makemigrations --merge`.
+- **Files:** `apps/core/migrations/0103_merge_20260308_1405.py`
+
 ## 2026-03-08 — Engine Telemetry + Celery Execution Architecture Fix
 
 - **Root cause:** ISE-scheduled engines (DBE, GLOE, PGE, WIRE, DNE, ICQG, UAL/SAE/PIE/PRIE synthetics) did NOT create EngineRun records. COAS health monitoring couldn't see them — engines that never ran showed status="OK". Additionally, all engines ran synchronously in a single APScheduler thread, creating a bottleneck.

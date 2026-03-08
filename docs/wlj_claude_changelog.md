@@ -31,6 +31,12 @@
 
 ---
 
+## 2026-03-08 — EMERGENCY: Disable SA builder + reduce connection pool to restore site
+
+- **What:** Site still 524 after connection.close fix. Emergency measures: (1) Disabled SA builder from parallel builders, (2) Set CONN_MAX_AGE=0 (close connections after each request), (3) Reduced ThreadPool max_workers from 6 to 3.
+- **Files:** `apps/core/ai_orchestrator/cos_context.py`, `config/settings.py`
+- **Why:** Production outage persists. Eliminating v8 SA as variable while reducing DB connection pressure. SA will be re-enabled after stability confirmed.
+
 ## 2026-03-07 — HOTFIX: Fix 524 timeout — ThreadPool DB connection leak + notification caching
 
 - **What:** Production 524 timeout caused by ThreadPoolExecutor threads in CoS context builder leaking database connections. `close_old_connections()` only closes connections older than `CONN_MAX_AGE` (600s) — new thread connections stayed open and exhausted Railway PostgreSQL connection pool. Also added 30-second cache to notification count API endpoint to reduce polling DB pressure.

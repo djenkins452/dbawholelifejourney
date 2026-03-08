@@ -12,6 +12,7 @@ from apps.core.ai_observability.models import (
     EngineRun,
     EngineSpan,
     IntelligenceMetricsSnapshot,
+    OperationalAlert,
     OpsAnomaly,
     OpsNarrativeSnapshot,
 )
@@ -227,6 +228,35 @@ class AdminInterventionAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(OperationalAlert)
+class OperationalAlertAdmin(admin.ModelAdmin):
+    list_display = [
+        "subsystem",
+        "severity",
+        "status",
+        "health_score",
+        "created_at",
+        "resolved_at",
+    ]
+    list_filter = ["subsystem", "severity", "status"]
+    search_fields = ["message", "dedupe_key"]
+    readonly_fields = [
+        "created_at",
+        "subsystem",
+        "severity",
+        "health_score",
+        "message",
+        "diagnostic_prompt_text",
+        "details",
+        "dedupe_key",
+        "last_notified_at",
+    ]
+    ordering = ["-created_at"]
+
+    def has_add_permission(self, request):
         return False
 
 

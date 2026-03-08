@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-07 (v8 situational awareness + predictive guidance)
+**Last updated:** 2026-03-08 (COAS — CoS Operational Awareness System)
 
 ---
 

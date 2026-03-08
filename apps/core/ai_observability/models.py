@@ -1057,3 +1057,147 @@ class SchedulerHeartbeat(models.Model):
                 "SchedulerHeartbeat.tick failed for %s: %s",
                 scheduler_name, e,
             )
+
+
+class OperationalAlert(models.Model):
+    """
+    COAS — Operational health alert with lifecycle tracking.
+
+    Created when a COAS subsystem score drops below a threshold.
+    Uses state-change alerting: only notifies admins when severity
+    changes (worsens or recovers), never for the same persisting condition.
+
+    Lifecycle: open → acknowledged → resolved
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_operational_alert"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["-created_at"],
+                name="idx_opalert_time",
+            ),
+            models.Index(
+                fields=["subsystem", "-created_at"],
+                name="idx_opalert_subsys_time",
+            ),
+            models.Index(
+                fields=["subsystem", "status"],
+                name="idx_opalert_subsys_status",
+            ),
+        ]
+
+    SUBSYSTEM_CHOICES = [
+        ("scheduler", "Scheduler"),
+        ("engine", "Engine"),
+        ("freshness", "Intelligence Freshness"),
+        ("overall", "Overall System"),
+    ]
+    SEVERITY_CHOICES = [
+        ("warning", "Warning"),
+        ("alert", "Alert"),
+        ("critical", "Critical"),
+    ]
+    STATUS_CHOICES = [
+        ("open", "Open"),
+        ("acknowledged", "Acknowledged"),
+        ("resolved", "Resolved"),
+    ]
+
+    subsystem = models.CharField(
+        max_length=20,
+        choices=SUBSYSTEM_CHOICES,
+        help_text="Which COAS subsystem triggered this alert.",
+    )
+    severity = models.CharField(
+        max_length=10,
+        choices=SEVERITY_CHOICES,
+        help_text="Alert severity based on health score.",
+    )
+    status = models.CharField(
+        max_length=15,
+        choices=STATUS_CHOICES,
+        default="open",
+        help_text="Alert lifecycle status.",
+    )
+    health_score = models.IntegerField(
+        help_text="Health score (0-100) at time of alert.",
+    )
+    message = models.TextField(
+        help_text="Human-readable alert message for CoS chat.",
+    )
+    diagnostic_prompt_text = models.TextField(
+        blank=True,
+        default="",
+        help_text="Structured diagnostic prompt for Claude Code (critical alerts only).",
+    )
+    details = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Score breakdown and contributing factors.",
+    )
+    dedupe_key = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
+        help_text="Deduplication key, e.g. 'scheduler_critical'.",
+    )
+    last_notified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When admins were last notified about this alert.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this alert was resolved (score recovered).",
+    )
+
+    def __str__(self):
+        resolved = " RESOLVED" if self.resolved_at else ""
+        return (
+            f"[{self.severity.upper()}] {self.subsystem} "
+            f"score={self.health_score} ({self.status}){resolved}"
+        )
+
+
+class COASHealthSnapshot(models.Model):
+    """
+    COAS — Latest health scores snapshot.
+
+    Single-row table updated every 5 minutes by the check_system_health
+    scheduled job. The Ops Wall reads this stored snapshot instead of
+    recomputing scores live on every poll.
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_coas_health_snapshot"
+
+    scheduler_score = models.IntegerField(
+        default=100,
+        help_text="Scheduler subsystem health score (0-100).",
+    )
+    engine_score = models.IntegerField(
+        default=100,
+        help_text="Engine subsystem health score (0-100).",
+    )
+    freshness_score = models.IntegerField(
+        default=100,
+        help_text="Intelligence freshness health score (0-100).",
+    )
+    overall_score = models.IntegerField(
+        default=100,
+        help_text="Weighted overall system health score (0-100).",
+    )
+    details = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Full breakdown of all subsystem score components.",
+    )
+    computed_at = models.DateTimeField(
+        help_text="When these scores were last computed.",
+    )

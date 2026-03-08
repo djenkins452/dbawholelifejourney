@@ -140,6 +140,9 @@ class OpsStreamView(View):
         # Health Intelligence Engine telemetry
         health_intelligence = _get_health_intelligence_telemetry(now)
 
+        # COAS health scores (read stored snapshot, not live recompute)
+        coas_health = _get_coas_health()
+
         return JsonResponse({
             "server_time": now.isoformat(),
             "posture": posture,
@@ -153,6 +156,7 @@ class OpsStreamView(View):
             "eae_telemetry": eae_telemetry,
             "learning_health": learning_health,
             "health_intelligence": health_intelligence,
+            "coas_health": coas_health,
             "next_since": now.isoformat(),
         })
 
@@ -1186,6 +1190,27 @@ def _get_scheduler_health():
         return get_scheduler_status()
     except Exception as e:
         logger.debug("OpsWall: Scheduler health unavailable: %s", e)
+        return None
+
+
+def _get_coas_health():
+    """Read latest COAS health snapshot (stored by scheduled job, not live recompute)."""
+    try:
+        from apps.core.ai_observability.models import COASHealthSnapshot
+
+        snap = COASHealthSnapshot.objects.first()
+        if not snap:
+            return None
+        return {
+            "scheduler": {"score": snap.scheduler_score},
+            "engine": {"score": snap.engine_score},
+            "freshness": {"score": snap.freshness_score},
+            "overall": {"score": snap.overall_score},
+            "computed_at": snap.computed_at.isoformat(),
+            "details": snap.details,
+        }
+    except Exception as e:
+        logger.debug("OpsWall: COAS health unavailable: %s", e)
         return None
 
 

@@ -911,6 +911,77 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 .ops-sched-metric-value.drift-critical { color: var(--ops-red); }
 
 /* =========================================================================
+   COAS HEALTH SCORES TILE — Operational Awareness subsystem scores
+   ========================================================================= */
+.ops-coas-health {
+    padding: 16px 20px;
+    margin-bottom: 14px;
+}
+.ops-coas-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.ops-coas-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ops-text-bright);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.ops-coas-overall {
+    margin-left: auto;
+    font-size: 1.375rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.ops-coas-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+.ops-coas-sub {
+    background: var(--ops-surface-alt);
+    border-radius: var(--ops-radius-sm);
+    padding: 12px 14px;
+    border: 1px solid var(--ops-glass-border);
+    border-left: 3px solid var(--ops-glass-border);
+    transition: border-color 0.3s;
+}
+.ops-coas-sub.HEALTHY { border-left-color: var(--ops-green); }
+.ops-coas-sub.WARNING { border-left-color: var(--ops-yellow); }
+.ops-coas-sub.ALERT { border-left-color: var(--ops-red); }
+.ops-coas-sub.CRITICAL { border-left-color: var(--ops-red); animation: coasPulse 1.5s ease-in-out infinite; }
+@keyframes coasPulse {
+    0%, 100% { border-left-color: var(--ops-red); }
+    50% { border-left-color: rgba(239, 68, 68, 0.4); }
+}
+.ops-coas-sub-name {
+    font-size: 0.625rem;
+    font-weight: 600;
+    color: var(--ops-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+}
+.ops-coas-sub-score {
+    font-size: 1.75rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+.ops-coas-sub-score.HEALTHY,
+.ops-coas-overall.HEALTHY { color: var(--ops-green); }
+.ops-coas-sub-score.WARNING,
+.ops-coas-overall.WARNING { color: var(--ops-yellow); }
+.ops-coas-sub-score.ALERT,
+.ops-coas-overall.ALERT,
+.ops-coas-sub-score.CRITICAL,
+.ops-coas-overall.CRITICAL { color: var(--ops-red); }
+
+/* =========================================================================
    LEARNING HEALTH TILE — Persistent Learning subsystem monitor
    ========================================================================= */
 .ops-learning-health {
@@ -1138,6 +1209,7 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 @media (max-width: 768px) {
     .ops-wall { padding: 10px 12px 20px; }
     .ops-scheduler-heartbeat { grid-template-columns: 1fr; }
+    .ops-coas-grid { grid-template-columns: 1fr; }
     .ops-learning-grid { grid-template-columns: repeat(2, 1fr); }
     .ops-health-intel-grid { grid-template-columns: repeat(2, 1fr); }
     .ops-integrity-hero-main { grid-template-columns: 1fr; justify-items: center; text-align: center; }
@@ -1257,6 +1329,28 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
                         <span class="ops-sched-metric-value" id="schedDriftSAME">&mdash;</span>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- COAS Health Scores Tile -->
+    <div class="ops-section ops-glass ops-coas-health" id="coasHealthTile">
+        <div class="ops-coas-header">
+            <span class="ops-coas-title">Operational Awareness (COAS)</span>
+            <span class="ops-coas-overall HEALTHY" id="coasOverallScore">&mdash;</span>
+        </div>
+        <div class="ops-coas-grid">
+            <div class="ops-coas-sub" id="coasSubScheduler">
+                <div class="ops-coas-sub-name">Scheduler</div>
+                <div class="ops-coas-sub-score HEALTHY" id="coasScoreScheduler">&mdash;</div>
+            </div>
+            <div class="ops-coas-sub" id="coasSubEngine">
+                <div class="ops-coas-sub-name">Engine</div>
+                <div class="ops-coas-sub-score HEALTHY" id="coasScoreEngine">&mdash;</div>
+            </div>
+            <div class="ops-coas-sub" id="coasSubFreshness">
+                <div class="ops-coas-sub-name">Intelligence Freshness</div>
+                <div class="ops-coas-sub-score HEALTHY" id="coasScoreFreshness">&mdash;</div>
             </div>
         </div>
     </div>
@@ -2146,6 +2240,7 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     function render(data) {
         renderIntegrity(data.integrity);
         renderSchedulerHeartbeats(data.scheduler_heartbeats || []);
+        renderCOASHealth(data.coas_health);
         renderLearningHealth(data.learning_health);
         renderHealthIntelligence(data.health_intelligence);
         renderPosture(data.posture, data.narrative);
@@ -2156,6 +2251,44 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
         renderWatchlist(data.anomalies || []);
         renderFeed(data.feed || []);
         document.getElementById('lastUpdateTime').textContent = new Date().toLocaleTimeString();
+    }
+
+    function renderCOASHealth(coas) {
+        if (!coas) return;
+        function scoreClass(s) {
+            if (s === null || s === undefined) return 'HEALTHY';
+            if (s >= 80) return 'HEALTHY';
+            if (s >= 60) return 'WARNING';
+            if (s >= 40) return 'ALERT';
+            return 'CRITICAL';
+        }
+        var overall = coas.overall ? coas.overall.score : null;
+        var overallEl = document.getElementById('coasOverallScore');
+        if (overallEl && overall !== null) {
+            var cls = scoreClass(overall);
+            overallEl.textContent = overall;
+            overallEl.className = 'ops-coas-overall ' + cls;
+        }
+        var subs = [
+            {key: 'scheduler', scoreId: 'coasScoreScheduler', subId: 'coasSubScheduler'},
+            {key: 'engine', scoreId: 'coasScoreEngine', subId: 'coasSubEngine'},
+            {key: 'freshness', scoreId: 'coasScoreFreshness', subId: 'coasSubFreshness'}
+        ];
+        subs.forEach(function(s) {
+            var d = coas[s.key];
+            if (!d) return;
+            var score = d.score;
+            var cls = scoreClass(score);
+            var scoreEl = document.getElementById(s.scoreId);
+            if (scoreEl) {
+                scoreEl.textContent = score !== null && score !== undefined ? score : '\u2014';
+                scoreEl.className = 'ops-coas-sub-score ' + cls;
+            }
+            var subEl = document.getElementById(s.subId);
+            if (subEl) {
+                subEl.className = 'ops-coas-sub ' + cls;
+            }
+        });
     }
 
     function renderSchedulerHeartbeats(schedulers) {

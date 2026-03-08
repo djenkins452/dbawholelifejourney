@@ -267,3 +267,53 @@ def run_same_cycle():
             ).delete()
         except Exception:
             pass  # Best-effort release
+
+
+def check_system_health():
+    """
+    Run one COAS (Operational Awareness) health check cycle.
+
+    Computes health scores for 3 subsystems (scheduler, engine, freshness),
+    persists a snapshot for the Ops Wall, and evaluates state-change alerts.
+
+    Each scorer is independently try/excepted so one failure doesn't
+    abort the full monitoring cycle. Must complete in <1s (read-only
+    queries + minimal writes).
+
+    Scheduled: Every 5 minutes via APScheduler IntervalTrigger.
+    """
+    logger.info("COAS health check starting...")
+
+    try:
+        from apps.core.ai_observability.health_scoring import (
+            compute_all_scores,
+            save_health_snapshot,
+        )
+        from apps.core.ai_observability.operational_alerts import check_and_alert
+
+        scores = compute_all_scores()
+
+        # Persist snapshot for Ops Wall (single-row update)
+        try:
+            save_health_snapshot(scores)
+        except Exception as e:
+            logger.warning("COAS: Snapshot save failed: %s", e)
+
+        # Evaluate state-change alerts
+        try:
+            alerts = check_and_alert(scores)
+        except Exception as e:
+            logger.warning("COAS: Alert evaluation failed: %s", e)
+            alerts = []
+
+        logger.info(
+            "COAS health check completed: "
+            "scheduler=%s, engine=%s, freshness=%s, overall=%s, alerts=%d",
+            scores["scheduler"]["score"],
+            scores["engine"]["score"],
+            scores["freshness"]["score"],
+            scores["overall"]["score"],
+            len(alerts),
+        )
+    except Exception as e:
+        logger.exception("COAS health check failed: %s", e)

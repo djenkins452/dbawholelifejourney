@@ -269,6 +269,21 @@ def start_scheduler():
             replace_existing=True,
         )
 
+        # =====================================================================
+        # COAS — Operational Awareness Monitoring
+        # =====================================================================
+
+        # Job 16: COAS health monitoring every 5 min (start 2 min after boot)
+        scheduler.add_job(
+            'apps.core.jobs:check_system_health',
+            trigger=IntervalTrigger(minutes=5),
+            id="check_system_health",
+            max_instances=1,
+            coalesce=True,
+            next_run_time=now + timedelta(minutes=2),
+            replace_existing=True,
+        )
+
         scheduler.start()
 
         # Store reference for health checks / restart via scheduler_health module
@@ -276,7 +291,7 @@ def start_scheduler():
         _scheduler_instance = scheduler
 
         logger.info("=" * 60)
-        logger.info("APScheduler STARTED successfully with 13 jobs:")
+        logger.info("APScheduler STARTED successfully with 14 jobs:")
         logger.info("  (SAME monitoring moved to Celery Beat)")
         logger.info("  (SMS jobs DISABLED — Twilio not configured)")
         logger.info("  - Life: recalculate_task_priorities (daily at 06:00 UTC / 01:00 EST)")
@@ -292,6 +307,7 @@ def start_scheduler():
         logger.info("  - Capture: send_pending_capture_reminders (hourly)")
         logger.info("  - ISE: run_intelligence_scheduler (every 5 minutes)")
         logger.info("  - ISE: refresh_scheduler_lock (every 4 minutes)")
+        logger.info("  - COAS: check_system_health (every 5 minutes)")
         # SAME monitoring now handled by Celery Beat (run_same_cycle_task every 60s)
         logger.info("=" * 60)
 

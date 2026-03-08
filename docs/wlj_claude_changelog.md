@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — COAS: CoS Operational Awareness System
+
+- **What:** Added operational health monitoring that scores 3 subsystems (Scheduler Health, Engine Health, Intelligence Freshness) on a 0-100 scale. Detects threshold violations and alerts admins through CoS chat. Generates diagnostic prompts for Claude Code on critical alerts.
+- **Architecture:** Extends existing `apps/core/ai_observability/` — reads from SchedulerHeartbeat, EngineHeartbeat, EngineRun, ScheduledIntelligenceTask, OpsAnomaly. No new telemetry collectors. No OpenAI calls.
+- **State-change alerting:** Only notifies admins when severity changes (worsens or recovers), never for the same persisting condition. Thresholds: 80-100 healthy, 60-79 warning (log only), 40-59 alert (chat injection), <40 critical (chat + diagnostic prompt).
+- **New models:** `OperationalAlert` (lifecycle: open → acknowledged → resolved), `COASHealthSnapshot` (single-row scores for Ops Wall).
+- **Ops Wall:** Added COAS health scores tile with 3 subsystem cards + overall score. Reads stored snapshot (not live recompute on every poll).
+- **Scheduler job:** `check_system_health` every 5 min via APScheduler (Job 16, 14 total). Defensive: each scorer independently try/excepted.
+- **Files:** `health_scoring.py` (NEW), `operational_alerts.py` (NEW), `tests_coas.py` (NEW, 39 tests), `models.py`, `ops_views.py`, `admin.py`, `jobs.py`, `wsgi.py`, `operations_wall.html`
+- **Tests:** 39 COAS tests + 222 observability tests + 278 admin_console tests — all passing
+
+---
+
 ## 2026-03-08 — Phase 4: Restore AI Insights (Engine-First, No OpenAI)
 
 - **What:** Restored AI insight tiles on the dashboard and all 5 module home pages. Completely replaced the old `_get_ai_insights()` which called OpenAI directly (root cause of production outage) with engine-first reads from stored data.

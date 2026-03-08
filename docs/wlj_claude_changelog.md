@@ -6,6 +6,12 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Make tasks clickable on Organize summary page
+
+- **Problem:** Tasks on the Organize page (`/life/`) were not clickable — users had no way to open the task edit form directly from the summary cards.
+- **Fix:** Wrapped task title/content in an `<a>` link to the task edit page (`task_update`), with `?next=/life/` so saving returns to the Organize page. Checkbox and skip button remain separate interactive elements. Added `.task-row-link` CSS for hover highlight.
+- **Files:** `templates/life/home.html`
+
 ## 2026-03-08 — Receipt Processing Progress Bar UI
 
 - **Enhancement:** Replaced spinner with a progress bar in the receipt processing overlay

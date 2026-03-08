@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Fix 5 CI test failures
+
+- **Duplicate PK 140 in release_notes.json:** Receipt Photo Scanning entry shared pk=140 with Friendlier Chat Error Recovery. Changed to pk=144.
+- **APScheduler job count test:** Test expected "15 jobs" but wsgi.py correctly reports 14 jobs (SAME moved to Celery Beat). Updated test assertion.
+- **Executive briefing fires twice:** Test didn't call `mark_briefing_delivered()` between calls. Function intentionally defers marking to caller — fixed test to match design.
+- **SA in parallel builders:** Situational awareness builder is intentionally disabled in cos_context for production stability. Updated test to assert absence instead of presence.
+- **Web search detection:** "How much protein should I eat per day?" was blocked by broad `\bshould\s+i\b` exclusion. Added GENERAL_KNOWLEDGE_OVERRIDES pre-check for factual "how much X per day/week" patterns.
+
+**Files:** `apps/core/fixtures/release_notes.json`, `apps/core/tests_celery.py`, `apps/ai/tests/test_executive_briefing.py`, `apps/ai/tests/test_situational_awareness.py`, `apps/ai/web_search_service.py`
+
 ## 2026-03-08 — Capture stabilization: prevent data loss and improve upload reliability
 
 - **Problem:** The Capture feature lost audio recordings on weak cellular signal because:

@@ -70,6 +70,13 @@ GENERAL_KNOWLEDGE_PATTERNS = [
     r'\btips?\s+(?:for|on|to)\b',
 ]
 
+# Strong general knowledge signals that override personal exclusions.
+# These catch factual questions (e.g. "How much protein should I eat per day?")
+# that would otherwise be blocked by broad exclusion patterns like "\bshould\s+i\b".
+GENERAL_KNOWLEDGE_OVERRIDES = [
+    r'\bhow\s+(?:much|many)\b.*\bper\s+(?:day|week|meal|serving)\b',
+]
+
 # Patterns that should NOT trigger general knowledge (personal data queries)
 PERSONAL_DATA_EXCLUSIONS = [
     r'\bmy\s+(?:weight|sleep|mood|steps|glucose|blood|heart|calories|macros|fasting|workout|habit|goal|prayer|journal)\b',
@@ -115,7 +122,12 @@ def needs_web_search(message: str) -> bool:
     """
     message_lower = message.lower()
 
-    # First check if this is a personal data query — those go to data handlers
+    # Pre-check: Strong general knowledge signals override exclusions
+    for pattern in GENERAL_KNOWLEDGE_OVERRIDES:
+        if re.search(pattern, message_lower):
+            return True
+
+    # Check if this is a personal data query — those go to data handlers
     for pattern in PERSONAL_DATA_EXCLUSIONS:
         if re.search(pattern, message_lower):
             return False

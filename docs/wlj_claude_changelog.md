@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Phase 3: Restore Command Brief & Command Mode on dashboard
+
+- **What:** Re-enabled command brief and command mode on the dashboard. Both are 100% DB reads — no OpenAI calls. Traced every function call: architecture_engine, drift_engine, alignment_engine, recovery_engine, human_language, weekly_pressure, reflection_engine, cos_governance — all pure DB queries and local math.
+- **Safety change:** Removed ThreadPoolExecutor auto-generation of architecture plans from page load. Dashboard now only reads existing plans (engine-first). Cleaned up unused `blueprint_engine` and `priority_engine` imports.
+- **Files:** `apps/dashboard/views.py`
+
+---
+
 ## 2026-03-08 — Phase 2: Restore weather tile on dashboard
 
 - **What:** Re-enabled weather tile on the dashboard. Weather uses Open-Meteo (free API, no AI/OpenAI). Was incorrectly grouped with AI features during the outage emergency disable.

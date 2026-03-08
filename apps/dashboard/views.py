@@ -174,10 +174,13 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # Phase 2: External API with timeout + cache (no AI, no OpenAI)
             context["weather"] = self._get_weather_data(user)
 
-            # Still disabled — requires OpenAI / engine execution:
+            # Phase 3: Command Brief + Command Mode (pure DB reads, no OpenAI)
+            command_brief = self._get_command_brief(user, prefs)
+            context["command_brief"] = command_brief
+            context["command_mode"] = self._get_command_mode(user, prefs, command_brief)
+
+            # Still disabled — requires wiring to engine-stored insights:
             context["ai_insights"] = None
-            context["command_brief"] = None
-            context["command_mode"] = None
 
             return context
         except Exception as e:
@@ -214,9 +217,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
         try:
             from apps.core.blueprint import architecture_engine
-            from apps.core.blueprint import engine as blueprint_engine
             from apps.core.blueprint import drift_engine
-            from apps.core.blueprint import priority_engine
             from apps.core.blueprint.models import ArchitecturePlan
         except ImportError:
             return None
@@ -243,25 +244,9 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             'recovery_tier3_deferred': 0,
         }
 
-        # Get or auto-generate today's plan
+        # Read today's plan (engine-first: ISE generates plans, dashboard only reads)
         today = timezone.localdate()
         plan = architecture_engine.get_todays_plan(user)
-
-        if not plan:
-            blueprint = blueprint_engine.get_blueprint(user)
-            if getattr(blueprint, 'auto_architect_enabled', True):
-                try:
-                    with ThreadPoolExecutor(max_workers=1) as executor:
-                        future = executor.submit(
-                            architecture_engine.run_architecture_pass,
-                            user, target_date=today,
-                        )
-                        plan = future.result(timeout=5)
-                    brief['auto_generated'] = True
-                except FuturesTimeout:
-                    logger.warning("Architecture pass timed out (5s) for dashboard")
-                except Exception:
-                    pass
 
         if plan:
             brief['plan'] = plan

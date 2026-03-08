@@ -1,4 +1,4 @@
-web: python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file - --timeout 300
+web: python -c "import os, psycopg2; c=psycopg2.connect(os.environ['DATABASE_URL']); c.autocommit=True; cur=c.cursor(); cur.execute('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=current_database() AND pid!=pg_backend_pid()'); print(f'Killed {cur.rowcount} zombie DB connections'); c.close()" && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file - --timeout 300
 worker: celery -A config worker --loglevel=info --concurrency=2
 beat: celery -A config beat --loglevel=info
 # Updated: 2026-03-07 — Added guide sync commands to boot

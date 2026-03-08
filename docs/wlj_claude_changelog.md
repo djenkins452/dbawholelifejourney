@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Fix scheduler health check for multi-worker Gunicorn
+
+- **What:** Scheduler health endpoint returned `NOT_STARTED` even though APScheduler was running. Only 1 of 4 Gunicorn workers owns the scheduler (DB lock). Health requests hitting the other 3 workers saw `_scheduler_instance = None` and bailed out without checking DB state.
+- **Fix:** When `_scheduler_instance` is None, check the `SchedulerLock` table to see if another worker holds a fresh lock. If so, report `running: true` and continue to check the `SchedulerHeartbeat` for ISE drift. Added `scheduler_owner` field to the response showing which worker owns the scheduler.
+- **Files:** `apps/core/scheduler_health.py`
+
+---
+
 ## 2026-03-08 — Disable SMS/Twilio scheduler jobs (not in use)
 
 - **What:** Disabled both SMS scheduler jobs (schedule_daily_sms_reminders, send_pending_sms) since Twilio is not configured and no SMS functionality is active.

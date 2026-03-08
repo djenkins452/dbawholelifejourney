@@ -31,13 +31,19 @@ def get_scheduler_status():
     """
     Check APScheduler health.
 
+    Works across Gunicorn workers: only one worker owns the scheduler
+    (protected by DB lock). When a non-owner worker handles this request,
+    we check the SchedulerLock and SchedulerHeartbeat in the DB instead
+    of relying on the in-process _scheduler_instance.
+
     Returns dict with:
-        running: bool — is the scheduler thread alive
-        job_count: int — number of registered jobs
+        running: bool — is the scheduler thread alive (or lock fresh)
+        job_count: int — number of registered jobs (0 if not owner worker)
         last_heartbeat: str — ISO timestamp of last ISE heartbeat
         drift_seconds: int — seconds since last heartbeat
-        status: str — ALIVE / DELAYED / OFFLINE / NOT_STARTED
+        status: str — ALIVE / DELAYED / OFFLINE / NOT_STARTED / NO_HEARTBEAT
         needs_restart: bool — True if scheduler should be restarted
+        scheduler_owner: str — which worker holds the lock (if known)
     """
     result = {
         'running': False,
@@ -46,31 +52,51 @@ def get_scheduler_status():
         'drift_seconds': None,
         'status': 'NOT_STARTED',
         'needs_restart': False,
+        'scheduler_owner': None,
     }
 
     scheduler = _get_scheduler()
 
-    if scheduler is None:
-        result['status'] = 'NOT_STARTED'
-        result['needs_restart'] = True
-        return result
+    if scheduler is not None:
+        # This worker owns the scheduler — check thread directly
+        try:
+            result['running'] = scheduler.running
+            result['job_count'] = len(scheduler.get_jobs())
+        except Exception as e:
+            logger.warning("Scheduler health: error checking scheduler state: %s", e)
+            result['status'] = 'ERROR'
+            result['needs_restart'] = True
+            return result
 
-    # Check if the APScheduler thread is alive
-    try:
-        result['running'] = scheduler.running
-        result['job_count'] = len(scheduler.get_jobs())
-    except Exception as e:
-        logger.warning("Scheduler health: error checking scheduler state: %s", e)
-        result['status'] = 'ERROR'
-        result['needs_restart'] = True
-        return result
+        if not scheduler.running:
+            result['status'] = 'STOPPED'
+            result['needs_restart'] = True
+            return result
+    else:
+        # This worker does NOT own the scheduler — check DB lock to see
+        # if another worker has it running
+        try:
+            from apps.core.ai_scheduler.scheduler_models import SchedulerLock
+            lock = SchedulerLock.objects.filter(lock_name='apscheduler_main').first()
+            if lock:
+                age = (timezone.now() - lock.locked_at).total_seconds()
+                result['scheduler_owner'] = lock.locked_by
+                if age < 600:  # LOCK_TIMEOUT_SECONDS
+                    # Lock is fresh — scheduler running in another worker
+                    result['running'] = True
+                else:
+                    # Lock is stale — scheduler likely dead
+                    result['status'] = 'OFFLINE'
+                    result['needs_restart'] = True
+                    return result
+            else:
+                result['status'] = 'NOT_STARTED'
+                result['needs_restart'] = True
+                return result
+        except Exception as e:
+            logger.warning("Scheduler health: lock check failed: %s", e)
 
-    if not scheduler.running:
-        result['status'] = 'STOPPED'
-        result['needs_restart'] = True
-        return result
-
-    # Check heartbeat from DB
+    # Check heartbeat from DB (works regardless of which worker we're on)
     try:
         from apps.core.ai_observability.models import SchedulerHeartbeat
         hb = SchedulerHeartbeat.objects.filter(scheduler_name='ISE').first()

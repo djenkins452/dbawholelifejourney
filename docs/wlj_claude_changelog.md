@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Dashboard restoration Phase 1+2: engine-first architecture
+
+- **What:** Restored dashboard from emergency safe mode using engine-first architecture. UI only READS pre-computed data from DB/cache — never calls OpenAI or runs engines during a request.
+- **Phase 1 (DB reads):** Restored data gathering, quick stats, dashboard tiles, config, getting started, quarterly review, AI profile nudge, relational health.
+- **Phase 2 (engine snapshots):** Restored SAE state, daily briefing, weekly report, guidance items — all read from DB only (pre-computed by background engines).
+- **Still disabled:** AI insights (OpenAI), weather (external API), command brief (OpenAI/architecture engine), command mode.
+- **Architecture rule:** Pages must never compute intelligence. Engines compute → DB stores → UI reads.
+- **Files:** `apps/dashboard/views.py`
+
+---
+
 ## 2026-03-08 — Add OpenAI rate-limit circuit breaker
 
 - **What:** When OpenAI returns 429 (rate limited), all subsequent callers should stop hammering the API immediately — not each discover the 429 independently.

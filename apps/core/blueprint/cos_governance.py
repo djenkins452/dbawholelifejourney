@@ -993,15 +993,15 @@ def _gather_user_snapshot(user):
     except Exception:
         pass
 
-    # Tasks (is_completed=False, not status='pending')
+    # Tasks (completion_status='pending', not status='pending')
     try:
         from apps.life.models import Task
         overdue = Task.objects.filter(
-            user=user, is_completed=False,
+            user=user, completion_status='pending',
             due_date__lt=timezone.now().date()
         ).count()
         active = Task.objects.filter(
-            user=user, is_completed=False).count()
+            user=user, completion_status='pending').count()
         if active:
             snapshot['tasks']['active'] = active
             snapshot['tasks']['overdue'] = overdue

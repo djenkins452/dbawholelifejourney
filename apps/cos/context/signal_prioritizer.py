@@ -165,7 +165,7 @@ def _score_overdue_tasks(candidates, user, now):
         today = now.date()
         overdue = Task.objects.filter(
             user=user,
-            is_completed=False,
+            completion_status='pending',
             due_date__lt=today,
             priority='now',
         ).order_by('due_date').first()

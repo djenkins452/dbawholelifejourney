@@ -192,7 +192,7 @@ def _get_matchable_tasks(user, today):
         tasks = list(
             Task.objects.filter(
                 user=user,
-                is_completed=False,
+                completion_status='pending',
                 due_date__lte=today,
             ).order_by(
                 'due_date',  # Oldest first (most overdue)

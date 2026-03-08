@@ -941,6 +941,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for friendly chat error recovery
         self._reset_chat_error_recovery_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for task skip status feature
+        self._reset_task_skip_status_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -1099,7 +1102,7 @@ This test email is sent once on first deploy after SMTP is configured.
             tasks_to_delete = Task.objects.filter(
                 user=user,
                 is_recurring=True,
-                is_completed=False,
+                completion_status='pending',
                 due_date__lt=today,
             )
 
@@ -1161,7 +1164,7 @@ This test email is sent once on first deploy after SMTP is configured.
                     user=user,
                     title__in=recurring_titles,
                     is_recurring=False,
-                    is_completed=False,
+                    completion_status='pending',
                 )
                 spawned_count = spawned_tasks.count()
 
@@ -1226,7 +1229,7 @@ This test email is sent once on first deploy after SMTP is configured.
                     user=user,
                     title__in=recurring_titles,
                     is_recurring=False,
-                    is_completed=False,
+                    completion_status='pending',
                 )
                 spawned_count = spawned_tasks.count()
                 if spawned_count > 0:
@@ -5682,3 +5685,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset chat error recovery fixtures FAILED: {e}'))
+
+    def _reset_task_skip_status_fixtures(self, DataLoadConfig, force, verbosity):
+        """
+        One-time reset to reload release_notes for task skip status feature (PK 145).
+        """
+        reset_tracker_name = 'reset_task_skip_status_2026_03_08'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for loader_name in ['release_notes']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader_name} loader for task skip status')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for task skip status feature',
+                'command',
+                'One-time reset to reload release_notes PK 145'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset task skip status fixtures FAILED: {e}'))

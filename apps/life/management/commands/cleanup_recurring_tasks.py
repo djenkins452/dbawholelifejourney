@@ -55,7 +55,7 @@ class Command(BaseCommand):
             tasks_to_delete = Task.objects.filter(
                 user=user,
                 is_recurring=True,
-                is_completed=False,
+                completion_status='pending',
                 due_date__lt=today,
             )
             self.stdout.write(f'\nFound {tasks_to_delete.count()} incomplete past-due recurring tasks')

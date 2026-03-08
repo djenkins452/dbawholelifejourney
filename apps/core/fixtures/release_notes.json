@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 145,
+    "fields": {
+      "title": "Skip Tasks You Didn't Do",
+      "description": "Tasks now support three states: pending, completed, and skipped. When you miss a workout or decide to pass on a task, mark it as skipped instead of leaving it overdue forever. Skipped tasks don't count as completed in your stats. For recurring tasks like daily workouts, skipping still generates the next occurrence. You can also ask the assistant to skip tasks for you.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-08",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/life/tasks/",
+      "created_at": "2026-03-08T20:00:00Z",
+      "updated_at": "2026-03-08T20:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 144,
     "fields": {
       "title": "Receipt Photo Scanning",

@@ -550,24 +550,24 @@ def process_overdue_recurring_tasks():
     
     today = timezone.now().date()
     
-    # Find completed recurring tasks that need a new instance
+    # Find completed or skipped recurring tasks that need a new instance
     completed_recurring = Task.objects.filter(
         is_recurring=True,
-        is_completed=True,
+        completion_status__in=['completed', 'skipped'],
         recurrence_pattern__isnull=False
     ).exclude(
         recurrence_pattern=''
     )
-    
+
     created_count = 0
-    
+
     for task in completed_recurring:
         # Check if a future task already exists with same title/pattern
         future_exists = Task.objects.filter(
             user=task.user,
             title=task.title,
             is_recurring=True,
-            is_completed=False,
+            completion_status='pending',
             due_date__gte=today
         ).exists()
         

@@ -230,7 +230,7 @@ def _get_task_signals(user, week_ago, today):
 
         overdue = Task.objects.filter(
             user=user,
-            is_completed=False,
+            completion_status='pending',
             due_date__lt=today,
         ).count()
 

@@ -19,6 +19,7 @@ from .views import (
     TaskUpdateView,
     TaskDeleteView,
     TaskToggleView,
+    TaskSkipView,
     # Calendar & Events
     CalendarView,
     EventCreateView,
@@ -125,6 +126,7 @@ urlpatterns = [
     path("tasks/<int:pk>/edit/", TaskUpdateView.as_view(), name="task_update"),
     path("tasks/<int:pk>/delete/", TaskDeleteView.as_view(), name="task_delete"),
     path("tasks/<int:pk>/toggle/", TaskToggleView.as_view(), name="task_toggle"),
+    path("tasks/<int:pk>/skip/", TaskSkipView.as_view(), name="task_skip"),
     path("tasks/bulk/delete/", BulkDeleteTasksView.as_view(), name="task_bulk_delete"),
     
     # Calendar & Events

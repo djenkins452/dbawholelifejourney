@@ -889,13 +889,13 @@ class AIIntegrationTest(AITestMixin, TestCase):
         Task.objects.create(
             user=self.user,
             title='Completed Task',
-            is_completed=True,
+            completion_status='completed',
             completed_at=timezone.now()
         )
         Task.objects.create(
             user=self.user,
             title='Overdue Task',
-            is_completed=False,
+            completion_status='pending',
             due_date=today - timedelta(days=1)
         )
 

@@ -402,7 +402,7 @@ class TestRecurrenceServiceIntegration(TestCase):
 
         next_task = Task.objects.filter(
             user=self.user, title='Test daily specific',
-            is_completed=False
+            completion_status='pending'
         ).first()
         self.assertIsNotNone(next_task)
         # Next occurrence after Wed should be Fri Feb 27
@@ -423,7 +423,7 @@ class TestRecurrenceServiceIntegration(TestCase):
 
         next_task = Task.objects.filter(
             user=self.user, title='Biweekly task',
-            is_completed=False
+            completion_status='pending'
         ).first()
         self.assertIsNotNone(next_task)
         self.assertEqual(next_task.due_date, date(2026, 3, 13))
@@ -442,7 +442,7 @@ class TestRecurrenceServiceIntegration(TestCase):
 
         next_task = Task.objects.filter(
             user=self.user, title='First Monday task',
-            is_completed=False
+            completion_status='pending'
         ).first()
         self.assertIsNotNone(next_task)
         self.assertEqual(next_task.due_date, date(2026, 3, 2))
@@ -462,7 +462,7 @@ class TestRecurrenceServiceIntegration(TestCase):
 
         next_task = Task.objects.filter(
             user=self.user, title='Ending task',
-            is_completed=False
+            completion_status='pending'
         ).first()
         # Next would be Feb 27, which is past end_date Feb 25
         self.assertIsNone(next_task)
@@ -484,6 +484,6 @@ class TestRecurrenceServiceIntegration(TestCase):
 
         next_tasks = Task.objects.filter(
             user=self.user, title='Toggle test',
-            is_completed=False
+            completion_status='pending'
         )
         self.assertEqual(next_tasks.count(), 1)

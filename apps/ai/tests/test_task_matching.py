@@ -97,8 +97,8 @@ class TestResolveTasksByQuery(TestCase):
 
     def test_completed_tasks_excluded_by_default(self):
         """Completed tasks are excluded by default."""
-        self.task_workout.is_completed = True
-        self.task_workout.save(update_fields=['is_completed'])
+        self.task_workout.completion_status = 'completed'
+        self.task_workout.save(update_fields=['completion_status'])
         tasks, tier = self.handler._resolve_tasks_by_query("Workout")
         # Should not find the completed "Workout", should fall through to substring
         # which picks up "Post-Workout Stretch"

@@ -85,7 +85,7 @@ def _build_task_lines(user, today):
         overdue = list(
             Task.objects.filter(
                 user=user,
-                is_completed=False,
+                completion_status='pending',
                 due_date__lt=today,
             ).order_by('due_date')
             .values_list('title', 'due_date', 'priority')[:MAX_TASKS]
@@ -100,7 +100,7 @@ def _build_task_lines(user, today):
             due_today = list(
                 Task.objects.filter(
                     user=user,
-                    is_completed=False,
+                    completion_status='pending',
                     due_date=today,
                 ).order_by('priority')
                 .values_list('title', 'priority')[:remaining]

@@ -125,7 +125,7 @@ def build_executive_briefing(user, conversation) -> str:
             try:
                 from apps.life.models import Task
                 wake_task = Task.objects.filter(
-                    user=user, is_routine=True, is_completed=False,
+                    user=user, is_routine=True, completion_status='pending',
                     due_date=today, title__icontains='wake up',
                 ).first()
                 if wake_task:
@@ -751,11 +751,11 @@ def _build_health_gate_section(user, today) -> str:
     try:
         from apps.life.models import Task
         completed_routines = list(Task.objects.filter(
-            user=user, is_routine=True, is_completed=True,
+            user=user, is_routine=True, completion_status='completed',
             due_date=today,
         ).values_list('title', flat=True)[:5])
         pending_routines = list(Task.objects.filter(
-            user=user, is_routine=True, is_completed=False,
+            user=user, is_routine=True, completion_status='pending',
             due_date=today,
         ).values_list('title', flat=True)[:5])
 
@@ -924,7 +924,7 @@ def _build_day_overview_section(user, user_now, today) -> str:
         # Overdue tasks (any type)
         overdue_tasks = list(
             Task.objects.filter(
-                user=user, is_completed=False, due_date__lt=today
+                user=user, completion_status='pending', due_date__lt=today
             )
             .exclude(status='deleted')
             .exclude(deleted_at__isnull=False)
@@ -934,7 +934,7 @@ def _build_day_overview_section(user, user_now, today) -> str:
         # Non-routine tasks due today (routines already in health gate)
         due_today_tasks = list(
             Task.objects.filter(
-                user=user, is_completed=False, due_date=today,
+                user=user, completion_status='pending', due_date=today,
                 is_routine=False,
             )
             .exclude(status='deleted')
@@ -945,7 +945,7 @@ def _build_day_overview_section(user, user_now, today) -> str:
         # Tasks with no due date (appear in "Now" bucket on task page)
         no_date_tasks = list(
             Task.objects.filter(
-                user=user, is_completed=False, due_date__isnull=True,
+                user=user, completion_status='pending', due_date__isnull=True,
             )
             .exclude(status='deleted')
             .exclude(deleted_at__isnull=False)
@@ -955,7 +955,7 @@ def _build_day_overview_section(user, user_now, today) -> str:
         # Completed today (non-routine)
         completed_today = list(
             Task.objects.filter(
-                user=user, is_completed=True, is_routine=False,
+                user=user, completion_status='completed', is_routine=False,
                 completed_at__date=today,
             )
             .exclude(status='deleted')
@@ -1113,7 +1113,7 @@ def _build_gap_context_section(user, gap_hours, today) -> str:
             overdue = Task.objects.filter(
                 user=user,
                 due_date__lt=today,
-                is_completed=False,
+                completion_status='pending',
             ).exclude(status='deleted').count()
             if overdue > 0:
                 lines.append(f"  - {overdue} tasks now overdue")

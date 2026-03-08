@@ -1277,14 +1277,14 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         active_projects = projects.filter(status='active')
 
         # Tasks
-        tasks = Task.objects.filter(user=user, is_completed=False)
+        tasks = Task.objects.filter(user=user, completion_status='pending')
         overdue_tasks = tasks.filter(due_date__lt=today)
         due_soon = tasks.filter(due_date__gte=today, due_date__lte=week_ahead)
 
         # Tasks completed today
         completed_today = Task.objects.filter(
             user=user,
-            is_completed=True,
+            completion_status='completed',
             completed_at__date=today
         ).count()
 

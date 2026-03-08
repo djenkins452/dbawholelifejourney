@@ -174,7 +174,7 @@ class TrendTracker:
         if self.prefs.life_enabled:
             tasks = Task.objects.filter(
                 user=self.user,
-                is_completed=True,
+                completion_status='completed',
                 completed_at__date__gte=start_date,
                 completed_at__date__lte=end_date
             )

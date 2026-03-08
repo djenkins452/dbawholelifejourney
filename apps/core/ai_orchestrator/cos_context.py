@@ -1614,10 +1614,10 @@ def _build_data_state_snapshot(user) -> str:
         counts['journal_entries'] = JournalEntry.objects.filter(user=user).count()
         # v4: Task counts — key for preventing "3 of 5 tasks" hallucination
         counts['active_tasks'] = LifeTask.objects.filter(
-            user=user, is_completed=False
+            user=user, completion_status='pending'
         ).exclude(status='deleted').count()
         counts['completed_tasks_today'] = LifeTask.objects.filter(
-            user=user, is_completed=True, completed_at__date=today
+            user=user, completion_status='completed', completed_at__date=today
         ).exclude(status='deleted').count()
     except Exception as e:
         logger.warning("Failed to build data state snapshot: %s", e)

@@ -1170,9 +1170,9 @@ class SearchService:
             tasks = tasks.filter(keyword_q)
 
         if status == 'completed':
-            tasks = tasks.filter(is_completed=True)
+            tasks = tasks.filter(completion_status='completed')
         elif status == 'incomplete':
-            tasks = tasks.filter(is_completed=False)
+            tasks = tasks.filter(completion_status='pending')
 
         tasks = tasks.order_by('-created_at')[:limit]
 

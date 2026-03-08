@@ -164,9 +164,9 @@ class ProjectModelTest(LifeTestMixin, TestCase):
     def test_project_progress_percentage(self):
         """Project calculates progress percentage."""
         project = self.create_project(self.user)
-        self.create_task(self.user, project=project, is_completed=True)
-        self.create_task(self.user, project=project, is_completed=False)
-        
+        self.create_task(self.user, project=project, completion_status='completed')
+        self.create_task(self.user, project=project, completion_status='pending')
+
         self.assertEqual(project.progress_percentage, 50)
     
     def test_project_ordering(self):
@@ -229,9 +229,9 @@ class TaskModelTest(LifeTestMixin, TestCase):
     
     def test_mark_incomplete(self):
         """mark_incomplete() clears completion status."""
-        task = self.create_task(self.user, is_completed=True)
+        task = self.create_task(self.user, completion_status='completed')
         task.mark_incomplete()
-        
+
         self.assertFalse(task.is_completed)
         self.assertIsNone(task.completed_at)
     
@@ -246,9 +246,9 @@ class TaskModelTest(LifeTestMixin, TestCase):
         """Completed task is not overdue."""
         past_date = date.today() - timedelta(days=5)
         task = self.create_task(
-            self.user, 
-            due_date=past_date, 
-            is_completed=True
+            self.user,
+            due_date=past_date,
+            completion_status='completed'
         )
         
         self.assertFalse(task.is_overdue)
@@ -468,9 +468,9 @@ class LifeEdgeCaseTest(LifeTestMixin, TestCase):
     def test_project_all_tasks_complete(self):
         """Project with all tasks complete has 100% progress."""
         project = self.create_project(self.user)
-        self.create_task(self.user, project=project, is_completed=True)
-        self.create_task(self.user, project=project, is_completed=True)
-        
+        self.create_task(self.user, project=project, completion_status='completed')
+        self.create_task(self.user, project=project, completion_status='completed')
+
         self.assertEqual(project.progress_percentage, 100)
 
 
@@ -496,11 +496,11 @@ class LifeBusinessLogicTest(LifeTestMixin, TestCase):
     
     def test_filter_incomplete_tasks(self):
         """Can filter incomplete tasks."""
-        self.create_task(self.user, is_completed=True)
-        self.create_task(self.user, is_completed=False)
-        
+        self.create_task(self.user, completion_status='completed')
+        self.create_task(self.user, completion_status='pending')
+
         incomplete_tasks = Task.objects.filter(
-            user=self.user, is_completed=False
+            user=self.user, completion_status='pending'
         )
         self.assertEqual(incomplete_tasks.count(), 1)
     
@@ -740,18 +740,18 @@ class LifeDashboardStatsTest(LifeTestMixin, TestCase):
 
     def test_stats_includes_pending_tasks_count(self):
         """Stats includes pending (incomplete) tasks count."""
-        self.create_task(self.user, is_completed=False)
-        self.create_task(self.user, is_completed=False)
-        self.create_task(self.user, is_completed=True)
+        self.create_task(self.user, completion_status='pending')
+        self.create_task(self.user, completion_status='pending')
+        self.create_task(self.user, completion_status='completed')
 
         response = self.client.get(reverse('life:home'))
         self.assertEqual(response.context['stats']['pending_tasks'], 2)
 
     def test_stats_includes_completed_tasks_count(self):
         """Stats includes completed tasks count."""
-        self.create_task(self.user, is_completed=True)
-        self.create_task(self.user, is_completed=True)
-        self.create_task(self.user, is_completed=False)
+        self.create_task(self.user, completion_status='completed')
+        self.create_task(self.user, completion_status='completed')
+        self.create_task(self.user, completion_status='pending')
 
         response = self.client.get(reverse('life:home'))
         self.assertEqual(response.context['stats']['completed_tasks'], 2)
@@ -859,7 +859,7 @@ class LifeDashboardStatsTest(LifeTestMixin, TestCase):
 
         # Create data for other user
         self.create_project(other_user, status='active')
-        self.create_task(other_user, is_completed=True)
+        self.create_task(other_user, completion_status='completed')
 
         # Create data for current user
         self.create_project(self.user, status='active')
@@ -876,10 +876,10 @@ class LifeDashboardStatsTest(LifeTestMixin, TestCase):
         past_date = date.today() - timedelta(days=5)
         future_date = date.today() + timedelta(days=5)
 
-        self.create_task(self.user, due_date=past_date, is_completed=False)
-        self.create_task(self.user, due_date=past_date, is_completed=False)
-        self.create_task(self.user, due_date=future_date, is_completed=False)
-        self.create_task(self.user, due_date=past_date, is_completed=True)
+        self.create_task(self.user, due_date=past_date, completion_status='pending')
+        self.create_task(self.user, due_date=past_date, completion_status='pending')
+        self.create_task(self.user, due_date=future_date, completion_status='pending')
+        self.create_task(self.user, due_date=past_date, completion_status='completed')
 
         response = self.client.get(reverse('life:home'))
         self.assertEqual(response.context['overdue_tasks'], 2)
@@ -968,7 +968,7 @@ class RecalculateTaskPrioritiesCommandTest(LifeTestMixin, TestCase):
     def test_command_ignores_completed_tasks(self):
         """Command doesn't update completed tasks."""
         # Create a completed task with stale priority
-        task = self.create_task(self.user, due_date=date.today(), is_completed=True)
+        task = self.create_task(self.user, due_date=date.today(), completion_status='completed')
 
         # Manually set priority to 'someday' to simulate stale data
         Task.objects.filter(pk=task.pk).update(priority='someday')

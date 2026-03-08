@@ -244,11 +244,8 @@ if DATABASE_URL:
     DATABASES = {
         "default": {
             **env.db("DATABASE_URL"),
-            "CONN_MAX_AGE": 0,  # Close connections after each request (prevents pool exhaustion)
+            "CONN_MAX_AGE": 600,  # Reuse connections for 10 min (reduces churn)
             "CONN_HEALTH_CHECKS": True,  # Verify connections before reuse
-            "OPTIONS": {
-                "connect_timeout": 5,  # Fail fast if DB pool exhausted (seconds)
-            },
         },
     }
 elif DEBUG:

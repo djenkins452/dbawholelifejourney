@@ -149,7 +149,9 @@ def build_executive_briefing(user, conversation) -> str:
         sections.append(_build_health_gate_section(user, today))
 
         # Section C.5: Behavioral pattern awareness (v8)
-        sections.append(_build_pattern_section(user))
+        # DISABLED: SA calls during briefing contribute to connection pressure.
+        # Re-enable after connection pooling is stable.
+        # sections.append(_build_pattern_section(user))
 
         # Section D: Day overview narrative
         sections.append(_build_day_overview_section(user, user_now, today))

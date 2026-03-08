@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Fix Morning CoS Briefing Metadata Poisoning + Desktop Briefing Gap
+
+- **Root cause:** `build_executive_briefing()` marked `last_briefing_date` immediately upon building briefing text (line 111-113), BEFORE the LLM processed it or the user saw it. If the subsequent LLM call failed or returned a weak response, the flag was already burned — no briefing could fire for the rest of the day. This caused the user to receive generic "I'm here to help you stay on track" fallback instead of a data-rich morning orientation.
+- **Fix 1 — Metadata poisoning:** Removed premature `last_briefing_date` marking from `build_executive_briefing()`. Added new `mark_briefing_delivered(conversation)` helper. Marking now happens ONLY after: (a) LLM returns a real response (not fallback), (b) response passes weak-pattern detection, (c) `generate_proactive_briefing()` quality checks pass. Both non-streaming and streaming paths updated.
+- **Fix 2 — Desktop briefing gap:** `assistant_panel.html` had zero proactive briefing logic — only `chat_widget.html` (mobile drawer) had `maybeTriggerBriefing()`. Added `maybeTriggerPanelBriefing()` to the desktop panel, triggered after history loads. Same conditions: no recent assistant message, or last message > 4 hours old.
+- **Fix 3 — Defensive logging:** Added `BRIEFING_LLM_FALLBACK` (error level) when LLM returns empty despite briefing injection. Added `BRIEFING_WEAK_RESPONSE` (warning level) when LLM generates generic/weak response patterns. Neither case marks briefing as delivered — next user message gets a fresh attempt. Expanded fallback pattern list with "How can I help", "What needs your attention", "I'm here to assist".
+- **Files:** `apps/ai/executive_briefing.py`, `apps/ai/personal_assistant.py`, `templates/components/assistant_panel.html`
+
+---
+
 ## 2026-03-08 — Phase 4: Restore AI Insights (Engine-First, No OpenAI)
 
 - **What:** Restored AI insight tiles on the dashboard and all 5 module home pages. Completely replaced the old `_get_ai_insights()` which called OpenAI directly (root cause of production outage) with engine-first reads from stored data.

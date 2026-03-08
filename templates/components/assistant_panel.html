@@ -1041,8 +1041,13 @@
                         refreshChatHistory(container);
                     }, 1500);
                 }
+
+                // Trigger proactive briefing after desktop history loads
+                maybeTriggerPanelBriefing(container, data.messages);
             } else {
                 showEmptyState(container);
+                // Trigger briefing even with no messages (first visit)
+                maybeTriggerPanelBriefing(container, []);
             }
         })
         .catch(function() {
@@ -1089,6 +1094,88 @@
     function loadMobileChatHistory() {
         var mLoading = document.getElementById('mobile-chat-loading');
         loadChatHistory(mobileChatMessages, mLoading);
+    }
+
+    /* ================================================================
+       PROACTIVE BRIEFING (Desktop Panel)
+       Triggers a CoS morning briefing when the panel loads and no
+       recent briefing exists. Mirrors chat_widget.html behavior.
+       ================================================================ */
+    var apBriefingRequested = false;
+
+    function maybeTriggerPanelBriefing(container, messages) {
+        if (apBriefingRequested) return;
+
+        // Find the last non-empty assistant message
+        var lastAssistantMsg = null;
+        if (messages && messages.length > 0) {
+            for (var i = messages.length - 1; i >= 0; i--) {
+                if (messages[i].role === 'assistant' && messages[i].content && messages[i].content.trim()) {
+                    lastAssistantMsg = messages[i];
+                    break;
+                }
+            }
+        }
+
+        // Check if briefing is needed:
+        // - No assistant messages at all, OR
+        // - Last assistant message is not from today, OR
+        // - Last assistant message is > 4 hours old
+        var needsBriefing = false;
+        if (!lastAssistantMsg) {
+            needsBriefing = true;
+        } else {
+            var lastDate = new Date(lastAssistantMsg.created_at);
+            var now = new Date();
+            var isToday = lastDate.toDateString() === now.toDateString();
+            var hoursSince = (now - lastDate) / (1000 * 60 * 60);
+            if (!isToday || hoursSince >= 4) {
+                needsBriefing = true;
+            }
+        }
+
+        if (!needsBriefing) return;
+
+        apBriefingRequested = true;
+
+        // Show loading indicator
+        var emptyState = container.querySelector('.ap-chat-empty');
+        if (emptyState) emptyState.remove();
+        var loadingDiv = document.createElement('div');
+        loadingDiv.id = 'ap-briefing-loading';
+        loadingDiv.className = 'ap-chat-message assistant';
+        loadingDiv.innerHTML = '<div style="color:var(--text-secondary,#666);font-style:italic;padding:8px 0;">' +
+            '<span class="briefing-dots"><span>.</span><span>.</span><span>.</span></span> ' +
+            'Preparing your briefing</div>';
+        container.appendChild(loadingDiv);
+        container.scrollTop = container.scrollHeight;
+
+        fetch('/assistant/api/briefing/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken(),
+            },
+            body: JSON.stringify({}),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            var bl = document.getElementById('ap-briefing-loading');
+            if (bl) bl.remove();
+
+            if (result.success && result.response && !result.skipped) {
+                addMessage(container, result.response, false, true, null, {
+                    is_proactive: true,
+                    created_at: new Date().toISOString(),
+                });
+                hasMessages = true;
+            }
+        })
+        .catch(function(err) {
+            console.error('Panel briefing request failed:', err);
+            var bl = document.getElementById('ap-briefing-loading');
+            if (bl) bl.remove();
+        });
     }
 
     /* ================================================================

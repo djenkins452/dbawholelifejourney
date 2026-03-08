@@ -107,10 +107,12 @@ def build_executive_briefing(user, conversation) -> str:
         if not is_first_of_day and not is_gap_reentry:
             return ""  # Mid-conversation — no briefing needed
 
-        # Mark briefing as delivered
-        metadata['last_briefing_date'] = str(today)
-        conversation.metadata = metadata
-        conversation.save(update_fields=['metadata'])
+        # NOTE: Do NOT mark last_briefing_date here. The caller is
+        # responsible for marking delivery AFTER the briefing is
+        # successfully consumed (i.e., after the LLM response passes
+        # quality checks). Marking here prematurely burns the flag —
+        # if the LLM call subsequently fails, no briefing can fire
+        # for the rest of the day. See mark_briefing_delivered().
 
         # Ensure routine tasks exist for today (fills recurrence gaps)
         # and auto-complete "Wake Up" on first-of-day interaction.
@@ -202,6 +204,34 @@ def build_executive_briefing(user, conversation) -> str:
     except Exception as e:
         logger.debug("Executive briefing failed: %s", e)
         return ""
+
+
+def mark_briefing_delivered(conversation):
+    """
+    Mark the executive briefing as delivered for today.
+
+    Call this ONLY after the briefing has been successfully consumed —
+    i.e., the LLM produced a quality response that passed all checks
+    and was delivered to the user. Never call this just because
+    briefing text was built or injected into the system prompt.
+
+    This prevents the metadata-poisoning bug where a failed LLM call
+    burns the last_briefing_date flag and blocks briefings for the
+    rest of the day.
+    """
+    from apps.core.utils import get_user_today
+    try:
+        today = get_user_today(conversation.user)
+        metadata = conversation.metadata or {}
+        metadata['last_briefing_date'] = str(today)
+        conversation.metadata = metadata
+        conversation.save(update_fields=['metadata'])
+        logger.info(
+            "BRIEFING_MARKED_DELIVERED user=%s date=%s",
+            conversation.user.id, today,
+        )
+    except Exception as e:
+        logger.warning("Failed to mark briefing delivered: %s", e)
 
 
 def maybe_generate_rolling_summary(user, conversation) -> None:

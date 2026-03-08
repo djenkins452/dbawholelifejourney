@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Connect exercise progress data to Beth's CoS prompt
+
+- **Problem:** `exercise_progress` (per-exercise e1RM trends, plateau status, PR counts) was computed in the SAE fitness state and used by `StrengthPlateauRule` to create insights, but it was NOT directly surfaced in Beth's CoS prompt. Beth could only reference exercise-specific data when a plateau Insight object happened to be active. She couldn't proactively say "your squat is trending up" without an insight firing.
+- **Fix:** Piped `exercise_progress` from the SAE fitness state through `_build_health_and_vitals()` into `health_signals`, then rendered it in the prompt as a new "EXERCISE PROGRESS" section with per-exercise status, e1RM, PR count, and set volume.
+- **Prompt output example:**
+  ```
+  EXERCISE PROGRESS (30-day, use when discussing specific exercises or workout progress):
+    Bench Press: → plateau | e1RM 208 | 18 sets / 30d
+    Squat: ↑ improving | e1RM 315 | 2 PRs this month | 24 sets / 30d
+  ```
+- **Tests:** 6 new SimpleTestCase tests verifying prompt rendering, singular/plural PR labels, empty/missing data handling, and SAE→health_signals data flow.
+- **Files:**
+  - `apps/core/ai_orchestrator/cos_context.py` — Added `exercise_progress` to health_signals in `_build_health_and_vitals()`; added EXERCISE PROGRESS prompt section in `format_cos_system_injection()`
+  - `apps/core/tests/test_phase4_cos.py` — Added `ExerciseProgressInCoSTest` (6 tests)
+  - `docs/ENGINE_COS_REFERENCE.md` — Updated Health & Vitals builder output fields
+
 ## 2026-03-08 — Fix 5 CI test failures
 
 - **Duplicate PK 140 in release_notes.json:** Receipt Photo Scanning entry shared pk=140 with Friendlier Chat Error Recovery. Changed to pk=144.

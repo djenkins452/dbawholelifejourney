@@ -1789,8 +1789,15 @@ class PersonalRecord(UserOwnedModel):
     """
     Track personal records for exercises.
 
-    Records the best performance for each exercise.
+    Records the best performance for each exercise, with PR type
+    and the previous best value that was surpassed.
     """
+
+    PR_TYPE_CHOICES = [
+        ("weight", "Max Weight"),
+        ("reps", "Rep PR"),
+        ("e1rm", "Estimated 1RM"),
+    ]
 
     exercise = models.ForeignKey(
         Exercise,
@@ -1811,6 +1818,19 @@ class PersonalRecord(UserOwnedModel):
         blank=True,
         related_name="personal_records",
     )
+    pr_type = models.CharField(
+        max_length=10,
+        choices=PR_TYPE_CHOICES,
+        default="weight",
+        help_text="Type of PR: max weight, rep PR at same weight, or estimated 1RM",
+    )
+    previous_value = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Previous best value that was surpassed (weight in lbs, reps, or e1RM)",
+    )
 
     class Meta:
         ordering = ["-achieved_date"]
@@ -1818,14 +1838,15 @@ class PersonalRecord(UserOwnedModel):
         verbose_name_plural = "personal records"
 
     def __str__(self):
-        return f"PR: {self.exercise.name} - {self.weight}lbs x {self.reps}"
+        return f"PR: {self.exercise.name} - {self.weight}lbs x {self.reps} ({self.get_pr_type_display()})"
 
     @property
     def estimated_1rm(self):
         """Estimate 1 rep max using Brzycki formula."""
         if self.reps == 1:
             return float(self.weight)
-        return float(self.weight) * (36 / (37 - self.reps))
+        reps_capped = min(self.reps, 36)
+        return float(self.weight) * (36 / (37 - reps_capped))
 
 
 class WorkoutTemplate(UserOwnedModel):

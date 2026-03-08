@@ -6,6 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-08 — Implement automatic PR detection for workout sets
+
+- **Root cause:** The `PersonalRecord` model and `ExerciseSet.is_pr` flag existed but had no automatic detection logic. PRs were only recorded if manually flagged by the user or AI. The `StrengthPlateauRule` checked `prs_30d` (always 0), producing false "strength plateau" insights for every active user, including Danny who was actively increasing weights/reps/sets.
+- **Fix:** Added automatic PR detection via a `post_save` signal on `ExerciseSet`. When a new set is created, the system compares it against all historical sets for the same exercise and detects three PR types:
+  - **Weight PR:** New weight exceeds all-time max for that exercise
+  - **Rep PR:** New reps exceed best reps at the same weight
+  - **e1RM PR:** New estimated 1RM (Brzycki formula) exceeds all-time best e1RM
+- **PersonalRecord model enhanced:** Added `pr_type` (weight/reps/e1rm) and `previous_value` (the old best that was surpassed) for full historical tracking. Each PR type creates a separate `PersonalRecord` entry.
+- **Plateau rule improved:** Now checks BOTH `prs_30d == 0` AND `strength_trend_score != "increasing"`. Users with increasing volume but no formal PRs are no longer falsely flagged as plateauing.
+- **Action handler updated:** Auto-detected PRs are reflected in chat responses (removed reliance on caller-provided `is_pr` flag).
+- **Edge cases handled:** First set = weight PR, warmup sets skipped, Brzycki formula capped at 36 reps, signal recursion prevented via `update_fields`.
+- **Migration fix:** Fixed pre-existing `admin_console.0033` migration that failed on fresh test DB creation (referenced `help_helptopic` table before it existed).
+- **Files:**
+  - `apps/health/models.py` — PersonalRecord: added `pr_type`, `previous_value` fields
+  - `apps/health/pr_utils.py` — NEW: `check_and_record_pr()` utility + `brzycki_1rm()` helper
+  - `apps/ai/signals.py` — Added `auto_detect_pr_on_exercise_set_create` signal handler
+  - `apps/ai/action_handlers.py` — Updated `handle_log_exercise_set()` to use auto-detection
+  - `apps/core/ai_insights/rules_transformation.py` — Enhanced `StrengthPlateauRule` with e1RM trend check
+  - `apps/health/migrations/0055_add_pr_type_and_previous_value.py` — Migration
+  - `apps/health/tests/test_pr_detection.py` — NEW: 40 comprehensive tests
+  - `apps/admin_console/migrations/0033_populate_guide_content.py` — Fixed migration ordering bug
+- **Tests:** 78 tests pass (40 new PR detection + 34 existing fitness + 4 plateau rule)
+
 ## 2026-03-08 — Fix SituationState missing from CoS prompts on cached context (critical)
 
 - **Root cause:** `build_cos_context()` stored the user as `_user` in the context dict. The readiness cache strips all keys starting with `_` before caching (to avoid serializing Django model instances). When `format_cos_system_injection()` ran on cached context, `context.get('_user')` returned None, causing the entire SituationState block to be skipped — along with Session Mode, Coaching Mode, COS-CX Intelligence, Consistency Protection, Data State Snapshot, and Declared Priorities (8 blocks total). This affected the majority of CoS responses since cache hits are the normal path.

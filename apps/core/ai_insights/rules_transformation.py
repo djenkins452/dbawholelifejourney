@@ -430,7 +430,15 @@ class WorkoutConsistencyRule(BaseInsightRule):
 
 @register
 class StrengthPlateauRule(BaseInsightRule):
-    """Detect strength plateaus (no PRs despite consistent training)."""
+    """Detect strength plateaus using PR frequency and e1RM trend.
+
+    A true plateau requires BOTH:
+    - No personal records in the last 30 days (prs_30d == 0)
+    - Strength trend is NOT increasing (volume not growing week-over-week)
+
+    If the user has no PRs but their volume is still increasing, they're
+    progressing — just haven't hit a formal PR threshold yet.
+    """
 
     rule_name = "strength_plateau"
     module = "health"
@@ -447,12 +455,28 @@ class StrengthPlateauRule(BaseInsightRule):
 
         prs_30d = fitness.get("prs_30d", 0)
         workouts_30d = fitness.get("workouts_30d", 0)
+        strength_trend = fitness.get("strength_trend_score", "insufficient_data")
 
-        # Only fire if user is training consistently but not hitting PRs
-        if workouts_30d < 8 or prs_30d > 0:
+        # Must be training consistently (8+ workouts in 30 days)
+        if workouts_30d < 8:
+            return []
+
+        # If they have PRs, no plateau
+        if prs_30d > 0:
+            return []
+
+        # If volume is still increasing, they're progressing even without
+        # a formal PR — don't fire a false plateau
+        if strength_trend == "increasing":
             return []
 
         window_start, window_end = get_time_window(days=30)
+
+        trend_detail = ""
+        if strength_trend == "decreasing":
+            trend_detail = " Your training volume has also been declining."
+        elif strength_trend == "stable":
+            trend_detail = " Your training volume has been stable."
 
         return [
             {
@@ -460,19 +484,21 @@ class StrengthPlateauRule(BaseInsightRule):
                 "title": "Strength plateau detected",
                 "message": (
                     f"You've completed {workouts_30d} workouts in the last 30 days "
-                    f"but haven't logged any personal records. Consider adjusting your "
-                    f"programming — progressive overload, deload weeks, or exercise "
-                    f"variations may help break through."
+                    f"without setting any personal records.{trend_detail} "
+                    f"Consider adjusting your programming — progressive overload, "
+                    f"deload weeks, or exercise variations may help break through."
                 ),
                 "confidence_score": 0.72,
                 "explain_why": (
                     f"Rule: {self.rule_name}. 30-day workouts: {workouts_30d}, "
-                    f"30-day PRs: 0 (threshold: 8+ workouts with 0 PRs)."
+                    f"30-day PRs: 0, strength trend: {strength_trend} "
+                    f"(threshold: 8+ workouts with 0 PRs and non-increasing trend)."
                 ),
                 "evidence": {
                     "rule_name": self.rule_name,
                     "workouts_30d": workouts_30d,
                     "prs_30d": 0,
+                    "strength_trend": strength_trend,
                     "window_start": str(window_start.date()),
                     "window_end": str(window_end.date()),
                 },

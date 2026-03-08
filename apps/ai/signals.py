@@ -394,6 +394,18 @@ def invalidate_cache_on_exercise_set_save(sender, instance, created, **kwargs):
             invalidate_personal_data_cache(user, 'workout')
 
 
+@receiver(post_save, sender='health.ExerciseSet')
+def auto_detect_pr_on_exercise_set_create(sender, instance, created, **kwargs):
+    """Automatically detect personal records when a new exercise set is created."""
+    if not created:
+        return
+    try:
+        from apps.health.pr_utils import check_and_record_pr
+        check_and_record_pr(instance)
+    except Exception:
+        logger.error("Error in automatic PR detection", exc_info=True)
+
+
 @receiver(post_delete, sender='health.ExerciseSet')
 def invalidate_cache_on_exercise_set_delete(sender, instance, **kwargs):
     """Invalidate personal data cache when an exercise set is deleted."""

@@ -4341,13 +4341,18 @@ class ActionHandler:
         """
         Log a specific exercise set.
 
+        PRs are auto-detected by comparing against historical sets for
+        the same exercise (weight PR, rep PR, estimated 1RM PR).
+        The is_pr parameter is kept for backwards compatibility but
+        auto-detection overrides it.
+
         Args:
             exercise_name: Name of the exercise
             weight: Weight used
             reps: Number of reps
             set_number: Which set (1, 2, 3, etc.)
             is_warmup: Whether this is a warmup set
-            is_pr: Whether this is a personal record
+            is_pr: Ignored — PRs are auto-detected via post_save signal
             notes: Notes about the set
         """
         from apps.health.models import WorkoutSession, Exercise, WorkoutExercise, ExerciseSet
@@ -4390,18 +4395,23 @@ class ActionHandler:
                 existing_sets = workout_exercise.sets.count()
                 set_number = existing_sets + 1
 
-            # Create the set
+            # Create the set (post_save signal auto-detects PRs)
             exercise_set = ExerciseSet.objects.create(
                 workout_exercise=workout_exercise,
                 set_number=set_number,
                 weight=Decimal(str(weight)),
                 reps=reps,
                 is_warmup=is_warmup,
-                is_pr=is_pr,
                 notes=notes or ""
             )
 
-            pr_str = " (PR! 🎉)" if is_pr else ""
+            # Refresh to pick up is_pr set by auto-detection signal
+            exercise_set.refresh_from_db()
+            detected_pr = exercise_set.is_pr
+
+            pr_str = ""
+            if detected_pr:
+                pr_str = " (PR! 🎉)"
             warmup_str = " (warmup)" if is_warmup else ""
 
             return ActionResult(
@@ -4414,7 +4424,7 @@ class ActionHandler:
                     'set_number': set_number,
                     'weight': float(weight),
                     'reps': reps,
-                    'is_pr': is_pr
+                    'is_pr': detected_pr
                 },
                 action_type='log_exercise_set',
                 confirmation_detail=self._build_confirmation(

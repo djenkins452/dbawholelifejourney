@@ -2163,11 +2163,27 @@ def save_set_ajax(request):
         logger.exception("Failed to save workout set")
         return JsonResponse({"error": "Database error saving set"}, status=500)
 
+    # PR detection: signal only fires on created=True, so for updates
+    # we must manually check. This covers the common case where the user
+    # fills in weight/reps on an existing set in the live workout tracker.
+    prs = []
+    if not set_created and parsed_weight and parsed_reps:
+        try:
+            from apps.health.pr_utils import check_and_record_pr
+            # Reset PR flag before re-checking (weight/reps may have changed)
+            ExerciseSet.objects.filter(pk=exercise_set.pk).update(is_pr=False)
+            exercise_set.refresh_from_db()
+            prs = check_and_record_pr(exercise_set)
+        except Exception:
+            logger.exception("Error in PR detection on set update")
+
     return JsonResponse({
         "success": True,
         "set_id": exercise_set.pk,
         "workout_exercise_id": workout_exercise.pk,
         "created": set_created,
+        "is_pr": exercise_set.is_pr if hasattr(exercise_set, 'is_pr') else False,
+        "prs": [{"type": p["type"], "previous": p["previous"], "new": p["new"]} for p in prs],
         "message": f"Set {set_number} saved",
     })
 

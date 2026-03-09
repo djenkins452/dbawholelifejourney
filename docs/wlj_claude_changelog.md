@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Fix PR detection not firing on AJAX workout set updates
+
+- **Bug:** "Today's Guidance" showing incorrect "strength plateau" and "haven't set new PRs" insights even when user increased weights and set new PRs. The system was not detecting PRs from the live workout tracker.
+- **Root cause:** The `save_set_ajax` endpoint uses `update_or_create()` to save exercise sets. When a user fills in or changes weight/reps on an existing set, Django's `post_save` signal fires with `created=False`, and the PR detection signal handler (`auto_detect_pr_on_exercise_set_create`) returns early — skipping PR detection entirely. This is the primary path for the live workout tracker UI.
+- **Fix:** After `update_or_create()` in `save_set_ajax`, when the set was updated (not created) and has weight + reps, manually call `check_and_record_pr()` to detect PRs. Also resets the `is_pr` flag before re-checking so changed weights are properly re-evaluated. Added `is_pr` and `prs` fields to the AJAX response for potential UI PR badges.
+- **Files:** `apps/health/views.py` (save_set_ajax endpoint)
+- **Tests:** 128 passing (PR detection: 42, fitness views: 74, plateau insight: 12)
+- **Why:** Users changing weights in the live workout tracker were silently missing all PR detection, causing incorrect "plateau" guidance
+
 ## 2026-03-09 — Fix task vs calendar event disambiguation for delete/remove actions
 
 - **Bug:** When user says "Remove 10:00 PM Take trash out", AI routes to `mutate_task` (task delete) instead of `mutate_calendar_event` (calendar delete). Task handler fails with "couldn't find active task", and even after user clarifies it's a calendar entry, the confirmation says "Update calendar event" instead of "Delete calendar event".

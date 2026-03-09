@@ -3,7 +3,7 @@ Tests for the Receipt Ingestion System.
 
 Covers:
 - Receipt model fields (image, receipt_type, confirmation_status, financial, dedup)
-- Image compression (compress_image_for_api)
+- Image preparation (prepare_image_for_api)
 - ReceiptVisionService (Vision API parsing, PDF fallback, payment_method)
 - ReceiptUploadView (image upload async, text paste, file validation, dedup)
 - ReceiptConfirmView (confirmation flow, cancel, processing state, failed state)
@@ -160,12 +160,12 @@ class TestReceiptModelFields(TestUserMixin, TestCase):
 # =============================================================================
 
 
-class TestImageCompression(TestCase):
-    """Test image compression for Vision API."""
+class TestImagePreparation(TestCase):
+    """Test image preparation for Vision API."""
 
-    def test_compress_small_image_passthrough(self):
-        """Small images should still be compressed to JPEG."""
-        from apps.meals.services.receipt_vision import compress_image_for_api
+    def test_jpeg_passthrough_no_compression(self):
+        """JPEG images should be sent as-is without re-compression."""
+        from apps.meals.services.receipt_vision import prepare_image_for_api
         from PIL import Image
 
         img = Image.new("RGB", (100, 100), "white")
@@ -173,47 +173,40 @@ class TestImageCompression(TestCase):
         img.save(buf, format="JPEG")
         raw_bytes = buf.getvalue()
 
-        compressed, orig_size, comp_size = compress_image_for_api(raw_bytes)
-        self.assertIsInstance(compressed, bytes)
-        self.assertGreater(len(compressed), 0)
+        result_bytes, mime = prepare_image_for_api(raw_bytes, "image/jpeg")
+        # Should return the exact same bytes (no re-compression)
+        self.assertEqual(result_bytes, raw_bytes)
+        self.assertEqual(mime, "image/jpeg")
 
-    def test_compress_large_image_resizes(self):
-        """Large images should be resized to max dimension."""
-        from apps.meals.services.receipt_vision import (
-            RECEIPT_MAX_DIMENSION,
-            compress_image_for_api,
-        )
+    def test_png_passthrough_no_compression(self):
+        """PNG images should be sent as-is (API supports PNG)."""
+        from apps.meals.services.receipt_vision import prepare_image_for_api
         from PIL import Image
 
-        # Create a 3000x4000 image
-        img = Image.new("RGB", (3000, 4000), "white")
+        img = Image.new("RGB", (100, 100), "white")
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         raw_bytes = buf.getvalue()
 
-        compressed, orig_size, comp_size = compress_image_for_api(
-            raw_bytes, "image/png"
-        )
+        result_bytes, mime = prepare_image_for_api(raw_bytes, "image/png")
+        self.assertEqual(result_bytes, raw_bytes)
+        self.assertEqual(mime, "image/png")
 
-        # Verify it was compressed (JPEG is smaller than PNG)
-        self.assertLess(comp_size, orig_size)
-
-        # Verify the dimensions were reduced
-        result_img = Image.open(io.BytesIO(compressed))
-        self.assertLessEqual(max(result_img.size), RECEIPT_MAX_DIMENSION)
-
-    def test_compress_rgba_converts_to_rgb(self):
-        """RGBA images should be converted to RGB for JPEG."""
-        from apps.meals.services.receipt_vision import compress_image_for_api
+    def test_unsupported_format_converts_to_jpeg(self):
+        """Unsupported formats (like HEIC) should be converted to JPEG."""
+        from apps.meals.services.receipt_vision import prepare_image_for_api
         from PIL import Image
 
+        # Simulate an unsupported format by using RGBA PNG with heic mime
         img = Image.new("RGBA", (100, 100), (255, 0, 0, 128))
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         raw_bytes = buf.getvalue()
 
-        compressed, _, _ = compress_image_for_api(raw_bytes, "image/png")
-        result_img = Image.open(io.BytesIO(compressed))
+        result_bytes, mime = prepare_image_for_api(raw_bytes, "image/heic")
+        self.assertEqual(mime, "image/jpeg")
+        # Should be converted — verify it's valid JPEG
+        result_img = Image.open(io.BytesIO(result_bytes))
         self.assertEqual(result_img.mode, "RGB")
 
 

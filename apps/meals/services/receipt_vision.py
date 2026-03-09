@@ -7,8 +7,8 @@ structured receipt data (store, date, items, total, receipt type).
 For PDFs: extracts text via pdfplumber first, falls back to
 Vision API only if text extraction yields insufficient content.
 
-Image preprocessing: compresses images before sending to Vision API
-to reduce API costs and latency (resize to 1200px max, JPEG quality 80).
+Images are sent at full resolution — GPT-4o Vision with detail="high"
+handles its own internal tiling. Pre-compression destroys receipt text.
 """
 
 import base64
@@ -21,7 +21,6 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 from django.conf import settings
-from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +28,15 @@ logger = logging.getLogger(__name__)
 # Receipt-specific Vision prompt — extracts + classifies in one call
 RECEIPT_VISION_PROMPT = """You are a receipt OCR specialist. Your job is to read a photo of a receipt and extract EVERY purchased item into structured JSON.
 
-CRITICAL RULES:
-- Extract EVERY SINGLE line item printed on the receipt. Do NOT skip any items.
-- Read the item names EXACTLY as printed. Do NOT guess or invent item names.
-- If text is blurry or partially obscured, include your best reading with the actual text you can see. Do NOT hallucinate items that aren't there.
-- Receipts often have 15-40+ items. If you only find a few, look more carefully.
-- Lines with just discounts, coupons, tax, or subtotals are NOT items — skip those.
+CRITICAL RULES — read carefully:
+- Read the receipt TOP to BOTTOM, section by section. Do NOT skip any section.
+- Extract EVERY SINGLE line item printed on the receipt. Typical grocery receipts have 15-40+ items.
+- Read item names EXACTLY as printed on the receipt (they are often abbreviated like "DM CREAM CORN", "FL NAT PROV CHS SLCS"). Copy the abbreviations exactly — do NOT expand or rewrite them.
+- Do NOT invent, guess, or hallucinate items. Only include items you can actually read on the receipt.
+- Each item has a DIFFERENT name and usually a DIFFERENT price. If you find yourself listing the same item name multiple times, you are hallucinating — re-read the receipt.
+- Lines with discounts, coupons, savings, tax, or subtotals are NOT items — skip those.
 - Weight-based items (e.g., "2.34 lb @ $3.99/lb") should have quantity set to the weight.
+- Multi-quantity items (e.g., "2 @ 3.99") should have quantity=2 and price=3.99 (unit price).
 
 CLASSIFICATION RULES:
 - "grocery": Supermarket, grocery store, bulk food store (Food Lion, Walmart, Kroger, Whole Foods, Costco, Aldi, Publix, etc.)
@@ -75,11 +76,6 @@ Payment method options: cash, credit, debit, ebt, mobile, other (omit if not vis
 
 Respond ONLY with valid JSON. No markdown, no explanation."""
 
-# Compression settings for receipt images — receipts have small text,
-# need higher resolution than typical photos for accurate OCR
-RECEIPT_MAX_DIMENSION = 2048  # px — higher res for small receipt text
-RECEIPT_JPEG_QUALITY = 85  # Higher quality to preserve text clarity
-
 
 @dataclass
 class ReceiptVisionResult:
@@ -99,58 +95,57 @@ class ReceiptVisionResult:
     image_hash: str = ""  # SHA-256 of original bytes for deduplication
 
 
-def compress_image_for_api(raw_bytes, content_type="image/jpeg"):
+def prepare_image_for_api(raw_bytes, content_type="image/jpeg"):
     """
-    Compress and resize image for Vision API.
+    Prepare image for Vision API. Minimal processing — only convert
+    formats the API doesn't support (HEIC, RGBA). Do NOT re-compress
+    JPEGs — GPT-4o Vision with detail="high" handles its own tiling
+    and resizing. Pre-compression destroys small receipt text.
 
-    - Resizes to max 1200px on longest side (receipts are text-heavy, not detail-heavy)
-    - Converts to JPEG at quality 80 (significant size reduction)
-    - Strips EXIF data
-    - Returns (compressed_bytes, original_size, compressed_size)
+    Returns (image_bytes, mime_type)
     """
+    # API supports: JPEG, PNG, GIF, WebP
+    api_supported = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
+    if content_type in api_supported:
+        # Send as-is — no re-compression
+        logger.info(
+            "Receipt image: %d KB, sending as %s (no compression)",
+            len(raw_bytes) // 1024,
+            content_type,
+        )
+        return raw_bytes, content_type
+
+    # HEIC or other unsupported format — convert to JPEG at high quality
     try:
         from PIL import Image
 
         img = Image.open(io.BytesIO(raw_bytes))
-        original_size = len(raw_bytes)
-
-        # Resize if larger than max dimension
-        if max(img.size) > RECEIPT_MAX_DIMENSION:
-            img.thumbnail(
-                (RECEIPT_MAX_DIMENSION, RECEIPT_MAX_DIMENSION), Image.LANCZOS
-            )
 
         # Convert RGBA/P to RGB for JPEG
         if img.mode in ("RGBA", "P", "LA"):
             img = img.convert("RGB")
 
-        # Save as JPEG with compression
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=RECEIPT_JPEG_QUALITY, optimize=True)
-        compressed_bytes = buf.getvalue()
-        compressed_size = len(compressed_bytes)
+        img.save(buf, format="JPEG", quality=95)
+        converted = buf.getvalue()
 
-        reduction_pct = (
-            round((1 - compressed_size / original_size) * 100, 1)
-            if original_size > 0
-            else 0
-        )
         logger.info(
-            "Receipt image compressed: %d KB → %d KB (%.1f%% reduction, %dx%d)",
-            original_size // 1024,
-            compressed_size // 1024,
-            reduction_pct,
+            "Receipt image converted from %s: %d KB → %d KB JPEG (%dx%d)",
+            content_type,
+            len(raw_bytes) // 1024,
+            len(converted) // 1024,
             img.size[0],
             img.size[1],
         )
-        return compressed_bytes, original_size, compressed_size
+        return converted, "image/jpeg"
 
     except ImportError:
-        logger.warning("Pillow not installed, skipping compression")
-        return raw_bytes, len(raw_bytes), len(raw_bytes)
+        logger.warning("Pillow not installed, sending raw bytes as JPEG")
+        return raw_bytes, "image/jpeg"
     except Exception as e:
-        logger.warning("Image compression failed, using original: %s", e)
-        return raw_bytes, len(raw_bytes), len(raw_bytes)
+        logger.warning("Image conversion failed, sending raw: %s", e)
+        return raw_bytes, "image/jpeg"
 
 
 def compute_receipt_hash(raw_bytes):
@@ -163,7 +158,7 @@ class ReceiptVisionService:
     Processes receipt images/PDFs through Vision AI.
 
     Flow:
-    1. For images (jpg/png/webp/heic): compress, then send to Vision API
+    1. For images: send at full resolution to Vision API (detail="high")
     2. For PDFs: try pdfplumber text extraction first
        - If sufficient text found, return as raw_text (skip Vision API)
        - If scanned/image PDF, render first page to image, send to Vision
@@ -182,7 +177,7 @@ class ReceiptVisionService:
 
                 self._client = openai.OpenAI(
                     api_key=getattr(settings, "OPENAI_API_KEY", ""),
-                    timeout=30,
+                    timeout=60,
                 )
             except ImportError:
                 logger.error("openai package not installed")
@@ -196,7 +191,7 @@ class ReceiptVisionService:
         """
         Process image bytes through Vision API.
 
-        Compresses image first, then sends to Vision API.
+        Sends image at full resolution — GPT-4o Vision handles tiling.
 
         Args:
             raw_bytes: Raw image file bytes
@@ -207,26 +202,15 @@ class ReceiptVisionService:
         """
         # Compute hash on original bytes for deduplication
         image_hash = compute_receipt_hash(raw_bytes)
-        cache_key = f"receipt_vision:{image_hash}"
-        cached = cache.get(cache_key)
-        if cached:
-            logger.info("Using cached receipt vision result")
-            return cached
 
-        # Compress image before sending to Vision API
-        compressed_bytes, orig_size, comp_size = compress_image_for_api(
-            raw_bytes, content_type
-        )
+        # Prepare image (convert HEIC if needed, otherwise send as-is)
+        api_bytes, api_mime = prepare_image_for_api(raw_bytes, content_type)
 
-        # Encode compressed bytes as base64
-        base64_data = base64.b64encode(compressed_bytes).decode("utf-8")
+        # Encode as base64
+        base64_data = base64.b64encode(api_bytes).decode("utf-8")
 
-        # Always send as JPEG after compression
-        result = self._call_vision_api(base64_data, "image/jpeg")
+        result = self._call_vision_api(base64_data, api_mime)
         result.image_hash = image_hash
-
-        if not result.error:
-            cache.set(cache_key, result, 600)  # 10 min cache
 
         return result
 
@@ -288,9 +272,9 @@ class ReceiptVisionService:
             if not images:
                 return ReceiptVisionResult(error="Could not render PDF to image")
 
-            # Convert to JPEG bytes
+            # Convert to JPEG bytes at high quality
             buf = io.BytesIO()
-            images[0].save(buf, format="JPEG", quality=85)
+            images[0].save(buf, format="JPEG", quality=95)
             return self.process_image(buf.getvalue(), "image/jpeg")
 
         except ImportError:
@@ -331,7 +315,7 @@ class ReceiptVisionService:
                     }
                 ],
                 max_tokens=4096,
-                temperature=0.1,
+                temperature=0,
             )
 
             content = response.choices[0].message.content.strip()

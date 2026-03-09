@@ -156,20 +156,19 @@
 - **Files:** `apps/ai/personal_assistant.py`
 - **Why:** Completes the observability loop for proactive briefing delivery — can now trace GENERATE → ACCEPTED → DELIVERED in logs.
 
-## 2026-03-09 — Improve receipt Vision AI extraction quality
+## 2026-03-09 — Fix receipt Vision AI hallucinating items (v2 — stop double-compressing)
 
-- **Bug:** Vision API only extracting ~8 items from a Food Lion receipt with 20+ items, and hallucinating items like "kitty litter" that weren't on the receipt.
-- **Root causes:**
-  1. Image compression too aggressive — `RECEIPT_MAX_DIMENSION=1200` shrank receipt text to near-unreadable for the AI
-  2. Vision prompt too generic — didn't emphasize reading ALL items or warn against hallucination
-  3. `max_tokens=3000` too low for receipts with many items (JSON could get truncated)
-- **Fix:**
-  - Increased `RECEIPT_MAX_DIMENSION` from 1200 → 2048 (receipts have small dense text)
-  - Increased `RECEIPT_JPEG_QUALITY` from 80 → 85 for better text clarity
-  - Rewrote Vision prompt: explicit "extract EVERY SINGLE line item", "read names EXACTLY as printed", "do NOT hallucinate", weight-based item handling, Food Lion in store examples
-  - Increased `max_tokens` from 3000 → 4096 to handle 30+ item receipts
-- **Files:** `apps/meals/services/receipt_vision.py`
-- **Why:** Poor extraction quality makes the feature unusable — users shouldn't have to manually re-enter items the AI missed
+- **Bug:** Vision API returned 16 "FROZEN CHICKEN" variations at $9.99 each for a Food Lion receipt with ~35 diverse items. Severe hallucination — the actual receipt has rotisserie chicken, sourdough, broccoli florets, cream corn, avocados, turkey, etc.
+- **Root cause:** Double compression destroyed receipt text. Our code compressed to 2048px JPEG at quality 85, then GPT-4o Vision with `detail: "high"` internally resizes to 2048px and tiles again. Two rounds of JPEG compression turned small receipt text into unreadable mush, causing the model to hallucinate.
+- **Fix — send images at full resolution:**
+  - Replaced `compress_image_for_api()` with `prepare_image_for_api()` — JPEG/PNG/WebP pass through unmodified. Only HEIC/unsupported formats get converted (to JPEG at quality 95).
+  - GPT-4o Vision's own internal tiling handles all resizing — no pre-compression needed.
+  - Set `temperature=0` (was 0.1) — zero randomness for OCR work
+  - Increased client timeout from 30s → 60s for larger images
+  - Removed vision result cache (stale bad results shouldn't persist across prompt/model changes)
+  - Strengthened prompt: "each item has a DIFFERENT name and DIFFERENT price — if you find duplicates, you are hallucinating", read "top to bottom section by section", "copy abbreviations exactly"
+- **Files:** `apps/meals/services/receipt_vision.py`, `apps/meals/tests/test_receipt_ingestion.py`
+- **Why:** Hallucinated items make the feature worse than useless — users can't trust the extraction
 
 ## 2026-03-09 — Fix proactive briefing quality gate rejecting valid briefings
 

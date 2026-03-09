@@ -1528,6 +1528,348 @@ the Medications page), honor the explicit domain.
         cache_key = f"pending_crud_{user.id}"
         cache.delete(cache_key)
 
+    # ── Disambiguation (multi-candidate selection) ────────────────
+
+    def store_pending_disambiguation(self, user, data: dict, ttl: int = 300):
+        """
+        Store a pending disambiguation awaiting user selection.
+
+        After the user selects a candidate, the system constructs the
+        appropriate intent and feeds it back through the CRUD gate.
+        """
+        data['timestamp'] = timezone.now().isoformat()
+        cache_key = f"pending_disambiguate_{user.id}"
+        cache.set(cache_key, data, ttl)
+
+    def get_pending_disambiguation(self, user) -> Optional[dict]:
+        """Retrieve pending disambiguation, or None if expired/missing."""
+        cache_key = f"pending_disambiguate_{user.id}"
+        return cache.get(cache_key)
+
+    def clear_pending_disambiguation(self, user):
+        """Clear any pending disambiguation for a user."""
+        cache_key = f"pending_disambiguate_{user.id}"
+        cache.delete(cache_key)
+
+    def handle_disambiguation_response(self, user, response: str) -> Optional[ActionResult]:
+        """
+        Handle user's response to a disambiguation prompt.
+
+        Two-step flow:
+        1. User picks a number → system constructs the appropriate intent
+        2. Intent is stored as pending CRUD action → user must CONFIRM
+
+        Returns:
+            ActionResult with the CRUD confirmation message, or None if unrecognized.
+        """
+        pending = self.get_pending_disambiguation(user)
+        if not pending:
+            return ActionResult(
+                success=False,
+                message="That disambiguation has expired. Please tell me what you'd like to do again.",
+                action_type='expired',
+            )
+
+        from apps.core.ai_orchestrator.crud_confirmation import (
+            parse_disambiguation_response,
+            build_crud_confirmation_message,
+        )
+
+        candidates = pending.get('candidates', [])
+        parsed = parse_disambiguation_response(response, len(candidates))
+
+        if parsed is None:
+            return None  # Unrecognized — caller will re-show prompt
+
+        if parsed['action'] == 'cancel':
+            self.clear_pending_disambiguation(user)
+            logger.info(
+                "[DISAMBIGUATE] Cancelled: user=%s original_intent=%s",
+                user.id, pending.get('original_intent'),
+            )
+            return ActionResult(
+                success=True,
+                message="Action cancelled.",
+                action_type='cancelled',
+            )
+
+        if parsed['action'] == 'create_new':
+            self.clear_pending_disambiguation(user)
+            # Feed the original create intent through the CRUD gate
+            from apps.core.ai_orchestrator.action_router import EnrichedAction
+            enriched = EnrichedAction(
+                intent_type=pending['original_intent'],
+                parameters=pending['create_params'],
+                original_input=pending.get('original_input'),
+            )
+            msg = build_crud_confirmation_message(enriched, None)
+            self.store_pending_crud_action(user, {
+                'intent_type': pending['original_intent'],
+                'parameters': pending['create_params'],
+                'original_intent': pending['original_intent'],
+                'original_input': pending.get('original_input'),
+                'recon_decision': 'create',
+                'recon_context': None,
+                'confirmation_message': msg,
+            })
+            logger.info(
+                "[DISAMBIGUATE] Create new: user=%s intent=%s",
+                user.id, pending['original_intent'],
+            )
+            return ActionResult(
+                success=False,
+                message=msg,
+                error='crud_confirmation_required',
+                action_type=pending['original_intent'],
+            )
+
+        if parsed['action'] == 'select':
+            idx = parsed['index']
+            selected = candidates[idx]
+            self.clear_pending_disambiguation(user)
+
+            model = selected.get('model', '')
+            create_params = pending.get('create_params', {})
+            original_intent = pending.get('original_intent', '')
+
+            if model == 'Task':
+                return self._disambiguate_task_selection(
+                    user, selected, create_params, original_intent, pending,
+                )
+            elif model == 'CalendarEvent':
+                return self._disambiguate_event_selection(
+                    user, selected, create_params, original_intent, pending,
+                )
+            else:
+                # Fallback: create new for unknown model type
+                logger.warning(
+                    "[DISAMBIGUATE] Unknown model %s, falling back to create", model,
+                )
+                from apps.core.ai_orchestrator.action_router import EnrichedAction
+                enriched = EnrichedAction(
+                    intent_type=original_intent,
+                    parameters=create_params,
+                    original_input=pending.get('original_input'),
+                )
+                msg = build_crud_confirmation_message(enriched, None)
+                self.store_pending_crud_action(user, {
+                    'intent_type': original_intent,
+                    'parameters': create_params,
+                    'original_intent': original_intent,
+                    'original_input': pending.get('original_input'),
+                    'recon_decision': 'create',
+                    'recon_context': None,
+                    'confirmation_message': msg,
+                })
+                return ActionResult(
+                    success=False,
+                    message=msg,
+                    error='crud_confirmation_required',
+                    action_type=original_intent,
+                )
+
+        return None
+
+    def _disambiguate_task_selection(self, user, selected, create_params, original_intent, pending):
+        """Handle disambiguation selection for a Task candidate."""
+        from apps.core.ai_orchestrator.action_router import EnrichedAction
+        from apps.core.ai_orchestrator.crud_confirmation import build_crud_confirmation_message
+        from apps.core.ai_orchestrator.activity_reconciliation import (
+            _parse_time, _times_match, ReconciliationDecision, ReconciliationResult,
+        )
+
+        # Load actual task to get current time
+        existing_time = None
+        try:
+            from apps.life.models import Task
+            task_obj = Task.objects.get(id=selected['id'], user=user)
+            existing_time = task_obj.scheduled_time
+        except Exception:
+            pass
+
+        new_time = _parse_time(create_params.get('scheduled_time'))
+        matched_obj = {
+            'model': 'Task', 'id': selected['id'],
+            'title': selected['title'],
+            'time': str(existing_time) if existing_time else None,
+        }
+
+        if _times_match(new_time, existing_time):
+            # Same time → SKIP
+            time_str = existing_time.strftime('%I:%M %p').lstrip('0') if existing_time else 'today'
+            recon = ReconciliationResult(
+                decision=ReconciliationDecision.SKIP,
+                original_intent=original_intent,
+                confidence=1.0,
+                matched_object=matched_obj,
+                skip_message=(
+                    f'You already have "{selected["title"]}" scheduled'
+                    + (f' at {time_str}' if existing_time else '')
+                    + '. No changes needed.'
+                ),
+                reason='disambiguated_same_time',
+            )
+            enriched = EnrichedAction(
+                intent_type=original_intent,
+                parameters=create_params,
+                original_input=pending.get('original_input'),
+            )
+        else:
+            # Different time → RESCHEDULE
+            mutate_params = {
+                'action': 'update',
+                'task_query': selected['title'],
+            }
+            if create_params.get('scheduled_time'):
+                mutate_params['new_scheduled_time'] = create_params['scheduled_time']
+            if create_params.get('end_time'):
+                mutate_params['new_end_time'] = create_params['end_time']
+            if create_params.get('due_date'):
+                mutate_params['new_due_date'] = create_params['due_date']
+            for k, v in create_params.items():
+                if k.startswith('_'):
+                    mutate_params[k] = v
+
+            recon = ReconciliationResult(
+                decision=ReconciliationDecision.RESCHEDULE,
+                original_intent=original_intent,
+                confidence=1.0,
+                matched_object=matched_obj,
+                redirected_intent='mutate_task',
+                redirected_params=mutate_params,
+                reason='disambiguated_different_time',
+            )
+            enriched = EnrichedAction(
+                intent_type='mutate_task',
+                parameters=mutate_params,
+                original_input=pending.get('original_input'),
+            )
+
+        msg = build_crud_confirmation_message(enriched, recon)
+        self.store_pending_crud_action(user, {
+            'intent_type': enriched.intent_type,
+            'parameters': enriched.parameters,
+            'original_intent': original_intent,
+            'original_input': pending.get('original_input'),
+            'recon_decision': recon.decision.value,
+            'recon_context': recon.matched_object,
+            'confirmation_message': msg,
+        })
+
+        logger.info(
+            "[DISAMBIGUATE] Selected task #%s '%s' -> %s, user=%s",
+            selected['id'], selected['title'], recon.decision.value, user.id,
+        )
+
+        return ActionResult(
+            success=False,
+            message=msg,
+            error='crud_confirmation_required',
+            action_type=enriched.intent_type,
+        )
+
+    def _disambiguate_event_selection(self, user, selected, create_params, original_intent, pending):
+        """Handle disambiguation selection for a CalendarEvent candidate."""
+        from apps.core.ai_orchestrator.action_router import EnrichedAction
+        from apps.core.ai_orchestrator.crud_confirmation import build_crud_confirmation_message
+        from apps.core.ai_orchestrator.activity_reconciliation import (
+            _parse_time, _times_match, _build_event_mutate_params,
+            ReconciliationDecision, ReconciliationResult,
+        )
+
+        # Load actual event to get current time
+        existing_time = None
+        event_obj = None
+        try:
+            from apps.calendar_engine.models import CalendarEvent
+            event_obj = CalendarEvent.objects.get(id=selected['id'], user=user)
+            if event_obj.start_dt:
+                try:
+                    from apps.core.utils import get_current_local_datetime
+                    user_now = get_current_local_datetime(user)
+                    existing_time = event_obj.start_dt.astimezone(user_now.tzinfo).time()
+                except Exception:
+                    existing_time = event_obj.start_dt.time()
+        except Exception:
+            pass
+
+        new_time = _parse_time(create_params.get('start_time'))
+        matched_obj = {
+            'model': 'CalendarEvent', 'id': selected['id'],
+            'title': selected['title'],
+            'time': str(existing_time) if existing_time else None,
+        }
+
+        if _times_match(new_time, existing_time):
+            # Same time → SKIP
+            time_str = existing_time.strftime('%I:%M %p').lstrip('0') if existing_time else ''
+            recon = ReconciliationResult(
+                decision=ReconciliationDecision.SKIP,
+                original_intent=original_intent,
+                confidence=1.0,
+                matched_object=matched_obj,
+                skip_message=(
+                    f'You already have "{selected["title"]}" on your calendar'
+                    + (f' at {time_str}' if time_str else '')
+                    + '. No changes needed.'
+                ),
+                reason='disambiguated_same_time',
+            )
+            enriched = EnrichedAction(
+                intent_type=original_intent,
+                parameters=create_params,
+                original_input=pending.get('original_input'),
+            )
+        else:
+            # Different time → RESCHEDULE
+            if event_obj:
+                mutate_params = _build_event_mutate_params(event_obj, create_params, user)
+            else:
+                mutate_params = {
+                    'action': 'update',
+                    'event_id': selected['id'],
+                }
+                if create_params.get('start_time'):
+                    mutate_params['start_time'] = create_params['start_time']
+
+            recon = ReconciliationResult(
+                decision=ReconciliationDecision.RESCHEDULE,
+                original_intent=original_intent,
+                confidence=1.0,
+                matched_object=matched_obj,
+                redirected_intent='mutate_calendar_event',
+                redirected_params=mutate_params,
+                reason='disambiguated_different_time',
+            )
+            enriched = EnrichedAction(
+                intent_type='mutate_calendar_event',
+                parameters=mutate_params,
+                original_input=pending.get('original_input'),
+            )
+
+        msg = build_crud_confirmation_message(enriched, recon)
+        self.store_pending_crud_action(user, {
+            'intent_type': enriched.intent_type,
+            'parameters': enriched.parameters,
+            'original_intent': original_intent,
+            'original_input': pending.get('original_input'),
+            'recon_decision': recon.decision.value,
+            'recon_context': recon.matched_object,
+            'confirmation_message': msg,
+        })
+
+        logger.info(
+            "[DISAMBIGUATE] Selected event #%s '%s' -> %s, user=%s",
+            selected['id'], selected['title'], recon.decision.value, user.id,
+        )
+
+        return ActionResult(
+            success=False,
+            message=msg,
+            error='crud_confirmation_required',
+            action_type=enriched.intent_type,
+        )
+
     def handle_crud_confirmation(self, user, response: str) -> Optional[ActionResult]:
         """
         Handle user's response to a CRUD confirmation request.

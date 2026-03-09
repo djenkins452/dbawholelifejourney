@@ -6,7 +6,6 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-<<<<<<< HEAD
 ## 2026-03-09 — Fix proactive briefing quality gate rejecting valid briefings
 
 - **Bug:** Beth's automatic daily briefing was not being delivered when the user opened chat. Valid data-rich briefings were being silently rejected by the fallback pattern quality gate.

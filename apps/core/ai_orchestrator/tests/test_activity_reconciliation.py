@@ -19,6 +19,7 @@ from apps.core.ai_orchestrator.activity_reconciliation import (
     _compute_title_similarity,
     _extract_keywords,
     _parse_time,
+    _score_all_matches,
     _times_match,
     reconcile_activity,
 )

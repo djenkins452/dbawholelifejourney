@@ -3024,6 +3024,34 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         f"{pending_crud['confirmation_message']}\n\n"
                         "Please reply with: CONFIRM, CANCEL, or EDIT"
                     )
+            # Then check for pending activity disambiguation (multi-candidate)
+            elif (pending_disambig := intent_service.get_pending_disambiguation(self.user)):
+                disambig_result = intent_service.handle_disambiguation_response(
+                    self.user, message,
+                )
+                if disambig_result:
+                    if disambig_result.action_type in (
+                        'cancelled', 'expired',
+                    ):
+                        response = disambig_result.message
+                    elif disambig_result.error == 'crud_confirmation_required':
+                        # Two-step: disambiguation resolved, now showing CRUD gate
+                        response = disambig_result.message
+                    else:
+                        response = (
+                            disambig_result.message
+                            + self._format_confirmation_detail(disambig_result)
+                        )
+                        if disambig_result.success:
+                            actions_taken.append(
+                                self._build_action_taken(disambig_result)
+                            )
+                else:
+                    # Unrecognized — re-show disambiguation prompt
+                    response = (
+                        f"{pending_disambig['confirmation_message']}\n\n"
+                        "Please reply with a number, NONE, or CANCEL"
+                    )
             # Then check for pending entity clarification (disambiguation)
             elif (clarification := intent_service.get_pending_clarification(self.user)):
                 clarification_result = intent_service.resolve_clarification(
@@ -6378,6 +6406,52 @@ Rules for this response:
                         logger.warning(
                             "Streaming CRUD confirmation check failed: %s",
                             crud_err, exc_info=True,
+                        )
+
+                # ── Pending disambiguation (multi-candidate selection) ──
+                if not _direct_response:
+                    try:
+                        from apps.ai.intent_service import intent_service
+                        _pending_disambig = (
+                            intent_service.get_pending_disambiguation(self.user)
+                        )
+                        if _pending_disambig:
+                            _disambig_result = (
+                                intent_service.handle_disambiguation_response(
+                                    self.user, message,
+                                )
+                            )
+                            if _disambig_result:
+                                if _disambig_result.action_type in (
+                                    'cancelled', 'expired',
+                                ):
+                                    _direct_response = _disambig_result.message
+                                elif _disambig_result.error == 'crud_confirmation_required':
+                                    _direct_response = _disambig_result.message
+                                else:
+                                    _direct_response = (
+                                        _disambig_result.message
+                                        + self._format_confirmation_detail(
+                                            _disambig_result
+                                        )
+                                    )
+                                    if _disambig_result.success:
+                                        actions_taken.append(
+                                            self._build_action_taken(
+                                                _disambig_result
+                                            )
+                                        )
+                            else:
+                                # Unrecognized — re-show disambiguation
+                                _direct_response = (
+                                    f"{_pending_disambig['confirmation_message']}"
+                                    "\n\nPlease reply with a number, "
+                                    "NONE, or CANCEL"
+                                )
+                    except Exception as disambig_err:
+                        logger.warning(
+                            "Streaming disambiguation check failed: %s",
+                            disambig_err, exc_info=True,
                         )
 
                 # ── Pending clarification check (entity disambiguation) ──

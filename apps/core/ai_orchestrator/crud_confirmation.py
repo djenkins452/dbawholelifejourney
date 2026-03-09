@@ -75,6 +75,76 @@ def parse_confirmation_response(response: str) -> Optional[str]:
     return None
 
 
+# ── Disambiguation Response Parsing ──────────────────────────────────
+
+def parse_disambiguation_response(response: str, num_candidates: int) -> Optional[dict]:
+    """
+    Parse user response to a disambiguation prompt.
+
+    Returns:
+        {'action': 'select', 'index': int}   — user picked a number (0-based)
+        {'action': 'cancel'}                  — user wants to cancel
+        {'action': 'create_new'}              — user wants to create a new one instead
+        None                                  — unrecognized response
+    """
+    token = response.strip().upper()
+
+    # Cancel
+    if token.startswith('CANCEL') or token in ('NO', 'N'):
+        return {'action': 'cancel'}
+
+    # "None of these" / create new
+    if token in ('NONE', 'NEW', 'CREATE NEW', 'NONE OF THESE', 'CREATE'):
+        return {'action': 'create_new'}
+
+    # Numeric selection (strip leading # if present)
+    cleaned = response.strip().lstrip('#').strip()
+    if cleaned.isdigit():
+        num = int(cleaned)
+        if 1 <= num <= num_candidates:
+            return {'action': 'select', 'index': num - 1}
+        return None  # Out of range
+
+    # Ordinal selection
+    ordinals = {
+        'FIRST': 1, 'SECOND': 2, 'THIRD': 3, 'FOURTH': 4, 'FIFTH': 5,
+        'THE FIRST ONE': 1, 'THE SECOND ONE': 2, 'THE THIRD ONE': 3,
+        'THE FOURTH ONE': 4, 'THE FIFTH ONE': 5,
+        'THE FIRST': 1, 'THE SECOND': 2, 'THE THIRD': 3,
+    }
+    ordinal = ordinals.get(token)
+    if ordinal and 1 <= ordinal <= num_candidates:
+        return {'action': 'select', 'index': ordinal - 1}
+
+    return None
+
+
+# ── Disambiguation Message Builder ───────────────────────────────────
+
+def build_disambiguation_message(recon: ReconciliationResult) -> str:
+    """Build a numbered disambiguation prompt with title + time for each candidate."""
+    parts = []
+    if recon.confirm_message:
+        parts.append(recon.confirm_message)
+    else:
+        parts.append('I found multiple matches. Which one did you mean?')
+
+    parts.append('')
+    for i, c in enumerate(recon.candidates[:5]):
+        line = f"  {i + 1}. {c.get('title', '?')}"
+        time_val = c.get('time')
+        if time_val:
+            line += f" ({time_val})"
+        due = c.get('due_date')
+        if due and due != 'None':
+            line += f" [due {due}]"
+        parts.append(line)
+
+    parts.append('')
+    parts.append('Reply with a number, NONE to create new, or CANCEL')
+    return '\n'.join(parts)
+
+
 # ── Confirmation Message Builder ─────────────────────────────────────
 
 # Human-readable names for intent types
@@ -159,6 +229,9 @@ def build_crud_confirmation_message(
 
     if recon_result and recon_result.decision == ReconciliationDecision.CONFIRM:
         return _build_confirm_ambiguous_message(recon_result, label, params)
+
+    if recon_result and recon_result.decision == ReconciliationDecision.DISAMBIGUATE:
+        return build_disambiguation_message(recon_result)
 
     # Standard create/log/mutate confirmation
     return _build_standard_message(intent, label, params)

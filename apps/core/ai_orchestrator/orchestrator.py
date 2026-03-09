@@ -240,6 +240,32 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
                     original_input=enriched.original_input,
                 )
                 enriched_actions[-1] = enriched
+            elif recon_result.decision == ReconciliationDecision.DISAMBIGUATE:
+                # Multiple candidates — ask user to select before CRUD gate
+                from apps.core.ai_orchestrator.crud_confirmation import (
+                    build_disambiguation_message,
+                )
+                from apps.ai.intent_service import ActionResult
+                msg = build_disambiguation_message(recon_result)
+                intent_service.store_pending_disambiguation(user, {
+                    'candidates': recon_result.candidates,
+                    'original_intent': intent_result.intent_type,
+                    'create_params': intent_result.parameters,
+                    'original_input': orchestrator_result.original_input,
+                    'confirmation_message': msg,
+                })
+                logger.info(
+                    "[DISAMBIGUATE] Pending: %s user=%s candidates=%d",
+                    enriched.intent_type, user.id, len(recon_result.candidates),
+                )
+                result = ActionResult(
+                    success=False,
+                    message=msg,
+                    error='disambiguation_required',
+                    action_type=enriched.intent_type,
+                )
+                action_results.append(result)
+                continue  # Skip CRUD gate — wait for user selection
             # CREATE, SKIP, CONFIRM all fall through to CRUD gate
         except ImportError:
             pass  # Module not installed yet

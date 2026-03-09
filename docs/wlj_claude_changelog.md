@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Activity Disambiguation for CoS Reconciliation Layer
+
+- **DISAMBIGUATE decision type** added to `ReconciliationDecision` enum. When 2+ candidates match a user's create/log intent with confidence ≥ 0.7, the system asks the user to choose instead of guessing.
+- **Two-step flow:** Disambiguation prompt → user picks number → CRUD confirmation gate → user confirms → execution. No shortcuts, no automatic selection.
+- **Disambiguation response parsing** (`parse_disambiguation_response()`): Accepts numeric picks ("1", "2", "#1"), ordinals ("first", "second"), CANCEL, and NONE/NEW to create a fresh activity. Deterministic, no NLP.
+- **Rich disambiguation prompt** (`build_disambiguation_message()`): Numbered list with title + time + due date for each candidate. Format: "1. Workout (6:15 AM)", "2. Workout (1:30 PM)".
+- **Two affected reconcilers:** `_reconcile_task` and `_reconcile_event` now use `_score_all_matches()` to detect multiple high-confidence candidates. Other reconcilers (health_log, medicine, workout, goal, intention, prayer, habit, journal, reminder) use exact-name `.first()` / `.exists()` queries with no title ambiguity.
+- **Candidate info builders:** `_build_task_candidate_info()` and `_build_event_candidate_info()` produce rich dicts with id, title, time, model for the disambiguation prompt.
+- **Intent service:** Added `store/get/clear_pending_disambiguation()` (cache key: `pending_disambiguate_{user.id}`, 300s TTL), `handle_disambiguation_response()`, and domain helpers `_disambiguate_task_selection()` / `_disambiguate_event_selection()`.
+- **Orchestrator:** DISAMBIGUATE branch in `enrich_and_execute()` stores pending disambiguation and skips CRUD gate. After user selects, the resolved intent re-enters CRUD gate.
+- **Personal assistant:** Disambiguation check added in both non-streaming (line ~3027) and streaming (line ~6383) paths, between CRUD check and clarification check.
+- **Files modified:** `activity_reconciliation.py`, `crud_confirmation.py`, `intent_service.py`, `orchestrator.py`, `personal_assistant.py`, `docs/ENGINE_COS_REFERENCE.md`
+- **Files created:** `apps/core/ai_orchestrator/tests/test_disambiguation.py`
+- **Tests:** 37 new disambiguation tests + all 169 orchestrator tests pass + all 1,152 life/calendar/ai tests pass
+
 ## 2026-03-09 — CoS Activity Reconciliation & CRUD Confirmation Gate
 
 - **Two-layer safety system** injected into the orchestrator pipeline between intent enrichment and execution. No write operation executes without explicit user confirmation.

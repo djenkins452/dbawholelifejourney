@@ -25,10 +25,11 @@ logger = logging.getLogger(__name__)
 
 class ReconciliationDecision(Enum):
     """Possible outcomes of reconciliation."""
-    CREATE = 'create'          # No match found — propose creation
-    RESCHEDULE = 'reschedule'  # Match found, different time — propose mutate
-    SKIP = 'skip'              # Match found, same time — propose no-op
-    CONFIRM = 'confirm'        # Ambiguous match — ask user to choose
+    CREATE = 'create'              # No match found — propose creation
+    RESCHEDULE = 'reschedule'      # Match found, different time — propose mutate
+    SKIP = 'skip'                  # Match found, same time — propose no-op
+    CONFIRM = 'confirm'            # Ambiguous match — ask user to choose
+    DISAMBIGUATE = 'disambiguate'  # Multiple matches — user must pick one
 
 
 @dataclass
@@ -117,6 +118,53 @@ def _score_best_match(query_title: str, candidates):
             best = obj
 
     return best, best_score
+
+
+def _score_all_matches(query_title: str, candidates):
+    """Score all candidates and return list of (object, confidence) with score >= CONFIDENCE_MEDIUM, sorted desc."""
+    query_lower = query_title.strip().lower()
+    scored = []
+    for obj in candidates:
+        title = getattr(obj, 'title', '') or ''
+        score = _compute_title_similarity(query_lower, title.strip().lower())
+        if score >= CONFIDENCE_MEDIUM:
+            scored.append((obj, score))
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return scored
+
+
+def _build_task_candidate_info(task_obj):
+    """Build rich candidate dict for a Task object (includes time for disambiguation prompt)."""
+    time_str = None
+    if task_obj.scheduled_time:
+        time_str = task_obj.scheduled_time.strftime('%I:%M %p').lstrip('0')
+    return {
+        'id': task_obj.id,
+        'title': task_obj.title,
+        'time': time_str,
+        'due_date': str(task_obj.due_date) if getattr(task_obj, 'due_date', None) else None,
+        'model': 'Task',
+    }
+
+
+def _build_event_candidate_info(event_obj, user_tz=None):
+    """Build rich candidate dict for a CalendarEvent object."""
+    time_str = None
+    if event_obj.start_dt:
+        try:
+            if user_tz:
+                local_time = event_obj.start_dt.astimezone(user_tz).time()
+            else:
+                local_time = event_obj.start_dt.time()
+            time_str = local_time.strftime('%I:%M %p').lstrip('0')
+        except Exception:
+            pass
+    return {
+        'id': event_obj.id,
+        'title': event_obj.title,
+        'time': time_str,
+        'model': 'CalendarEvent',
+    }
 
 
 # ── Time Utilities ───────────────────────────────────────────────────
@@ -236,19 +284,23 @@ def _reconcile_task(user, enriched_action) -> ReconciliationResult:
         'time': str(best.scheduled_time) if best.scheduled_time else None,
     }
 
-    # Multiple high-confidence candidates → CONFIRM
-    if len(candidates) > 1 and confidence < CONFIDENCE_HIGH:
-        _log_decision(intent, title, best.title, confidence, 'CONFIRM', 'multiple_candidates')
-        return ReconciliationResult(
-            decision=ReconciliationDecision.CONFIRM,
-            original_intent=intent, confidence=confidence,
-            matched_object=matched_obj,
-            candidates=[{'id': t.id, 'title': t.title} for t in candidates[:5]],
-            confirm_message=f"I found {len(candidates)} tasks matching '{title}'. Which one did you mean?",
-            reason='multiple_candidates',
-        )
+    # Multiple high-confidence candidates → DISAMBIGUATE
+    if len(candidates) > 1:
+        scored = _score_all_matches(title, candidates)
+        high_scorers = [s for s in scored if s[1] >= CONFIDENCE_MEDIUM]
+        if len(high_scorers) > 1:
+            _log_decision(intent, title, best.title, confidence, 'DISAMBIGUATE',
+                          f'multiple_high_confidence ({len(high_scorers)})')
+            return ReconciliationResult(
+                decision=ReconciliationDecision.DISAMBIGUATE,
+                original_intent=intent, confidence=confidence,
+                matched_object=matched_obj,
+                candidates=[_build_task_candidate_info(obj) for obj, _ in high_scorers[:5]],
+                confirm_message=f'I found {len(high_scorers)} tasks matching "{title}". Which one?',
+                reason='multiple_high_confidence',
+            )
 
-    # Time comparison
+    # Time comparison (single match or only one high-confidence)
     new_time = _parse_time(params.get('scheduled_time'))
     existing_time = best.scheduled_time
 
@@ -361,6 +413,25 @@ def _reconcile_event(user, enriched_action) -> ReconciliationResult:
             original_intent=intent, confidence=confidence,
             reason=f'low_confidence ({confidence:.2f})',
         )
+
+    # Multiple high-confidence candidates → DISAMBIGUATE
+    if len(candidates) > 1:
+        scored = _score_all_matches(title, candidates)
+        high_scorers = [s for s in scored if s[1] >= CONFIDENCE_MEDIUM]
+        if len(high_scorers) > 1:
+            _log_decision(intent, title, best.title, confidence, 'DISAMBIGUATE',
+                          f'multiple_high_confidence ({len(high_scorers)})')
+            return ReconciliationResult(
+                decision=ReconciliationDecision.DISAMBIGUATE,
+                original_intent=intent, confidence=confidence,
+                matched_object={
+                    'model': 'CalendarEvent', 'id': best.id, 'title': best.title,
+                    'time': None,
+                },
+                candidates=[_build_event_candidate_info(obj, user_tz) for obj, _ in high_scorers[:5]],
+                confirm_message=f'I found {len(high_scorers)} events matching "{title}". Which one?',
+                reason='multiple_high_confidence',
+            )
 
     existing_time = None
     if best.start_dt and user_tz:

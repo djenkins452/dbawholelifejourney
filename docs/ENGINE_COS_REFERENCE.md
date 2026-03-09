@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-09 (Activity Reconciliation + CRUD Confirmation Gate — two-layer safety system before execution)
+**Last updated:** 2026-03-09 (Activity Disambiguation — DISAMBIGUATE decision type for multi-candidate reconciliation)
 
 ---
 

@@ -895,15 +895,28 @@ class ReceiptUploadView(
         return redirect("meals:receipt_confirm", pk=receipt.pk)
 
     def _sync_process_image(self, receipt, raw_bytes, content_type, household):
-        """Sync fallback when Celery is unavailable."""
+        """Process receipt image synchronously via Vision AI."""
         from apps.meals.services.receipt_vision import ReceiptVisionService
 
         service = ReceiptVisionService()
 
+        # Get Cloudinary URL if available — preferred path because
+        # Cloudinary normalizes image format (handles HEIC→JPEG, etc.)
+        image_url = None
+        try:
+            if receipt.image:
+                url = receipt.image.url
+                if url and url.startswith("http"):
+                    image_url = url
+        except Exception:
+            pass
+
         if content_type == "application/pdf":
             vision_result = service.process_pdf(raw_bytes)
         else:
-            vision_result = service.process_image(raw_bytes, content_type)
+            vision_result = service.process_image(
+                raw_bytes, content_type, image_url=image_url
+            )
 
         if vision_result.error:
             receipt.confirmation_status = Receipt.CONFIRM_FAILED
@@ -1284,10 +1297,21 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
 
             service = ReceiptVisionService()
 
+            # Get Cloudinary URL if available
+            image_url = None
+            try:
+                url = receipt.image.url
+                if url and url.startswith("http"):
+                    image_url = url
+            except Exception:
+                pass
+
             if content_type == "application/pdf":
                 vision_result = service.process_pdf(raw_bytes)
             else:
-                vision_result = service.process_image(raw_bytes, content_type)
+                vision_result = service.process_image(
+                    raw_bytes, content_type, image_url=image_url
+                )
 
             if vision_result.error:
                 receipt.confirmation_status = Receipt.CONFIRM_FAILED

@@ -6,6 +6,12 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Add telemetry log for accepted proactive briefings
+
+- **Enhancement:** Added `v7_BRIEFING_ACCEPTED` log line in `generate_proactive_briefing()` after the quality gate, so production logs show when briefings pass (not just when they're rejected).
+- **Files:** `apps/ai/personal_assistant.py`
+- **Why:** Completes the observability loop for proactive briefing delivery — can now trace GENERATE → ACCEPTED → DELIVERED in logs.
+
 ## 2026-03-09 — Improve receipt Vision AI extraction quality
 
 - **Bug:** Vision API only extracting ~8 items from a Food Lion receipt with 20+ items, and hallucinating items like "kitty litter" that weren't on the receipt.

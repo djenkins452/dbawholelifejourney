@@ -2591,6 +2591,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 )
                 return None
 
+            logger.info(
+                "v7_BRIEFING_ACCEPTED user=%s len=%s",
+                self.user.id, len(response_text),
+            )
+
             # Save ONLY the assistant response (no fake user message)
             assistant_msg = AssistantMessage.objects.create(
                 conversation=conversation,

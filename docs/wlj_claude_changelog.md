@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Fix receipt processing stuck at 0%
+
+- **Bug:** Receipt processing gets stuck at 0% with no progress or error
+- **Root cause #1:** Sync fallback ran `_sync_process_receipt()` INSIDE `transaction.atomic()` — if the Vision API call or item creation failed, the entire transaction rolled back including the `CONFIRM_FAILED` status update. Receipt stayed in `CONFIRM_PROCESSING` forever.
+- **Root cause #2:** Fallback timeout was 30s — unnecessary delay when Celery isn't processing.
+- **Fix:**
+  - Sync fallback now uses a two-phase approach: (1) acquire lock inside `atomic()` and claim ownership by setting `progress=5`, then (2) process OUTSIDE the atomic block so saves aren't rolled back on failure
+  - Reduced fallback timeout from 30s to 10s for faster recovery
+  - Error handling in `_sync_process_receipt` now works correctly since it runs outside the transaction
+- **Files:** `apps/meals/views.py`
+- **Why:** Users reported receipts stuck at "Processing Receipt... 0%" forever — neither progressing nor showing errors
+
 ## 2026-03-08 — Pantry Storage Intelligence + Barcode Scanner + Receipt Progress Bar
 
 - **Feature: Storage Location Intelligence**

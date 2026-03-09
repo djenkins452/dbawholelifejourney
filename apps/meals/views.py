@@ -1231,11 +1231,13 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
         status = receipt.confirmation_status
 
         if status == Receipt.CONFIRM_PROCESSING:
-            # Check if processing is stuck (> 30 seconds old with no progress)
+            # Check if processing is stuck (> 10s old with no progress)
             age_seconds = (timezone.now() - receipt.created_at).total_seconds()
 
-            if age_seconds > 30 and receipt.image and receipt.processing_progress < 25:
-                # Try to acquire lock — if Celery task holds it, skip fallback
+            if age_seconds > 10 and receipt.image and receipt.processing_progress < 25:
+                # Try to claim ownership via select_for_update, then process
+                # OUTSIDE the atomic block to avoid rolling back on failure.
+                should_process = False
                 try:
                     with transaction.atomic():
                         locked = (
@@ -1247,12 +1249,22 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
                             .first()
                         )
                         if locked:
+                            # Claim ownership by setting progress > 0
+                            locked.processing_progress = 5
+                            locked.processing_stage = "fallback"
+                            locked.save(
+                                update_fields=[
+                                    "processing_progress",
+                                    "processing_stage",
+                                    "updated_at",
+                                ]
+                            )
+                            should_process = True
                             logger.info(
-                                "Receipt %d stuck in processing for %.0fs, sync fallback",
+                                "Receipt %d stuck for %.0fs, claiming for sync fallback",
                                 pk,
                                 age_seconds,
                             )
-                            self._sync_process_receipt(locked)
                         else:
                             logger.info(
                                 "Receipt %d locked by another process, skipping fallback",
@@ -1262,6 +1274,11 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
                     logger.error(
                         "Receipt %d sync fallback lock failed: %s", pk, e
                     )
+
+                # Process OUTSIDE the atomic block so saves aren't rolled back
+                if should_process:
+                    receipt.refresh_from_db()
+                    self._sync_process_receipt(receipt)
 
                 receipt.refresh_from_db()
                 status = receipt.confirmation_status

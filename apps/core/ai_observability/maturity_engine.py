@@ -421,3 +421,216 @@ def _domain_has_recent_data(domain_name: str, user=None) -> bool:
             return False
     except Exception:
         return False
+
+
+# =============================================================================
+# Phase 6: Persistent Snapshots & Recommendations
+# =============================================================================
+
+
+def create_daily_snapshot(user=None):
+    """
+    Compute and persist a daily maturity snapshot.
+
+    Called by the ISE scheduler once per day. If a snapshot already exists
+    for today, it is updated in place.
+
+    Returns:
+        SystemMaturitySnapshot instance
+    """
+    from apps.core.ai_observability.models import SystemMaturitySnapshot
+
+    today = timezone.now().date()
+    scores = compute_all_maturity_scores(user)
+
+    recommendations = generate_recommendations(scores)
+
+    snapshot, created = SystemMaturitySnapshot.objects.update_or_create(
+        snapshot_date=today,
+        defaults={
+            'infrastructure_score': scores.get('infrastructure', {}).get('score') or 0,
+            'infrastructure_details': scores.get('infrastructure', {}).get('details', {}),
+            'intelligence_score': scores.get('intelligence', {}).get('score') or 0,
+            'intelligence_details': scores.get('intelligence', {}).get('details', {}),
+            'safety_score': scores.get('safety', {}).get('score') or 0,
+            'safety_details': scores.get('safety', {}).get('details', {}),
+            'domain_coverage_score': scores.get('domain_coverage', {}).get('score') or 0,
+            'domain_coverage_details': scores.get('domain_coverage', {}).get('details', {}),
+            'life_impact_score': scores.get('life_impact', {}).get('score') or 0,
+            'life_impact_details': scores.get('life_impact', {}).get('details', {}),
+            'overall_score': scores.get('overall', {}).get('score') or 0,
+            'recommendations': recommendations,
+        },
+    )
+
+    action = "Created" if created else "Updated"
+    logger.info(
+        "MATURITY_SNAPSHOT_%s date=%s overall=%d infra=%d intel=%d safety=%d domain=%d life=%d",
+        action.upper(), today,
+        snapshot.overall_score, snapshot.infrastructure_score,
+        snapshot.intelligence_score, snapshot.safety_score,
+        snapshot.domain_coverage_score, snapshot.life_impact_score,
+    )
+
+    return snapshot
+
+
+def generate_recommendations(scores: Dict[str, dict]) -> list:
+    """
+    Generate actionable self-improvement recommendations based on scores.
+
+    Returns list of dicts: {category, priority, message, action}
+    """
+    recommendations = []
+
+    # Domain coverage gaps
+    domain = scores.get('domain_coverage', {})
+    if domain.get('score') is not None and domain['score'] < 60:
+        details = domain.get('details', {})
+        no_intents = details.get('no_intents', 0)
+        if no_intents > 0:
+            recommendations.append({
+                'category': 'domain_coverage',
+                'priority': 'medium',
+                'message': f"{no_intents} domains have no intent types registered. "
+                           "Consider adding CoS intents for broader coverage.",
+                'action': 'Register capabilities.py intents for undercovered domains.',
+            })
+
+    # Infrastructure issues
+    infra = scores.get('infrastructure', {})
+    if infra.get('score') is not None and infra['score'] < 80:
+        details = infra.get('details', {})
+        if details.get('scheduler') is not None and details['scheduler'] < 70:
+            recommendations.append({
+                'category': 'infrastructure',
+                'priority': 'high',
+                'message': "Scheduler health is below 70. Check ISE/Celery worker status.",
+                'action': 'Verify Celery Beat is running and APScheduler heartbeats are current.',
+            })
+        if details.get('engine') is not None and details['engine'] < 70:
+            recommendations.append({
+                'category': 'infrastructure',
+                'priority': 'high',
+                'message': "Engine health is below 70. Some engines may not be responding.",
+                'action': 'Check Operations Wall for engine heartbeat failures.',
+            })
+
+    # Safety issues
+    safety = scores.get('safety', {})
+    if safety.get('score') is not None and safety['score'] < 90:
+        recommendations.append({
+            'category': 'safety',
+            'priority': 'high',
+            'message': "Execution safety score is below 90. Review action handler error rates.",
+            'action': 'Check telemetry logs for recent action execution failures.',
+        })
+
+    # Intelligence quality
+    intel = scores.get('intelligence', {})
+    if intel.get('score') is not None and intel['score'] < 60:
+        details = intel.get('details', {})
+        if details.get('memory_util', 100) < 30:
+            recommendations.append({
+                'category': 'intelligence',
+                'priority': 'medium',
+                'message': "Memory utilization is low. The system has not built up conversation memory yet.",
+                'action': 'Encourage more assistant conversations to build memory base.',
+            })
+        if details.get('proactive_delivery', 100) < 20:
+            recommendations.append({
+                'category': 'intelligence',
+                'priority': 'medium',
+                'message': "Very few proactive check-ins generated in the last 7 days.",
+                'action': 'Verify proactive check-in scheduled tasks are running.',
+            })
+
+    # Life impact
+    life = scores.get('life_impact', {})
+    if life.get('score') is not None and life['score'] < 40:
+        details = life.get('details', {})
+        if details.get('engagement_depth', 100) < 30:
+            recommendations.append({
+                'category': 'life_impact',
+                'priority': 'low',
+                'message': "Low domain engagement. Most domains have no recent data.",
+                'action': 'Explore underused domains (finance, faith, goals) to increase coverage.',
+            })
+
+    return recommendations
+
+
+def get_trend_data(days: int = 30) -> list:
+    """
+    Get maturity trend data for the last N days.
+
+    Returns list of dicts sorted by date, each with:
+    {date, overall, infrastructure, intelligence, safety, domain_coverage, life_impact}
+    """
+    from apps.core.ai_observability.models import SystemMaturitySnapshot
+
+    cutoff = timezone.now().date() - timezone.timedelta(days=days)
+    snapshots = SystemMaturitySnapshot.objects.filter(
+        snapshot_date__gte=cutoff,
+    ).order_by('snapshot_date')
+
+    return [
+        {
+            'date': str(s.snapshot_date),
+            'overall': s.overall_score,
+            'infrastructure': s.infrastructure_score,
+            'intelligence': s.intelligence_score,
+            'safety': s.safety_score,
+            'domain_coverage': s.domain_coverage_score,
+            'life_impact': s.life_impact_score,
+        }
+        for s in snapshots
+    ]
+
+
+def detect_regressions(threshold: int = 10) -> list:
+    """
+    Detect score regressions (drops > threshold in 48 hours).
+
+    Returns list of {metric, previous, current, delta, date} dicts.
+    """
+    from apps.core.ai_observability.models import SystemMaturitySnapshot
+
+    try:
+        latest = SystemMaturitySnapshot.objects.latest()
+    except SystemMaturitySnapshot.DoesNotExist:
+        return []
+
+    cutoff = latest.snapshot_date - timezone.timedelta(days=2)
+    previous = SystemMaturitySnapshot.objects.filter(
+        snapshot_date__lte=cutoff,
+    ).order_by('-snapshot_date').first()
+
+    if not previous:
+        return []
+
+    regressions = []
+    metrics = [
+        ('overall', 'overall_score'),
+        ('infrastructure', 'infrastructure_score'),
+        ('intelligence', 'intelligence_score'),
+        ('safety', 'safety_score'),
+        ('domain_coverage', 'domain_coverage_score'),
+        ('life_impact', 'life_impact_score'),
+    ]
+
+    for name, field in metrics:
+        current_val = getattr(latest, field, 0)
+        previous_val = getattr(previous, field, 0)
+        delta = current_val - previous_val
+
+        if delta < -threshold:
+            regressions.append({
+                'metric': name,
+                'previous': previous_val,
+                'current': current_val,
+                'delta': delta,
+                'date': str(latest.snapshot_date),
+            })
+
+    return regressions

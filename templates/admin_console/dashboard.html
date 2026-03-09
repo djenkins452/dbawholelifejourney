@@ -196,6 +196,53 @@
     {% endif %}
     {% endif %}
 
+    <!-- Maturity Regressions (Phase 6) -->
+    {% if maturity_regressions %}
+    <div class="section-divider">
+        <h2 class="section-title" style="color: #ef4444;">Maturity Regressions</h2>
+    </div>
+    <div class="table-container mb-8">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Previous</th>
+                    <th>Current</th>
+                    <th>Change</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for reg in maturity_regressions %}
+                <tr>
+                    <td><strong>{{ reg.metric }}</strong></td>
+                    <td>{{ reg.previous }}</td>
+                    <td>{{ reg.current }}</td>
+                    <td><span class="badge" style="background: color-mix(in srgb, #ef4444 15%, transparent); color: #ef4444;">{{ reg.delta }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Self-Improvement Recommendations (Phase 6) -->
+    {% if maturity_recommendations %}
+    <div class="section-divider">
+        <h2 class="section-title">Improvement Recommendations</h2>
+    </div>
+    <div class="admin-grid mb-8" style="grid-template-columns: 1fr;">
+        {% for rec in maturity_recommendations %}
+        <div class="stat-card" style="border-left: 4px solid {% if rec.priority == 'high' %}#ef4444{% elif rec.priority == 'medium' %}#f59e0b{% else %}#6b7280{% endif %};">
+            <div class="stat-content" style="gap: 4px;">
+                <span class="stat-label" style="text-transform: uppercase; font-size: 11px;">{{ rec.category }} &middot; {{ rec.priority }}</span>
+                <span style="font-size: 14px;">{{ rec.message }}</span>
+                <span class="stat-label" style="font-style: italic;">{{ rec.action }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Admin Sections -->
     <div class="admin-grid">
         <!-- Site Configuration -->

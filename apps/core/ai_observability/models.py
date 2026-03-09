@@ -1202,3 +1202,97 @@ class COASHealthSnapshot(models.Model):
     computed_at = models.DateTimeField(
         help_text="When these scores were last computed.",
     )
+
+
+class SystemMaturitySnapshot(models.Model):
+    """
+    Daily system maturity snapshot for trend tracking.
+
+    Captures the 6-score maturity hierarchy (Phase 6) once per day.
+    Enables trend charts, regression detection, and self-improvement
+    recommendations in the Command Center.
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_systemmaturitysnapshot"
+        ordering = ["-snapshot_date"]
+        get_latest_by = "snapshot_date"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["snapshot_date"],
+                name="unique_maturity_per_day",
+            ),
+        ]
+
+    snapshot_date = models.DateField(
+        unique=True,
+        help_text="Date this snapshot covers.",
+    )
+
+    # Level 1: Infrastructure
+    infrastructure_score = models.IntegerField(
+        default=0,
+        help_text="Infrastructure health (0-100).",
+    )
+    infrastructure_details = models.JSONField(
+        default=dict, blank=True,
+        help_text="Breakdown: scheduler, engine, freshness scores.",
+    )
+
+    # Level 2: Intelligence Quality
+    intelligence_score = models.IntegerField(
+        default=0,
+        help_text="CoS intelligence quality (0-100).",
+    )
+    intelligence_details = models.JSONField(
+        default=dict, blank=True,
+        help_text="Breakdown: memory util, proactive delivery, domain coverage.",
+    )
+
+    # Level 3: Execution Safety
+    safety_score = models.IntegerField(
+        default=0,
+        help_text="Execution safety (0-100).",
+    )
+    safety_details = models.JSONField(
+        default=dict, blank=True,
+        help_text="Breakdown: success rate, learning mode integrity.",
+    )
+
+    # Level 4: Domain Coverage
+    domain_coverage_score = models.IntegerField(
+        default=0,
+        help_text="Domain coverage completeness (0-100).",
+    )
+    domain_coverage_details = models.JSONField(
+        default=dict, blank=True,
+        help_text="Per-domain breakdown.",
+    )
+
+    # Level 5: Life Impact
+    life_impact_score = models.IntegerField(
+        default=0,
+        help_text="Life impact (0-100).",
+    )
+    life_impact_details = models.JSONField(
+        default=dict, blank=True,
+        help_text="Breakdown: goal progress, routine adherence, engagement.",
+    )
+
+    # Composite
+    overall_score = models.IntegerField(
+        default=0,
+        help_text="Weighted composite maturity score (0-100).",
+    )
+
+    # Recommendations generated for this snapshot
+    recommendations = models.JSONField(
+        default=list, blank=True,
+        help_text="Auto-generated improvement recommendations.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Maturity {self.snapshot_date}: {self.overall_score}/100"

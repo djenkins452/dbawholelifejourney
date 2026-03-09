@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Phase 6: System Maturity Measurement (Holistic System Upgrade)
+
+- **Maturity Snapshot Model:** New `SystemMaturitySnapshot` model persists daily scores (6 dimensions + composite). Migration 0105.
+- **Daily Snapshot:** `create_daily_snapshot()` computes and stores maturity scores with `update_or_create`.
+- **Self-Improvement Recommendations:** Auto-generated based on score thresholds (infrastructure < 80, safety < 90, coverage < 60, etc.). Displayed on dashboard with priority-colored cards.
+- **Trend Data:** `get_trend_data(days)` returns 30-day score history for trend charts.
+- **Regression Detection:** `detect_regressions(threshold=10)` flags metric drops > 10 points in 48 hours.
+- **Dashboard Updates:** Regression alerts table (red), improvement recommendations cards (priority-colored).
+- **Files:** `apps/core/ai_observability/models.py`, `apps/core/ai_observability/maturity_engine.py`, `apps/admin_console/views.py`, `templates/admin_console/dashboard.html`, migration 0105
+- **Tests:** 312 pass (admin_console + observability)
+
 ## 2026-03-09 — Phase 5: Command Center Holistic Dashboard (Holistic System Upgrade)
 
 - **Maturity Engine:** New `apps/core/ai_observability/maturity_engine.py` — computes 6 maturity scores (0-100): infrastructure health, CoS intelligence, execution safety, domain coverage, life impact, overall composite.

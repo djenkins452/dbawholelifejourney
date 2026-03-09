@@ -267,17 +267,25 @@ class AdminDashboardView(HelpContextMixin, AdminRequiredMixin, TemplateView):
             # Admin URL path for Django Admin link
             context['admin_url_path'] = settings.ADMIN_URL_PATH
 
-            # Phase 5: System Maturity Scores
+            # Phase 5+6: System Maturity Scores + Recommendations
             try:
                 from apps.core.ai_observability.maturity_engine import (
                     compute_all_maturity_scores,
+                    generate_recommendations,
+                    get_trend_data,
+                    detect_regressions,
                 )
-                context['maturity_scores'] = compute_all_maturity_scores(
-                    user=self.request.user,
-                )
+                scores = compute_all_maturity_scores(user=self.request.user)
+                context['maturity_scores'] = scores
+                context['maturity_recommendations'] = generate_recommendations(scores)
+                context['maturity_trend'] = get_trend_data(days=30)
+                context['maturity_regressions'] = detect_regressions()
             except Exception as e:
                 logger.warning("Dashboard maturity scores failed: %s", e)
                 context['maturity_scores'] = {}
+                context['maturity_recommendations'] = []
+                context['maturity_trend'] = []
+                context['maturity_regressions'] = []
 
             # Phase 5: Domain Coverage from Registry
             try:

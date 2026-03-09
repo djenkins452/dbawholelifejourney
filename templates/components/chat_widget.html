@@ -911,11 +911,16 @@
             pageTitle = document.title.replace(/\s*[-|]\s*Whole Life Journey.*$/i, '').trim();
         }
 
+        // Extract help_context_id — stable per-page identifier for domain grounding
+        var helpContextEl = document.querySelector('[data-help-context]');
+        var helpContextId = helpContextEl ? (helpContextEl.getAttribute('data-help-context') || '') : '';
+
         // Build base context
         let context = {
             url: url,
             module: module,
             page_title: pageTitle,
+            help_context_id: helpContextId,
             page_content: null,
             session_activity: getSessionActivity()
         };

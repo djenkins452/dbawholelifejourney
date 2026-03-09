@@ -698,10 +698,15 @@
         else if (url.startsWith('/finance')) module = 'finance';
         else if (url.startsWith('/capture')) module = 'capture';
 
+        // Extract help_context_id — stable per-page identifier for domain grounding
+        var helpContextEl = document.querySelector('[data-help-context]');
+        var helpContextId = helpContextEl ? (helpContextEl.getAttribute('data-help-context') || '') : '';
+
         return {
             url: url,
             module: module,
             page_title: pageTitle,
+            help_context_id: helpContextId,
             page_content: extractPageContent(url)
         };
     }

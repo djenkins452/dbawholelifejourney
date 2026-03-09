@@ -93,7 +93,8 @@ class IntentService:
         """Check if intent service is available."""
         return self.client is not None
 
-    def recognize_intent(self, user_message: str, user, conversation_history: list = None) -> IntentResult:
+    def recognize_intent(self, user_message: str, user, conversation_history: list = None,
+                         page_context: dict = None) -> IntentResult:
         """
         Recognize user intent from natural language message.
 
@@ -101,12 +102,17 @@ class IntentService:
             user_message: The user's natural language input
             user: The User model instance
             conversation_history: Optional list of recent message dicts for context resolution.
+            page_context: Optional dict with url, module, page_title, help_context_id
+                          for UI context grounding (domain preference).
 
         Returns:
             IntentResult with intent_type, parameters, and confirmation needs
             Note: For single intents. Use recognize_intents() for multiple.
         """
-        results = self.recognize_intents(user_message, user, conversation_history=conversation_history)
+        results = self.recognize_intents(
+            user_message, user, conversation_history=conversation_history,
+            page_context=page_context,
+        )
         return results[0] if results else IntentResult(intent_type='no_action')
 
     # ── Correction detection ──────────────────────────────────────
@@ -151,7 +157,8 @@ class IntentService:
         msg_lower = user_message.lower()
         return any(pattern in msg_lower for pattern in self._CORRECTION_PATTERNS)
 
-    def recognize_intents(self, user_message: str, user, conversation_history: list = None) -> List[IntentResult]:
+    def recognize_intents(self, user_message: str, user, conversation_history: list = None,
+                          page_context: dict = None) -> List[IntentResult]:
         """
         Recognize one or more user intents from natural language message.
 
@@ -164,6 +171,8 @@ class IntentService:
             conversation_history: Optional list of recent message dicts
                 [{"role": "user"|"assistant", "content": "..."}] for resolving
                 anaphoric references ("the other one", "that event", "it").
+            page_context: Optional dict with url, module, page_title, help_context_id
+                          for UI context grounding (domain preference).
 
         Returns:
             List of IntentResult objects (may be empty if no intents recognized)
@@ -188,7 +197,7 @@ class IntentService:
             # Build the system prompt for intent recognition
             # Pass user so today's date is computed in user's local timezone,
             # not server UTC (scheduling reliability contract — Part 1).
-            system_prompt = self._build_intent_system_prompt(user=user)
+            system_prompt = self._build_intent_system_prompt(user=user, page_context=page_context)
 
             # Build message array with optional conversation history for
             # anaphora resolution ("the other one", "that event", "it").
@@ -314,7 +323,7 @@ class IntentService:
             logger.error(f"Intent recognition error: {e}", exc_info=True)
             return [IntentResult(intent_type='no_action')]
 
-    def _build_intent_system_prompt(self, user=None) -> str:
+    def _build_intent_system_prompt(self, user=None, page_context: dict = None) -> str:
         """Build the system prompt for intent recognition.
 
         Args:
@@ -322,6 +331,8 @@ class IntentService:
                   computed in the user's local timezone (via
                   get_current_local_datetime) instead of server UTC.
                   This is REQUIRED for correct relative-date resolution.
+            page_context: Optional dict with url, module, page_title,
+                          help_context_id for UI context grounding.
         """
         if user is not None:
             from apps.core.utils import get_current_local_datetime
@@ -341,7 +352,7 @@ class IntentService:
         today_str = today.strftime('%Y-%m-%d')
         weekday = today.strftime('%A')
 
-        return f"""You are an intent recognition system for a personal life management platform called "Whole Life Journey".
+        prompt = f"""You are an intent recognition system for a personal life management platform called "Whole Life Journey".
 
 TODAY'S DATE: {today_str} ({weekday})
 
@@ -614,6 +625,183 @@ Examples:
 - "Put the same thing on my calendar for next Monday" → create_event(clone_from_last=true, start_date="monday")
 - "Same workout but at 7am on Friday" → create_event(clone_from_last=true, start_date="friday", start_time="07:00") — user explicitly overrode time
 """
+
+        # ── UI Context Grounding ──────────────────────────────────────
+        # When page_context is available, append domain preference rules
+        # so the LLM resolves ambiguous references ("those two", "mark
+        # them done") against the user's current page domain.
+        if page_context:
+            domain_hint = self._resolve_domain_hint(page_context)
+            page_title = page_context.get('page_title', '')
+            help_context_id = page_context.get('help_context_id', '')
+            module = page_context.get('module', '')
+
+            if domain_hint or page_title:
+                grounding = f"""
+
+UI CONTEXT GROUNDING:
+The user is currently viewing: {page_title}
+Page ID: {help_context_id}
+Module: {module}
+Active domain: {domain_hint or 'general'}
+"""
+                # Optional visible entity hint
+                entity_hint = self._build_visible_entity_hint(page_context)
+                if entity_hint:
+                    grounding += f"Visible objects: {entity_hint}\n"
+
+                grounding += """
+DOMAIN PREFERENCE RULE: When the user's message contains ambiguous references
+(pronouns like 'those', 'them', 'the two', 'still pending', 'mark those'),
+PREFER interpreting the action in the context of the ACTIVE DOMAIN above.
+
+- On Medications page: "those two still pending" → take_medicine (NOT complete_task)
+- On Tasks page: "mark those done" → complete_task (NOT take_medicine)
+- On Fitness page: "log that" → log_workout (NOT log_food)
+
+This rule only applies when the reference is AMBIGUOUS. If the user explicitly
+names a different domain (e.g., "create a task to call the pharmacy" while on
+the Medications page), honor the explicit domain.
+"""
+                prompt += grounding
+
+        return prompt
+
+    @staticmethod
+    def _resolve_domain_hint(page_context: dict) -> str:
+        """Resolve the active domain from page_context using 3-tier priority.
+
+        Priority 1: help_context_id (most specific, stable across URL changes)
+        Priority 2: module (Django app name)
+        Priority 3: URL pattern fallback
+
+        Returns a human-readable domain string or '' for neutral pages.
+        """
+        if not page_context:
+            return ''
+
+        # Priority 1: help_context_id → domain mapping
+        help_id = (page_context.get('help_context_id') or '').upper()
+        if help_id:
+            HELP_ID_DOMAIN_MAP = {
+                # Health / Medicine
+                'HEALTH_MEDICINE_HOME': 'medicine/health (take_medicine, take_medicines_by_time)',
+                'HEALTH_MEDICINE_DETAIL': 'medicine/health (take_medicine)',
+                'HEALTH_MEDICINE_ADD': 'medicine/health',
+                'HEALTH_MEDICINE_SCHEDULE': 'medicine/health (take_medicine, take_medicines_by_time)',
+                # Health / Fitness
+                'HEALTH_FITNESS': 'fitness (log_workout, log_exercise_set, log_cardio)',
+                'HEALTH_FITNESS_LOG': 'fitness (log_workout, log_exercise_set)',
+                'HEALTH_FITNESS_CARDIO': 'fitness (log_cardio)',
+                # Health / Vitals
+                'HEALTH_VITALS': 'health vitals (log_heart_rate, log_blood_pressure, log_weight, log_glucose, log_blood_oxygen)',
+                'HEALTH_FOOD': 'health nutrition (log_food)',
+                'HEALTH_FASTING': 'health fasting (start_fast, end_fast)',
+                'HEALTH_HOME': 'health (general health domain)',
+                # Life / Tasks
+                'LIFE_TASKS': 'life/tasks (create_task, complete_task, mutate_task)',
+                'LIFE_TASK_DETAIL': 'life/tasks (complete_task, mutate_task)',
+                'LIFE_HOME': 'life (create_task, complete_task)',
+                # Calendar
+                'LIFE_CALENDAR': 'calendar (create_event, mutate_calendar_event, read_calendar_events)',
+                # Faith
+                'FAITH_HOME': 'faith (log_prayer, save_verse, add_faith_milestone)',
+                'FAITH_PRAYER': 'faith/prayer (log_prayer, mark_prayer_answered)',
+                'FAITH_BIBLE': 'faith/bible (save_verse)',
+                # Journal
+                'JOURNAL_HOME': 'journal (create_journal_entry, add_gratitude)',
+                'JOURNAL_ENTRY': 'journal (create_journal_entry)',
+                # Purpose
+                'PURPOSE_HOME': 'purpose (create_goal, set_intention, log_habit)',
+                'PURPOSE_GOALS': 'purpose/goals (create_goal, update_goal_progress)',
+                # Dashboard
+                'DASHBOARD_HOME': 'dashboard (general — no specific domain preference)',
+            }
+            domain = HELP_ID_DOMAIN_MAP.get(help_id)
+            if domain:
+                return domain
+
+        # Priority 2: module → domain mapping
+        module = (page_context.get('module') or '').lower()
+        if module:
+            MODULE_DOMAIN_MAP = {
+                'health': 'health (general health domain)',
+                'faith': 'faith (log_prayer, save_verse)',
+                'journal': 'journal (create_journal_entry, add_gratitude)',
+                'purpose': 'purpose (create_goal, set_intention)',
+                'life': 'life/tasks (create_task, complete_task)',
+                'dashboard': 'dashboard (general)',
+                'medical': 'medicine/health',
+                'finance': 'finance',
+                'brain_training': 'brain training',
+                'capture': 'capture',
+            }
+            domain = MODULE_DOMAIN_MAP.get(module)
+            if domain:
+                return domain
+
+        # Priority 3: URL pattern fallback
+        url = (page_context.get('url') or '').lower()
+        if url:
+            URL_PATTERNS = [
+                ('/medication', 'medicine/health (take_medicine, take_medicines_by_time)'),
+                ('/fitness', 'fitness (log_workout, log_exercise_set, log_cardio)'),
+                ('/vitals', 'health vitals'),
+                ('/food', 'health nutrition (log_food)'),
+                ('/fasting', 'health fasting (start_fast, end_fast)'),
+                ('/task', 'life/tasks (create_task, complete_task, mutate_task)'),
+                ('/calendar', 'calendar (create_event, mutate_calendar_event)'),
+                ('/prayer', 'faith/prayer (log_prayer, mark_prayer_answered)'),
+                ('/bible', 'faith/bible (save_verse)'),
+                ('/journal', 'journal (create_journal_entry)'),
+            ]
+            for pattern, domain in URL_PATTERNS:
+                if pattern in url:
+                    return domain
+
+        return ''  # Neutral page — no domain preference
+
+    @staticmethod
+    def _build_visible_entity_hint(page_context: dict) -> str:
+        """Build a lightweight hint about visible entities from page_content.
+
+        Scans page_content for recognizable entity types and returns a
+        brief description (e.g., '2 pending medications', 'task: Buy groceries').
+        Returns '' if nothing recognizable.
+        """
+        page_content = page_context.get('page_content', '')
+        if not page_content:
+            return ''
+
+        hints = []
+        content_lower = page_content.lower()
+
+        # Medication hints
+        if 'medication' in content_lower or 'medicine' in content_lower:
+            # Count "pending" or "due" mentions
+            pending_count = content_lower.count('pending')
+            due_count = content_lower.count('due')
+            total = pending_count + due_count
+            if total > 0:
+                hints.append(f'{total} pending medication{"s" if total != 1 else ""}')
+            elif 'medication' in content_lower:
+                hints.append('medications')
+
+        # Task hints
+        if 'task' in content_lower:
+            pending = content_lower.count('pending')
+            if pending > 0:
+                hints.append(f'{pending} pending task{"s" if pending != 1 else ""}')
+            else:
+                hints.append('tasks')
+
+        # Prayer hints
+        if 'prayer' in content_lower:
+            unanswered = content_lower.count('unanswered')
+            if unanswered > 0:
+                hints.append(f'{unanswered} unanswered prayer{"s" if unanswered != 1 else ""}')
+
+        return ', '.join(hints) if hints else ''
 
     # Mutation verbs that MUST route to mutate_calendar_event, not read.
     CALENDAR_MUTATION_VERBS = {

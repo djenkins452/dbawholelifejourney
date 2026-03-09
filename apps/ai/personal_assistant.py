@@ -3029,10 +3029,16 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     # Try to recognize intents (supports multiple)
                     intent_results = intent_service.recognize_intents(
                         message, self.user, conversation_history=_intent_history,
+                        page_context=page_context,
                     )
 
                     # Filter out no_action results
                     actionable_intents = [ir for ir in intent_results if ir.intent_type != 'no_action']
+
+                    # Domain mismatch telemetry (non-blocking)
+                    self._log_intent_domain_mismatch(
+                        self.user, actionable_intents, page_context, message,
+                    )
 
                     if actionable_intents:
                         # Run orchestrator pipeline for time/context resolution
@@ -4954,6 +4960,14 @@ CONTEXT PRIORITY: The user is actively reading scripture. Unless they EXPLICITLY
 CONTEXT PRIORITY: The user is viewing a specific {content_type.replace('_', ' ')}. When they say "this", "it", or ask about details, they mean the {content_type.replace('_', ' ')} described above — not something from earlier conversation unless they explicitly reference it.
 """
 
+                # Resolve domain hint for grounding
+                _domain_hint = ''
+                try:
+                    from apps.ai.intent_service import IntentService
+                    _domain_hint = IntentService._resolve_domain_hint(page_context)
+                except Exception:
+                    pass
+
                 system_prompt += f"""
 PAGE CONTEXT (where the user is currently viewing):
 {chr(10).join('- ' + p for p in context_parts) if context_parts else ''}
@@ -4961,6 +4975,7 @@ PAGE CONTEXT (where the user is currently viewing):
 {context_priority_instruction}
 When the user asks about "this page", "this scripture", "this entry", etc., they are referring to the content above.
 Use this context to provide relevant, contextual help. For scripture questions, explain the passage and its meaning.
+{"DOMAIN GROUNDING: Active domain: " + _domain_hint + ". When the user references visible entities using pronouns or deictic language ('those', 'them', 'the ones listed', 'still pending', 'mark them'), resolve against the current page domain first. Only cross domains if the user explicitly names a different domain." if _domain_hint else ""}
 """
 
             # Voice mode: user is speaking via microphone, response will be read aloud
@@ -5713,7 +5728,16 @@ Then give your response."""
             _page_title = page_context.get('page_title', '')
             _page_module = page_context.get('module', '')
             if _page_title or _page_module:
+                # Resolve domain hint for grounding
+                _fast_domain_hint = ''
+                try:
+                    from apps.ai.intent_service import IntentService
+                    _fast_domain_hint = IntentService._resolve_domain_hint(page_context)
+                except Exception:
+                    pass
                 system_prompt += f"\n\nPAGE CONTEXT: The user is viewing: {_page_title or _pc_url} (module: {_page_module})\n"
+                if _fast_domain_hint:
+                    system_prompt += f"DOMAIN GROUNDING: Active domain: {_fast_domain_hint}. When the user references visible entities using pronouns or deictic language ('those', 'them', 'the ones listed', 'still pending', 'mark them'), resolve against the current page domain first. Only cross domains if the user explicitly names a different domain.\n"
 
         user_name = self.user.first_name or self.user.get_short_name() or ""
         user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}{message}{scripture_context_block}
@@ -6226,11 +6250,18 @@ Rules for this response:
                         intent_results = intent_service.recognize_intents(
                             message, self.user,
                             conversation_history=_stream_history,
+                            page_context=page_context,
                         )
                         actionable = [
                             ir for ir in intent_results
                             if ir.intent_type != 'no_action'
                         ]
+
+                        # Domain mismatch telemetry (non-blocking)
+                        self._log_intent_domain_mismatch(
+                            self.user, actionable, page_context, message,
+                        )
+
                         if actionable:
                             # Execute via orchestrator pipeline
                             orch_result = orchestrator_process(
@@ -6798,6 +6829,58 @@ Rules for this response:
             return 'deep'
 
         return 'adaptive'
+
+    # -----------------------------------------------------------------
+    # Domain mismatch telemetry
+    # -----------------------------------------------------------------
+    @staticmethod
+    def _log_intent_domain_mismatch(user, actionable_intents, page_context, message):
+        """Log when recognized intents don't match the user's current page domain.
+
+        Pure observability — never blocks execution. Helps identify cases
+        where domain grounding either saved or missed a mismatch.
+        """
+        if not page_context or not actionable_intents:
+            return
+
+        try:
+            from apps.ai.intent_service import IntentService
+            from apps.core.ai_orchestrator.intent_engine import get_intent_module
+
+            page_domain = IntentService._resolve_domain_hint(page_context)
+            if not page_domain:
+                return  # Neutral page — nothing to compare
+
+            # Extract the primary domain word from page_domain
+            # e.g. "medicine/health (take_medicine, ...)" → "medicine", "health"
+            page_domain_lower = page_domain.lower()
+
+            for ir in actionable_intents:
+                intent_module = get_intent_module(ir.intent_type)
+                if not intent_module:
+                    continue
+
+                # Check if intent module aligns with page domain
+                intent_module_lower = intent_module.lower()
+                # Consider match if intent module appears in page domain string
+                # or page domain contains intent module
+                if (intent_module_lower in page_domain_lower
+                        or page_domain_lower.split('/')[0].split('(')[0].strip()
+                        in intent_module_lower):
+                    continue  # Aligned — no mismatch
+
+                logger.warning(
+                    "DOMAIN_MISMATCH user=%s page_module=%s intent_type=%s "
+                    "intent_domain=%s page_url=%s msg=%.100s",
+                    getattr(user, 'id', '?'),
+                    page_domain,
+                    ir.intent_type,
+                    intent_module,
+                    page_context.get('url', ''),
+                    message,
+                )
+        except Exception:
+            pass  # Telemetry must never break the pipeline
 
     def _get_fallback_response(self, message: str) -> str:
         """Get fallback response when AI is unavailable, matching coaching style."""

@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-08 (Exercise progress data piped to CoS prompt for Beth)
+**Last updated:** 2026-03-08 (UI context grounding: page_context threaded into intent recognition for domain-aware action resolution)
 
 ---
 
@@ -209,7 +209,7 @@ User Message
       ├─ 3. Context Resolution (SLCME)
       ├─ 4. Time Resolution (HTIE)
       ├─ 5. Semantic Understanding (SUE)
-      ├─ 6. Intent Recognition (OpenAI)
+      ├─ 6. Intent Recognition (OpenAI) + UI Context Grounding (page_context → domain preference)
       ├─ 7. Orchestrator Enrichment (enrich_and_execute)
       ├─ 8. _generate_response() with cos_context
       └─ 9. Post-Response Intelligence (async)

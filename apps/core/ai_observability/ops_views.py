@@ -40,7 +40,11 @@ class AdminRequiredMixin(UserPassesTestMixin):
 
 
 class OperationsWallView(AdminRequiredMixin, TemplateView):
-    """Main operations wall page — the flagship Vegas Ops Wall."""
+    """Main operations wall page — the flagship Vegas Ops Wall.
+
+    Server-side context includes system maturity scores, domain coverage,
+    and proactive intelligence metrics (updated on page load, not polled).
+    """
 
     template_name = "admin_console/operations_wall.html"
 
@@ -48,7 +52,83 @@ class OperationsWallView(AdminRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Operations Wall"
         context["app_name"] = "admin_console"
+
+        user = self.request.user
+
+        # --- System Maturity (Phase 9 integration) ---
+        context.update(self._get_maturity_data(user))
+
+        # --- Domain Coverage ---
+        context["domain_coverage"] = self._get_domain_coverage()
+
+        # --- Proactive Intelligence (7-day) ---
+        context["proactive_stats"] = self._get_proactive_stats(user)
+
         return context
+
+    # ------------------------------------------------------------------ #
+    #  War Room data helpers (server-side, rendered once on page load)
+    # ------------------------------------------------------------------ #
+
+    def _get_maturity_data(self, user):
+        """Compute system maturity scores for the War Room header."""
+        result = {
+            "maturity_scores": {},
+            "maturity_recommendations": [],
+            "maturity_regressions": [],
+        }
+        try:
+            from apps.core.ai_observability.maturity_engine import (
+                compute_all_maturity_scores,
+                detect_regressions,
+                generate_recommendations,
+            )
+
+            scores = compute_all_maturity_scores(user)
+            result["maturity_scores"] = scores
+            result["maturity_recommendations"] = generate_recommendations(scores)
+            result["maturity_regressions"] = detect_regressions()
+        except ImportError:
+            logger.debug("OPS: Maturity engine not available")
+        except Exception as e:
+            logger.warning("OPS: Maturity data failed: %s", e, exc_info=True)
+        return result
+
+    def _get_domain_coverage(self):
+        """Fetch domain coverage summary from the registry."""
+        try:
+            from apps.core.domain_registry import registry
+
+            return registry.get_coverage_summary()
+        except ImportError:
+            return []
+
+    def _get_proactive_stats(self, user):
+        """7-day proactive check-in statistics."""
+        stats = {"total_7d": 0, "by_type": []}
+        try:
+            from django.db.models import Count
+
+            from apps.ai.models import AssistantMessage
+
+            cutoff = timezone.now() - timedelta(days=7)
+            qs = AssistantMessage.objects.filter(
+                is_proactive=True,
+                created_at__gte=cutoff,
+            )
+            stats["total_7d"] = qs.count()
+            by_type = (
+                qs.values("metadata__check_in_type")
+                .annotate(cnt=Count("id"))
+                .order_by("-cnt")
+            )
+            stats["by_type"] = [
+                (row["metadata__check_in_type"] or "unknown", row["cnt"])
+                for row in by_type
+            ]
+        except Exception as e:
+            logger.debug("OPS: Proactive stats unavailable: %s", e)
+        return stats
 
 
 class OpsStreamView(View):

@@ -79,6 +79,9 @@
 .ops-wall > .ops-section:nth-child(8) { animation-delay: 0.32s; }
 .ops-wall > .ops-section:nth-child(9) { animation-delay: 0.36s; }
 .ops-wall > .ops-section:nth-child(10) { animation-delay: 0.40s; }
+.ops-wall > .ops-section:nth-child(11) { animation-delay: 0.44s; }
+.ops-wall > .ops-section:nth-child(12) { animation-delay: 0.48s; }
+.ops-wall > .ops-section:nth-child(13) { animation-delay: 0.52s; }
 @keyframes opsEnter {
     to { opacity: 1; transform: translateY(0); }
 }
@@ -1189,6 +1192,211 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 }
 
 /* =========================================================================
+   WAR ROOM — System Maturity Briefing (Phase 9)
+   ========================================================================= */
+
+/* --- Maturity Hero --- */
+.ops-maturity-hero {
+    padding: 18px 24px 14px;
+    margin-bottom: 14px;
+}
+.ops-maturity-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+.ops-maturity-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ops-text-muted);
+}
+.ops-maturity-overall {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+.ops-maturity-overall-score {
+    font-size: 1.5rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+.ops-maturity-overall-label {
+    font-size: 0.7rem;
+    color: var(--ops-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.ops-maturity-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.ops-maturity-card {
+    padding: 12px 14px;
+    border-radius: var(--ops-radius-sm);
+    background: var(--ops-surface-alt);
+    border: 1px solid var(--ops-glass-border);
+    text-align: center;
+}
+.ops-maturity-card-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ops-text-dim);
+    margin-bottom: 6px;
+}
+.ops-maturity-card-score {
+    font-size: 1.35rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+.ops-maturity-card-score.score-green { color: var(--ops-green); }
+.ops-maturity-card-score.score-amber { color: var(--ops-yellow); }
+.ops-maturity-card-score.score-red { color: var(--ops-red); }
+.ops-maturity-card-score.score-none { color: var(--ops-text-dim); font-size: 0.85rem; }
+
+/* Maturity recommendations + regressions */
+.ops-maturity-alerts {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.ops-maturity-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 0.72rem;
+    color: var(--ops-text-muted);
+    padding: 6px 10px;
+    background: var(--ops-surface-alt);
+    border-radius: var(--ops-radius-sm);
+    border-left: 3px solid var(--ops-yellow);
+}
+.ops-maturity-alert.priority-high { border-left-color: var(--ops-red); }
+.ops-maturity-alert.priority-low { border-left-color: var(--ops-blue); }
+.ops-maturity-regression {
+    border-left-color: var(--ops-red);
+    background: var(--ops-red-dim);
+}
+
+/* --- Domain Coverage --- */
+.ops-domain-coverage {
+    padding: 16px 24px 14px;
+    margin-bottom: 14px;
+}
+.ops-domain-section-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ops-text-muted);
+    margin-bottom: 12px;
+}
+.ops-domain-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+.ops-domain-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: var(--ops-radius-sm);
+}
+.ops-domain-name {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ops-text);
+    min-width: 120px;
+    flex-shrink: 0;
+}
+.ops-domain-bar-wrap {
+    flex: 1;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.ops-domain-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s ease;
+}
+.ops-domain-bar-fill.bar-green { background: var(--ops-green); }
+.ops-domain-bar-fill.bar-amber { background: var(--ops-yellow); }
+.ops-domain-bar-fill.bar-red { background: var(--ops-red); }
+.ops-domain-pct {
+    font-size: 0.7rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ops-text-muted);
+    min-width: 36px;
+    text-align: right;
+}
+.ops-domain-meta {
+    font-size: 0.6rem;
+    color: var(--ops-text-dim);
+    min-width: 70px;
+}
+
+/* --- Proactive Intelligence --- */
+.ops-proactive-tile {
+    padding: 16px 24px 14px;
+    margin-bottom: 14px;
+}
+.ops-proactive-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 12px;
+}
+.ops-proactive-total {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.ops-proactive-total-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--ops-cyan);
+}
+.ops-proactive-total-label {
+    font-size: 0.65rem;
+    color: var(--ops-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.ops-proactive-types {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.ops-proactive-type-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: var(--ops-surface-alt);
+    border-radius: var(--ops-radius-sm);
+    border: 1px solid var(--ops-glass-border);
+    font-size: 0.7rem;
+    color: var(--ops-text);
+}
+.ops-proactive-type-count {
+    font-weight: 700;
+    color: var(--ops-cyan);
+    font-variant-numeric: tabular-nums;
+}
+
+/* =========================================================================
    Responsive
    ========================================================================= */
 @media (max-width: 1400px) {
@@ -1206,8 +1414,20 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     .ops-learning-grid { grid-template-columns: repeat(3, 1fr); }
     .ops-health-intel-grid { grid-template-columns: repeat(2, 1fr); }
 }
+@media (max-width: 1024px) {
+    .ops-maturity-grid { grid-template-columns: repeat(3, 1fr); }
+    .ops-domain-grid { grid-template-columns: 1fr; }
+}
 @media (max-width: 768px) {
     .ops-wall { padding: 10px 12px 20px; }
+    .ops-maturity-grid { grid-template-columns: repeat(2, 1fr); }
+    .ops-maturity-header { flex-direction: column; align-items: flex-start; }
+    .ops-maturity-overall { margin-left: 0; }
+    .ops-maturity-alerts { flex-direction: column; }
+    .ops-proactive-header { flex-direction: column; align-items: flex-start; }
+    .ops-proactive-total { margin-left: 0; }
+    .ops-domain-name { min-width: 90px; }
+    .ops-domain-meta { display: none; }
     .ops-scheduler-heartbeat { grid-template-columns: 1fr; }
     .ops-coas-grid { grid-template-columns: 1fr; }
     .ops-learning-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1228,6 +1448,97 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 <script nonce="{{ csp_nonce }}" src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
 
 <div class="ops-wall" data-testid="ac-operations-wall">
+    <!-- ============================================================
+         WAR ROOM BRIEFING — System Maturity (Phase 9)
+         ============================================================ -->
+    {% if maturity_scores %}
+    <div class="ops-section ops-glass ops-maturity-hero" id="maturityBriefing">
+        <div class="ops-maturity-header">
+            <span class="ops-maturity-title">WLJ System Maturity</span>
+            {% with overall=maturity_scores.overall %}
+            <div class="ops-maturity-overall">
+                {% if overall.score is not None %}
+                <span class="ops-maturity-overall-score {% if overall.score >= 80 %}score-green{% elif overall.score >= 60 %}score-amber{% else %}score-red{% endif %}">{{ overall.score }}</span>
+                {% else %}
+                <span class="ops-maturity-overall-score score-none">N/A</span>
+                {% endif %}
+                <span class="ops-maturity-overall-label">Overall</span>
+            </div>
+            {% endwith %}
+        </div>
+        <div class="ops-maturity-grid">
+            {% for dim_key, dim_data in maturity_scores.items %}
+            {% if dim_key != "overall" %}
+            <div class="ops-maturity-card">
+                <div class="ops-maturity-card-label">{% if dim_key == "domain_coverage" %}Coverage{% elif dim_key == "infrastructure" %}Infra{% elif dim_key == "intelligence" %}Intelligence{% elif dim_key == "life_impact" %}Life Impact{% elif dim_key == "safety" %}Safety{% else %}{{ dim_key }}{% endif %}</div>
+                {% if dim_data.score is not None %}
+                <div class="ops-maturity-card-score {% if dim_data.score >= 80 %}score-green{% elif dim_data.score >= 60 %}score-amber{% else %}score-red{% endif %}">{{ dim_data.score }}</div>
+                {% else %}
+                <div class="ops-maturity-card-score score-none">&mdash;</div>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+        {% if maturity_regressions or maturity_recommendations %}
+        <div class="ops-maturity-alerts">
+            {% for reg in maturity_regressions %}
+            <div class="ops-maturity-alert ops-maturity-regression">⚠ {{ reg.dimension }}: dropped {{ reg.drop }} pts</div>
+            {% endfor %}
+            {% for rec in maturity_recommendations %}
+            <div class="ops-maturity-alert priority-{{ rec.priority }}">{{ rec.message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Domain Coverage -->
+    {% if domain_coverage %}
+    <div class="ops-section ops-glass ops-domain-coverage" id="domainCoverage">
+        <div class="ops-domain-section-title">Domain Coverage</div>
+        <div class="ops-domain-grid">
+            {% for d in domain_coverage %}
+            <div class="ops-domain-row">
+                <span class="ops-domain-name">{{ d.display_name }}</span>
+                <div class="ops-domain-bar-wrap">
+                    <div class="ops-domain-bar-fill {% if d.coverage_score >= 80 %}bar-green{% elif d.coverage_score >= 50 %}bar-amber{% else %}bar-red{% endif %}" style="width:{{ d.coverage_score }}%"></div>
+                </div>
+                <span class="ops-domain-pct">{{ d.coverage_score|floatformat:0 }}%</span>
+                <span class="ops-domain-meta">{{ d.intent_count }}i · {{ d.signal_count }}s</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Proactive Intelligence -->
+    <div class="ops-section ops-glass ops-proactive-tile" id="proactiveTile">
+        <div class="ops-proactive-header">
+            <span class="ops-domain-section-title">Proactive Intelligence</span>
+            <div class="ops-proactive-total">
+                <span class="ops-proactive-total-value">{{ proactive_stats.total_7d }}</span>
+                <span class="ops-proactive-total-label">check-ins (7d)</span>
+            </div>
+        </div>
+        {% if proactive_stats.by_type %}
+        <div class="ops-proactive-types">
+            {% for type_name, count in proactive_stats.by_type %}
+            <div class="ops-proactive-type-chip">
+                <span>{{ type_name|default:"unknown" }}</span>
+                <span class="ops-proactive-type-count">{{ count }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="font-size:0.72rem;color:var(--ops-text-dim)">No proactive check-ins in the last 7 days.</div>
+        {% endif %}
+    </div>
+
+    <!-- ============================================================
+         EXISTING OPS SECTIONS (preserved below)
+         ============================================================ -->
+
     <!-- System Integrity Hero -->
     <div class="ops-section ops-glass ops-integrity-hero" id="integrityHero">
         <div class="ops-integrity-hero-main">

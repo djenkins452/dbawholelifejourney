@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — War Room Maturity Integration (OPS Command Center)
+
+- **Maturity Briefing:** Integrated system maturity scores (5 dimensions + overall) into the OPS War Room (`/admin-console/ops/`). Color-coded score cards (green ≥80, amber ≥60, red <60) with actionable recommendations and regression alerts.
+- **Domain Coverage:** Added domain coverage bar chart visualization showing all 10 registered domains with coverage percentage, intent count, and signal count. Uses existing registry data.
+- **Proactive Intelligence:** Added 7-day proactive check-in total and type breakdown to the War Room. Shows operational check-in volume at a glance.
+- **Server-side rendering:** Maturity/coverage/proactive data rendered on page load (not polled) since these metrics change daily, not per-second. Existing real-time polling sections preserved intact.
+- **Dark theme:** All new sections use the existing ops-glass design language (CSS variables, glassmorphism, animations).
+- **Files:** `apps/core/ai_observability/ops_views.py`, `templates/admin_console/operations_wall.html`
+- **Tests:** 82 pass (ops_wall_v2)
+
 ## 2026-03-09 — Phase 9: Completion & Integrity Audit (Holistic System Upgrade)
 
 - **Domain Registry Audit:** Updated 6 capability registrations (finance, brain_training, capture, faith, medical, purpose) to reflect Phase 7.3 context builders. Coverage improved from 81% → 89%.

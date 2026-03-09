@@ -28,7 +28,121 @@
     <!-- Sections stack vertically -->
     <div class="icc-sections">
 
-        <!-- ========== 1. Current State (SAE) ========== -->
+        <!-- ========== 1. System Maturity (Phase 8.1) ========== -->
+        {% if maturity_scores %}
+        <section class="icc-section" id="icc-maturity">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+                    </span>
+                    WLJ System Maturity
+                </h2>
+                <span class="icc-section-engine">MATURITY</span>
+            </div>
+            <div class="icc-section-body">
+                <div class="icc-maturity-grid">
+                    {% for key, data in maturity_scores.items %}
+                    <div class="icc-maturity-card icc-maturity-{% if data.score >= 80 %}green{% elif data.score >= 60 %}amber{% else %}red{% endif %}">
+                        <span class="icc-maturity-label">{{ key|title }}</span>
+                        <span class="icc-maturity-score">{{ data.score }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if maturity_regressions %}
+                <div class="icc-maturity-regressions">
+                    <h3 class="icc-sub-title">Regressions Detected</h3>
+                    {% for reg in maturity_regressions %}
+                    <div class="icc-regression-row">
+                        <span class="icc-regression-metric">{{ reg.metric|title }}</span>
+                        <span class="icc-regression-delta">{{ reg.previous }} → {{ reg.current }} ({{ reg.delta }})</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if maturity_recommendations %}
+                <div class="icc-maturity-recs">
+                    <h3 class="icc-sub-title">Improvement Recommendations</h3>
+                    {% for rec in maturity_recommendations %}
+                    <div class="icc-rec-card icc-rec-{{ rec.priority }}">
+                        <span class="icc-rec-priority">{{ rec.priority|upper }}</span>
+                        <span class="icc-rec-message">{{ rec.message }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- ========== 2. Domain Coverage (Phase 8.2) ========== -->
+        {% if domain_coverage %}
+        <section class="icc-section" id="icc-domain-coverage">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+                    </span>
+                    Domain Coverage
+                </h2>
+                <span class="icc-section-engine">REGISTRY</span>
+            </div>
+            <div class="icc-section-body">
+                <div class="icc-domain-table">
+                    {% for domain in domain_coverage %}
+                    <div class="icc-domain-row">
+                        <span class="icc-domain-name">{{ domain.name|title }}</span>
+                        <div class="icc-domain-bar-wrapper">
+                            <div class="icc-domain-bar icc-maturity-{% if domain.coverage >= 80 %}green{% elif domain.coverage >= 60 %}amber{% else %}red{% endif %}" style="width: {{ domain.coverage }}%"></div>
+                        </div>
+                        <span class="icc-domain-score">{{ domain.coverage }}%</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- ========== 3. Proactive Intelligence (Phase 8.3) ========== -->
+        <section class="icc-section" id="icc-proactive">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+                    </span>
+                    Proactive Intelligence
+                    {% if proactive_stats.total_7d > 0 %}
+                    <span class="icc-badge">{{ proactive_stats.total_7d }}</span>
+                    {% endif %}
+                </h2>
+                <span class="icc-section-engine">PROACTIVE</span>
+            </div>
+            <div class="icc-section-body">
+                {% if proactive_stats.total_7d > 0 %}
+                <div class="icc-proactive-summary">
+                    <span class="icc-proactive-total">{{ proactive_stats.total_7d }} check-ins in the last 7 days</span>
+                </div>
+                {% if proactive_stats.by_type %}
+                <div class="icc-proactive-types">
+                    {% for type_name, count in proactive_stats.by_type %}
+                    <div class="icc-proactive-type-row">
+                        <span class="icc-proactive-type-name">{{ type_name }}</span>
+                        <span class="icc-proactive-type-count">{{ count }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="icc-empty">
+                    <p>No proactive check-ins in the last 7 days. Intelligence activates as you use the app.</p>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- ========== 4. Current State (SAE) ========== -->
         <section class="icc-section" id="icc-state">
             <div class="icc-section-header">
                 <h2 class="icc-section-title">
@@ -653,6 +767,154 @@
     margin: 0;
 }
 
+/* ===== Phase 8: Maturity, Domain, Proactive ===== */
+.icc-maturity-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: var(--space-2);
+}
+.icc-maturity-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-3) var(--space-2);
+    border-radius: var(--radius-md, 6px);
+    border: 1px solid var(--color-border);
+}
+.icc-maturity-green { border-left: 3px solid #22c55e; }
+.icc-maturity-amber { border-left: 3px solid #f59e0b; }
+.icc-maturity-red { border-left: 3px solid #ef4444; }
+.icc-maturity-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-weight: 500;
+    text-transform: capitalize;
+}
+.icc-maturity-score {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+.icc-maturity-green .icc-maturity-score { color: #22c55e; }
+.icc-maturity-amber .icc-maturity-score { color: #f59e0b; }
+.icc-maturity-red .icc-maturity-score { color: #ef4444; }
+.icc-sub-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: var(--space-3) 0 var(--space-2);
+}
+.icc-maturity-regressions { margin-top: var(--space-3); }
+.icc-regression-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-1) var(--space-2);
+    background: #fef2f2;
+    border-radius: var(--radius-md, 6px);
+    margin-bottom: var(--space-1);
+    font-size: var(--font-size-sm);
+}
+.icc-regression-metric { font-weight: 600; color: #991b1b; }
+.icc-regression-delta { color: #ef4444; font-weight: 500; }
+.icc-maturity-recs { margin-top: var(--space-3); }
+.icc-rec-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    margin-bottom: var(--space-1);
+    border-radius: var(--radius-md, 6px);
+    border: 1px solid var(--color-border);
+    font-size: var(--font-size-sm);
+}
+.icc-rec-high { border-left: 3px solid #ef4444; }
+.icc-rec-medium { border-left: 3px solid #f59e0b; }
+.icc-rec-low { border-left: 3px solid #6b7280; }
+.icc-rec-priority {
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: var(--radius-full, 9999px);
+    flex-shrink: 0;
+}
+.icc-rec-high .icc-rec-priority { background: #fef2f2; color: #991b1b; }
+.icc-rec-medium .icc-rec-priority { background: #fffbeb; color: #92400e; }
+.icc-rec-low .icc-rec-priority { background: #f3f4f6; color: #374151; }
+.icc-rec-message { color: var(--color-text); }
+
+/* Domain coverage */
+.icc-domain-table {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.icc-domain-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.icc-domain-name {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text);
+    min-width: 100px;
+}
+.icc-domain-bar-wrapper {
+    flex: 1;
+    height: 8px;
+    background: var(--color-border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.icc-domain-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+.icc-domain-bar.icc-maturity-green { background: #22c55e; }
+.icc-domain-bar.icc-maturity-amber { background: #f59e0b; }
+.icc-domain-bar.icc-maturity-red { background: #ef4444; }
+.icc-domain-score {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    min-width: 40px;
+    text-align: right;
+}
+
+/* Proactive intelligence */
+.icc-proactive-summary {
+    margin-bottom: var(--space-3);
+}
+.icc-proactive-total {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+}
+.icc-proactive-types {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+.icc-proactive-type-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 6px);
+    font-size: var(--font-size-sm);
+}
+.icc-proactive-type-name {
+    color: var(--color-text);
+    text-transform: capitalize;
+}
+.icc-proactive-type-count {
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 480px) {
     .icc-page { padding: var(--space-3); }
@@ -661,6 +923,8 @@
     .icc-section-body { padding: var(--space-3); }
     .icc-state-grid { grid-template-columns: 1fr; }
     .icc-delivery-row { flex-direction: column; align-items: flex-start; }
+    .icc-maturity-grid { grid-template-columns: repeat(3, 1fr); }
+    .icc-domain-name { min-width: 80px; font-size: var(--font-size-xs); }
 }
 
 @media (max-width: 768px) {

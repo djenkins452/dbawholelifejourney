@@ -5,6 +5,9 @@ Aggregates and displays outputs from all intelligence engines:
 SAE (state), PGE (guidance), DBE (briefing), WIRE (weekly reports),
 DNE (deliveries), PRIE (predictions), with E3 explainability links.
 
+Phase 8: Integrated maturity framework, domain coverage, and proactive
+intelligence as the strategic control interface (War Room).
+
 ICC does NOT generate intelligence — it only presents what engines produce.
 """
 
@@ -12,6 +15,7 @@ import logging
 from datetime import timedelta
 
 from django.contrib.auth.decorators import login_required
+from django.db.models import Count
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.generic import TemplateView
@@ -24,13 +28,17 @@ class IntelligenceCommandCenterView(TemplateView):
     """
     Intelligence Command Center — unified view of all engine outputs.
 
-    Sections:
-    1. Current State (SAE snapshot)
-    2. Active Guidance (PGE)
-    3. Daily Briefing (DBE)
-    4. Weekly Report summary (WIRE)
-    5. Recent Deliveries (DNE)
-    6. Predictions (PRIE)
+    Information Hierarchy (Phase 8.4):
+    Section 1: System Maturity (strategic header)
+    Section 2: Domain Coverage
+    Section 3: Proactive Intelligence
+    Section 4: Current State (SAE)
+    Section 5: Active Guidance (PGE)
+    Section 6: Daily Briefing (DBE)
+    Section 7: Weekly Report (WIRE)
+    Section 8: Recent Deliveries (DNE)
+    Section 9: Predictions (PRIE)
+    Section 10: System Observability (staff only)
     """
 
     template_name = "intelligence/command_center.html"
@@ -40,30 +48,39 @@ class IntelligenceCommandCenterView(TemplateView):
         user = self.request.user
         now = timezone.now()
 
-        # Section 1: SAE — Current State
+        # Phase 8.1: System Maturity (strategic header)
+        context.update(self._get_maturity_data(user))
+
+        # Phase 8.2: Domain Coverage
+        context["domain_coverage"] = self._get_domain_coverage()
+
+        # Phase 8.3: Proactive Intelligence
+        context["proactive_stats"] = self._get_proactive_stats(user, now)
+
+        # Section 4: SAE — Current State
         context["user_state"] = self._get_user_state(user)
 
-        # Section 2: PGE — Active Guidance
+        # Section 5: PGE — Active Guidance
         context["guidance_items"] = self._get_active_guidance(user, now)
         context["guidance_count"] = len(context["guidance_items"])
 
-        # Section 3: DBE — Daily Briefing
+        # Section 6: DBE — Daily Briefing
         context["daily_briefing"] = self._get_daily_briefing(user, now)
 
-        # Section 4: WIRE — Weekly Report
+        # Section 7: WIRE — Weekly Report
         context["weekly_report"] = self._get_weekly_report(user, now)
 
-        # Section 5: DNE — Recent Deliveries
+        # Section 8: DNE — Recent Deliveries
         context["recent_deliveries"] = self._get_recent_deliveries(user)
 
-        # Section 6: PRIE — Predictions
+        # Section 9: PRIE — Predictions
         context["predictions"] = self._get_predictions(user, now)
 
-        # Section 7: EAE — Executive Arbitration Engine (Phase 8.8)
+        # EAE — Executive Arbitration Engine
         context["eae_state"] = self._get_eae_state(user)
         context["eae_recent_decisions"] = self._get_eae_recent_decisions(user)
 
-        # Section 8: Observability (staff only)
+        # Section 10: Observability (staff only)
         if user.is_staff:
             context["observability_snapshot"] = self._get_observability()
             context["eae_telemetry"] = self._get_eae_telemetry(user)
@@ -74,6 +91,74 @@ class IntelligenceCommandCenterView(TemplateView):
         context["page_title"] = "Intelligence Command Center"
 
         return context
+
+    # =========================================================================
+    # Phase 8: Strategic data methods
+    # =========================================================================
+
+    def _get_maturity_data(self, user):
+        """Phase 8.1: Fetch system maturity scores, recommendations, regressions."""
+        result = {
+            'maturity_scores': {},
+            'maturity_recommendations': [],
+            'maturity_regressions': [],
+        }
+        try:
+            from apps.core.ai_observability.maturity_engine import (
+                compute_all_maturity_scores,
+                generate_recommendations,
+                detect_regressions,
+            )
+            scores = compute_all_maturity_scores(user)
+            result['maturity_scores'] = scores
+            result['maturity_recommendations'] = generate_recommendations(scores)
+            result['maturity_regressions'] = detect_regressions()
+        except ImportError:
+            logger.debug("ICC: Maturity engine not available")
+        except Exception as e:
+            logger.warning("ICC: Maturity data failed: %s", e, exc_info=True)
+        return result
+
+    def _get_domain_coverage(self):
+        """Phase 8.2: Fetch domain registry coverage data."""
+        try:
+            from apps.core.domain_registry import registry
+            return registry.get_coverage_summary()
+        except ImportError:
+            return []
+        except Exception as e:
+            logger.debug("ICC: Domain coverage unavailable: %s", e)
+            return []
+
+    def _get_proactive_stats(self, user, now):
+        """Phase 8.3: Fetch proactive intelligence stats for last 7 days."""
+        try:
+            from apps.ai.models import AssistantMessage
+            seven_days_ago = now - timedelta(days=7)
+            proactive_qs = AssistantMessage.objects.filter(
+                conversation__user=user,
+                is_proactive=True,
+                created_at__gte=seven_days_ago,
+            )
+            total = proactive_qs.count()
+
+            # Count by check-in type from metadata
+            by_type = {}
+            for msg in proactive_qs.only('metadata'):
+                ci_type = (msg.metadata or {}).get('check_in_type', 'other')
+                by_type[ci_type] = by_type.get(ci_type, 0) + 1
+
+            return {
+                'total_7d': total,
+                'by_type': sorted(by_type.items(), key=lambda x: x[1], reverse=True),
+            }
+        except Exception as e:
+            logger.debug("ICC: Proactive stats unavailable: %s", e)
+            return {'total_7d': 0, 'by_type': []}
+
+    # =========================================================================
+    # Original data methods
+    # =========================================================================
 
     def _get_user_state(self, user):
         """Fetch SAE state snapshot."""

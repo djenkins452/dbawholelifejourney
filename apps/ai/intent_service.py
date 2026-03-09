@@ -1271,8 +1271,14 @@ the Medications page), honor the explicit domain.
             pass  # Learning Mode module not installed
         except Exception as e:
             logger.error(
-                "Learning Mode check failed in execute_intent "
-                "(proceeding with execution): %s", e, exc_info=True,
+                "Learning Mode check CRITICAL FAILURE in execute_intent "
+                "(blocking execution for safety): %s", e, exc_info=True,
+            )
+            return ActionResult(
+                success=False,
+                message="Unable to verify safety state. Please try again.",
+                error='learning_mode_check_failed',
+                action_type=intent_result.intent_type,
             )
 
         from .action_handlers import ActionHandler

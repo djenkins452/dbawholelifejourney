@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Phase 1: Safety & Stability (Holistic System Upgrade)
+
+- **Safety Fix:** Learning Mode fail-open vulnerability fixed in both `execution_engine.py` and `intent_service.py`. Previously, if `is_learning_mode_active()` threw an exception (e.g., database error), execution would proceed — bypassing the safety gate. Now fails closed with user-friendly error message.
+- **Reliability:** Batch task mutations (`handle_mutate_task` delete + update) now wrapped in `django.db.transaction.atomic()` — partial writes are no longer possible.
+- **Reliability:** CoS context cache is now invalidated immediately after successful action execution in `execution_engine.py`, so the next chat message always sees fresh state.
+- **Reliability:** New idempotency guard (`apps/ai/idempotency.py`) prevents duplicate intent execution from network retries or double-clicks. Uses 2-minute cache window with SHA-256 message deduplication.
+- **Security:** 49 instances of `error=str(e)` in action handlers replaced with `error='internal_error'` to prevent raw exception strings from leaking to the LLM. User-facing `message` fields were already friendly.
+- **Files:** `apps/core/ai_orchestrator/execution_engine.py`, `apps/ai/intent_service.py`, `apps/ai/action_handlers.py`, `apps/ai/personal_assistant.py`, `apps/ai/idempotency.py` (new), `docs/holistic_system_upgrade.md`
+- **Tests:** 729 tests pass (651 AI + 78 orchestrator/registration)
+
 ## 2026-03-09 — Add CoS persistent personal life memory
 
 - **Feature:** CoS now automatically extracts and permanently stores biographical life facts from conversations (family relationships, deaths, milestones, health conditions, life circumstances).

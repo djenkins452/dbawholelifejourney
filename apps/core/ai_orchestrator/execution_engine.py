@@ -67,9 +67,16 @@ def execute_action(user, enriched_action):
     except ImportError:
         pass  # Learning Mode module not installed — expected
     except Exception as e:
-        logger.warning(
-            "Learning Mode check failed in execution_engine "
-            "(proceeding with execution): %s", e, exc_info=True,
+        logger.error(
+            "Learning Mode check CRITICAL FAILURE in execution_engine "
+            "(blocking execution for safety): %s", e, exc_info=True,
+        )
+        from apps.ai.intent_service import ActionResult
+        return ActionResult(
+            success=False,
+            message="Unable to verify safety state. Please try again.",
+            error='learning_mode_check_failed',
+            action_type=enriched_action.intent_type,
         )
 
     # Step 1: Safety check
@@ -114,11 +121,19 @@ def execute_action(user, enriched_action):
         return ActionResult(
             success=False,
             message="Sorry, I couldn't complete that action.",
-            error=str(e),
+            error='internal_error',
             action_type=enriched_action.intent_type,
         )
 
-    # Step 4: Intelligence chain (only on successful execution)
+    # Step 4: Invalidate CoS context cache so next message sees fresh state
+    if result and result.success:
+        try:
+            from apps.ai.readiness_cache import invalidate_cos_context
+            invalidate_cos_context(user)
+        except Exception:
+            pass  # Cache invalidation is best-effort
+
+    # Step 5: Intelligence chain (only on successful execution)
     if result and result.success:
         _run_intelligence_chain(user, enriched_action, result)
 

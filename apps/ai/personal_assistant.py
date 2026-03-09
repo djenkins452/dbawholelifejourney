@@ -2695,6 +2695,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         from .bug_report_service import bug_report_service
         from .confirmation_detector import handle_proactive_confirmation
 
+        # Idempotency guard — prevent duplicate actions from retries/double-clicks
+        from .idempotency import check_duplicate, store_result
+        cached = check_duplicate(self.user.id, message)
+        if cached is not None:
+            logger.info("Idempotency hit for user %s — returning cached response", self.user.id)
+            return cached
+
         if not conversation:
             conversation = self.get_or_create_conversation()
 
@@ -3365,6 +3372,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             result['user_message_has_image'] = True
 
         logger.warning("COS TOTAL send_message took %.1f ms", (_t.monotonic() - _t_total_start) * 1000)
+
+        # Store result for idempotency deduplication
+        store_result(self.user.id, message, result)
+
         return result
 
     def _build_action_taken(self, action_result) -> dict:

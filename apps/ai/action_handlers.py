@@ -420,7 +420,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log your heart rate.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_log_blood_pressure(self, systolic: int, diastolic: int,
@@ -490,7 +490,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log your blood pressure.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_log_weight(self, value: float, unit: str = "lb",
@@ -544,7 +544,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log your weight.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_log_glucose(self, value: float, unit: str = "mg/dL",
@@ -604,7 +604,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log your blood glucose.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_log_blood_oxygen(self, spo2: int, pulse: int = None,
@@ -660,7 +660,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log your blood oxygen.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_log_food(self, food_name: str, quantity: float = 1,
@@ -840,7 +840,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log that food.",
-                error=str(e)
+                error='internal_error'
             )
 
     # =========================================================================
@@ -959,7 +959,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log your sleep.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_log_water(self, amount: float, unit: str = "oz",
@@ -1022,7 +1022,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log your water intake.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_log_steps(self, count: int, distance: float = None,
@@ -1094,7 +1094,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log your steps.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_log_body_measurement(self, metric: str, value: float,
@@ -1185,7 +1185,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log that measurement.",
-                error=str(e)
+                error='internal_error'
             )
 
     # =========================================================================
@@ -1285,7 +1285,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log that transaction.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_check_budget(self, category: str = "",
@@ -1359,7 +1359,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't check your budget.",
-                error=str(e)
+                error='internal_error'
             )
 
     # =========================================================================
@@ -1447,7 +1447,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't undo that action.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_edit_last_entry(self, entry_type: str, new_value: float = None,
@@ -1532,7 +1532,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't edit that entry.",
-                error=str(e)
+                error='internal_error'
             )
 
     @staticmethod
@@ -1620,7 +1620,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log that medicine.",
-                error=str(e)
+                error='internal_error'
             )
 
     def _log_medicine_taken(self, medicine, dose_label: str = None,
@@ -1829,7 +1829,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log those medicines.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_email_medicine_list(self, recipient_email: str = "",
@@ -1985,7 +1985,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't send the email. Please try again.",
-                error=str(e)
+                error='internal_error'
             )
 
     # =========================================================================
@@ -2072,7 +2072,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't start your fast.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_end_fast(self, notes: str = "", **kwargs) -> ActionResult:
@@ -2147,7 +2147,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't end your fast.",
-                error=str(e)
+                error='internal_error'
             )
 
     # =========================================================================
@@ -2229,7 +2229,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't create that journal entry.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_add_gratitude(self, gratitude: str, reason: str = "",
@@ -2292,7 +2292,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log that gratitude.",
-                error=str(e)
+                error='internal_error'
             )
 
     # =========================================================================
@@ -2347,7 +2347,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't add that prayer.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_mark_prayer_answered(self, prayer_keyword: str,
@@ -2415,7 +2415,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't mark that prayer as answered.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_save_verse(self, reference: str, text: str = "",
@@ -2505,7 +2505,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't save that verse.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_add_faith_milestone(self, title: str, milestone_type: str,
@@ -2565,7 +2565,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't add that milestone.",
-                error=str(e)
+                error='internal_error'
             )
 
     # =========================================================================
@@ -2633,7 +2633,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't create that goal.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_update_goal_progress(self, goal_keyword: str, progress_notes: str,
@@ -2711,7 +2711,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't update that goal.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_set_intention(self, intention: str, description: str = "",
@@ -2756,7 +2756,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't set that intention.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_log_habit(self, habit_keyword: str, completed: bool = True,
@@ -2871,7 +2871,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log that habit.",
-                error=str(e)
+                error='internal_error'
             )
 
     # =========================================================================
@@ -3038,7 +3038,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't create that task.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_create_routine_task(
@@ -3161,7 +3161,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't create that routine.",
-                error=str(e),
+                error='internal_error',
             )
 
     def handle_complete_task(self, task_keyword: str, notes: str = "",
@@ -3257,7 +3257,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't complete that task.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_skip_task(self, task_keyword: str, reason: str = "", **kwargs) -> ActionResult:
@@ -3348,7 +3348,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't skip that task.",
-                error=str(e),
+                error='internal_error',
             )
 
     def handle_mutate_task(
@@ -3381,6 +3381,8 @@ class ActionHandler:
         from apps.life.models import Task
         from apps.calendar_engine.utils.date_resolution import resolve_weekday_to_date
         from datetime import datetime as dt
+
+        from django.db import transaction
 
         try:
             # Check for pre-resolved task ID (from clarification flow)
@@ -3469,9 +3471,10 @@ class ActionHandler:
                     )
 
                 deleted_titles = []
-                for task in tasks:
-                    task.soft_delete()
-                    deleted_titles.append(task.title)
+                with transaction.atomic():
+                    for task in tasks:
+                        task.soft_delete()
+                        deleted_titles.append(task.title)
 
                 if len(deleted_titles) == 1:
                     msg = f"✓ Deleted task: {deleted_titles[0]}"
@@ -3549,44 +3552,45 @@ class ActionHandler:
                 updated_titles = []
                 changes_desc = []
                 any_actual_change = False
-                for task in tasks:
-                    update_fields = ['updated_at']
+                with transaction.atomic():
+                    for task in tasks:
+                        update_fields = ['updated_at']
 
-                    if parsed_due is not None and task.due_date != parsed_due:
-                        task.due_date = parsed_due
-                        update_fields.append('due_date')
-                        any_actual_change = True
+                        if parsed_due is not None and task.due_date != parsed_due:
+                            task.due_date = parsed_due
+                            update_fields.append('due_date')
+                            any_actual_change = True
 
-                    if parsed_time is not None and task.scheduled_time != parsed_time:
-                        task.scheduled_time = parsed_time
-                        update_fields.append('scheduled_time')
-                        any_actual_change = True
+                        if parsed_time is not None and task.scheduled_time != parsed_time:
+                            task.scheduled_time = parsed_time
+                            update_fields.append('scheduled_time')
+                            any_actual_change = True
 
-                    if parsed_end_time is not None and task.scheduled_end_time != parsed_end_time:
-                        task.scheduled_end_time = parsed_end_time
-                        update_fields.append('scheduled_end_time')
-                        any_actual_change = True
+                        if parsed_end_time is not None and task.scheduled_end_time != parsed_end_time:
+                            task.scheduled_end_time = parsed_end_time
+                            update_fields.append('scheduled_end_time')
+                            any_actual_change = True
 
-                    if new_title and task.title != new_title:
-                        task.title = new_title
-                        update_fields.append('title')
-                        any_actual_change = True
+                        if new_title and task.title != new_title:
+                            task.title = new_title
+                            update_fields.append('title')
+                            any_actual_change = True
 
-                    if new_notes and task.notes != new_notes:
-                        task.notes = new_notes
-                        update_fields.append('notes')
-                        any_actual_change = True
+                        if new_notes and task.notes != new_notes:
+                            task.notes = new_notes
+                            update_fields.append('notes')
+                            any_actual_change = True
 
-                    if new_effort and task.effort != new_effort:
-                        task.effort = new_effort
-                        update_fields.append('effort')
-                        any_actual_change = True
+                        if new_effort and task.effort != new_effort:
+                            task.effort = new_effort
+                            update_fields.append('effort')
+                            any_actual_change = True
 
-                    if len(update_fields) > 1:
-                        # Only save if we actually changed something
-                        task.save(update_fields=update_fields)
+                        if len(update_fields) > 1:
+                            # Only save if we actually changed something
+                            task.save(update_fields=update_fields)
 
-                    updated_titles.append(task.title)
+                        updated_titles.append(task.title)
 
                 # If nothing actually changed, report that it's already set
                 if not any_actual_change:
@@ -3657,7 +3661,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't update that task.",
-                error=str(e),
+                error='internal_error',
             )
 
     def handle_read_task(self, task_keyword: str = None, date_filter: str = None,
@@ -3801,7 +3805,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't look up that task.",
-                error=str(e),
+                error='internal_error',
                 action_type='read_task',
             )
 
@@ -4163,7 +4167,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't create that event.",
-                error=str(e)
+                error='internal_error'
             )
 
     def _run_cos_post_scheduling(self, calendar_event):
@@ -4375,7 +4379,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't add that reminder.",
-                error=str(e)
+                error='internal_error'
             )
 
     # =========================================================================
@@ -4454,7 +4458,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log that workout.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_log_exercise_set(self, exercise_name: str, weight: float, reps: int,
@@ -4561,7 +4565,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log that set.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_log_cardio(self, activity: str, duration_minutes: int,
@@ -4671,7 +4675,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't log that cardio session.",
-                error=str(e)
+                error='internal_error'
             )
 
     # ── Transformation Protocol Handlers ─────────────────────────
@@ -4717,7 +4721,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't create that protocol.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_log_shopping_item(self, **kwargs):
@@ -4769,7 +4773,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't add that to your shopping list.",
-                error=str(e)
+                error='internal_error'
             )
 
     def handle_complete_shopping_item(self, **kwargs):
@@ -4825,7 +4829,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't mark that item as purchased.",
-                error=str(e)
+                error='internal_error'
             )
 
     # =========================================================================
@@ -4867,7 +4871,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't update the name right now.",
-                error=str(e)
+                error='internal_error'
             )
 
     # =========================================================================
@@ -4895,7 +4899,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Something went wrong, but I'll stop asking for now.",
-                error=str(e),
+                error='internal_error',
             )
 
     def handle_complete_calibration(self, **kwargs) -> ActionResult:
@@ -4930,7 +4934,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Something went wrong, but I'll consider the intro done.",
-                error=str(e),
+                error='internal_error',
             )
 
     # =========================================================================
@@ -5019,7 +5023,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Something went wrong, but I'll keep listening for now.",
-                error=str(e),
+                error='internal_error',
                 action_type='exit_learning_mode',
             )
 
@@ -5073,7 +5077,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Something went wrong. I'll keep operating normally for now.",
-                error=str(e),
+                error='internal_error',
                 action_type='enter_learning_mode',
             )
 
@@ -5221,7 +5225,7 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't read your calendar right now.",
-                error=str(e),
+                error='internal_error',
                 action_type='read_calendar_events',
             )
 

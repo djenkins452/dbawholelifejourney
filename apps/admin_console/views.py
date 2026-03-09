@@ -250,6 +250,7 @@ class AdminDashboardView(HelpContextMixin, AdminRequiredMixin, TemplateView):
         try:
             context = super().get_context_data(**kwargs)
             from django.conf import settings
+            from django.utils import timezone
             from apps.users.models import User
             from apps.journal.models import JournalEntry
 
@@ -266,10 +267,57 @@ class AdminDashboardView(HelpContextMixin, AdminRequiredMixin, TemplateView):
             # Admin URL path for Django Admin link
             context['admin_url_path'] = settings.ADMIN_URL_PATH
 
+            # Phase 5: System Maturity Scores
+            try:
+                from apps.core.ai_observability.maturity_engine import (
+                    compute_all_maturity_scores,
+                )
+                context['maturity_scores'] = compute_all_maturity_scores(
+                    user=self.request.user,
+                )
+            except Exception as e:
+                logger.warning("Dashboard maturity scores failed: %s", e)
+                context['maturity_scores'] = {}
+
+            # Phase 5: Domain Coverage from Registry
+            try:
+                from apps.core.domain_registry import registry
+                context['domain_coverage'] = registry.get_coverage_summary()
+            except Exception as e:
+                logger.warning("Dashboard domain coverage failed: %s", e)
+                context['domain_coverage'] = []
+
+            # Phase 5: Proactive check-in stats (last 7 days)
+            try:
+                from apps.ai.models import AssistantMessage
+                cutoff = timezone.now() - timezone.timedelta(days=7)
+                proactive_msgs = AssistantMessage.objects.filter(
+                    is_proactive=True,
+                    created_at__gte=cutoff,
+                )
+                context['proactive_stats'] = {
+                    'total_7d': proactive_msgs.count(),
+                    'by_type': _count_proactive_by_type(proactive_msgs),
+                }
+            except Exception as e:
+                logger.warning("Dashboard proactive stats failed: %s", e)
+                context['proactive_stats'] = {'total_7d': 0, 'by_type': {}}
+
             return context
         except Exception as e:
             logger.exception(f"AdminDashboardView.get_context_data failed: {e}")
             raise
+
+
+def _count_proactive_by_type(queryset):
+    """Count proactive messages by check_in_type from metadata."""
+    from collections import Counter
+    counts = Counter()
+    for msg in queryset.values_list('metadata', flat=True):
+        if msg and isinstance(msg, dict):
+            check_type = msg.get('check_in_type', 'unknown')
+            counts[check_type] += 1
+    return dict(counts.most_common(15))
 
 
 # ============================================================

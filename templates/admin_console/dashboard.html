@@ -67,6 +67,135 @@
         </div>
     </div>
     
+    <!-- System Maturity Header (Phase 5) -->
+    {% if maturity_scores %}
+    <div class="section-divider">
+        <h2 class="section-title">System Maturity</h2>
+    </div>
+    <div class="stats-grid mb-8" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));">
+        {% with overall=maturity_scores.overall %}
+        <div class="stat-card" style="border-left: 4px solid {% if overall.score >= 80 %}#10b981{% elif overall.score >= 60 %}#f59e0b{% else %}#ef4444{% endif %};">
+            <div class="stat-content">
+                <span class="stat-number">{{ overall.score|default:"--" }}</span>
+                <span class="stat-label">WLJ Maturity</span>
+            </div>
+        </div>
+        {% endwith %}
+        {% with infra=maturity_scores.infrastructure %}
+        <div class="stat-card">
+            <div class="stat-content">
+                <span class="stat-number">{{ infra.score|default:"--" }}</span>
+                <span class="stat-label">Infrastructure</span>
+            </div>
+        </div>
+        {% endwith %}
+        {% with intel=maturity_scores.intelligence %}
+        <div class="stat-card">
+            <div class="stat-content">
+                <span class="stat-number">{{ intel.score|default:"--" }}</span>
+                <span class="stat-label">CoS Intelligence</span>
+            </div>
+        </div>
+        {% endwith %}
+        {% with safety=maturity_scores.safety %}
+        <div class="stat-card">
+            <div class="stat-content">
+                <span class="stat-number">{{ safety.score|default:"--" }}</span>
+                <span class="stat-label">Execution Safety</span>
+            </div>
+        </div>
+        {% endwith %}
+        {% with domain=maturity_scores.domain_coverage %}
+        <div class="stat-card">
+            <div class="stat-content">
+                <span class="stat-number">{{ domain.score|default:"--" }}</span>
+                <span class="stat-label">Domain Coverage</span>
+            </div>
+        </div>
+        {% endwith %}
+        {% with life=maturity_scores.life_impact %}
+        <div class="stat-card">
+            <div class="stat-content">
+                <span class="stat-number">{{ life.score|default:"--" }}</span>
+                <span class="stat-label">Life Impact</span>
+            </div>
+        </div>
+        {% endwith %}
+    </div>
+    {% endif %}
+
+    <!-- Domain Coverage Table (Phase 5) -->
+    {% if domain_coverage %}
+    <div class="section-divider">
+        <h2 class="section-title">Domain Coverage</h2>
+    </div>
+    <div class="table-container mb-8">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Domain</th>
+                    <th>Intents</th>
+                    <th>Signals</th>
+                    <th>Models</th>
+                    <th>Context</th>
+                    <th>Coverage</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for domain in domain_coverage %}
+                <tr>
+                    <td><strong>{{ domain.display_name }}</strong></td>
+                    <td>{{ domain.intent_count }}</td>
+                    <td>{{ domain.signal_count }}</td>
+                    <td>{{ domain.model_count }}</td>
+                    <td>{% if domain.has_context_builder %}<span class="badge badge-success">Yes</span>{% else %}<span class="badge badge-muted">No</span>{% endif %}</td>
+                    <td>
+                        <span class="badge {% if domain.coverage_score >= 100 %}badge-success{% elif domain.coverage_score >= 60 %}badge-accent{% else %}badge-muted{% endif %}">
+                            {{ domain.coverage_score }}%
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Proactive Intelligence (Phase 5) -->
+    {% if proactive_stats.total_7d > 0 %}
+    <div class="section-divider">
+        <h2 class="section-title">Proactive Intelligence (7 days)</h2>
+    </div>
+    <div class="stats-grid mb-8">
+        <div class="stat-card">
+            <div class="stat-content">
+                <span class="stat-number">{{ proactive_stats.total_7d }}</span>
+                <span class="stat-label">Check-ins Generated</span>
+            </div>
+        </div>
+    </div>
+    {% if proactive_stats.by_type %}
+    <div class="table-container mb-8">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Check-in Type</th>
+                    <th>Count (7d)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for type, count in proactive_stats.by_type.items %}
+                <tr>
+                    <td>{{ type }}</td>
+                    <td>{{ count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    {% endif %}
+
     <!-- Admin Sections -->
     <div class="admin-grid">
         <!-- Site Configuration -->

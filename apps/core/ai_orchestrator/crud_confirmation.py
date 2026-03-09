@@ -305,6 +305,12 @@ def _build_standard_message(intent: str, label: str, params: dict) -> str:
     time_str = params.get('scheduled_time') or params.get('start_time', '')
     date_str = params.get('due_date') or params.get('start_date') or params.get('date', '')
 
+    # Override label for mutate intents based on actual action (delete vs update)
+    action = params.get('action', '')
+    if action == 'delete' and intent in ('mutate_task', 'mutate_calendar_event'):
+        entity = 'calendar event' if 'calendar' in intent else 'task'
+        label = f'Delete {entity}'
+
     detail_parts = [label]
     if title:
         detail_parts[0] += f': "{title}"'

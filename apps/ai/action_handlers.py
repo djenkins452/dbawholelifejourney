@@ -3406,9 +3406,35 @@ class ActionHandler:
             count = len(tasks)
 
             if count == 0:
+                # Cross-domain fallback: check if a calendar event matches
+                hint = ''
+                try:
+                    from apps.calendar_engine.models import CalendarEvent
+                    matching_events = CalendarEvent.objects.filter(
+                        user=self.user,
+                        title__icontains=task_query,
+                    ).exclude(
+                        status=CalendarEvent.STATUS_CANCELED,
+                    )[:3]
+                    if matching_events:
+                        event_titles = ', '.join(
+                            f'"{e.title}"' for e in matching_events
+                        )
+                        hint = (
+                            f" However, I found a calendar event matching "
+                            f"that name: {event_titles}. "
+                            f"Would you like me to {action} that calendar "
+                            f"event instead?"
+                        )
+                except Exception:
+                    pass  # Non-critical — just skip the hint
+
                 return ActionResult(
                     success=False,
-                    message=f"I couldn't find an active task matching '{task_query}'.",
+                    message=(
+                        f"I couldn't find an active task matching "
+                        f"'{task_query}'.{hint}"
+                    ),
                     error='task_not_found',
                     action_type='mutate_task',
                 )

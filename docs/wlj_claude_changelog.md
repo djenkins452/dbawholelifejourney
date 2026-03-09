@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Fix task vs calendar event disambiguation for delete/remove actions
+
+- **Bug:** When user says "Remove 10:00 PM Take trash out", AI routes to `mutate_task` (task delete) instead of `mutate_calendar_event` (calendar delete). Task handler fails with "couldn't find active task", and even after user clarifies it's a calendar entry, the confirmation says "Update calendar event" instead of "Delete calendar event".
+- **Root cause:** Three issues: (1) INTENT_LABELS always shows "Update" for mutate intents regardless of action, (2) no cross-domain fallback when task not found, (3) system prompt lacks task-vs-calendar disambiguation guidance.
+- **Fix — three-part approach:**
+  1. **Action-aware confirmation labels:** `_build_standard_message()` now checks `params.action` — shows "Delete task" / "Delete calendar event" when action is delete, instead of always "Update"
+  2. **Cross-domain fallback:** When `handle_mutate_task` can't find a matching task, it queries `CalendarEvent` for matching titles and includes a hint: "However, I found a calendar event matching that name. Would you like me to delete that instead?"
+  3. **System prompt disambiguation:** Added routing rules — prefer `mutate_calendar_event` when user mentions "from my calendar", item shows specific time on calendar, or conversation context identifies it as a calendar entry
+- **Files:** `apps/core/ai_orchestrator/crud_confirmation.py`, `apps/ai/action_handlers.py`, `apps/ai/intent_service.py`
+- **Tests:** 127 passing (crud_confirmation: 34, intent_service: 36, calendar_crud + task_matching + confirmation_detail: 57)
+- **Why:** Users expect "remove" to work regardless of whether the item is a task or calendar event — the system should help resolve ambiguity, not fail silently
+
 ## 2026-03-09 — Fix receipt Vision AI hallucination (v3 — Cloudinary URL + hallucination detection)
 
 - **Bug:** Vision API returning completely fabricated grocery items (cucumber, tomatoes, milk, eggs, pizza, ice cream at $37.59 total, date Oct 11, 2023) for a Food Lion receipt with ~35 items totaling $272.55 done today. The model was never actually seeing the image.

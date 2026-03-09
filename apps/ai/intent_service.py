@@ -534,6 +534,14 @@ IMPORTANT — task vs routine vs event:
 - "schedule a meeting at 2pm" → create_event (calendar event)
 When the user says "add a task" with a time, use create_task with scheduled_time — do NOT use create_event or create_routine_task unless they explicitly say "event", "calendar", "daily routine", or "every day".
 
+TASK vs CALENDAR DISAMBIGUATION for mutations (delete/remove/update):
+When the user says "remove" or "delete" something ambiguous (could be a task OR calendar event):
+- If the user mentions "from my calendar", "calendar entry", or the item is visible in the calendar section → use mutate_calendar_event
+- If the item shows a specific time (e.g., "10:00 PM Take trash out") and appears to be a scheduled calendar entry → prefer mutate_calendar_event
+- If the user previously identified the item as a calendar event in the conversation → use mutate_calendar_event
+- If the user says "task" explicitly → use mutate_task
+- Default: if unclear, try mutate_task first. If it fails with task_not_found, the system will check for matching calendar events automatically.
+
 CALENDAR EVENTS:
 - "add to my calendar 5am Wake Up for tomorrow" → create_event(title="Wake Up", start_date="tomorrow", start_time="05:00")
 - "schedule a meeting at 2pm today" → create_event(title="Meeting", start_date="today", start_time="14:00")

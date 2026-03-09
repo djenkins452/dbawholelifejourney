@@ -91,9 +91,14 @@ EXTRACTION_PATTERNS = {
         r"(?:I (?:pulled|strained|hurt|injured|tweaked|sprained) (?:my )?)\s*(.+?)(?:\.|,|$)",
     ],
     "life_event_mention": [
-        r"(?:(?:my (?:sister|brother|mom|dad|wife|husband|son|daughter|friend|mother|father))'?s? (?:surgery|wedding|graduation|birthday|funeral|visit|trip|appointment|procedure) (?:is|on|at|next|this))\s+(.+?)(?:\.|,|$)",
+        r"(?:(?:my (?:sister|brother|mom|dad|wife|husband|son|daughter|friend|mother|father|grandmother|grandfather|grandma|grandpa|nana|papa|aunt|uncle|cousin))'?s? (?:surgery|wedding|graduation|birthday|funeral|visit|trip|appointment|procedure) (?:is|on|at|next|this))\s+(.+?)(?:\.|,|$)",
         r"(?:(?:we|I) (?:have|got) (?:a |an )?(?:trip|vacation|appointment|surgery|meeting|event|procedure|visit) (?:on|in|at|coming up|next|this))\s+(.+?)(?:\.|,|$)",
         r"(?:(?:on|this|next) (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|week|month))[,]?\s+(.+?)(?:\.|$)",
+        r"(?:\w+ (?:passed away|died|passed|is no longer with us))\b",
+        r"(?:we lost (?:my |our )?(?:\w+))\b",
+        r"(?:(?:my|our) (?:wife'?s?|husband'?s?) (?:mother|father|sister|brother|family|parent))\b",
+        r"(?:(?:got|getting) (?:married|divorced|engaged|separated))\b",
+        r"(?:(?:my|our) (?:baby|child|son|daughter) (?:was born|is due|arrived))\b",
     ],
     "commitment_made": [
         r"(?:I (?:promised|committed|agreed|said I would|told \w+ I'd))\s+(.+?)(?:\.|,|$)",

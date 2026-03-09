@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Add CoS persistent personal life memory
+
+- **Feature:** CoS now automatically extracts and permanently stores biographical life facts from conversations (family relationships, deaths, milestones, health conditions, life circumstances).
+- **Problem:** Previously, personal life facts shared in conversation were only captured if the user cleared the conversation (triggering `personal_context.py`). The always-on learning extractor used regex too narrow for nuanced life facts like "Nana (Linda) is my wife's mother and she passed away."
+- **Solution:**
+  - **New `PersonalFact` model** (`apps/core/ai_memory/models.py`) — structured, permanent, never-pruned storage for biographical facts with fact_type, subject_name, relationship, confidence.
+  - **New `life_fact_extractor.py` service** (`apps/core/ai_memory/`) — runs after every chat message via background thread. Uses regex pre-screening (zero API cost for most messages) then AI extraction only when signals detected. Deduplicates against existing facts. Respects opt-out phrases and consent gates.
+  - **Wired into both chat paths** (non-streaming `AssistantChatView` and streaming `AssistantChatStreamView`) via existing `_post_response_intelligence` background threads.
+  - **System prompt injection** — `build_personal_facts_prompt()` injects structured facts into CoS system prompt alongside existing personal context, grouped by category.
+  - **Learning extractor patterns** — added broader regex patterns for deaths, extended family, milestones to `apps/core/ai_learning/learning_extractor.py`.
+- **Design safeguards:**
+  - AI extraction prompt explicitly says "Never infer, guess, or hallucinate facts"
+  - Regex pre-screening avoids unnecessary API calls (~95% of messages skip AI extraction)
+  - All existing systems untouched — personal_context.py, conversation memory, learning extractor continue working as before
+  - No changes to briefing quality gate, non-negotiable task system, or CoS cache invalidation
+- **Files:**
+  - `apps/core/ai_memory/models.py` — added `PersonalFact` model
+  - `apps/core/ai_memory/life_fact_extractor.py` — new extraction service
+  - `apps/core/migrations/0104_add_personal_fact_model.py` — migration
+  - `apps/ai/views.py` — wired extraction into both chat response paths
+  - `apps/ai/personal_assistant.py` — added `personal_facts_prompt` to system prompt builder
+  - `apps/core/ai_learning/learning_extractor.py` — expanded life event regex patterns
+  - `apps/core/ai_memory/tests.py` — 22 new tests for PersonalFact model, signal detection, deduplication, prompt builder
+- **Tests:** 71 SLCME tests pass, 15 learning tests pass, 76 personal assistant tests pass
+- **Why:** A life operating system must remember what matters — family, loss, milestones. These details should never be forgotten or require the user to repeat them.
+
 ## 2026-03-09 — Add telemetry log for accepted proactive briefings
 
 - **Enhancement:** Added `v7_BRIEFING_ACCEPTED` log line in `generate_proactive_briefing()` after the quality gate, so production logs show when briefings pass (not just when they're rejected).

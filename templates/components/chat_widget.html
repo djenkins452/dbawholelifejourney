@@ -1493,10 +1493,16 @@
                 if (emptyState) emptyState.remove();
                 addMessage(result.response, false, true);
                 hasMessages = true;
+            } else if (result.skipped) {
+                // Allow retry after 30s — backend may have quality-gated
+                // a valid briefing; next attempt may succeed
+                setTimeout(function() { briefingRequested = false; }, 30000);
             }
         } catch (error) {
             console.error('Briefing request failed:', error);
             hideBriefingLoading();
+            // Allow retry after 30s on network/server errors
+            setTimeout(function() { briefingRequested = false; }, 30000);
         }
     }
 

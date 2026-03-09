@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 148,
+    "fields": {
+      "title": "Non-Negotiable Task Commitments",
+      "description": "Tasks now support commitment levels: Optional, Important, and Non-Negotiable. Mark your most essential tasks as non-negotiable and Beth will coach you if you start skipping them — gently at first, then with more awareness if it becomes a pattern. Skip streaks reset automatically after 7 days of no skips. You can also set commitment levels on your life goals.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-09",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/life/tasks/",
+      "created_at": "2026-03-09T00:00:00Z",
+      "updated_at": "2026-03-09T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 147,
     "fields": {
       "title": "Pantry Storage Intelligence & Barcode Scanner",

@@ -151,6 +151,10 @@
                         </div>
 
                         <div class="task-meta">
+                            {% if task.commitment_level == 'non_negotiable' %}
+                            <span class="task-commitment-badge task-commitment-nn">NN</span>
+                            {% endif %}
+
                             {% if task.effort %}
                             <span class="task-effort">{{ task.get_effort_display }}</span>
                             {% endif %}
@@ -610,6 +614,20 @@
 .task-status-completed {
     background: color-mix(in srgb, #22c55e 15%, transparent);
     color: #16a34a;
+}
+
+.task-commitment-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.task-commitment-nn {
+    background: color-mix(in srgb, #ef4444 15%, transparent);
+    color: #dc2626;
 }
 
 /* Clickable row link - takes user to edit page */

@@ -460,6 +460,8 @@ LIFE/TASKS:
 - "add task to file taxes by Friday at 3pm" → create_task(title="File taxes", due_date="friday", scheduled_time="15:00")
 - "add a task today at 5pm - 6pm to Gather Tax Papers" → create_task(title="Gather Tax Papers", due_date="today", scheduled_time="17:00", end_time="18:00")
 - "task from 2pm to 3:30pm tomorrow: Team sync" → create_task(title="Team sync", due_date="tomorrow", scheduled_time="14:00", end_time="15:30")
+- "add a non-negotiable task to work out tomorrow" → create_task(title="Work out", due_date="tomorrow", commitment_level="non_negotiable")
+- "create an optional reminder to check the mail" → create_task(title="Check the mail", commitment_level="optional")
 - "I finished the laundry task" → complete_task(task_keyword="laundry")
 - "skip the grocery task" → skip_task(task_keyword="grocery")
 - "I'm going to pass on the dentist task" → skip_task(task_keyword="dentist")

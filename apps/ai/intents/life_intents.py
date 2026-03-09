@@ -64,6 +64,11 @@ LIFE_INTENT_TOOLS = [
                     "end_time": {
                         "type": "string",
                         "description": "End time in HH:MM 24-hour format (e.g., '18:00'). Use when user specifies a time range like '5pm - 6pm' or '10:00 to 11:30'. If provided, duration is computed automatically from scheduled_time and end_time."
+                    },
+                    "commitment_level": {
+                        "type": "string",
+                        "enum": ["optional", "important", "non_negotiable"],
+                        "description": "How committed the user is to this task. 'optional' for nice-to-have, 'important' (default) for standard tasks, 'non_negotiable' for tasks the user considers essential and shouldn't skip."
                     }
                 },
                 "required": ["title"]

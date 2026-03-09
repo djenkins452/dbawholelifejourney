@@ -326,6 +326,48 @@ class ProactiveCheckInService:
             }
         )
 
+    def generate_nn_skip_check_in(self, task) -> Optional[AssistantMessage]:
+        """
+        Generate an escalating check-in for a non-negotiable task with skip streak >= 2.
+
+        Uses effective_skip_streak (recency-guarded) and coaching style templates.
+        Escalation is capped at Day 3 — Day 4+ shifts to supportive problem-solving.
+
+        Args:
+            task: Task model instance with commitment_level='non_negotiable'
+
+        Returns:
+            AssistantMessage, or None if throttled or not applicable
+        """
+        streak = task.effective_skip_streak
+        if streak < 2 or task.commitment_level != 'non_negotiable':
+            return None
+
+        if not self.throttler.can_send('nn_skip', task.id):
+            return None
+
+        # Select escalation tier (capped at Day 3)
+        if streak >= 4:
+            template_key = 'nn_skip_supportive'
+        elif streak == 3:
+            template_key = 'nn_skip_coaching'
+        else:
+            template_key = 'nn_skip_pattern'
+
+        template = get_style_template(self.user, template_key)
+        message_content = template.format(task=task.title, streak=streak)
+
+        return self._create_proactive_message(
+            content=message_content,
+            message_type='nudge',
+            metadata={
+                'check_in_type': 'nn_skip_streak',
+                'task_id': task.id,
+                'item_id': task.id,
+                'skip_streak': streak,
+            }
+        )
+
     def generate_busy_day_check_in(self, item_count: int) -> Optional[AssistantMessage]:
         """
         Generate a check-in about a busy upcoming day.
@@ -792,6 +834,39 @@ def generate_overdue_task_check_ins_for_user(user):
 
     if overdue_task:
         service.generate_overdue_task_check_in(overdue_task)
+
+
+def generate_nn_skip_check_ins_for_user(user):
+    """
+    Generate check-ins for non-negotiable tasks with skip streaks >= 2.
+
+    Only generates for tasks where effective_skip_streak >= 2 (recency-guarded).
+    Max 3 check-ins per run to avoid overwhelming.
+    """
+    from apps.life.models import Task
+
+    prefs = user.preferences
+    if not getattr(prefs, 'assistant_proactive_checkins', True):
+        return
+
+    service = get_proactive_service(user)
+
+    # Get non-negotiable tasks with skip streaks
+    nn_tasks = Task.objects.filter(
+        user=user,
+        commitment_level='non_negotiable',
+        skip_streak__gte=2,
+        status='active',
+    ).order_by('-skip_streak')[:5]  # Top 5 candidates
+
+    generated = 0
+    for task in nn_tasks:
+        if task.effective_skip_streak >= 2:
+            result = service.generate_nn_skip_check_in(task)
+            if result:
+                generated += 1
+                if generated >= 3:
+                    break
 
 
 def generate_busy_day_check_ins_for_user(user):

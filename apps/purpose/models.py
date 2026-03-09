@@ -256,6 +256,19 @@ class LifeGoal(UserOwnedModel):
         default='active'
     )
     completed_date = models.DateField(null=True, blank=True)
+
+    # Commitment level
+    COMMITMENT_LEVEL_CHOICES = [
+        ('optional', 'Optional'),
+        ('important', 'Important'),
+        ('non_negotiable', 'Non-Negotiable'),
+    ]
+    commitment_level = models.CharField(
+        max_length=20,
+        choices=COMMITMENT_LEVEL_CHOICES,
+        default='important',
+        help_text="How committed are you to this goal?",
+    )
     
     # Reflection on completion or release
     reflection = models.TextField(

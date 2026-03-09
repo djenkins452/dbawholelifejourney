@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-08 (Exercise progress data piped to CoS prompt for Beth)
+**Last updated:** 2026-03-09 (Task commitment level system — build_task_state, NN skip streaks in CoS)
 
 ---
 
@@ -276,9 +276,9 @@ System prompt layers (highest priority first):
 
 ### v4 Data State Snapshot (2026-03-07)
 
-**Change:** `_build_data_state_snapshot()` now includes `active_tasks` and `completed_tasks_today` counts. The snapshot is injected at the END of `format_cos_system_injection()` (just before "END SITUATIONAL AWARENESS") for maximum recency weight — LLMs weight later-appearing context more heavily.
+**Change:** `_build_data_state_snapshot()` now includes `active_tasks`, `completed_tasks_today` counts, and `non_negotiable_skip_streaks` count (v5). The snapshot is injected at the END of `format_cos_system_injection()` (just before "END SITUATIONAL AWARENESS") for maximum recency weight — LLMs weight later-appearing context more heavily.
 
-**Grounding rules:** Snapshot includes "ABSOLUTE GROUNDING RULES" that instruct the LLM to use exact counts or say "no data logged" — never estimate or infer.
+**Grounding rules:** Snapshot includes "ABSOLUTE GROUNDING RULES" that instruct the LLM to use exact counts or say "no data logged" — never estimate or infer. When NN skip streaks > 0, a "NON-NEGOTIABLE COMMITMENT AWARENESS" section instructs the LLM to approach with supportive coaching.
 
 ### v5 Pipeline Routing Fix + Voice Enforcement (2026-03-07)
 
@@ -449,6 +449,7 @@ DNE (delivery_engine.py) → DeliveredNotification (in-app / email / SMS)
 | `life_events` | `build_life_events_state()` | approaching_events |
 | `scan` | `build_scan_state()` | recent_analyses |
 | `governance` | `build_governance_state()` | declared_priorities, drift_scenario_count_14d |
+| `tasks` | `build_task_state()` | task_commitment_summary (nn totals, 7d counts, consistency_score), nn_skip_streaks (top 5), active_tasks_by_level, overdue_nn_count |
 
 ---
 

@@ -1169,12 +1169,18 @@
                     created_at: new Date().toISOString(),
                 });
                 hasMessages = true;
+            } else if (result.skipped) {
+                // Allow retry after 30s — backend may have quality-gated
+                // a valid briefing; next attempt may succeed
+                setTimeout(function() { apBriefingRequested = false; }, 30000);
             }
         })
         .catch(function(err) {
             console.error('Panel briefing request failed:', err);
             var bl = document.getElementById('ap-briefing-loading');
             if (bl) bl.remove();
+            // Allow retry after 30s on network/server errors
+            setTimeout(function() { apBriefingRequested = false; }, 30000);
         });
     }
 

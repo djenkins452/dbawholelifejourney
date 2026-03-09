@@ -2560,7 +2560,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 )
                 return None
 
-            # Check for known fallback patterns
+            # Check for known fallback patterns — only on SHORT responses.
+            # Long responses (200+ chars) contain real briefing data even if
+            # they include a closing phrase like "How can I help you today?".
+            # The executive briefing instruction explicitly asks the LLM to
+            # end with an inviting question, so these phrases are expected in
+            # valid briefings. The gate targets truly generic responses where
+            # the fallback phrase IS the entire response.
             _fallback_indicators = [
                 "What do you need to get done",
                 "What's the priority right now",
@@ -2572,13 +2578,16 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 "How can I help",
                 "What needs your attention",
             ]
-            if any(ind in (response_text or '') for ind in _fallback_indicators):
+            if len(response_text) < 200 and any(
+                ind in (response_text or '') for ind in _fallback_indicators
+            ):
                 logger.warning(
-                    "v7_BRIEFING_FALLBACK_PATTERN user=%s — LLM generated "
-                    "a generic/weak response instead of a data-rich briefing. "
+                    "v7_BRIEFING_FALLBACK_PATTERN user=%s len=%s — LLM generated "
+                    "a short generic response instead of a data-rich briefing. "
                     "Briefing not delivered; will retry on next interaction. "
                     "Preview: %s",
-                    self.user.id, (response_text or '')[:120],
+                    self.user.id, len(response_text),
+                    (response_text or '')[:120],
                 )
                 return None
 
@@ -3081,6 +3090,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                 # Add confirmation message for the pending one
                                 response_parts.append(first_confirm.confirmation_message)
                                 response = " ".join(response_parts)
+
+                                if actions_taken:
+                                    _cos_context_cache = None
                             else:
                                 # Execute all actions via orchestrator
                                 orch_actions = enrich_and_execute(
@@ -3117,6 +3129,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                     for ar in orch_actions:
                                         response_parts.append(ar.message + self._format_confirmation_detail(ar))
                                     response = " ".join(response_parts)
+
+                                # Invalidate in-request CoS context cache after
+                                # mutations so downstream code (validators, etc.)
+                                # doesn't use stale schedule data.
+                                if actions_taken:
+                                    _cos_context_cache = None
+
                     else:
                         # No action intent - check for bug reports first ("Fix this:", "Bug:", etc.)
                         bug_report_ack = self._check_bug_report(
@@ -5414,7 +5433,13 @@ Rules for this response:
                     "What do you need to get done",
                     "What's the priority right now",
                 ]
-                _is_weak = any(ind in (response or '') for ind in _weak_indicators)
+                # Only flag as weak if the response is SHORT. Long responses
+                # (200+ chars) contain real data even if they include a
+                # common closing phrase — the executive briefing instruction
+                # explicitly asks the LLM to end with an inviting question.
+                _is_weak = len(response or '') < 200 and any(
+                    ind in (response or '') for ind in _weak_indicators
+                )
                 if _is_weak:
                     logger.warning(
                         "BRIEFING_WEAK_RESPONSE user=%s len=%s — LLM returned "

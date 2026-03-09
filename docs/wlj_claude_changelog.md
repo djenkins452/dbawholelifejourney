@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Fix proactive briefing quality gate rejecting valid briefings
+
+- **Bug:** Beth's automatic daily briefing was not being delivered when the user opened chat. Valid data-rich briefings were being silently rejected by the fallback pattern quality gate.
+- **Root cause:** `generate_proactive_briefing()` checked for fallback indicator phrases (e.g., "How can I help", "What needs your attention") using bare substring matching on the full response text. Meanwhile, `build_executive_briefing()` explicitly instructs the LLM to "end by inviting the user to shape their day" — generating exactly those phrases. A 500-word briefing ending with "How can I help you prioritize?" was rejected identically to a 30-character generic fallback.
+- **Secondary issue:** Frontend `briefingRequested` flag was set permanently on first attempt. If the backend rejected the briefing, no retry ever happened for the rest of the page session.
+- **Fix:**
+  - Length-gated fallback detection: only check fallback indicator phrases when response is < 200 chars. Data-rich briefings (200+ chars) pass through even if they contain common closing phrases.
+  - Applied same fix to `_weak_indicators` check in `_generate_response()` (non-proactive briefing path).
+  - Frontend retry: both `chat_widget.html` and `assistant_panel.html` now reset the `briefingRequested` flag after 30 seconds when a briefing is skipped or fails, allowing another attempt.
+- **Files:** `apps/ai/personal_assistant.py`, `templates/components/chat_widget.html`, `templates/components/assistant_panel.html`
+- **Tests:** 12/12 `test_proactive_briefing` pass, 61/61 `test_personal_assistant` pass
+- **Why:** Proactive daily briefing is a core CoS feature — Beth should brief the user on arrival, not wait silently
+
+## 2026-03-09 — Non-Negotiable Task Commitment Level System
+
+- **Feature:** Tasks and Goals now support a `commitment_level` field (optional / important / non-negotiable). Non-negotiable tasks that are repeatedly skipped trigger escalating coaching from Beth — gentle reminder → pattern awareness → coaching intervention → supportive problem-solving (capped at Day 3, no further escalation).
+- **Skip streak tracking:** `skip_streak` and `last_skipped_at` fields track consecutive skips. A recency guard (`effective_skip_streak` property) resets the effective streak to 0 if the last skip was more than 7 days ago, avoiding stale pattern penalties.
+- **Recurrence:** `commitment_level`, `skip_streak`, and `last_skipped_at` propagate to next recurring task occurrence.
+- **UI:** Commitment level dropdown on task and goal forms. Red "NN" badge on task list and Organize pages for non-negotiable tasks.
+- **AI Integration:** `handle_skip_task()` now appends escalation messaging for NN tasks. `handle_create_task()` accepts `commitment_level`. Intent schema updated with `commitment_level` enum. Coaching templates added for all 4 styles (default, southern_belle, new_yorker, california).
+- **Proactive check-ins:** NN tasks with `effective_skip_streak >= 2` generate escalating check-ins (max 3 per run).
+- **State builder:** New `build_task_state()` with consistency_score (`completed_nn_7d / (completed_nn_7d + skipped_nn_7d)`), nn_skip_streaks list (top 5), active tasks by commitment level, overdue NN count.
+- **CoS context:** Data State Snapshot includes `non_negotiable_skip_streaks` count with grounding rules and commitment awareness coaching guidance.
+- **Signal collector:** `nn_skip_streak_tasks` count (NN tasks with recency-guarded streak >= 2) added to `_collect_upcoming_events()`.
+- **Files:** `apps/life/models.py`, `apps/purpose/models.py`, `apps/life/services/recurrence.py`, `apps/life/views.py`, `apps/purpose/views.py`, `templates/life/task_form.html`, `templates/life/task_list.html`, `templates/life/home.html`, `apps/purpose/templates/purpose/goal_form.html`, `apps/ai/action_handlers.py`, `apps/ai/intents/life_intents.py`, `apps/ai/intent_service.py`, `apps/ai/assistant_intelligence.py`, `apps/ai/proactive_checkins.py`, `apps/core/ai_state/state_builder.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/core/ai_arbitration/signal_collector.py`, `docs/ENGINE_COS_REFERENCE.md`, `apps/life/tests/test_task_commitment.py`, `apps/life/migrations/0022_commitment_level.py`, `apps/purpose/migrations/0007_commitment_level.py`
+
 ## 2026-03-09 — Fix receipt processing stuck at 0%
 
 - **Bug:** Receipt processing gets stuck at 0% with no progress or error

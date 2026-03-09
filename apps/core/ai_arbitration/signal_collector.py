@@ -437,6 +437,7 @@ def _collect_upcoming_events(user, now):
         "significant_next_7d": [],
         "overdue_tasks": 0,
         "approaching_deadlines": 0,
+        "nn_skip_streak_tasks": 0,
     }
 
     # Significant events (birthdays, anniversaries)
@@ -469,6 +470,16 @@ def _collect_upcoming_events(user, now):
             completion_status='pending',
             due_date__gte=today,
             due_date__lte=today + timedelta(days=3),
+        ).count()
+        # Non-negotiable tasks with active skip streaks (recency-guarded check at query level)
+        from datetime import timedelta as td
+        seven_days_ago = now - td(days=7)
+        events["nn_skip_streak_tasks"] = Task.objects.filter(
+            user=user,
+            commitment_level='non_negotiable',
+            skip_streak__gte=2,
+            last_skipped_at__gte=seven_days_ago,
+            status='active',
         ).count()
     except Exception:
         pass

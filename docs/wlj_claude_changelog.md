@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — War Room Maturity Trends + Life Impact Explanation
+
+- **Trend Indicators:** Each maturity dimension now shows ▲/▼/— delta vs previous daily snapshot. Compares latest vs previous `SystemMaturitySnapshot` records. Overall score also shows delta in header.
+- **Life Impact Breakdown:** Expandable "Factors" panel under the Life Impact card showing 3 weighted components: Goal progress (30%), Routine adherence (40%), Domain engagement (30%) — each with colored progress bar, percentage, and weight label.
+- **Toggle interaction:** CSP-compliant event delegation toggle for the Life Impact breakdown panel.
+- **No new models:** Reuses existing `SystemMaturitySnapshot` (already stores daily per-dimension scores) and `compute_life_impact_score()` details dict.
+- **Files:** `apps/core/ai_observability/ops_views.py` (added `_get_maturity_deltas()`, `_get_life_impact_breakdown()`), `templates/admin_console/operations_wall.html` (CSS + HTML for deltas and breakdown)
+- **Tests:** 82 pass (ops_wall_v2)
+
 ## 2026-03-09 — War Room Maturity Integration (OPS Command Center)
 
 - **Maturity Briefing:** Integrated system maturity scores (5 dimensions + overall) into the OPS War Room (`/admin-console/ops/`). Color-coded score cards (green ≥80, amber ≥60, red <60) with actionable recommendations and regression alerts.

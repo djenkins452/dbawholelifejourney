@@ -1260,6 +1260,92 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 .ops-maturity-card-score.score-red { color: var(--ops-red); }
 .ops-maturity-card-score.score-none { color: var(--ops-text-dim); font-size: 0.85rem; }
 
+/* Trend delta indicators */
+.ops-maturity-delta {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    margin-top: 3px;
+}
+.ops-maturity-delta.delta-up { color: var(--ops-green); }
+.ops-maturity-delta.delta-down { color: var(--ops-red); }
+.ops-maturity-delta.delta-flat { color: var(--ops-text-dim); }
+
+/* Overall trend in header */
+.ops-maturity-overall-delta {
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+.ops-maturity-overall-delta.delta-up { color: var(--ops-green); }
+.ops-maturity-overall-delta.delta-down { color: var(--ops-red); }
+.ops-maturity-overall-delta.delta-flat { color: var(--ops-text-dim); }
+
+/* Life Impact factor breakdown */
+.ops-life-impact-toggle {
+    display: block;
+    font-size: 0.6rem;
+    color: var(--ops-cyan);
+    cursor: pointer;
+    margin-top: 4px;
+    border: none;
+    background: none;
+    padding: 0;
+    text-decoration: none;
+    letter-spacing: 0.04em;
+}
+.ops-life-impact-toggle:hover { text-decoration: underline; }
+.ops-life-impact-breakdown {
+    display: none;
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--ops-surface-alt);
+    border-radius: var(--ops-radius-sm);
+    border: 1px solid var(--ops-glass-border);
+}
+.ops-life-impact-breakdown.expanded { display: block; }
+.ops-life-impact-factor {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.ops-life-impact-factor:last-child { margin-bottom: 0; }
+.ops-life-impact-factor-label {
+    font-size: 0.65rem;
+    color: var(--ops-text-muted);
+    min-width: 100px;
+}
+.ops-life-impact-factor-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+    overflow: hidden;
+}
+.ops-life-impact-factor-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+}
+.ops-life-impact-factor-fill.bar-green { background: var(--ops-green); }
+.ops-life-impact-factor-fill.bar-amber { background: var(--ops-yellow); }
+.ops-life-impact-factor-fill.bar-red { background: var(--ops-red); }
+.ops-life-impact-factor-value {
+    font-size: 0.65rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ops-text);
+    min-width: 28px;
+    text-align: right;
+}
+.ops-life-impact-factor-weight {
+    font-size: 0.55rem;
+    color: var(--ops-text-dim);
+    min-width: 24px;
+}
+
 /* Maturity recommendations + regressions */
 .ops-maturity-alerts {
     display: flex;
@@ -1459,6 +1545,11 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
             <div class="ops-maturity-overall">
                 {% if overall.score is not None %}
                 <span class="ops-maturity-overall-score {% if overall.score >= 80 %}score-green{% elif overall.score >= 60 %}score-amber{% else %}score-red{% endif %}">{{ overall.score }}</span>
+                {% with delta=maturity_deltas.overall %}
+                {% if delta is not None %}
+                <span class="ops-maturity-overall-delta {% if delta > 0 %}delta-up{% elif delta < 0 %}delta-down{% else %}delta-flat{% endif %}">{% if delta > 0 %}&#9650; +{{ delta }}{% elif delta < 0 %}&#9660; {{ delta }}{% else %}&mdash;{% endif %}</span>
+                {% endif %}
+                {% endwith %}
                 {% else %}
                 <span class="ops-maturity-overall-score score-none">N/A</span>
                 {% endif %}
@@ -1469,17 +1560,43 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
         <div class="ops-maturity-grid">
             {% for dim_key, dim_data in maturity_scores.items %}
             {% if dim_key != "overall" %}
-            <div class="ops-maturity-card">
+            <div class="ops-maturity-card" {% if dim_key == "life_impact" %}id="lifeImpactCard"{% endif %}>
                 <div class="ops-maturity-card-label">{% if dim_key == "domain_coverage" %}Coverage{% elif dim_key == "infrastructure" %}Infra{% elif dim_key == "intelligence" %}Intelligence{% elif dim_key == "life_impact" %}Life Impact{% elif dim_key == "safety" %}Safety{% else %}{{ dim_key }}{% endif %}</div>
                 {% if dim_data.score is not None %}
                 <div class="ops-maturity-card-score {% if dim_data.score >= 80 %}score-green{% elif dim_data.score >= 60 %}score-amber{% else %}score-red{% endif %}">{{ dim_data.score }}</div>
                 {% else %}
                 <div class="ops-maturity-card-score score-none">&mdash;</div>
                 {% endif %}
+                {% with delta_val=maturity_deltas|default:"" %}
+                {% if delta_val %}
+                {% for dk, dv in delta_val.items %}
+                {% if dk == dim_key and dv is not None %}
+                <div class="ops-maturity-delta {% if dv > 0 %}delta-up{% elif dv < 0 %}delta-down{% else %}delta-flat{% endif %}">{% if dv > 0 %}&#9650; +{{ dv }}{% elif dv < 0 %}&#9660; {{ dv }}{% else %}&mdash;{% endif %}</div>
+                {% endif %}
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
+                {% if dim_key == "life_impact" and life_impact_breakdown %}
+                <button class="ops-life-impact-toggle" data-target="lifeImpactBreakdown" type="button">Factors &#9662;</button>
+                {% endif %}
             </div>
             {% endif %}
             {% endfor %}
         </div>
+        {% if life_impact_breakdown %}
+        <div class="ops-life-impact-breakdown" id="lifeImpactBreakdown">
+            {% for factor in life_impact_breakdown %}
+            <div class="ops-life-impact-factor">
+                <span class="ops-life-impact-factor-label">{{ factor.label }}</span>
+                <div class="ops-life-impact-factor-bar">
+                    <div class="ops-life-impact-factor-fill {% if factor.value >= 60 %}bar-green{% elif factor.value >= 30 %}bar-amber{% else %}bar-red{% endif %}" style="width:{{ factor.value }}%"></div>
+                </div>
+                <span class="ops-life-impact-factor-value">{{ factor.value }}%</span>
+                <span class="ops-life-impact-factor-weight">({{ factor.weight_pct }}%)</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
         {% if maturity_regressions or maturity_recommendations %}
         <div class="ops-maturity-alerts">
             {% for reg in maturity_regressions %}
@@ -1973,6 +2090,20 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 <script nonce="{{ csp_nonce }}">
 (function() {
     'use strict';
+
+    /* =====================================================================
+       Life Impact Breakdown Toggle
+       ===================================================================== */
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.ops-life-impact-toggle');
+        if (!btn) return;
+        var targetId = btn.getAttribute('data-target');
+        if (!targetId) return;
+        var panel = document.getElementById(targetId);
+        if (!panel) return;
+        var isExpanded = panel.classList.toggle('expanded');
+        btn.innerHTML = isExpanded ? 'Factors &#9652;' : 'Factors &#9662;';
+    });
 
     /* =====================================================================
        Configuration & State

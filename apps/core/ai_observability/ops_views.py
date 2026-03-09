@@ -58,6 +58,14 @@ class OperationsWallView(AdminRequiredMixin, TemplateView):
         # --- System Maturity (Phase 9 integration) ---
         context.update(self._get_maturity_data(user))
 
+        # --- Maturity Trend Deltas (compare to previous snapshot) ---
+        context["maturity_deltas"] = self._get_maturity_deltas()
+
+        # --- Life Impact Breakdown ---
+        context["life_impact_breakdown"] = self._get_life_impact_breakdown(
+            context.get("maturity_scores", {}),
+        )
+
         # --- Domain Coverage ---
         context["domain_coverage"] = self._get_domain_coverage()
 
@@ -93,6 +101,76 @@ class OperationsWallView(AdminRequiredMixin, TemplateView):
         except Exception as e:
             logger.warning("OPS: Maturity data failed: %s", e, exc_info=True)
         return result
+
+    def _get_maturity_deltas(self):
+        """Compare latest vs previous maturity snapshot for trend indicators.
+
+        Returns dict mapping dimension names to delta integers.
+        Positive = improvement, negative = decline, 0 = unchanged, None = no data.
+        """
+        deltas = {
+            "infrastructure": None,
+            "intelligence": None,
+            "safety": None,
+            "domain_coverage": None,
+            "life_impact": None,
+            "overall": None,
+        }
+        try:
+            from apps.core.ai_observability.models import SystemMaturitySnapshot
+
+            snapshots = list(
+                SystemMaturitySnapshot.objects.order_by("-snapshot_date")[:2]
+            )
+            if len(snapshots) < 2:
+                return deltas
+
+            latest, previous = snapshots[0], snapshots[1]
+            deltas["infrastructure"] = latest.infrastructure_score - previous.infrastructure_score
+            deltas["intelligence"] = latest.intelligence_score - previous.intelligence_score
+            deltas["safety"] = latest.safety_score - previous.safety_score
+            deltas["domain_coverage"] = latest.domain_coverage_score - previous.domain_coverage_score
+            deltas["life_impact"] = latest.life_impact_score - previous.life_impact_score
+            deltas["overall"] = latest.overall_score - previous.overall_score
+        except Exception as e:
+            logger.debug("OPS: Maturity deltas unavailable: %s", e)
+        return deltas
+
+    def _get_life_impact_breakdown(self, maturity_scores):
+        """Extract life impact factor breakdown from maturity scores.
+
+        Returns list of dicts: [{name, label, value}, ...] for template rendering.
+        """
+        factors = []
+        try:
+            life_data = maturity_scores.get("life_impact", {})
+            details = life_data.get("details", {})
+            if not details or "error" in details:
+                return factors
+
+            factor_labels = {
+                "goal_progress": "Goal progress",
+                "routine_adherence": "Routine adherence",
+                "engagement_depth": "Domain engagement",
+            }
+            factor_weights = {
+                "goal_progress": 0.3,
+                "routine_adherence": 0.4,
+                "engagement_depth": 0.3,
+            }
+            for key, label in factor_labels.items():
+                val = details.get(key)
+                if val is not None:
+                    weight = factor_weights.get(key, 0)
+                    factors.append({
+                        "name": key,
+                        "label": label,
+                        "value": val,
+                        "weight_pct": int(weight * 100),
+                    })
+        except Exception as e:
+            logger.debug("OPS: Life impact breakdown unavailable: %s", e)
+        return factors
 
     def _get_domain_coverage(self):
         """Fetch domain coverage summary from the registry."""

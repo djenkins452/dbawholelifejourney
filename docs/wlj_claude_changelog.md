@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Improve receipt Vision AI extraction quality
+
+- **Bug:** Vision API only extracting ~8 items from a Food Lion receipt with 20+ items, and hallucinating items like "kitty litter" that weren't on the receipt.
+- **Root causes:**
+  1. Image compression too aggressive — `RECEIPT_MAX_DIMENSION=1200` shrank receipt text to near-unreadable for the AI
+  2. Vision prompt too generic — didn't emphasize reading ALL items or warn against hallucination
+  3. `max_tokens=3000` too low for receipts with many items (JSON could get truncated)
+- **Fix:**
+  - Increased `RECEIPT_MAX_DIMENSION` from 1200 → 2048 (receipts have small dense text)
+  - Increased `RECEIPT_JPEG_QUALITY` from 80 → 85 for better text clarity
+  - Rewrote Vision prompt: explicit "extract EVERY SINGLE line item", "read names EXACTLY as printed", "do NOT hallucinate", weight-based item handling, Food Lion in store examples
+  - Increased `max_tokens` from 3000 → 4096 to handle 30+ item receipts
+- **Files:** `apps/meals/services/receipt_vision.py`
+- **Why:** Poor extraction quality makes the feature unusable — users shouldn't have to manually re-enter items the AI missed
+
 ## 2026-03-09 — Fix proactive briefing quality gate rejecting valid briefings
 
 - **Bug:** Beth's automatic daily briefing was not being delivered when the user opened chat. Valid data-rich briefings were being silently rejected by the fallback pattern quality gate.

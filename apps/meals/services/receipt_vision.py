@@ -27,22 +27,29 @@ logger = logging.getLogger(__name__)
 
 
 # Receipt-specific Vision prompt — extracts + classifies in one call
-RECEIPT_VISION_PROMPT = """You are analyzing a photo of a receipt or bill.
-Extract ALL information into structured JSON.
+RECEIPT_VISION_PROMPT = """You are a receipt OCR specialist. Your job is to read a photo of a receipt and extract EVERY purchased item into structured JSON.
+
+CRITICAL RULES:
+- Extract EVERY SINGLE line item printed on the receipt. Do NOT skip any items.
+- Read the item names EXACTLY as printed. Do NOT guess or invent item names.
+- If text is blurry or partially obscured, include your best reading with the actual text you can see. Do NOT hallucinate items that aren't there.
+- Receipts often have 15-40+ items. If you only find a few, look more carefully.
+- Lines with just discounts, coupons, tax, or subtotals are NOT items — skip those.
+- Weight-based items (e.g., "2.34 lb @ $3.99/lb") should have quantity set to the weight.
 
 CLASSIFICATION RULES:
-- "grocery": Supermarket, grocery store, bulk food store (Walmart, Kroger, Whole Foods, Costco, Aldi, Publix, etc.)
+- "grocery": Supermarket, grocery store, bulk food store (Food Lion, Walmart, Kroger, Whole Foods, Costco, Aldi, Publix, etc.)
 - "restaurant": Restaurant, cafe, bar, fast food, takeout, delivery service
 - "retail": Non-food retail (Amazon, Target non-grocery, clothing, electronics, hardware, etc.)
 - "unknown": Cannot determine
 
 EXTRACTION RULES:
-1. Extract the STORE NAME exactly as printed on the receipt
-2. Extract the DATE in YYYY-MM-DD format (if visible)
-3. Extract EVERY line item with name, quantity, and price
+1. Extract the STORE NAME exactly as printed at the top of the receipt
+2. Extract the DATE in YYYY-MM-DD format (look near the top or bottom)
+3. Extract EVERY line item: name (as printed), quantity, unit price
 4. Extract subtotal, tax, and total amounts
 5. For grocery items, classify each into a category
-6. Detect the payment method if visible (cash, credit, debit, ebt, mobile)
+6. Detect the payment method if visible
 
 RESPONSE FORMAT (strict JSON):
 {{
@@ -51,7 +58,7 @@ RESPONSE FORMAT (strict JSON):
   "date": "YYYY-MM-DD",
   "items": [
     {{
-      "name": "item description as printed",
+      "name": "item description as printed on receipt",
       "quantity": 1,
       "price": 3.99,
       "category": "produce"
@@ -63,14 +70,15 @@ RESPONSE FORMAT (strict JSON):
   "payment_method": "credit"
 }}
 
-Category options for grocery items: produce, dairy, meat, seafood, bakery, frozen, beverage, snack, canned, cereal, condiment, household, health, other
+Category options: produce, dairy, meat, seafood, bakery, frozen, beverage, snack, canned, cereal, condiment, household, health, other
 Payment method options: cash, credit, debit, ebt, mobile, other (omit if not visible)
 
 Respond ONLY with valid JSON. No markdown, no explanation."""
 
-# Compression settings for receipt images
-RECEIPT_MAX_DIMENSION = 1200  # px — receipts don't need high res
-RECEIPT_JPEG_QUALITY = 80  # Good balance of quality vs size
+# Compression settings for receipt images — receipts have small text,
+# need higher resolution than typical photos for accurate OCR
+RECEIPT_MAX_DIMENSION = 2048  # px — higher res for small receipt text
+RECEIPT_JPEG_QUALITY = 85  # Higher quality to preserve text clarity
 
 
 @dataclass
@@ -322,7 +330,7 @@ class ReceiptVisionService:
                         ],
                     }
                 ],
-                max_tokens=3000,
+                max_tokens=4096,
                 temperature=0.1,
             )
 

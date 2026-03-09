@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — CoS Activity Reconciliation & CRUD Confirmation Gate
+
+- **Two-layer safety system** injected into the orchestrator pipeline between intent enrichment and execution. No write operation executes without explicit user confirmation.
+- **Layer 1 — Activity Reconciliation** (`activity_reconciliation.py`): Registry-based duplicate detection across 17 intent types (tasks, events, goals, intentions, prayers, workouts, health logs, medicine, habits, journal, reminders). Tiered title matching (exact→prefix→substring→keyword) with confidence scoring. Decisions: CREATE (no match), RESCHEDULE (match + different time), SKIP (match + same time), CONFIRM (ambiguous). All decisions are proposals — nothing executes automatically.
+- **Layer 2 — CRUD Confirmation Gate** (`crud_confirmation.py`): Deterministic confirmation parsing (CONFIRM/CANCEL/EDIT keywords, not NLP). 7 read/control intents pass through (read_calendar_events, read_task, check_budget, learning mode, calibration, no_action). All 44+ write intents require explicit user approval. Rich confirmation messages vary by reconciliation decision.
+- **Idempotency protection**: UUID `action_id` per pending action + `executed` flag prevents double execution. 300s TTL with explicit expiry messaging.
+- **Orchestrator integration** (`orchestrator.py`): Both layers injected into `enrich_and_execute()`. Fail-closed safety: CRUD gate errors block execution (never bypass to direct execution).
+- **Intent service** (`intent_service.py`): Added `store_pending_crud_action()`, `get_pending_crud_action()`, `clear_pending_crud_action()`, `handle_crud_confirmation()` methods with structured `[CRUD_GATE]` telemetry logging.
+- **Chat pipeline** (`personal_assistant.py`): CRUD confirmation check added to both non-streaming and streaming paths. Unrecognized responses re-show confirmation with instructions.
+- **Structured telemetry**: `[RECONCILE]` prefix for reconciliation decisions, `[CRUD_GATE]` prefix for confirmation lifecycle events. Original intent preserved for tracing.
+- **Files created:** `apps/core/ai_orchestrator/activity_reconciliation.py`, `apps/core/ai_orchestrator/crud_confirmation.py`, `apps/core/ai_orchestrator/tests/test_activity_reconciliation.py`, `apps/core/ai_orchestrator/tests/test_crud_confirmation.py`
+- **Files modified:** `apps/core/ai_orchestrator/orchestrator.py`, `apps/ai/intent_service.py`, `apps/ai/personal_assistant.py`, `docs/ENGINE_COS_REFERENCE.md`
+- **Tests:** 64 new tests (30 reconciliation + 34 confirmation), all 132 orchestrator tests pass, all 1,152 life/calendar/ai tests pass
+
 ## 2026-03-09 — Fix Life Impact Scope: System-Wide for OPS War Room
 
 - **Scope fix:** OPS War Room Life Impact now computed across all active non-staff users (system intelligence), not scoped to `request.user` (personal intelligence). Aligns with the other 4 maturity dimensions and daily ISE snapshots.

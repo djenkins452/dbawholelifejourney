@@ -3000,6 +3000,30 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 else:
                     # Response wasn't yes/no, ask again
                     response = f"Please confirm: {intent_service._build_confirmation_message(pending['intent_type'], pending['parameters'])} (yes/no)"
+            # Then check for pending CRUD action confirmation
+            elif (pending_crud := intent_service.get_pending_crud_action(self.user)):
+                crud_result = intent_service.handle_crud_confirmation(
+                    self.user, message,
+                )
+                if crud_result:
+                    if crud_result.action_type in (
+                        'cancelled', 'expired', 'idempotent_skip',
+                    ):
+                        response = crud_result.message
+                    else:
+                        response = (
+                            crud_result.message
+                            + self._format_confirmation_detail(crud_result)
+                        )
+                        actions_taken.append(
+                            self._build_action_taken(crud_result)
+                        )
+                else:
+                    # Unrecognized response — re-show confirmation
+                    response = (
+                        f"{pending_crud['confirmation_message']}\n\n"
+                        "Please reply with: CONFIRM, CANCEL, or EDIT"
+                    )
             # Then check for pending entity clarification (disambiguation)
             elif (clarification := intent_service.get_pending_clarification(self.user)):
                 clarification_result = intent_service.resolve_clarification(
@@ -6310,6 +6334,51 @@ Rules for this response:
                             _direct_response = confirm_resp
                     except Exception:
                         pass
+
+                # ── Pending CRUD action confirmation ──
+                if not _direct_response:
+                    try:
+                        from apps.ai.intent_service import intent_service
+                        _pending_crud = (
+                            intent_service.get_pending_crud_action(self.user)
+                        )
+                        if _pending_crud:
+                            _crud_result = (
+                                intent_service.handle_crud_confirmation(
+                                    self.user, message,
+                                )
+                            )
+                            if _crud_result:
+                                if _crud_result.action_type in (
+                                    'cancelled', 'expired',
+                                    'idempotent_skip',
+                                ):
+                                    _direct_response = _crud_result.message
+                                else:
+                                    _direct_response = (
+                                        _crud_result.message
+                                        + self._format_confirmation_detail(
+                                            _crud_result
+                                        )
+                                    )
+                                    if _crud_result.success:
+                                        actions_taken.append(
+                                            self._build_action_taken(
+                                                _crud_result
+                                            )
+                                        )
+                            else:
+                                # Unrecognized — re-show confirmation
+                                _direct_response = (
+                                    f"{_pending_crud['confirmation_message']}"
+                                    "\n\nPlease reply with: "
+                                    "CONFIRM, CANCEL, or EDIT"
+                                )
+                    except Exception as crud_err:
+                        logger.warning(
+                            "Streaming CRUD confirmation check failed: %s",
+                            crud_err, exc_info=True,
+                        )
 
                 # ── Pending clarification check (entity disambiguation) ──
                 if not _direct_response:

@@ -16,7 +16,7 @@ It enhances the existing pipeline by being called at the right points:
 
 import logging
 
-from apps.core.ai_orchestrator.action_router import route_action
+from apps.core.ai_orchestrator.action_router import EnrichedAction, route_action
 from apps.core.ai_orchestrator.audit_logger import log_interaction
 from apps.core.ai_orchestrator.context_pipeline import resolve_context_pipeline
 from apps.core.ai_orchestrator.execution_engine import execute_action
@@ -221,7 +221,92 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
         )
         enriched_actions.append(enriched)
 
-        # Execute through existing handler
+        # ── Layer 1: Activity Reconciliation ─────────────────────
+        # Checks for existing activities matching the create/log intent.
+        # All decisions are proposals — nothing executes without CRUD gate.
+        recon_result = None
+        try:
+            from apps.core.ai_orchestrator.activity_reconciliation import (
+                reconcile_activity,
+                ReconciliationDecision,
+            )
+            recon_result = reconcile_activity(user, enriched)
+
+            if recon_result.decision == ReconciliationDecision.RESCHEDULE:
+                # Rewrite enriched action to the mutate equivalent
+                enriched = EnrichedAction(
+                    intent_type=recon_result.redirected_intent,
+                    parameters=recon_result.redirected_params,
+                    original_input=enriched.original_input,
+                )
+                enriched_actions[-1] = enriched
+            # CREATE, SKIP, CONFIRM all fall through to CRUD gate
+        except ImportError:
+            pass  # Module not installed yet
+        except Exception as e:
+            logger.error(
+                "Activity reconciliation failed (user=%s): %s",
+                user.id, e, exc_info=True,
+            )
+
+        # ── Layer 2: CRUD Confirmation Gate ──────────────────────
+        # All write operations require explicit user confirmation.
+        # Read-only / control-plane intents pass through to execution.
+        try:
+            from apps.core.ai_orchestrator.crud_confirmation import (
+                requires_confirmation,
+                build_crud_confirmation_message,
+            )
+            if requires_confirmation(enriched.intent_type):
+                from apps.ai.intent_service import ActionResult
+                from django.utils import timezone as dj_tz
+
+                msg = build_crud_confirmation_message(enriched, recon_result)
+                intent_service.store_pending_crud_action(user, {
+                    'intent_type': enriched.intent_type,
+                    'parameters': enriched.parameters,
+                    'original_intent': intent_result.intent_type,
+                    'original_input': orchestrator_result.original_input,
+                    'recon_decision': (
+                        recon_result.decision.value if recon_result else 'none'
+                    ),
+                    'recon_context': (
+                        recon_result.matched_object if recon_result else None
+                    ),
+                    'confirmation_message': msg,
+                })
+                logger.info(
+                    "[CRUD_GATE] Pending: %s user=%s recon=%s",
+                    enriched.intent_type, user.id,
+                    recon_result.decision.value if recon_result else 'none',
+                )
+                result = ActionResult(
+                    success=False,
+                    message=msg,
+                    error='crud_confirmation_required',
+                    action_type=enriched.intent_type,
+                )
+                action_results.append(result)
+                continue  # Skip execution — wait for user confirmation
+        except ImportError:
+            pass  # Module not installed yet
+        except Exception as e:
+            # FAILSAFE: CRUD gate failure blocks execution (fail-closed)
+            logger.error(
+                "CRUD gate failed (blocking execution, user=%s): %s",
+                user.id, e, exc_info=True,
+            )
+            from apps.ai.intent_service import ActionResult
+            result = ActionResult(
+                success=False,
+                message="I wasn't able to process that safely. Please try again.",
+                error='crud_gate_error',
+                action_type=enriched.intent_type,
+            )
+            action_results.append(result)
+            continue
+
+        # ── Execute (only reached for PASSTHROUGH_INTENTS) ───────
         result = execute_action(user, enriched)
         action_results.append(result)
 

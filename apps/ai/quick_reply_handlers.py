@@ -650,3 +650,116 @@ def generate_task_check_in_replies(task_id: int, task_title: str) -> list:
             'style': 'secondary',
         },
     ]
+
+
+# =============================================================================
+# Phase 4: Cross-Domain Quick Reply Handlers
+# =============================================================================
+
+
+def generate_faith_reading_replies(plan_id: int) -> list:
+    """Quick replies for faith reading plan check-in."""
+    return [
+        {
+            'id': 'open_plan',
+            'label': "Open today's reading",
+            'action': 'navigate',
+            'params': {'url': f'/faith/reading-plans/{plan_id}/'},
+            'style': 'primary',
+        },
+        {
+            'id': 'remind_later',
+            'label': 'Remind me later',
+            'action': 'acknowledge',
+            'params': {'message': "I'll check back later."},
+            'style': 'secondary',
+        },
+    ]
+
+
+def generate_finance_budget_replies(category_name: str) -> list:
+    """Quick replies for budget threshold alert."""
+    return [
+        {
+            'id': 'view_budget',
+            'label': 'View budget',
+            'action': 'navigate',
+            'params': {'url': '/finance/budgets/'},
+            'style': 'primary',
+        },
+        {
+            'id': 'got_it',
+            'label': 'Got it',
+            'action': 'acknowledge',
+            'params': {'message': "Noted. I'll keep tracking."},
+            'style': 'secondary',
+        },
+    ]
+
+
+def generate_goal_check_in_replies(goal_id: int, goal_type: str = 'life') -> list:
+    """Quick replies for goal deadline/stalling check-in."""
+    url = '/purpose/goals/' if goal_type == 'life' else '/purpose/habits/'
+    return [
+        {
+            'id': 'view_goal',
+            'label': 'View goal',
+            'action': 'navigate',
+            'params': {'url': url},
+            'style': 'primary',
+        },
+        {
+            'id': 'update_progress',
+            'label': 'Update progress',
+            'action': 'acknowledge',
+            'params': {'message': "What progress have you made? I can help log it."},
+            'style': 'primary',
+        },
+        {
+            'id': 'remind_later',
+            'label': 'Remind me later',
+            'action': 'acknowledge',
+            'params': {'message': "I'll check back later."},
+            'style': 'secondary',
+        },
+    ]
+
+
+def generate_relationship_drift_replies(person_name: str) -> list:
+    """Quick replies for relationship drift alert."""
+    return [
+        {
+            'id': 'reach_out',
+            'label': 'Remind me to reach out',
+            'action': 'acknowledge',
+            'params': {'message': f"I'll add a reminder to reach out to {person_name}."},
+            'style': 'primary',
+        },
+        {
+            'id': 'already_connected',
+            'label': 'Already connected',
+            'action': 'acknowledge',
+            'params': {'message': "Got it, I'll update the record."},
+            'style': 'secondary',
+        },
+    ]
+
+
+def generate_journal_concern_replies() -> list:
+    """Quick replies for recurring journal concern check-in."""
+    return [
+        {
+            'id': 'lets_talk',
+            'label': "Let's talk about it",
+            'action': 'acknowledge',
+            'params': {'message': "I'm here. What's on your mind?"},
+            'style': 'primary',
+        },
+        {
+            'id': 'im_fine',
+            'label': "I'm handling it",
+            'action': 'acknowledge',
+            'params': {'message': "Good to hear. I'll keep an eye on it."},
+            'style': 'secondary',
+        },
+    ]

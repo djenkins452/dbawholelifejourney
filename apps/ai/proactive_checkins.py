@@ -40,6 +40,11 @@ from .quick_reply_handlers import (
     generate_journal_check_in_replies,
     generate_mood_check_in_replies,
     generate_task_check_in_replies,
+    generate_faith_reading_replies,
+    generate_finance_budget_replies,
+    generate_goal_check_in_replies,
+    generate_relationship_drift_replies,
+    generate_journal_concern_replies,
 )
 from .assistant_intelligence import (
     get_style_template,
@@ -527,10 +532,295 @@ class ProactiveCheckInService:
             }
         )
 
+    # =========================================================================
+    # Phase 4: Cross-Domain Proactive Check-Ins
+    # =========================================================================
+
+    def generate_faith_reading_check_in(
+        self, plan, days_behind: int = 0
+    ) -> Optional[AssistantMessage]:
+        """
+        Generate a check-in for an active reading plan.
+
+        Args:
+            plan: UserReadingPlan instance
+            days_behind: Number of days behind schedule
+        """
+        if not self.throttler.can_send('faith_reading', plan.id):
+            return None
+
+        template = get_style_template(self.user, 'faith_reading_gap')
+        message_content = template.format(
+            day=plan.current_day,
+            plan=plan.template.title,
+            progress=plan.progress_percentage,
+        )
+
+        quick_replies = generate_faith_reading_replies(plan.id)
+
+        return self._create_proactive_message(
+            content=message_content,
+            quick_replies=quick_replies,
+            message_type='nudge',
+            metadata={
+                'check_in_type': 'faith_reading',
+                'plan_id': plan.id,
+                'item_id': plan.id,
+                'days_behind': days_behind,
+            }
+        )
+
+    def generate_faith_prayer_check_in(
+        self, count: int
+    ) -> Optional[AssistantMessage]:
+        """Generate a reminder about prayer requests with daily reminders."""
+        if not self.throttler.can_send('faith_prayer'):
+            return None
+
+        template = get_style_template(self.user, 'faith_prayer_reminder')
+        message_content = template.format(count=count)
+
+        return self._create_proactive_message(
+            content=message_content,
+            quick_replies=[],
+            message_type='nudge',
+            metadata={
+                'check_in_type': 'faith_prayer',
+                'prayer_count': count,
+            }
+        )
+
+    def generate_finance_budget_check_in(
+        self, budget, percent_used: int, days_left: int
+    ) -> Optional[AssistantMessage]:
+        """Generate a budget threshold alert."""
+        if not self.throttler.can_send('finance_budget', budget.id):
+            return None
+
+        template = get_style_template(self.user, 'finance_budget_alert')
+        message_content = template.format(
+            percent=percent_used,
+            category=budget.category.name,
+            days_left=days_left,
+        )
+
+        quick_replies = generate_finance_budget_replies(budget.category.name)
+
+        return self._create_proactive_message(
+            content=message_content,
+            quick_replies=quick_replies,
+            message_type='nudge',
+            metadata={
+                'check_in_type': 'finance_budget',
+                'budget_id': budget.id,
+                'item_id': budget.id,
+                'percent_used': percent_used,
+            }
+        )
+
+    def generate_finance_goal_check_in(
+        self, goal, stalling_days: int = 0
+    ) -> Optional[AssistantMessage]:
+        """Generate a financial goal progress or stalling check-in."""
+        if not self.throttler.can_send('finance_goal', goal.id):
+            return None
+
+        percent = int((goal.current_amount / goal.target_amount) * 100) if goal.target_amount else 0
+
+        if stalling_days > 14:
+            template = get_style_template(self.user, 'finance_goal_stalling')
+            message_content = template.format(
+                goal=goal.name,
+                days=stalling_days,
+                target_date=goal.target_date.strftime('%b %d') if goal.target_date else 'not set',
+            )
+        else:
+            template = get_style_template(self.user, 'finance_goal_milestone')
+            message_content = template.format(
+                goal=goal.name,
+                current=f"{goal.current_amount:,.0f}",
+                target=f"{goal.target_amount:,.0f}",
+                percent=percent,
+            )
+
+        return self._create_proactive_message(
+            content=message_content,
+            quick_replies=[],
+            message_type='nudge' if stalling_days > 14 else 'insight',
+            metadata={
+                'check_in_type': 'finance_goal',
+                'goal_id': goal.id,
+                'item_id': goal.id,
+                'percent': percent,
+            }
+        )
+
+    def generate_relationship_drift_check_in(
+        self, drift_alert: dict
+    ) -> Optional[AssistantMessage]:
+        """Generate a check-in for relationship drift."""
+        person_id = drift_alert['person_id']
+        if not self.throttler.can_send('relationship_drift', person_id):
+            return None
+
+        tier_names = {1: 'inner', 2: 'close', 3: 'wider'}
+        tier = tier_names.get(drift_alert['importance_tier'], 'wider')
+
+        template = get_style_template(self.user, 'relationship_drift')
+        message_content = template.format(
+            days=drift_alert['actual_gap_days'],
+            person=drift_alert['person_name'],
+            tier=tier,
+        )
+
+        quick_replies = generate_relationship_drift_replies(drift_alert['person_name'])
+
+        return self._create_proactive_message(
+            content=message_content,
+            quick_replies=quick_replies,
+            message_type='nudge',
+            metadata={
+                'check_in_type': 'relationship_drift',
+                'person_id': person_id,
+                'item_id': person_id,
+                'gap_days': drift_alert['actual_gap_days'],
+            }
+        )
+
+    def generate_goal_deadline_check_in(
+        self, goal, days_until: int
+    ) -> Optional[AssistantMessage]:
+        """Generate a check-in for an approaching goal deadline."""
+        if not self.throttler.can_send('goal_deadline', goal.id):
+            return None
+
+        template = get_style_template(self.user, 'goal_deadline')
+        message_content = template.format(
+            goal=goal.title,
+            days=days_until,
+        )
+
+        quick_replies = generate_goal_check_in_replies(goal.id, goal_type='life')
+
+        return self._create_proactive_message(
+            content=message_content,
+            quick_replies=quick_replies,
+            message_type='nudge',
+            metadata={
+                'check_in_type': 'goal_deadline',
+                'goal_id': goal.id,
+                'item_id': goal.id,
+                'days_until': days_until,
+            }
+        )
+
+    def generate_goal_stalling_check_in(
+        self, goal, days_stalled: int
+    ) -> Optional[AssistantMessage]:
+        """Generate a check-in for a stalling goal."""
+        if not self.throttler.can_send('goal_stalling', goal.id):
+            return None
+
+        template = get_style_template(self.user, 'goal_stalling')
+        message_content = template.format(
+            goal=goal.title,
+            days=days_stalled,
+        )
+
+        quick_replies = generate_goal_check_in_replies(goal.id, goal_type='life')
+
+        return self._create_proactive_message(
+            content=message_content,
+            quick_replies=quick_replies,
+            message_type='nudge',
+            metadata={
+                'check_in_type': 'goal_stalling',
+                'goal_id': goal.id,
+                'item_id': goal.id,
+                'days_stalled': days_stalled,
+            }
+        )
+
+    def generate_habit_streak_check_in(
+        self, habit, streak: int, is_break: bool = False
+    ) -> Optional[AssistantMessage]:
+        """Generate a habit streak break or acknowledgment."""
+        if not self.throttler.can_send('habit_streak', habit.id):
+            return None
+
+        if is_break:
+            template = get_style_template(self.user, 'habit_streak_break')
+            message_content = template.format(habit=habit.name, streak=streak)
+            msg_type = 'nudge'
+        else:
+            template = get_style_template(self.user, 'habit_streak_note')
+            message_content = template.format(habit=habit.name, streak=streak)
+            msg_type = 'insight'
+
+        return self._create_proactive_message(
+            content=message_content,
+            quick_replies=[],
+            message_type=msg_type,
+            metadata={
+                'check_in_type': 'habit_streak',
+                'habit_id': habit.id,
+                'item_id': habit.id,
+                'streak': streak,
+                'is_break': is_break,
+            }
+        )
+
+    def generate_journal_concern_check_in(
+        self, concern: str, entry_count: int
+    ) -> Optional[AssistantMessage]:
+        """Generate a check-in about a recurring journal concern."""
+        if not self.throttler.can_send('journal_concern'):
+            return None
+
+        template = get_style_template(self.user, 'journal_concern')
+        message_content = template.format(concern=concern, count=entry_count)
+
+        quick_replies = generate_journal_concern_replies()
+
+        return self._create_proactive_message(
+            content=message_content,
+            quick_replies=quick_replies,
+            message_type='insight',
+            metadata={
+                'check_in_type': 'journal_concern',
+                'concern_term': concern,
+                'entry_count': entry_count,
+            }
+        )
+
+    def generate_journal_gap_check_in(
+        self, days_since: int
+    ) -> Optional[AssistantMessage]:
+        """Generate a check-in for extended journal gap (3+ days)."""
+        if not self.throttler.can_send('journal_gap'):
+            return None
+
+        template = get_style_template(self.user, 'journal_gap_extended')
+        message_content = template.format(days=days_since)
+
+        quick_replies = generate_journal_check_in_replies()
+
+        return self._create_proactive_message(
+            content=message_content,
+            quick_replies=quick_replies,
+            message_type='nudge',
+            metadata={
+                'check_in_type': 'journal_gap',
+                'days_since': days_since,
+            }
+        )
+
     # Check-in types that warrant immediate push delivery (high priority)
     _HIGH_PRIORITY_CHECKIN_TYPES = {'medicine', 'grouped_medicine'}
     # Check-in types that use standard delivery (lower priority)
-    _STANDARD_CHECKIN_TYPES = {'workout', 'journal', 'overdue_task', 'busy_day'}
+    _STANDARD_CHECKIN_TYPES = {'workout', 'journal', 'overdue_task', 'busy_day',
+                               'faith_reading', 'finance_budget', 'goal_deadline',
+                               'relationship_drift', 'journal_concern'}
 
     def _create_proactive_message(
         self,
@@ -967,3 +1257,438 @@ def generate_birthday_check_ins_for_user(user):
 
         if not recent:
             service.generate_birthday_greeting(event)
+
+
+# =============================================================================
+# Phase 4: Cross-Domain Scheduled Job Functions
+# =============================================================================
+
+
+def generate_faith_check_ins_for_user(user):
+    """
+    Generate faith-related proactive check-ins.
+
+    Checks:
+    1. Active reading plans with unread days
+    2. Prayer requests with daily reminders
+    """
+    from apps.core.utils import get_user_today
+
+    prefs = user.preferences
+    if not getattr(prefs, 'assistant_proactive_checkins', True):
+        return
+
+    service = get_proactive_service(user)
+    today = get_user_today(user)
+
+    # 1. Reading plan check
+    try:
+        from apps.faith.models import UserReadingPlan, UserReadingProgress
+
+        active_plans = UserReadingPlan.objects.filter(
+            user=user, plan_status='active',
+        )
+
+        for plan in active_plans:
+            # Check if today's reading is done
+            today_done = UserReadingProgress.objects.filter(
+                user_plan=plan,
+                reading_day__day_number=plan.current_day,
+                is_completed=True,
+            ).exists()
+
+            if not today_done:
+                # Check if we already sent this today
+                recent = AssistantMessage.objects.filter(
+                    conversation__user=user,
+                    is_proactive=True,
+                    metadata__check_in_type='faith_reading',
+                    metadata__plan_id=plan.id,
+                    created_at__date=today,
+                ).exists()
+
+                if not recent:
+                    service.generate_faith_reading_check_in(plan)
+                    break  # Only one reading plan nudge per run
+
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning("Faith reading check-in error: %s", e, exc_info=True)
+
+    # 2. Prayer request reminders
+    try:
+        from apps.faith.models import PrayerRequest
+
+        daily_prayers = PrayerRequest.objects.filter(
+            user=user,
+            remind_daily=True,
+            is_answered=False,
+            deleted_at__isnull=True,
+        ).count()
+
+        if daily_prayers > 0:
+            recent = AssistantMessage.objects.filter(
+                conversation__user=user,
+                is_proactive=True,
+                metadata__check_in_type='faith_prayer',
+                created_at__date=today,
+            ).exists()
+
+            if not recent:
+                service.generate_faith_prayer_check_in(daily_prayers)
+
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning("Faith prayer check-in error: %s", e, exc_info=True)
+
+
+def generate_finance_check_ins_for_user(user):
+    """
+    Generate finance-related proactive check-ins.
+
+    Checks:
+    1. Budget categories over 80% spent
+    2. Financial goals stalling (no progress in 14+ days)
+    """
+    from apps.core.utils import get_user_today
+
+    prefs = user.preferences
+    if not getattr(prefs, 'assistant_proactive_checkins', True):
+        return
+
+    service = get_proactive_service(user)
+    today = get_user_today(user)
+
+    # 1. Budget threshold alerts
+    try:
+        from apps.finance.models import Budget
+
+        # Get current month's budgets
+        current_month = today.replace(day=1)
+        budgets = Budget.objects.filter(
+            user=user, month=current_month,
+        ).select_related('category')
+
+        days_in_month = 30  # Approximate
+        days_left = max(1, days_in_month - today.day)
+
+        for budget in budgets:
+            if budget.total_budget <= 0:
+                continue
+
+            spent = budget.spent_amount
+            percent_used = int((spent / budget.total_budget) * 100)
+
+            if percent_used >= 80:
+                recent = AssistantMessage.objects.filter(
+                    conversation__user=user,
+                    is_proactive=True,
+                    metadata__check_in_type='finance_budget',
+                    metadata__budget_id=budget.id,
+                    created_at__date=today,
+                ).exists()
+
+                if not recent:
+                    service.generate_finance_budget_check_in(
+                        budget, percent_used, days_left,
+                    )
+
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning("Finance budget check-in error: %s", e, exc_info=True)
+
+    # 2. Financial goal stalling
+    try:
+        from apps.finance.models import FinancialGoal
+
+        active_goals = FinancialGoal.objects.filter(
+            user=user, status='active',
+        )
+
+        for goal in active_goals:
+            # Check days since last update
+            days_since_update = (today - goal.updated_at.date()).days if goal.updated_at else 999
+
+            if days_since_update > 14:
+                recent = AssistantMessage.objects.filter(
+                    conversation__user=user,
+                    is_proactive=True,
+                    metadata__check_in_type='finance_goal',
+                    metadata__goal_id=goal.id,
+                    created_at__date=today,
+                ).exists()
+
+                if not recent:
+                    service.generate_finance_goal_check_in(
+                        goal, stalling_days=days_since_update,
+                    )
+                    break  # Only one per run
+
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning("Finance goal check-in error: %s", e, exc_info=True)
+
+
+def generate_relationship_check_ins_for_user(user):
+    """
+    Generate relationship drift check-ins.
+
+    Uses the existing relationship engine's drift detection.
+    Only sends for the top-priority drift alert per run.
+    """
+    from apps.core.utils import get_user_today
+
+    prefs = user.preferences
+    if not getattr(prefs, 'assistant_proactive_checkins', True):
+        return
+
+    service = get_proactive_service(user)
+    today = get_user_today(user)
+
+    try:
+        from apps.core.ai_relationships.relationship_engine import detect_relational_drift
+
+        alerts = detect_relational_drift(user)
+
+        for alert in alerts[:2]:  # Max 2 per run
+            recent = AssistantMessage.objects.filter(
+                conversation__user=user,
+                is_proactive=True,
+                metadata__check_in_type='relationship_drift',
+                metadata__person_id=alert['person_id'],
+                created_at__date=today,
+            ).exists()
+
+            if not recent:
+                service.generate_relationship_drift_check_in(alert)
+
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning("Relationship check-in error: %s", e, exc_info=True)
+
+
+def generate_goal_check_ins_for_user(user):
+    """
+    Generate goal and habit check-ins.
+
+    Checks:
+    1. Life goals with approaching deadlines (within 7 days)
+    2. Life goals stalling (no milestone update in 30+ days)
+    3. Habit streaks broken or milestone reached
+    """
+    from apps.core.utils import get_user_today
+
+    prefs = user.preferences
+    if not getattr(prefs, 'assistant_proactive_checkins', True):
+        return
+
+    service = get_proactive_service(user)
+    today = get_user_today(user)
+
+    # 1. Goal deadlines
+    try:
+        from apps.purpose.models import LifeGoal
+
+        upcoming_deadline = today + timedelta(days=7)
+        goals_near_deadline = LifeGoal.objects.filter(
+            user=user,
+            status='active',
+            target_date__isnull=False,
+            target_date__lte=upcoming_deadline,
+            target_date__gte=today,
+        )
+
+        for goal in goals_near_deadline[:2]:
+            days_until = (goal.target_date - today).days
+
+            recent = AssistantMessage.objects.filter(
+                conversation__user=user,
+                is_proactive=True,
+                metadata__check_in_type='goal_deadline',
+                metadata__goal_id=goal.id,
+                created_at__date=today,
+            ).exists()
+
+            if not recent:
+                service.generate_goal_deadline_check_in(goal, days_until)
+
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning("Goal deadline check-in error: %s", e, exc_info=True)
+
+    # 2. Goal stalling
+    try:
+        from apps.purpose.models import LifeGoal, GoalMilestone
+
+        active_goals = LifeGoal.objects.filter(
+            user=user, status='active',
+        )
+
+        for goal in active_goals:
+            # Check last milestone update
+            last_milestone = GoalMilestone.objects.filter(
+                goal=goal,
+            ).order_by('-updated_at').first()
+
+            if last_milestone:
+                days_stalled = (today - last_milestone.updated_at.date()).days
+            else:
+                days_stalled = (today - goal.created_at.date()).days if goal.created_at else 0
+
+            if days_stalled > 30:
+                recent = AssistantMessage.objects.filter(
+                    conversation__user=user,
+                    is_proactive=True,
+                    metadata__check_in_type='goal_stalling',
+                    metadata__goal_id=goal.id,
+                    created_at__date=today,
+                ).exists()
+
+                if not recent:
+                    service.generate_goal_stalling_check_in(goal, days_stalled)
+                    break  # Only one per run
+
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning("Goal stalling check-in error: %s", e, exc_info=True)
+
+    # 3. Habit streaks
+    try:
+        from apps.purpose.models import HabitGoal
+        from apps.purpose.services.streak_service import get_current_streak
+
+        active_habits = HabitGoal.objects.filter(
+            user=user, status='active',
+        )
+
+        for habit in active_habits:
+            try:
+                streak = get_current_streak(habit)
+            except Exception:
+                # If no streak util exists, try a simple completion check
+                continue
+
+            if streak == 0:
+                # Check if there was a streak that just broke
+                # (had completions in recent days but not yesterday/today)
+                from apps.purpose.models import HabitEntry
+                recent_completions = HabitEntry.objects.filter(
+                    goal=habit,
+                    date__gte=today - timedelta(days=7),
+                    date__lt=today,
+                    completed=True,
+                ).count()
+
+                if recent_completions >= 3:
+                    recent = AssistantMessage.objects.filter(
+                        conversation__user=user,
+                        is_proactive=True,
+                        metadata__check_in_type='habit_streak',
+                        metadata__habit_id=habit.id,
+                        created_at__date=today,
+                    ).exists()
+
+                    if not recent:
+                        service.generate_habit_streak_check_in(
+                            habit, streak=recent_completions, is_break=True,
+                        )
+
+            elif streak in (7, 14, 21, 30, 60, 90):
+                # Milestone acknowledgment
+                recent = AssistantMessage.objects.filter(
+                    conversation__user=user,
+                    is_proactive=True,
+                    metadata__check_in_type='habit_streak',
+                    metadata__habit_id=habit.id,
+                    created_at__date=today,
+                ).exists()
+
+                if not recent:
+                    service.generate_habit_streak_check_in(
+                        habit, streak=streak, is_break=False,
+                    )
+
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning("Habit streak check-in error: %s", e, exc_info=True)
+
+
+def generate_journal_intelligence_check_ins_for_user(user):
+    """
+    Generate journal intelligence check-ins.
+
+    Leverages Phase 2 content_intelligence for:
+    1. Recurring concern patterns
+    2. Extended journal gaps (3+ days)
+    """
+    from apps.core.utils import get_user_today
+
+    prefs = user.preferences
+    if not getattr(prefs, 'assistant_proactive_checkins', True):
+        return
+    if not getattr(prefs, 'assistant_journal_checkins', True):
+        return
+
+    service = get_proactive_service(user)
+    today = get_user_today(user)
+
+    # 1. Recurring concerns
+    try:
+        from apps.journal.services.content_intelligence import detect_recurring_concerns
+
+        concerns = detect_recurring_concerns(user, days=14, min_occurrences=3)
+
+        if concerns:
+            top_concern = concerns[0]
+            recent = AssistantMessage.objects.filter(
+                conversation__user=user,
+                is_proactive=True,
+                metadata__check_in_type='journal_concern',
+                created_at__date=today,
+            ).exists()
+
+            if not recent:
+                service.generate_journal_concern_check_in(
+                    concern=top_concern['term'],
+                    entry_count=top_concern['entries'],
+                )
+
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning("Journal concern check-in error: %s", e, exc_info=True)
+
+    # 2. Extended journal gap
+    try:
+        from apps.journal.models import JournalEntry
+
+        last_entry = JournalEntry.objects.filter(
+            user=user, deleted_at__isnull=True,
+        ).order_by('-entry_date').first()
+
+        if last_entry:
+            days_since = (today - last_entry.entry_date).days
+
+            if days_since >= 3:
+                recent = AssistantMessage.objects.filter(
+                    conversation__user=user,
+                    is_proactive=True,
+                    metadata__check_in_type='journal_gap',
+                    created_at__date=today,
+                ).exists()
+
+                if not recent:
+                    service.generate_journal_gap_check_in(days_since)
+
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning("Journal gap check-in error: %s", e, exc_info=True)

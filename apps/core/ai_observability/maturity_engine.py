@@ -46,7 +46,11 @@ def compute_all_maturity_scores(user=None) -> Dict[str, dict]:
     scores['intelligence'] = compute_intelligence_score()
     scores['safety'] = compute_safety_score()
     scores['domain_coverage'] = compute_domain_coverage_score()
-    scores['life_impact'] = compute_life_impact_score(user)
+    # Life Impact: user-scoped for personal dashboards, system-wide for OPS/snapshots
+    if user:
+        scores['life_impact'] = compute_life_impact_score(user)
+    else:
+        scores['life_impact'] = compute_system_life_impact()
 
     # Composite: weighted average of the 5 sub-scores
     sub_scores = []
@@ -365,6 +369,66 @@ def compute_life_impact_score(user=None) -> dict:
     except Exception as e:
         logger.warning("Maturity: life impact score failed: %s", e)
         return {'score': None, 'details': {'error': str(e)}}
+
+
+def compute_system_life_impact() -> dict:
+    """
+    System-wide Life Impact (0-100).
+
+    Averages per-user Life Impact across all active, non-staff users who
+    have at least some engagement data. Used by the OPS War Room and daily
+    maturity snapshots — NOT for personal dashboards or CoS coaching.
+
+    Returns:
+        dict with 'score', 'details' (per-factor averages), and
+        'sample_size' (number of users included).
+    """
+    try:
+        from apps.users.models import User
+
+        # Active non-staff users who have completed onboarding
+        candidates = User.objects.filter(
+            is_active=True,
+            is_staff=False,
+        ).select_related('preferences')
+
+        user_scores = []
+        factor_sums = {'goal_progress': 0, 'routine_adherence': 0, 'engagement_depth': 0}
+
+        for u in candidates[:200]:  # Safety cap
+            # Skip users who never completed onboarding
+            try:
+                if hasattr(u, 'preferences') and not u.preferences.has_completed_onboarding:
+                    continue
+            except Exception:
+                pass
+
+            result = compute_life_impact_score(u)
+            if result.get('score') is not None:
+                user_scores.append(result['score'])
+                details = result.get('details', {})
+                for key in factor_sums:
+                    factor_sums[key] += details.get(key, 0)
+
+        sample_size = len(user_scores)
+
+        if sample_size == 0:
+            # No qualifying users — fall back to system-wide aggregate
+            return compute_life_impact_score(user=None)
+
+        avg_score = int(sum(user_scores) / sample_size)
+        avg_factors = {k: int(v / sample_size) for k, v in factor_sums.items()}
+
+        return {
+            'score': avg_score,
+            'details': avg_factors,
+            'sample_size': sample_size,
+        }
+
+    except Exception as e:
+        logger.warning("Maturity: system life impact failed: %s", e)
+        # Fall back to the original aggregate method
+        return compute_life_impact_score(user=None)
 
 
 def _domain_has_recent_data(domain_name: str, user=None) -> bool:

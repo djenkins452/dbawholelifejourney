@@ -1576,8 +1576,9 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
                 {% endfor %}
                 {% endif %}
                 {% endwith %}
-                {% if dim_key == "life_impact" and life_impact_breakdown %}
-                <button class="ops-life-impact-toggle" data-target="lifeImpactBreakdown" type="button">Factors &#9662;</button>
+                {% if dim_key == "life_impact" %}
+                {% if life_impact_sample_size %}<div style="font-size:0.55rem;color:var(--ops-text-dim);margin-top:2px">Across {{ life_impact_sample_size }} user{{ life_impact_sample_size|pluralize }}</div>{% endif %}
+                {% if life_impact_breakdown %}<button class="ops-life-impact-toggle" data-target="lifeImpactBreakdown" type="button">Factors &#9662;</button>{% endif %}
                 {% endif %}
             </div>
             {% endif %}

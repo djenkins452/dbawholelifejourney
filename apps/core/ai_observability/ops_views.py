@@ -53,10 +53,8 @@ class OperationsWallView(AdminRequiredMixin, TemplateView):
         context["page_title"] = "Operations Wall"
         context["app_name"] = "admin_console"
 
-        user = self.request.user
-
-        # --- System Maturity (Phase 9 integration) ---
-        context.update(self._get_maturity_data(user))
+        # --- System Maturity (system-wide, not user-scoped) ---
+        context.update(self._get_maturity_data())
 
         # --- Maturity Trend Deltas (compare to previous snapshot) ---
         context["maturity_deltas"] = self._get_maturity_deltas()
@@ -69,8 +67,8 @@ class OperationsWallView(AdminRequiredMixin, TemplateView):
         # --- Domain Coverage ---
         context["domain_coverage"] = self._get_domain_coverage()
 
-        # --- Proactive Intelligence (7-day) ---
-        context["proactive_stats"] = self._get_proactive_stats(user)
+        # --- Proactive Intelligence (7-day, system-wide) ---
+        context["proactive_stats"] = self._get_proactive_stats()
 
         return context
 
@@ -78,12 +76,17 @@ class OperationsWallView(AdminRequiredMixin, TemplateView):
     #  War Room data helpers (server-side, rendered once on page load)
     # ------------------------------------------------------------------ #
 
-    def _get_maturity_data(self, user):
-        """Compute system maturity scores for the War Room header."""
+    def _get_maturity_data(self):
+        """Compute system-wide maturity scores for the War Room header.
+
+        Uses compute_all_maturity_scores(user=None) so Life Impact is
+        averaged across all active users, matching daily snapshots.
+        """
         result = {
             "maturity_scores": {},
             "maturity_recommendations": [],
             "maturity_regressions": [],
+            "life_impact_sample_size": 0,
         }
         try:
             from apps.core.ai_observability.maturity_engine import (
@@ -92,7 +95,10 @@ class OperationsWallView(AdminRequiredMixin, TemplateView):
                 generate_recommendations,
             )
 
-            scores = compute_all_maturity_scores(user)
+            scores = compute_all_maturity_scores()  # system-wide (no user)
+            # Extract sample_size from life_impact details if present
+            li_data = scores.get('life_impact', {})
+            result['life_impact_sample_size'] = li_data.get('sample_size', 0)
             result["maturity_scores"] = scores
             result["maturity_recommendations"] = generate_recommendations(scores)
             result["maturity_regressions"] = detect_regressions()
@@ -181,8 +187,8 @@ class OperationsWallView(AdminRequiredMixin, TemplateView):
         except ImportError:
             return []
 
-    def _get_proactive_stats(self, user):
-        """7-day proactive check-in statistics."""
+    def _get_proactive_stats(self):
+        """7-day proactive check-in statistics (system-wide)."""
         stats = {"total_7d": 0, "by_type": []}
         try:
             from django.db.models import Count

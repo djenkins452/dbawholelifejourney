@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Fix Life Impact Scope: System-Wide for OPS War Room
+
+- **Scope fix:** OPS War Room Life Impact now computed across all active non-staff users (system intelligence), not scoped to `request.user` (personal intelligence). Aligns with the other 4 maturity dimensions and daily ISE snapshots.
+- **New function:** `compute_system_life_impact()` in maturity_engine.py — iterates active non-staff onboarded users, computes per-user Life Impact, averages scores. Falls back to aggregate if no qualifying users.
+- **Routing change:** `compute_all_maturity_scores(user=None)` now calls `compute_system_life_impact()` for the system path; `compute_all_maturity_scores(user=X)` still calls `compute_life_impact_score(user)` for personal dashboards/CoS.
+- **Sample size:** OPS template shows "Across N users" under Life Impact card when sample data available.
+- **OPS view cleanup:** Removed `request.user` from maturity and proactive stat calls — all OPS metrics are now system-wide.
+- **Personal scoring preserved:** `compute_life_impact_score(user)` unchanged for user dashboards, CoS coaching, personal insights.
+- **Files:** `apps/core/ai_observability/maturity_engine.py`, `apps/core/ai_observability/ops_views.py`, `templates/admin_console/operations_wall.html`
+- **Tests:** 116 pass (ops_wall_v2 + observability)
+
 ## 2026-03-09 — War Room Maturity Trends + Life Impact Explanation
 
 - **Trend Indicators:** Each maturity dimension now shows ▲/▼/— delta vs previous daily snapshot. Compares latest vs previous `SystemMaturitySnapshot` records. Overall score also shows delta in header.

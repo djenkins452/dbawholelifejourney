@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-09 (UI context grounding: page_context threaded into intent recognition for domain-aware action resolution)
+**Last updated:** 2026-03-09 (Holistic System Evolution: Domain Registry, cross-domain proactive intelligence, maturity engine, SystemMaturitySnapshot)
 
 ---
 
@@ -87,6 +87,7 @@ Phase 1 (Interpretation)        Phase 2 (Execution)          Phase 3 (Post-Execu
 | **ISE** Scheduler | `apps/core/ai_scheduler/scheduler_engine.py` | `run_scheduler_cycle()` | APScheduler/Celery | Every 5m | `ScheduledIntelligenceTask` | Triggers other engines |
 | **IOCD** Observability | `apps/core/ai_observability/observability_engine.py` | `generate_daily_snapshot()` | ISE 24h | Daily | All engine metrics | `IntelligenceMetricsSnapshot` |
 | **SAME** Monitoring | `apps/core/ai_observability/same_engine.py` | `run_same()` | Celery Beat 60s | Every 60s | Engine heartbeats | `OpsAnomaly`, `OpsNarrativeSnapshot` |
+| **Maturity** Engine | `apps/core/ai_observability/maturity_engine.py` | `compute_all_maturity_scores()` | On-demand + daily snapshot | Daily | All engines + registry | `SystemMaturitySnapshot` |
 
 ### Blueprint & Governance Engines
 
@@ -381,6 +382,16 @@ Outputs:
 | Pattern Observation | `generate_pattern_observation()` | Daily check-in command | 1 per run |
 | Streak Acknowledgment | `generate_streak_acknowledgment()` | On milestone | 1 per activity |
 | Birthday/Anniversary | `generate_birthday_greeting(event)` | Daily check-in command | 1 per event |
+| Faith Reading Gap | `generate_faith_reading_check_in(plan, days)` | `generate_faith_check_ins_for_user` | 4h throttle |
+| Faith Prayer | `generate_faith_prayer_check_in(count)` | `generate_faith_check_ins_for_user` | 4h throttle |
+| Finance Budget | `generate_finance_budget_check_in(budget, pct, days)` | `generate_finance_check_ins_for_user` | 4h throttle |
+| Finance Goal | `generate_finance_goal_check_in(goal, stalling_days)` | `generate_finance_check_ins_for_user` | 4h throttle |
+| Relationship Drift | `generate_relationship_drift_check_in(drift_alert)` | `generate_relationship_check_ins_for_user` | 4h throttle |
+| Goal Deadline | `generate_goal_deadline_check_in(goal, days_until)` | `generate_goal_check_ins_for_user` | 4h throttle |
+| Goal Stalling | `generate_goal_stalling_check_in(goal, days_stalled)` | `generate_goal_check_ins_for_user` | 4h throttle |
+| Habit Streak | `generate_habit_streak_check_in(habit, streak, is_break)` | `generate_goal_check_ins_for_user` | 4h throttle |
+| Journal Concern | `generate_journal_concern_check_in(concern, count)` | `generate_journal_intelligence_check_ins_for_user` | 4h throttle |
+| Journal Gap | `generate_journal_gap_check_in(days_since)` | `generate_journal_intelligence_check_ins_for_user` | 4h throttle |
 
 ### Medicine Check-In Flow
 
@@ -427,6 +438,7 @@ DNE (delivery_engine.py) → DeliveredNotification (in-app / email / SMS)
 | `DailyBriefing` | `core_ai_daily_briefing` | DBE briefing_engine | User-facing briefing view |
 | `WeeklyReport` | `core_ai_weekly_report` | WIRE report_engine | User-facing report view |
 | `ExplainRecord` | `core_ai_explain_record` | E3 explain_engine | Transparency/audit |
+| `SystemMaturitySnapshot` | `core_systemmaturitysnapshot` | Maturity engine | Command Center dashboard, trend analysis |
 
 ### SAE State Structure
 
@@ -450,6 +462,68 @@ DNE (delivery_engine.py) → DeliveredNotification (in-app / email / SMS)
 | `scan` | `build_scan_state()` | recent_analyses |
 | `governance` | `build_governance_state()` | declared_priorities, drift_scenario_count_14d |
 | `tasks` | `build_task_state()` | task_commitment_summary (nn totals, 7d counts, consistency_score), nn_skip_streaks (top 5), active_tasks_by_level, overdue_nn_count |
+
+---
+
+## Domain Capability Registry (Phase 3)
+
+**Location:** `apps/core/domain_registry/`
+
+Auto-discovered at startup via `CoreConfig.ready()` → `autodiscover()`. Each domain app registers a `DomainCapability` descriptor in its `capabilities.py`.
+
+### Registered Domains (10)
+
+| Domain | App | Intent Types | Proactive Signals | Coverage |
+|--------|-----|-------------|-------------------|----------|
+| health | apps.health | 8 | vitals_alert, medication_due, workout_reminder | 100% |
+| medical | apps.medical | 2 | appointment_due | 80% |
+| journal | apps.journal | 3 | mood_trend, journaling_streak | 80% |
+| faith | apps.faith | 4 | bible_plan_behind, prayer_reminder | 100% |
+| life | apps.life | 5 | task_overdue, routine_missed | 80% |
+| purpose | apps.purpose | 4 | goal_stalling, habit_streak_break | 80% |
+| finance | apps.finance | 3 | budget_threshold, goal_milestone | 80% |
+| meals | apps.meals | 2 | pantry_expiring | 60% |
+| brain_training | apps.brain_training | 1 | session_reminder | 60% |
+| capture | apps.capture | 0 | unprocessed_captures | 60% |
+
+**Key functions:**
+- `registry.get_coverage_summary()` — Returns all domains with coverage scores
+- `registry.get_domains_with_signal(signal)` — Find domains by proactive signal
+- `registry.get_all_intent_types()` — All registered intent types across domains
+- `management/commands/audit_domains.py` — CLI audit tool
+
+### CoS Integration
+
+`cos_context.py :: _build_domain_coverage()` injects domain coverage data into CoS context. The Command Center dashboard reads this via `registry.get_coverage_summary()`.
+
+---
+
+## System Maturity Engine (Phase 5+6)
+
+**Location:** `apps/core/ai_observability/maturity_engine.py`
+
+6-dimension scoring system (0-100 each) with weighted overall:
+
+| Dimension | Weight | Data Sources |
+|-----------|--------|-------------|
+| Infrastructure | 0.20 | EngineRun health (COAS heartbeat) |
+| Intelligence | 0.20 | Memory utilization, proactive delivery, domain coverage |
+| Safety | 0.25 | Error rates, Learning Mode status |
+| Domain Coverage | 0.15 | Domain Registry coverage scores |
+| Life Impact | 0.20 | Goal completion, task completion, engagement |
+| **Overall** | — | Weighted average of above |
+
+### Persistent Snapshots
+
+`SystemMaturitySnapshot` model stores daily scores + JSON details for each dimension. Functions:
+- `create_daily_snapshot(user)` — Creates/updates daily record
+- `generate_recommendations(scores)` — Rule-based improvement suggestions
+- `get_trend_data(days=30)` — Historical score data for charting
+- `detect_regressions(threshold=10)` — Flags >10pt drops in 48 hours
+
+### Command Center Integration
+
+`AdminDashboardView` displays: maturity score cards (color-coded), domain coverage table, proactive stats (7-day), regressions (red), improvement recommendations (priority-colored).
 
 ---
 
@@ -643,8 +717,9 @@ When the user asks a health intelligence question with a brevity keyword ("keep 
 | `apps/core/ai_orchestrator/commitment_contract.py` | ECC commitment tracking | ~1,678 |
 | `apps/ai/personal_assistant.py` | Main assistant, send_message() | ~6,452 |
 | `apps/ai/views.py` | Chat API endpoints | ~1,661 |
-| `apps/ai/proactive_checkins.py` | Proactive check-in service | ~829 |
-| `apps/ai/assistant_intelligence.py` | Coaching style templates | ~400 |
+| `apps/ai/proactive_checkins.py` | Proactive check-in service (20 check-in types, 5 domain schedulers) | ~1200+ |
+| `apps/ai/assistant_intelligence.py` | Coaching style templates (22+ template keys × 4 styles) | ~600+ |
+| `apps/ai/quick_reply_handlers.py` | Quick reply button generators (13+ handlers) | ~400+ |
 | `apps/ai/readiness_cache.py` | CoS context caching (Redis) | ~300 |
 
 ### Intelligence Engines
@@ -662,7 +737,10 @@ When the user asks a health intelligence question with a brevity keyword ("keep 
 | `apps/core/ai_scheduler/scheduler_runner.py` | ISE — task runner functions |
 | `apps/core/engine_runtime.py` | Engine telemetry wrapper (EngineRun records) |
 | `apps/core/ai_observability/same_engine.py` | SAME — monitoring |
+| `apps/core/ai_observability/maturity_engine.py` | Maturity scoring (6 dimensions + snapshots + recommendations) |
 | `apps/core/ai_delivery/delivery_engine.py` | DNE — notification delivery |
+| `apps/core/domain_registry/registry.py` | Domain Capability Registry (autodiscover, coverage) |
+| `apps/core/domain_registry/descriptors.py` | DomainCapability descriptor dataclass |
 
 ### Blueprint & Governance
 

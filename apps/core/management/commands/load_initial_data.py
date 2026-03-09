@@ -950,6 +950,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for commitment level feature
         self._reset_commitment_level_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for personal life memory feature (PK 149)
+        self._reset_personal_life_memory_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5767,3 +5770,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset commitment level fixtures FAILED: {e}'))
+
+    def _reset_personal_life_memory_fixtures(self, DataLoadConfig, force, verbosity):
+        """
+        One-time reset to reload release_notes for personal life memory feature (PK 149).
+        """
+        reset_tracker_name = 'reset_personal_life_memory_2026_03_09'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for loader_name in ['release_notes']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader_name} loader for personal life memory')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for personal life memory feature',
+                'command',
+                'One-time reset to reload release_notes PK 149'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset personal life memory fixtures FAILED: {e}'))

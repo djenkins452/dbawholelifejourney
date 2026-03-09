@@ -537,6 +537,19 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                 except Exception as e:
                     logger.debug("Post-response pattern detection failed: %s", e)
 
+                # Life fact extraction — captures biographical details
+                # (family, deaths, milestones) as permanent PersonalFact records
+                try:
+                    from apps.core.ai_memory.life_fact_extractor import (
+                        extract_life_facts_from_message,
+                    )
+                    resp_text_for_lf = _pr_result.get('response', '') if isinstance(_pr_result, dict) else str(_pr_result)
+                    extract_life_facts_from_message(
+                        _pr_user, _pr_message, resp_text_for_lf
+                    )
+                except Exception as e:
+                    logger.debug("Post-response life fact extraction failed: %s", e)
+
             threading.Thread(target=_post_response_intelligence, daemon=True).start()
 
             # Handle both old string response and new dict response
@@ -716,6 +729,14 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
                         detect_patterns(request.user, message, '')
                     except Exception as e:
                         logger.debug("Stream post-response pattern detection failed: %s", e)
+                    # Life fact extraction — captures biographical details
+                    try:
+                        from apps.core.ai_memory.life_fact_extractor import (
+                            extract_life_facts_from_message,
+                        )
+                        extract_life_facts_from_message(request.user, message, '')
+                    except Exception as e:
+                        logger.debug("Stream post-response life fact extraction failed: %s", e)
                 except Exception as e:
                     logger.warning("Stream post-response intelligence failed: %s", e)
 

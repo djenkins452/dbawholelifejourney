@@ -30,11 +30,17 @@ from apps.core.ai_memory.models import (
     ClarificationLog,
     ContextSnapshot,
     LearnedMapping,
+    PersonalFact,
 )
 from apps.core.ai_memory.retrieval_engine import (
     find_learned_mapping,
     find_mappings_by_type,
     find_similar_mappings,
+)
+from apps.core.ai_memory.life_fact_extractor import (
+    _is_duplicate_fact,
+    _message_has_life_fact_signals,
+    build_personal_facts_prompt,
 )
 from apps.users.models import User
 
@@ -647,3 +653,164 @@ class LearningLoopTests(SLCMETestMixin, TestCase):
         result = resolve_context(self.user, "the scripture")
         self.assertTrue(result.resolved)
         self.assertEqual(result.meaning_identifier, "Psalm 23")
+
+
+# ─── PersonalFact Model Tests ───
+
+
+class PersonalFactModelTests(SLCMETestMixin, TestCase):
+    def test_create_personal_fact(self):
+        fact = PersonalFact.objects.create(
+            user=self.user,
+            fact_type="family_relationship",
+            subject_name="Linda (Nana)",
+            relationship="wife's mother",
+            fact_text="Linda (Nana) is Danny's wife's mother",
+            confidence=0.9,
+            source="conversation",
+        )
+        self.assertEqual(fact.fact_type, "family_relationship")
+        self.assertTrue(fact.is_active)
+        self.assertIsNotNone(fact.created_at)
+
+    def test_str_representation(self):
+        fact = PersonalFact.objects.create(
+            user=self.user,
+            fact_type="death",
+            subject_name="Linda (Nana)",
+            fact_text="Nana (Linda) passed away several years ago",
+        )
+        self.assertIn("death", str(fact))
+        self.assertIn("Linda (Nana)", str(fact))
+
+    def test_user_isolation(self):
+        PersonalFact.objects.create(
+            user=self.user,
+            fact_type="family_relationship",
+            subject_name="Sarah",
+            fact_text="Sarah is the user's wife",
+        )
+        other_facts = PersonalFact.objects.filter(
+            user=self.other_user, is_active=True
+        )
+        self.assertEqual(other_facts.count(), 0)
+
+    def test_deactivate_fact(self):
+        fact = PersonalFact.objects.create(
+            user=self.user,
+            fact_type="preference",
+            fact_text="User prefers morning workouts",
+        )
+        fact.is_active = False
+        fact.save()
+        active_facts = PersonalFact.objects.filter(
+            user=self.user, is_active=True
+        )
+        self.assertEqual(active_facts.count(), 0)
+
+
+# ─── Life Fact Signal Detection Tests ───
+
+
+class LifeFactSignalTests(TestCase):
+    """Test regex pre-screening for life fact signals."""
+
+    def test_detects_family_mentions(self):
+        self.assertTrue(_message_has_life_fact_signals("my wife's mother is visiting"))
+        self.assertTrue(_message_has_life_fact_signals("My grandmother used to make cookies"))
+        self.assertTrue(_message_has_life_fact_signals("I talked to my nana today"))
+
+    def test_detects_death_mentions(self):
+        self.assertTrue(_message_has_life_fact_signals("She passed away last year"))
+        self.assertTrue(_message_has_life_fact_signals("We lost my grandmother"))
+        self.assertTrue(_message_has_life_fact_signals("After the funeral last week"))
+
+    def test_detects_health_conditions(self):
+        self.assertTrue(_message_has_life_fact_signals("My mom was diagnosed with diabetes"))
+        self.assertTrue(_message_has_life_fact_signals("He has cancer"))
+
+    def test_detects_milestones(self):
+        self.assertTrue(_message_has_life_fact_signals("We got married in 2015"))
+        self.assertTrue(_message_has_life_fact_signals("She graduated last spring"))
+
+    def test_ignores_task_messages(self):
+        self.assertFalse(_message_has_life_fact_signals("I need to buy groceries"))
+        self.assertFalse(_message_has_life_fact_signals("What's my weight today?"))
+        self.assertFalse(_message_has_life_fact_signals("Set a reminder for 3pm"))
+
+    def test_ignores_short_messages(self):
+        """Short messages shouldn't reach the AI extractor anyway."""
+        self.assertFalse(_message_has_life_fact_signals("hi"))
+        self.assertFalse(_message_has_life_fact_signals("ok"))
+
+
+# ─── Deduplication Tests ───
+
+
+class LifeFactDeduplicationTests(TestCase):
+    def test_exact_duplicate_detected(self):
+        existing = ["Linda (Nana) is Danny's wife's mother"]
+        self.assertTrue(_is_duplicate_fact(
+            "Linda (Nana) is Danny's wife's mother", existing
+        ))
+
+    def test_similar_duplicate_detected(self):
+        existing = ["Nana Linda is the wife's mother"]
+        self.assertTrue(_is_duplicate_fact(
+            "Linda Nana is wife's mother too", existing
+        ))
+
+    def test_different_fact_not_flagged(self):
+        existing = ["Linda (Nana) is Danny's wife's mother"]
+        self.assertFalse(_is_duplicate_fact(
+            "Sarah graduated from college in 2020", existing
+        ))
+
+    def test_empty_existing_no_duplicate(self):
+        self.assertFalse(_is_duplicate_fact("Any new fact", []))
+
+
+# ─── Personal Facts Prompt Builder Tests ───
+
+
+class PersonalFactsPromptTests(SLCMETestMixin, TestCase):
+    def test_empty_prompt_when_no_facts(self):
+        result = build_personal_facts_prompt(self.user)
+        self.assertEqual(result, "")
+
+    def test_prompt_includes_facts(self):
+        PersonalFact.objects.create(
+            user=self.user,
+            fact_type="family_relationship",
+            subject_name="Sarah",
+            fact_text="Sarah is the user's wife",
+        )
+        PersonalFact.objects.create(
+            user=self.user,
+            fact_type="death",
+            subject_name="Nana",
+            fact_text="Nana passed away several years ago",
+        )
+        result = build_personal_facts_prompt(self.user)
+        self.assertIn("PERSONAL LIFE FACTS", result)
+        self.assertIn("Sarah is the user's wife", result)
+        self.assertIn("Nana passed away", result)
+
+    def test_prompt_excludes_inactive_facts(self):
+        PersonalFact.objects.create(
+            user=self.user,
+            fact_type="preference",
+            fact_text="User loves coffee",
+            is_active=False,
+        )
+        result = build_personal_facts_prompt(self.user)
+        self.assertEqual(result, "")
+
+    def test_prompt_user_isolation(self):
+        PersonalFact.objects.create(
+            user=self.user,
+            fact_type="family_relationship",
+            fact_text="Test fact for user 1",
+        )
+        result = build_personal_facts_prompt(self.other_user)
+        self.assertEqual(result, "")

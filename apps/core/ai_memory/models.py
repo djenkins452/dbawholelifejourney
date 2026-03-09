@@ -1,7 +1,8 @@
 """
 SLCME Database Models — Persistent storage for learned meanings and context.
 
-Three models:
+Four models:
+- PersonalFact: Persistent biographical facts learned from conversations
 - LearnedMapping: Phrase → meaning associations learned from user clarification
 - ContextSnapshot: Current user context (what page, what entry they're viewing)
 - ClarificationLog: Audit trail of all clarification exchanges
@@ -9,6 +10,103 @@ Three models:
 
 from django.conf import settings
 from django.db import models
+
+
+class PersonalFact(models.Model):
+    """
+    Persistent storage for biographical life facts learned from conversations.
+
+    These are meaningful, lasting personal details that the CoS should always
+    remember: family relationships, deaths, milestones, life circumstances.
+
+    Unlike ConversationMemory (which is pruned), PersonalFacts are permanent
+    and deterministic — they are never auto-pruned and are always available
+    for system prompt injection.
+
+    Examples:
+    - fact_type="family_relationship", subject_name="Linda (Nana)",
+      fact_text="Linda (Nana) is Danny's wife's mother"
+    - fact_type="death", subject_name="Linda (Nana)",
+      fact_text="Nana (Linda) passed away several years ago"
+    - fact_type="family_relationship", subject_name="Sarah",
+      fact_text="Sarah is Danny's wife"
+    """
+
+    FACT_TYPE_CHOICES = [
+        ("family_relationship", "Family Relationship"),
+        ("death", "Death / Loss"),
+        ("health_condition", "Health Condition"),
+        ("life_milestone", "Life Milestone"),
+        ("personal_value", "Personal Value"),
+        ("life_circumstance", "Life Circumstance"),
+        ("preference", "Preference"),
+        ("other", "Other"),
+    ]
+
+    SOURCE_CHOICES = [
+        ("conversation", "Extracted from conversation"),
+        ("manual", "User-provided directly"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="personal_facts",
+    )
+    fact_type = models.CharField(
+        max_length=50,
+        choices=FACT_TYPE_CHOICES,
+        help_text="Category of personal fact",
+    )
+    subject_name = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Name of the person or subject (e.g., 'Nana', 'Sarah', 'Dad')",
+    )
+    relationship = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Relationship to user (e.g., 'wife\\'s mother', 'daughter', 'spouse')",
+    )
+    fact_text = models.TextField(
+        help_text="Human-readable fact (e.g., 'Nana (Linda) passed away several years ago')",
+    )
+    confidence = models.FloatField(
+        default=0.8,
+        help_text="AI extraction confidence (0.0 to 1.0)",
+    )
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default="conversation",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="User can deactivate facts they don't want used",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_personal_fact"
+        indexes = [
+            models.Index(
+                fields=["user", "fact_type", "is_active"],
+                name="idx_pfact_user_type_active",
+            ),
+            models.Index(
+                fields=["user", "is_active"],
+                name="idx_pfact_user_active",
+            ),
+        ]
+        ordering = ["fact_type", "-created_at"]
+
+    def __str__(self):
+        subject = f" ({self.subject_name})" if self.subject_name else ""
+        return f"[{self.fact_type}]{subject}: {self.fact_text[:80]}"
 
 
 class LearnedMapping(models.Model):

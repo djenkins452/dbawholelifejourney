@@ -622,7 +622,8 @@ def get_coaching_style_for_assistant(coaching_style: str) -> str:
 
 def build_personal_assistant_prompt(coaching_style: str, faith_enabled: bool,
                                      user_profile: str = None, time_context: dict = None,
-                                     personal_context: str = None) -> str:
+                                     personal_context: str = None,
+                                     personal_facts_prompt: str = None) -> str:
     """
     Build the complete Personal Assistant system prompt with coaching style.
 
@@ -632,6 +633,7 @@ def build_personal_assistant_prompt(coaching_style: str, faith_enabled: bool,
         user_profile: User's personal AI profile (user-written)
         time_context: Dict with current_time, hours_remaining, day_status, urgency_message
         personal_context: AI-learned personal facts about the user
+        personal_facts_prompt: Structured biographical facts prompt section
     """
     prompt = PERSONAL_ASSISTANT_BASE_PROMPT
 
@@ -689,6 +691,10 @@ Your user prefers SUPPORTIVE communication:
         context_prompt = build_personal_context_prompt(personal_context)
         if context_prompt:
             prompt += context_prompt
+
+    # Add structured personal life facts (permanent biographical memory)
+    if personal_facts_prompt:
+        prompt += personal_facts_prompt
 
     # Add CoS Proactive Intelligence directives (always active)
     prompt += COS_PROACTIVE_INTELLIGENCE_PROMPT
@@ -1037,6 +1043,13 @@ class PersonalAssistant:
         self.user_profile = getattr(self.prefs, 'ai_profile', '') or ''
         # AI-learned personal context for empathetic responses
         self.personal_context = getattr(self.prefs, 'ai_personal_context', '') or ''
+        # Structured personal life facts (permanent biographical memory)
+        self._personal_facts_prompt = ''
+        try:
+            from apps.core.ai_memory.life_fact_extractor import build_personal_facts_prompt
+            self._personal_facts_prompt = build_personal_facts_prompt(user)
+        except Exception:
+            pass
         # For data visibility confirmation flow
         self._data_visibility_response = None
 
@@ -1103,7 +1116,8 @@ class PersonalAssistant:
             faith_enabled=self.faith_enabled,
             user_profile=self.user_profile,
             time_context=time_context,
-            personal_context=self.personal_context
+            personal_context=self.personal_context,
+            personal_facts_prompt=self._personal_facts_prompt,
         )
 
     # =========================================================================

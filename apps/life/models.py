@@ -190,6 +190,12 @@ class Task(UserOwnedModel):
         ('life', 'Life'),
     ]
 
+    COMMITMENT_LEVEL_CHOICES = [
+        ('optional', 'Optional'),
+        ('important', 'Important'),
+        ('non_negotiable', 'Non-Negotiable'),
+    ]
+
     title = models.CharField(max_length=300)
     notes = models.TextField(blank=True)
 
@@ -217,6 +223,23 @@ class Task(UserOwnedModel):
         choices=MODULE_CHOICES,
         blank=True,
         help_text="Link task to a module for cross-module engagement tracking",
+    )
+
+    # Commitment level
+    commitment_level = models.CharField(
+        max_length=20,
+        choices=COMMITMENT_LEVEL_CHOICES,
+        default='important',
+        help_text="Non-negotiable tasks trigger coaching if skipped repeatedly",
+    )
+    skip_streak = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Consecutive skip count for tracking patterns",
+    )
+    last_skipped_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the task was last skipped (for recency guard)",
     )
 
     # Dates
@@ -331,6 +354,21 @@ class Task(UserOwnedModel):
         """True when completion_status is 'skipped'."""
         return self.completion_status == 'skipped'
 
+    @property
+    def effective_skip_streak(self):
+        """
+        Returns skip_streak if the last skip was within 7 days (recency guard).
+        Stale streaks (last skip > 7 days ago) are treated as zero to avoid
+        penalizing users for old patterns. Raw skip_streak is preserved in DB
+        for auditing.
+        """
+        if not self.last_skipped_at or self.skip_streak == 0:
+            return 0
+        from datetime import timedelta
+        if timezone.now() - self.last_skipped_at > timedelta(days=7):
+            return 0
+        return self.skip_streak
+
     def mark_complete(self):
         """
         Mark task as completed.
@@ -339,7 +377,8 @@ class Task(UserOwnedModel):
         """
         self.completion_status = 'completed'
         self.completed_at = timezone.now()
-        self.save(update_fields=['completion_status', 'completed_at', 'updated_at'])
+        self.skip_streak = 0
+        self.save(update_fields=['completion_status', 'completed_at', 'skip_streak', 'updated_at'])
 
         # Handle recurrence
         if self.is_recurring and self.recurrence_pattern:
@@ -366,9 +405,12 @@ class Task(UserOwnedModel):
         Mark task as skipped (intentionally not completed).
         If recurring, automatically creates the next occurrence.
         Skipped tasks do NOT count as completed in statistics.
+        Increments skip_streak for non-negotiable escalation tracking.
         """
         self.completion_status = 'skipped'
-        self.save(update_fields=['completion_status', 'updated_at'])
+        self.skip_streak += 1
+        self.last_skipped_at = timezone.now()
+        self.save(update_fields=['completion_status', 'skip_streak', 'last_skipped_at', 'updated_at'])
 
         # Handle recurrence — next occurrence should still generate
         if self.is_recurring and self.recurrence_pattern:
@@ -387,7 +429,8 @@ class Task(UserOwnedModel):
         """Mark task as not completed (reset to pending)."""
         self.completion_status = 'pending'
         self.completed_at = None
-        self.save(update_fields=['completion_status', 'completed_at', 'updated_at'])
+        self.skip_streak = 0
+        self.save(update_fields=['completion_status', 'completed_at', 'skip_streak', 'updated_at'])
 
     @property
     def is_overdue(self):

@@ -271,6 +271,31 @@ class ActionHandler:
             detail['risk'] = risk
         return detail
 
+    def _get_nn_skip_message(self, template_key, **kwargs):
+        """
+        Get a coaching-style message for non-negotiable skip escalation.
+        Uses the user's preferred coaching style from assistant_intelligence templates.
+        """
+        try:
+            from apps.ai.assistant_intelligence import COACHING_STYLE_TEMPLATES
+            prefs = self.user.preferences if hasattr(self.user, 'preferences') else None
+            style = getattr(prefs, 'coaching_style', 'default') if prefs else 'default'
+            templates = COACHING_STYLE_TEMPLATES.get(style, COACHING_STYLE_TEMPLATES.get('default', {}))
+            template = templates.get(template_key, '')
+            if template:
+                return template.format(**kwargs)
+        except Exception:
+            pass
+
+        # Fallback messages if template lookup fails
+        fallbacks = {
+            'nn_skip_gentle': "Heads up — you skipped a non-negotiable task.",
+            'nn_skip_pattern': "That's two in a row on a non-negotiable. Let's check in.",
+            'nn_skip_coaching': "Three skips on a non-negotiable. What's blocking you?",
+            'nn_skip_supportive': "Still struggling with this one. Want to adjust or get support?",
+        }
+        return fallbacks.get(template_key, '')
+
     def _fetch_verse_text(self, book_name: str, chapter: int, verse_start: int,
                           verse_end: int = None, translation: str = None) -> str:
         """
@@ -2857,6 +2882,7 @@ class ActionHandler:
                            priority: str = None, effort: str = "small",
                            project_name: str = None, scheduled_time: str = None,
                            duration_minutes: int = None, end_time: str = None,
+                           commitment_level: str = "important",
                            **kwargs) -> ActionResult:
         """
         Create a new task.
@@ -2930,6 +2956,11 @@ class ActionHandler:
                 if end_tmp > start_tmp:
                     duration_minutes = int((end_tmp - start_tmp).total_seconds() / 60)
 
+            # Validate commitment_level
+            valid_levels = ('optional', 'important', 'non_negotiable')
+            if commitment_level not in valid_levels:
+                commitment_level = 'important'
+
             task_kwargs = dict(
                 user=self.user,
                 title=title,
@@ -2937,6 +2968,7 @@ class ActionHandler:
                 due_date=parsed_due,
                 effort=effort,
                 project=project,
+                commitment_level=commitment_level,
             )
             if parsed_time:
                 task_kwargs['scheduled_time'] = parsed_time
@@ -3265,14 +3297,34 @@ class ActionHandler:
                     task.save(update_fields=['notes', 'updated_at'])
                 task.mark_skipped()
 
+                # Build escalation note for non-negotiable tasks
+                escalation_note = ""
+                if task.commitment_level == 'non_negotiable':
+                    streak = task.effective_skip_streak
+                    if streak >= 4:
+                        # Capped — supportive problem-solving, no further escalation
+                        escalation_note = self._get_nn_skip_message('nn_skip_supportive', task=task.title, streak=streak)
+                    elif streak == 3:
+                        escalation_note = self._get_nn_skip_message('nn_skip_coaching', task=task.title, streak=streak)
+                    elif streak == 2:
+                        escalation_note = self._get_nn_skip_message('nn_skip_pattern', task=task.title, streak=streak)
+                    elif streak == 1:
+                        escalation_note = self._get_nn_skip_message('nn_skip_gentle', task=task.title, streak=streak)
+
+                message = f"Skipped: {task.title}"
+                if escalation_note:
+                    message += f"\n\n{escalation_note}"
+
                 return ActionResult(
                     success=True,
-                    message=f"Skipped: {task.title}",
+                    message=message,
                     created_object={
                         'model': 'Task',
                         'id': task.id,
                         'title': task.title,
                         'completion_status': 'skipped',
+                        'commitment_level': task.commitment_level,
+                        'skip_streak': task.skip_streak,
                     },
                     action_type='skip_task',
                     confirmation_detail=self._build_confirmation(

@@ -115,6 +115,9 @@
                         </form>
                         <a href="{% url 'life:task_update' task.pk %}?next={{ request.path|urlencode }}" class="task-row-link">
                             <div class="task-content">
+                                {% if task.commitment_level == 'non_negotiable' %}
+                                <span class="task-commitment-badge task-commitment-nn">NN</span>
+                                {% endif %}
                                 <span class="task-title">{{ task.title }}</span>
                                 {% if task.project %}
                                     <span class="task-project">{{ task.project.title }}</span>
@@ -708,6 +711,22 @@
 .task-status-completed {
     background: color-mix(in srgb, #22c55e 15%, transparent);
     color: #22c55e;
+}
+
+/* Commitment level badge */
+.task-commitment-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.task-commitment-nn {
+    background: color-mix(in srgb, #ef4444 15%, transparent);
+    color: #dc2626;
 }
 
 /* Skipped task styling */

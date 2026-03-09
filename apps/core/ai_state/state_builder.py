@@ -1342,6 +1342,103 @@ def build_governance_state(user):
     return state
 
 
+# ── Task Commitment State ────────────────────────────────────────
+
+def build_task_state(user):
+    """
+    Build task commitment state from actual database records.
+
+    Returns:
+        dict with task_commitment_summary (totals, 7d counts, consistency_score),
+        nn_skip_streaks (top 5 NN tasks with active streaks),
+        active_tasks_by_level, and overdue_nn_count.
+    """
+    from apps.life.models import Task
+    from django.db.models import Count, Q
+
+    now = get_current_time()
+    state = {}
+
+    try:
+        # Active tasks by commitment level
+        level_counts = (
+            Task.objects.filter(user=user, status='active', completion_status='pending')
+            .values('commitment_level')
+            .annotate(count=Count('id'))
+        )
+        by_level = {'optional': 0, 'important': 0, 'non_negotiable': 0}
+        for entry in level_counts:
+            level = entry['commitment_level']
+            if level in by_level:
+                by_level[level] = entry['count']
+        state['active_tasks_by_level'] = by_level
+
+        # 7-day window for consistency score
+        seven_days_ago = now - timedelta(days=7)
+
+        nn_completed_7d = Task.objects.filter(
+            user=user,
+            commitment_level='non_negotiable',
+            completion_status='completed',
+            completed_at__gte=seven_days_ago,
+        ).count()
+
+        nn_skipped_7d = Task.objects.filter(
+            user=user,
+            commitment_level='non_negotiable',
+            completion_status='skipped',
+            last_skipped_at__gte=seven_days_ago,
+        ).count()
+
+        total_acted = nn_completed_7d + nn_skipped_7d
+        consistency = round(nn_completed_7d / total_acted, 2) if total_acted > 0 else 0.0
+
+        nn_total = Task.objects.filter(
+            user=user,
+            commitment_level='non_negotiable',
+            status='active',
+            completion_status='pending',
+        ).count()
+
+        state['task_commitment_summary'] = {
+            'non_negotiable_total': nn_total,
+            'non_negotiable_completed_7d': nn_completed_7d,
+            'non_negotiable_skipped_7d': nn_skipped_7d,
+            'consistency_score': consistency,
+        }
+
+        # Top 5 NN tasks with active skip streaks (recency-guarded)
+        nn_streak_tasks = Task.objects.filter(
+            user=user,
+            commitment_level='non_negotiable',
+            skip_streak__gte=1,
+            status='active',
+        ).order_by('-skip_streak')[:5]
+
+        nn_skip_streaks = []
+        for task in nn_streak_tasks:
+            eff = task.effective_skip_streak
+            if eff > 0:
+                nn_skip_streaks.append({'task': task.title, 'streak': eff})
+        state['nn_skip_streaks'] = nn_skip_streaks
+
+        # Overdue NN tasks
+        today = now.date() if hasattr(now, 'date') else now
+        overdue_nn = Task.objects.filter(
+            user=user,
+            commitment_level='non_negotiable',
+            completion_status='pending',
+            status='active',
+            due_date__lt=today,
+        ).count()
+        state['overdue_nn_count'] = overdue_nn
+
+    except Exception:
+        logger.warning("Task commitment state build failed", exc_info=True)
+
+    return state
+
+
 # ── Builder Registry ─────────────────────────────────────────────
 
 # Maps module names to their builder functions.
@@ -1363,6 +1460,7 @@ MODULE_BUILDERS = {
     "life_events": build_life_events_state,
     "scan": build_scan_state,
     "governance": build_governance_state,
+    "tasks": build_task_state,
 }
 
 

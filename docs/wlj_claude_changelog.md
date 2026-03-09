@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Non-Negotiable Task Commitment Level System
+
+- **Feature:** Tasks and Goals now support a `commitment_level` field (optional / important / non-negotiable). Non-negotiable tasks that are repeatedly skipped trigger escalating coaching from Beth — gentle reminder → pattern awareness → coaching intervention → supportive problem-solving (capped at Day 3, no further escalation).
+- **Skip streak tracking:** `skip_streak` and `last_skipped_at` fields track consecutive skips. A recency guard (`effective_skip_streak` property) resets the effective streak to 0 if the last skip was more than 7 days ago, avoiding stale pattern penalties.
+- **Recurrence:** `commitment_level`, `skip_streak`, and `last_skipped_at` propagate to next recurring task occurrence.
+- **UI:** Commitment level dropdown on task and goal forms. Red "NN" badge on task list and Organize pages for non-negotiable tasks.
+- **AI Integration:** `handle_skip_task()` now appends escalation messaging for NN tasks. `handle_create_task()` accepts `commitment_level`. Intent schema updated with `commitment_level` enum. Coaching templates added for all 4 styles (default, southern_belle, new_yorker, california).
+- **Proactive check-ins:** NN tasks with `effective_skip_streak >= 2` generate escalating check-ins (max 3 per run).
+- **State builder:** New `build_task_state()` with consistency_score (`completed_nn_7d / (completed_nn_7d + skipped_nn_7d)`), nn_skip_streaks list (top 5), active tasks by commitment level, overdue NN count.
+- **CoS context:** Data State Snapshot includes `non_negotiable_skip_streaks` count with grounding rules and commitment awareness coaching guidance.
+- **Signal collector:** `nn_skip_streak_tasks` count (NN tasks with recency-guarded streak >= 2) added to `_collect_upcoming_events()`.
+- **Files:** `apps/life/models.py`, `apps/purpose/models.py`, `apps/life/services/recurrence.py`, `apps/life/views.py`, `apps/purpose/views.py`, `templates/life/task_form.html`, `templates/life/task_list.html`, `templates/life/home.html`, `apps/purpose/templates/purpose/goal_form.html`, `apps/ai/action_handlers.py`, `apps/ai/intents/life_intents.py`, `apps/ai/intent_service.py`, `apps/ai/assistant_intelligence.py`, `apps/ai/proactive_checkins.py`, `apps/core/ai_state/state_builder.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/core/ai_arbitration/signal_collector.py`, `docs/ENGINE_COS_REFERENCE.md`, `apps/life/tests/test_task_commitment.py`, `apps/life/migrations/0022_commitment_level.py`, `apps/purpose/migrations/0007_commitment_level.py`
+
 ## 2026-03-08 — Make tasks clickable on Organize summary page
 
 - **Problem:** Tasks on the Organize page (`/life/`) were not clickable — users had no way to open the task edit form directly from the summary cards.

@@ -421,6 +421,10 @@ class RecurrenceService:
                 estimated_duration_minutes=task.estimated_duration_minutes,
                 # Carry forward module linkage
                 module=task.module,
+                # Carry forward commitment tracking
+                commitment_level=task.commitment_level,
+                skip_streak=task.skip_streak,
+                last_skipped_at=task.last_skipped_at,
             )
 
         return new_task

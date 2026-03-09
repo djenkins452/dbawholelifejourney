@@ -1614,6 +1614,11 @@ def _build_data_state_snapshot(user) -> str:
         counts['completed_tasks_today'] = LifeTask.objects.filter(
             user=user, completion_status='completed', completed_at__date=today
         ).exclude(status='deleted').count()
+        # v5: Non-negotiable skip streak data for commitment tracking
+        counts['non_negotiable_skip_streaks'] = LifeTask.objects.filter(
+            user=user, commitment_level='non_negotiable',
+            skip_streak__gte=2, status='active',
+        ).count()
     except Exception as e:
         logger.warning("Failed to build data state snapshot: %s", e)
         return ""
@@ -1647,6 +1652,7 @@ def _build_data_state_snapshot(user) -> str:
             'journal_entries': "NEVER reference journal entries or mood logs",
             'active_tasks': "NEVER say 'you completed X of Y tasks' or reference task names",
             'completed_tasks_today': "NEVER claim tasks were completed today if count is 0",
+            'non_negotiable_skip_streaks': "User has no active non-negotiable skip streaks",
         }
         for domain in zero_domains:
             example = domain_examples.get(domain, f"NEVER reference specific {domain}")
@@ -1654,6 +1660,17 @@ def _build_data_state_snapshot(user) -> str:
         lines.append(
             "\nYou MAY suggest the user start tracking these domains, "
             "but NEVER imply data exists when it does not."
+        )
+
+    # Add non-negotiable skip streak awareness
+    nn_streak_count = counts.get('non_negotiable_skip_streaks', 0)
+    if nn_streak_count > 0:
+        lines.append("")
+        lines.append("NON-NEGOTIABLE COMMITMENT AWARENESS:")
+        lines.append(
+            f"  User has {nn_streak_count} non-negotiable task(s) with consecutive skips (2+). "
+            "These are tasks the user considers essential. Approach with supportive coaching, "
+            "not judgment. Ask what's blocking them if they bring it up."
         )
 
     lines.append("========== END DATA STATE ==========")

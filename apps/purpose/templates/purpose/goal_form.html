@@ -59,7 +59,16 @@
                         {% endfor %}
                     </select>
                 </div>
-                
+
+                <div class="form-group">
+                    <label for="id_commitment_level" class="form-label">Commitment Level</label>
+                    <select name="commitment_level" id="id_commitment_level" class="form-select">
+                        <option value="optional" {% if form.commitment_level.value == 'optional' %}selected{% endif %}>Optional</option>
+                        <option value="important" {% if form.commitment_level.value == 'important' or not form.commitment_level.value %}selected{% endif %}>Important</option>
+                        <option value="non_negotiable" {% if form.commitment_level.value == 'non_negotiable' %}selected{% endif %}>Non-Negotiable</option>
+                    </select>
+                </div>
+
                 <div class="form-group">
                     <label for="id_timeframe" class="form-label">Timeframe</label>
                     <select name="timeframe" id="id_timeframe" class="form-select">

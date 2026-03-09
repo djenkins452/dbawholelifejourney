@@ -328,7 +328,7 @@ class GoalCreateView(SaveAddAnotherMixin, PurposeAccessMixin, CreateView):
     template_name = "purpose/goal_form.html"
     fields = [
         'title', 'description', 'why_it_matters', 'success_looks_like',
-        'domain', 'timeframe', 'target_date', 'annual_direction'
+        'domain', 'commitment_level', 'timeframe', 'target_date', 'annual_direction'
     ]
     save_add_another_message = "Goal '{title}' created. Add another!"
 
@@ -359,7 +359,7 @@ class GoalUpdateView(PurposeAccessMixin, UpdateView):
     template_name = "purpose/goal_form.html"
     fields = [
         'title', 'description', 'why_it_matters', 'success_looks_like',
-        'domain', 'timeframe', 'target_date', 'status', 'reflection',
+        'domain', 'commitment_level', 'timeframe', 'target_date', 'status', 'reflection',
         'annual_direction'
     ]
     

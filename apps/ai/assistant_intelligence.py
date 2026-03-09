@@ -58,6 +58,10 @@ COACHING_STYLE_TEMPLATES = {
         'streak_note': "{count} days in a row. Noted.",
         'completion': "{item} complete.",
         'correlation': "I'm noticing {observation}.",
+        'nn_skip_gentle': "Heads up — you skipped '{task}', which is marked non-negotiable.",
+        'nn_skip_pattern': "That's {streak} skips in a row on '{task}'. This is a non-negotiable — let's check in on what's happening.",
+        'nn_skip_coaching': "{streak} consecutive skips on '{task}'. This one matters to you. What's getting in the way?",
+        'nn_skip_supportive': "Still struggling with '{task}'. Want to adjust it, break it down, or talk through what's blocking you?",
     },
     'southern_belle': {
         'missed_med': "Sugar, looks like your {time} {medicine} wasn't marked yet. Did you take it, or want me to mark it skipped?",
@@ -72,6 +76,10 @@ COACHING_STYLE_TEMPLATES = {
         'streak_note': "{count} days runnin'. Noted, hon.",
         'completion': "{item} done.",
         'correlation': "I'm seein' a little pattern here: {observation}.",
+        'nn_skip_gentle': "Hon, just a heads up — you skipped '{task}', and that's one of your non-negotiables.",
+        'nn_skip_pattern': "Sugar, that's {streak} times in a row you've skipped '{task}'. Since it's non-negotiable, let's talk about what's goin' on.",
+        'nn_skip_coaching': "Darlin', {streak} skips on '{task}' now. This one means a lot to you — what's gettin' in the way?",
+        'nn_skip_supportive': "Still havin' trouble with '{task}', hon. Want to adjust it, or talk through what's holdin' you back?",
     },
     'new_yorker': {
         'missed_med': "{time} {medicine} - not marked. Took it or no?",
@@ -86,6 +94,10 @@ COACHING_STYLE_TEMPLATES = {
         'streak_note': "{count} days straight.",
         'completion': "{item} done.",
         'correlation': "Seeing a pattern: {observation}.",
+        'nn_skip_gentle': "'{task}' skipped — that's a non-negotiable. Just flagging it.",
+        'nn_skip_pattern': "{streak} skips in a row on '{task}'. Non-negotiable. What's going on?",
+        'nn_skip_coaching': "{streak} straight skips on '{task}'. This is supposed to be non-negotiable. What's blocking you?",
+        'nn_skip_supportive': "'{task}' keeps getting skipped. Wanna adjust it or figure out what's in the way?",
     },
     'california': {
         'missed_med': "Hey, your {time} {medicine} isn't marked yet. Did you take it, or want me to skip it?",
@@ -100,6 +112,10 @@ COACHING_STYLE_TEMPLATES = {
         'streak_note': "{count} days going. Nice.",
         'completion': "{item} logged.",
         'correlation': "Noticing something: {observation}.",
+        'nn_skip_gentle': "Hey, just a heads up — '{task}' got skipped and that's a non-negotiable for you.",
+        'nn_skip_pattern': "That's {streak} skips in a row on '{task}'. Since it's non-negotiable, what's going on?",
+        'nn_skip_coaching': "{streak} times skipping '{task}' now. This one's important to you — what's getting in the way?",
+        'nn_skip_supportive': "'{task}' keeps getting skipped. Wanna rethink it or figure out what's blocking you?",
     },
 }
 

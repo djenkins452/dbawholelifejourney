@@ -6,17 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-## 2026-03-09 — Fix receipt processing stuck at 0%
+## 2026-03-09 — Fix receipt processing stuck at 0% (v2 — eliminate Celery dependency)
 
-- **Bug:** Receipt processing gets stuck at 0% with no progress or error
-- **Root cause #1:** Sync fallback ran `_sync_process_receipt()` INSIDE `transaction.atomic()` — if the Vision API call or item creation failed, the entire transaction rolled back including the `CONFIRM_FAILED` status update. Receipt stayed in `CONFIRM_PROCESSING` forever.
-- **Root cause #2:** Fallback timeout was 30s — unnecessary delay when Celery isn't processing.
-- **Fix:**
-  - Sync fallback now uses a two-phase approach: (1) acquire lock inside `atomic()` and claim ownership by setting `progress=5`, then (2) process OUTSIDE the atomic block so saves aren't rolled back on failure
-  - Reduced fallback timeout from 30s to 10s for faster recovery
-  - Error handling in `_sync_process_receipt` now works correctly since it runs outside the transaction
-- **Files:** `apps/meals/views.py`
-- **Why:** Users reported receipts stuck at "Processing Receipt... 0%" forever — neither progressing nor showing errors
+- **Bug:** Receipt processing gets stuck at 0% with no progress or error. Previous fix (two-phase atomic) didn't resolve the issue.
+- **Root cause:** `.delay()` succeeds when Redis is available (task gets queued) but no Celery worker is running to consume it. The sync fallback in the status endpoint was too complex (select_for_update, atomic blocks, timing-dependent) and unreliable.
+- **Fix — process synchronously during upload:**
+  - Removed Celery task dispatch from `ReceiptUploadView._process_image_upload()`
+  - Image processing now runs synchronously via `_sync_process_image()` during the POST (3-8s, well within HTTP timeout)
+  - Receipt goes directly from `CONFIRM_PROCESSING` → `CONFIRM_PENDING` (success) or `CONFIRM_FAILED` (error) before redirect
+  - User sees confirm page with items immediately, no polling needed
+  - Simplified `ReceiptProcessingStatusView` as safety net only (removed `select_for_update` locking, reduced timeout to 8s)
+  - Updated tests: replaced async dispatch test with sync processing tests, added Vision failure test
+- **Files:** `apps/meals/views.py`, `apps/meals/tests/test_receipt_ingestion.py`
+- **Why:** Users reported receipts stuck at "Processing Receipt... 0%" forever — Celery worker not running on Railway, sync fallback in status endpoint too fragile
 
 ## 2026-03-08 — Pantry Storage Intelligence + Barcode Scanner + Receipt Progress Bar
 

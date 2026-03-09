@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Fix receipt Vision AI hallucination (v3 — Cloudinary URL + hallucination detection)
+
+- **Bug:** Vision API returning completely fabricated grocery items (cucumber, tomatoes, milk, eggs, pizza, ice cream at $37.59 total, date Oct 11, 2023) for a Food Lion receipt with ~35 items totaling $272.55 done today. The model was never actually seeing the image.
+- **Root cause:** iPhone camera produces HEIC format. `pillow-heif` is NOT installed on Railway, so `prepare_image_for_api()` fails silently when trying to convert HEIC via Pillow. Raw HEIC bytes get sent labeled as "image/jpeg" but GPT-4o Vision can't decode them, so it hallucinates an entire grocery list from the text prompt alone.
+- **Fix — three-part approach:**
+  1. **Cloudinary URL approach:** Instead of sending raw bytes, pass the Cloudinary URL directly to Vision API. Cloudinary normalizes HEIC→JPEG on upload, so the API always gets a readable image.
+  2. **Format detection from magic bytes:** `detect_image_format()` reads JPEG (FF D8 FF), PNG (89 50 4E 47), and HEIC (ftyp at offset 4) signatures. Raises `ValueError` for unknown formats instead of sending garbage.
+  3. **Hallucination detection:** `_detect_hallucination()` rejects results where: >60% items have same price, >40% duplicate names, or >50% generic single-word names (BREAD, EGGS, MILK, etc.). Returns "not readable" error instead of fake items.
+- **User request:** "If it can't read it, don't let it make stuff up. Just say receipt is not readable or something."
+- **Files:** `apps/meals/services/receipt_vision.py`, `apps/meals/views.py`, `apps/meals/tests/test_receipt_ingestion.py`
+- **Tests:** 333 passing (meals suite)
+- **Why:** Hallucinated items destroy user trust — better to say "not readable" than to fabricate
+
 ## 2026-03-09 — Fix receipt Vision AI hallucinating items (v2 — stop double-compressing)
 
 - **Bug:** Vision API returned 16 "FROZEN CHICKEN" variations at $9.99 each for a Food Lion receipt with ~35 diverse items. Severe hallucination — the actual receipt has rotisserie chicken, sourdough, broccoli florets, cream corn, avocados, turkey, etc.

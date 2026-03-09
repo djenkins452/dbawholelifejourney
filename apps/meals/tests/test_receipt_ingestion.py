@@ -192,22 +192,78 @@ class TestImagePreparation(TestCase):
         self.assertEqual(result_bytes, raw_bytes)
         self.assertEqual(mime, "image/png")
 
-    def test_unsupported_format_converts_to_jpeg(self):
-        """Unsupported formats (like HEIC) should be converted to JPEG."""
+    def test_format_detection_overrides_declared_type(self):
+        """Format is detected from magic bytes, not declared content_type."""
         from apps.meals.services.receipt_vision import prepare_image_for_api
         from PIL import Image
 
-        # Simulate an unsupported format by using RGBA PNG with heic mime
+        # Create PNG but declare as HEIC — detection should find PNG
         img = Image.new("RGBA", (100, 100), (255, 0, 0, 128))
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         raw_bytes = buf.getvalue()
 
         result_bytes, mime = prepare_image_for_api(raw_bytes, "image/heic")
-        self.assertEqual(mime, "image/jpeg")
-        # Should be converted — verify it's valid JPEG
-        result_img = Image.open(io.BytesIO(result_bytes))
-        self.assertEqual(result_img.mode, "RGB")
+        # Should detect as PNG from magic bytes (API supports PNG)
+        self.assertEqual(mime, "image/png")
+
+    def test_unknown_format_raises_error(self):
+        """Truly unreadable data should raise ValueError."""
+        from apps.meals.services.receipt_vision import prepare_image_for_api
+
+        # Random bytes that aren't any image format
+        raw_bytes = b"this is not an image at all" * 10
+
+        with self.assertRaises(ValueError):
+            prepare_image_for_api(raw_bytes, "image/heic")
+
+    def test_hallucination_detection(self):
+        """Detect hallucinated results with duplicate items/prices."""
+        from apps.meals.services.receipt_vision import ReceiptVisionService
+
+        service = ReceiptVisionService()
+
+        # All same price — hallucination
+        data = {
+            "items": [
+                {"name": f"ITEM {i}", "price": 9.99, "category": "frozen"}
+                for i in range(10)
+            ]
+        }
+        result = service._detect_hallucination(data)
+        self.assertIsNotNone(result)
+        self.assertIn("same price", result)
+
+        # Generic names — hallucination
+        data = {
+            "items": [
+                {"name": "BREAD", "price": 1.99},
+                {"name": "EGGS", "price": 1.79},
+                {"name": "MILK", "price": 2.59},
+                {"name": "BUTTER", "price": 3.49},
+                {"name": "CHEESE", "price": 4.99},
+                {"name": "RICE", "price": 2.29},
+                {"name": "PASTA", "price": 1.49},
+                {"name": "PIZZA", "price": 5.99},
+                {"name": "CHICKEN", "price": 7.99},
+            ]
+        }
+        result = service._detect_hallucination(data)
+        self.assertIsNotNone(result)
+        self.assertIn("generic", result)
+
+        # Normal receipt — no hallucination
+        data = {
+            "items": [
+                {"name": "FAM SZ ROTIS CHICKEN", "price": 8.99},
+                {"name": "NPR HLF LF SOURDOUGH", "price": 2.59},
+                {"name": "PHIL STRW CRM CH TUB", "price": 5.19},
+                {"name": "HNVR PET BROC FLORET", "price": 2.19},
+                {"name": "DM CREAM CORN", "price": 1.99},
+            ]
+        }
+        result = service._detect_hallucination(data)
+        self.assertIsNone(result)
 
 
 # =============================================================================
@@ -329,7 +385,7 @@ class TestReceiptVisionService(TestCase):
             source="vision_api",
         )
 
-        with patch.object(service, "_call_vision_api", return_value=mock_result):
+        with patch.object(service, "_call_vision_api_with_base64", return_value=mock_result):
             result = service.process_image(raw_bytes, "image/jpeg")
 
         self.assertEqual(result.receipt_type, "grocery")

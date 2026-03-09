@@ -7,8 +7,9 @@ structured receipt data (store, date, items, total, receipt type).
 For PDFs: extracts text via pdfplumber first, falls back to
 Vision API only if text extraction yields insufficient content.
 
-Images are sent at full resolution — GPT-4o Vision with detail="high"
-handles its own internal tiling. Pre-compression destroys receipt text.
+Prefers URL-based image input (Cloudinary URL) over base64 to avoid
+format issues — iPhone cameras may produce HEIC which can't be read
+without pillow-heif. Cloudinary normalizes the format on upload.
 """
 
 import base64
@@ -95,28 +96,62 @@ class ReceiptVisionResult:
     image_hash: str = ""  # SHA-256 of original bytes for deduplication
 
 
+def detect_image_format(raw_bytes):
+    """Detect actual image format from magic bytes (file signature)."""
+    if len(raw_bytes) < 12:
+        return "unknown"
+    if raw_bytes[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if raw_bytes[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if raw_bytes[:4] == b"GIF8":
+        return "image/gif"
+    if raw_bytes[:4] == b"RIFF" and raw_bytes[8:12] == b"WEBP":
+        return "image/webp"
+    if raw_bytes[4:8] == b"ftyp":
+        # HEIF/HEIC container (ISO base media file format)
+        return "image/heic"
+    return "unknown"
+
+
 def prepare_image_for_api(raw_bytes, content_type="image/jpeg"):
     """
-    Prepare image for Vision API. Minimal processing — only convert
-    formats the API doesn't support (HEIC, RGBA). Do NOT re-compress
-    JPEGs — GPT-4o Vision with detail="high" handles its own tiling
-    and resizing. Pre-compression destroys small receipt text.
+    Prepare image for Vision API with format detection and validation.
 
-    Returns (image_bytes, mime_type)
+    Detects the ACTUAL format from magic bytes (ignoring declared content_type
+    which may be wrong — e.g., iPhone may declare HEIC as image/jpeg).
+
+    For API-supported formats (JPEG, PNG, GIF, WebP): pass through as-is.
+    For unsupported formats (HEIC, etc.): convert through Pillow.
+    If conversion fails: return error instead of sending unreadable data.
+
+    Returns (image_bytes, mime_type) or raises ValueError if unconvertible.
     """
+    # Detect actual format from magic bytes
+    detected = detect_image_format(raw_bytes)
+    logger.info(
+        "Receipt image: %d KB, declared=%s, detected=%s",
+        len(raw_bytes) // 1024,
+        content_type,
+        detected,
+    )
+
+    # Warn if declared type doesn't match detected type
+    if detected != "unknown" and detected != content_type:
+        logger.warning(
+            "Receipt image format mismatch: declared=%s but detected=%s",
+            content_type,
+            detected,
+        )
+
     # API supports: JPEG, PNG, GIF, WebP
     api_supported = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 
-    if content_type in api_supported:
-        # Send as-is — no re-compression
-        logger.info(
-            "Receipt image: %d KB, sending as %s (no compression)",
-            len(raw_bytes) // 1024,
-            content_type,
-        )
-        return raw_bytes, content_type
+    if detected in api_supported:
+        # Format is correct — send as-is
+        return raw_bytes, detected
 
-    # HEIC or other unsupported format — convert to JPEG at high quality
+    # Unsupported format — must convert through Pillow
     try:
         from PIL import Image
 
@@ -132,7 +167,7 @@ def prepare_image_for_api(raw_bytes, content_type="image/jpeg"):
 
         logger.info(
             "Receipt image converted from %s: %d KB → %d KB JPEG (%dx%d)",
-            content_type,
+            detected,
             len(raw_bytes) // 1024,
             len(converted) // 1024,
             img.size[0],
@@ -140,12 +175,17 @@ def prepare_image_for_api(raw_bytes, content_type="image/jpeg"):
         )
         return converted, "image/jpeg"
 
-    except ImportError:
-        logger.warning("Pillow not installed, sending raw bytes as JPEG")
-        return raw_bytes, "image/jpeg"
     except Exception as e:
-        logger.warning("Image conversion failed, sending raw: %s", e)
-        return raw_bytes, "image/jpeg"
+        logger.error(
+            "Cannot convert receipt image (format=%s, declared=%s): %s",
+            detected,
+            content_type,
+            e,
+        )
+        raise ValueError(
+            f"Unsupported image format ({detected}). "
+            f"Please use JPEG or PNG. Error: {e}"
+        )
 
 
 def compute_receipt_hash(raw_bytes):
@@ -158,11 +198,11 @@ class ReceiptVisionService:
     Processes receipt images/PDFs through Vision AI.
 
     Flow:
-    1. For images: send at full resolution to Vision API (detail="high")
-    2. For PDFs: try pdfplumber text extraction first
-       - If sufficient text found, return as raw_text (skip Vision API)
-       - If scanned/image PDF, render first page to image, send to Vision
-    3. Returns ReceiptVisionResult with extracted data
+    1. For images with a URL (Cloudinary): pass URL directly to Vision API
+       — this avoids HEIC/format issues since Cloudinary serves JPEG/PNG
+    2. For images without URL: detect format, convert if needed, base64 encode
+    3. For PDFs: try pdfplumber text extraction first, Vision API fallback
+    4. Returns ReceiptVisionResult with extracted data
     """
 
     def __init__(self):
@@ -187,15 +227,18 @@ class ReceiptVisionService:
                 )
         return self._client
 
-    def process_image(self, raw_bytes, content_type="image/jpeg"):
+    def process_image(self, raw_bytes, content_type="image/jpeg", image_url=None):
         """
-        Process image bytes through Vision API.
+        Process image through Vision API.
 
-        Sends image at full resolution — GPT-4o Vision handles tiling.
+        Prefers image_url (Cloudinary) over raw bytes to avoid format issues.
+        iPhone cameras may produce HEIC which pillow can't convert without
+        pillow-heif. Cloudinary normalizes format on upload.
 
         Args:
-            raw_bytes: Raw image file bytes
-            content_type: MIME type (image/jpeg, image/png, image/webp, image/heic)
+            raw_bytes: Raw image file bytes (used for hash + fallback)
+            content_type: MIME type from upload
+            image_url: Optional URL (e.g., Cloudinary) — preferred path
 
         Returns:
             ReceiptVisionResult
@@ -203,15 +246,32 @@ class ReceiptVisionService:
         # Compute hash on original bytes for deduplication
         image_hash = compute_receipt_hash(raw_bytes)
 
-        # Prepare image (convert HEIC if needed, otherwise send as-is)
-        api_bytes, api_mime = prepare_image_for_api(raw_bytes, content_type)
+        # Prefer URL approach — avoids format issues entirely
+        if image_url and image_url.startswith("http"):
+            logger.info(
+                "Receipt %s: using URL approach (%d KB uploaded, url=%s)",
+                image_hash[:8],
+                len(raw_bytes) // 1024,
+                image_url[:80],
+            )
+            result = self._call_vision_api_with_url(image_url)
+        else:
+            # Fallback to base64 approach with format detection
+            logger.info(
+                "Receipt %s: using base64 approach (%d KB, type=%s)",
+                image_hash[:8],
+                len(raw_bytes) // 1024,
+                content_type,
+            )
+            try:
+                api_bytes, api_mime = prepare_image_for_api(raw_bytes, content_type)
+            except ValueError as e:
+                return ReceiptVisionResult(error=str(e))
 
-        # Encode as base64
-        base64_data = base64.b64encode(api_bytes).decode("utf-8")
+            base64_data = base64.b64encode(api_bytes).decode("utf-8")
+            result = self._call_vision_api_with_base64(base64_data, api_mime)
 
-        result = self._call_vision_api(base64_data, api_mime)
         result.image_hash = image_hash
-
         return result
 
     def process_pdf(self, raw_bytes):
@@ -284,12 +344,50 @@ class ReceiptVisionService:
             logger.error("PDF to image conversion failed: %s", e, exc_info=True)
             return ReceiptVisionResult(error=f"PDF conversion failed: {e}")
 
-    def _call_vision_api(self, base64_data, mime_type):
+    def _call_vision_api_with_url(self, image_url):
         """
-        Call GPT-4o Vision API with receipt-specific prompt.
+        Call Vision API using an image URL (preferred — avoids format issues).
+        OpenAI fetches the image directly from the URL (e.g., Cloudinary CDN).
+        """
+        if not self.client:
+            return ReceiptVisionResult(error="Vision API client not available")
 
-        Returns:
-            ReceiptVisionResult
+        model = getattr(settings, "OPENAI_VISION_MODEL", "gpt-4o")
+
+        try:
+            response = self.client.chat.completions.create(
+                model=model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": RECEIPT_VISION_PROMPT},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": image_url,
+                                    "detail": "high",
+                                },
+                            },
+                        ],
+                    }
+                ],
+                max_tokens=4096,
+                temperature=0,
+            )
+
+            content = response.choices[0].message.content.strip()
+            logger.info("Vision API response (URL mode): %d chars", len(content))
+
+            return self._parse_raw_response(content)
+
+        except Exception as e:
+            logger.error("Vision API call (URL) failed: %s", e, exc_info=True)
+            return ReceiptVisionResult(error=str(e))
+
+    def _call_vision_api_with_base64(self, base64_data, mime_type):
+        """
+        Call Vision API using base64-encoded image data (fallback).
         """
         if not self.client:
             return ReceiptVisionResult(error="Vision API client not available")
@@ -319,7 +417,17 @@ class ReceiptVisionService:
             )
 
             content = response.choices[0].message.content.strip()
+            logger.info("Vision API response (base64 mode): %d chars", len(content))
 
+            return self._parse_raw_response(content)
+
+        except Exception as e:
+            logger.error("Vision API call (base64) failed: %s", e, exc_info=True)
+            return ReceiptVisionResult(error=str(e))
+
+    def _parse_raw_response(self, content):
+        """Parse raw Vision API response string into ReceiptVisionResult."""
+        try:
             # Strip markdown fences if present
             if content.startswith("```"):
                 content = content.split("\n", 1)[1] if "\n" in content else content[3:]
@@ -328,14 +436,89 @@ class ReceiptVisionService:
                 content = content.strip()
 
             data = json.loads(content)
-            return self._parse_vision_response(data)
+
+            # Check for hallucination before parsing
+            hallucination_error = self._detect_hallucination(data)
+            if hallucination_error:
+                logger.warning(
+                    "Vision API result rejected (hallucination): %s — raw items: %s",
+                    hallucination_error,
+                    json.dumps(data.get("items", [])[:5]),
+                )
+                return ReceiptVisionResult(
+                    error=f"Could not read receipt clearly: {hallucination_error}. "
+                    f"Please try again with better lighting and a straight-on angle."
+                )
+
+            result = self._parse_vision_response(data)
+
+            # Log extraction summary for debugging
+            logger.info(
+                "Vision extracted: store=%s, date=%s, items=%d, total=%s",
+                result.store,
+                result.date,
+                len(result.items),
+                result.total,
+            )
+            return result
 
         except json.JSONDecodeError as e:
-            logger.error("Vision API returned invalid JSON: %s", e)
+            logger.error("Vision API returned invalid JSON: %s — content: %s", e, content[:500])
             return ReceiptVisionResult(error=f"Invalid JSON response: {e}")
-        except Exception as e:
-            logger.error("Vision API call failed: %s", e, exc_info=True)
-            return ReceiptVisionResult(error=str(e))
+
+    def _detect_hallucination(self, data):
+        """
+        Detect if Vision API result is hallucinated (model couldn't read
+        the image and made up a generic grocery list).
+
+        Returns error string if hallucination detected, None if OK.
+        """
+        items = data.get("items", [])
+        if not items:
+            return None  # No items isn't hallucination, just empty
+
+        # Check 1: Too many items with the same price (hallucination pattern)
+        prices = [item.get("price") for item in items if item.get("price")]
+        if len(prices) >= 5:
+            from collections import Counter
+            price_counts = Counter(prices)
+            most_common_price, count = price_counts.most_common(1)[0]
+            # If >60% of items have the same price, likely hallucinated
+            if count / len(prices) > 0.6 and len(prices) >= 5:
+                return (
+                    f"{count} of {len(prices)} items have the same price "
+                    f"(${most_common_price})"
+                )
+
+        # Check 2: Too many duplicate item names
+        names = [item.get("name", "").upper().strip() for item in items]
+        unique_names = set(names)
+        if len(names) >= 5 and len(unique_names) < len(names) * 0.6:
+            return (
+                f"Too many duplicate items ({len(names)} items but only "
+                f"{len(unique_names)} unique names)"
+            )
+
+        # Check 3: Generic item names (hallucination produces simple names
+        # like "BREAD", "EGGS", "MILK" instead of receipt abbreviations)
+        generic_names = {
+            "BREAD", "EGGS", "MILK", "BUTTER", "CHEESE", "RICE",
+            "PASTA", "PIZZA", "ICE CREAM", "CHICKEN", "BEEF",
+            "PORK", "FISH", "APPLE", "BANANA", "ORANGE",
+            "TOMATO", "POTATO", "ONION", "LETTUCE", "CUCUMBER",
+            "CUECUMBER",  # common misspelling in hallucinations
+        }
+        generic_count = sum(
+            1 for name in names if name in generic_names
+        )
+        # If >50% of items are simple generic names, likely hallucinated
+        if len(names) >= 8 and generic_count / len(names) > 0.5:
+            return (
+                f"{generic_count} of {len(names)} items are generic names — "
+                f"receipt text was likely not readable"
+            )
+
+        return None
 
     def _parse_vision_response(self, data):
         """Parse Vision API JSON response into ReceiptVisionResult."""

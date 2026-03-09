@@ -1383,6 +1383,145 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
 
 
 # =============================================================================
+# Receipt Delete
+# =============================================================================
+
+
+class ReceiptDeleteView(LoginRequiredMixin, MealsHouseholdMixin, View):
+    """
+    Delete a receipt with cascade cleanup of routed data.
+
+    For confirmed receipts, reverses downstream data:
+    - Finance Transaction (matched by reference field)
+    - FoodEntry for restaurant receipts (matched by notes + date)
+    - InventoryTransactions for grocery receipts (matched by receipt items)
+    """
+
+    def post(self, request, pk):
+        household = self.get_household()
+        receipt = get_object_or_404(Receipt, pk=pk, household=household)
+
+        cascade_parts = []
+
+        # For confirmed receipts, reverse routed data before deleting
+        if receipt.confirmation_status == Receipt.CONFIRM_CONFIRMED:
+            cascade_parts = self._cascade_cleanup(receipt, request.user)
+
+        # Delete receipt items (hard delete — they're child records)
+        item_count = ReceiptItem.objects.filter(receipt=receipt).count()
+        ReceiptItem.objects.filter(receipt=receipt).delete()
+
+        # Soft-delete the receipt itself
+        receipt.soft_delete()
+
+        summary = f"Receipt deleted ({item_count} item{'s' if item_count != 1 else ''} removed)"
+        if cascade_parts:
+            summary += ". " + "; ".join(cascade_parts)
+        messages.success(request, summary)
+
+        return redirect("meals:receipts")
+
+    def _cascade_cleanup(self, receipt, user):
+        """Reverse downstream data created by receipt routing."""
+        summary = []
+
+        # 1. Finance Transaction — reliable match via reference field
+        summary.extend(self._cleanup_finance(receipt))
+
+        # 2. FoodEntry — restaurant receipts
+        if receipt.receipt_type == "restaurant":
+            summary.extend(self._cleanup_food_entries(receipt, user))
+
+        # 3. InventoryTransactions — grocery receipts
+        if receipt.receipt_type == "grocery":
+            summary.extend(self._cleanup_inventory(receipt))
+
+        return summary
+
+    def _cleanup_finance(self, receipt):
+        """Remove finance transactions created from this receipt."""
+        try:
+            from apps.finance.models import Transaction
+
+            txns = Transaction.objects.filter(reference=f"receipt:{receipt.pk}")
+            count = txns.count()
+            if count:
+                for txn in txns:
+                    txn.soft_delete()
+                return [f"{count} finance transaction(s) removed"]
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.warning("Finance cleanup for receipt %d failed: %s", receipt.pk, e)
+        return []
+
+    def _cleanup_food_entries(self, receipt, user):
+        """Remove food entries created from restaurant receipt routing."""
+        try:
+            from apps.health.models import FoodEntry
+
+            entries = FoodEntry.objects.filter(
+                user=user,
+                notes__contains="From receipt:",
+                logged_date=receipt.receipt_date,
+            )
+            if receipt.store:
+                entries = entries.filter(notes__contains=receipt.store)
+
+            count = entries.count()
+            if count:
+                for entry in entries:
+                    entry.soft_delete()
+                return [f"{count} food log(s) removed"]
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.warning("FoodEntry cleanup for receipt %d failed: %s", receipt.pk, e)
+        return []
+
+    def _cleanup_inventory(self, receipt):
+        """Reverse inventory transactions from grocery receipt routing."""
+        try:
+            receipt_items = ReceiptItem.objects.filter(
+                receipt=receipt
+            ).select_related("ingredient")
+            ingredient_ids = [
+                item.ingredient_id for item in receipt_items if item.ingredient_id
+            ]
+
+            if not ingredient_ids:
+                return []
+
+            pantry_items = PantryItem.objects.filter(
+                household=receipt.household,
+                ingredient_id__in=ingredient_ids,
+            )
+
+            txns = InventoryTransaction.objects.filter(
+                pantry_item__in=pantry_items,
+                source="receipt",
+                notes__contains="From receipt:",
+            )
+            if receipt.store:
+                txns = txns.filter(notes__contains=receipt.store)
+
+            count = txns.count()
+            if count:
+                # Reverse pantry quantities
+                for txn in txns:
+                    pi = txn.pantry_item
+                    pi.quantity = max(Decimal("0"), pi.quantity - txn.delta_quantity)
+                    pi.save(update_fields=["quantity", "updated_at"])
+                txns.delete()
+                return [f"{count} inventory transaction(s) reversed"]
+        except Exception as e:
+            logger.warning(
+                "Inventory cleanup for receipt %d failed: %s", receipt.pk, e
+            )
+        return []
+
+
+# =============================================================================
 # Recipe Intelligence Detail
 # =============================================================================
 

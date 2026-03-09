@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Display average sleep in hours/minutes instead of raw minutes
+
+- **Issue:** Dashboard "Your Current State" tile showed average sleep as raw minutes (e.g., "332 min") which is hard to interpret at a glance
+- **Fix:** Created `minutes_to_hm` template filter in `apps/dashboard/templatetags/dashboard_filters.py` that converts minutes to "Xh Ym" format (e.g., 332 → "5h 32m")
+- **Files:** `apps/dashboard/templatetags/__init__.py` (new), `apps/dashboard/templatetags/dashboard_filters.py` (new), `templates/dashboard/tiles/state_snapshot.html`, `apps/dashboard/tests/test_state_snapshot.py`
+- **Tests:** 14 passing (dashboard state snapshot tests)
+- **Why:** Hours and minutes is the natural way people think about sleep duration
+
 ## 2026-03-09 — Fix task vs calendar event disambiguation for delete/remove actions
 
 - **Bug:** When user says "Remove 10:00 PM Take trash out", AI routes to `mutate_task` (task delete) instead of `mutate_calendar_event` (calendar delete). Task handler fails with "couldn't find active task", and even after user clarifies it's a calendar entry, the confirmation says "Update calendar event" instead of "Delete calendar event".

@@ -3,6 +3,7 @@ Dashboard Tile: Your Current State (SAE)
 Displays key state values from the State Awareness Engine.
 All data comes from SAE — no direct domain table queries.
 {% endcomment %}
+{% load dashboard_filters %}
 
 <section class="state-snapshot-section tile-size-{{ tile.size|default:'medium' }}"
          data-tile-id="state_snapshot"
@@ -42,7 +43,7 @@ All data comes from SAE — no direct domain table queries.
                 {% if health.sleep_avg_duration_7d %}
                 <div class="state-row">
                     <span class="state-key">Avg Sleep (7d)</span>
-                    <span class="state-value">{{ health.sleep_avg_duration_7d|floatformat:0 }} min</span>
+                    <span class="state-value">{{ health.sleep_avg_duration_7d|minutes_to_hm }}</span>
                 </div>
                 {% endif %}
                 {% if health.steps_avg_7d %}

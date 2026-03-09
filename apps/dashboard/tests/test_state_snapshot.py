@@ -117,7 +117,7 @@ class StateSnapshotPanelTest(TestCase):
         self.assertContains(response, "247.5")
         self.assertContains(response, "lbs")
         self.assertContains(response, "improving")
-        self.assertContains(response, "420")
+        self.assertContains(response, "7h 0m")
         self.assertContains(response, "8500")
 
     @patch("apps.core.ai_state.state_engine.get_user_state", return_value=MOCK_FULL_STATE)

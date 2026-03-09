@@ -64,6 +64,8 @@ TASK_ENGINE_MAP = {
     "deliver_protective_alerts": "PROTALRT",
     "schedule_cos_prompts": "COSSCHED",
     "deliver_cos_prompts": "COSDELIV",
+    "create_maturity_snapshot": "MATURITY",
+    "generate_cdce_check_ins": "CDCE_CI",
 }
 
 # Engine → intelligence pipeline phase

@@ -1212,3 +1212,54 @@ def run_cos_prompt_delivery():
             result.get('delivered', 0), result.get('errors', 0),
         )
         return result
+
+
+def run_maturity_snapshot():
+    """
+    Phase 7.4: Compute and persist daily system maturity snapshot.
+
+    Returns:
+        dict — {overall_score: int, created: bool}
+    """
+    try:
+        from apps.core.ai_observability.maturity_engine import create_daily_snapshot
+        snapshot = create_daily_snapshot()
+        return {
+            "overall_score": snapshot.overall_score if snapshot else 0,
+            "created": True,
+        }
+    except Exception as e:
+        logger.error("ISE: Maturity snapshot failed: %s", e, exc_info=True)
+        return {"overall_score": 0, "created": False, "error": str(e)[:200]}
+
+
+def run_cdce_check_ins():
+    """
+    Phase 7.2: Generate proactive check-ins from CDCE correlations.
+
+    Returns:
+        dict — {users_processed: int}
+    """
+    from apps.users.models import User
+
+    users = User.objects.filter(
+        is_active=True,
+        preferences__assistant_enabled=True,
+    ).select_related('preferences')[:50]
+
+    processed = 0
+    for user in users:
+        try:
+            from apps.ai.proactive_checkins import (
+                generate_cdce_correlation_check_ins_for_user,
+            )
+            generate_cdce_correlation_check_ins_for_user(user)
+            processed += 1
+        except Exception as e:
+            logger.warning(
+                "ISE: CDCE check-in failed for user %s: %s",
+                user.pk, e,
+            )
+
+    logger.info("ISE: CDCE check-ins processed for %d users", processed)
+    return {"users_processed": processed}

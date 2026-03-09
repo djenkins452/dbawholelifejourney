@@ -171,6 +171,16 @@ SCHEDULED_TASKS = {
         "interval_seconds": 900,  # 15 minutes
         "description": "Compute CoS situation state for all active users (pre-interpreted awareness, no LLM calls).",
     },
+    "create_maturity_snapshot": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_maturity_snapshot",
+        "interval_seconds": 86400,  # 24 hours
+        "description": "Compute and persist daily system maturity snapshot (Phase 7.4).",
+    },
+    "generate_cdce_check_ins": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_cdce_check_ins",
+        "interval_seconds": 21600,  # 6 hours
+        "description": "Generate proactive check-ins from CDCE cross-domain correlations (Phase 7.2).",
+    },
 }
 
 

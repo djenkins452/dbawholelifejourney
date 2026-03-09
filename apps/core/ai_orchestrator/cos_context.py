@@ -995,6 +995,275 @@ def _build_faith_context(user):
         return {}
 
 
+# =========================================================================
+# Phase 7.3: Additional Domain Context Builders
+# =========================================================================
+
+
+def _build_finance_context(user):
+    """Build finance module context — budgets, goals, recent activity."""
+    try:
+        from datetime import timedelta as td
+        now = timezone.now()
+        result = {}
+
+        try:
+            from apps.finance.models import FinancialGoal, Budget
+        except ImportError:
+            return {}
+
+        # Active financial goals
+        active_goals = FinancialGoal.objects.filter(
+            user=user, goal_status='active',
+        ).order_by('target_date')[:5]
+
+        if active_goals:
+            goals_data = []
+            for g in active_goals:
+                progress = 0
+                if g.target_amount and g.target_amount > 0:
+                    progress = round(
+                        float(g.current_amount or 0) / float(g.target_amount) * 100, 1
+                    )
+                goals_data.append({
+                    'name': g.name,
+                    'type': g.goal_type,
+                    'target': float(g.target_amount or 0),
+                    'current': float(g.current_amount or 0),
+                    'progress_pct': progress,
+                    'target_date': g.target_date.strftime('%b %d')
+                    if g.target_date else None,
+                })
+            result['finance_goals'] = goals_data
+
+        # Current month budget status
+        first_of_month = now.date().replace(day=1)
+        budgets = Budget.objects.filter(
+            user=user, month=first_of_month,
+        ).select_related('category')[:10]
+
+        if budgets:
+            budget_data = []
+            for b in budgets:
+                cat_name = b.category.name if b.category else 'Uncategorized'
+                budgeted = float(b.budgeted_amount or 0)
+                spent = float(getattr(b, 'spent_amount', 0) or 0)
+                pct = round(spent / budgeted * 100, 1) if budgeted > 0 else 0
+                if pct >= 80:  # Only surface budgets near/over limit
+                    budget_data.append({
+                        'category': cat_name,
+                        'budgeted': budgeted,
+                        'spent': spent,
+                        'percent_used': pct,
+                        'over_budget': pct > 100,
+                    })
+            if budget_data:
+                result['finance_budgets_alert'] = budget_data
+
+        return result
+
+    except Exception as e:
+        logger.debug("CoS context: finance unavailable: %s", e)
+        return {}
+
+
+def _build_brain_training_context(user):
+    """Build brain training context — recent sessions, streaks."""
+    try:
+        try:
+            from apps.brain_training.models import UserOverallStats, DailyStats
+        except ImportError:
+            return {}
+
+        result = {}
+
+        # Overall stats
+        overall = UserOverallStats.objects.filter(user=user).first()
+        if overall:
+            result['brain_training'] = {
+                'total_sessions': overall.total_sessions,
+                'total_completed': overall.total_completed,
+                'current_streak': overall.current_streak,
+                'favorite_game': (
+                    overall.favorite_game.name
+                    if overall.favorite_game else None
+                ),
+            }
+
+        # Recent daily stats (last 7 days)
+        from datetime import timedelta as td
+        cutoff = timezone.now().date() - td(days=7)
+        recent_days = DailyStats.objects.filter(
+            user=user, date__gte=cutoff,
+        ).order_by('-date')[:7]
+        if recent_days:
+            result.setdefault('brain_training', {})['recent_days'] = [
+                {
+                    'date': d.date.strftime('%b %d'),
+                    'sessions': d.sessions_completed,
+                    'best_score': d.best_score,
+                }
+                for d in recent_days
+            ]
+
+        return result
+
+    except Exception as e:
+        logger.debug("CoS context: brain_training unavailable: %s", e)
+        return {}
+
+
+def _build_capture_context(user):
+    """Build capture context — unprocessed captures, recent entries."""
+    try:
+        try:
+            from apps.capture.models import CaptureEntry, PendingCapture
+        except ImportError:
+            return {}
+
+        result = {}
+
+        # Pending/unprocessed captures
+        pending_count = PendingCapture.objects.filter(
+            user=user, status__in=['pending', 'uploading'],
+        ).count()
+
+        # Recent ready entries (last 7 days)
+        from datetime import timedelta as td
+        cutoff = timezone.now() - td(days=7)
+        ready_entries = CaptureEntry.objects.filter(
+            user=user, status='ready', created_at__gte=cutoff,
+        ).order_by('-created_at')[:5]
+
+        if pending_count or ready_entries:
+            result['capture_status'] = {
+                'pending_uploads': pending_count,
+                'recent_captures': [
+                    {
+                        'title': e.title[:60] if e.title else 'Untitled',
+                        'category': e.category,
+                        'date': e.created_at.strftime('%b %d'),
+                    }
+                    for e in ready_entries
+                ],
+            }
+
+        return result
+
+    except Exception as e:
+        logger.debug("CoS context: capture unavailable: %s", e)
+        return {}
+
+
+def _build_medical_context(user):
+    """Build medical context — recent labs, abnormal results."""
+    try:
+        try:
+            from apps.medical.models import LabResult, LabPanel
+        except ImportError:
+            return {}
+
+        result = {}
+        from datetime import timedelta as td
+        cutoff = timezone.now() - td(days=90)
+
+        # Recent abnormal results (last 90 days)
+        abnormal = LabResult.objects.filter(
+            user=user,
+            collected_at__gte=cutoff,
+            abnormal_flag__in=['L', 'H', 'LL', 'HH', 'A'],
+        ).select_related('canonical_test').order_by('-collected_at')[:5]
+
+        if abnormal:
+            result['medical_alerts'] = [
+                {
+                    'test': r.canonical_test.short_name if r.canonical_test else 'Unknown',
+                    'value': str(r.value_text)[:20],
+                    'flag': r.abnormal_flag,
+                    'date': r.collected_at.strftime('%b %d') if r.collected_at else None,
+                }
+                for r in abnormal
+            ]
+
+        # Recent lab panels
+        panels = LabPanel.objects.filter(
+            user=user, collected_at__gte=cutoff,
+        ).order_by('-collected_at')[:3]
+        if panels:
+            result['recent_lab_panels'] = [
+                {
+                    'type': p.panel_type,
+                    'name': p.name[:40] if p.name else p.panel_type,
+                    'date': p.collected_at.strftime('%b %d') if p.collected_at else None,
+                }
+                for p in panels
+            ]
+
+        return result
+
+    except Exception as e:
+        logger.debug("CoS context: medical unavailable: %s", e)
+        return {}
+
+
+def _build_purpose_context(user):
+    """Build purpose context — life goals, habit progress, streaks."""
+    try:
+        try:
+            from apps.purpose.models import LifeGoal, HabitGoal, HabitEntry
+        except ImportError:
+            return {}
+
+        result = {}
+        from datetime import timedelta as td
+        today = timezone.now().date()
+
+        # Active life goals
+        life_goals = LifeGoal.objects.filter(
+            user=user, status='active',
+        ).order_by('target_date')[:5]
+
+        if life_goals:
+            result['life_goals'] = [
+                {
+                    'name': g.name,
+                    'target_date': g.target_date.strftime('%b %d')
+                    if g.target_date else None,
+                    'days_until': (g.target_date - today).days
+                    if g.target_date else None,
+                }
+                for g in life_goals
+            ]
+
+        # Active habits with completion rates (last 7 days)
+        habits = HabitGoal.objects.filter(
+            user=user, status='active',
+        )[:10]
+
+        if habits:
+            week_ago = today - td(days=7)
+            habit_data = []
+            for h in habits:
+                entries_7d = HabitEntry.objects.filter(
+                    goal=h, date__gte=week_ago, completed=True,
+                ).count()
+                target_7d = h.sessions_per_week if h.sessions_per_week else 7
+                rate = round(entries_7d / target_7d * 100, 0) if target_7d > 0 else 0
+                habit_data.append({
+                    'name': h.name,
+                    'completion_rate_7d': min(rate, 100),
+                    'entries_7d': entries_7d,
+                    'target_weekly': target_7d,
+                })
+            result['habit_progress'] = habit_data
+
+        return result
+
+    except Exception as e:
+        logger.debug("CoS context: purpose unavailable: %s", e)
+        return {}
+
+
 # Registry of parallel builder functions.
 # Each takes (user, prefs) or (user,) and returns a dict of context updates.
 _PARALLEL_BUILDERS = [
@@ -1010,6 +1279,12 @@ _PARALLEL_BUILDERS = [
     lambda user, prefs: _build_recent_image_analyses(user),
     lambda user, prefs: _build_meals_context(user),
     lambda user, prefs: _build_faith_context(user),
+    # Phase 7.3: Additional domain context builders
+    lambda user, prefs: _build_finance_context(user),
+    lambda user, prefs: _build_brain_training_context(user),
+    lambda user, prefs: _build_capture_context(user),
+    lambda user, prefs: _build_medical_context(user),
+    lambda user, prefs: _build_purpose_context(user),
     # v8 SA builder temporarily disabled for production stability debugging.
     # Re-enable after confirming 524 timeout root cause.
     # lambda user, prefs: _build_situational_awareness_context(user),
@@ -2587,6 +2862,79 @@ def format_cos_system_injection(context):
                 lines.append(f"  Bible reading plan: {bible['plan']}")
             if bible.get('streak_days'):
                 lines.append(f"  Reading streak: {bible['streak_days']} days")
+
+    # Phase 7.3: Finance context
+    finance_goals = context.get('finance_goals', [])
+    finance_budgets = context.get('finance_budgets_alert', [])
+    if finance_goals or finance_budgets:
+        lines.append("")
+        lines.append("FINANCE:")
+        for fg in finance_goals[:3]:
+            date_str = f" (by {fg['target_date']})" if fg.get('target_date') else ""
+            lines.append(
+                f"  Goal: {fg['name']} — ${fg['current']:.0f}/${fg['target']:.0f} "
+                f"({fg['progress_pct']}%){date_str}"
+            )
+        for fb in finance_budgets[:3]:
+            over = " [OVER BUDGET]" if fb.get('over_budget') else ""
+            lines.append(
+                f"  Budget: {fb['category']} — ${fb['spent']:.0f}/${fb['budgeted']:.0f} "
+                f"({fb['percent_used']}%){over}"
+            )
+
+    # Phase 7.3: Purpose context (goals, habits)
+    life_goals = context.get('life_goals', [])
+    habit_progress = context.get('habit_progress', [])
+    if life_goals or habit_progress:
+        lines.append("")
+        lines.append("GOALS & HABITS:")
+        for lg in life_goals[:3]:
+            days_str = ""
+            if lg.get('days_until') is not None:
+                if lg['days_until'] <= 7:
+                    days_str = f" [DUE IN {lg['days_until']}d]"
+                elif lg['days_until'] <= 30:
+                    days_str = f" (due {lg.get('target_date', '')})"
+            lines.append(f"  Life Goal: {lg['name']}{days_str}")
+        for hp in habit_progress[:5]:
+            rate = hp['completion_rate_7d']
+            status = "✓ on track" if rate >= 80 else ("needs attention" if rate < 50 else "")
+            lines.append(
+                f"  Habit: {hp['name']} — {hp['entries_7d']}/{hp['target_weekly']} "
+                f"this week ({rate:.0f}%) {status}"
+            )
+
+    # Phase 7.3: Brain training context
+    brain = context.get('brain_training', {})
+    if brain and brain.get('current_streak', 0) > 0:
+        lines.append("")
+        lines.append(
+            f"Brain Training: {brain['current_streak']}-day streak, "
+            f"{brain.get('total_completed', 0)} sessions completed"
+        )
+        if brain.get('favorite_game'):
+            lines.append(f"  Favorite: {brain['favorite_game']}")
+
+    # Phase 7.3: Capture context
+    capture = context.get('capture_status', {})
+    if capture and (capture.get('pending_uploads', 0) > 0 or capture.get('recent_captures')):
+        lines.append("")
+        pending = capture.get('pending_uploads', 0)
+        recent = capture.get('recent_captures', [])
+        if pending:
+            lines.append(f"Captures: {pending} pending upload(s)")
+        if recent:
+            lines.append(f"Recent captures: {len(recent)} in last 7 days")
+
+    # Phase 7.3: Medical context
+    medical_alerts = context.get('medical_alerts', [])
+    if medical_alerts:
+        lines.append("")
+        lines.append("MEDICAL ALERTS (recent abnormal lab results):")
+        for ma in medical_alerts[:3]:
+            lines.append(
+                f"  {ma['test']}: {ma['value']} [{ma['flag']}] ({ma.get('date', '')})"
+            )
 
     # Navigable pages — URL awareness for directing users to app pages
     pages = context.get('navigable_pages', [])

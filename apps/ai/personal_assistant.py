@@ -4305,6 +4305,57 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         except Exception as e:
             logger.warning("Executive briefing failed: %s", e)
 
+        # Phase 7.1: Semantic memory retrieval — retrieve past conversations
+        # relevant to the current message (cross-session, embedding-based).
+        try:
+            from apps.ai.memory_service import retrieve_relevant_memories
+            relevant_memories = retrieve_relevant_memories(
+                self.user, message, top_k=3, exclude_minutes=30,
+            )
+            if relevant_memories:
+                mem_lines = [
+                    "--- RELEVANT PAST CONVERSATIONS ---",
+                    "You've discussed similar topics before with this user:",
+                ]
+                for mem in relevant_memories:
+                    days_ago = (timezone.now() - mem['created_at']).days
+                    if days_ago == 0:
+                        time_label = "Earlier today"
+                    elif days_ago == 1:
+                        time_label = "Yesterday"
+                    elif days_ago < 7:
+                        time_label = f"{days_ago} days ago"
+                    else:
+                        time_label = mem['created_at'].strftime('%b %d')
+                    corrected = " [CORRECTED]" if mem.get('was_corrected') else ""
+                    mem_lines.append(
+                        f"  [{time_label}]{corrected} User asked: "
+                        f"\"{mem['user_message'][:150]}\" → "
+                        f"You said: \"{mem['assistant_summary'][:150]}\""
+                    )
+                mem_lines.append(
+                    "Reference these naturally if relevant. "
+                    "Do NOT repeat previous mistakes marked [CORRECTED]."
+                )
+                mem_lines.append("--- END PAST CONVERSATIONS ---")
+                system_prompt += "\n\n" + "\n".join(mem_lines)
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug("Semantic memory retrieval skipped: %s", e)
+
+        # Phase 7.1: Correction record retrieval — prioritize corrections
+        # the user has made to prevent repeating the same mistakes.
+        try:
+            from apps.ai.correction_service import get_correction_context_block
+            correction_block = get_correction_context_block(self.user, message)
+            if correction_block:
+                system_prompt += "\n\n" + correction_block
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug("Correction retrieval skipped: %s", e)
+
         # Pending CoS prompts (proactive nudging)
         try:
             from apps.cos.services.prompt_service import CosPromptService
@@ -5661,7 +5712,55 @@ Rules for this response:
         except Exception:
             pass
 
-        # --- f3) Pending CoS prompts (proactive nudging)
+        # --- f3) Phase 7.1: Semantic memory + correction retrieval (streaming)
+        try:
+            from apps.ai.memory_service import retrieve_relevant_memories
+            relevant_memories = retrieve_relevant_memories(
+                self.user, message, top_k=3, exclude_minutes=30,
+            )
+            if relevant_memories:
+                mem_lines = [
+                    "--- RELEVANT PAST CONVERSATIONS ---",
+                    "You've discussed similar topics before with this user:",
+                ]
+                for mem in relevant_memories:
+                    days_ago = (timezone.now() - mem['created_at']).days
+                    if days_ago == 0:
+                        time_label = "Earlier today"
+                    elif days_ago == 1:
+                        time_label = "Yesterday"
+                    elif days_ago < 7:
+                        time_label = f"{days_ago} days ago"
+                    else:
+                        time_label = mem['created_at'].strftime('%b %d')
+                    corrected = " [CORRECTED]" if mem.get('was_corrected') else ""
+                    mem_lines.append(
+                        f"  [{time_label}]{corrected} User asked: "
+                        f"\"{mem['user_message'][:150]}\" → "
+                        f"You said: \"{mem['assistant_summary'][:150]}\""
+                    )
+                mem_lines.append(
+                    "Reference these naturally if relevant. "
+                    "Do NOT repeat previous mistakes marked [CORRECTED]."
+                )
+                mem_lines.append("--- END PAST CONVERSATIONS ---")
+                system_prompt += "\n\n" + "\n".join(mem_lines)
+        except ImportError:
+            pass
+        except Exception:
+            pass
+
+        try:
+            from apps.ai.correction_service import get_correction_context_block
+            correction_block = get_correction_context_block(self.user, message)
+            if correction_block:
+                system_prompt += "\n\n" + correction_block
+        except ImportError:
+            pass
+        except Exception:
+            pass
+
+        # --- f4) Pending CoS prompts (proactive nudging)
         try:
             from apps.cos.services.prompt_service import CosPromptService
             prompt_injection = CosPromptService.get_pending_prompt_injection(self.user)

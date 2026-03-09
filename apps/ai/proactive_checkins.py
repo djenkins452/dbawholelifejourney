@@ -815,12 +815,60 @@ class ProactiveCheckInService:
             }
         )
 
+    def generate_cdce_correlation_check_in(
+        self, correlation_type: str, narrative: str,
+        strength: str, domains: list,
+    ) -> Optional[AssistantMessage]:
+        """
+        Generate a proactive check-in based on a CDCE cross-domain correlation.
+
+        Phase 7.2: Surfaces discovered cross-domain patterns as actionable
+        intelligence. E.g., "Your sleep data shows a pattern: on days you
+        sleep 7+ hours, your mood journal entries are significantly more positive."
+        """
+        throttle_key = f'cdce_{correlation_type}'
+        if not self.throttler.can_send(throttle_key):
+            return None
+
+        domain_str = ' & '.join(d.title() for d in domains[:2])
+        strength_label = (
+            "a strong" if strength == 'strong'
+            else "a notable" if strength == 'moderate'
+            else "a possible"
+        )
+
+        message_content = (
+            f"I've noticed {strength_label} pattern across your "
+            f"{domain_str} data: {narrative}"
+        )
+
+        quick_replies = [
+            {'label': 'Tell me more', 'action': 'chat',
+             'value': f'Tell me more about the {correlation_type.replace("_", " ")} pattern'},
+            {'label': 'How to use this', 'action': 'chat',
+             'value': f'How can I use this {domain_str} insight to improve?'},
+            {'label': 'Got it', 'action': 'dismiss'},
+        ]
+
+        return self._create_proactive_message(
+            content=message_content,
+            quick_replies=quick_replies,
+            message_type='insight',
+            metadata={
+                'check_in_type': 'cdce_correlation',
+                'correlation_type': correlation_type,
+                'strength': strength,
+                'domains': domains,
+            }
+        )
+
     # Check-in types that warrant immediate push delivery (high priority)
     _HIGH_PRIORITY_CHECKIN_TYPES = {'medicine', 'grouped_medicine'}
     # Check-in types that use standard delivery (lower priority)
     _STANDARD_CHECKIN_TYPES = {'workout', 'journal', 'overdue_task', 'busy_day',
                                'faith_reading', 'finance_budget', 'goal_deadline',
-                               'relationship_drift', 'journal_concern'}
+                               'relationship_drift', 'journal_concern',
+                               'cdce_correlation'}
 
     def _create_proactive_message(
         self,
@@ -1692,3 +1740,55 @@ def generate_journal_intelligence_check_ins_for_user(user):
         pass
     except Exception as e:
         logger.warning("Journal gap check-in error: %s", e, exc_info=True)
+
+
+def generate_cdce_correlation_check_ins_for_user(user):
+    """
+    Phase 7.2: Generate proactive check-ins from CDCE cross-domain correlations.
+
+    Surfaces strong/moderate correlations as actionable insights once per
+    correlation type per day. Only fires for correlations with strength ≥ moderate.
+    """
+    from apps.core.utils import get_user_today
+
+    prefs = user.preferences
+    if not getattr(prefs, 'assistant_proactive_checkins', True):
+        return
+
+    service = get_proactive_service(user)
+    today = get_user_today(user)
+
+    try:
+        from apps.core.ai_cross_domain.models import DomainCorrelation
+
+        # Get active, strong/moderate correlations
+        correlations = DomainCorrelation.objects.filter(
+            user=user,
+            status='active',
+            strength__in=['strong', 'moderate'],
+        ).order_by('-strength_score')[:5]
+
+        for corr in correlations:
+            # Skip if already sent today for this correlation type
+            recent = AssistantMessage.objects.filter(
+                conversation__user=user,
+                is_proactive=True,
+                metadata__check_in_type='cdce_correlation',
+                metadata__correlation_type=corr.correlation_type,
+                created_at__date=today,
+            ).exists()
+
+            if not recent:
+                service.generate_cdce_correlation_check_in(
+                    correlation_type=corr.correlation_type,
+                    narrative=corr.narrative,
+                    strength=corr.strength,
+                    domains=[corr.domain_a, corr.domain_b],
+                )
+                # Only surface one correlation per run to avoid overload
+                break
+
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning("CDCE correlation check-in error: %s", e, exc_info=True)

@@ -2,7 +2,7 @@
 
 **Document Type:** Master Blueprint
 **Created:** 2026-03-09
-**Status:** COMPLETE — All 6 Phases Implemented
+**Status:** IN PROGRESS — Phases 7-9 (Intelligence Activation & Command Center)
 **Last Updated:** 2026-03-09
 
 ---
@@ -18,7 +18,10 @@
 7. [Phase 4 — Proactive Life Intelligence](#phase-4--proactive-life-intelligence)
 8. [Phase 5 — Command Center Holistic Dashboard](#phase-5--command-center-holistic-dashboard)
 9. [Phase 6 — System Maturity Measurement](#phase-6--system-maturity-measurement)
-10. [Appendix: Current System Inventory](#appendix-current-system-inventory)
+10. [Phase 7 — Intelligence Activation](#phase-7--intelligence-activation)
+11. [Phase 8 — Command Center Integration](#phase-8--command-center-integration)
+12. [Phase 9 — Completion & Integrity Audit](#phase-9--completion--integrity-audit)
+13. [Appendix: Current System Inventory](#appendix-current-system-inventory)
 
 ---
 
@@ -957,6 +960,137 @@ IF infrastructure_score < 80:
 - [x] Regression detection via `detect_regressions(threshold=10)` for 48-hour drops
 - [x] Self-improvement recommendations generated based on score thresholds — displayed on dashboard
 - [x] All existing tests pass — 312 pass (admin_console + observability)
+
+---
+
+## Phase 7 — Intelligence Activation
+
+**Objective:** Activate intelligence that exists but is not fully used in the CoS response pipeline. No new engines — connect existing systems.
+
+**Status:** IN PROGRESS
+
+### Task 7.1 — Memory Retrieval Integration
+
+**Status:** IN PROGRESS
+
+**Pre-implementation audit:**
+- PersonalFacts: ✅ Already injected via `build_personal_facts_prompt()` into base system prompt
+- ConversationMemory: ✅ Rolling summary injected via `get_conversation_memory()`
+- CorrectionRecord: ❌ `get_correction_context_block()` exists but is NEVER called in pipeline
+- Semantic retrieval: ❌ No message-relevant semantic search of ConversationMemory
+
+**Changes:**
+- [ ] Wire CorrectionRecord retrieval into `_generate_response()` pipeline
+- [ ] Add semantic ConversationMemory retrieval (query-relevant memories, not just rolling summary)
+- [ ] Verify corrections influence future responses
+
+### Task 7.2 — CDCE Correlation Activation
+
+**Status:** NOT STARTED
+
+**Pre-implementation audit:**
+- CDCE → CoS context: ✅ Already pulled via `_build_intelligence_signals()` (cross_domain_correlations)
+- CDCE → system prompt: ✅ Already formatted as "CROSS-DOMAIN PATTERNS" section
+- CDCE → proactive check-ins: ❌ Correlations not used to trigger proactive messages
+
+**Changes:**
+- [ ] Add correlation-aware proactive check-in generation
+- [ ] CDCE insights feed into proactive intelligence scheduler
+
+### Task 7.3 — Context Depth Expansion
+
+**Status:** NOT STARTED
+
+**Pre-implementation audit — Missing domain builders in _PARALLEL_BUILDERS:**
+- Finance: ❌ No context builder
+- Brain Training: ❌ No context builder
+- Capture: ❌ No context builder
+- Medical: ❌ No context builder
+- Purpose/Goals: ❌ Only open_loops in loops builder
+
+**Changes:**
+- [ ] Add finance context builder (budgets, goals, transactions)
+- [ ] Add brain training context builder (recent sessions, streaks)
+- [ ] Add capture context builder (unprocessed items)
+- [ ] Add medical context builder (records, appointments, providers)
+- [ ] Add purpose context builder (goals, habits with progress)
+
+### Task 7.4 — Telemetry Completion
+
+**Status:** NOT STARTED
+
+**Changes:**
+- [ ] Audit all engines for missing EngineRun telemetry
+- [ ] Add instrumentation to uninstrumented engines
+- [ ] Verify all engines report to maturity scoring
+
+---
+
+## Phase 8 — Command Center Integration
+
+**Objective:** Integrate maturity framework into the Intelligence Command Center (/intelligence/) — the user-facing strategic interface.
+
+**Status:** NOT STARTED
+
+### Task 8.1 — Strategic Maturity Header
+
+**Status:** NOT STARTED
+
+- [ ] Add maturity scores to IntelligenceCommandCenterView
+- [ ] Display 6-dimension scores with color coding
+- [ ] Data source: SystemMaturitySnapshot
+
+### Task 8.2 — Domain Coverage Visualization
+
+**Status:** NOT STARTED
+
+- [ ] Display domain health using registry data
+- [ ] Show intent coverage, signal coverage, context integration per domain
+
+### Task 8.3 — Proactive Intelligence Dashboard
+
+**Status:** NOT STARTED
+
+- [ ] Display 7-day check-in counts, by-domain breakdown
+- [ ] Show engagement metrics and adaptive cadence behavior
+
+### Task 8.4 — Information Hierarchy
+
+**Status:** NOT STARTED
+
+- [ ] Restructure Command Center template:
+  - Section 1: System Maturity
+  - Section 2: Domain Coverage
+  - Section 3: Proactive Intelligence
+  - Section 4: System Health (existing engine outputs)
+  - Section 5: Engine Diagnostics (existing)
+- [ ] No existing monitoring tools removed
+
+---
+
+## Phase 9 — Completion & Integrity Audit
+
+**Objective:** Verify entire system functions as unified life operating system.
+
+**Status:** NOT STARTED
+
+### Task 9.1 — Domain Registry Audit
+- [ ] Run audit_domains command
+- [ ] Flag domains without context builders or proactive signals
+
+### Task 9.2 — Intelligence Verification
+- [ ] Verify memory retrieval works
+- [ ] Verify CDCE correlations influence responses
+- [ ] Verify proactive intelligence operates across multiple domains
+
+### Task 9.3 — Score Validation
+- [ ] Verify maturity scores reflect system reality
+- [ ] Disconnected intelligence lowers scores
+- [ ] Inactive domains reduce coverage
+
+### Task 9.4 — Operator Experience Verification
+- [ ] Load Command Center — answers: Where are we? What needs attention? What's next?
+- [ ] Refine layout if needed
 
 ---
 

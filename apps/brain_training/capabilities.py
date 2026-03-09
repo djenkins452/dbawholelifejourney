@@ -7,7 +7,7 @@ registry.register(DomainCapability(
     description='Cognitive exercises and mental fitness tracking',
     intent_types=[],
     primary_models=['TrainingSession', 'TrainingScore'],
-    context_builders=[],
+    context_builders=['_build_brain_training_context'],
     proactive_signals=['training_streak_break'],
     related_domains=['health'],
     url_namespace='brain_training',

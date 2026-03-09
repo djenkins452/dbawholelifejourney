@@ -293,7 +293,7 @@ class IntelligenceCommandCenterView(TemplateView):
                 user=user, created_at__gte=last_24h,
             )
             decision_stats = decisions_24h.aggregate(
-                count=Count('id'),
+                count=Count('decision_id'),
                 avg_duration_ms=Avg('arbitration_duration_ms'),
                 avg_surfaced=Avg('surfaced_count'),
                 avg_suppressed=Avg('suppressed_count'),

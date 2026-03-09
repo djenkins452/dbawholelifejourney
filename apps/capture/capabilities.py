@@ -7,7 +7,7 @@ registry.register(DomainCapability(
     description='Quick capture of thoughts, ideas, and items for later processing',
     intent_types=[],
     primary_models=['CaptureItem'],
-    context_builders=[],
+    context_builders=['_build_capture_context'],
     proactive_signals=['unprocessed_captures'],
     related_domains=['life', 'journal'],
     url_namespace='capture',

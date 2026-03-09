@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-09 (Holistic System Evolution: Domain Registry, cross-domain proactive intelligence, maturity engine, SystemMaturitySnapshot)
+**Last updated:** 2026-03-09 (Holistic System Completion: Phases 7-9 — memory retrieval, CDCE proactive, 5 domain builders, maturity bug fixes, ICC integration, integrity audit)
 
 ---
 
@@ -216,7 +216,7 @@ User Message
       └─ 9. Post-Response Intelligence (async)
 ```
 
-### Context Builder (13 Parallel Builders)
+### Context Builder (18 Parallel Builders)
 
 **Function:** `build_cos_context(user)` — `apps/core/ai_orchestrator/cos_context.py:1068`
 Uses `ThreadPoolExecutor(max_workers=6)`.
@@ -238,6 +238,11 @@ Uses `ThreadPoolExecutor(max_workers=6)`.
 | Meals | `_build_meals_context()` | **SAE meals**, HouseholdMembership | meals_context |
 | Faith | `_build_faith_context()` | **SAE faith** | faith_context |
 | Situational Awareness (v8/v8.1) | `_build_situational_awareness_context()` | DailyHealthSummary, WeightEntry, JournalEntry, AssistantMessage, HabitGoal, medicine_utils, streak_service, PersonalOperatingBlueprint, GovernanceProfile, NonNegotiable | momentum_signals, drift_signals, one_off_sensitive_domains, emotional_context, user_priority_model |
+| **Finance** (Phase 7.3) | `_build_finance_context()` | FinancialGoal, Budget | active goals with progress %, budgets near/over limit |
+| **Brain Training** (Phase 7.3) | `_build_brain_training_context()` | UserOverallStats, DailyStats | streak, sessions, favorite game, 7-day history |
+| **Capture** (Phase 7.3) | `_build_capture_context()` | PendingCapture, CaptureEntry | pending uploads, recent ready items |
+| **Medical** (Phase 7.3) | `_build_medical_context()` | LabResult, LabPanel | abnormal lab results (90 days), recent panels |
+| **Purpose** (Phase 7.3) | `_build_purpose_context()` | LifeGoal, HabitGoal, HabitEntry | active goals with deadlines, habit weekly completion rates |
 
 ### System Prompt Assembly (Priority Order)
 
@@ -256,9 +261,12 @@ System prompt layers (highest priority first):
 │     └─ v6: Consolidated CHIEF OF STAFF OPERATIONAL RULES (6 rules)
 │     └─ v6: MANDATORY CONTEXT EVALUATION (7 steps + anti-template)
 │     └─ v8: SITUATIONAL AWARENESS SUMMARY (pattern-aware guidance rules)
-├─ 7. Base prompt + coaching style + faith
-├─ 8. Pending reflections
-└─ 9. Greeting context
+├─ 7. Executive briefing + conversation memory (rolling summary)
+├─ 8. Semantic memory retrieval (Phase 7.1: query-relevant past conversations)
+├─ 9. Correction record retrieval (Phase 7.1: [CORRECTED] past mistakes)
+├─ 10. Base prompt + coaching style + faith
+├─ 11. Pending reflections
+└─ 12. Greeting context
 ```
 
 ### v4 Calibration Suppression (2026-03-07)

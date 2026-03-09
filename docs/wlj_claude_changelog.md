@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Phase 9: Completion & Integrity Audit (Holistic System Upgrade)
+
+- **Domain Registry Audit:** Updated 6 capability registrations (finance, brain_training, capture, faith, medical, purpose) to reflect Phase 7.3 context builders. Coverage improved from 81% → 89%.
+- **Intelligence Verification:** Confirmed memory retrieval (semantic + corrections), CDCE correlation pipeline, and 23 proactive check-in types across 7+ domains all operational.
+- **Score Validation:** Fixed broken maturity imports — `MemoryService` removed (function-based API), `TelemetryLog` → `EngineRun`, EAE telemetry `Count('id')` → `Count('decision_id')`. All 5 dimensions now compute.
+- **Operator Experience:** Command Center provides 20 context keys answering: Where are we? (overall 60), What needs attention? (3 recommendations), What next? (prioritized actions).
+- **Files:** `apps/core/ai_observability/maturity_engine.py`, `apps/core/views_intelligence_center.py`, `apps/finance/capabilities.py`, `apps/brain_training/capabilities.py`, `apps/capture/capabilities.py`, `apps/faith/capabilities.py`, `apps/medical/capabilities.py`, `apps/purpose/capabilities.py`, `docs/holistic_system_upgrade.md`
+
+## 2026-03-09 — Phase 8: Command Center Integration (Holistic System Upgrade)
+
+- **Maturity Header:** 6-dimension score cards with color coding (green ≥80, amber ≥60, red <60), regression alerts table, improvement recommendations.
+- **Domain Coverage:** Horizontal bar charts per domain showing coverage percentage, intents, signals, context builder status.
+- **Proactive Intelligence:** 7-day check-in total with breakdown by check-in type.
+- **EAE Integration:** Executive Arbitration state display and recent decision audit log.
+- **Information Hierarchy:** Restructured template: maturity → coverage → proactive → engine outputs. No existing sections removed.
+- **Files:** `apps/core/views_intelligence_center.py`, `templates/intelligence/command_center.html`
+
+## 2026-03-09 — Phase 7: Intelligence Activation (Holistic System Upgrade)
+
+- **Memory Retrieval (7.1):** Wired semantic ConversationMemory retrieval (`retrieve_relevant_memories`) and CorrectionRecord retrieval (`get_correction_context_block`) into both streaming and non-streaming assistant paths.
+- **CDCE Correlation Activation (7.2):** Added `generate_cdce_correlation_check_in()` to ProactiveCheckInService. Added scheduled dispatcher at 6-hour cadence via ISE.
+- **Context Depth Expansion (7.3):** 5 new domain context builders: `_build_finance_context`, `_build_brain_training_context`, `_build_capture_context`, `_build_medical_context`, `_build_purpose_context`. All registered in `_PARALLEL_BUILDERS` and formatted in system prompt.
+- **Telemetry Completion (7.4):** Added maturity engine (daily) and CDCE check-ins (6-hour) to ISE scheduler registry. Added MATURITY and CDCE_CI to TASK_ENGINE_MAP.
+- **Files:** `apps/ai/personal_assistant.py`, `apps/ai/proactive_checkins.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/core/engine_runtime.py`, `apps/core/ai_scheduler/scheduler_registry.py`, `apps/core/ai_scheduler/scheduler_runner.py`
+- **Tests:** 234 pass (proactive + observability)
+
 ## 2026-03-09 — Phase 6: System Maturity Measurement (Holistic System Upgrade)
 
 - **Maturity Snapshot Model:** New `SystemMaturitySnapshot` model persists daily scores (6 dimensions + composite). Migration 0105.

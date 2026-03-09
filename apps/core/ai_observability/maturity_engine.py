@@ -134,7 +134,6 @@ def compute_intelligence_score() -> dict:
     """
     try:
         from apps.ai.models import AssistantMessage
-        from apps.ai.memory_service import MemoryService
 
         score_components = []
 
@@ -195,21 +194,19 @@ def compute_safety_score() -> dict:
     Sources: Error rate in action handlers, Learning Mode integrity.
     """
     try:
-        from apps.core.ai_observability.models import TelemetryLog
+        from apps.core.ai_observability.models import EngineRun
 
         cutoff = timezone.now() - timezone.timedelta(days=7)
 
         # Count execution successes vs failures
         try:
-            total_executions = TelemetryLog.objects.filter(
-                event_type__startswith='action_',
-                created_at__gte=cutoff,
+            total_executions = EngineRun.objects.filter(
+                started_at__gte=cutoff,
             ).count()
 
-            failed_executions = TelemetryLog.objects.filter(
-                event_type__startswith='action_',
-                created_at__gte=cutoff,
-                level='error',
+            failed_executions = EngineRun.objects.filter(
+                started_at__gte=cutoff,
+                status='error',
             ).count()
 
             if total_executions > 0:

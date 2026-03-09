@@ -67,6 +67,19 @@
 - **Files:** `apps/meals/views.py`, `apps/meals/tests/test_receipt_ingestion.py`
 - **Why:** Users reported receipts stuck at "Processing Receipt... 0%" forever — Celery worker not running on Railway, sync fallback in status endpoint too fragile
 
+## 2026-03-08 — CoS UI Context Grounding & Domain Safety Fix
+
+- **Bug Fix: Cross-domain intent misclassification**
+  - **Root cause:** `recognize_intents()` received zero page context, so when users said "those two still pending" on the Medications page, Beth would complete unrelated Tasks instead of logging medications
+  - **Fix:** Threaded `page_context` (url, module, page_title, help_context_id) into `recognize_intents()` and `_build_intent_system_prompt()`. Added UI CONTEXT GROUNDING block to intent recognition system prompt with domain preference rules for ambiguous references
+  - Added `_resolve_domain_hint()` — 3-tier priority domain detection: help_context_id (most stable) → module → URL pattern fallback
+  - Added `_build_visible_entity_hint()` — lightweight hint about visible entities from page_content
+  - Frontend: Extract `help_context_id` from `data-help-context` attribute in both `chat_widget.html` and `assistant_panel.html`
+  - Personal assistant: Pass `page_context` to both `send_message()` and `send_message_stream()` intent recognition calls
+  - Personal assistant: Added domain grounding directives to both full-path and fast-path conversational prompts
+  - Added `_log_intent_domain_mismatch()` telemetry — logs warning when recognized intent domain doesn't match page domain (observability only, never blocks)
+  - **Files:** `apps/ai/intent_service.py`, `apps/ai/personal_assistant.py`, `templates/components/chat_widget.html`, `templates/components/assistant_panel.html`
+
 ## 2026-03-08 — Pantry Storage Intelligence + Barcode Scanner + Receipt Progress Bar
 
 - **Feature: Storage Location Intelligence**

@@ -871,25 +871,27 @@ class ReceiptUploadView(
         uploaded_file.seek(0)
         receipt.image.save(uploaded_file.name, uploaded_file, save=True)
 
-        # Dispatch async processing task
+        # Process synchronously — Vision API takes 3-8s, well within HTTP
+        # timeout. This avoids Celery worker dependency and stuck-polling bugs.
         try:
-            from apps.meals.tasks import process_receipt_image_task
-
-            process_receipt_image_task.delay(receipt.pk)
-            logger.info(
-                "Receipt %d dispatched for async processing", receipt.pk
-            )
+            self._sync_process_image(receipt, raw_bytes, content_type, household)
         except Exception as e:
-            # Celery unavailable — fall back to sync processing
-            logger.warning(
-                "Celery dispatch failed for receipt %d, processing sync: %s",
+            logger.error(
+                "Receipt %d sync processing failed: %s",
                 receipt.pk,
                 e,
+                exc_info=True,
             )
-            self._sync_process_image(receipt, raw_bytes, content_type, household)
-            return redirect("meals:receipt_confirm", pk=receipt.pk)
+            receipt.confirmation_status = Receipt.CONFIRM_FAILED
+            receipt.processing_error = f"Processing failed: {e}"
+            receipt.save(
+                update_fields=[
+                    "confirmation_status",
+                    "processing_error",
+                    "updated_at",
+                ]
+            )
 
-        # Redirect to processing page (polls for completion)
         return redirect("meals:receipt_confirm", pk=receipt.pk)
 
     def _sync_process_image(self, receipt, raw_bytes, content_type, household):
@@ -1214,13 +1216,12 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
     JSON endpoint for polling receipt processing status.
 
     Returns current status, progress percentage, and processing stage.
-    Also provides a sync fallback: if processing is stuck > 30s with no
-    progress, attempts sync processing with select_for_update locking.
+    Also provides a sync fallback: if processing is stuck > 8s with no
+    progress, attempts sync processing directly (no locking needed since
+    uploads now process synchronously — this is just a safety net).
     """
 
     def get(self, request, pk):
-        from django.db import transaction
-
         household = self.get_household()
 
         try:
@@ -1231,55 +1232,18 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
         status = receipt.confirmation_status
 
         if status == Receipt.CONFIRM_PROCESSING:
-            # Check if processing is stuck (> 10s old with no progress)
+            # Safety net: if receipt is still processing after 8s, process
+            # synchronously. This handles edge cases where the upload view's
+            # sync processing somehow didn't complete.
             age_seconds = (timezone.now() - receipt.created_at).total_seconds()
 
-            if age_seconds > 10 and receipt.image and receipt.processing_progress < 25:
-                # Try to claim ownership via select_for_update, then process
-                # OUTSIDE the atomic block to avoid rolling back on failure.
-                should_process = False
-                try:
-                    with transaction.atomic():
-                        locked = (
-                            Receipt.objects.select_for_update(skip_locked=True)
-                            .filter(
-                                pk=pk,
-                                confirmation_status=Receipt.CONFIRM_PROCESSING,
-                            )
-                            .first()
-                        )
-                        if locked:
-                            # Claim ownership by setting progress > 0
-                            locked.processing_progress = 5
-                            locked.processing_stage = "fallback"
-                            locked.save(
-                                update_fields=[
-                                    "processing_progress",
-                                    "processing_stage",
-                                    "updated_at",
-                                ]
-                            )
-                            should_process = True
-                            logger.info(
-                                "Receipt %d stuck for %.0fs, claiming for sync fallback",
-                                pk,
-                                age_seconds,
-                            )
-                        else:
-                            logger.info(
-                                "Receipt %d locked by another process, skipping fallback",
-                                pk,
-                            )
-                except Exception as e:
-                    logger.error(
-                        "Receipt %d sync fallback lock failed: %s", pk, e
-                    )
-
-                # Process OUTSIDE the atomic block so saves aren't rolled back
-                if should_process:
-                    receipt.refresh_from_db()
-                    self._sync_process_receipt(receipt)
-
+            if age_seconds > 8 and receipt.image and receipt.processing_progress < 25:
+                logger.warning(
+                    "Receipt %d stuck in processing for %.0fs, running sync fallback",
+                    pk,
+                    age_seconds,
+                )
+                self._sync_process_receipt(receipt)
                 receipt.refresh_from_db()
                 status = receipt.confirmation_status
 
@@ -1305,7 +1269,7 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
         return JsonResponse(response)
 
     def _sync_process_receipt(self, receipt):
-        """Sync fallback for stuck async processing. Receipt must be locked."""
+        """Sync fallback for stuck processing — reads image and runs Vision."""
         try:
             import mimetypes
 
@@ -1383,7 +1347,7 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
                 "Receipt %d sync fallback failed: %s", receipt.pk, e, exc_info=True
             )
             receipt.confirmation_status = Receipt.CONFIRM_FAILED
-            receipt.processing_error = f"Sync processing failed: {e}"
+            receipt.processing_error = f"Processing failed: {e}"
             receipt.processing_progress = 0
             receipt.processing_stage = ""
             receipt.save(

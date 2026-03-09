@@ -438,37 +438,9 @@ class TestReceiptUploadView(TestUserMixin, TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertRedirects(response, reverse("meals:receipts"))
 
-    @patch("apps.meals.tasks.process_receipt_image_task.delay")
-    def test_image_upload_dispatches_async(self, mock_delay):
-        """Test image upload creates processing receipt and dispatches task."""
-        from PIL import Image
-
-        img = Image.new("RGB", (10, 10), "white")
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG")
-        buf.seek(0)
-
-        uploaded = SimpleUploadedFile("receipt.jpg", buf.read(), content_type="image/jpeg")
-
-        response = self.client.post(
-            reverse("meals:receipts"),
-            {"receipt_image": uploaded},
-        )
-        self.assertEqual(response.status_code, 302)
-
-        receipt = Receipt.objects.filter(household=self.household).first()
-        self.assertIsNotNone(receipt)
-        # Should be in processing state (async)
-        self.assertEqual(receipt.confirmation_status, Receipt.CONFIRM_PROCESSING)
-        # Hash should be set
-        self.assertTrue(len(receipt.receipt_hash) > 0)
-        # Celery task should have been dispatched
-        mock_delay.assert_called_once_with(receipt.pk)
-
-    @patch("apps.meals.tasks.process_receipt_image_task.delay", side_effect=Exception("No Celery"))
     @patch("apps.meals.services.receipt_vision.ReceiptVisionService.process_image")
-    def test_image_upload_sync_fallback(self, mock_process, mock_delay):
-        """When Celery is unavailable, should fall back to sync processing."""
+    def test_image_upload_processes_sync(self, mock_process):
+        """Test image upload processes synchronously via Vision API."""
         from apps.meals.services.receipt_vision import ReceiptVisionResult
         from PIL import Image
 
@@ -496,12 +468,46 @@ class TestReceiptUploadView(TestUserMixin, TestCase):
 
         receipt = Receipt.objects.filter(household=self.household).first()
         self.assertIsNotNone(receipt)
-        # Sync fallback should set CONFIRM_PENDING
+        # Should be in pending state (sync processing completes immediately)
         self.assertEqual(receipt.confirmation_status, Receipt.CONFIRM_PENDING)
         self.assertEqual(receipt.store, "Kroger")
+        # Hash should be set
+        self.assertTrue(len(receipt.receipt_hash) > 0)
+        # Items should be created
+        self.assertEqual(receipt.items.count(), 1)
+        self.assertEqual(receipt.items.first().raw_name, "Bananas")
 
-    @patch("apps.meals.tasks.process_receipt_image_task.delay")
-    def test_image_upload_dedup_redirects(self, mock_delay):
+    @patch("apps.meals.services.receipt_vision.ReceiptVisionService.process_image")
+    def test_image_upload_handles_vision_failure(self, mock_process):
+        """When Vision API fails, receipt should be marked failed."""
+        from apps.meals.services.receipt_vision import ReceiptVisionResult
+        from PIL import Image
+
+        mock_process.return_value = ReceiptVisionResult(
+            error="Vision API unavailable",
+            source="vision_api",
+        )
+
+        img = Image.new("RGB", (10, 10), "white")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG")
+        buf.seek(0)
+
+        uploaded = SimpleUploadedFile("receipt.jpg", buf.read(), content_type="image/jpeg")
+
+        response = self.client.post(
+            reverse("meals:receipts"),
+            {"receipt_image": uploaded},
+        )
+        self.assertEqual(response.status_code, 302)
+
+        receipt = Receipt.objects.filter(household=self.household).first()
+        self.assertIsNotNone(receipt)
+        # Should be in failed state
+        self.assertEqual(receipt.confirmation_status, Receipt.CONFIRM_FAILED)
+        self.assertIn("Vision API unavailable", receipt.processing_error)
+
+    def test_image_upload_dedup_redirects(self):
         """Duplicate image upload should redirect to existing receipt."""
         from apps.meals.services.receipt_vision import compute_receipt_hash
         from PIL import Image
@@ -532,8 +538,6 @@ class TestReceiptUploadView(TestUserMixin, TestCase):
         self.assertEqual(response.status_code, 302)
         # Should redirect to existing receipt
         self.assertIn(str(existing.pk), response.url)
-        # Task should NOT have been dispatched
-        mock_delay.assert_not_called()
 
     def test_file_too_large_rejected(self):
         large_file = SimpleUploadedFile(

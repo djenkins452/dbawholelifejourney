@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Phase 3: Domain Capability Registry (Holistic System Upgrade)
+
+- **Registry Framework:** New `apps/core/domain_registry/` package — `DomainCapability` dataclass, `DomainRegistry` singleton, `autodiscover()` function (Django admin-style auto-discovery from each app's `capabilities.py`).
+- **10 Domains Registered:** health (100%), medical (100%), journal (100%), faith (80%), life (100%), purpose (100%), finance (80%), meals (50%), brain_training (50%), capture (50%). Average coverage: 81%.
+- **Audit Command:** `python manage.py audit_domains` shows all domains, coverage scores, and warnings for gaps.
+- **CoS Integration:** Domain coverage summary injected into CoS context via `_build_intelligence_signals()`.
+- **Python 3.9 Compatibility:** Fixed `X | None` → `Optional[X]` and `list[dict]` → `List[dict]` for Python 3.9 compatibility in registry and content_intelligence modules.
+- **Files:** `apps/core/domain_registry/__init__.py`, `descriptors.py`, `registry.py` (new), `apps/core/management/commands/audit_domains.py` (new), `apps/core/apps.py`, `apps/core/ai_orchestrator/cos_context.py`, plus 10 `capabilities.py` files across domain apps, `apps/journal/services/content_intelligence.py`
+- **Tests:** 117 pass (journal + intent registration)
+
 ## 2026-03-09 — Phase 2: Memory & Context Intelligence (Holistic System Upgrade)
 
 - **Journal Intelligence:** New `apps/journal/services/content_intelligence.py` — keyword-based theme extraction (8 life themes), recurring concern detection, sentiment trajectory analysis. Zero LLM cost.

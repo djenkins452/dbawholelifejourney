@@ -697,6 +697,15 @@ def _build_intelligence_signals(user):
         logger.warning("Journal intelligence failed: %s", e, exc_info=True)
         result['journal_intelligence'] = {}
 
+    # Domain registry coverage summary (for system awareness)
+    try:
+        from apps.core.domain_registry import registry
+        result['domain_coverage'] = registry.get_coverage_summary()
+    except ImportError:
+        result['domain_coverage'] = []
+    except Exception:
+        result['domain_coverage'] = []
+
     return result
 
 

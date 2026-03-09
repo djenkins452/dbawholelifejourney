@@ -20,6 +20,7 @@ import logging
 import re
 from collections import Counter
 from datetime import timedelta
+from typing import Dict, List
 
 from django.db import models
 from django.utils import timezone
@@ -117,7 +118,7 @@ NEGATIVE_WORDS = frozenset({
 })
 
 
-def extract_themes(entry_body: str) -> list[dict]:
+def extract_themes(entry_body: str) -> List[dict]:
     """
     Extract life themes from journal entry text using keyword matching.
 
@@ -164,7 +165,7 @@ def compute_sentiment_score(entry_body: str) -> float:
     return round((pos - neg) / total, 2)
 
 
-def detect_recurring_concerns(user, days: int = 14, min_occurrences: int = 3) -> list[dict]:
+def detect_recurring_concerns(user, days: int = 14, min_occurrences: int = 3) -> List[dict]:
     """
     Detect recurring themes/concerns across recent journal entries.
 

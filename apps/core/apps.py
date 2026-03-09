@@ -28,3 +28,6 @@ class CoreConfig(AppConfig):
         import apps.core.blueprint.pressure_signals  # noqa: F401
         # Register Phase 5 protective action signals
         import apps.core.blueprint.protective_signals  # noqa: F401
+        # Domain Capability Registry — auto-discover all domain capabilities
+        from apps.core.domain_registry import autodiscover
+        autodiscover()

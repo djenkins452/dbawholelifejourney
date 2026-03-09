@@ -1,0 +1,14 @@
+from apps.core.domain_registry import registry
+from apps.core.domain_registry.descriptors import DomainCapability
+
+registry.register(DomainCapability(
+    name='brain_training',
+    display_name='Brain Training',
+    description='Cognitive exercises and mental fitness tracking',
+    intent_types=[],
+    primary_models=['TrainingSession', 'TrainingScore'],
+    context_builders=[],
+    proactive_signals=['training_streak_break'],
+    related_domains=['health'],
+    url_namespace='brain_training',
+))

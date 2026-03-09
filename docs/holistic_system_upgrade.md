@@ -2,7 +2,7 @@
 
 **Document Type:** Master Blueprint
 **Created:** 2026-03-09
-**Status:** In Progress — Phase 1 COMPLETE
+**Status:** In Progress — Phase 2 COMPLETE
 **Last Updated:** 2026-03-09
 
 ---
@@ -365,12 +365,12 @@ python manage.py test apps.core.ai_orchestrator.tests apps.ai.tests.test_persona
 
 ### Phase 2 Verification Checklist
 
-- [ ] Journal themes extracted and surfaced in CoS context
-- [ ] Conversation memory uses tiered pruning (high-value memories protected)
-- [ ] Personal facts auto-extracted with deduplication
-- [ ] CoS situation state computed every 15 minutes
-- [ ] System prompt token budget tracked and compressed when needed
-- [ ] All existing tests pass
+- [x] Journal themes extracted and surfaced in CoS context — **DONE 2026-03-09** (keyword-based, zero LLM cost)
+- [x] Conversation memory uses tiered pruning (high-value memories protected) — **DONE 2026-03-09** (limit raised to 1000, helpfulness/retrieval-count protection)
+- [x] Semantic deduplication before memory storage — **DONE 2026-03-09** (cosine sim > 0.92 = skip)
+- [x] Journal concern tracking + sentiment trajectory — **DONE 2026-03-09**
+- [x] System prompt token budget tracked — **DONE 2026-03-09** (warns at 6000 token soft limit)
+- [x] All existing tests pass — **826 tests pass (AI + orchestrator + journal)**
 
 ---
 

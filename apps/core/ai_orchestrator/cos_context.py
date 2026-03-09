@@ -687,6 +687,16 @@ def _build_intelligence_signals(user):
     except Exception:
         result['cross_domain_correlations'] = []
 
+    # Journal content intelligence (themes, concerns, sentiment trajectory)
+    try:
+        from apps.journal.services.content_intelligence import analyze_journal_for_cos
+        result['journal_intelligence'] = analyze_journal_for_cos(user)
+    except ImportError:
+        result['journal_intelligence'] = {}
+    except Exception as e:
+        logger.warning("Journal intelligence failed: %s", e, exc_info=True)
+        result['journal_intelligence'] = {}
+
     return result
 
 
@@ -2245,6 +2255,29 @@ def format_cos_system_injection(context):
     if mood.get('trend') and mood['trend'] != 'stable':
         lines.append(f"Mood Trend: {mood['trend']}")
 
+    # Journal content intelligence
+    journal_intel = context.get('journal_intelligence', {})
+    if journal_intel and journal_intel.get('entry_count_14d', 0) > 0:
+        themes = journal_intel.get('themes_14d', [])
+        concerns = journal_intel.get('concerns_14d', [])
+        trajectory = journal_intel.get('sentiment_trajectory', {})
+
+        if themes or concerns or trajectory.get('direction') not in (None, 'insufficient_data'):
+            lines.append("")
+            lines.append("JOURNAL INTELLIGENCE (14-day analysis — reference when discussing mood, patterns, or well-being):")
+            if themes:
+                theme_list = ', '.join(f"{t['theme']} ({t['strength']})" for t in themes[:4])
+                lines.append(f"  Life themes: {theme_list}")
+            if concerns:
+                concern_list = ', '.join(f"{c['term']} ({c['entries']} entries)" for c in concerns[:3])
+                lines.append(f"  Recurring concerns: {concern_list}")
+            if trajectory.get('direction') and trajectory['direction'] != 'insufficient_data':
+                direction = trajectory['direction']
+                lines.append(f"  Sentiment trajectory: {direction}")
+                if trajectory.get('mood_distribution'):
+                    moods = ', '.join(f"{k}: {v}" for k, v in trajectory['mood_distribution'].items())
+                    lines.append(f"  Mood distribution: {moods}")
+
     # Health signals — ALWAYS include so CoS has awareness of user's health data
     health_sig = context.get('health_signals', {})
     if health_sig:
@@ -2822,7 +2855,23 @@ def format_cos_system_injection(context):
     lines.append("=== END SITUATIONAL AWARENESS ===")
     lines.append("")
 
-    return '\n'.join(lines)
+    result = '\n'.join(lines)
+
+    # Token budget telemetry — log prompt size for monitoring
+    # Approximate: 1 token ~= 4 chars for English text
+    approx_tokens = len(result) // 4
+    if approx_tokens > 6000:
+        logger.warning(
+            "COS_PROMPT_BUDGET user=%s tokens~=%d (exceeds 6000 soft limit)",
+            context.get('user_id', 'unknown'), approx_tokens,
+        )
+    else:
+        logger.debug(
+            "COS_PROMPT_BUDGET user=%s tokens~=%d",
+            context.get('user_id', 'unknown'), approx_tokens,
+        )
+
+    return result
 
 
 # =========================================================================

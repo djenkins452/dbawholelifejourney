@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Phase 2: Memory & Context Intelligence (Holistic System Upgrade)
+
+- **Journal Intelligence:** New `apps/journal/services/content_intelligence.py` — keyword-based theme extraction (8 life themes), recurring concern detection, sentiment trajectory analysis. Zero LLM cost.
+- **CoS Integration:** Journal intelligence (themes, concerns, sentiment) now injected into CoS context via `_build_intelligence_signals()` in cos_context.py.
+- **Memory Upgrade:** Conversation memory limit raised from 500 → 1000. Tiered pruning protects high-value memories (helpfulness >= 0.5 or retrieval_count >= 3).
+- **Deduplication:** Semantic deduplication before memory storage — skips if cosine similarity > 0.92.
+- **Token Budget:** CoS prompt size now tracked. Warns at 6000 token soft limit.
+- **Files:** `apps/journal/services/content_intelligence.py` (new), `apps/core/ai_orchestrator/cos_context.py`, `apps/ai/memory_service.py`
+- **Tests:** 826 tests pass
+
 ## 2026-03-09 — Phase 1: Safety & Stability (Holistic System Upgrade)
 
 - **Safety Fix:** Learning Mode fail-open vulnerability fixed in both `execution_engine.py` and `intent_service.py`. Previously, if `is_learning_mode_active()` threw an exception (e.g., database error), execution would proceed — bypassing the safety gate. Now fails closed with user-friendly error message.

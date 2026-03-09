@@ -50,7 +50,7 @@ EMBEDDING_MODEL = 'text-embedding-3-small'
 EMBEDDING_DIMENSIONS = 1536
 
 # Memory limits
-MAX_MEMORIES_PER_USER = 500  # Keep last 500 exchanges
+MAX_MEMORIES_PER_USER = 1000  # Keep last 1000 exchanges (upgraded from 500)
 MIN_MESSAGE_LENGTH = 20      # Don't store trivial messages
 MAX_RETRIEVE = 5             # Top-K memories to retrieve
 SIMILARITY_THRESHOLD = 0.35  # Minimum cosine similarity to include
@@ -198,6 +198,24 @@ def store_memory(
             # Still store without embedding for text-based fallback
             embedding = []
 
+        # Semantic deduplication: skip if a very similar memory already exists
+        if embedding:
+            try:
+                existing = ConversationMemory.objects.filter(
+                    user=user,
+                ).order_by('-created_at')[:50]
+                for mem in existing:
+                    if mem.embedding:
+                        sim = _cosine_similarity(embedding, mem.embedding)
+                        if sim > 0.92:
+                            logger.debug(
+                                "Skipping duplicate memory (sim=%.3f) for user %s",
+                                sim, user.email,
+                            )
+                            return None
+            except Exception:
+                pass  # Dedup failure should never block storage
+
         # Detect topics
         combined_text = f"{user_message} {assistant_summary}"
         topic_tags = _detect_topics(combined_text)
@@ -235,19 +253,62 @@ def store_memory(
 
 
 def _prune_old_memories(user):
-    """Remove oldest memories beyond MAX_MEMORIES_PER_USER."""
+    """
+    Tiered pruning: protect high-value memories, prune low-value ones first.
+
+    Protection tiers (never auto-pruned):
+    - Memories with helpfulness_score >= 0.5 (user confirmed useful)
+    - Memories that have been retrieved 3+ times (frequently relevant)
+
+    Standard memories are pruned oldest-first when over limit.
+    """
     from .models import ConversationMemory
 
     count = ConversationMemory.objects.filter(user=user).count()
-    if count > MAX_MEMORIES_PER_USER:
-        excess = count - MAX_MEMORIES_PER_USER
-        oldest_ids = list(
+    if count <= MAX_MEMORIES_PER_USER:
+        return
+
+    excess = count - MAX_MEMORIES_PER_USER
+
+    # Protected memories: high helpfulness or frequently retrieved
+    protected_ids = set(
+        ConversationMemory.objects.filter(user=user).filter(
+            models.Q(helpfulness_score__gte=0.5) |
+            models.Q(retrieval_count__gte=3)
+        ).values_list('id', flat=True)
+    )
+
+    # Get oldest non-protected memories
+    candidates = list(
+        ConversationMemory.objects.filter(user=user)
+        .exclude(id__in=protected_ids)
+        .order_by('created_at')
+        .values_list('id', flat=True)[:excess]
+    )
+
+    if candidates:
+        ConversationMemory.objects.filter(id__in=candidates).delete()
+        logger.debug(
+            "Tiered prune: removed %d memories for user %s (%d protected)",
+            len(candidates), user.email, len(protected_ids),
+        )
+
+    # If still over limit after removing unprotected, prune oldest protected
+    # (this should be rare)
+    remaining = ConversationMemory.objects.filter(user=user).count()
+    if remaining > MAX_MEMORIES_PER_USER:
+        still_excess = remaining - MAX_MEMORIES_PER_USER
+        oldest_protected = list(
             ConversationMemory.objects.filter(user=user)
             .order_by('created_at')
-            .values_list('id', flat=True)[:excess]
+            .values_list('id', flat=True)[:still_excess]
         )
-        ConversationMemory.objects.filter(id__in=oldest_ids).delete()
-        logger.debug("Pruned %d old memories for user %s", excess, user.email)
+        if oldest_protected:
+            ConversationMemory.objects.filter(id__in=oldest_protected).delete()
+            logger.debug(
+                "Tiered prune overflow: removed %d protected memories for user %s",
+                len(oldest_protected), user.email,
+            )
 
 
 def retrieve_relevant_memories(

@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Add receipt delete with cascade cleanup
+
+- **Feature:** Users can now delete receipts from the Receipt History table. A trash icon button appears on each row.
+- **Cascade cleanup:** When deleting a confirmed receipt, the system reverses downstream routed data:
+  - Finance transactions (matched by `reference=receipt:{pk}`)
+  - Food entries for restaurant receipts (matched by notes + date)
+  - Inventory transactions for grocery receipts (matched by receipt items' ingredients, with pantry quantity reversal)
+- **Confirmation modal:** Shows what data will be removed before deleting. Extra warning for confirmed receipts listing which domains (Pantry, Health, Finance) will be affected.
+- **Security:** Users can only delete their own household's receipts (404 for other households). POST-only endpoint.
+- **Files:** `apps/meals/views.py` (ReceiptDeleteView), `apps/meals/urls.py`, `templates/meals/receipt_upload.html`, `apps/meals/tests/test_receipt_ingestion.py`
+- **Tests:** 54 passing (5 new delete tests + 49 existing receipt tests)
+- **Why:** Failed/unknown receipts cluttered the history with no way to remove them. Confirmed receipts needed cascade cleanup to avoid orphaned data in Pantry/Finance/Health.
+
 ## 2026-03-09 — Fix task vs calendar event disambiguation for delete/remove actions
 
 - **Bug:** When user says "Remove 10:00 PM Take trash out", AI routes to `mutate_task` (task delete) instead of `mutate_calendar_event` (calendar delete). Task handler fails with "couldn't find active task", and even after user clarifies it's a calendar entry, the confirmation says "Update calendar event" instead of "Delete calendar event".

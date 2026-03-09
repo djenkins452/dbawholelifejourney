@@ -804,6 +804,134 @@ class TestReceiptProcessingStatusView(TestUserMixin, TestCase):
 
 
 # =============================================================================
+# Receipt Delete Tests
+# =============================================================================
+
+
+class TestReceiptDeleteView(TestUserMixin, TestCase):
+    """Test receipt deletion with cascade cleanup."""
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.client = Client()
+        self.client.force_login(self.user)
+        self.household = Household.objects.create(
+            name="Test Household", primary_user=self.user
+        )
+        HouseholdMembership.objects.create(
+            household=self.household, user=self.user, role="admin"
+        )
+
+    def test_delete_failed_receipt(self):
+        """Failed receipts should be soft-deleted with items removed."""
+        receipt = Receipt.objects.create(
+            user=self.user,
+            household=self.household,
+            confirmation_status=Receipt.CONFIRM_FAILED,
+            store="Bad Receipt",
+        )
+        ReceiptItem.objects.create(receipt=receipt, raw_name="Item 1")
+
+        response = self.client.post(
+            reverse("meals:receipt_delete", kwargs={"pk": receipt.pk})
+        )
+        self.assertEqual(response.status_code, 302)
+
+        # Receipt soft-deleted (not visible in default queryset)
+        self.assertFalse(Receipt.objects.filter(pk=receipt.pk).exists())
+        # But exists in all_with_deleted
+        self.assertTrue(Receipt.all_objects.filter(pk=receipt.pk).exists())
+        # Items hard-deleted
+        self.assertEqual(ReceiptItem.objects.filter(receipt=receipt).count(), 0)
+
+    def test_delete_pending_receipt(self):
+        """Pending receipts should be soft-deleted without cascade."""
+        receipt = Receipt.objects.create(
+            user=self.user,
+            household=self.household,
+            confirmation_status=Receipt.CONFIRM_PENDING,
+            store="Pending Store",
+        )
+        ReceiptItem.objects.create(receipt=receipt, raw_name="Milk")
+        ReceiptItem.objects.create(receipt=receipt, raw_name="Bread")
+
+        response = self.client.post(
+            reverse("meals:receipt_delete", kwargs={"pk": receipt.pk})
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Receipt.objects.filter(pk=receipt.pk).exists())
+        self.assertEqual(ReceiptItem.objects.filter(receipt=receipt).count(), 0)
+
+    def test_delete_confirmed_receipt_cascades_finance(self):
+        """Confirmed receipt deletion should remove finance transactions."""
+        from apps.finance.models import FinancialAccount, Transaction
+
+        receipt = Receipt.objects.create(
+            user=self.user,
+            household=self.household,
+            confirmation_status=Receipt.CONFIRM_CONFIRMED,
+            receipt_type="grocery",
+            store="FOOD LION",
+            total=50,
+        )
+
+        account = FinancialAccount.objects.create(
+            user=self.user,
+            name="Checking",
+            account_type="checking",
+            institution="Test Bank",
+        )
+        Transaction.objects.create(
+            user=self.user,
+            account=account,
+            date="2026-03-01",
+            amount=-50,
+            description="FOOD LION purchase",
+            reference=f"receipt:{receipt.pk}",
+        )
+
+        self.client.post(
+            reverse("meals:receipt_delete", kwargs={"pk": receipt.pk})
+        )
+
+        # Finance transaction should be soft-deleted
+        self.assertEqual(
+            Transaction.objects.filter(reference=f"receipt:{receipt.pk}").count(), 0
+        )
+
+    def test_delete_requires_post(self):
+        """GET requests should not be allowed."""
+        receipt = Receipt.objects.create(
+            user=self.user,
+            household=self.household,
+            confirmation_status=Receipt.CONFIRM_FAILED,
+        )
+        response = self.client.get(
+            reverse("meals:receipt_delete", kwargs={"pk": receipt.pk})
+        )
+        self.assertEqual(response.status_code, 405)
+
+    def test_delete_other_users_receipt_404(self):
+        """Users should not be able to delete other users' receipts."""
+        other_user = self.create_user("other@example.com")
+        other_household = Household.objects.create(
+            name="Other Household", primary_user=other_user
+        )
+        receipt = Receipt.objects.create(
+            user=other_user,
+            household=other_household,
+            confirmation_status=Receipt.CONFIRM_FAILED,
+        )
+
+        response = self.client.post(
+            reverse("meals:receipt_delete", kwargs={"pk": receipt.pk})
+        )
+        self.assertEqual(response.status_code, 404)
+        # Receipt should NOT be deleted
+        self.assertTrue(Receipt.objects.filter(pk=receipt.pk).exists())
+
+
+# =============================================================================
 # Celery Task Tests
 # =============================================================================
 

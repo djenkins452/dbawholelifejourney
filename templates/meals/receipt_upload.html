@@ -173,15 +173,25 @@
                         {% endif %}
                     </td>
                     <td>
-                        {% if receipt.confirmation_status == "processing" %}
-                        <a href="{% url 'meals:receipt_confirm' pk=receipt.pk %}" class="btn btn-primary btn-sm">View</a>
-                        {% elif receipt.confirmation_status == "pending" %}
-                        <a href="{% url 'meals:receipt_confirm' pk=receipt.pk %}" class="btn btn-primary btn-sm">Review</a>
-                        {% elif receipt.confirmation_status == "failed" %}
-                        <a href="{% url 'meals:receipt_confirm' pk=receipt.pk %}" class="btn btn-outline btn-sm">Retry</a>
-                        {% else %}
-                        <a href="{% url 'meals:receipt_detail' pk=receipt.pk %}" class="btn btn-outline btn-sm">View</a>
-                        {% endif %}
+                        <div style="display: flex; gap: var(--space-1); align-items: center;">
+                            {% if receipt.confirmation_status == "processing" %}
+                            <a href="{% url 'meals:receipt_confirm' pk=receipt.pk %}" class="btn btn-primary btn-sm">View</a>
+                            {% elif receipt.confirmation_status == "pending" %}
+                            <a href="{% url 'meals:receipt_confirm' pk=receipt.pk %}" class="btn btn-primary btn-sm">Review</a>
+                            {% elif receipt.confirmation_status == "failed" %}
+                            <a href="{% url 'meals:receipt_confirm' pk=receipt.pk %}" class="btn btn-outline btn-sm">Retry</a>
+                            {% else %}
+                            <a href="{% url 'meals:receipt_detail' pk=receipt.pk %}" class="btn btn-outline btn-sm">View</a>
+                            {% endif %}
+                            <button type="button" class="btn btn-ghost btn-sm receipt-delete-btn"
+                                    data-receipt-id="{{ receipt.pk }}"
+                                    data-receipt-store="{{ receipt.store|default:'Unknown' }}"
+                                    data-receipt-confirmed="{% if receipt.confirmation_status == 'confirmed' %}true{% else %}false{% endif %}"
+                                    data-receipt-type="{{ receipt.receipt_type }}"
+                                    aria-label="Delete receipt">
+                                &#128465;
+                            </button>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
@@ -193,6 +203,21 @@
         No receipts uploaded yet. Upload a receipt image or paste text above.
     </div>
     {% endif %}
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="receipt-delete-overlay" id="delete-modal" style="display: none;">
+    <div class="receipt-delete-modal">
+        <h3 style="margin: 0 0 var(--space-3); font-size: var(--font-size-lg);">Delete Receipt?</h3>
+        <p id="delete-modal-msg" style="margin: 0 0 var(--space-4); color: var(--color-text-muted); font-size: var(--font-size-sm);"></p>
+        <div style="display: flex; gap: var(--space-3); justify-content: flex-end;">
+            <button type="button" id="delete-cancel-btn" class="btn btn-outline btn-sm">Cancel</button>
+            <form method="post" id="delete-form" style="margin: 0;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+        </div>
+    </div>
 </div>
 
 <style nonce="{{ csp_nonce }}">
@@ -332,6 +357,44 @@
 }
 @keyframes spin {
     to { transform: rotate(360deg); }
+}
+.receipt-delete-btn {
+    color: var(--color-text-muted);
+    padding: var(--space-1);
+    min-width: 32px;
+    min-height: 32px;
+    font-size: var(--font-size-base);
+    transition: color 0.2s;
+}
+.receipt-delete-btn:hover {
+    color: var(--color-danger, #dc2626);
+}
+.receipt-delete-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+}
+.receipt-delete-modal {
+    background: var(--color-surface, #fff);
+    border-radius: 12px;
+    padding: var(--space-5);
+    max-width: 420px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+.btn-danger {
+    background: var(--color-danger, #dc2626);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+}
+.btn-danger:hover {
+    background: #b91c1c;
 }
 @media (max-width: 480px) {
     .receipt-tabs {
@@ -485,6 +548,45 @@ document.addEventListener('DOMContentLoaded', function() {
         if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
         return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
+
+    // --- Delete Receipt ---
+    var deleteModal = document.getElementById('delete-modal');
+    var deleteForm = document.getElementById('delete-form');
+    var deleteMsg = document.getElementById('delete-modal-msg');
+    var deleteCancelBtn = document.getElementById('delete-cancel-btn');
+
+    document.querySelectorAll('.receipt-delete-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var receiptId = btn.getAttribute('data-receipt-id');
+            var store = btn.getAttribute('data-receipt-store');
+            var confirmed = btn.getAttribute('data-receipt-confirmed') === 'true';
+            var rtype = btn.getAttribute('data-receipt-type');
+
+            deleteForm.action = '/meals/receipts/' + receiptId + '/delete/';
+
+            if (confirmed) {
+                var routedTo = [];
+                if (rtype === 'grocery') routedTo.push('Pantry inventory');
+                if (rtype === 'restaurant') routedTo.push('Health food log');
+                if (rtype !== 'unknown') routedTo.push('Finance transactions');
+                deleteMsg.textContent = 'This will delete the "' + store + '" receipt and reverse its imported data (' + routedTo.join(', ') + '). This cannot be undone.';
+            } else {
+                deleteMsg.textContent = 'Delete the "' + store + '" receipt? This cannot be undone.';
+            }
+
+            deleteModal.style.display = '';
+        });
+    });
+
+    deleteCancelBtn.addEventListener('click', function() {
+        deleteModal.style.display = 'none';
+    });
+
+    deleteModal.addEventListener('click', function(e) {
+        if (e.target === deleteModal) {
+            deleteModal.style.display = 'none';
+        }
+    });
 });
 </script>
 {% endblock %}

@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-09 (Holistic System Completion: Phases 7-9 — memory retrieval, CDCE proactive, 5 domain builders, maturity bug fixes, ICC integration, integrity audit)
+**Last updated:** 2026-03-09 (Activity Reconciliation + CRUD Confirmation Gate — two-layer safety system before execution)
 
 ---
 
@@ -721,7 +721,9 @@ When the user asks a health intelligence question with a brevity keyword ("keep 
 | File | Purpose | Lines |
 |------|---------|-------|
 | `apps/core/ai_orchestrator/cos_context.py` | CoS context builder (THE BIG ONE) | ~4,668 |
-| `apps/core/ai_orchestrator/orchestrator.py` | Main orchestrator entry | ~288 |
+| `apps/core/ai_orchestrator/orchestrator.py` | Main orchestrator entry (reconciliation + CRUD gate) | ~374 |
+| `apps/core/ai_orchestrator/activity_reconciliation.py` | Activity Reconciliation Layer (duplicate detection, 17 registered intents) | ~883 |
+| `apps/core/ai_orchestrator/crud_confirmation.py` | CRUD Confirmation Gate (deterministic approval before writes) | ~270 |
 | `apps/core/ai_orchestrator/commitment_contract.py` | ECC commitment tracking | ~1,678 |
 | `apps/ai/personal_assistant.py` | Main assistant, send_message() | ~6,452 |
 | `apps/ai/views.py` | Chat API endpoints | ~1,661 |

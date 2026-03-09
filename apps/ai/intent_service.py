@@ -1493,6 +1493,143 @@ the Medications page), honor the explicit domain.
         cache_key = f"pending_intent_{user.id}"
         cache.delete(cache_key)
 
+    # ── Pending CRUD Action (global confirmation gate) ─────────────
+
+    def store_pending_crud_action(self, user, data: dict, ttl: int = 300):
+        """
+        Store a pending CRUD action awaiting user confirmation.
+
+        Adds idempotency key (action_id) and execution guard (executed flag).
+
+        Args:
+            user: The User model instance
+            data: Dict with intent_type, parameters, confirmation_message, etc.
+            ttl: Time to live in seconds (default 5 minutes)
+        """
+        import uuid
+        data['action_id'] = str(uuid.uuid4())
+        data['executed'] = False
+        data['timestamp'] = timezone.now().isoformat()
+        cache_key = f"pending_crud_{user.id}"
+        cache.set(cache_key, data, ttl)
+
+    def get_pending_crud_action(self, user) -> Optional[Dict]:
+        """
+        Retrieve a pending CRUD action from cache.
+
+        Returns:
+            Dict with action details, or None if expired/missing
+        """
+        cache_key = f"pending_crud_{user.id}"
+        return cache.get(cache_key)
+
+    def clear_pending_crud_action(self, user):
+        """Clear any pending CRUD action for a user."""
+        cache_key = f"pending_crud_{user.id}"
+        cache.delete(cache_key)
+
+    def handle_crud_confirmation(self, user, response: str) -> Optional[ActionResult]:
+        """
+        Handle user's response to a CRUD confirmation request.
+
+        Uses deterministic command parsing (CONFIRM/CANCEL/EDIT).
+        Includes idempotency protection and expiry handling.
+
+        Args:
+            user: The User model instance
+            response: User's response text
+
+        Returns:
+            ActionResult if handled, None if response unrecognized
+        """
+        pending = self.get_pending_crud_action(user)
+        if not pending:
+            # Expired — explicit message
+            return ActionResult(
+                success=False,
+                message=(
+                    "That pending action has expired. "
+                    "Please tell me what you'd like to do again."
+                ),
+                action_type='expired',
+            )
+
+        if pending.get('executed'):
+            # Already executed — idempotent no-op
+            self.clear_pending_crud_action(user)
+            return ActionResult(
+                success=True,
+                message="That action was already completed.",
+                action_type='idempotent_skip',
+            )
+
+        from apps.core.ai_orchestrator.crud_confirmation import (
+            parse_confirmation_response,
+        )
+        decision = parse_confirmation_response(response)
+
+        if decision == 'confirm':
+            # Mark executed BEFORE execution (prevents double-fire)
+            pending['executed'] = True
+            cache.set(f"pending_crud_{user.id}", pending, 300)
+
+            # Execute through full pipeline (safety → handler → intelligence)
+            try:
+                from apps.core.ai_orchestrator.action_router import EnrichedAction
+                from apps.core.ai_orchestrator.execution_engine import execute_action
+
+                enriched = EnrichedAction(
+                    intent_type=pending['intent_type'],
+                    parameters=pending['parameters'],
+                    original_input=pending.get('original_input'),
+                )
+                self.clear_pending_crud_action(user)
+                result = execute_action(user, enriched)
+                logger.info(
+                    "[CRUD_GATE] Confirmed: %s action_id=%s user=%s",
+                    pending['intent_type'], pending['action_id'], user.id,
+                )
+                return result
+            except Exception as e:
+                logger.error(
+                    "[CRUD_GATE] Execution after confirm failed: %s", e,
+                    exc_info=True,
+                )
+                self.clear_pending_crud_action(user)
+                return ActionResult(
+                    success=False,
+                    message="Something went wrong executing that action. Please try again.",
+                    error='execution_error',
+                    action_type=pending.get('intent_type', 'unknown'),
+                )
+
+        elif decision == 'cancel':
+            self.clear_pending_crud_action(user)
+            logger.info(
+                "[CRUD_GATE] Cancelled: %s action_id=%s user=%s",
+                pending['intent_type'], pending['action_id'], user.id,
+            )
+            return ActionResult(
+                success=True,
+                message="Action cancelled.",
+                action_type='cancelled',
+            )
+
+        elif decision == 'edit':
+            self.clear_pending_crud_action(user)
+            logger.info(
+                "[CRUD_GATE] Edit requested: %s action_id=%s user=%s",
+                pending['intent_type'], pending['action_id'], user.id,
+            )
+            return ActionResult(
+                success=True,
+                message="No problem. Tell me what you'd like to do instead.",
+                action_type='cancelled',
+            )
+
+        # Unrecognized — return None to trigger re-prompt
+        return None
+
     # ── Pending Clarification (entity disambiguation) ──────────────
 
     def store_pending_clarification(

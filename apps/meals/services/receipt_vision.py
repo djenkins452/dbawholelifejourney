@@ -27,44 +27,32 @@ logger = logging.getLogger(__name__)
 
 
 # Receipt-specific Vision prompt — extracts + classifies in one call
-RECEIPT_VISION_PROMPT = """You are a receipt OCR specialist. Your job is to read a photo of a receipt and extract EVERY purchased item into structured JSON.
+RECEIPT_VISION_PROMPT = """You are a receipt OCR specialist. Extract EVERY purchased item from this receipt photo into structured JSON.
 
-CRITICAL RULES — read carefully:
-- Read the receipt TOP to BOTTOM, section by section. Do NOT skip any section.
-- Extract EVERY SINGLE line item printed on the receipt. Typical grocery receipts have 15-40+ items.
-- Read item names EXACTLY as printed on the receipt (they are often abbreviated like "DM CREAM CORN", "FL NAT PROV CHS SLCS"). Copy the abbreviations exactly — do NOT expand or rewrite them.
-- Do NOT invent, guess, or hallucinate items. Only include items you can actually read on the receipt.
-- Each item has a DIFFERENT name and usually a DIFFERENT price. If you find yourself listing the same item name multiple times, you are hallucinating — re-read the receipt.
-- Lines with discounts, coupons, savings, tax, or subtotals are NOT items — skip those.
-- Weight-based items (e.g., "2.34 lb @ $3.99/lb") should have quantity set to the weight.
-- Multi-quantity items (e.g., "2 @ 3.99") should have quantity=2 and price=3.99 (unit price).
+CRITICAL RULES:
+1. Read the ENTIRE receipt from TOP to BOTTOM. Do NOT stop early or skip sections.
+2. Extract EVERY line item — grocery receipts typically have 20-50 items. If you extracted fewer than 15 items from a long receipt, you missed items. Go back and re-read.
+3. Copy item names EXACTLY as printed (receipts use abbreviations like "DM CREAM CORN", "FL NAT PROV CHS SLCS", "GV WHT BREAD"). Do NOT expand, rewrite, or simplify names.
+4. If the same item appears on multiple lines of the receipt (e.g., bought 2 separate bread loaves), include EACH one as a separate entry.
+5. Do NOT invent or guess items. Only include items you can actually read.
+6. Skip discount lines, coupons, savings, tax lines, and subtotals — these are NOT purchased items.
+7. Weight-based items (e.g., "2.34 lb @ $3.99/lb"): set quantity to the weight value.
+8. Multi-quantity items (e.g., "2 @ $3.99"): set quantity=2 and price=3.99 (unit price).
 
-CLASSIFICATION RULES:
-- "grocery": Supermarket, grocery store, bulk food store (Food Lion, Walmart, Kroger, Whole Foods, Costco, Aldi, Publix, etc.)
-- "restaurant": Restaurant, cafe, bar, fast food, takeout, delivery service
-- "retail": Non-food retail (Amazon, Target non-grocery, clothing, electronics, hardware, etc.)
+RECEIPT TYPE:
+- "grocery": Supermarket/grocery store (Food Lion, Walmart, Kroger, Whole Foods, Costco, Aldi, Publix, etc.)
+- "restaurant": Restaurant, cafe, bar, fast food, takeout
+- "retail": Non-food retail (Amazon, electronics, clothing, hardware)
 - "unknown": Cannot determine
 
-EXTRACTION RULES:
-1. Extract the STORE NAME exactly as printed at the top of the receipt
-2. Extract the DATE in YYYY-MM-DD format (look near the top or bottom)
-3. Extract EVERY line item: name (as printed), quantity, unit price
-4. Extract subtotal, tax, and total amounts
-5. For grocery items, classify each into a category
-6. Detect the payment method if visible
-
-RESPONSE FORMAT (strict JSON):
+RESPONSE FORMAT (strict JSON — no markdown, no explanation):
 {{
   "receipt_type": "grocery",
-  "store": "Store Name",
+  "store": "Store Name as printed",
   "date": "YYYY-MM-DD",
+  "item_count": 35,
   "items": [
-    {{
-      "name": "item description as printed on receipt",
-      "quantity": 1,
-      "price": 3.99,
-      "category": "produce"
-    }}
+    {{"name": "ITEM AS PRINTED", "quantity": 1, "price": 3.99, "category": "produce"}}
   ],
   "subtotal": 45.23,
   "tax": 3.12,
@@ -72,10 +60,10 @@ RESPONSE FORMAT (strict JSON):
   "payment_method": "credit"
 }}
 
-Category options: produce, dairy, meat, seafood, bakery, frozen, beverage, snack, canned, cereal, condiment, household, health, other
-Payment method options: cash, credit, debit, ebt, mobile, other (omit if not visible)
+"item_count" MUST equal the length of the "items" array — use this as a self-check.
 
-Respond ONLY with valid JSON. No markdown, no explanation."""
+Category options: produce, dairy, meat, seafood, bakery, frozen, beverage, snack, canned, cereal, condiment, household, health, other
+Payment method options: cash, credit, debit, ebt, mobile, other (omit if not visible)"""
 
 
 @dataclass
@@ -372,7 +360,7 @@ class ReceiptVisionService:
                         ],
                     }
                 ],
-                max_tokens=4096,
+                max_tokens=16384,
                 temperature=0,
             )
 
@@ -412,7 +400,7 @@ class ReceiptVisionService:
                         ],
                     }
                 ],
-                max_tokens=4096,
+                max_tokens=16384,
                 temperature=0,
             )
 
@@ -471,51 +459,36 @@ class ReceiptVisionService:
         Detect if Vision API result is hallucinated (model couldn't read
         the image and made up a generic grocery list).
 
+        Only flags EXTREME patterns — real receipts can have simple names
+        like "BREAD", "EGGS", "MILK" and can have duplicate items.
+
         Returns error string if hallucination detected, None if OK.
         """
         items = data.get("items", [])
-        if not items:
-            return None  # No items isn't hallucination, just empty
+        if not items or len(items) < 5:
+            return None  # Too few items to judge
 
-        # Check 1: Too many items with the same price (hallucination pattern)
+        # Check 1: Nearly ALL items have the exact same price
+        # (e.g., 16 items all at $9.99 — classic hallucination)
         prices = [item.get("price") for item in items if item.get("price")]
         if len(prices) >= 5:
             from collections import Counter
             price_counts = Counter(prices)
             most_common_price, count = price_counts.most_common(1)[0]
-            # If >60% of items have the same price, likely hallucinated
-            if count / len(prices) > 0.6 and len(prices) >= 5:
+            if count / len(prices) > 0.7:
                 return (
                     f"{count} of {len(prices)} items have the same price "
                     f"(${most_common_price})"
                 )
 
-        # Check 2: Too many duplicate item names
+        # Check 2: Extreme duplication — nearly all names identical
+        # (e.g., 16 "FROZEN CHICKEN" entries). Light duplication is normal.
         names = [item.get("name", "").upper().strip() for item in items]
         unique_names = set(names)
-        if len(names) >= 5 and len(unique_names) < len(names) * 0.6:
+        if len(names) >= 8 and len(unique_names) < len(names) * 0.3:
             return (
                 f"Too many duplicate items ({len(names)} items but only "
                 f"{len(unique_names)} unique names)"
-            )
-
-        # Check 3: Generic item names (hallucination produces simple names
-        # like "BREAD", "EGGS", "MILK" instead of receipt abbreviations)
-        generic_names = {
-            "BREAD", "EGGS", "MILK", "BUTTER", "CHEESE", "RICE",
-            "PASTA", "PIZZA", "ICE CREAM", "CHICKEN", "BEEF",
-            "PORK", "FISH", "APPLE", "BANANA", "ORANGE",
-            "TOMATO", "POTATO", "ONION", "LETTUCE", "CUCUMBER",
-            "CUECUMBER",  # common misspelling in hallucinations
-        }
-        generic_count = sum(
-            1 for name in names if name in generic_names
-        )
-        # If >50% of items are simple generic names, likely hallucinated
-        if len(names) >= 8 and generic_count / len(names) > 0.5:
-            return (
-                f"{generic_count} of {len(names)} items are generic names — "
-                f"receipt text was likely not readable"
             )
 
         return None

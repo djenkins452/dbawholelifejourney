@@ -218,7 +218,7 @@ class TestImagePreparation(TestCase):
             prepare_image_for_api(raw_bytes, "image/heic")
 
     def test_hallucination_detection(self):
-        """Detect hallucinated results with duplicate items/prices."""
+        """Detect hallucinated results with extreme patterns only."""
         from apps.meals.services.receipt_vision import ReceiptVisionService
 
         service = ReceiptVisionService()
@@ -234,25 +234,35 @@ class TestImagePreparation(TestCase):
         self.assertIsNotNone(result)
         self.assertIn("same price", result)
 
-        # Generic names — hallucination
+        # Extreme duplicate names — hallucination (e.g., 16 FROZEN CHICKEN)
         data = {
             "items": [
-                {"name": "BREAD", "price": 1.99},
-                {"name": "EGGS", "price": 1.79},
-                {"name": "MILK", "price": 2.59},
-                {"name": "BUTTER", "price": 3.49},
-                {"name": "CHEESE", "price": 4.99},
-                {"name": "RICE", "price": 2.29},
-                {"name": "PASTA", "price": 1.49},
-                {"name": "PIZZA", "price": 5.99},
-                {"name": "CHICKEN", "price": 7.99},
+                {"name": "FROZEN CHICKEN", "price": 9.99 + i * 0.01}
+                for i in range(10)
             ]
         }
         result = service._detect_hallucination(data)
         self.assertIsNotNone(result)
-        self.assertIn("generic", result)
+        self.assertIn("duplicate", result)
 
-        # Normal receipt — no hallucination
+        # Real receipt with simple names — NOT hallucination
+        data = {
+            "items": [
+                {"name": "BREAD", "price": 1.99},
+                {"name": "EGGS", "price": 1.79},
+                {"name": "MILK 2%", "price": 2.59},
+                {"name": "FL NAT PROV CHS SLCS", "price": 2.99},
+                {"name": "FRYER DRUMSTICKS", "price": 3.99},
+                {"name": "CUECUMBER", "price": 0.69},
+                {"name": "TOMATO SOUP", "price": 1.19},
+                {"name": "ORANGE JUICE", "price": 2.99},
+                {"name": "ICE CREAM", "price": 3.99},
+            ]
+        }
+        result = service._detect_hallucination(data)
+        self.assertIsNone(result)
+
+        # Normal receipt with abbreviations — NOT hallucination
         data = {
             "items": [
                 {"name": "FAM SZ ROTIS CHICKEN", "price": 8.99},

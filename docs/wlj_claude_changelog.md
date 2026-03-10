@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-10 — Force context refresh on check-in/status requests
+
+- **Feature:** Check-in and status requests now force a full CoS context rebuild, bypassing all caches (readiness cache, layered cache, flat cache, and pre-computed ECC cache). This ensures the user always gets real-time state when asking "check in", "status", "where do things stand", etc.
+- **Changes:**
+  - Added missing patterns to `CHECKIN_PATTERNS`: "status", "refresh", "update my status", "where do things stand", "where are things"
+  - Early check-in detection (`_is_checkin_early`) computed before CoS context building — when True, calls `build_cos_context()` directly instead of trying cached contexts
+  - Updated check-in preamble to inform the LLM that cached data was discarded and rebuilt
+  - Added explicit 6-part response format for check-in/status responses: (1) Completed items, (2) Pending priorities, (3) Upcoming tasks, (4) Medication reminders with calibrated urgency, (5) Optional intelligence insight, (6) Closing question
+  - Works on both streaming and non-streaming paths (streaming already skips fast context for check-ins, then calls `_generate_response()` which now applies the forced refresh)
+- **Files:** `apps/ai/personal_assistant.py`
+- **Why:** Cached CoS context could be stale, especially after the user just updated tasks, meds, or habits. A "check in" is an explicit request for current state — serving cached data defeats the purpose.
+
 ## 2026-03-10 — Centralize rest timer triggering for all exercise types
 
 - **Bug:** `markTimeDone()` (time-based exercise Done handler) was skipping `startRestTimer()`, violating the requirement that rest timer behavior must remain unchanged across all exercise types.

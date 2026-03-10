@@ -54,6 +54,9 @@ logger = logging.getLogger(__name__)
 CHECKIN_PATTERNS = frozenset([
     # Explicit check-in
     'check in', 'checking in', 'check-in', 'checkin',
+    # Status / refresh requests (force context rebuild)
+    'status', 'refresh', 'update my status',
+    'where do things stand', 'where are things',
     # Day overview
     "how's my day", 'how is my day', 'how does my day look',
     "how's my schedule", "what's my day look like",
@@ -4022,6 +4025,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         # a calibration question (short statements without question marks
         # or imperative verbs). For everything else, suppress it.
         _msg_lower_early = (message or '').lower()
+        _is_checkin_early = any(
+            p in _msg_lower_early for p in CHECKIN_PATTERNS
+        )
         _is_functional_query = (
             '?' in (message or '')
             or any(m in _msg_lower_early for m in [
@@ -4030,7 +4036,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 'help me', 'show me', 'should i', 'am i', 'do i',
                 'can i', 'will i', 'would you',
             ])
-            or any(p in _msg_lower_early for p in CHECKIN_PATTERNS)
+            or _is_checkin_early
         )
         if _is_functional_query:
             logger.info(
@@ -4217,6 +4223,16 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
                     if is_learning_mode_active(self.user):
                         cos_context = build_learning_mode_context(self.user)
+                    elif _is_checkin_early:
+                        # Check-in / status requests FORCE a fresh context
+                        # rebuild. Cached context may be stale — the user
+                        # explicitly asked "where do things stand?" so they
+                        # need real-time state, not a cached snapshot.
+                        cos_context = build_cos_context(self.user)
+                        logger.info(
+                            "COS_FORCED_REFRESH user=%s reason=checkin_request",
+                            self.user.id,
+                        )
                     elif cos_context_cache:
                         # Reuse pre-computed cos_context from ECC pre-check
                         cos_context = cos_context_cache
@@ -4856,9 +4872,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     )
                 else:
                     _checkin_preamble = (
-                        "USER IS REQUESTING A CHECK-IN / DAY BRIEFING — give "
-                        "a complete Chief of Staff assessment. This is a "
-                        "user-initiated request."
+                        "USER IS REQUESTING A CHECK-IN / STATUS REFRESH — "
+                        "this is a forced context refresh. ALL cached data "
+                        "has been discarded and rebuilt from the database. "
+                        "Deliver a complete Chief of Staff status briefing "
+                        "based ONLY on the fresh data below."
                     )
 
                 system_prompt += f"""
@@ -4893,6 +4911,17 @@ FAITH:
 
 TIME CONTEXT:
 - ~{time_context.get('hours_remaining', 'unknown')} hours until bedtime
+
+RESPONSE FORMAT — Follow this 6-part structure for check-in/status responses:
+1. COMPLETED ITEMS — What has been accomplished today (brief, celebratory).
+2. PENDING PRIORITIES — Outstanding items that need attention NOW, by urgency.
+3. UPCOMING TASKS — Scheduled items for later today or this week.
+4. MEDICATION REMINDERS — Overdue meds by name with calibrated urgency
+   (overdue = firm reminder, upcoming = gentle note, taken = skip).
+5. INTELLIGENCE INSIGHT (optional) — One pattern, correlation, or observation
+   from recent data (e.g., streak at risk, goal drift, health trend).
+6. CLOSING QUESTION — One specific, actionable question to drive next action
+   (e.g., "Want to knock out that Bible reading now?").
 
 INSTRUCTIONS:
 - Lead with what's REMAINING — the user is asking what's LEFT, not for a recap of their day.

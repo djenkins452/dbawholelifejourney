@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-09 (Activity Disambiguation — DISAMBIGUATE decision type for multi-candidate reconciliation)
+**Last updated:** 2026-03-10 (PIE Health Screenshot Interpretation — sleep analysis from health screenshots with CoS injection)
 
 ---
 
@@ -75,6 +75,7 @@ Phase 1 (Interpretation)        Phase 2 (Execution)          Phase 3 (Post-Execu
 |--------|------|-------------|---------|----------|--------|---------|
 | **SAE** State | `apps/core/ai_state/state_engine.py` | `update_user_state()` | Post-execution + ISE 5m | N/A | Raw tables (all modules) | `UserState.state_data` (JSON) |
 | **PIE** Insights | `apps/core/ai_insights/insight_engine.py` | `run_insights()` | Post-execution + ISE 5m | N/A | UserState + events | `Insight` model |
+| **PIE** Health Screenshot | `apps/core/ai_insights/health/sleep_analysis.py` | `analyze_sleep_data()` | Chat image upload | N/A | Vision API structured JSON + user context | CoS injection + `Insight` model |
 | **PIE** Notification | `apps/core/ai_insights/notification_engine.py` | `maybe_notify()` | Event | N/A | Insight severity | Notification queue |
 | **PRIE** Predictions | `apps/core/ai_predictions/prediction_engine.py` | `generate_predictions()` | Post-execution + ISE 1h | N/A | UserState OR raw data | `Prediction` model |
 | **PRIE** Trajectory | `apps/core/ai_predictions/trajectory_engine.py` | `compute_trajectory()` | Request | N/A | Historical data series | Regression results |
@@ -122,6 +123,7 @@ Phase 1 (Interpretation)        Phase 2 (Execution)          Phase 3 (Post-Execu
 | Engine | File | Entry Point | Purpose |
 |--------|------|-------------|---------|
 | Health Insights | `apps/health/services/insight_engine.py` | Domain rules | Health metric insight rules |
+| Health Screenshot Analysis | `apps/core/ai_insights/health/sleep_analysis.py` | `analyze_sleep_data()` | PIE sleep screenshot interpretation (Vision API → deterministic analysis → CoS injection) |
 | Body Comp Intelligence | `apps/health/services/body_composition_intelligence.py` | Compute trends | Body composition trends |
 | Meals Intelligence | `apps/meals/services/advanced_intelligence.py` | Request | Meal planning intelligence |
 | Meal Substitution | `apps/meals/services/substitution_engine.py` | Request | Meal substitution suggestions |
@@ -364,6 +366,7 @@ Outputs:
 3. **Session mode** — DAILY_ORIENTATION vs LIGHT
 4. **Schedule blocks** with [NOW], [SOON], [done], [MISSED] markers
 5. **Protective flags, deadlines, pressure, relationship, health signals**
+6. **HEALTH SCREENSHOT ANALYSIS (PIE)** — When user uploads health screenshot: summary insight, observations, implications, recommendation (injected after user-affirmed completions block)
 
 ### Caching Strategy
 
@@ -740,6 +743,10 @@ When the user asks a health intelligence question with a brevity keyword ("keep 
 | `apps/core/ai_state/state_builder.py` | SAE — module state builders |
 | `apps/core/ai_state/state_updater.py` | SAE — incremental update |
 | `apps/core/ai_insights/insight_engine.py` | PIE — insight generation |
+| `apps/core/ai_insights/health/screenshot_parser.py` | PIE — health screenshot Vision API extraction |
+| `apps/core/ai_insights/health/sleep_analysis.py` | PIE — deterministic sleep analysis + PIE rule |
+| `apps/core/ai_insights/health/user_context.py` | PIE — health user context for analysis personalization |
+| `apps/core/ai_insights/health/reference_ranges.py` | PIE — clinical reference ranges (sleep, vitals) |
 | `apps/core/ai_predictions/prediction_engine.py` | PRIE — predictions |
 | `apps/core/ai_guidance/guidance_engine.py` | PGE — guidance |
 | `apps/core/ai_scheduler/scheduler_engine.py` | ISE — scheduler (dispatches to Celery) |

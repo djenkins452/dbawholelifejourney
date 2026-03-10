@@ -4040,6 +4040,40 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             )
         # ────────────────────────────────────────────────────────────────
 
+        # ── PIE Health Screenshot Analysis (early, before system prompt) ──
+        # Run structured extraction + deterministic analysis on health
+        # screenshots so the result is available for CoS prompt injection
+        # and vision instruction replacement below.
+        _health_analysis = None
+        _img_count_early = (
+            len(all_images) if all_images
+            else (1 if image_data and image_mime_type else 0)
+        )
+        if _img_count_early >= 1 and all_images:
+            try:
+                from apps.core.ai_insights.health.screenshot_parser import (
+                    parse_health_screenshot,
+                )
+                _img_b64, _img_mime = all_images[0]
+                _parsed_health = parse_health_screenshot(_img_b64, _img_mime)
+                if _parsed_health and _parsed_health.get('screenshot_type') != 'unknown':
+                    from apps.core.ai_insights.health.sleep_analysis import (
+                        analyze_sleep_data,
+                    )
+                    from apps.core.ai_insights.health.user_context import (
+                        get_health_user_context,
+                    )
+                    _user_ctx = get_health_user_context(self.user)
+                    if _parsed_health['screenshot_type'] == 'sleep':
+                        _health_analysis = analyze_sleep_data(
+                            _parsed_health, _user_ctx,
+                        )
+                    # Future: elif _parsed_health['screenshot_type'] == 'glucose': ...
+            except Exception:
+                logger.warning(
+                    "PIE health screenshot analysis failed", exc_info=True,
+                )
+
         # ================================================================
         # UNIFIED CoS SYSTEM PROMPT — PRIORITY-ORDERED
         #
@@ -4326,6 +4360,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             cos_context['affirmed_completions'] = _affirmed
                     except Exception:
                         pass  # Affirmation context must never break chat
+
+                    # Inject PIE health screenshot analysis for immediate
+                    # reasoning response (not just persisted insight).
+                    if _health_analysis:
+                        cos_context['health_screenshot_analysis'] = _health_analysis
 
                     cos_injection = format_cos_system_injection(cos_context)
                     # Append operational context AFTER personality layers
@@ -5326,6 +5365,25 @@ Rules for voice responses:
             "e.g., 'Your weight is 285 lbs, down from 295 five days ago — that's a 3.4% decrease.' "
             "This is data reading and observation, not medical advice."
         )
+        # Override vision instruction if PIE health analysis succeeded
+        # (_health_analysis was set earlier in the method, before system prompt)
+        if _health_analysis:
+            _vision_instruction = (
+                "You have ALREADY analyzed this health screenshot "
+                "via the Pattern Intelligence Engine. Use the "
+                "structured analysis injected into your system "
+                "prompt under HEALTH SCREENSHOT ANALYSIS. "
+                "Structure your response as:\n"
+                "1. **Summary Insight** — one sentence key finding\n"
+                "2. **Key Observations** — 2-3 data-driven points\n"
+                "3. **What This Means** — connect to this person's life/goals\n"
+                "4. **Recommendation** — one clear actionable step\n\n"
+                "RULES: Do NOT just repeat numbers from the image. "
+                "Do NOT give generic advice. Connect every observation "
+                "to what it means for THIS person. You may reference "
+                "numbers from the image to support your analysis."
+            )
+
         if _img_count > 1:
             image_note = f"\n\n[The user has attached {_img_count} images. {_vision_instruction} Analyze each image and synthesize insights across all of them.]"
         elif _img_count == 1:

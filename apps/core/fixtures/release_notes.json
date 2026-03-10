@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 151,
+    "fields": {
+      "title": "Delete Recurring Tasks Completely",
+      "description": "You can now ask Beth to delete an entire recurring task series — not just one instance. Say 'delete Approve Payroll completely' or 'stop this recurring task' and Beth will ask whether you want to remove the whole series or just one occurrence. Once confirmed, all instances are removed and the task stops coming back. Beth also properly handles task deletion now instead of telling you to do it manually.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-03-10",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-10T09:00:00Z",
+      "updated_at": "2026-03-10T09:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 150,
     "fields": {
       "title": "Beth Now Trusts You When You Say It's Done",

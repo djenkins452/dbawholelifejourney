@@ -503,6 +503,9 @@ When the user says move, reschedule, push, postpone, change, rename, update, or 
 - "remove the recurring grocery task permanently" → mutate_task(action="delete", task_query="grocery", delete_series=true)
 - "stop this recurring task from coming back" → mutate_task(action="delete", task_query=<from context>, delete_series=true)
 - "move all my tasks to tomorrow" → mutate_task(action="update", task_query="", new_due_date="tomorrow", apply_to_all=true)
+- "make my Charge Watch task non-negotiable" → mutate_task(action="update", task_query="Charge Watch", new_commitment_level="non_negotiable")
+- "change my workout to optional" → mutate_task(action="update", task_query="workout", new_commitment_level="optional")
+- "set the grocery task as important" → mutate_task(action="update", task_query="grocery", new_commitment_level="important")
 
 CRITICAL ROUTING RULE: If the user's message contains a mutation verb (move, reschedule, push, postpone, change, rename, update, delete, remove) referring to tasks, you MUST call mutate_task — NEVER call read_task for these.
 

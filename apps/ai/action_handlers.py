@@ -3361,6 +3361,7 @@ class ActionHandler:
         new_title: str = None,
         new_notes: str = None,
         new_effort: str = None,
+        new_commitment_level: str = None,
         apply_to_all: bool = False,
         **kwargs,
     ) -> ActionResult:
@@ -3376,6 +3377,7 @@ class ActionHandler:
             new_title: New title if renaming
             new_notes: New notes
             new_effort: New effort level
+            new_commitment_level: New commitment level (optional, important, non_negotiable)
             apply_to_all: Apply to all matching tasks (for batch operations)
         """
         from apps.life.models import Task
@@ -3668,6 +3670,77 @@ class ActionHandler:
                             action_type='mutate_task',
                         )
 
+                # Validate commitment_level
+                if new_commitment_level:
+                    valid_levels = ('optional', 'important', 'non_negotiable')
+                    # Normalize common variants
+                    normalized = new_commitment_level.lower().replace(
+                        '-', '_',
+                    ).replace(' ', '_')
+                    if normalized not in valid_levels:
+                        return ActionResult(
+                            success=False,
+                            message=(
+                                f"'{new_commitment_level}' isn't a valid commitment level. "
+                                f"Use 'optional', 'important', or 'non-negotiable'."
+                            ),
+                            error='invalid_commitment_level',
+                            action_type='mutate_task',
+                        )
+                    new_commitment_level = normalized
+
+                # For recurring tasks with commitment_level change,
+                # ask "just today or entire series?" if not yet specified
+                update_series = kwargs.get('update_series')
+                representative = tasks[0]
+                if (
+                    new_commitment_level
+                    and representative.is_recurring
+                    and update_series is None
+                ):
+                    from apps.life.services.recurrence import RecurrenceService
+                    series_count = RecurrenceService.count_series_instances(
+                        representative,
+                    )
+                    display_level = dict(
+                        representative.COMMITMENT_LEVEL_CHOICES,
+                    ).get(new_commitment_level, new_commitment_level)
+                    if series_count > 1:
+                        return ActionResult(
+                            success=False,
+                            message=(
+                                f"'{representative.title}' is a recurring task "
+                                f"({representative.recurrence_pattern}) with "
+                                f"{series_count} instance{'s' if series_count != 1 else ''}.\n\n"
+                                f"Change commitment to **{display_level}** for:\n"
+                                f"• **Just today** — only this instance\n"
+                                f"• **The entire series** — all {series_count} instances\n\n"
+                                f"Which one?"
+                            ),
+                            error='series_scope_required',
+                            action_type='mutate_task',
+                            created_object={
+                                'candidates': [
+                                    {'id': t.id, 'title': t.title}
+                                    for t in tasks[:5]
+                                ],
+                                'is_recurring': True,
+                                'series_count': series_count,
+                                'pending_commitment_level': new_commitment_level,
+                            },
+                        )
+
+                # If update_series=True, expand tasks to all series instances
+                if update_series and representative.is_recurring:
+                    from apps.life.models import Task as TaskModel
+                    tasks = list(TaskModel.objects.filter(
+                        user=self.user,
+                        title=representative.title,
+                        is_recurring=True,
+                        recurrence_pattern=representative.recurrence_pattern,
+                        status='active',
+                    ))
+
                 # Apply updates — skip fields that are already at the target value
                 updated_titles = []
                 changes_desc = []
@@ -3706,6 +3779,16 @@ class ActionHandler:
                             update_fields.append('effort')
                             any_actual_change = True
 
+                        if new_commitment_level and task.commitment_level != new_commitment_level:
+                            old_level = task.commitment_level
+                            task.commitment_level = new_commitment_level
+                            update_fields.append('commitment_level')
+                            any_actual_change = True
+                            logger.info(
+                                "Updated commitment_level for task %s ('%s'): %s → %s",
+                                task.id, task.title, old_level, new_commitment_level,
+                            )
+
                         if len(update_fields) > 1:
                             # Only save if we actually changed something
                             task.save(update_fields=update_fields)
@@ -3719,6 +3802,11 @@ class ActionHandler:
                         already_parts.append(f"due {parsed_due.strftime('%b %d')}")
                     if parsed_time is not None:
                         already_parts.append(f"at {parsed_time.strftime('%I:%M %p').lstrip('0')}")
+                    if new_commitment_level:
+                        display_level = dict(
+                            representative.COMMITMENT_LEVEL_CHOICES,
+                        ).get(new_commitment_level, new_commitment_level)
+                        already_parts.append(f"commitment level {display_level}")
                     title_list = ', '.join(f"'{t}'" for t in updated_titles)
                     already_desc = ' → '.join(already_parts) if already_parts else 'at the requested values'
                     return ActionResult(
@@ -3742,8 +3830,13 @@ class ActionHandler:
                     changes_desc.append(f"end time {parsed_end_time.strftime('%I:%M %p').lstrip('0')}")
                 if new_title and 'title' in update_fields:
                     changes_desc.append(f"renamed to '{new_title}'")
-                if new_effort:
+                if new_effort and 'effort' in update_fields:
                     changes_desc.append(f"effort: {new_effort}")
+                if new_commitment_level and 'commitment_level' in update_fields:
+                    display_level = dict(
+                        representative.COMMITMENT_LEVEL_CHOICES,
+                    ).get(new_commitment_level, new_commitment_level)
+                    changes_desc.append(f"commitment level: {display_level}")
 
                 changes_str = ", ".join(changes_desc) if changes_desc else "updated"
 

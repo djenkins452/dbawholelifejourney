@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-10 — Fix Beth task commitment_level updates (was writing to wrong field)
+
+- **Problem:** When a user told Beth "Change my Charge Watch to Non-Negotiable", Beth confirmed the update but wrote to `task.effort` instead of `task.commitment_level`. The `mutate_task` intent had no `new_commitment_level` parameter, so the AI mapped commitment-level phrases to `new_effort` (the closest available field). The UI NN badge never appeared because it reads `commitment_level`.
+- **Root cause:** The `mutate_task` intent schema and `handle_mutate_task()` handler both lacked support for `new_commitment_level`. Only `create_task` had it.
+- **Fix:**
+  - Added `new_commitment_level` parameter (enum: optional/important/non_negotiable) to the `mutate_task` intent schema in `apps/ai/intents/life_intents.py`
+  - Added `update_series` parameter for recurring task scope ("just today" vs "entire series")
+  - Updated `handle_mutate_task()` in `apps/ai/action_handlers.py`:
+    - Accepts and validates `new_commitment_level` with normalization (hyphenated/spaced variants → underscore)
+    - For recurring tasks, asks "just today or entire series?" before applying
+    - When `update_series=True`, expands to all active series instances
+    - Logs old→new value on each commitment_level change
+  - Updated confirmation message to show "commitment level: Non-Negotiable" (human-readable) instead of "effort: non_negotiable"
+  - Updated intent description to mention commitment level routing
+  - Added 3 system prompt examples for commitment_level changes via `mutate_task`
+- **Files:** `apps/ai/intents/life_intents.py`, `apps/ai/action_handlers.py`, `apps/ai/intent_service.py`
+- **Tests:** 10 intent registration tests + 29 commitment tests + 34 task matching tests — all pass.
+
 ## 2026-03-10 — CoS check-in: priority synthesis and signal deduplication
 
 - **Problem:** Beth's check-in responses suffered from two issues: (1) information duplication — the same accomplishment (e.g., "workout done") appeared in multiple sections; (2) no priority synthesis — Beth listed all pending tasks equally instead of highlighting what matters most right now.

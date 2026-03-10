@@ -187,7 +187,8 @@ LIFE_INTENT_TOOLS = [
                 "Reschedule, rename, update, or delete a task. "
                 "ALWAYS use this tool — not read_task — when the user "
                 "wants to move, reschedule, push, postpone, rename, update, "
-                "change, or delete a task. "
+                "change, or delete a task, OR change its commitment level "
+                "(non-negotiable, important, optional). "
                 "Mutation verbs (move, reschedule, push, postpone, change, "
                 "rename, update, delete, remove) referring to tasks MUST route here. "
                 "Use task_query to find the task by title keyword."
@@ -236,9 +237,30 @@ LIFE_INTENT_TOOLS = [
                         "enum": ["quick", "small", "medium", "large"],
                         "description": "New effort level.",
                     },
+                    "new_commitment_level": {
+                        "type": "string",
+                        "enum": ["optional", "important", "non_negotiable"],
+                        "description": (
+                            "New commitment level. Use when the user says "
+                            "'make it non-negotiable', 'change to optional', "
+                            "'set as important', or similar. Map 'non negotiable', "
+                            "'non-negotiable', 'nonnegotiable' → 'non_negotiable'."
+                        ),
+                    },
                     "new_end_time": {
                         "type": "string",
                         "description": "New end time in HH:MM 24-hour format.",
+                    },
+                    "update_series": {
+                        "type": "boolean",
+                        "description": (
+                            "For recurring tasks: set true to apply the update to the "
+                            "entire series (all instances). Set false to update only "
+                            "this one instance. Use when the user says 'all of them', "
+                            "'the whole series', 'every instance'. Only set AFTER the "
+                            "user has clarified — on the first call, leave unset so the "
+                            "system can ask."
+                        ),
                     },
                     "apply_to_all": {
                         "type": "boolean",

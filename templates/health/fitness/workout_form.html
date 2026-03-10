@@ -1012,6 +1012,17 @@ function updateSavedCount() {
     document.getElementById('setsSavedCount').textContent = setsSavedCount;
 }
 
+// Shared post-completion handler for all set-based exercises.
+// Called after a set is successfully saved to the DB.
+// Centralizes state updates and rest timer triggering so that
+// every exercise type (weighted, bodyweight, time) behaves identically.
+function onSetCompleted(setRow) {
+    markSetAsSaved(setRow);
+    setsSavedCount++;
+    updateSavedCount();
+    startRestTimer();
+}
+
 // Mark a set as done (save to DB)
 async function markSetDone(button, exerciseId, setNumber) {
     // Start workout if not started
@@ -1070,10 +1081,7 @@ async function markSetDone(button, exerciseId, setNumber) {
 
         const data = await response.json();
         if (data.success) {
-            markSetAsSaved(setRow);
-            setsSavedCount++;
-            updateSavedCount();
-            startRestTimer();
+            onSetCompleted(setRow);
         } else {
             throw new Error(data.error || 'Failed to save');
         }
@@ -1193,7 +1201,7 @@ async function markClassDone(button, exerciseId) {
     }
 }
 
-// Mark time-based exercise as done (save to DB — NO rest timer)
+// Mark time-based exercise as done (save to DB)
 async function markTimeDone(button, exerciseId, setNumber) {
     // Start workout if not started
     if (!workoutStarted && !isEditing) {
@@ -1244,10 +1252,7 @@ async function markTimeDone(button, exerciseId, setNumber) {
 
         const data = await response.json();
         if (data.success) {
-            markSetAsSaved(setRow);
-            setsSavedCount++;
-            updateSavedCount();
-            startRestTimer();
+            onSetCompleted(setRow);
         } else {
             throw new Error(data.error || 'Failed to save');
         }

@@ -31,3 +31,6 @@ class CoreConfig(AppConfig):
         # Domain Capability Registry — auto-discover all domain capabilities
         from apps.core.domain_registry import autodiscover
         autodiscover()
+        # Enhance all NumberInput widgets with mobile-friendly inputmode
+        from apps.core.widgets import enhance_number_inputs
+        enhance_number_inputs()

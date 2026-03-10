@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-10 — Global NumberInput mobile keypad enhancement (core widget patch)
+
+- **Issue:** 72+ Django form NumberInput widgets across health, finance, users, and life apps rendered without `inputmode`, causing mobile browsers to show a full QWERTY keyboard instead of the numeric keypad for number entry.
+- **Fix:** Created a global `enhance_number_inputs()` patch in `apps/core/widgets.py` that overrides `NumberInput.get_context` to auto-inject the correct `inputmode` attribute based on the widget's `step` value:
+  - `step < 1` (e.g. 0.01, 0.1) or `step="any"` → `inputmode="decimal"` (decimal keypad)
+  - No step or `step >= 1` → `inputmode="numeric"` + `pattern="[0-9]*"` (integer keypad)
+  - Explicitly set `inputmode` values are preserved (no override)
+- **Also created:** Reusable `NumericInput` and `DecimalInput` widget classes for explicit use in new forms
+- **Architecture:** Single-point-of-change in `CoreConfig.ready()` — covers ALL existing and future `forms.NumberInput` usage without modifying individual form files
+- **Files modified:**
+  - `apps/core/widgets.py` — NEW: NumericInput, DecimalInput, enhance_number_inputs()
+  - `apps/core/apps.py` — Call enhance_number_inputs() in CoreConfig.ready()
+- **Tests:** 9-point widget verification (integer, decimal, step=any, explicit widgets, real form rendering), Django system check, 119 health + finance tests — all passing
+- **Why:** Completes the platform-wide mobile numeric keypad solution alongside the template-level inputmode fixes
+
 ## 2026-03-10 — Add inputmode attributes to hardcoded number inputs in non-health templates
 
 - **Issue:** Following the health template inputmode fix, hardcoded `<input type="number">` tags in non-health templates still lacked `inputmode` attributes, causing full QWERTY keyboard on mobile instead of numeric keypad.

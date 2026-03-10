@@ -2232,6 +2232,35 @@ def format_cos_system_injection(context):
     except Exception:
         pass
 
+    # ── USER-AFFIRMED COMPLETIONS ──
+    # When a user states they already completed an activity, suppress all
+    # further reminders for that activity type in this conversation.
+    # Authority hierarchy: user statement overrides system assumptions.
+    affirmed = context.get('affirmed_completions', {})
+    if affirmed:
+        lines.append("=== USER-AFFIRMED COMPLETIONS ===")
+        lines.append("")
+        lines.append(
+            "The user has STATED they already completed these activities. "
+            "Do NOT re-prompt, remind, nudge, or ask about them again in "
+            "this conversation. Trust the user's word — they are the "
+            "authority on what they have done."
+        )
+        lines.append("")
+        for activity_type, affirmed_at in affirmed.items():
+            # Show just the time portion for readability
+            time_part = affirmed_at.split('T')[1][:5] if 'T' in affirmed_at else affirmed_at
+            lines.append(f"  - {activity_type} (affirmed at {time_part})")
+        lines.append("")
+        lines.append(
+            "If the user explicitly asks you to RECORD or LOG the "
+            "completion, use the appropriate intent. But do NOT do so "
+            "automatically — only suppress further reminders."
+        )
+        lines.append("")
+        lines.append("=== END USER-AFFIRMED COMPLETIONS ===")
+        lines.append("")
+
     # ── DAILY SCAN BRIEF (structured summary for proactive intelligence) ──
     scan_brief = _build_daily_scan_brief(context)
     if scan_brief:

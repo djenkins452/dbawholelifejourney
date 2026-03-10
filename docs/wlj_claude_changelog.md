@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Add user-affirmed completion handling to CoS
+
+- **Issue:** When user told Beth "I already completed it before I saw this reminder", Beth continued prompting about the activity. System assumptions overrode user statements.
+- **Root cause:** No mechanism to track user-affirmed completions in conversation. The system prompt kept showing "journal: 0 entries today" and proactive check-ins kept generating for the same activity type. The confirmation_detector.py handles "yes"/"done" and executes CRUD actions, but there was nothing to handle "I already did it outside the app" which should only suppress reminders.
+- **Fix — three-layer approach:**
+  1. **New module `apps/ai/affirmation_detector.py`** — Detects "I already did it" phrases (distinct from confirmation_detector's quick reply handling), identifies the activity type from recent proactive message or keyword fallback, stores affirmation in conversation metadata, returns natural acknowledgment with optional "want me to log it?" offer. No CRUD executed.
+  2. **System prompt directive** — Added "USER-AFFIRMED COMPLETIONS" section to `format_cos_system_injection()` that explicitly tells the LLM not to re-prompt about affirmed activities. Authority hierarchy: user statement overrides system assumptions.
+  3. **Proactive check-in suppression** — Added guard in `_create_proactive_message()` that checks `is_activity_affirmed()` before creating new check-ins, returning None for affirmed types.
+  4. **Both chat paths updated** — Affirmation check inserted before `handle_proactive_confirmation()` in both `send_message()` and `send_message_stream()`, plus affirmed completions injected into cos_context in both response builders.
+- **Scope:** Works across all activity domains — journal, workout, medicine, faith, habits, tasks, meals
+- **Files:** `apps/ai/affirmation_detector.py` (new), `apps/ai/personal_assistant.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/ai/proactive_checkins.py`, `apps/ai/tests/test_affirmation_detector.py` (new)
+- **Tests:** 57 new tests passing + 18 existing regression tests passing
+- **Why:** CoS should behave like a real executive assistant who trusts the user. If they say it's done, stop asking.
+
 ## 2026-03-09 — Fix PR detection not firing on AJAX workout set updates
 
 - **Bug:** "Today's Guidance" showing incorrect "strength plateau" and "haven't set new PRs" insights even when user increased weights and set new PRs. The system was not detecting PRs from the live workout tracker.

@@ -2950,8 +2950,24 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 return {'response': _ecc_closure_response or ''}
             # ── End hard short-circuit ────────────────────────────
 
+            # User-affirmed completion check ("I already did it") — must run
+            # BEFORE proactive confirmation to avoid CRUD execution when user
+            # only wants to suppress reminders. See affirmation_detector.py.
+            try:
+                from .affirmation_detector import handle_affirmed_completion
+                _affirm_result = handle_affirmed_completion(
+                    self.user, message, conversation,
+                )
+                if _affirm_result and _affirm_result.get('handled'):
+                    response = _affirm_result['response']
+            except Exception:
+                logger.warning("Affirmation detection failed", exc_info=True)
+
             # First, check for proactive check-in responses (e.g., "yes" to "Did you take your medicine?")
-            proactive_result = handle_proactive_confirmation(self.user, message)
+            if not response:
+                proactive_result = handle_proactive_confirmation(self.user, message)
+            else:
+                proactive_result = None
             if proactive_result and proactive_result.get('handled'):
                 response = proactive_result['response']
                 if proactive_result.get('action_result', {}).get('success'):
@@ -4300,6 +4316,16 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         cos_context['decision_branch_gate'] = (
                             evaluate_decision_branch_gate(cos_context, message)
                         )
+
+                    # Inject affirmed completions so system prompt suppresses
+                    # further reminders for user-affirmed activities.
+                    try:
+                        from .affirmation_detector import get_affirmed_completions
+                        _affirmed = get_affirmed_completions(conversation)
+                        if _affirmed:
+                            cos_context['affirmed_completions'] = _affirmed
+                    except Exception:
+                        pass  # Affirmation context must never break chat
 
                     cos_injection = format_cos_system_injection(cos_context)
                     # Append operational context AFTER personality layers
@@ -5732,6 +5758,14 @@ Rules for this response:
         if cos_ctx:
             try:
                 from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
+                # Inject affirmed completions into context for system prompt
+                try:
+                    from .affirmation_detector import get_affirmed_completions
+                    _affirmed = get_affirmed_completions(conversation)
+                    if _affirmed:
+                        cos_ctx['affirmed_completions'] = _affirmed
+                except Exception:
+                    pass  # Affirmation context must never break streaming
                 cos_injection = format_cos_system_injection(cos_ctx)
                 if cos_injection:
                     system_prompt += "\n\n" + cos_injection
@@ -6352,6 +6386,22 @@ Rules for this response:
 
                 # Check-in pre-filter — detect "what's on my plate" queries
                 # that should go to LLM (not intent service)
+                # User-affirmed completion check — runs before proactive
+                # confirmation to suppress reminders without CRUD execution.
+                if not _direct_response:
+                    try:
+                        from .affirmation_detector import handle_affirmed_completion
+                        _affirm_result = handle_affirmed_completion(
+                            self.user, message, conversation,
+                        )
+                        if _affirm_result and _affirm_result.get('handled'):
+                            _direct_response = _affirm_result['response']
+                    except Exception:
+                        logger.warning(
+                            "Streaming affirmation detection failed",
+                            exc_info=True,
+                        )
+
                 if not _direct_response:
                     try:
                         from .confirmation_detector import handle_proactive_confirmation

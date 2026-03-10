@@ -898,6 +898,22 @@ class ProactiveCheckInService:
         """
         conversation = AssistantConversation.get_or_create_active(self.user)
 
+        # Suppress check-in if user has affirmed completion for this type.
+        # Authority: user statement overrides system assumptions.
+        check_in_type = (metadata or {}).get('check_in_type', '')
+        if check_in_type:
+            try:
+                from .affirmation_detector import is_activity_affirmed
+                if is_activity_affirmed(conversation, check_in_type):
+                    logger.info(
+                        "PROACTIVE_SUPPRESSED_AFFIRMED user=%s type=%s — "
+                        "user affirmed completion in this conversation",
+                        self.user.id, check_in_type,
+                    )
+                    return None
+            except Exception:
+                pass  # Suppression check must never block check-ins
+
         message = AssistantMessage.objects.create(
             conversation=conversation,
             role='assistant',

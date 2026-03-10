@@ -4691,16 +4691,31 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     pass
 
                 # ── Pull SPECIFIC ITEMS (not just counts) ──
-                # Tasks: actual names of overdue and due-today tasks
+                # Pre-initialize lists used by priority synthesis and dedup
+                # so they're always defined even if a try/except block fails.
+                completed_today_tasks = []
+                overdue_tasks = []
+                due_today_tasks = []
+                overdue_meds = []
+                taken_meds = []
+                completed_events = []
+                upcoming_events = []
+
+                # Tasks: actual task objects with priority metadata
                 task_details = ''
+                _priority_items = []  # For priority synthesis
                 try:
                     from apps.life.models import Task as LifeTask
-                    overdue_tasks = list(LifeTask.objects.filter(
+                    _task_fields = ['title', 'commitment_level', 'module',
+                                    'scheduled_time', 'is_routine']
+                    overdue_qs = LifeTask.objects.filter(
                         user=self.user, completion_status='pending', due_date__lt=today
-                    ).exclude(status='deleted').values_list('title', flat=True)[:10])
-                    due_today_tasks = list(LifeTask.objects.filter(
+                    ).exclude(status='deleted').values(*_task_fields)[:10]
+                    overdue_tasks = list(overdue_qs)
+                    due_today_qs = LifeTask.objects.filter(
                         user=self.user, completion_status='pending', due_date=today
-                    ).exclude(status='deleted').values_list('title', flat=True)[:10])
+                    ).exclude(status='deleted').values(*_task_fields)[:10]
+                    due_today_tasks = list(due_today_qs)
                     # Tasks with no due date show in "Now" on the task page
                     no_date_tasks = list(LifeTask.objects.filter(
                         user=self.user, completion_status='pending', due_date__isnull=True
@@ -4711,16 +4726,58 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
                     parts = []
                     if overdue_tasks:
-                        parts.append(f"OVERDUE ({len(overdue_tasks)}):\n" + '\n'.join(f'  • {t}' for t in overdue_tasks))
+                        parts.append(f"OVERDUE ({len(overdue_tasks)}):\n" + '\n'.join(
+                            f'  • {t["title"]}' for t in overdue_tasks))
                     if due_today_tasks:
-                        parts.append(f"DUE TODAY ({len(due_today_tasks)}):\n" + '\n'.join(f'  • {t}' for t in due_today_tasks))
+                        parts.append(f"DUE TODAY ({len(due_today_tasks)}):\n" + '\n'.join(
+                            f'  • {t["title"]}' for t in due_today_tasks))
                     if no_date_tasks:
-                        parts.append(f"OPEN TASKS (no due date):\n" + '\n'.join(f'  • {t}' for t in no_date_tasks))
+                        parts.append(f"OPEN TASKS (no due date):\n" + '\n'.join(
+                            f'  • {t}' for t in no_date_tasks))
                     if completed_today_tasks:
-                        parts.append(f"COMPLETED TODAY ({len(completed_today_tasks)}):\n" + '\n'.join(f'  ✓ {t}' for t in completed_today_tasks))
+                        parts.append(f"COMPLETED TODAY ({len(completed_today_tasks)}):\n" + '\n'.join(
+                            f'  ✓ {t}' for t in completed_today_tasks))
                     if not parts:
                         parts.append("No tasks due today and nothing overdue.")
                     task_details = '\n'.join(parts)
+
+                    # ── Priority scoring for synthesis ──
+                    # Score pending tasks so the prompt can highlight the #1 action.
+                    _COMMIT_SCORE = {'non_negotiable': 3, 'important': 2, 'optional': 1}
+                    _HEALTH_MODULES = {'health', 'faith'}
+                    for t in overdue_tasks:
+                        score = (
+                            9                                               # overdue urgency
+                            + _COMMIT_SCORE.get(t.get('commitment_level', ''), 1)
+                            + (2 if t.get('module', '') in _HEALTH_MODULES else 0)
+                        )
+                        _priority_items.append((score, t['title'], 'overdue'))
+                    for t in due_today_tasks:
+                        time_bonus = 0
+                        if t.get('scheduled_time'):
+                            # Tasks with a scheduled time get a boost if within 2 hours
+                            from datetime import datetime as _dt
+                            try:
+                                _sched = t['scheduled_time']
+                                _minutes_until = (
+                                    _dt.combine(today, _sched) - _dt.combine(today, current_time)
+                                ).total_seconds() / 60
+                                if _minutes_until <= 0:
+                                    time_bonus = 6  # past scheduled time
+                                elif _minutes_until <= 120:
+                                    time_bonus = 4  # within 2 hours
+                                elif _minutes_until <= 240:
+                                    time_bonus = 2  # within 4 hours
+                            except Exception:
+                                pass
+                        score = (
+                            3                                               # due-today base
+                            + time_bonus
+                            + _COMMIT_SCORE.get(t.get('commitment_level', ''), 1)
+                            + (2 if t.get('module', '') in _HEALTH_MODULES else 0)
+                            + (0 if t.get('is_routine') else 1)             # non-routine tasks slightly higher
+                        )
+                        _priority_items.append((score, t['title'], 'due_today'))
                 except Exception:
                     task_details = f"Tasks remaining: {remaining_tasks}"
 
@@ -4859,6 +4916,71 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 except Exception:
                     calendar_details = day_overview or 'Calendar data unavailable.'
 
+                # ── Priority Synthesis ────────────────────────────────
+                # Score overdue meds and upcoming calendar events alongside
+                # tasks, then pick the top 1-2 items for the prompt.
+                for m in overdue_meds:
+                    _priority_items.append((12, m, 'overdue_med'))  # Health-critical
+                for evt_line in upcoming_events:
+                    # Calendar events get moderate urgency
+                    _priority_items.append((5, evt_line.strip(), 'calendar'))
+
+                _priority_items.sort(key=lambda x: x[0], reverse=True)
+                _top_priorities = _priority_items[:2]
+
+                priority_synthesis = ''
+                if _top_priorities:
+                    _pri_lines = []
+                    for rank, (score, title, source) in enumerate(_top_priorities, 1):
+                        if source == 'overdue_med':
+                            _pri_lines.append(
+                                f"  {rank}. TAKE MEDICATION: {title} [overdue — health-critical]"
+                            )
+                        elif source == 'overdue':
+                            _pri_lines.append(
+                                f"  {rank}. {title} [OVERDUE — needs immediate attention]"
+                            )
+                        elif source == 'calendar':
+                            _pri_lines.append(f"  {rank}. {title}")
+                        else:
+                            _pri_lines.append(f"  {rank}. {title} [due today]")
+                    priority_synthesis = (
+                        "TOP PRIORITIES RIGHT NOW (Beth must highlight these):\n"
+                        + '\n'.join(_pri_lines)
+                    )
+
+                # ── Domain deduplication map ─────────────────────────────
+                # Track which domains have authoritative data so the LLM
+                # doesn't repeat the same signal across sections.
+                _reported_domains = set()
+                if workout_status == "logged today":
+                    _reported_domains.add("fitness")
+                if reading_status == "completed today":
+                    _reported_domains.add("faith_reading")
+                if taken_meds:
+                    _reported_domains.add("medications_taken")
+                if completed_today_tasks:
+                    _reported_domains.add("completed_tasks")
+                if completed_events:
+                    _reported_domains.add("completed_events")
+
+                dedup_instruction = ''
+                if _reported_domains:
+                    dedup_instruction = (
+                        "SIGNAL DEDUPLICATION (REQUIRED):\n"
+                        "The following domains are already covered by authoritative "
+                        "data sections above. Do NOT repeat them in your response "
+                        "narrative. Mention each domain AT MOST ONCE.\n"
+                        "Already reported: " + ", ".join(sorted(_reported_domains))
+                        + "\n"
+                        "Example of WRONG behavior: listing 'Workout' as completed "
+                        "in the tasks section AND THEN saying 'your workout is done' "
+                        "later in the response.\n"
+                        "Example of CORRECT behavior: synthesize completed items into "
+                        "one brief acknowledgement (e.g., 'Morning routine is done') "
+                        "and move on to what's pending."
+                    )
+
                 # v7: Distinguish system-initiated briefings from user requests
                 # Prevents synthetic trigger "briefing" from leaking into response
                 if message_lower.strip() == 'briefing':
@@ -4883,6 +5005,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
 {_checkin_preamble}
 List SPECIFIC items by name so they can take action. Never give vague counts without the actual items.
+
+{priority_synthesis}
+
+{dedup_instruction}
 
 TODAY'S CALENDAR:
 {calendar_details}
@@ -4913,34 +5039,60 @@ TIME CONTEXT:
 - ~{time_context.get('hours_remaining', 'unknown')} hours until bedtime
 
 RESPONSE FORMAT — Follow this 6-part structure for check-in/status responses:
-1. COMPLETED ITEMS — What has been accomplished today (brief, celebratory).
-2. PENDING PRIORITIES — Outstanding items that need attention NOW, by urgency.
-3. UPCOMING TASKS — Scheduled items for later today or this week.
-4. MEDICATION REMINDERS — Overdue meds by name with calibrated urgency
-   (overdue = firm reminder, upcoming = gentle note, taken = skip).
+1. SITUATION OVERVIEW — One or two sentences that synthesize the day so far.
+   Do NOT list every completed item. Instead, summarize completions naturally:
+   "Morning routine is done, and you've knocked out 4 tasks" — NOT a bullet
+   list of every completed task. Only call out a specific completion if it is
+   noteworthy (e.g., a PR, a streak milestone, a hard-to-do item).
+2. TOP PRIORITIES — The 1-2 most important things the user should focus on
+   RIGHT NOW, based on the priority scoring above. Explain WHY each is the
+   priority (overdue, health-critical, time-sensitive). If TOP PRIORITIES
+   data is provided above, use those items. Otherwise derive from the data.
+3. REMAINING ITEMS — Other pending tasks, grouped by urgency (overdue first,
+   then due today, then upcoming). Keep this concise — the user already
+   knows their task list. Use a tight list, not paragraphs.
+4. HEALTH / MEDICATION STATUS — Overdue meds by name with firm reminder.
+   Upcoming meds as gentle note. Skip meds already taken (don't list them).
+   Include workout and reading status ONLY if not yet done.
 5. INTELLIGENCE INSIGHT (optional) — One pattern, correlation, or observation
    from recent data (e.g., streak at risk, goal drift, health trend).
-6. CLOSING QUESTION — One specific, actionable question to drive next action
-   (e.g., "Want to knock out that Bible reading now?").
+   Only include if there's a genuine insight — never force one.
+6. CLOSING QUESTION — One specific, actionable question to drive the next
+   action (e.g., "Want to knock out that Bible reading now?" or "Ready to
+   tackle the overdue finance task?"). Must relate to the top priority.
+
+TONE AND STYLE:
+- You are a Chief of Staff delivering an executive briefing, not a dashboard
+  reading data aloud. SYNTHESIZE, don't list. PRIORITIZE, don't enumerate.
+- WRONG: "Wake Up is complete. Prayer Time is complete. Bible Reading is
+  complete. Workout is complete. Shower is complete."
+- RIGHT: "Morning routine is wrapped up — workout logged, quiet time done."
+- WRONG: "You have 3 overdue tasks and 5 due today."
+- RIGHT: "You've got a backlog building — the finance review from Thursday
+  is the most overdue, and your Bible reading is the easy win right now."
+- Lead with what NEEDS ATTENTION, not with a recap of what's done.
+- Be concise — this person wants an actionable briefing, not a motivational
+  speech or a day review.
 
 INSTRUCTIONS:
-- Lead with what's REMAINING — the user is asking what's LEFT, not for a recap of their day.
-- Do NOT list completed items unless the user explicitly asks "how did my day go" or "recap."
+- Lead with what's REMAINING — the user is asking what's LEFT, not for a recap.
+- Do NOT list completed items individually unless remarkable. Summarize them.
 - LIST outstanding items BY NAME so they can take action.
-- Group by urgency: overdue first, then due today, then upcoming.
 - For meds, list what's NOT taken yet by name — don't just say "74% adherence."
 - For tasks, list each overdue/due-today task by title — don't just say "2 tasks due."
 - If there are no tasks due today and nothing overdue, say so clearly.
-- End with a prioritized recommendation if there are multiple items.
-- Be concise — this person wants an actionable list, not a motivational summary or day review.
-- CRITICAL: The data above is the AUTHORITATIVE current state. Only reference tasks, calendar items, and medications that appear in the sections above. If something was mentioned earlier in the conversation but is NOT listed above, it has been moved, completed, or rescheduled — do NOT mention it.
-- NEVER give generic scheduling advice ("consider creating a daily schedule", "aim for 7-9 hours of sleep"). You have the user's ACTUAL data above — use it. If the data sections are empty, tell them what's empty (e.g., "You have no tasks due today") — do NOT fall back to generic advice.
+- CRITICAL: The data above is the AUTHORITATIVE current state. Only reference
+  tasks, calendar items, and medications that appear above. If something was
+  mentioned earlier in the conversation but is NOT listed above, it has been
+  moved, completed, or rescheduled — do NOT mention it.
+- NEVER give generic scheduling advice ("consider creating a daily schedule",
+  "aim for 7-9 hours of sleep"). You have the user's ACTUAL data — use it.
 
 LOW-DATA DAY HANDLING (v7):
 If few or no tasks/events exist, the briefing must still be useful. Prioritize:
 1. Goals — remind the user of their declared priorities
 2. Goal-supporting actions — workout status, routines, habits
-3. Missing tracking that unlocks intelligence ("I don't see any weight entries logged yet — tracking that would help me spot trends")
+3. Missing tracking that unlocks intelligence
 4. One clear recommendation — even if it's just "Your plate is clear. Good day to focus on [goal]."
 Never default to generic productivity filler. An empty day is a briefing opportunity, not a void.
 """

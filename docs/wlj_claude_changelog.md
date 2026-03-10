@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-10 — CoS check-in: priority synthesis and signal deduplication
+
+- **Problem:** Beth's check-in responses suffered from two issues: (1) information duplication — the same accomplishment (e.g., "workout done") appeared in multiple sections; (2) no priority synthesis — Beth listed all pending tasks equally instead of highlighting what matters most right now.
+- **Signal deduplication:** Added domain tracking (`_reported_domains` set) that records which domains (fitness, faith_reading, medications_taken, completed_tasks, completed_events) are already covered by authoritative data sections. The LLM receives a `SIGNAL DEDUPLICATION (REQUIRED)` instruction block directing it to mention each domain at most once, synthesizing completions into brief acknowledgements instead of repeating them.
+- **Priority synthesis:** Added a scoring heuristic that ranks all pending items by urgency: overdue meds (score 12, health-critical), overdue tasks (score 9 + commitment level + health module bonus), due-today tasks (score 3 + time proximity bonus + commitment + module bonuses), and upcoming calendar events (score 5). The top 2 items are injected as a `TOP PRIORITIES RIGHT NOW` section that Beth must highlight in her response.
+- **Updated response format:** Replaced the old 6-part structure with a new synthesis-oriented format: (1) Situation Overview (brief synthesis, not item-by-item listing), (2) Top Priorities (the 1-2 items that matter most), (3) Remaining Items (other pending, grouped by urgency), (4) Health/Medication Status (only un-done items), (5) Intelligence Insight (optional), (6) Closing Question (tied to top priority).
+- **Tone instructions:** Added explicit wrong/right examples to guide the LLM toward Chief of Staff synthesis ("Morning routine is wrapped up") over dashboard narration ("Wake Up is complete. Prayer Time is complete...").
+- **Variable scoping fix:** Pre-initialized all lists used by priority synthesis and dedup (`completed_today_tasks`, `overdue_tasks`, `due_today_tasks`, `overdue_meds`, `taken_meds`, `completed_events`, `upcoming_events`) before try/except blocks to prevent NameError if a block fails. Fixed fragile `if 'upcoming_events' in dir()` check.
+- **Tests:** All 708 AI tests + 412 orchestrator/insights/dashboard tests pass.
+- **Files:** `apps/ai/personal_assistant.py`
+
 ## 2026-03-10 — Fix workout plateau reporting across CoS and dashboard
 
 - **Root cause:** Stale "strength plateau" insights persisted indefinitely because: (1) StrengthPlateauRule returned [] when exercises improved but never dismissed old insights, (2) CoS queried insights with no time filter, (3) AJAX set saves didn't refresh SAE fitness state, (4) e1RM-only plateau detection missed real weight progression.

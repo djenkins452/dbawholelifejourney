@@ -24,7 +24,7 @@
             <!-- Year -->
             <div class="form-group">
                 <label for="id_year" class="form-label">Year</label>
-                <input type="number" name="year" id="id_year" class="form-input" 
+                <input type="number" inputmode="numeric" pattern="[0-9]*" name="year" id="id_year" class="form-input"
                        value="{{ form.year.value|default:'' }}" required min="2020" max="2100"
                        style="max-width: 150px;">
             </div>

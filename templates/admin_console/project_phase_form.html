@@ -24,7 +24,7 @@
             <div class="form-row">
                 <div class="form-group">
                     <label for="id_phase_number" class="form-label">Phase Number</label>
-                    <input type="number" name="phase_number" id="id_phase_number" class="form-input"
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" name="phase_number" id="id_phase_number" class="form-input"
                            value="{{ form.phase_number.value|default:'' }}" required min="1">
                 </div>
 

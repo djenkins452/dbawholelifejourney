@@ -52,7 +52,7 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="id_sort_order" class="form-label">Sort Order</label>
-                        <input type="number" name="sort_order" id="id_sort_order" class="form-input" 
+                        <input type="number" inputmode="numeric" pattern="[0-9]*" name="sort_order" id="id_sort_order" class="form-input"
                                value="{{ form.sort_order.value|default:'0' }}" min="0">
                     </div>
                     

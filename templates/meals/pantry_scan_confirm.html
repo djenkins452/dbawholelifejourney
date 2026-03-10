@@ -135,7 +135,7 @@
 
                         <div class="detection-field detection-field-qty">
                             <label for="quantity_{{ detection.pk }}" class="detection-field-label">Qty</label>
-                            <input type="number" name="quantity_{{ detection.pk }}" id="quantity_{{ detection.pk }}"
+                            <input type="number" inputmode="decimal" name="quantity_{{ detection.pk }}" id="quantity_{{ detection.pk }}"
                                    value="{{ detection.suggested_quantity|default:'1' }}"
                                    min="0.1" step="0.1" class="detection-input">
                         </div>

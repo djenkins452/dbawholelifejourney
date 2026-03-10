@@ -145,7 +145,7 @@
                     
                     <div class="form-group">
                         <label for="id_purchase_price" class="form-label">Purchase Price ($)</label>
-                        <input type="number" name="purchase_price" id="id_purchase_price" class="form-input"
+                        <input type="number" inputmode="decimal" name="purchase_price" id="id_purchase_price" class="form-input"
                                value="{{ form.purchase_price.value|default:'' }}"
                                step="0.01" min="0" placeholder="0.00">
                     </div>
@@ -154,7 +154,7 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="id_estimated_value" class="form-label">Current Estimated Value ($)</label>
-                        <input type="number" name="estimated_value" id="id_estimated_value" class="form-input"
+                        <input type="number" inputmode="decimal" name="estimated_value" id="id_estimated_value" class="form-input"
                                value="{{ form.estimated_value.value|default:'' }}"
                                step="0.01" min="0" placeholder="0.00">
                         <p class="form-help">What would it cost to replace today?</p>

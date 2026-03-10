@@ -18,7 +18,7 @@ Included from habit_goal_detail.html when measurement_type == 'count'.
         </button>
     </div>
 
-    <input type="number" id="counter-input" class="counter-input" min="0" step="1"
+    <input type="number" inputmode="numeric" pattern="[0-9]*" id="counter-input" class="counter-input" min="0" step="1"
            value="{{ today_entry.count_value|default:'0' }}" aria-label="Count value">
 
     {% if target_value %}

@@ -112,13 +112,13 @@
                         <div class="receipt-item-fields">
                             <div class="receipt-item-field">
                                 <label for="qty_{{ item.pk }}" class="field-label-sm">Qty</label>
-                                <input type="number" name="qty_{{ item.pk }}" id="qty_{{ item.pk }}"
+                                <input type="number" inputmode="decimal" name="qty_{{ item.pk }}" id="qty_{{ item.pk }}"
                                        value="{{ item.quantity|floatformat:0 }}"
                                        min="0.1" step="0.1" class="receipt-field-input qty-input">
                             </div>
                             <div class="receipt-item-field">
                                 <label for="price_{{ item.pk }}" class="field-label-sm">Price</label>
-                                <input type="number" name="price_{{ item.pk }}" id="price_{{ item.pk }}"
+                                <input type="number" inputmode="decimal" name="price_{{ item.pk }}" id="price_{{ item.pk }}"
                                        value="{{ item.raw_price|floatformat:2 }}"
                                        min="0" step="0.01" class="receipt-field-input price-input">
                             </div>

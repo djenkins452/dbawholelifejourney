@@ -64,26 +64,26 @@
 
                 <div class="ofc-form-group">
                     <label>Total Users</label>
-                    <input type="number" name="user_count" value="{{ form_data.user_count|default:100 }}" min="1" max="100000">
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" name="user_count" value="{{ form_data.user_count|default:100 }}" min="1" max="100000">
                 </div>
                 <div class="ofc-form-group">
                     <label>Avg Interactions / User / Day</label>
-                    <input type="number" name="avg_interactions" value="{{ form_data.avg_interactions|default:3.0 }}" step="0.1" min="0.1">
+                    <input type="number" inputmode="decimal" name="avg_interactions" value="{{ form_data.avg_interactions|default:3.0 }}" step="0.1" min="0.1">
                 </div>
                 <div class="ofc-form-group">
                     <label>Escalation Rate (0.0 - 1.0)</label>
-                    <input type="number" name="escalation_rate" value="{{ form_data.escalation_rate|default:0.15 }}" step="0.01" min="0" max="1">
+                    <input type="number" inputmode="decimal" name="escalation_rate" value="{{ form_data.escalation_rate|default:0.15 }}" step="0.01" min="0" max="1">
                 </div>
 
                 <div class="ofc-form-section">Model Mix</div>
                 <div class="ofc-form-row">
                     <div class="ofc-form-group">
                         <label>GPT-4o %</label>
-                        <input type="number" name="gpt4o_pct" value="{{ form_data.gpt4o_pct|default:0.1 }}" step="0.05" min="0" max="1">
+                        <input type="number" inputmode="decimal" name="gpt4o_pct" value="{{ form_data.gpt4o_pct|default:0.1 }}" step="0.05" min="0" max="1">
                     </div>
                     <div class="ofc-form-group">
                         <label>GPT-4o-mini %</label>
-                        <input type="number" name="gpt4o_mini_pct" value="{{ form_data.gpt4o_mini_pct|default:0.9 }}" step="0.05" min="0" max="1">
+                        <input type="number" inputmode="decimal" name="gpt4o_mini_pct" value="{{ form_data.gpt4o_mini_pct|default:0.9 }}" step="0.05" min="0" max="1">
                     </div>
                 </div>
 
@@ -91,17 +91,17 @@
                 <div class="ofc-form-row">
                     <div class="ofc-form-group">
                         <label>Free %</label>
-                        <input type="number" name="free_pct" value="{{ form_data.free_pct|default:0.6 }}" step="0.05" min="0" max="1">
+                        <input type="number" inputmode="decimal" name="free_pct" value="{{ form_data.free_pct|default:0.6 }}" step="0.05" min="0" max="1">
                     </div>
                     <div class="ofc-form-group">
                         <label>Student %</label>
-                        <input type="number" name="student_pct" value="{{ form_data.student_pct|default:0.2 }}" step="0.05" min="0" max="1">
+                        <input type="number" inputmode="decimal" name="student_pct" value="{{ form_data.student_pct|default:0.2 }}" step="0.05" min="0" max="1">
                     </div>
                 </div>
                 <div class="ofc-form-row">
                     <div class="ofc-form-group">
                         <label>Adult %</label>
-                        <input type="number" name="adult_pct" value="{{ form_data.adult_pct|default:0.2 }}" step="0.05" min="0" max="1">
+                        <input type="number" inputmode="decimal" name="adult_pct" value="{{ form_data.adult_pct|default:0.2 }}" step="0.05" min="0" max="1">
                     </div>
                     <div class="ofc-form-group">
                         <label>&nbsp;</label>
@@ -112,11 +112,11 @@
                 <div class="ofc-form-row">
                     <div class="ofc-form-group">
                         <label>Student $/mo</label>
-                        <input type="number" name="student_price" value="{{ form_data.student_price|default:'3.99' }}" step="0.01" min="0">
+                        <input type="number" inputmode="decimal" name="student_price" value="{{ form_data.student_price|default:'3.99' }}" step="0.01" min="0">
                     </div>
                     <div class="ofc-form-group">
                         <label>Adult $/mo</label>
-                        <input type="number" name="adult_price" value="{{ form_data.adult_price|default:'7.99' }}" step="0.01" min="0">
+                        <input type="number" inputmode="decimal" name="adult_price" value="{{ form_data.adult_price|default:'7.99' }}" step="0.01" min="0">
                     </div>
                 </div>
 

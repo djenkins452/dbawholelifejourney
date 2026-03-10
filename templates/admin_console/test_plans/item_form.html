@@ -64,7 +64,7 @@
 
                 <div class="form-group">
                     <label for="id_order" class="form-label">Order</label>
-                    <input type="number" name="order" id="id_order" value="{{ form.order.value|default:0 }}"
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" name="order" id="id_order" value="{{ form.order.value|default:0 }}"
                            class="form-input" min="0">
                     <div class="form-hint">Display order within phase</div>
                 </div>

@@ -32,7 +32,7 @@ Included from habit_goal_detail.html when measurement_type == 'target'.
 
     <div class="target-input-row">
         <label for="target-input">Today's Entry:</label>
-        <input type="number" id="target-input" class="form-control" step="0.1"
+        <input type="number" inputmode="decimal" id="target-input" class="form-control" step="0.1"
                value="{{ today_entry.target_value|default:'' }}"
                placeholder="Enter value">
         {% if target_unit %}<span class="target-input-unit">{{ target_unit }}</span>{% endif %}

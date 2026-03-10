@@ -104,7 +104,7 @@
                         <div class="form-group">
                             <label class="form-label">Repeat every</label>
                             <div class="interval-row">
-                                <input type="number" id="recurrence-interval" min="1" max="99" value="1"
+                                <input type="number" inputmode="numeric" pattern="[0-9]*" id="recurrence-interval" min="1" max="99" value="1"
                                        class="form-input interval-input">
                                 <span class="interval-unit" id="interval-unit-label">day(s)</span>
                             </div>
@@ -132,7 +132,7 @@
                                 <label class="radio-option">
                                     <input type="radio" name="monthly_type" value="day_of_month" checked>
                                     <span>Day</span>
-                                    <input type="number" id="monthly-day" min="1" max="31" value="1"
+                                    <input type="number" inputmode="numeric" pattern="[0-9]*" id="monthly-day" min="1" max="31" value="1"
                                            class="form-input inline-input">
                                     <span>of the month</span>
                                 </label>

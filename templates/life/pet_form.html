@@ -91,7 +91,7 @@
                 
                 <div class="form-group">
                     <label for="id_weight" class="form-label">Weight (lbs)</label>
-                    <input type="number" name="weight" id="id_weight" class="form-input"
+                    <input type="number" inputmode="decimal" name="weight" id="id_weight" class="form-input"
                            value="{{ form.weight.value|default:'' }}"
                            step="0.1" min="0" style="max-width: 150px;">
                 </div>

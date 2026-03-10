@@ -45,7 +45,7 @@
             {% csrf_token %}
             <label>Update Progress</label>
             <div class="form-row">
-                <input type="number" name="current_amount" value="{{ goal.current_amount }}" step="0.01" class="form-input">
+                <input type="number" inputmode="decimal" name="current_amount" value="{{ goal.current_amount }}" step="0.01" class="form-input">
                 <button type="submit" class="btn btn-primary">Update</button>
             </div>
         </form>

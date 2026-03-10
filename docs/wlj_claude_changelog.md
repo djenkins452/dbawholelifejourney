@@ -6,6 +6,41 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-10 — Add inputmode attributes to hardcoded number inputs in non-health templates
+
+- **Issue:** Following the health template inputmode fix, hardcoded `<input type="number">` tags in non-health templates still lacked `inputmode` attributes, causing full QWERTY keyboard on mobile instead of numeric keypad.
+- **Fix:** Added `inputmode` attributes to all hardcoded number inputs across 23 non-health templates:
+  - **`inputmode="numeric" pattern="[0-9]*"`** for integer fields: user_count, recurrence-interval, monthly-day, prep_time, cook_time, servings, original_year, counter, year, phase_number, sort_order, order, verse-start, verse-end, daily_calorie_goal, protein/carbs/fat percentages
+  - **`inputmode="decimal"`** for decimal fields: amounts (step=0.01), prices (step=0.01), percentages (step=0.05), weight (step=0.1), quantity (step=0.1), target value (step=0.1), cost (step=0.01), rates (step=0.01)
+- **Files modified (23):**
+  - `templates/finance/dashboard.html` — amount input (decimal)
+  - `templates/finance/goal_detail.html` — current_amount input (decimal)
+  - `apps/owner_finance/templates/owner_finance/simulator.html` — 10 inputs (1 integer, 9 decimal)
+  - `templates/life/inventory_form.html` — purchase_price, estimated_value (decimal)
+  - `templates/life/maintenance_form.html` — cost (decimal)
+  - `templates/life/task_form.html` — recurrence-interval, monthly-day (integer)
+  - `templates/life/recipe_scan.html` — prep_time, cook_time, servings (integer)
+  - `templates/life/recipe_form.html` — prep_time, cook_time, servings (integer)
+  - `templates/life/pet_form.html` — weight (decimal)
+  - `templates/life/pet_record_form.html` — cost (decimal)
+  - `templates/life/significant_event_form.html` — original_year (integer)
+  - `templates/meals/receipt_confirm.html` — qty, price (decimal)
+  - `templates/meals/pantry_scan_confirm.html` — quantity (decimal)
+  - `apps/purpose/templates/purpose/includes/counter_widget.html` — counter (integer)
+  - `apps/purpose/templates/purpose/includes/target_input_widget.html` — target (decimal)
+  - `apps/purpose/templates/purpose/reflection_form.html` — year (integer)
+  - `apps/purpose/templates/purpose/direction_form.html` — year (integer)
+  - `templates/admin_console/project_phase_form.html` — phase_number (integer)
+  - `templates/admin_console/choice_option_form.html` — sort_order (integer)
+  - `templates/admin_console/theme_form.html` — sort_order (integer)
+  - `templates/admin_console/test_plans/item_form.html` — order (integer)
+  - `templates/faith/scripture_list.html` — verse-start, verse-end (integer)
+  - `templates/users/preferences.html` — daily_calorie_goal, protein/carbs/fat percentages (integer)
+- **Tests:** finance (28), life (42), purpose (172) — all passing
+- **Why:** Ensures consistent numeric keypad experience on mobile across all non-health templates, matching the health template fix applied earlier
+
+---
+
 ## 2026-03-10 — Add inputmode attributes to hardcoded number inputs in health templates
 
 - **Issue:** On mobile (especially iOS), `<input type="number">` fields in health templates showed a full QWERTY keyboard instead of a numeric keypad. This made data entry slower and error-prone.

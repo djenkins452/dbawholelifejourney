@@ -334,7 +334,7 @@ class Task(UserOwnedModel):
     )
     
     class Meta:
-        ordering = ['completion_status', 'priority', 'scheduled_time', '-created_at']
+        ordering = ['completion_status', 'priority', 'due_date', 'scheduled_time', '-created_at']
         verbose_name = "Task"
         verbose_name_plural = "Tasks"
     

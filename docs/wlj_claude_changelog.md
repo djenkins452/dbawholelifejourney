@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-10 — Fix task list ordering by due date
+
+- **Problem:** Tasks on the task list page (/life/tasks/) were not sorted by due date. Within each priority group (Now/Soon/Someday), tasks were ordered by `scheduled_time` first, then `due_date`. This caused tasks with later due dates but earlier scheduled times to appear before tasks due sooner.
+- **Fix:** Changed ordering in `TaskListView`, `ProjectDetailView`, and the Task model Meta default to sort by `due_date` before `scheduled_time` within each priority group. Order is now: `completion_status → priority → due_date (nulls last) → scheduled_time (nulls last) → -created_at`.
+- **Files:** `apps/life/views.py`, `apps/life/models.py`
+- **Tests:** 373 life tests pass.
+
 ## 2026-03-10 — Personal Operating Context (Phase 1)
 
 - **Feature:** Added Personal Operating Context — a behavioral synthesis layer that allows Beth to understand how the user typically operates and frame guidance accordingly. This is NOT a new engine; it's a lightweight pre-computed profile that follows the established PRECOMPUTE → STORE → READ → INJECT pattern (same as CoSSituationState).

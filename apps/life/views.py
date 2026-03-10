@@ -202,9 +202,15 @@ class ProjectDetailView(LifeAccessMixin, DetailView):
             When(priority='someday', then=Value(3)),
             default=Value(4),
         )
+        from django.db.models import F
         context['tasks'] = self.object.tasks.annotate(
             priority_order=priority_order
-        ).order_by('completion_status', 'priority_order', '-created_at')
+        ).order_by(
+            'completion_status', 'priority_order',
+            F('due_date').asc(nulls_last=True),
+            F('scheduled_time').asc(nulls_last=True),
+            '-created_at',
+        )
         context['events'] = self.object.events.order_by('start_date')[:5]
         context['user_today'] = get_user_today(self.request.user)
         return context
@@ -320,8 +326,9 @@ class TaskListView(HelpContextMixin, LifeAccessMixin, ListView):
             priority_order=priority_order
         ).order_by(
             'completion_status', 'priority_order',
+            F('due_date').asc(nulls_last=True),
             F('scheduled_time').asc(nulls_last=True),
-            'due_date', '-created_at',
+            '-created_at',
         )
 
     def get_context_data(self, **kwargs):

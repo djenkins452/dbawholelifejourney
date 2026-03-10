@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-10 — Fix task list ordering by due date
+
+- **Problem:** Tasks on the task list page (/life/tasks/) were not sorted by due date. Within each priority group (Now/Soon/Someday), tasks were ordered by `scheduled_time` first, then `due_date`. This caused tasks with later due dates but earlier scheduled times to appear before tasks due sooner.
+- **Fix:** Changed ordering in `TaskListView`, `ProjectDetailView`, and the Task model Meta default to sort by `due_date` before `scheduled_time` within each priority group. Order is now: `completion_status → priority → due_date (nulls last) → scheduled_time (nulls last) → -created_at`.
+- **Files:** `apps/life/views.py`, `apps/life/models.py`
+- **Tests:** 373 life tests pass.
+
 ## 2026-03-10 — Fix Beth task commitment_level updates (was writing to wrong field)
 
 - **Problem:** When a user told Beth "Change my Charge Watch to Non-Negotiable", Beth confirmed the update but wrote to `task.effort` instead of `task.commitment_level`. The `mutate_task` intent had no `new_commitment_level` parameter, so the AI mapped commitment-level phrases to `new_effort` (the closest available field). The UI NN badge never appeared because it reads `commitment_level`.

@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-09 (Activity Disambiguation — DISAMBIGUATE decision type for multi-candidate reconciliation)
+**Last updated:** 2026-03-10 (Proactive intelligence prompt rewrite — v7 MANDATORY CONTEXT EVALUATION)
 
 ---
 
@@ -230,7 +230,7 @@ Uses `ThreadPoolExecutor(max_workers=6)`.
 | Pressure & Deadlines | `_build_pressure_and_deadlines()` | **SAE intervention** | weekly_pressure, deadline_snapshot |
 | Health & Vitals | `_build_health_and_vitals()` | **SAE health/fitness**, FastingSession, medicine_utils | weight, trend, vitals, workouts, fasting, medication, **exercise_progress** (per-exercise e1RM trends & plateau status) |
 | Calendar Events | `_build_calendar_events()` | CalendarEvent (live) | events with time_status markers |
-| Intelligence Signals | `_build_intelligence_signals()` | Insight, Prediction, Guidance (engine output) | active insights/predictions/guidance |
+| Intelligence Signals | `_build_intelligence_signals()` | Insight, Prediction, Guidance (engine output) | active insights/predictions/guidance, **intelligence_status** (full/partial/degraded), intelligence_sources_failed |
 | People & Mood | `_build_people_and_mood()` | JournalEntry, Relationships | mood_trends, relationship_signals |
 | Loops & Events | `_build_loops_and_events()` | **SAE goals/intervention/feedback/life_events** | open_loops, friction_gates |
 | Strategy & Signals | `_build_strategy_and_signals()` | Strategic goals | strategy_snapshot |
@@ -259,7 +259,8 @@ System prompt layers (highest priority first):
 │     └─ v4: Data State Snapshot moved to END (highest recency weight)
 │     └─ v5: RESPONSE QUALITY RULES + CoS Voice + Missing Data Framing
 │     └─ v6: Consolidated CHIEF OF STAFF OPERATIONAL RULES (6 rules)
-│     └─ v6: MANDATORY CONTEXT EVALUATION (7 steps + anti-template)
+│     └─ v7: MANDATORY CONTEXT EVALUATION (8 steps — added STEP 8: EVALUATE INTELLIGENCE SIGNALS)
+│     └─ v7: PROACTIVE INTELLIGENCE directive (priority-ranked signal surfacing)
 │     └─ v8: SITUATIONAL AWARENESS SUMMARY (pattern-aware guidance rules)
 ├─ 7. Executive briefing + conversation memory (rolling summary)
 ├─ 8. Semantic memory retrieval (Phase 7.1: query-relevant past conversations)

@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-10 — Proactive intelligence prompt rewrite (CoS context v7)
+
+- **Issue:** Beth (CoS) had all intelligence data wired end-to-end (PIE insights, PRIE predictions, PGE guidance, CDCE cross-domain patterns), but prompt instructions told her to only surface them "when the user asks about progress" — making intelligence reactive instead of proactive. Additionally, exception handling in `_build_intelligence_signals()` silently swallowed errors with `except Exception: result = []`, hiding engine failures.
+- **Fix (3 changes to `apps/core/ai_orchestrator/cos_context.py`):**
+  1. **Intelligence status tracking:** Added `intelligence_status` (full/partial/degraded) and `intelligence_sources_failed` list to `_build_intelligence_signals()`. Each source (PIE, PRIE, PGE, CDCE) now tracks success/failure. Exceptions log at `logger.warning()` with `exc_info=True` instead of silently returning empty lists.
+  2. **Proactive prompt rewrite:** Rewrote 4 intelligence section headers from reactive ("weave into responses when the user asks") to source-tagged ("DETECTED PATTERNS (PIE):", "TRAJECTORY OUTLOOK (PRIE):", etc.). Added `PROACTIVE INTELLIGENCE` directive with 6-level priority ordering (critical health risk → high drift → cross-domain correlations → predictions → warnings → guidance).
+  3. **Context relevance carve-out:** Updated CONTEXT RELEVANCE FILTER, ENFORCEMENT, and MANDATORY CONTEXT EVALUATION (v6→v7) to distinguish operational data (reactive/reference-only) from intelligence signals (proactive). Added STEP 8 "EVALUATE INTELLIGENCE SIGNALS" to the mandatory evaluation checklist.
+- **Files modified:**
+  - `apps/core/ai_orchestrator/cos_context.py` — intelligence_status, proactive prompt, v7 evaluation
+  - `docs/ENGINE_COS_REFERENCE.md` — updated CoS context pipeline docs
+- **Tests:** 41 PIE tests + 198 orchestrator/CoS tests — all passing
+- **Why:** Intelligence engines were working correctly but their output was wasted by reactive prompt instructions. This change makes Beth proactively surface the single most important intelligence signal per conversation.
+
 ## 2026-03-10 — Global NumberInput mobile keypad enhancement (core widget patch)
 
 - **Issue:** 72+ Django form NumberInput widgets across health, finance, users, and life apps rendered without `inputmode`, causing mobile browsers to show a full QWERTY keyboard instead of the numeric keypad for number entry.

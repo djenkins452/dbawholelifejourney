@@ -599,6 +599,10 @@ def _build_intelligence_signals(user):
     """Build insights, predictions, guidance, and correlations."""
     result = {}
 
+    # Track which intelligence sources loaded successfully
+    _sources_loaded = []
+    _sources_failed = []
+
     # Active PIE insights
     try:
         from apps.core.ai_insights.models import Insight
@@ -617,8 +621,11 @@ def _build_intelligence_signals(user):
             }
             for i in recent_insights
         ]
-    except Exception:
+        _sources_loaded.append('PIE')
+    except Exception as e:
+        logger.warning("Intelligence signal failed (PIE): %s", e, exc_info=True)
         result['active_insights'] = []
+        _sources_failed.append('PIE')
 
     # Active PRIE predictions
     try:
@@ -638,8 +645,11 @@ def _build_intelligence_signals(user):
             }
             for p in active_predictions
         ]
-    except Exception:
+        _sources_loaded.append('PRIE')
+    except Exception as e:
+        logger.warning("Intelligence signal failed (PRIE): %s", e, exc_info=True)
         result['active_predictions'] = []
+        _sources_failed.append('PRIE')
 
     # Active PGE guidance
     try:
@@ -663,8 +673,11 @@ def _build_intelligence_signals(user):
             }
             for g in active_guidance
         ]
-    except Exception:
+        _sources_loaded.append('PGE')
+    except Exception as e:
+        logger.warning("Intelligence signal failed (PGE): %s", e, exc_info=True)
         result['active_guidance'] = []
+        _sources_failed.append('PGE')
 
     # Active CDCE correlations
     try:
@@ -684,8 +697,20 @@ def _build_intelligence_signals(user):
             }
             for c in active_correlations
         ]
-    except Exception:
+        _sources_loaded.append('CDCE')
+    except Exception as e:
+        logger.warning("Intelligence signal failed (CDCE): %s", e, exc_info=True)
         result['cross_domain_correlations'] = []
+        _sources_failed.append('CDCE')
+
+    # Intelligence status — tells Beth whether she has full or degraded awareness
+    if not _sources_failed:
+        result['intelligence_status'] = 'full'
+    elif len(_sources_failed) >= 3:
+        result['intelligence_status'] = 'degraded'
+    else:
+        result['intelligence_status'] = 'partial'
+    result['intelligence_sources_failed'] = _sources_failed
 
     # Journal content intelligence (themes, concerns, sentiment trajectory)
     try:
@@ -2110,14 +2135,16 @@ def format_cos_system_injection(context):
     )
     lines.append("")
     lines.append(
-        "CONTEXT RELEVANCE FILTER: The data below is REFERENCE MATERIAL, not "
-        "content to inject into every response. Use it when the user asks about "
-        "it or when it directly answers their question. Do NOT attach schedule "
-        "updates, medication status, task counts, or health metrics to responses "
-        "about unrelated topics. A response about fasting does not need a "
-        "medication schedule. A question about a recipe does not need task "
-        "reminders. Answer the question — nothing more, unless the extra context "
-        "genuinely helps."
+        "CONTEXT RELEVANCE FILTER: Operational data (schedule, medication status, "
+        "task counts, raw health metrics) is REFERENCE MATERIAL — use it when the "
+        "user asks or when it directly answers their question. Do NOT attach "
+        "schedule updates, medication reminders, or task counts to unrelated "
+        "responses.\n"
+        "EXCEPTION — INTELLIGENCE SIGNALS: Pattern detections, cross-domain "
+        "correlations, trajectory predictions, and drift warnings are PROACTIVE "
+        "intelligence. When a meaningful signal exists (warning, critical, or "
+        "strong correlation), you SHOULD lead with it briefly, even if the user "
+        "didn't ask. This is what a Chief of Staff does — surface what matters."
     )
     lines.append("")
     lines.append(
@@ -2153,7 +2180,7 @@ def format_cos_system_injection(context):
 
     # ── PART 3: Chief of Staff Reasoning Hierarchy (v6 — operational eval) ──
     lines.append(
-        "=== MANDATORY CONTEXT EVALUATION (v6) ===\n"
+        "=== MANDATORY CONTEXT EVALUATION (v7) ===\n"
         "BEFORE generating ANY response, you MUST complete these steps internally:\n"
         "\n"
         "STEP 1 — READ the Data State Snapshot. Note exact counts for every domain.\n"
@@ -2164,15 +2191,21 @@ def format_cos_system_injection(context):
         "STEP 6 — NOTE any missing data domains (no weight, no sleep, no goals, etc.).\n"
         "STEP 7 — READ the Situational Awareness Summary (if present). Note momentum, "
         "drift, one-off sensitive domains, and emotional context.\n"
+        "STEP 8 — EVALUATE INTELLIGENCE SIGNALS: Scan the PROACTIVE INTELLIGENCE "
+        "section below. Is there a critical insight, elevated drift, strong "
+        "correlation, or high-confidence prediction? If yes, determine the SINGLE "
+        "most important signal to surface. If multiple signals are related, "
+        "synthesize them into one narrative.\n"
         "\n"
         "Only AFTER completing all steps, generate your response using this "
         "reasoning hierarchy:\n"
-        "1. Use DIRECT USER DATA if available (exact values from context above)\n"
-        "2. Use DERIVED INTELLIGENCE (health intelligence summaries, pattern insights)\n"
-        "3. Use BEHAVIORAL FORECASTS (completion probabilities, drift risk)\n"
-        "4. Use LIFE PRIORITIES and identity context (ranked priorities, non-negotiables)\n"
-        "5. Use GENERAL EXPERTISE — BUT ONLY grounded in the user's actual situation\n"
-        "6. If information is still missing, ACKNOWLEDGE the gap and suggest tracking\n"
+        "1. Use PROACTIVE INTELLIGENCE first — surface the most important signal\n"
+        "2. Use DIRECT USER DATA if available (exact values from context above)\n"
+        "3. Use DERIVED INTELLIGENCE (health intelligence summaries, pattern insights)\n"
+        "4. Use BEHAVIORAL FORECASTS (completion probabilities, drift risk)\n"
+        "5. Use LIFE PRIORITIES and identity context (ranked priorities, non-negotiables)\n"
+        "6. Use GENERAL EXPERTISE — BUT ONLY grounded in the user's actual situation\n"
+        "7. If information is still missing, ACKNOWLEDGE the gap and suggest tracking\n"
         "\n"
         "CRITICAL: Even when data is sparse, you still have: time of day, "
         "task counts, workout status, goal status, and what\\'s NOT yet logged. "
@@ -2191,15 +2224,24 @@ def format_cos_system_injection(context):
     # ── PART 4: Strengthened Context Relevance Rule ──
     lines.append(
         "=== CONTEXT RELEVANCE ENFORCEMENT ===\n"
-        "Do NOT inject unrelated reminders, signals, or data into responses.\n"
+        "Do NOT inject unrelated OPERATIONAL reminders into responses.\n"
         "Examples of violations:\n"
         "  • A question about sleep science → Do NOT append task reminders\n"
-        "  • A question about nutrition → Do NOT append medication reminders\n"
-        "  • A request for encouragement → Do NOT append health metric summaries\n"
+        "  • A question about nutrition → Do NOT append medication schedules\n"
         "  • A general knowledge question → Do NOT append schedule updates\n"
         "\n"
-        "Only reference a data domain if it is DIRECTLY relevant to the user's "
-        "question. When in doubt, leave it out.\n"
+        "EXCEPTION — Intelligence signals ARE allowed proactively:\n"
+        "  • A 'good morning' greeting → You MAY lead with a meaningful pattern "
+        "or drift observation before asking how to help\n"
+        "  • A progress update → You MAY connect it to a relevant correlation "
+        "or prediction\n"
+        "  • Any conversation → You MAY briefly note a critical or warning-level "
+        "insight if it affects the user's well-being\n"
+        "\n"
+        "The distinction: Operational data (task lists, med schedules, raw metrics) "
+        "is reference material — use on request. Intelligence signals (patterns, "
+        "correlations, drift, predictions) are proactive awareness — surface when "
+        "meaningful.\n"
         "=== END CONTEXT RELEVANCE ==="
     )
     lines.append("")
@@ -2490,22 +2532,86 @@ def format_cos_system_injection(context):
                 f"{ev_protected}{status_tag}"
             )
 
-    # Key signals — only include things the CoS should mention or act on
-    # (Skip raw scores/percentages that don't help the conversation)
+    # ── PROACTIVE INTELLIGENCE SIGNALS ──
+    # These are pattern-level findings from the intelligence engines.
+    # Unlike operational data (schedule, meds, tasks), intelligence signals
+    # should be surfaced PROACTIVELY when they are meaningful.
 
-    # Active insights — coaching-level narratives from PIE
+    # Intelligence status — tells CoS if awareness is complete or degraded
+    intel_status = context.get('intelligence_status', 'full')
+    if intel_status == 'degraded':
+        lines.append("")
+        lines.append(
+            "INTELLIGENCE STATUS: DEGRADED — Some intelligence engines failed to "
+            "load. Pattern data may be incomplete. Avoid strong conclusions about "
+            "trends or correlations in this session. Stick to direct observational "
+            "data (schedule, medications, tasks)."
+        )
+    elif intel_status == 'partial':
+        failed = context.get('intelligence_sources_failed', [])
+        lines.append("")
+        lines.append(
+            f"INTELLIGENCE STATUS: PARTIAL — {', '.join(failed)} unavailable. "
+            "Other intelligence sources are active."
+        )
+
+    # Collect all signals for priority-ranked synthesis
     insights = context.get('active_insights', [])
+    predictions = context.get('active_predictions', [])
+    guidance = context.get('active_guidance', [])
+    correlations = context.get('cross_domain_correlations', [])
+    drift = context.get('drift_score', 0)
+
+    has_any_intelligence = (
+        insights or predictions or guidance or correlations or drift >= 30
+    )
+
+    if has_any_intelligence:
+        lines.append("")
+        lines.append(
+            "=== PROACTIVE INTELLIGENCE (surface the most important signal) ===\n"
+            "You are a Chief of Staff reviewing a life dashboard. BEFORE responding "
+            "to ANY message, evaluate the intelligence signals below and determine "
+            "if one warrants proactive mention.\n"
+            "\n"
+            "PRIORITY ORDER (surface the SINGLE most important signal):\n"
+            "  1. CRITICAL health or compliance risk (severity=critical)\n"
+            "  2. High drift (score >= 40) — the user is sliding off track\n"
+            "  3. Strong cross-domain correlations — connected life patterns\n"
+            "  4. High-confidence predictions — trajectory concerns\n"
+            "  5. Warning-level insights — emerging patterns worth noting\n"
+            "  6. Guidance recommendations — suggested next actions\n"
+            "\n"
+            "HOW TO SURFACE intelligence:\n"
+            "  - Lead with ONE synthesized insight, not a list of signals\n"
+            "  - Connect related signals into a narrative (e.g., sleep decline "
+            "+ missed workouts + mood drop = one story, not three bullet points)\n"
+            "  - Keep it brief — one or two sentences, then move to the user's topic\n"
+            "  - Frame observations as patterns, not commands: "
+            "'I'm noticing...' not 'You need to...'\n"
+            "  - If the user's message is urgent or emotional, address THEIR "
+            "concern first, then weave in the intelligence naturally\n"
+            "\n"
+            "WHEN TO HOLD BACK:\n"
+            "  - Only positive/info-level signals with no warnings → skip proactive mention\n"
+            "  - User is in the middle of a focused task or deep conversation → "
+            "don't interrupt with unrelated patterns\n"
+            "  - Intelligence is 'degraded' → don't speculate\n"
+            "=== END PROACTIVE INTELLIGENCE DIRECTIVE ==="
+        )
+
+    # Active insights — pattern detections from PIE
     if insights:
         lines.append("")
-        lines.append("ACTIVE PATTERNS (weave into responses when the user asks about progress or habits):")
+        lines.append("DETECTED PATTERNS (PIE):")
         for i in insights[:5]:
             severity_prefix = ""
             if i.get('severity') == 'critical':
-                severity_prefix = "[IMPORTANT] "
+                severity_prefix = "[CRITICAL] "
             elif i.get('severity') == 'warning':
-                severity_prefix = "[Watch] "
+                severity_prefix = "[WARNING] "
             elif i.get('severity') == 'positive':
-                severity_prefix = "[Positive] "
+                severity_prefix = "[POSITIVE] "
             msg = i.get('message') or i.get('title', '')
             why = i.get('explain_why', '')
             if msg and why:
@@ -2514,10 +2620,9 @@ def format_cos_system_injection(context):
                 lines.append(f"  - {severity_prefix}{msg}")
 
     # Active predictions — trajectory outlook from PRIE
-    predictions = context.get('active_predictions', [])
     if predictions:
         lines.append("")
-        lines.append("TRAJECTORY OUTLOOK (mention proactively when user asks about progress or goals):")
+        lines.append("TRAJECTORY OUTLOOK (PRIE):")
         for p in predictions[:3]:
             explanation = p.get('explanation', '')
             date_str = p.get('predicted_date', '')
@@ -2530,28 +2635,24 @@ def format_cos_system_injection(context):
                 lines.append(f"  - {p['type']}: {p['value']}")
 
     # Active guidance — recommended actions from PGE
-    guidance = context.get('active_guidance', [])
     if guidance:
         lines.append("")
-        lines.append("RECOMMENDED ACTIONS (suggest when the user asks what to do or needs direction):")
+        lines.append("RECOMMENDED ACTIONS (PGE):")
         for g in guidance[:3]:
             msg = g.get('message') or g.get('title', '')
             if msg:
                 lines.append(f"  - {msg}")
 
     # Cross-domain correlations — discovered patterns from CDCE
-    correlations = context.get('cross_domain_correlations', [])
     if correlations:
         lines.append("")
-        lines.append(
-            "CROSS-DOMAIN PATTERNS (reference when domains overlap in conversation):"
-        )
+        lines.append("CROSS-DOMAIN PATTERNS (CDCE):")
         for c in correlations[:4]:
             strength_tag = ""
             if c.get('strength') == 'strong':
-                strength_tag = "[Strong] "
+                strength_tag = "[STRONG] "
             elif c.get('strength') == 'moderate':
-                strength_tag = "[Moderate] "
+                strength_tag = "[MODERATE] "
             narrative = c.get('narrative', '')
             if narrative:
                 lines.append(f"  - {strength_tag}{narrative}")

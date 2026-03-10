@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Fix empty Vision API response + sticky confirm buttons (v5)
+
+- **Bug 1:** Receipt processing failed with "Invalid JSON response: Expecting value: line 1 column 1 (char 0)". Vision API returned empty/null content — `response.choices[0].message.content` was `None`, and `.strip()` crashed. Could happen when API content filter triggers, image is unreadable, or rate limits hit.
+- **Fix:** Added null check `(choice.message.content or "").strip()`. Empty response returns friendly "Receipt image could not be read" error. Also logs `finish_reason` to detect `length` truncation.
+- **Bug 2:** Confirm page scrolls to top after actions. With 35+ items, user scrolls down, unchecks items, but Confirm/Cancel buttons at the very bottom require scrolling past everything.
+- **Fix:** Made confirm/cancel buttons sticky at bottom of viewport (`position: sticky; bottom: 0`). Always visible regardless of scroll position.
+- **Files:** `apps/meals/services/receipt_vision.py`, `templates/meals/receipt_confirm.html`
+- **Tests:** 333 passing (meals suite)
+
 ## 2026-03-09 — Fix incomplete receipt extraction (v4 — max_tokens + prompt improvements)
 
 - **Bug:** Receipt extraction working (reading real items) but only capturing ~20 of ~35 items, with some duplicates. Cloudinary URL fix from v3 solved the hallucination — now the model can see the image, but truncates extraction.

@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-09 — Fix incomplete receipt extraction (v4 — max_tokens + prompt improvements)
+
+- **Bug:** Receipt extraction working (reading real items) but only capturing ~20 of ~35 items, with some duplicates. Cloudinary URL fix from v3 solved the hallucination — now the model can see the image, but truncates extraction.
+- **Root causes:**
+  1. `max_tokens=4096` too low — 35+ items in JSON easily exceed 4K chars, causing output truncation
+  2. Prompt told model "each item has a DIFFERENT name" — made it deduplicate real items where user bought multiples (e.g., 2 types of bread)
+  3. Hallucination detection flagged real items like BREAD, EGGS, CUECUMBER as "generic names" — too aggressive for real receipts where stores print simple names
+- **Fixes:**
+  - Increased `max_tokens` from 4096 → 16384 (GPT-4o supports 16K output)
+  - Rewrote prompt: "extract ALL items, 20-50 typical, if fewer than 15 re-read", added `item_count` self-check field
+  - Removed generic names hallucination check entirely — kept only extreme patterns (>70% same price, >70% duplicate names)
+  - Allowed duplicate item names (user can buy 2 breads)
+- **Files:** `apps/meals/services/receipt_vision.py`, `apps/meals/tests/test_receipt_ingestion.py`
+- **Tests:** 333 passing (meals suite)
+
 ## 2026-03-09 — Add receipt delete with cascade cleanup
 
 - **Feature:** Users can now delete receipts from the Receipt History table. A trash icon button appears on each row.

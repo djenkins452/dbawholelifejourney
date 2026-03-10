@@ -364,8 +364,28 @@ class ReceiptVisionService:
                 temperature=0,
             )
 
-            content = response.choices[0].message.content.strip()
-            logger.info("Vision API response (URL mode): %d chars", len(content))
+            choice = response.choices[0]
+            content = (choice.message.content or "").strip()
+            finish_reason = choice.finish_reason
+
+            logger.info(
+                "Vision API response (URL mode): %d chars, finish_reason=%s",
+                len(content),
+                finish_reason,
+            )
+
+            if not content:
+                return ReceiptVisionResult(
+                    error="Receipt image could not be read. The AI returned no "
+                    "data. Please try again with better lighting and a "
+                    "straight-on angle."
+                )
+
+            if finish_reason == "length":
+                logger.warning(
+                    "Vision API response truncated (hit max_tokens). "
+                    "Some items may be missing."
+                )
 
             return self._parse_raw_response(content)
 
@@ -404,8 +424,28 @@ class ReceiptVisionService:
                 temperature=0,
             )
 
-            content = response.choices[0].message.content.strip()
-            logger.info("Vision API response (base64 mode): %d chars", len(content))
+            choice = response.choices[0]
+            content = (choice.message.content or "").strip()
+            finish_reason = choice.finish_reason
+
+            logger.info(
+                "Vision API response (base64 mode): %d chars, finish_reason=%s",
+                len(content),
+                finish_reason,
+            )
+
+            if not content:
+                return ReceiptVisionResult(
+                    error="Receipt image could not be read. The AI returned no "
+                    "data. Please try again with better lighting and a "
+                    "straight-on angle."
+                )
+
+            if finish_reason == "length":
+                logger.warning(
+                    "Vision API response truncated (hit max_tokens). "
+                    "Some items may be missing."
+                )
 
             return self._parse_raw_response(content)
 

@@ -83,9 +83,9 @@
         </div>
 
         <!-- Item List -->
-        <div class="receipt-items-list">
+        <div class="receipt-items-list" id="items-list">
             {% for item in items %}
-            <div class="receipt-confirm-item">
+            <div class="receipt-confirm-item" id="item-row-{{ item.pk }}" data-item-id="{{ item.pk }}">
                 <div class="receipt-item-row">
                     <div class="receipt-item-check">
                         <input type="checkbox" name="confirmed_items" value="{{ item.pk }}"
@@ -108,28 +108,38 @@
                         {% endif %}
                     </div>
 
-                    <div class="receipt-item-fields">
-                        <div class="receipt-item-field">
-                            <label for="qty_{{ item.pk }}" class="field-label-sm">Qty</label>
-                            <input type="number" name="qty_{{ item.pk }}" id="qty_{{ item.pk }}"
-                                   value="{{ item.quantity|floatformat:0 }}"
-                                   min="0.1" step="0.1" class="receipt-field-input qty-input">
+                    <div class="receipt-item-actions-col">
+                        <div class="receipt-item-fields">
+                            <div class="receipt-item-field">
+                                <label for="qty_{{ item.pk }}" class="field-label-sm">Qty</label>
+                                <input type="number" name="qty_{{ item.pk }}" id="qty_{{ item.pk }}"
+                                       value="{{ item.quantity|floatformat:0 }}"
+                                       min="0.1" step="0.1" class="receipt-field-input qty-input">
+                            </div>
+                            <div class="receipt-item-field">
+                                <label for="price_{{ item.pk }}" class="field-label-sm">Price</label>
+                                <input type="number" name="price_{{ item.pk }}" id="price_{{ item.pk }}"
+                                       value="{{ item.raw_price|floatformat:2 }}"
+                                       min="0" step="0.01" class="receipt-field-input price-input">
+                            </div>
                         </div>
-                        <div class="receipt-item-field">
-                            <label for="price_{{ item.pk }}" class="field-label-sm">Price</label>
-                            <input type="number" name="price_{{ item.pk }}" id="price_{{ item.pk }}"
-                                   value="{{ item.raw_price|floatformat:2 }}"
-                                   min="0" step="0.01" class="receipt-field-input price-input">
-                        </div>
+                        <button type="button" class="btn-remove-item" data-remove-id="{{ item.pk }}"
+                                aria-label="Remove {{ item.raw_name }}">&times;</button>
                     </div>
                 </div>
             </div>
             {% endfor %}
         </div>
 
+        <!-- Inline success banner (hidden by default) -->
+        <div class="receipt-success-banner" id="success-banner" style="display:none;">
+            <span class="success-icon">&#10003;</span>
+            <span id="success-message">Items confirmed!</span>
+        </div>
+
         <!-- Actions -->
         <div class="receipt-confirm-actions">
-            <button type="submit" class="btn btn-primary">Confirm Items</button>
+            <button type="submit" class="btn btn-primary" id="confirm-btn">Confirm Items</button>
             <button type="submit" name="action" value="cancel" class="btn btn-ghost">Cancel</button>
         </div>
     </form>
@@ -283,6 +293,57 @@
 }
 .receipt-field-input.qty-input { width: 56px; }
 .receipt-field-input.price-input { width: 80px; }
+.receipt-item-actions-col {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+.btn-remove-item {
+    background: none;
+    border: none;
+    color: #dc2626;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+}
+.btn-remove-item:hover,
+.btn-remove-item:active {
+    opacity: 1;
+    background: #fee2e2;
+}
+.receipt-confirm-item.removing {
+    opacity: 0;
+    max-height: 0;
+    padding: 0;
+    margin: 0;
+    border: none;
+    overflow: hidden;
+    transition: all 0.25s ease-out;
+}
+.receipt-success-banner {
+    padding: var(--space-4);
+    background: #dcfce7;
+    border: 1px solid #86efac;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: 600;
+    color: #166534;
+    margin: var(--space-4) 0;
+}
+.success-icon {
+    font-size: 1.2em;
+    margin-right: var(--space-2);
+}
 .receipt-confirm-actions {
     display: flex;
     gap: var(--space-3);
@@ -395,29 +456,126 @@
 
     // Select All
     var selectAll = document.getElementById('select-all-checkbox');
-    var checkboxes = document.querySelectorAll('.item-checkbox');
     var countEl = document.getElementById('select-count');
 
+    function getVisibleCheckboxes() {
+        return document.querySelectorAll('.receipt-confirm-item:not(.removing) .item-checkbox');
+    }
+
     function updateCount() {
-        var checked = document.querySelectorAll('.item-checkbox:checked').length;
-        var total = checkboxes.length;
-        countEl.textContent = checked + ' of ' + total + ' selected';
-        selectAll.checked = checked === total;
-        selectAll.indeterminate = checked > 0 && checked < total;
+        var cbs = getVisibleCheckboxes();
+        var checked = 0;
+        var total = 0;
+        cbs.forEach(function(cb) {
+            total++;
+            if (cb.checked) checked++;
+        });
+        if (countEl) countEl.textContent = checked + ' of ' + total + ' selected';
+        if (selectAll) {
+            selectAll.checked = total > 0 && checked === total;
+            selectAll.indeterminate = checked > 0 && checked < total;
+        }
     }
 
     if (selectAll) {
         selectAll.addEventListener('change', function() {
-            checkboxes.forEach(function(cb) { cb.checked = selectAll.checked; });
+            getVisibleCheckboxes().forEach(function(cb) { cb.checked = selectAll.checked; });
             updateCount();
         });
     }
 
-    checkboxes.forEach(function(cb) {
-        cb.addEventListener('change', updateCount);
-    });
+    // Delegate checkbox change events
+    var itemsList = document.getElementById('items-list');
+    if (itemsList) {
+        itemsList.addEventListener('change', function(e) {
+            if (e.target.classList.contains('item-checkbox')) {
+                updateCount();
+            }
+        });
+    }
 
     updateCount();
+
+    // Per-item remove buttons — remove item row with animation, no page reload
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.btn-remove-item');
+        if (!btn) return;
+
+        var itemId = btn.getAttribute('data-remove-id');
+        var row = document.getElementById('item-row-' + itemId);
+        if (!row) return;
+
+        // Uncheck so it won't be submitted
+        var cb = row.querySelector('.item-checkbox');
+        if (cb) cb.checked = false;
+
+        // Animate removal
+        row.classList.add('removing');
+
+        // Remove from DOM after animation
+        setTimeout(function() {
+            row.remove();
+            updateCount();
+        }, 260);
+    });
+
+    // AJAX form submission — prevents scroll-to-top on confirm
+    var form = document.querySelector('form[action*="receipt_confirm"]');
+    var confirmBtn = document.getElementById('confirm-btn');
+    var successBanner = document.getElementById('success-banner');
+    var successMessage = document.getElementById('success-message');
+
+    if (form && confirmBtn) {
+        form.addEventListener('submit', function(e) {
+            // Only intercept the Confirm action, not Cancel
+            var actionInput = form.querySelector('input[name="action"]');
+            if (actionInput && actionInput.value === 'cancel') return;
+            // Check if Cancel button was the submitter
+            if (e.submitter && e.submitter.value === 'cancel') return;
+
+            e.preventDefault();
+
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Confirming...';
+
+            var formData = new FormData(form);
+
+            fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                redirect: 'follow'
+            })
+            .then(function(resp) {
+                if (resp.ok || resp.redirected) {
+                    // Show success banner at current scroll position
+                    if (successBanner) {
+                        successBanner.style.display = 'block';
+                        if (successMessage) {
+                            var checked = document.querySelectorAll('.item-checkbox:checked').length;
+                            successMessage.textContent = checked + ' items confirmed! Redirecting...';
+                        }
+                    }
+                    confirmBtn.textContent = 'Confirmed!';
+
+                    // Redirect after brief delay
+                    var redirectUrl = resp.url || '{% url "meals:receipt_detail" pk=receipt.pk %}';
+                    setTimeout(function() {
+                        window.location.href = redirectUrl;
+                    }, 1200);
+                } else {
+                    throw new Error('Server returned ' + resp.status);
+                }
+            })
+            .catch(function(err) {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Confirm Items';
+                alert('Failed to confirm: ' + err.message + '. Please try again.');
+            });
+        });
+    }
 
     // Routing hint based on receipt type
     var typeSelect = document.getElementById('receipt_type');

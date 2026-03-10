@@ -35,6 +35,8 @@
                 </label>
                 <div class="input-with-unit">
                     <input type="number"
+                           inputmode="numeric"
+                           pattern="[0-9]*"
                            id="average_cycle_length"
                            name="average_cycle_length"
                            value="{{ settings.average_cycle_length|default:28 }}"
@@ -63,6 +65,8 @@
                 </label>
                 <div class="input-with-unit">
                     <input type="number"
+                           inputmode="numeric"
+                           pattern="[0-9]*"
                            id="average_period_length"
                            name="average_period_length"
                            value="{{ settings.average_period_length|default:5 }}"

@@ -57,7 +57,7 @@
                                 <div class="sets-config">
                                     <div class="sets-header">
                                         <label>Sets:</label>
-                                        <input type="number" name="exercise_{{ te.exercise.pk }}_default_sets"
+                                        <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_{{ te.exercise.pk }}_default_sets"
                                                value="{{ te.default_sets }}" min="1" max="10"
                                                class="sets-count-input">
                                     </div>
@@ -65,10 +65,10 @@
                                         {% for set_default in te.set_defaults.all %}
                                             <div class="set-default-row" data-set-number="{{ set_default.set_number }}">
                                                 <span class="set-label">Set {{ set_default.set_number }}:</span>
-                                                <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ set_default.set_number }}_weight"
+                                                <input type="number" inputmode="decimal" name="exercise_{{ te.exercise.pk }}_set_{{ set_default.set_number }}_weight"
                                                        value="{{ set_default.weight|default:'' }}" placeholder="Weight" step="0.5" class="weight-input">
                                                 <span class="input-suffix">lbs</span>
-                                                <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ set_default.set_number }}_reps"
+                                                <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_{{ te.exercise.pk }}_set_{{ set_default.set_number }}_reps"
                                                        value="{{ set_default.reps|default:'' }}" placeholder="Reps" class="reps-input">
                                                 <span class="input-suffix">reps</span>
                                             </div>
@@ -77,10 +77,10 @@
                                                 {% if forloop.counter <= te.default_sets %}
                                                     <div class="set-default-row" data-set-number="{{ forloop.counter }}">
                                                         <span class="set-label">Set {{ forloop.counter }}:</span>
-                                                        <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ forloop.counter }}_weight"
+                                                        <input type="number" inputmode="decimal" name="exercise_{{ te.exercise.pk }}_set_{{ forloop.counter }}_weight"
                                                                placeholder="Weight" step="0.5" class="weight-input">
                                                         <span class="input-suffix">lbs</span>
-                                                        <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ forloop.counter }}_reps"
+                                                        <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_{{ te.exercise.pk }}_set_{{ forloop.counter }}_reps"
                                                                placeholder="Reps" class="reps-input">
                                                         <span class="input-suffix">reps</span>
                                                     </div>
@@ -348,10 +348,10 @@ function generateSetRows(exerciseId, count) {
         html += `
             <div class="set-default-row" data-set-number="${i}">
                 <span class="set-label">Set ${i}:</span>
-                <input type="number" name="exercise_${exerciseId}_set_${i}_weight"
+                <input type="number" inputmode="decimal" name="exercise_${exerciseId}_set_${i}_weight"
                        placeholder="Weight" step="0.5" class="weight-input">
                 <span class="input-suffix">lbs</span>
-                <input type="number" name="exercise_${exerciseId}_set_${i}_reps"
+                <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_${exerciseId}_set_${i}_reps"
                        placeholder="Reps" class="reps-input">
                 <span class="input-suffix">reps</span>
             </div>
@@ -384,10 +384,10 @@ function updateSetRows(input, exerciseId) {
         html += `
             <div class="set-default-row" data-set-number="${i}">
                 <span class="set-label">Set ${i}:</span>
-                <input type="number" name="exercise_${exerciseId}_set_${i}_weight"
+                <input type="number" inputmode="decimal" name="exercise_${exerciseId}_set_${i}_weight"
                        value="${existing.weight}" placeholder="Weight" step="0.5" class="weight-input">
                 <span class="input-suffix">lbs</span>
-                <input type="number" name="exercise_${exerciseId}_set_${i}_reps"
+                <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_${exerciseId}_set_${i}_reps"
                        value="${existing.reps}" placeholder="Reps" class="reps-input">
                 <span class="input-suffix">reps</span>
             </div>
@@ -435,7 +435,7 @@ function addExercise() {
             <div class="sets-config">
                 <div class="sets-header">
                     <label>Sets:</label>
-                    <input type="number" name="exercise_${exerciseId}_default_sets" value="3" min="1" max="10"
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_${exerciseId}_default_sets" value="3" min="1" max="10"
                            class="sets-count-input">
                 </div>
                 <div class="set-defaults-container" data-exercise-id="${exerciseId}">

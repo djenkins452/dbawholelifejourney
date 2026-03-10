@@ -163,7 +163,7 @@
         <h3>Update Supply</h3>
         <form method="post" action="{% url 'health:medicine_update_supply' pk=medicine.pk %}" class="supply-form">
             {% csrf_token %}
-            <input type="number" name="current_supply" value="{{ medicine.current_supply|default:0 }}" min="0" class="form-input">
+            <input type="number" inputmode="numeric" pattern="[0-9]*" name="current_supply" value="{{ medicine.current_supply|default:0 }}" min="0" class="form-input">
             <button type="submit" class="btn btn-secondary btn-sm">Update</button>
         </form>
 

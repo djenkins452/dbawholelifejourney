@@ -24,6 +24,8 @@
                 <label for="id_count" class="form-label">Step Count</label>
                 <input
                     type="number"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
                     name="count"
                     id="id_count"
                     class="form-input"
@@ -59,6 +61,8 @@
                 <label for="id_goal" class="form-label">Daily Goal (optional)</label>
                 <input
                     type="number"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
                     name="goal"
                     id="id_goal"
                     class="form-input"
@@ -73,6 +77,7 @@
                 <label for="id_distance_miles" class="form-label">Distance in Miles (optional)</label>
                 <input
                     type="number"
+                    inputmode="decimal"
                     name="distance_miles"
                     id="id_distance_miles"
                     class="form-input"
@@ -88,6 +93,8 @@
             <label for="id_calories_burned" class="form-label">Calories Burned (optional)</label>
             <input
                 type="number"
+                inputmode="numeric"
+                pattern="[0-9]*"
                 name="calories_burned"
                 id="id_calories_burned"
                 class="form-input"

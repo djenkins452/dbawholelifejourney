@@ -163,9 +163,9 @@
             <div class="set-row" data-set-number="1">
                 <span class="set-number">Set 1</span>
                 <div class="set-inputs">
-                    <input type="number" name="exercise_EXERCISE_ID_set_1_weight" placeholder="Weight" step="0.5" class="weight-input">
+                    <input type="number" inputmode="decimal" name="exercise_EXERCISE_ID_set_1_weight" placeholder="Weight" step="0.5" class="weight-input">
                     <span class="input-suffix">lbs</span>
-                    <input type="number" name="exercise_EXERCISE_ID_set_1_reps" placeholder="Reps" class="reps-input">
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_EXERCISE_ID_set_1_reps" placeholder="Reps" class="reps-input">
                     <span class="input-suffix">reps</span>
                     <button type="button" class="done-btn">Done</button>
                 </div>
@@ -174,9 +174,9 @@
             <div class="set-row" data-set-number="2">
                 <span class="set-number">Set 2</span>
                 <div class="set-inputs">
-                    <input type="number" name="exercise_EXERCISE_ID_set_2_weight" placeholder="Weight" step="0.5" class="weight-input">
+                    <input type="number" inputmode="decimal" name="exercise_EXERCISE_ID_set_2_weight" placeholder="Weight" step="0.5" class="weight-input">
                     <span class="input-suffix">lbs</span>
-                    <input type="number" name="exercise_EXERCISE_ID_set_2_reps" placeholder="Reps" class="reps-input">
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_EXERCISE_ID_set_2_reps" placeholder="Reps" class="reps-input">
                     <span class="input-suffix">reps</span>
                     <button type="button" class="done-btn">Done</button>
                 </div>
@@ -185,9 +185,9 @@
             <div class="set-row" data-set-number="3">
                 <span class="set-number">Set 3</span>
                 <div class="set-inputs">
-                    <input type="number" name="exercise_EXERCISE_ID_set_3_weight" placeholder="Weight" step="0.5" class="weight-input">
+                    <input type="number" inputmode="decimal" name="exercise_EXERCISE_ID_set_3_weight" placeholder="Weight" step="0.5" class="weight-input">
                     <span class="input-suffix">lbs</span>
-                    <input type="number" name="exercise_EXERCISE_ID_set_3_reps" placeholder="Reps" class="reps-input">
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_EXERCISE_ID_set_3_reps" placeholder="Reps" class="reps-input">
                     <span class="input-suffix">reps</span>
                     <button type="button" class="done-btn">Done</button>
                 </div>
@@ -214,14 +214,14 @@
             <div class="cardio-field">
                 <label>Duration</label>
                 <div class="input-with-suffix">
-                    <input type="number" name="exercise_EXERCISE_ID_duration" placeholder="0" class="cardio-duration">
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_EXERCISE_ID_duration" placeholder="0" class="cardio-duration">
                     <span class="input-suffix">min</span>
                 </div>
             </div>
             <div class="cardio-field">
                 <label>Distance</label>
                 <div class="input-with-suffix">
-                    <input type="number" name="exercise_EXERCISE_ID_distance" step="0.1" placeholder="0" class="cardio-distance">
+                    <input type="number" inputmode="decimal" name="exercise_EXERCISE_ID_distance" step="0.1" placeholder="0" class="cardio-distance">
                     <span class="input-suffix">mi</span>
                 </div>
             </div>
@@ -258,7 +258,7 @@
             <div class="class-field">
                 <label>Duration</label>
                 <div class="input-with-suffix">
-                    <input type="number" name="exercise_EXERCISE_ID_duration" placeholder="45" class="class-duration">
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_EXERCISE_ID_duration" placeholder="45" class="class-duration">
                     <span class="input-suffix">min</span>
                 </div>
             </div>
@@ -1114,9 +1114,9 @@ function addSet(btn) {
         <div class="set-row" data-set-number="${setCount}">
             <span class="set-number">Set ${setCount}</span>
             <div class="set-inputs">
-                <input type="number" name="exercise_${exerciseId}_set_${setCount}_weight" placeholder="Weight" step="0.5" class="weight-input">
+                <input type="number" inputmode="decimal" name="exercise_${exerciseId}_set_${setCount}_weight" placeholder="Weight" step="0.5" class="weight-input">
                 <span class="input-suffix">lbs</span>
-                <input type="number" name="exercise_${exerciseId}_set_${setCount}_reps" placeholder="Reps" class="reps-input">
+                <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_${exerciseId}_set_${setCount}_reps" placeholder="Reps" class="reps-input">
                 <span class="input-suffix">reps</span>
                 <button type="button" class="done-btn">Done</button>
             </div>

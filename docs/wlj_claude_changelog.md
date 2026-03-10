@@ -6,6 +6,33 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-10 — Add inputmode attributes to hardcoded number inputs in health templates
+
+- **Issue:** On mobile (especially iOS), `<input type="number">` fields in health templates showed a full QWERTY keyboard instead of a numeric keypad. This made data entry slower and error-prone.
+- **Root cause:** Hardcoded `<input type="number">` tags in 16 health templates lacked `inputmode` attributes. The global Django form widget patch only covers `{{ form.field }}` rendered inputs, not manually coded HTML inputs.
+- **Fix:** Added appropriate `inputmode` attributes to all hardcoded number inputs across 16 health-related templates:
+  - **`inputmode="numeric" pattern="[0-9]*"`** for integer fields: reps, sets, duration (minutes), step count, goal, calories, BPM, pulse, SpO2, height (feet/inches), medicine supply, cycle/period length, period selector days
+  - **`inputmode="decimal"`** for decimal fields: weight (step=0.5), distance (step=0.1), glucose (step=0.1), water amount (step=0.5), body composition value (step=0.01), weight goal (step=0.1), basal temperature (step=0.01)
+- **Scope:** Both server-rendered Django template inputs AND JavaScript-generated inputs (in `<template>` tags and `addSet`/`generateSetRows`/`updateSetRows` JS functions)
+- **Files modified (16):**
+  - `templates/health/fitness/partials/exercise_row.html` — 7 inputs (weight x2, reps x2, cardio duration, cardio distance, class duration)
+  - `templates/health/fitness/workout_form.html` — 11 inputs (3 template sets x weight+reps, cardio duration+distance, class duration, JS addSet weight+reps)
+  - `templates/health/fitness/template_form.html` — 10 inputs (set defaults weight+reps x2, generateSetRows weight+reps, updateSetRows weight+reps, addExercise sets-count, template default_sets)
+  - `templates/health/weight_form.html` — 1 input (weight value)
+  - `templates/health/blood_pressure_form.html` — 3 inputs (systolic, diastolic, pulse)
+  - `templates/health/glucose_form.html` — 1 input (glucose value)
+  - `templates/health/steps_form.html` — 4 inputs (count, goal, distance_miles, calories_burned)
+  - `templates/health/water_form.html` — 1 input (amount)
+  - `templates/health/heartrate_form.html` — 1 input (bpm)
+  - `templates/health/blood_oxygen_form.html` — 2 inputs (spo2, pulse)
+  - `templates/health/body_composition_form.html` — 1 input (value)
+  - `templates/health/health_profile_form.html` — 3 inputs (height_feet, height_remaining_inches, weight_goal)
+  - `templates/health/medicine/medicine_detail.html` — 1 input (current_supply)
+  - `templates/health/cycle/settings.html` — 2 inputs (average_cycle_length, average_period_length)
+  - `templates/health/cycle/includes/daily_log_form.html` — 1 input (basal_temp)
+  - `templates/health/dashboards/_period_selector.html` — 1 input (period days)
+- **Why:** Mobile UX improvement -- users entering vitals, workout data, and health metrics get the appropriate numeric keyboard on iOS/Android, reducing friction and input errors.
+
 ## 2026-03-10 — Add recurring task series deletion + fix CoS task delete routing
 
 - **Issue 1:** CoS told user "I can't delete the task for you. You'll need to handle that manually" instead of executing delete via the intent pipeline.

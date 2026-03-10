@@ -29,10 +29,10 @@ Variables:
                     <div class="set-row" data-set-number="{{ set.set_number }}">
                         <span class="set-number">Set {{ set.set_number }}</span>
                         <div class="set-inputs">
-                            <input type="number" name="exercise_{{ exercise.pk }}_set_{{ set.set_number }}_weight"
+                            <input type="number" inputmode="decimal" name="exercise_{{ exercise.pk }}_set_{{ set.set_number }}_weight"
                                    value="{{ set.weight|default:'' }}" placeholder="Weight" step="0.5" class="weight-input">
                             <span class="input-suffix">lbs</span>
-                            <input type="number" name="exercise_{{ exercise.pk }}_set_{{ set.set_number }}_reps"
+                            <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_{{ exercise.pk }}_set_{{ set.set_number }}_reps"
                                    value="{{ set.reps|default:'' }}" placeholder="Reps" class="reps-input">
                             <span class="input-suffix">reps</span>
                             <button type="button" class="done-btn">Done</button>
@@ -47,10 +47,10 @@ Variables:
                             <div class="set-row" data-set-number="{{ forloop.counter }}">
                                 <span class="set-number">Set {{ forloop.counter }}</span>
                                 <div class="set-inputs">
-                                    <input type="number" name="exercise_{{ exercise.pk }}_set_{{ forloop.counter }}_weight"
+                                    <input type="number" inputmode="decimal" name="exercise_{{ exercise.pk }}_set_{{ forloop.counter }}_weight"
                                            placeholder="Weight" step="0.5" class="weight-input">
                                     <span class="input-suffix">lbs</span>
-                                    <input type="number" name="exercise_{{ exercise.pk }}_set_{{ forloop.counter }}_reps"
+                                    <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_{{ exercise.pk }}_set_{{ forloop.counter }}_reps"
                                            placeholder="Reps" class="reps-input">
                                     <span class="input-suffix">reps</span>
                                     <button type="button" class="done-btn">Done</button>
@@ -68,7 +68,7 @@ Variables:
             <div class="cardio-field">
                 <label>Duration</label>
                 <div class="input-with-suffix">
-                    <input type="number" name="exercise_{{ exercise.pk }}_duration"
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_{{ exercise.pk }}_duration"
                            value="{{ cardio_details.duration_minutes|default:'' }}" placeholder="0" class="cardio-duration">
                     <span class="input-suffix">min</span>
                 </div>
@@ -76,7 +76,7 @@ Variables:
             <div class="cardio-field">
                 <label>Distance</label>
                 <div class="input-with-suffix">
-                    <input type="number" name="exercise_{{ exercise.pk }}_distance"
+                    <input type="number" inputmode="decimal" name="exercise_{{ exercise.pk }}_distance"
                            value="{{ cardio_details.distance|default:'' }}" step="0.1" placeholder="0" class="cardio-distance">
                     <span class="input-suffix">mi</span>
                 </div>
@@ -100,7 +100,7 @@ Variables:
             <div class="class-field">
                 <label>Duration</label>
                 <div class="input-with-suffix">
-                    <input type="number" name="exercise_{{ exercise.pk }}_duration"
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" name="exercise_{{ exercise.pk }}_duration"
                            value="{{ class_details.duration_minutes|default:'' }}" placeholder="45" class="class-duration">
                     <span class="input-suffix">min</span>
                 </div>

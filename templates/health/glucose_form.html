@@ -22,10 +22,11 @@
         <div class="form-row-3">
             <div class="form-group">
                 <label for="id_value" class="form-label">Reading</label>
-                <input 
-                    type="number" 
-                    name="value" 
-                    id="id_value" 
+                <input
+                    type="number"
+                    inputmode="decimal"
+                    name="value"
+                    id="id_value"
                     class="form-input"
                     value="{{ form.value.value|default:'' }}"
                     step="0.1"

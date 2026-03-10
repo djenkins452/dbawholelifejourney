@@ -13,6 +13,8 @@
     <div class="period-custom">
         <form method="get" class="period-form">
             <input type="number"
+                   inputmode="numeric"
+                   pattern="[0-9]*"
                    name="period"
                    value="{% if is_custom_period %}{{ period }}{% endif %}"
                    placeholder="Days"

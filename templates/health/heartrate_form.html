@@ -22,10 +22,12 @@
         <div class="form-row">
             <div class="form-group">
                 <label for="id_bpm" class="form-label">Heart Rate (BPM)</label>
-                <input 
-                    type="number" 
-                    name="bpm" 
-                    id="id_bpm" 
+                <input
+                    type="number"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    name="bpm"
+                    id="id_bpm"
                     class="form-input"
                     value="{{ form.bpm.value|default:'' }}"
                     min="30"

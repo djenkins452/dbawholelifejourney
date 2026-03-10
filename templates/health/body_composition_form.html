@@ -43,7 +43,7 @@
         <div class="form-row">
             <div class="form-group">
                 <label for="id_value" class="form-label">Value</label>
-                <input type="number" name="value" id="id_value" class="form-input"
+                <input type="number" inputmode="decimal" name="value" id="id_value" class="form-input"
                        value="{{ form.value.value|default:'' }}"
                        step="0.01" placeholder="Enter value" required>
             </div>

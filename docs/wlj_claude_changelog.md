@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-10 — PIE Health Screenshot Interpretation Module
+
+- **Feature:** When users upload health screenshots (Apple Health sleep charts, Fitbit, Garmin, etc.), Beth now analyzes and interprets the data instead of just reading numbers aloud.
+- **Architecture:** Two-phase approach within PIE (Pattern Intelligence Engine) — no new engine:
+  1. **Structured extraction** — Health-specific Vision API call (`screenshot_parser.py`) converts screenshot to normalized JSON with minute-based values
+  2. **Deterministic analysis** — Pure math against clinical reference ranges (`sleep_analysis.py`). Evaluates: duration adequacy (7-9h range), sleep stage distribution (REM/deep/core %), cycle completion (total/90min), and user context connections (wake time, activity level, weight goals, health conditions)
+- **CoS Integration:** Analysis result injected into system prompt via `format_cos_system_injection()`. Vision instruction overridden to request structured reasoning response (Summary Insight → Key Observations → What This Means → Recommendation).
+- **User Context:** Dynamic personalization from HealthProfile, SleepEntry (7-day trend), Task (wake time inference), PersonalFact (health conditions), LifeGoal (health/fitness goals).
+- **PIE Rule:** `SleepScreenshotAnalysisRule` registered for event-driven persistence. Results persist as Insight model entries for dashboard/briefing consumption.
+- **New files:**
+  - `apps/core/ai_insights/health/__init__.py`
+  - `apps/core/ai_insights/health/reference_ranges.py` — Clinical reference constants (sleep, vitals, HR, BP, glucose, HRV)
+  - `apps/core/ai_insights/health/screenshot_parser.py` — Vision API structured extraction
+  - `apps/core/ai_insights/health/sleep_analysis.py` — Deterministic sleep analysis + PIE rule
+  - `apps/core/ai_insights/health/user_context.py` — Health user context gathering
+  - `apps/core/ai_insights/tests_health_screenshot.py` — 39 tests
+- **Modified files:** `apps/ai/personal_assistant.py` (early detection + CoS injection + vision instruction override), `apps/core/ai_orchestrator/cos_context.py` (HEALTH SCREENSHOT ANALYSIS section), `apps/core/ai_orchestrator/intelligence_hook.py` (rule registration), `docs/ENGINE_COS_REFERENCE.md`
+- **Tests:** 39 new tests (analysis, parser, user context, CoS injection, PIE rule, integration) + 118 total PIE tests + 179 intent/orchestrator tests — all passing
+- **Why:** Beth was acting as a data reporter for health screenshots — reading numbers without interpreting them. This transforms her into a reasoning advisor who connects health data to the user's personal context.
+
 ## 2026-03-10 — Proactive intelligence prompt rewrite (CoS context v7)
 
 - **Issue:** Beth (CoS) had all intelligence data wired end-to-end (PIE insights, PRIE predictions, PGE guidance, CDCE cross-domain patterns), but prompt instructions told her to only surface them "when the user asks about progress" — making intelligence reactive instead of proactive. Additionally, exception handling in `_build_intelligence_signals()` silently swallowed errors with `except Exception: result = []`, hiding engine failures.

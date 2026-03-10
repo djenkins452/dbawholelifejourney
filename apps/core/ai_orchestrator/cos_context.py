@@ -2303,6 +2303,44 @@ def format_cos_system_injection(context):
         lines.append("=== END USER-AFFIRMED COMPLETIONS ===")
         lines.append("")
 
+    # ── HEALTH SCREENSHOT ANALYSIS (PIE) ──
+    # When a health screenshot was analyzed by PIE, inject the structured
+    # interpretation so Beth responds with reasoning, not data recitation.
+    health_analysis = context.get('health_screenshot_analysis')
+    if health_analysis:
+        lines.append("=== HEALTH SCREENSHOT ANALYSIS (PIE) ===")
+        lines.append("")
+        lines.append(f"Summary: {health_analysis.get('summary_insight', '')}")
+        lines.append("")
+        observations = health_analysis.get('observations', [])
+        if observations:
+            lines.append("Key Observations:")
+            for obs in observations:
+                lines.append(f"  - {obs}")
+            lines.append("")
+        implications = health_analysis.get('implications', [])
+        if implications:
+            lines.append("What This Means for This Person:")
+            for imp in implications:
+                lines.append(f"  - {imp}")
+            lines.append("")
+        recommendation = health_analysis.get('recommendation', '')
+        if recommendation:
+            lines.append(f"Recommendation: {recommendation}")
+            lines.append("")
+        lines.append(
+            "INSTRUCTION: Use this analysis to give a REASONING response. "
+            "Do NOT just repeat numbers — interpret them. Connect every "
+            "observation to what it means for this person's health and goals. "
+            "Give ONE clear recommendation."
+        )
+        disclaimer = health_analysis.get('medical_disclaimer', '')
+        if disclaimer:
+            lines.append(f"\n{disclaimer}")
+        lines.append("")
+        lines.append("=== END HEALTH SCREENSHOT ANALYSIS ===")
+        lines.append("")
+
     # ── DAILY SCAN BRIEF (structured summary for proactive intelligence) ──
     scan_brief = _build_daily_scan_brief(context)
     if scan_brief:

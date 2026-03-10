@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 152,
+    "fields": {
+      "title": "Beth Now Interprets Your Health Screenshots",
+      "description": "When you share a health screenshot from Apple Health, Fitbit, Garmin, or any health app, Beth no longer just reads the numbers back to you. She now analyzes your sleep data through the Pattern Intelligence Engine — evaluating sleep duration, stage distribution, and cycle completion against clinical reference ranges. She connects findings to your personal context (wake time, fitness goals, health conditions) and gives you one clear, actionable recommendation. This is health reasoning, not just data recitation.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-10",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-03-10T10:30:00Z",
+      "updated_at": "2026-03-10T10:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 151,
     "fields": {
       "title": "Delete Recurring Tasks Completely",

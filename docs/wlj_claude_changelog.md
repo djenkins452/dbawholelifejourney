@@ -6,12 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-## 2026-03-10 — Fix: Restore rest timer for time-based exercises
+## 2026-03-10 — Centralize rest timer triggering for all exercise types
 
-- **Bug:** `markTimeDone()` (time-based exercise Done handler) was deliberately skipping `startRestTimer()`, violating the requirement to not modify rest timer behavior.
-- **Fix:** Added `startRestTimer()` call to `markTimeDone()` so all exercise types (weighted, bodyweight, time) consistently trigger the rest timer after completing a set.
-- **Files:** `templates/health/fitness/workout_form.html`
-- **Why:** The original implementation made an unauthorized design decision to skip the rest timer for isometric holds. The user's instruction was clear: do not modify rest timer behavior.
+- **Bug:** `markTimeDone()` (time-based exercise Done handler) was skipping `startRestTimer()`, violating the requirement that rest timer behavior must remain unchanged across all exercise types.
+- **Fix:** Created centralized `onSetCompleted(setRow)` function that handles all post-set-completion logic: `markSetAsSaved()`, counter increment, `updateSavedCount()`, and `startRestTimer()`. Both `markSetDone()` (weighted/bodyweight) and `markTimeDone()` (time-based) now call `onSetCompleted()` instead of duplicating the logic inline. This guarantees identical rest timer behavior for all movement types.
+- **Tests:** Added `RestTimerConsistencyTests` class (10 tests): JS template analysis verifies `onSetCompleted()` exists, both handlers call it, `startRestTimer()` is only invoked inside `onSetCompleted()`, all four timer functions are present, and save-set API returns `success=True` consistently for weighted/bodyweight/time sets.
+- **Files:** `templates/health/fitness/workout_form.html`, `apps/health/tests/test_movement_types.py`
+- **Timer functions untouched:** `startRestTimer()`, `stopRestTimer()`, `dismissRestTimer()`, `formatTime()` — zero modifications.
 
 ## 2026-03-10 — Workout Movement Type Upgrade
 

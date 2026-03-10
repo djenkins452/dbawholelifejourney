@@ -720,3 +720,169 @@ class FitnessUtilsTests(MovementTypeTestMixin, TestCase):
         bests = get_personal_bests(self.user, exercise)
         self.assertIsNotNone(bests["weight"])
         self.assertEqual(bests["weight"]["value"], 225.0)
+
+
+# =============================================================================
+# 11. Rest Timer Consistency Tests
+# =============================================================================
+
+class RestTimerConsistencyTests(MovementTypeTestMixin, TestCase):
+    """
+    Verify rest timer behavior is consistent across all exercise types.
+
+    The rest timer is a client-side JavaScript feature. These tests verify:
+    1. The JS template contains a centralized onSetCompleted() that calls
+       startRestTimer(), and both markSetDone/markTimeDone use it.
+    2. The save-set API returns success=True for all movement types,
+       which is the trigger that causes onSetCompleted() to fire.
+    3. The four timer functions are present and structurally intact.
+    """
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.login_user()
+        self.workout = self.create_workout(self.user)
+
+    def _get_template_content(self):
+        """Load the workout form template content for JS analysis."""
+        import os
+        template_path = os.path.join(
+            settings.BASE_DIR, "templates", "health", "fitness", "workout_form.html"
+        )
+        with open(template_path, "r") as f:
+            return f.read()
+
+    # ---- JS structure tests (template analysis) ----
+
+    def test_onSetCompleted_function_exists(self):
+        """Centralized onSetCompleted() function must exist."""
+        content = self._get_template_content()
+        self.assertIn("function onSetCompleted(setRow)", content)
+
+    def test_onSetCompleted_calls_startRestTimer(self):
+        """onSetCompleted() must call startRestTimer()."""
+        content = self._get_template_content()
+        # Find the onSetCompleted function body
+        start = content.index("function onSetCompleted(setRow)")
+        # Find the next function definition (closing brace area)
+        block = content[start:start + 300]
+        self.assertIn("startRestTimer()", block)
+
+    def test_markSetDone_calls_onSetCompleted(self):
+        """markSetDone() (weighted/bodyweight) must call onSetCompleted()."""
+        content = self._get_template_content()
+        start = content.index("async function markSetDone(")
+        end = content.index("async function markCardioDone(")
+        block = content[start:end]
+        self.assertIn("onSetCompleted(setRow)", block)
+        # Must NOT directly call startRestTimer — that's onSetCompleted's job
+        # (The only startRestTimer call should be inside onSetCompleted)
+        self.assertNotIn("startRestTimer()", block,
+            "markSetDone should call onSetCompleted, not startRestTimer directly")
+
+    def test_markTimeDone_calls_onSetCompleted(self):
+        """markTimeDone() (time-based) must call onSetCompleted()."""
+        content = self._get_template_content()
+        start = content.index("async function markTimeDone(")
+        end = content.index("function addExercise()")
+        block = content[start:end]
+        self.assertIn("onSetCompleted(setRow)", block)
+        # Must NOT directly call startRestTimer
+        self.assertNotIn("startRestTimer()", block,
+            "markTimeDone should call onSetCompleted, not startRestTimer directly")
+
+    def test_startRestTimer_called_only_in_onSetCompleted(self):
+        """startRestTimer() invocations must only be inside onSetCompleted."""
+        content = self._get_template_content()
+        # Count all startRestTimer() calls (excluding the function definition line)
+        import re
+        # Match startRestTimer() calls, not the function definition
+        calls = re.findall(r'(?<!function )startRestTimer\(\)', content)
+        # Should be exactly 1 call: inside onSetCompleted
+        self.assertEqual(len(calls), 1,
+            f"startRestTimer() should be called exactly once (inside onSetCompleted), "
+            f"found {len(calls)} calls")
+
+    def test_timer_functions_present(self):
+        """All four timer functions must be present in the template."""
+        content = self._get_template_content()
+        self.assertIn("function startRestTimer()", content)
+        self.assertIn("function stopRestTimer()", content)
+        self.assertIn("function dismissRestTimer()", content)
+        self.assertIn("function formatTime(seconds)", content)
+
+    # ---- API consistency tests (all types return success) ----
+
+    def _save_set(self, payload):
+        return self.client.post(
+            "/health/physical/fitness/api/save-set/",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+    def test_weighted_set_returns_success(self):
+        """Weighted set save returns success=True (triggers rest timer)."""
+        exercise = self.create_exercise(name="Bench-timer", movement_type="weighted")
+        resp = self._save_set({
+            "workout_id": self.workout.pk,
+            "exercise_id": exercise.pk,
+            "set_number": 1,
+            "weight": 185,
+            "reps": 8,
+            "movement_type": "weighted",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    def test_bodyweight_set_returns_success(self):
+        """Bodyweight set save returns success=True (triggers rest timer)."""
+        exercise = self.create_exercise(name="Pullup-timer", movement_type="bodyweight")
+        resp = self._save_set({
+            "workout_id": self.workout.pk,
+            "exercise_id": exercise.pk,
+            "set_number": 1,
+            "reps": 12,
+            "movement_type": "bodyweight",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    def test_time_set_returns_success(self):
+        """Time-based set save returns success=True (triggers rest timer)."""
+        exercise = self.create_exercise(name="Plank-timer", movement_type="time")
+        resp = self._save_set({
+            "workout_id": self.workout.pk,
+            "exercise_id": exercise.pk,
+            "set_number": 1,
+            "movement_type": "time",
+            "duration_seconds": 60,
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    def test_all_types_return_identical_success_shape(self):
+        """All movement types return the same response shape."""
+        exercises = {
+            "weighted": self.create_exercise(name="Squat-shape", movement_type="weighted"),
+            "bodyweight": self.create_exercise(name="Dip-shape", movement_type="bodyweight"),
+            "time": self.create_exercise(name="Hold-shape", movement_type="time"),
+        }
+        payloads = {
+            "weighted": {"weight": 225, "reps": 5, "movement_type": "weighted"},
+            "bodyweight": {"reps": 15, "movement_type": "bodyweight"},
+            "time": {"duration_seconds": 45, "movement_type": "time"},
+        }
+
+        for mtype, exercise in exercises.items():
+            payload = {
+                "workout_id": self.workout.pk,
+                "exercise_id": exercise.pk,
+                "set_number": 1,
+                **payloads[mtype],
+            }
+            resp = self._save_set(payload)
+            data = resp.json()
+            self.assertEqual(resp.status_code, 200, f"{mtype} failed with {resp.status_code}")
+            self.assertTrue(data["success"], f"{mtype} did not return success=True")
+            self.assertIn("set_id", data, f"{mtype} missing set_id")
+            self.assertIn("workout_exercise_id", data, f"{mtype} missing workout_exercise_id")

@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-10 (PIE Health Screenshot Interpretation — sleep analysis from health screenshots with CoS injection)
+**Last updated:** 2026-03-10 (Personal Operating Context Phase 1 — behavioral synthesis layer for CoS)
 
 ---
 
@@ -140,6 +140,7 @@ Phase 1 (Interpretation)        Phase 2 (Execution)          Phase 3 (Post-Execu
 | `run-ise-cycle-every-300-seconds` | 5m | `apps.core.tasks.run_ise_cycle_task` |
 | `cos-keepalive-every-30-seconds` | 30s | `apps.ai.tasks.cos_keepalive_task` |
 | `health-nightly-summary-3am-utc` | crontab(3,0) | `health.build_nightly_health_summaries` |
+| `operating-profiles-nightly-330am-utc` | crontab(3,30) | `apps.core.tasks.compute_operating_profiles_task` |
 
 ### APScheduler Jobs (apps/core/jobs.py)
 
@@ -218,7 +219,7 @@ User Message
       └─ 9. Post-Response Intelligence (async)
 ```
 
-### Context Builder (18 Parallel Builders)
+### Context Builder (19 Parallel Builders)
 
 **Function:** `build_cos_context(user)` — `apps/core/ai_orchestrator/cos_context.py:1068`
 Uses `ThreadPoolExecutor(max_workers=6)`.
@@ -245,6 +246,7 @@ Uses `ThreadPoolExecutor(max_workers=6)`.
 | **Capture** (Phase 7.3) | `_build_capture_context()` | PendingCapture, CaptureEntry | pending uploads, recent ready items |
 | **Medical** (Phase 7.3) | `_build_medical_context()` | LabResult, LabPanel | abnormal lab results (90 days), recent panels |
 | **Purpose** (Phase 7.3) | `_build_purpose_context()` | LifeGoal, HabitGoal, HabitEntry | active goals with deadlines, habit weekly completion rates |
+| **Operating Profile** (Phase 1 POC) | `_build_operating_profile()` | UserOperatingProfile (pre-computed) | productive_windows, deferral_patterns, momentum_phase |
 
 ### System Prompt Assembly (Priority Order)
 

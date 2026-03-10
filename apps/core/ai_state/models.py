@@ -208,3 +208,78 @@ class CoSSituationState(models.Model):
             f"CoS Situation for {self.user} — "
             f"mode={self.situation_mode}, concern={self.dominant_concern[:50]}"
         )
+
+
+class UserOperatingProfile(models.Model):
+    """
+    Personal Operating Context — pre-computed behavioral synthesis.
+
+    Stores how this user typically operates: productive time windows,
+    task deferral patterns, and momentum phase. Computed daily from
+    a 30-day sliding window of existing activity data.
+
+    This is NOT an engine. It is a lightweight synthesis layer that
+    Beth reads when framing guidance. It influences HOW she communicates,
+    not WHAT she decides.
+
+    Follows the CoSSituationState pattern:
+        PRECOMPUTE (nightly task) → STORE (this model) → READ (CoS builder) → INJECT (prompt)
+    """
+
+    # Current profile schema version — increment when profile_data structure changes
+    SCHEMA_VERSION = 1
+
+    # Minimum days of data for the profile to be considered reliable
+    MIN_CONFIDENCE_DAYS = 14
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="operating_profile",
+    )
+    profile_data = models.JSONField(
+        default=dict,
+        help_text=(
+            "Structured behavioral synthesis keyed by dimension. "
+            "Phase 1 dimensions: productive_windows, deferral_patterns, momentum_phase."
+        ),
+    )
+    sample_days = models.IntegerField(
+        default=0,
+        help_text="Number of days of usable activity data in the computation window.",
+    )
+    last_computed = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this profile was last recomputed.",
+    )
+    version = models.IntegerField(
+        default=SCHEMA_VERSION,
+        help_text="Schema version of profile_data structure.",
+    )
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_user_operating_profile"
+        indexes = [
+            models.Index(fields=["user"]),
+            models.Index(fields=["last_computed"]),
+        ]
+        verbose_name = "User Operating Profile"
+        verbose_name_plural = "User Operating Profiles"
+
+    def __str__(self):
+        phase = self.get_dimension("momentum_phase", {}).get("current_phase", "unknown")
+        return (
+            f"Operating Profile for {self.user} — "
+            f"sample_days={self.sample_days}, phase={phase}"
+        )
+
+    def get_dimension(self, dimension, default=None):
+        """Get a specific behavioral dimension from profile_data."""
+        return self.profile_data.get(dimension, default or {})
+
+    @property
+    def is_reliable(self):
+        """Whether this profile has enough data to be useful."""
+        return self.sample_days >= self.MIN_CONFIDENCE_DAYS

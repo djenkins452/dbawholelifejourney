@@ -1322,7 +1322,43 @@ _PARALLEL_BUILDERS = [
     # v8 SA builder temporarily disabled for production stability debugging.
     # Re-enable after confirming 524 timeout root cause.
     # lambda user, prefs: _build_situational_awareness_context(user),
+    # Phase 1: Personal Operating Context — reads pre-computed profile (single DB hit)
+    lambda user, prefs: _build_operating_profile(user),
 ]
+
+
+def _build_operating_profile(user):
+    """
+    Read the pre-computed Personal Operating Context for this user.
+
+    This builder does ONE database lookup (no computation). The profile
+    is pre-computed nightly by compute_operating_profiles_task. If the
+    profile is missing or unreliable, returns empty dict — Beth operates
+    exactly as before.
+
+    Returns:
+        dict with 'operating_profile' key containing the profile data,
+        or empty dict if unavailable.
+    """
+    try:
+        from apps.core.ai_state.models import UserOperatingProfile
+        profile = UserOperatingProfile.objects.filter(user=user).first()
+        if profile and profile.profile_data:
+            return {
+                'operating_profile': {
+                    'data': profile.profile_data,
+                    'sample_days': profile.sample_days,
+                    'is_reliable': profile.is_reliable,
+                    'last_computed': (
+                        profile.last_computed.isoformat()
+                        if profile.last_computed else None
+                    ),
+                },
+            }
+        return {}
+    except Exception as e:
+        logger.debug("CoS context: operating profile unavailable: %s", e)
+        return {}
 
 
 def _build_situational_awareness_context(user):
@@ -2010,6 +2046,111 @@ def _build_data_state_snapshot(user) -> str:
     return "\n".join(lines)
 
 
+def _format_operating_profile_injection(profile_data):
+    """
+    Format the Personal Operating Context as a concise prompt block.
+
+    Converts structured profile_data into factual behavioral summaries
+    that Beth can reference when framing guidance. Output is capped at
+    ~300-500 tokens. Does NOT inject raw data — only interpreted signals.
+
+    Args:
+        profile_data: dict from UserOperatingProfile.profile_data
+
+    Returns:
+        str — formatted profile block, or empty string if nothing to inject.
+    """
+    sections = []
+
+    # ── Productive Windows ──
+    pw = profile_data.get('productive_windows', {})
+    if pw.get('confidence', 0) >= 0.3 and pw.get('peak_hours'):
+        peak = pw['peak_hours']
+        peak_strs = [f"{_hour_label(h)}" for h in peak[:3]]
+        section = f"Peak activity hours: {', '.join(peak_strs)}"
+        if pw.get('low_hours'):
+            low_strs = [f"{_hour_label(h)}" for h in pw['low_hours'][:2]]
+            section += f". Low activity: {', '.join(low_strs)}"
+        sections.append(section)
+
+    # ── Deferral Patterns ──
+    dp = profile_data.get('deferral_patterns', {})
+    if dp.get('confidence', 0) >= 0.3:
+        rate = dp.get('overall_deferral_rate', 0)
+        if rate >= 0.15:  # Only mention if deferral is notable
+            parts = []
+            parts.append(
+                f"Task skip rate: {rate:.0%} of resolved tasks are skipped"
+            )
+            # Prone modules
+            prone = dp.get('prone_modules', [])
+            if prone:
+                module_strs = [
+                    f"{m['module']} ({m['deferral_rate']:.0%})"
+                    for m in prone[:2]
+                ]
+                parts.append(f"Deferral-prone areas: {', '.join(module_strs)}")
+            # Intervention response
+            dismiss_rate = dp.get('intervention_dismiss_rate', 0)
+            if dismiss_rate >= 0.3:
+                parts.append(
+                    f"Nudge dismissal rate: {dismiss_rate:.0%} "
+                    f"(coaching reminders are often dismissed)"
+                )
+            sections.append('. '.join(parts))
+
+    # ── Momentum Phase ──
+    mp = profile_data.get('momentum_phase', {})
+    if mp.get('confidence', 0) >= 0.3 and mp.get('current_phase') != 'insufficient_data':
+        phase = mp['current_phase']
+        trend = mp.get('trend', '')
+        recent = mp.get('recent_active_days', 0)
+        domains = mp.get('active_domain_count', 0)
+
+        phase_labels = {
+            'building': 'Building momentum — recent activity exceeds baseline',
+            'sustaining': 'Sustaining — activity is steady and consistent',
+            'declining': 'Declining — recent activity below baseline',
+            'recovering': 'Recovering — activity significantly below normal',
+        }
+        phase_text = phase_labels.get(phase, f"Phase: {phase}")
+        section = f"Momentum: {phase_text}"
+        section += f" ({recent}/7 active days this week, {domains} domains)"
+        sections.append(section)
+
+    if not sections:
+        return ""
+
+    # Assemble with Beth directive
+    lines = []
+    lines.append("=== USER OPERATING PROFILE (behavioral context) ===")
+    lines.append("")
+    for s in sections:
+        lines.append(f"• {s}")
+    lines.append("")
+    lines.append(
+        "USE THIS PROFILE TO: Frame timing suggestions around peak hours. "
+        "Flag deferral-prone tasks proactively. Adjust urgency based on "
+        "momentum phase. This profile influences HOW you frame guidance — "
+        "it does NOT override task priorities, insights, or predictions."
+    )
+    lines.append("")
+    lines.append("=== END OPERATING PROFILE ===")
+    return "\n".join(lines)
+
+
+def _hour_label(hour):
+    """Convert 24h hour int to readable label. e.g., 14 → '2 PM'."""
+    if hour == 0:
+        return "12 AM"
+    elif hour < 12:
+        return f"{hour} AM"
+    elif hour == 12:
+        return "12 PM"
+    else:
+        return f"{hour - 12} PM"
+
+
 def format_cos_system_injection(context):
     """
     Format the CoS context as a system prompt injection string.
@@ -2464,6 +2605,19 @@ def format_cos_system_injection(context):
                 lines.append("")
         except Exception:
             pass
+
+    # ── USER OPERATING PROFILE (Personal Operating Context — Phase 1) ──
+    # Pre-computed behavioral synthesis. Influences HOW Beth frames guidance,
+    # not WHAT she decides. Only injected when sample_days >= 14.
+    op_profile = context.get('operating_profile', {})
+    if op_profile.get('is_reliable') and op_profile.get('data'):
+        try:
+            _profile_block = _format_operating_profile_injection(op_profile['data'])
+            if _profile_block:
+                lines.append(_profile_block)
+                lines.append("")
+        except Exception:
+            logger.debug("CoS context: operating profile injection failed", exc_info=True)
 
     # What matters to this person (compact)
     bp = context.get('blueprint_state', {})

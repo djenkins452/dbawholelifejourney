@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-10 — Personal Operating Context (Phase 1)
+
+- **Feature:** Added Personal Operating Context — a behavioral synthesis layer that allows Beth to understand how the user typically operates and frame guidance accordingly. This is NOT a new engine; it's a lightweight pre-computed profile that follows the established PRECOMPUTE → STORE → READ → INJECT pattern (same as CoSSituationState).
+- **Phase 1 dimensions:** (1) Productive Windows — peak/low activity hours from task completion, workout, and journal timestamps, (2) Deferral Patterns — skip rates, deferral-prone modules, intervention dismissal rates from Task and InterventionLog data, (3) Momentum Phase — building/sustaining/declining/recovering based on 7-day vs 30-day activity comparison.
+- **Model:** `UserOperatingProfile` (OneToOne per user) with `profile_data` JSONField, `sample_days`, `last_computed`, `version`. Minimum 14 days of data for profile to be considered reliable.
+- **Computation service:** `apps/core/ai_state/operating_profile.py` — analyzes 30-day sliding window of existing data (tasks, workouts, journals, habits, interventions). Each dimension computed independently with graceful degradation.
+- **Nightly batch job:** Celery Beat task `compute_operating_profiles_task` at 3:30 AM UTC. Iterates over active AI users with `.iterator()`. No computation during conversations — builder does a single DB lookup.
+- **CoS builder:** `_build_operating_profile()` added to `_PARALLEL_BUILDERS` list (builder #19). Reads pre-computed profile in <5ms.
+- **Prompt injection:** New "USER OPERATING PROFILE" section in `format_cos_system_injection()`, placed after COACHING MODE and before operational data. Capped at ~500 tokens. Only injected when `sample_days >= 14` and dimension confidence >= 0.3.
+- **Beth directive:** Profile influences HOW Beth frames guidance (timing suggestions, deferral anticipation, momentum awareness) — it does NOT override task priorities, insights, or predictions.
+- **Safety:** If profile is missing, unreliable, or computation fails, Beth behaves exactly as before. Feature is purely additive.
+- **Tests:** 37 new tests covering model, computation, builder, injection, token limits, batch recomputation, and Celery task. All pass. 65 existing SAE tests pass (no regression).
+- **Files created:** `apps/core/ai_state/operating_profile.py`, `apps/core/ai_state/tests_operating_profile.py`, `apps/core/migrations/0106_add_user_operating_profile.py`
+- **Files modified:** `apps/core/ai_state/models.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/core/tasks.py`, `config/settings.py`
+
 ## 2026-03-10 — CoS check-in: priority synthesis and signal deduplication
 
 - **Problem:** Beth's check-in responses suffered from two issues: (1) information duplication — the same accomplishment (e.g., "workout done") appeared in multiple sections; (2) no priority synthesis — Beth listed all pending tasks equally instead of highlighting what matters most right now.

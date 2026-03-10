@@ -1094,6 +1094,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "capture.process_pending_captures",
         "schedule": 300.0,  # Every 5 minutes — catch entries stuck in 'transcribing'
     },
+    "operating-profiles-nightly-330am-utc": {
+        "task": "apps.core.tasks.compute_operating_profiles_task",
+        "schedule": crontab(hour=3, minute=30),  # 3:30 AM UTC = 10:30 PM EST (off-peak)
+    },
 }
 
 # Worker settings

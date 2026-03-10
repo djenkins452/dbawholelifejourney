@@ -536,3 +536,79 @@ def _finish_engine_execution_log(
         execution_log.save(update_fields=update_fields)
     except Exception:
         logger.warning("Failed to update EngineExecutionLog", exc_info=True)
+
+
+# =========================================================================
+# PERSONAL OPERATING CONTEXT — NIGHTLY PROFILE COMPUTATION
+# =========================================================================
+
+
+@shared_task(
+    bind=True,
+    name="apps.core.tasks.compute_operating_profiles_task",
+    max_retries=1,
+    default_retry_delay=60,
+    soft_time_limit=300,   # 5 minutes soft limit
+    time_limit=360,        # 6 minutes hard limit
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def compute_operating_profiles_task(self):
+    """
+    Nightly task: recompute UserOperatingProfile for all active AI users.
+
+    Pre-computes behavioral synthesis (productive windows, deferral
+    patterns, momentum phase) using a 30-day sliding window. Results
+    are stored in UserOperatingProfile and read cheaply by the CoS
+    context builder during conversations.
+
+    Follows the same PRECOMPUTE → STORE → READ → INJECT pattern
+    as CoSSituationState.
+    """
+    task_id = self.request.id or "local"
+    start = time.monotonic()
+    logger.info("Operating profiles task starting (task_id=%s)", task_id)
+
+    try:
+        from apps.core.ai_state.operating_profile import recompute_all_profiles
+
+        result = recompute_all_profiles()
+
+        duration = time.monotonic() - start
+        logger.info(
+            "Operating profiles task completed "
+            "(task_id=%s, duration=%.2fs, computed=%d, errors=%d)",
+            task_id, duration,
+            result.get('computed', 0), result.get('errors', 0),
+        )
+        return {
+            "status": "ok",
+            "duration_seconds": round(duration, 2),
+            "task_id": task_id,
+            "result": result,
+        }
+
+    except SoftTimeLimitExceeded:
+        duration = time.monotonic() - start
+        logger.warning(
+            "Operating profiles task hit soft time limit "
+            "(task_id=%s, duration=%.2fs)",
+            task_id, duration,
+        )
+        return {"status": "timeout", "task_id": task_id}
+
+    except Exception as exc:
+        duration = time.monotonic() - start
+        logger.exception(
+            "Operating profiles task failed "
+            "(task_id=%s, duration=%.2fs): %s",
+            task_id, duration, exc,
+        )
+        try:
+            raise self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            logger.error(
+                "Operating profiles task max retries exceeded (task_id=%s)",
+                task_id,
+            )
+            return {"status": "max_retries_exceeded", "task_id": task_id}

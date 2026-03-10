@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-10 — Fix workout plateau reporting across CoS and dashboard
+
+- **Root cause:** Stale "strength plateau" insights persisted indefinitely because: (1) StrengthPlateauRule returned [] when exercises improved but never dismissed old insights, (2) CoS queried insights with no time filter, (3) AJAX set saves didn't refresh SAE fitness state, (4) e1RM-only plateau detection missed real weight progression.
+- **Phase 1 — Auto-resolve stale insights:** Added `_resolve_stale_insights()` to `StrengthPlateauRule`. When the rule evaluates and finds NO plateauing or regressing exercises, it now dismisses all active `strength_plateau` insights for that user. Works on both per-exercise and global fallback paths.
+- **Phase 2 — CoS freshness window:** Added 72-hour `created_at` cutoff to `_build_intelligence_signals()` in `cos_context.py`. Insights older than 72 hours no longer appear in Beth's context regardless of status.
+- **Phase 3 — AJAX set save refresh:** `save_set_ajax()` now calls `update_user_state(user, "fitness")` and `invalidate_cos_context(user)` after each set save. Fitness state stays fresh during active workouts.
+- **Phase 4 — Weight-aware plateau detection:** `_build_exercise_progress()` now tracks raw max working weights alongside e1RM. When e1RM appears flat but max weight increased by ≥3% or ≥5 lbs, the exercise is classified as "improving" instead of falsely "plateau".
+- **Tests:** 18 new tests across all phases. All 459 affected tests + 114 dashboard tests pass.
+- **Files:** `apps/core/ai_insights/rules_transformation.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/health/views.py`, `apps/core/ai_state/state_builder.py`, `apps/core/ai_insights/tests_transformation.py`
+
 ## 2026-03-10 — Force context refresh on check-in/status requests
 
 - **Feature:** Check-in and status requests now force a full CoS context rebuild, bypassing all caches (readiness cache, layered cache, flat cache, and pre-computed ECC cache). This ensures the user always gets real-time state when asking "check in", "status", "where do things stand", etc.

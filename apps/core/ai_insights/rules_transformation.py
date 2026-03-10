@@ -469,6 +469,8 @@ class StrengthPlateauRule(BaseInsightRule):
         regressing = [e for e in exercise_progress if e["status"] == "regressing"]
 
         if not plateauing and not regressing:
+            # No plateau or regression — resolve any stale plateau insights
+            self._resolve_stale_insights(user)
             return []
 
         window_start, window_end = get_time_window(days=30)
@@ -563,6 +565,32 @@ class StrengthPlateauRule(BaseInsightRule):
         )
         return msg
 
+    def _resolve_stale_insights(self, user):
+        """Dismiss active plateau insights when condition no longer holds.
+
+        Called when the StrengthPlateauRule evaluates and finds NO
+        plateauing or regressing exercises.  Without this, old plateau
+        insights remain with status="new"/"read" indefinitely because
+        the rule returns [] and no counterpart insight is generated.
+        """
+        import logging
+
+        from apps.core.ai_insights.models import Insight
+
+        _logger = logging.getLogger(__name__)
+        updated = Insight.objects.filter(
+            user=user,
+            insight_type=self.insight_type,
+            status__in=["new", "read"],
+        ).update(status="dismissed")
+        if updated:
+            _logger.info(
+                "PLATEAU_RESOLVED user=%s dismissed=%d — exercises no longer "
+                "plateauing/regressing",
+                user.id,
+                updated,
+            )
+
     def _evaluate_global_fallback(self, user, fitness):
         """Fallback: global plateau detection for legacy cached state."""
         prs_30d = fitness.get("prs_30d", 0)
@@ -570,8 +598,10 @@ class StrengthPlateauRule(BaseInsightRule):
         strength_trend = fitness.get("strength_trend_score", "insufficient_data")
 
         if prs_30d > 0:
+            self._resolve_stale_insights(user)
             return []
         if strength_trend == "increasing":
+            self._resolve_stale_insights(user)
             return []
 
         window_start, window_end = get_time_window(days=30)

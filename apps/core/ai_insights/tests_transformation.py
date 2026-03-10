@@ -498,3 +498,311 @@ class TestTransformationMomentumRule(TestCase):
         }
         insights = self.rule.evaluate(self.user, event)
         self.assertEqual(len(insights), 0)
+
+
+# ── StrengthPlateauRule Auto-Resolution Tests ────────────────
+
+
+class TestStrengthPlateauAutoResolution(TestCase):
+    """Verify that plateau insights are dismissed when exercises improve."""
+
+    def setUp(self):
+        from apps.core.ai_insights.models import Insight
+        self.user = _create_test_user("pie_resolve@example.com")
+        self.rule = StrengthPlateauRule()
+        # Pre-create an active plateau insight
+        self.plateau_insight = Insight.objects.create(
+            user=self.user,
+            module="health",
+            insight_type="strength_plateau",
+            severity="info",
+            title="Exercise plateau detected",
+            message="Your bench press appears to be plateauing.",
+            confidence_score=0.75,
+            explain_why="Rule: strength_plateau",
+            evidence={"rule_name": "strength_plateau"},
+            status="new",
+            dedupe_key="test_plateau_dedupe_001",
+        )
+
+    def _make_event(self, exercise_progress):
+        return {
+            "module": "health",
+            "user_state": {
+                "fitness": {
+                    "workouts_30d": 12,
+                    "prs_30d": 0,
+                    "exercise_progress": exercise_progress,
+                }
+            },
+        }
+
+    def test_all_improving_resolves_plateau_insight(self):
+        """When all exercises are improving, old plateau insight is dismissed."""
+        from apps.core.ai_insights.models import Insight
+        progress = [
+            {"exercise": "Bench Press", "sessions_30d": 6, "sets_30d": 18,
+             "prs_30d": 2, "best_e1rm": 220, "recent_e1rm": 220,
+             "prior_e1rm": 208, "trend": "up", "status": "improving"},
+        ]
+        insights = self.rule.evaluate(self.user, self._make_event(progress))
+        self.assertEqual(len(insights), 0)
+        self.plateau_insight.refresh_from_db()
+        self.assertEqual(self.plateau_insight.status, "dismissed")
+
+    def test_empty_progress_resolves_plateau_insight(self):
+        """Empty exercise list (no exercises meet threshold) also resolves."""
+        from apps.core.ai_insights.models import Insight
+        insights = self.rule.evaluate(self.user, self._make_event([]))
+        self.assertEqual(len(insights), 0)
+        self.plateau_insight.refresh_from_db()
+        self.assertEqual(self.plateau_insight.status, "dismissed")
+
+    def test_plateau_still_active_keeps_insight(self):
+        """Plateau insight is NOT dismissed when plateau still exists."""
+        progress = [
+            {"exercise": "Bench Press", "sessions_30d": 6, "sets_30d": 18,
+             "prs_30d": 0, "best_e1rm": 208, "recent_e1rm": 208,
+             "prior_e1rm": 208, "trend": "flat", "status": "plateau"},
+        ]
+        insights = self.rule.evaluate(self.user, self._make_event(progress))
+        self.assertEqual(len(insights), 1)
+        self.plateau_insight.refresh_from_db()
+        # The existing insight is updated via dedupe, NOT dismissed
+        self.assertIn(self.plateau_insight.status, ["new", "read"])
+
+    def test_dismissed_insight_not_re_dismissed(self):
+        """Already dismissed insights should not be affected."""
+        from apps.core.ai_insights.models import Insight
+        self.plateau_insight.status = "dismissed"
+        self.plateau_insight.save()
+        progress = [
+            {"exercise": "Bench Press", "sessions_30d": 6, "sets_30d": 18,
+             "prs_30d": 2, "best_e1rm": 220, "recent_e1rm": 220,
+             "prior_e1rm": 208, "trend": "up", "status": "improving"},
+        ]
+        self.rule.evaluate(self.user, self._make_event(progress))
+        self.plateau_insight.refresh_from_db()
+        self.assertEqual(self.plateau_insight.status, "dismissed")
+
+    def test_global_fallback_resolves_on_prs(self):
+        """Global fallback path: PRs found → resolve stale insight."""
+        from apps.core.ai_insights.models import Insight
+        event = {
+            "module": "health",
+            "user_state": {
+                "fitness": {
+                    "workouts_30d": 12,
+                    "prs_30d": 3,
+                    # No exercise_progress → triggers global fallback
+                }
+            },
+        }
+        insights = self.rule.evaluate(self.user, event)
+        self.assertEqual(len(insights), 0)
+        self.plateau_insight.refresh_from_db()
+        self.assertEqual(self.plateau_insight.status, "dismissed")
+
+    def test_global_fallback_resolves_on_increasing_trend(self):
+        """Global fallback path: increasing trend → resolve stale insight."""
+        from apps.core.ai_insights.models import Insight
+        event = {
+            "module": "health",
+            "user_state": {
+                "fitness": {
+                    "workouts_30d": 12,
+                    "prs_30d": 0,
+                    "strength_trend_score": "increasing",
+                }
+            },
+        }
+        insights = self.rule.evaluate(self.user, event)
+        self.assertEqual(len(insights), 0)
+        self.plateau_insight.refresh_from_db()
+        self.assertEqual(self.plateau_insight.status, "dismissed")
+
+    def test_does_not_resolve_other_insight_types(self):
+        """Resolution only targets strength_plateau, not other types."""
+        from apps.core.ai_insights.models import Insight
+        other_insight = Insight.objects.create(
+            user=self.user,
+            module="health",
+            insight_type="weight_trend_up",
+            severity="info",
+            title="Weight trend up",
+            message="Your weight is trending up.",
+            confidence_score=0.80,
+            explain_why="Rule: weight_trend_up",
+            evidence={},
+            status="new",
+            dedupe_key="test_other_dedupe_001",
+        )
+        progress = [
+            {"exercise": "Bench Press", "sessions_30d": 6, "sets_30d": 18,
+             "prs_30d": 2, "best_e1rm": 220, "recent_e1rm": 220,
+             "prior_e1rm": 208, "trend": "up", "status": "improving"},
+        ]
+        self.rule.evaluate(self.user, self._make_event(progress))
+        other_insight.refresh_from_db()
+        self.assertEqual(other_insight.status, "new")  # Untouched
+
+
+# ── CoS Freshness Window Tests ──────────────────────────────
+
+
+class TestCoSInsightFreshnessWindow(TestCase):
+    """Verify CoS only surfaces insights within the freshness window."""
+
+    def setUp(self):
+        from apps.core.ai_insights.models import Insight
+        self.user = _create_test_user("cos_fresh@example.com")
+        now = timezone.now()
+        # Recent insight (within 72h)
+        self.recent = Insight.objects.create(
+            user=self.user, module="health",
+            insight_type="strength_plateau", severity="info",
+            title="Recent plateau", message="Recent",
+            confidence_score=0.75, explain_why="test",
+            evidence={}, status="new", dedupe_key="cos_fresh_recent",
+        )
+        # Old insight (4 days ago — outside 72h window)
+        self.stale = Insight.objects.create(
+            user=self.user, module="health",
+            insight_type="strength_plateau", severity="info",
+            title="Old plateau", message="Stale",
+            confidence_score=0.75, explain_why="test",
+            evidence={}, status="new", dedupe_key="cos_fresh_stale",
+        )
+        from apps.core.ai_insights.models import Insight as I
+        I.objects.filter(pk=self.stale.pk).update(
+            created_at=now - timezone.timedelta(days=4),
+        )
+
+    def test_fresh_insights_included(self):
+        from apps.core.ai_orchestrator.cos_context import _build_intelligence_signals
+        signals = _build_intelligence_signals(self.user)
+        titles = [i['title'] for i in signals.get('active_insights', [])]
+        self.assertIn("Recent plateau", titles)
+
+    def test_stale_insights_excluded(self):
+        from apps.core.ai_orchestrator.cos_context import _build_intelligence_signals
+        signals = _build_intelligence_signals(self.user)
+        titles = [i['title'] for i in signals.get('active_insights', [])]
+        self.assertNotIn("Old plateau", titles)
+
+
+# ── Exercise Progress Weight-Progression Tests ───────────────
+
+
+class TestExerciseProgressWeightProgression(TestCase):
+    """Verify _build_exercise_progress uses raw weight as secondary signal."""
+
+    def setUp(self):
+        self.user = _create_test_user("progress_weight@example.com")
+
+    def test_weight_increase_overrides_flat_e1rm(self):
+        """If e1RM is flat but raw weight went up 5+ lbs, status should be improving."""
+        from apps.core.ai_state.state_builder import _build_exercise_progress
+        from apps.core.time.system_clock import get_current_time
+        from apps.health.models import (
+            Exercise, ExerciseSet, WorkoutExercise, WorkoutSession,
+        )
+
+        now = get_current_time()
+        cutoff_30d = now - timezone.timedelta(days=30)
+
+        ex = Exercise.objects.create(
+            name="Test Bench Press", category="resistance",
+        )
+
+        # Prior period (15-30 days ago): 135 lbs × 8 reps → e1RM ≈ 171
+        prior_session = WorkoutSession.objects.create(
+            user=self.user, date=(now - timezone.timedelta(days=20)).date(),
+            name="Workout A", status="active",
+        )
+        prior_we = WorkoutExercise.objects.create(
+            session=prior_session, exercise=ex, order=1,
+        )
+        for i in range(1, 5):  # 4 sets to meet threshold
+            ExerciseSet.objects.create(
+                workout_exercise=prior_we, set_number=i,
+                weight=135, reps=8, is_warmup=False,
+            )
+
+        # Recent period (last 14 days): 145 lbs × 5 reps → e1RM ≈ 163
+        # Weight went UP by 10 lbs, but e1RM went DOWN slightly.
+        # The raw weight increase should override the flat/down e1RM.
+        recent_session = WorkoutSession.objects.create(
+            user=self.user, date=(now - timezone.timedelta(days=3)).date(),
+            name="Workout B", status="active",
+        )
+        recent_we = WorkoutExercise.objects.create(
+            session=recent_session, exercise=ex, order=1,
+        )
+        for i in range(1, 5):  # 4 sets
+            ExerciseSet.objects.create(
+                workout_exercise=recent_we, set_number=i,
+                weight=145, reps=5, is_warmup=False,
+            )
+
+        progress = _build_exercise_progress(self.user, cutoff_30d)
+        self.assertEqual(len(progress), 1)
+        entry = progress[0]
+        self.assertEqual(entry["exercise"], "Test Bench Press")
+        # Should be "improving" due to 10 lb weight increase, not "plateau"
+        self.assertEqual(entry["status"], "improving")
+        self.assertEqual(entry["trend"], "up")
+
+    def test_small_weight_change_stays_plateau(self):
+        """Tiny weight change (<3% and <5 lbs) should NOT override plateau."""
+        from apps.core.ai_state.state_builder import _build_exercise_progress
+        from apps.core.time.system_clock import get_current_time
+        from apps.health.models import (
+            Exercise, ExerciseSet, PersonalRecord,
+            WorkoutExercise, WorkoutSession,
+        )
+
+        now = get_current_time()
+        cutoff_30d = now - timezone.timedelta(days=30)
+
+        ex = Exercise.objects.create(
+            name="Test OHP", category="resistance",
+        )
+
+        # Prior: 100 lbs × 8 reps → e1RM ≈ 126.9
+        prior = WorkoutSession.objects.create(
+            user=self.user, date=(now - timezone.timedelta(days=20)).date(),
+            name="W1", status="active",
+        )
+        prior_we = WorkoutExercise.objects.create(
+            session=prior, exercise=ex, order=1,
+        )
+        for i in range(1, 5):
+            ExerciseSet.objects.create(
+                workout_exercise=prior_we, set_number=i,
+                weight=100, reps=8, is_warmup=False,
+            )
+
+        # Recent: 102 lbs × 7 reps → e1RM ≈ 122.4 (slightly lower)
+        # Weight only went up 2 lbs (2%, below 3% threshold)
+        recent = WorkoutSession.objects.create(
+            user=self.user, date=(now - timezone.timedelta(days=3)).date(),
+            name="W2", status="active",
+        )
+        recent_we = WorkoutExercise.objects.create(
+            session=recent, exercise=ex, order=1,
+        )
+        for i in range(1, 5):
+            ExerciseSet.objects.create(
+                workout_exercise=recent_we, set_number=i,
+                weight=102, reps=7, is_warmup=False,
+            )
+
+        # Clear auto-created PRs so prs_30d doesn't override status
+        PersonalRecord.objects.filter(user=self.user, exercise=ex).delete()
+
+        progress = _build_exercise_progress(self.user, cutoff_30d)
+        self.assertEqual(len(progress), 1)
+        entry = progress[0]
+        # e1RM went down slightly and weight change is negligible → should stay plateau
+        self.assertIn(entry["status"], ["plateau", "regressing"])

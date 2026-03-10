@@ -888,6 +888,8 @@ def _build_exercise_progress(user, cutoff_30d):
         "sets_30d": 0,
         "recent_e1rms": [],   # last 14 days
         "prior_e1rms": [],    # 15-30 day window
+        "recent_weights": [],  # raw weights last 14 days
+        "prior_weights": [],   # raw weights 15-30 day window
     })
 
     for s in sets_qs:
@@ -898,10 +900,13 @@ def _build_exercise_progress(user, cutoff_30d):
         data["sets_30d"] += 1
 
         e1rm = brzycki_1rm(s.weight, s.reps)
+        w = float(s.weight)
         if session_date >= cutoff_14d.date():
             data["recent_e1rms"].append(e1rm)
+            data["recent_weights"].append(w)
         else:
             data["prior_e1rms"].append(e1rm)
+            data["prior_weights"].append(w)
 
     # 2. Get PR counts per exercise in the last 30 days
     pr_counts = dict(
@@ -926,6 +931,12 @@ def _build_exercise_progress(user, cutoff_30d):
         recent_best = max(data["recent_e1rms"]) if data["recent_e1rms"] else 0
         prior_best = max(data["prior_e1rms"]) if data["prior_e1rms"] else 0
 
+        # Raw weight progression: catches the case where a user moves
+        # from 135 lbs → 145 lbs but drops reps, causing e1RM to look
+        # flat.  A meaningful jump in max working weight is still progress.
+        recent_max_weight = max(data["recent_weights"]) if data["recent_weights"] else 0
+        prior_max_weight = max(data["prior_weights"]) if data["prior_weights"] else 0
+
         # Determine trend
         if not data["prior_e1rms"]:
             trend = "new"
@@ -936,7 +947,18 @@ def _build_exercise_progress(user, cutoff_30d):
             elif ratio < 0.95:
                 trend = "down"
             else:
-                trend = "flat"
+                # e1RM is flat — check raw weight as secondary signal.
+                # If max working weight went up by ≥3% (or ≥5 lbs for
+                # lighter lifts), treat as progressing, not plateauing.
+                weight_ratio = (
+                    recent_max_weight / prior_max_weight
+                    if prior_max_weight > 0 else 0
+                )
+                weight_delta = recent_max_weight - prior_max_weight
+                if weight_ratio > 1.03 or weight_delta >= 5:
+                    trend = "up"
+                else:
+                    trend = "flat"
         else:
             trend = "new"
 

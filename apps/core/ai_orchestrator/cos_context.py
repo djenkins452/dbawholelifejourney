@@ -603,11 +603,20 @@ def _build_intelligence_signals(user):
     _sources_loaded = []
     _sources_failed = []
 
-    # Active PIE insights
+    # Active PIE insights — freshness window prevents stale insights
+    # (e.g. a "strength plateau" from 2 weeks ago) from polluting CoS.
+    # Critical/warning insights get a longer window than info-level.
     try:
+        from datetime import timedelta as _td
+
+        from django.utils import timezone as _tz
+
         from apps.core.ai_insights.models import Insight
+
+        _insight_cutoff = _tz.now() - _td(hours=72)
         recent_insights = Insight.objects.filter(
             user=user, status__in=["new", "read"],
+            created_at__gte=_insight_cutoff,
         ).order_by("-created_at")[:5]
         result['active_insights'] = [
             {

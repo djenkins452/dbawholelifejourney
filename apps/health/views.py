@@ -2205,6 +2205,22 @@ def save_set_ajax(request):
         except Exception:
             logger.exception("Error in PR detection on set update")
 
+    # Refresh fitness SAE state so CoS and dashboard read fresh data.
+    # Uses incremental module rebuild (fitness only) — avoids expensive
+    # full state rebuild on every single set save.
+    try:
+        from apps.core.ai_state.state_updater import update_user_state
+        update_user_state(user, "fitness")
+    except Exception:
+        logger.debug("Deferred fitness state refresh after set save failed", exc_info=True)
+
+    # Invalidate CoS readiness cache so Beth reads fresh fitness state
+    try:
+        from apps.ai.readiness_cache import invalidate_cos_context
+        invalidate_cos_context(user)
+    except Exception:
+        pass
+
     return JsonResponse({
         "success": True,
         "set_id": exercise_set.pk,

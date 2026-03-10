@@ -286,8 +286,14 @@
 .receipt-confirm-actions {
     display: flex;
     gap: var(--space-3);
-    justify-content: flex-end;
-    padding: var(--space-4) 0;
+    justify-content: center;
+    padding: var(--space-3) var(--space-4);
+    position: sticky;
+    bottom: 0;
+    background: var(--color-bg, #fff);
+    border-top: 1px solid var(--color-border);
+    margin: 0 calc(-1 * var(--space-4));
+    z-index: 10;
 }
 .visually-hidden {
     position: absolute;

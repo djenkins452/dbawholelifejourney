@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 153,
+    "fields": {
+      "title": "Smart Workout Inputs for Every Exercise Type",
+      "description": "Your workout tracker now adapts to how you actually exercise. Bodyweight exercises like push-ups and pull-ups show just a reps field (with an optional '+ Weight' toggle for weighted variations). Time-based exercises like Plank show a duration input in seconds. Weighted exercises keep the familiar weight + reps layout. Personal records now include 'Longest Hold' for time-based exercises, and training volume automatically accounts for your bodyweight on bodyweight movements. Templates remember your last duration for planks too.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-10",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-03-10T11:35:00Z",
+      "updated_at": "2026-03-10T11:35:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 152,
     "fields": {
       "title": "Beth Now Interprets Your Health Screenshots",

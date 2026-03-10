@@ -2,7 +2,8 @@
 Management command to populate the Exercise library.
 
 Creates default exercises for resistance training and cardio.
-Safe to run multiple times - uses get_or_create.
+Safe to run multiple times - uses get_or_create, updates movement_type
+on existing exercises.
 
 Usage: python manage.py populate_exercises
 """
@@ -10,6 +11,44 @@ Usage: python manage.py populate_exercises
 from django.core.management.base import BaseCommand
 
 from apps.health.models import Exercise
+
+
+# Bodyweight exercises (reps-based, no external weight required)
+BODYWEIGHT_EXERCISES = {
+    "Push-ups",
+    "Pull-ups",
+    "Chin-ups",
+    "Chest Dips",
+    "Tricep Dips",
+    "Dips",
+    "Lunges",
+    "Walking Lunges",
+    "Bulgarian Split Squat",
+    "Crunches",
+    "Russian Twist",
+    "Leg Raise",
+    "Hanging Leg Raise",
+    "Mountain Climbers",
+    "Dead Bug",
+    "Bird Dog",
+    "Burpees",
+    "Jumping Jacks",
+    "Box Jumps",
+}
+
+# Time-based exercises (hold for duration)
+TIME_EXERCISES = {
+    "Plank",
+}
+
+
+def _movement_type(name):
+    """Determine movement_type for an exercise name."""
+    if name in TIME_EXERCISES:
+        return "time"
+    if name in BODYWEIGHT_EXERCISES:
+        return "bodyweight"
+    return "weighted"
 
 
 # Resistance exercises organized by muscle group
@@ -139,19 +178,27 @@ class Command(BaseCommand):
 
         # Create resistance exercises
         resistance_count = 0
+        updated_count = 0
         for muscle_group, exercises in RESISTANCE_EXERCISES.items():
             for name in exercises:
+                mt = _movement_type(name)
                 exercise, created = Exercise.objects.get_or_create(
                     name=name,
                     defaults={
                         "category": "resistance",
                         "muscle_group": muscle_group,
+                        "movement_type": mt,
                         "is_active": True,
                     },
                 )
                 if created:
                     resistance_count += 1
-                    self.stdout.write(f"  + {name} ({muscle_group})")
+                    self.stdout.write(f"  + {name} ({muscle_group}, {mt})")
+                elif exercise.movement_type != mt:
+                    exercise.movement_type = mt
+                    exercise.save(update_fields=["movement_type"])
+                    updated_count += 1
+                    self.stdout.write(f"  ~ {name} → {mt}")
 
         # Create cardio exercises
         cardio_count = 0
@@ -179,5 +226,10 @@ class Command(BaseCommand):
             )
         else:
             self.stdout.write(self.style.SUCCESS("\nAll exercises already exist."))
+
+        if updated_count > 0:
+            self.stdout.write(
+                self.style.SUCCESS(f"Updated movement_type on {updated_count} exercises.")
+            )
 
         self.stdout.write(f"Total exercises in library: {total_existing}")

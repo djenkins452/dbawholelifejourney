@@ -1480,8 +1480,20 @@ class Exercise(models.Model):
         ("class", "Fitness Class"),
     ]
 
+    MOVEMENT_TYPE_CHOICES = [
+        ("weighted", "Weighted"),
+        ("bodyweight", "Bodyweight"),
+        ("time", "Time-Based"),
+    ]
+
     name = models.CharField(max_length=100)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    movement_type = models.CharField(
+        max_length=20,
+        choices=MOVEMENT_TYPE_CHOICES,
+        default="weighted",
+        help_text="Controls input fields: weighted (weight+reps), bodyweight (reps, optional weight), time (duration)",
+    )
     muscle_group = models.CharField(
         max_length=50,
         blank=True,
@@ -1641,6 +1653,11 @@ class WorkoutExercise(models.Model):
     def __str__(self):
         return f"{self.exercise.name} in {self.session}"
 
+    @property
+    def total_volume(self):
+        """Sum of volume across all non-warmup sets for this exercise."""
+        return sum(s.volume for s in self.sets.filter(is_warmup=False))
+
 
 class ExerciseSet(models.Model):
     """
@@ -1663,6 +1680,18 @@ class ExerciseSet(models.Model):
         help_text="Weight in pounds",
     )
     reps = models.PositiveIntegerField(null=True, blank=True)
+    duration_seconds = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Duration in seconds for time-based exercises",
+    )
+    bodyweight_used = models.DecimalField(
+        max_digits=6,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="User's bodyweight at time of exercise (for volume calculation)",
+    )
     is_warmup = models.BooleanField(default=False)
     is_pr = models.BooleanField(
         default=False,
@@ -1676,14 +1705,24 @@ class ExerciseSet(models.Model):
         verbose_name_plural = "exercise sets"
 
     def __str__(self):
+        if self.duration_seconds:
+            mins, secs = divmod(self.duration_seconds, 60)
+            return f"Set {self.set_number}: {mins}:{secs:02d}"
         weight_str = f"{self.weight}lbs" if self.weight else "bodyweight"
         return f"Set {self.set_number}: {weight_str} x {self.reps}"
 
     @property
     def volume(self):
-        """Calculate volume (weight x reps) for this set."""
+        """Calculate volume for this set.
+
+        Weighted: weight × reps
+        Bodyweight: bodyweight_used × reps (if bodyweight recorded)
+        Time-based: 0 (no volume concept)
+        """
         if self.weight and self.reps:
             return float(self.weight) * self.reps
+        if self.bodyweight_used and self.reps:
+            return float(self.bodyweight_used) * self.reps
         return 0
 
 
@@ -1797,6 +1836,7 @@ class PersonalRecord(UserOwnedModel):
         ("weight", "Max Weight"),
         ("reps", "Rep PR"),
         ("e1rm", "Estimated 1RM"),
+        ("time", "Longest Hold"),
     ]
 
     exercise = models.ForeignKey(
@@ -1807,9 +1847,16 @@ class PersonalRecord(UserOwnedModel):
     weight = models.DecimalField(
         max_digits=6,
         decimal_places=1,
+        null=True,
+        blank=True,
         help_text="Weight in pounds",
     )
-    reps = models.PositiveIntegerField()
+    reps = models.PositiveIntegerField(null=True, blank=True)
+    duration_seconds = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Duration in seconds for time-based PRs",
+    )
     achieved_date = models.DateField()
     workout_session = models.ForeignKey(
         WorkoutSession,
@@ -1848,7 +1895,11 @@ class PersonalRecord(UserOwnedModel):
         ]
 
     def __str__(self):
-        return f"PR: {self.exercise.name} - {self.weight}lbs x {self.reps} ({self.get_pr_type_display()})"
+        if self.pr_type == "time" and self.duration_seconds:
+            mins, secs = divmod(self.duration_seconds, 60)
+            return f"PR: {self.exercise.name} - {mins}:{secs:02d} ({self.get_pr_type_display()})"
+        weight_str = f"{self.weight}lbs" if self.weight else "bodyweight"
+        return f"PR: {self.exercise.name} - {weight_str} x {self.reps} ({self.get_pr_type_display()})"
 
     @property
     def estimated_1rm(self):
@@ -1941,6 +1992,11 @@ class TemplateExerciseSet(models.Model):
         help_text="Default weight in pounds",
     )
     reps = models.PositiveIntegerField(null=True, blank=True)
+    duration_seconds = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Default duration in seconds for time-based exercises",
+    )
 
     class Meta:
         ordering = ["set_number"]
@@ -1949,6 +2005,9 @@ class TemplateExerciseSet(models.Model):
         verbose_name_plural = "template exercise sets"
 
     def __str__(self):
+        if self.duration_seconds:
+            mins, secs = divmod(self.duration_seconds, 60)
+            return f"Set {self.set_number}: {mins}:{secs:02d}"
         weight_str = f"{self.weight}lbs" if self.weight else "bodyweight"
         return f"Set {self.set_number}: {weight_str} x {self.reps}"
 

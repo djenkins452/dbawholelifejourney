@@ -1317,6 +1317,7 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
                         template_defaults[exercise_id]["sets"][ds.set_number] = {
                             "weight": float(ds.weight) if ds.weight else None,
                             "reps": ds.reps,
+                            "duration_seconds": ds.duration_seconds,
                         }
 
                 # Fallback: if no set_defaults exist, look at the latest workout using this template
@@ -1343,6 +1344,7 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
                                     template_defaults[exercise_id]["sets"][s.set_number] = {
                                         "weight": float(s.weight) if s.weight else None,
                                         "reps": s.reps,
+                                        "duration_seconds": s.duration_seconds,
                                     }
 
                 context["template_defaults_json"] = json.dumps(template_defaults)
@@ -2113,6 +2115,8 @@ def save_set_ajax(request):
     set_number = data.get("set_number")
     weight = data.get("weight")
     reps = data.get("reps")
+    movement_type = data.get("movement_type", "weighted")
+    duration_seconds = data.get("duration_seconds")
 
     if not all([workout_id, exercise_id, set_number]):
         return JsonResponse({"error": "Missing required fields"}, status=400)
@@ -2133,6 +2137,9 @@ def save_set_ajax(request):
         # Parse weight and reps with validation
         parsed_weight = None
         parsed_reps = None
+        parsed_duration = None
+        parsed_bodyweight = None
+
         if weight:
             try:
                 parsed_weight = Decimal(str(weight))
@@ -2143,6 +2150,22 @@ def save_set_ajax(request):
                 parsed_reps = int(reps)
             except (ValueError, TypeError):
                 return JsonResponse({"error": f"Invalid reps value: {reps}"}, status=400)
+        if duration_seconds:
+            try:
+                parsed_duration = int(duration_seconds)
+            except (ValueError, TypeError):
+                return JsonResponse({"error": f"Invalid duration value: {duration_seconds}"}, status=400)
+
+        # For bodyweight exercises, auto-fetch user's latest weight
+        if movement_type == "bodyweight" and parsed_reps and not parsed_weight:
+            try:
+                latest_weight = WeightEntry.objects.filter(
+                    user=user
+                ).order_by("-recorded_at").first()
+                if latest_weight:
+                    parsed_bodyweight = Decimal(str(latest_weight.value_in_lb))
+            except Exception:
+                logger.debug("Could not fetch bodyweight for volume calc")
 
         workout_exercise, created = WorkoutExercise.objects.get_or_create(
             session=workout,
@@ -2150,14 +2173,19 @@ def save_set_ajax(request):
             defaults={"order": workout.workout_exercises.count()},
         )
 
+        # Build defaults based on movement type
+        set_defaults = {
+            "weight": parsed_weight,
+            "reps": parsed_reps,
+            "duration_seconds": parsed_duration,
+            "bodyweight_used": parsed_bodyweight,
+        }
+
         # Create or update the set
         exercise_set, set_created = ExerciseSet.objects.update_or_create(
             workout_exercise=workout_exercise,
             set_number=set_number,
-            defaults={
-                "weight": parsed_weight,
-                "reps": parsed_reps,
-            },
+            defaults=set_defaults,
         )
     except Exception:
         logger.exception("Failed to save workout set")
@@ -2167,7 +2195,7 @@ def save_set_ajax(request):
     # we must manually check. This covers the common case where the user
     # fills in weight/reps on an existing set in the live workout tracker.
     prs = []
-    if not set_created and parsed_weight and parsed_reps:
+    if not set_created:
         try:
             from apps.health.pr_utils import check_and_record_pr
             # Reset PR flag before re-checking (weight/reps may have changed)
@@ -2389,6 +2417,7 @@ def _sync_workout_to_template(workout):
                 defaults={
                     "weight": exercise_set.weight,
                     "reps": exercise_set.reps,
+                    "duration_seconds": exercise_set.duration_seconds,
                 },
             )
 
@@ -2419,14 +2448,17 @@ def get_workout_state_ajax(request, workout_id):
             "exercise_id": we.exercise.pk,
             "exercise_name": we.exercise.name,
             "category": we.exercise.category,
+            "movement_type": we.exercise.movement_type,
             "sets": [],
         }
         for s in we.sets.all():
-            exercise_info["sets"].append({
+            set_data = {
                 "set_number": s.set_number,
                 "weight": float(s.weight) if s.weight else None,
                 "reps": s.reps,
-            })
+                "duration_seconds": s.duration_seconds,
+            }
+            exercise_info["sets"].append(set_data)
         if hasattr(we, "cardio_details") and we.cardio_details:
             exercise_info["cardio"] = {
                 "duration": we.cardio_details.duration_minutes,

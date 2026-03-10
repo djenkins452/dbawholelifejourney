@@ -103,7 +103,7 @@
                             {% for group in muscle_groups %}
                                 <optgroup label="  {{ group.grouper }}">
                                     {% for exercise in group.list %}
-                                        <option value="{{ exercise.pk }}" data-category="resistance">{{ exercise.name }}</option>
+                                        <option value="{{ exercise.pk }}" data-category="resistance" data-movement-type="{{ exercise.movement_type }}">{{ exercise.name }}</option>
                                     {% endfor %}
                                 </optgroup>
                             {% endfor %}
@@ -276,6 +276,95 @@
                 <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
         </div>
+    </div>
+</template>
+
+<template id="bodyweightTemplate">
+    <div class="exercise-row bodyweight-row" data-exercise-id="EXERCISE_ID" data-movement-type="bodyweight">
+        <input type="hidden" name="exercise_id" value="EXERCISE_ID">
+        <div class="exercise-header">
+            <h3 class="exercise-name">EXERCISE_NAME</h3>
+            <div class="exercise-header-actions">
+                <label class="add-weight-toggle">
+                    <input type="checkbox" class="add-weight-checkbox"> + Weight
+                </label>
+                <button type="button" class="remove-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="sets-container">
+            <div class="set-row" data-set-number="1">
+                <span class="set-number">Set 1</span>
+                <div class="set-inputs">
+                    <div class="weight-field" style="display: none;">
+                        <input type="number" name="exercise_EXERCISE_ID_set_1_weight" placeholder="Weight" step="0.5" class="weight-input">
+                        <span class="input-suffix">lbs</span>
+                    </div>
+                    <input type="number" name="exercise_EXERCISE_ID_set_1_reps" placeholder="Reps" class="reps-input">
+                    <span class="input-suffix">reps</span>
+                    <button type="button" class="done-btn">Done</button>
+                </div>
+                <span class="set-saved-indicator" style="display: none;">&#10003;</span>
+            </div>
+            <div class="set-row" data-set-number="2">
+                <span class="set-number">Set 2</span>
+                <div class="set-inputs">
+                    <div class="weight-field" style="display: none;">
+                        <input type="number" name="exercise_EXERCISE_ID_set_2_weight" placeholder="Weight" step="0.5" class="weight-input">
+                        <span class="input-suffix">lbs</span>
+                    </div>
+                    <input type="number" name="exercise_EXERCISE_ID_set_2_reps" placeholder="Reps" class="reps-input">
+                    <span class="input-suffix">reps</span>
+                    <button type="button" class="done-btn">Done</button>
+                </div>
+                <span class="set-saved-indicator" style="display: none;">&#10003;</span>
+            </div>
+            <div class="set-row" data-set-number="3">
+                <span class="set-number">Set 3</span>
+                <div class="set-inputs">
+                    <div class="weight-field" style="display: none;">
+                        <input type="number" name="exercise_EXERCISE_ID_set_3_weight" placeholder="Weight" step="0.5" class="weight-input">
+                        <span class="input-suffix">lbs</span>
+                    </div>
+                    <input type="number" name="exercise_EXERCISE_ID_set_3_reps" placeholder="Reps" class="reps-input">
+                    <span class="input-suffix">reps</span>
+                    <button type="button" class="done-btn">Done</button>
+                </div>
+                <span class="set-saved-indicator" style="display: none;">&#10003;</span>
+            </div>
+        </div>
+        <button type="button" class="add-set-btn">+ Add Set</button>
+    </div>
+</template>
+
+<template id="timeTemplate">
+    <div class="exercise-row time-row" data-exercise-id="EXERCISE_ID" data-movement-type="time">
+        <input type="hidden" name="exercise_id" value="EXERCISE_ID">
+        <div class="exercise-header">
+            <h3 class="exercise-name">EXERCISE_NAME</h3>
+            <button type="button" class="remove-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="sets-container">
+            <div class="set-row time-set-row" data-set-number="1">
+                <span class="set-number">Set 1</span>
+                <div class="set-inputs">
+                    <input type="number" name="exercise_EXERCISE_ID_set_1_duration" placeholder="Seconds" class="duration-input" min="1">
+                    <span class="input-suffix">sec</span>
+                    <button type="button" class="done-btn time-done-btn">Done</button>
+                </div>
+                <span class="set-saved-indicator" style="display: none;">&#10003;</span>
+            </div>
+        </div>
+        <button type="button" class="add-set-btn add-time-set-btn">+ Add Set</button>
     </div>
 </template>
 
@@ -727,6 +816,47 @@
         font-size: var(--font-size-3xl, 1.875rem);
     }
 }
+
+/* Bodyweight exercise styles */
+.exercise-header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.add-weight-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.add-weight-toggle input[type="checkbox"] {
+    margin: 0;
+}
+
+.weight-field {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+/* Time-based exercise styles */
+.duration-input {
+    width: 100px;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    text-align: center;
+}
+
+.time-done-btn {
+    min-width: 70px;
+}
 </style>
 
 <script nonce="{{ csp_nonce }}">
@@ -842,9 +972,11 @@ async function loadWorkoutState() {
                 if (exerciseRow) {
                     const setRow = exerciseRow.querySelector(`[data-set-number="${set.set_number}"]`);
                     if (setRow) {
-                        // Fill in values
+                        // Fill in values based on movement type
+                        const durationInput = setRow.querySelector('.duration-input');
                         const weightInput = setRow.querySelector('.weight-input');
                         const repsInput = setRow.querySelector('.reps-input');
+                        if (durationInput && set.duration_seconds) durationInput.value = set.duration_seconds;
                         if (weightInput && set.weight) weightInput.value = set.weight;
                         if (repsInput && set.reps) repsInput.value = set.reps;
 
@@ -893,6 +1025,8 @@ async function markSetDone(button, exerciseId, setNumber) {
     }
 
     const setRow = button.closest('.set-row');
+    const exerciseRow = button.closest('.exercise-row');
+    const movementType = exerciseRow ? (exerciseRow.dataset.movementType || 'weighted') : 'weighted';
     const weightInput = setRow.querySelector('.weight-input');
     const repsInput = setRow.querySelector('.reps-input');
 
@@ -921,6 +1055,7 @@ async function markSetDone(button, exerciseId, setNumber) {
                 set_number: setNumber,
                 weight: weight || null,
                 reps: reps || null,
+                movement_type: movementType,
             }),
         });
 
@@ -1058,11 +1193,78 @@ async function markClassDone(button, exerciseId) {
     }
 }
 
+// Mark time-based exercise as done (save to DB — NO rest timer)
+async function markTimeDone(button, exerciseId, setNumber) {
+    // Start workout if not started
+    if (!workoutStarted && !isEditing) {
+        await startWorkout();
+    }
+
+    if (!workoutId) {
+        alert('Failed to start workout session. Please refresh and try again.');
+        return;
+    }
+
+    const setRow = button.closest('.set-row');
+    const durationInput = setRow.querySelector('.duration-input');
+    const duration = durationInput ? durationInput.value : null;
+
+    if (!duration) {
+        alert('Please enter duration before marking as done');
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent = 'Saving...';
+
+    try {
+        const response = await fetch('/health/physical/fitness/api/save-set/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+            },
+            body: JSON.stringify({
+                workout_id: workoutId,
+                exercise_id: exerciseId,
+                set_number: setNumber,
+                movement_type: 'time',
+                duration_seconds: parseInt(duration),
+            }),
+        });
+
+        if (!response.ok) {
+            let errorMsg = `Server error (${response.status})`;
+            try {
+                const errData = await response.json();
+                errorMsg = errData.error || errorMsg;
+            } catch (e) { /* non-JSON response */ }
+            throw new Error(errorMsg);
+        }
+
+        const data = await response.json();
+        if (data.success) {
+            markSetAsSaved(setRow);
+            setsSavedCount++;
+            updateSavedCount();
+            // NO rest timer for time-based exercises (isometric holds don't need rest between sets the same way)
+        } else {
+            throw new Error(data.error || 'Failed to save');
+        }
+    } catch (error) {
+        console.error('Failed to save time set:', error);
+        button.disabled = false;
+        button.textContent = 'Done';
+        alert('Failed to save set: ' + error.message);
+    }
+}
+
 function addExercise() {
     const select = document.getElementById('exerciseSelect');
     const exerciseId = select.value;
     const exerciseName = select.options[select.selectedIndex].text;
     const category = select.options[select.selectedIndex].dataset.category;
+    const movementType = select.options[select.selectedIndex].dataset.movementType || 'weighted';
 
     if (!exerciseId) {
         alert('Please select an exercise');
@@ -1082,6 +1284,10 @@ function addExercise() {
         template = document.getElementById('cardioTemplate').innerHTML;
     } else if (category === 'class') {
         template = document.getElementById('classTemplate').innerHTML;
+    } else if (movementType === 'bodyweight') {
+        template = document.getElementById('bodyweightTemplate').innerHTML;
+    } else if (movementType === 'time') {
+        template = document.getElementById('timeTemplate').innerHTML;
     } else {
         template = document.getElementById('resistanceTemplate').innerHTML;
     }
@@ -1106,23 +1312,58 @@ function removeExercise(btn) {
 }
 
 function addSet(btn) {
+    const exerciseRow = btn.closest('.exercise-row');
     const container = btn.previousElementSibling;
     const setCount = container.querySelectorAll('.set-row').length + 1;
-    const exerciseId = btn.closest('.exercise-row').dataset.exerciseId;
+    const exerciseId = exerciseRow.dataset.exerciseId;
+    const movementType = exerciseRow.dataset.movementType;
 
-    const setHtml = `
-        <div class="set-row" data-set-number="${setCount}">
-            <span class="set-number">Set ${setCount}</span>
-            <div class="set-inputs">
-                <input type="number" name="exercise_${exerciseId}_set_${setCount}_weight" placeholder="Weight" step="0.5" class="weight-input">
-                <span class="input-suffix">lbs</span>
-                <input type="number" name="exercise_${exerciseId}_set_${setCount}_reps" placeholder="Reps" class="reps-input">
-                <span class="input-suffix">reps</span>
-                <button type="button" class="done-btn">Done</button>
+    let setHtml;
+    if (movementType === 'time') {
+        setHtml = `
+            <div class="set-row time-set-row" data-set-number="${setCount}">
+                <span class="set-number">Set ${setCount}</span>
+                <div class="set-inputs">
+                    <input type="number" name="exercise_${exerciseId}_set_${setCount}_duration" placeholder="Seconds" class="duration-input" min="1">
+                    <span class="input-suffix">sec</span>
+                    <button type="button" class="done-btn time-done-btn">Done</button>
+                </div>
+                <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
-            <span class="set-saved-indicator" style="display: none;">&#10003;</span>
-        </div>
-    `;
+        `;
+    } else if (movementType === 'bodyweight') {
+        const showWeight = exerciseRow.querySelector('.add-weight-checkbox')?.checked;
+        const weightDisplay = showWeight ? '' : 'display: none;';
+        setHtml = `
+            <div class="set-row" data-set-number="${setCount}">
+                <span class="set-number">Set ${setCount}</span>
+                <div class="set-inputs">
+                    <div class="weight-field" style="${weightDisplay}">
+                        <input type="number" name="exercise_${exerciseId}_set_${setCount}_weight" placeholder="Weight" step="0.5" class="weight-input">
+                        <span class="input-suffix">lbs</span>
+                    </div>
+                    <input type="number" name="exercise_${exerciseId}_set_${setCount}_reps" placeholder="Reps" class="reps-input">
+                    <span class="input-suffix">reps</span>
+                    <button type="button" class="done-btn">Done</button>
+                </div>
+                <span class="set-saved-indicator" style="display: none;">&#10003;</span>
+            </div>
+        `;
+    } else {
+        setHtml = `
+            <div class="set-row" data-set-number="${setCount}">
+                <span class="set-number">Set ${setCount}</span>
+                <div class="set-inputs">
+                    <input type="number" name="exercise_${exerciseId}_set_${setCount}_weight" placeholder="Weight" step="0.5" class="weight-input">
+                    <span class="input-suffix">lbs</span>
+                    <input type="number" name="exercise_${exerciseId}_set_${setCount}_reps" placeholder="Reps" class="reps-input">
+                    <span class="input-suffix">reps</span>
+                    <button type="button" class="done-btn">Done</button>
+                </div>
+                <span class="set-saved-indicator" style="display: none;">&#10003;</span>
+            </div>
+        `;
+    }
 
     container.insertAdjacentHTML('beforeend', setHtml);
 }
@@ -1175,12 +1416,16 @@ function applyTemplateDefaults() {
 
             const weightInput = setRow.querySelector('.weight-input');
             const repsInput = setRow.querySelector('.reps-input');
+            const durationInput = setRow.querySelector('.duration-input');
 
             if (weightInput && setDefaults.weight != null) {
                 weightInput.value = setDefaults.weight;
             }
             if (repsInput && setDefaults.reps != null) {
                 repsInput.value = setDefaults.reps;
+            }
+            if (durationInput && setDefaults.duration_seconds != null) {
+                durationInput.value = setDefaults.duration_seconds;
             }
         }
     }
@@ -1194,9 +1439,22 @@ function applyTemplateDefaults() {
 document.addEventListener('click', function(e) {
     const target = e.target;
 
-    // --- Done button (resistance set) ---
-    // Match .done-btn that is NOT .cardio-done-btn or .class-done-btn
-    const doneBtn = target.closest('.done-btn:not(.cardio-done-btn):not(.class-done-btn)');
+    // --- Done button (time-based exercise) ---
+    const timeDoneBtn = target.closest('.time-done-btn');
+    if (timeDoneBtn) {
+        const exerciseRow = timeDoneBtn.closest('.exercise-row');
+        const setRow = timeDoneBtn.closest('.set-row');
+        if (exerciseRow && setRow) {
+            const exerciseId = exerciseRow.dataset.exerciseId;
+            const setNumber = setRow.dataset.setNumber;
+            markTimeDone(timeDoneBtn, exerciseId, parseInt(setNumber));
+        }
+        return;
+    }
+
+    // --- Done button (resistance/bodyweight set) ---
+    // Match .done-btn that is NOT .cardio-done-btn, .class-done-btn, or .time-done-btn
+    const doneBtn = target.closest('.done-btn:not(.cardio-done-btn):not(.class-done-btn):not(.time-done-btn)');
     if (doneBtn) {
         const exerciseRow = doneBtn.closest('.exercise-row');
         const setRow = doneBtn.closest('.set-row');
@@ -1252,6 +1510,20 @@ document.addEventListener('click', function(e) {
 
 // Add Exercise button (static, so use direct binding)
 document.getElementById('addExerciseBtn').addEventListener('click', addExercise);
+
+// Add weight toggle for bodyweight exercises (event delegation)
+document.addEventListener('change', function(e) {
+    const checkbox = e.target.closest('.add-weight-checkbox');
+    if (checkbox) {
+        const exerciseRow = checkbox.closest('.exercise-row');
+        if (exerciseRow) {
+            const weightFields = exerciseRow.querySelectorAll('.weight-field');
+            weightFields.forEach(field => {
+                field.style.display = checkbox.checked ? 'flex' : 'none';
+            });
+        }
+    }
+});
 
 // Auto-start workout when template is selected via URL
 document.addEventListener('DOMContentLoaded', function() {

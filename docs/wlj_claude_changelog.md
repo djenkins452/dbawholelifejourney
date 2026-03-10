@@ -6,6 +6,53 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-10 — Workout Movement Type Upgrade
+
+- **Feature:** Exercises now classified by movement type — weighted, bodyweight, or time-based — adapting the workout UI and tracking per type.
+- **Model changes:**
+  - `Exercise.movement_type` — Controls which input fields appear (weighted: weight+reps, bodyweight: reps with optional weight toggle, time: duration in seconds)
+  - `ExerciseSet.duration_seconds` — Stores hold time for time-based exercises (e.g., Plank)
+  - `ExerciseSet.bodyweight_used` — Auto-populated from user's latest WeightEntry for bodyweight volume calculation
+  - `ExerciseSet.volume` property — Updated: weighted (weight×reps), bodyweight (bodyweight_used×reps), time (0)
+  - `WorkoutExercise.total_volume` property — Sum of all non-warmup set volumes
+  - `PersonalRecord.pr_type` — Added "time" (Longest Hold) option with `duration_seconds` field
+  - `PersonalRecord.weight/reps` — Made nullable for time-based PRs
+  - `TemplateExerciseSet.duration_seconds` — Template defaults for time-based exercises
+- **Data migration:** Classified 20 exercises as bodyweight (Push-ups, Pull-ups, Dips, Lunges, etc.) and 1 as time (Plank). All others remain weighted (default).
+- **Backend:**
+  - `save_set_ajax` — Accepts `movement_type` and `duration_seconds`. Auto-fetches user's bodyweight for bodyweight exercises.
+  - `check_and_record_pr` — Now detects time PRs (longest hold) and bodyweight rep PRs (no-weight rep records)
+  - `_sync_workout_to_template` — Syncs `duration_seconds` back to template
+  - `get_workout_state_ajax` — Returns `movement_type` and `duration_seconds` for resume support
+- **Frontend:**
+  - New `bodyweightTemplate` — Reps-only inputs with "+ Weight" toggle for optional added weight
+  - New `timeTemplate` — Duration (seconds) input only, no rest timer on completion
+  - Updated `addExercise()` — Routes resistance exercises to correct template based on `data-movement-type`
+  - Updated `addSet()` — Generates movement-type-appropriate inputs
+  - New `markTimeDone()` — Saves time-based sets via AJAX without triggering rest timer
+  - Updated event delegation for `.time-done-btn` and `.add-weight-checkbox`
+  - Updated `exercise_row.html` partial — Branches rendering on movement_type within resistance
+  - Updated `template_form.html` — Movement-type-aware default inputs in template editor
+- **Fitness Intelligence (backend only):** New `apps/health/services/fitness_utils.py` with query utilities:
+  - `get_weekly_volume()` — Total training volume for a week
+  - `get_exercise_volume_history()` — Weekly volume history over N weeks
+  - `get_personal_bests()` — All PR types for an exercise
+  - `get_longest_hold()` — Max duration for time-based exercises
+- **CRITICAL:** Rest timer (`startRestTimer`, `stopRestTimer`, `dismissRestTimer`, `formatTime`) completely untouched
+- **Tests:** 32 new tests in `test_movement_types.py` + all 74 existing fitness tests pass
+- **Files changed:**
+  - `apps/health/models.py` — Exercise, ExerciseSet, PersonalRecord, TemplateExerciseSet, WorkoutExercise
+  - `apps/health/views.py` — save_set_ajax, template defaults, template sync, workout state
+  - `apps/health/pr_utils.py` — Time PR + bodyweight PR detection
+  - `apps/health/management/commands/populate_exercises.py` — movement_type for all exercises
+  - `apps/health/services/fitness_utils.py` — NEW fitness query utilities
+  - `apps/health/tests/test_movement_types.py` — NEW 32 tests
+  - `apps/health/migrations/0057_add_movement_type_and_time_fields.py`
+  - `apps/health/migrations/0058_classify_exercise_movement_types.py`
+  - `templates/health/fitness/workout_form.html` — New templates, JS, CSS
+  - `templates/health/fitness/partials/exercise_row.html` — Movement type branching
+  - `templates/health/fitness/template_form.html` — Movement-type-aware defaults
+
 ## 2026-03-10 — PIE Health Screenshot Interpretation Module
 
 - **Feature:** When users upload health screenshots (Apple Health sleep charts, Fitbit, Garmin, etc.), Beth now analyzes and interprets the data instead of just reading numbers aloud.

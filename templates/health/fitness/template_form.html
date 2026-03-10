@@ -54,35 +54,55 @@
                                 </button>
                             </div>
                             {% if te.exercise.category == "resistance" %}
-                                <div class="sets-config">
+                                <div class="sets-config" data-movement-type="{{ te.exercise.movement_type }}">
                                     <div class="sets-header">
                                         <label>Sets:</label>
                                         <input type="number" name="exercise_{{ te.exercise.pk }}_default_sets"
                                                value="{{ te.default_sets }}" min="1" max="10"
                                                class="sets-count-input">
                                     </div>
-                                    <div class="set-defaults-container" data-exercise-id="{{ te.exercise.pk }}">
+                                    <div class="set-defaults-container" data-exercise-id="{{ te.exercise.pk }}" data-movement-type="{{ te.exercise.movement_type }}">
                                         {% for set_default in te.set_defaults.all %}
                                             <div class="set-default-row" data-set-number="{{ set_default.set_number }}">
                                                 <span class="set-label">Set {{ set_default.set_number }}:</span>
-                                                <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ set_default.set_number }}_weight"
-                                                       value="{{ set_default.weight|default:'' }}" placeholder="Weight" step="0.5" class="weight-input">
-                                                <span class="input-suffix">lbs</span>
-                                                <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ set_default.set_number }}_reps"
-                                                       value="{{ set_default.reps|default:'' }}" placeholder="Reps" class="reps-input">
-                                                <span class="input-suffix">reps</span>
+                                                {% if te.exercise.movement_type == "time" %}
+                                                    <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ set_default.set_number }}_duration"
+                                                           value="{{ set_default.duration_seconds|default:'' }}" placeholder="Seconds" class="duration-input" min="1">
+                                                    <span class="input-suffix">sec</span>
+                                                {% elif te.exercise.movement_type == "bodyweight" %}
+                                                    <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ set_default.set_number }}_reps"
+                                                           value="{{ set_default.reps|default:'' }}" placeholder="Reps" class="reps-input">
+                                                    <span class="input-suffix">reps</span>
+                                                {% else %}
+                                                    <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ set_default.set_number }}_weight"
+                                                           value="{{ set_default.weight|default:'' }}" placeholder="Weight" step="0.5" class="weight-input">
+                                                    <span class="input-suffix">lbs</span>
+                                                    <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ set_default.set_number }}_reps"
+                                                           value="{{ set_default.reps|default:'' }}" placeholder="Reps" class="reps-input">
+                                                    <span class="input-suffix">reps</span>
+                                                {% endif %}
                                             </div>
                                         {% empty %}
                                             {% for i in "123456789"|make_list %}
                                                 {% if forloop.counter <= te.default_sets %}
                                                     <div class="set-default-row" data-set-number="{{ forloop.counter }}">
                                                         <span class="set-label">Set {{ forloop.counter }}:</span>
-                                                        <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ forloop.counter }}_weight"
-                                                               placeholder="Weight" step="0.5" class="weight-input">
-                                                        <span class="input-suffix">lbs</span>
-                                                        <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ forloop.counter }}_reps"
-                                                               placeholder="Reps" class="reps-input">
-                                                        <span class="input-suffix">reps</span>
+                                                        {% if te.exercise.movement_type == "time" %}
+                                                            <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ forloop.counter }}_duration"
+                                                                   placeholder="Seconds" class="duration-input" min="1">
+                                                            <span class="input-suffix">sec</span>
+                                                        {% elif te.exercise.movement_type == "bodyweight" %}
+                                                            <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ forloop.counter }}_reps"
+                                                                   placeholder="Reps" class="reps-input">
+                                                            <span class="input-suffix">reps</span>
+                                                        {% else %}
+                                                            <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ forloop.counter }}_weight"
+                                                                   placeholder="Weight" step="0.5" class="weight-input">
+                                                            <span class="input-suffix">lbs</span>
+                                                            <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ forloop.counter }}_reps"
+                                                                   placeholder="Reps" class="reps-input">
+                                                            <span class="input-suffix">reps</span>
+                                                        {% endif %}
                                                     </div>
                                                 {% endif %}
                                             {% endfor %}
@@ -105,7 +125,7 @@
                             {% for group in muscle_groups %}
                                 <optgroup label="  {{ group.grouper }}">
                                     {% for exercise in group.list %}
-                                        <option value="{{ exercise.pk }}" data-category="resistance" data-name="{{ exercise.name }}">{{ exercise.name }}</option>
+                                        <option value="{{ exercise.pk }}" data-category="resistance" data-name="{{ exercise.name }}" data-movement-type="{{ exercise.movement_type }}">{{ exercise.name }}</option>
                                     {% endfor %}
                                 </optgroup>
                             {% endfor %}
@@ -258,12 +278,14 @@
 }
 
 .weight-input,
-.reps-input {
+.reps-input,
+.duration-input {
     width: 70px;
     padding: var(--space-2);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     text-align: center;
+    font-size: 16px;
 }
 
 .input-suffix {
@@ -342,20 +364,40 @@
 </style>
 
 <script nonce="{{ csp_nonce }}">
-function generateSetRows(exerciseId, count) {
+function generateSetRows(exerciseId, count, movementType) {
     let html = '';
     for (let i = 1; i <= count; i++) {
-        html += `
-            <div class="set-default-row" data-set-number="${i}">
-                <span class="set-label">Set ${i}:</span>
-                <input type="number" name="exercise_${exerciseId}_set_${i}_weight"
-                       placeholder="Weight" step="0.5" class="weight-input">
-                <span class="input-suffix">lbs</span>
-                <input type="number" name="exercise_${exerciseId}_set_${i}_reps"
-                       placeholder="Reps" class="reps-input">
-                <span class="input-suffix">reps</span>
-            </div>
-        `;
+        if (movementType === 'time') {
+            html += `
+                <div class="set-default-row" data-set-number="${i}">
+                    <span class="set-label">Set ${i}:</span>
+                    <input type="number" name="exercise_${exerciseId}_set_${i}_duration"
+                           placeholder="Seconds" class="duration-input" min="1">
+                    <span class="input-suffix">sec</span>
+                </div>
+            `;
+        } else if (movementType === 'bodyweight') {
+            html += `
+                <div class="set-default-row" data-set-number="${i}">
+                    <span class="set-label">Set ${i}:</span>
+                    <input type="number" name="exercise_${exerciseId}_set_${i}_reps"
+                           placeholder="Reps" class="reps-input">
+                    <span class="input-suffix">reps</span>
+                </div>
+            `;
+        } else {
+            html += `
+                <div class="set-default-row" data-set-number="${i}">
+                    <span class="set-label">Set ${i}:</span>
+                    <input type="number" name="exercise_${exerciseId}_set_${i}_weight"
+                           placeholder="Weight" step="0.5" class="weight-input">
+                    <span class="input-suffix">lbs</span>
+                    <input type="number" name="exercise_${exerciseId}_set_${i}_reps"
+                           placeholder="Reps" class="reps-input">
+                    <span class="input-suffix">reps</span>
+                </div>
+            `;
+        }
     }
     return html;
 }
@@ -365,33 +407,57 @@ function updateSetRows(input, exerciseId) {
     const container = document.querySelector(`.set-defaults-container[data-exercise-id="${exerciseId}"]`);
     if (!container) return;
 
+    const movementType = container.dataset.movementType || 'weighted';
+
     // Get existing values before rebuilding
     const existingValues = {};
     container.querySelectorAll('.set-default-row').forEach(row => {
         const setNum = row.dataset.setNumber;
         const weightInput = row.querySelector('.weight-input');
         const repsInput = row.querySelector('.reps-input');
+        const durationInput = row.querySelector('.duration-input');
         existingValues[setNum] = {
             weight: weightInput ? weightInput.value : '',
-            reps: repsInput ? repsInput.value : ''
+            reps: repsInput ? repsInput.value : '',
+            duration: durationInput ? durationInput.value : ''
         };
     });
 
     // Rebuild rows
     let html = '';
     for (let i = 1; i <= count; i++) {
-        const existing = existingValues[i] || {weight: '', reps: ''};
-        html += `
-            <div class="set-default-row" data-set-number="${i}">
-                <span class="set-label">Set ${i}:</span>
-                <input type="number" name="exercise_${exerciseId}_set_${i}_weight"
-                       value="${existing.weight}" placeholder="Weight" step="0.5" class="weight-input">
-                <span class="input-suffix">lbs</span>
-                <input type="number" name="exercise_${exerciseId}_set_${i}_reps"
-                       value="${existing.reps}" placeholder="Reps" class="reps-input">
-                <span class="input-suffix">reps</span>
-            </div>
-        `;
+        const existing = existingValues[i] || {weight: '', reps: '', duration: ''};
+        if (movementType === 'time') {
+            html += `
+                <div class="set-default-row" data-set-number="${i}">
+                    <span class="set-label">Set ${i}:</span>
+                    <input type="number" name="exercise_${exerciseId}_set_${i}_duration"
+                           value="${existing.duration}" placeholder="Seconds" class="duration-input" min="1">
+                    <span class="input-suffix">sec</span>
+                </div>
+            `;
+        } else if (movementType === 'bodyweight') {
+            html += `
+                <div class="set-default-row" data-set-number="${i}">
+                    <span class="set-label">Set ${i}:</span>
+                    <input type="number" name="exercise_${exerciseId}_set_${i}_reps"
+                           value="${existing.reps}" placeholder="Reps" class="reps-input">
+                    <span class="input-suffix">reps</span>
+                </div>
+            `;
+        } else {
+            html += `
+                <div class="set-default-row" data-set-number="${i}">
+                    <span class="set-label">Set ${i}:</span>
+                    <input type="number" name="exercise_${exerciseId}_set_${i}_weight"
+                           value="${existing.weight}" placeholder="Weight" step="0.5" class="weight-input">
+                    <span class="input-suffix">lbs</span>
+                    <input type="number" name="exercise_${exerciseId}_set_${i}_reps"
+                           value="${existing.reps}" placeholder="Reps" class="reps-input">
+                    <span class="input-suffix">reps</span>
+                </div>
+            `;
+        }
     }
     container.innerHTML = html;
 }
@@ -402,6 +468,7 @@ function addExercise() {
     const option = select.options[select.selectedIndex];
     const exerciseName = option.dataset.name;
     const category = option.dataset.category;
+    const movementType = option.dataset.movementType || 'weighted';
 
     if (!exerciseId) {
         alert('Please select an exercise');
@@ -431,15 +498,16 @@ function addExercise() {
     `;
 
     if (category === 'resistance') {
+        const defaultSets = movementType === 'time' ? 1 : 3;
         html += `
-            <div class="sets-config">
+            <div class="sets-config" data-movement-type="${movementType}">
                 <div class="sets-header">
                     <label>Sets:</label>
-                    <input type="number" name="exercise_${exerciseId}_default_sets" value="3" min="1" max="10"
+                    <input type="number" name="exercise_${exerciseId}_default_sets" value="${defaultSets}" min="1" max="10"
                            class="sets-count-input">
                 </div>
-                <div class="set-defaults-container" data-exercise-id="${exerciseId}">
-                    ${generateSetRows(exerciseId, 3)}
+                <div class="set-defaults-container" data-exercise-id="${exerciseId}" data-movement-type="${movementType}">
+                    ${generateSetRows(exerciseId, defaultSets, movementType)}
                 </div>
             </div>
         `;

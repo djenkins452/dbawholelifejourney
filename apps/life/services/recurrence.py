@@ -5,10 +5,13 @@ Handles recurring tasks and events with human-friendly patterns.
 Supports: daily, weekly, biweekly, monthly, yearly, and custom patterns.
 """
 
+import logging
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 from django.utils import timezone
 from django.db import transaction
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -351,7 +354,80 @@ class RecurrenceService:
     """
     Service for managing recurring tasks and events.
     """
-    
+
+    @staticmethod
+    def delete_task_series(task):
+        """
+        Delete an entire recurring task series.
+
+        Finds all instances with the same (user, title, is_recurring,
+        recurrence_pattern) and:
+        1. Sets is_recurring=False on ALL instances (prevents regeneration)
+        2. Soft-deletes all active instances
+
+        Args:
+            task: A representative Task instance from the series.
+
+        Returns:
+            int: Number of instances deleted.
+        """
+        from apps.life.models import Task
+
+        if not task.is_recurring:
+            return 0
+
+        series_qs = Task.all_objects.filter(
+            user=task.user,
+            title=task.title,
+            is_recurring=True,
+            recurrence_pattern=task.recurrence_pattern,
+        )
+
+        # Stop recurrence on ALL instances (including completed/deleted ones)
+        # so the daily cron job won't regenerate them.
+        series_qs.update(is_recurring=False)
+
+        # Soft-delete only active instances
+        active_instances = Task.objects.filter(
+            user=task.user,
+            title=task.title,
+            is_recurring=False,  # Already set to False above
+            recurrence_pattern=task.recurrence_pattern,
+            status='active',
+        )
+        count = 0
+        for instance in active_instances:
+            instance.soft_delete()
+            count += 1
+
+        logger.info(
+            "Deleted recurring task series '%s' for user %s: "
+            "%d active instances soft-deleted, all instances marked non-recurring",
+            task.title, task.user_id, count,
+        )
+        return count
+
+    @staticmethod
+    def count_series_instances(task):
+        """
+        Count active instances of a recurring task series.
+
+        Args:
+            task: A representative Task instance.
+
+        Returns:
+            int: Number of active instances in the series.
+        """
+        from apps.life.models import Task
+
+        return Task.objects.filter(
+            user=task.user,
+            title=task.title,
+            is_recurring=True,
+            recurrence_pattern=task.recurrence_pattern,
+            status='active',
+        ).count()
+
     @staticmethod
     def process_completed_recurring_task(task):
         """

@@ -3440,29 +3440,104 @@ class ActionHandler:
                 )
 
             if count > 1 and not apply_to_all:
-                candidates = [{'id': t.id, 'title': t.title} for t in tasks[:5]]
-                titles = [f"• {c['title']}" for c in candidates]
-                return ActionResult(
-                    success=False,
-                    message=(
-                        f"I found {count} tasks matching '{task_query}':\n"
-                        + "\n".join(titles)
-                        + "\nWhich one? Or say 'all of them' to update all."
-                    ),
-                    error='multiple_matches',
-                    action_type='mutate_task',
-                    created_object={'candidates': candidates},
+                # For delete actions on recurring series (all same title + pattern),
+                # skip disambiguation — the delete handler has proper series logic.
+                is_recurring_series = (
+                    action == 'delete'
+                    and all(t.is_recurring for t in tasks)
+                    and len({t.recurrence_pattern for t in tasks}) == 1
+                    and len({t.title for t in tasks}) == 1
                 )
+                # When user chose "just this one" (delete_series=False),
+                # limit to a single instance so it doesn't trigger
+                # batch-delete guards.
+                if is_recurring_series and kwargs.get('delete_series') is False:
+                    tasks = [tasks[0]]
+                    count = 1
+                if not is_recurring_series:
+                    candidates = [{'id': t.id, 'title': t.title} for t in tasks[:5]]
+                    titles = [f"• {c['title']}" for c in candidates]
+                    return ActionResult(
+                        success=False,
+                        message=(
+                            f"I found {count} tasks matching '{task_query}':\n"
+                            + "\n".join(titles)
+                            + "\nWhich one? Or say 'all of them' to update all."
+                        ),
+                        error='multiple_matches',
+                        action_type='mutate_task',
+                        created_object={'candidates': candidates},
+                    )
 
             tasks = tasks[:10]  # Safety limit
 
             if action == 'delete':
                 delete_confirmed = kwargs.get('delete_confirmed', False)
+                delete_series = kwargs.get('delete_series', None)
+
+                # Check if any matched task is recurring
+                representative = tasks[0]
+                is_recurring = any(t.is_recurring for t in tasks)
 
                 # Safety: ALWAYS require confirmation before deleting
                 if not delete_confirmed:
                     titles = [f"• {t.title}" for t in tasks[:5]]
                     task_word = "task" if len(tasks) == 1 else f"{len(tasks)} tasks"
+
+                    # For recurring tasks, inform user about the series
+                    if is_recurring:
+                        from apps.life.services.recurrence import RecurrenceService
+                        series_count = RecurrenceService.count_series_instances(
+                            representative,
+                        )
+                        if delete_series:
+                            return ActionResult(
+                                success=False,
+                                message=(
+                                    f"This is a recurring task with "
+                                    f"{series_count} instance{'s' if series_count != 1 else ''}. "
+                                    f"I'll delete the entire series:\n"
+                                    + "\n".join(titles)
+                                    + "\n\nSay 'yes, delete' to confirm."
+                                ),
+                                error='delete_confirmation_required',
+                                action_type='mutate_task',
+                                created_object={
+                                    'candidates': [
+                                        {'id': t.id, 'title': t.title}
+                                        for t in tasks[:5]
+                                    ],
+                                    'delete_series': True,
+                                    'series_count': series_count,
+                                },
+                            )
+                        else:
+                            # User didn't specify — ask about series
+                            return ActionResult(
+                                success=False,
+                                message=(
+                                    f"'{representative.title}' is a recurring task "
+                                    f"({representative.recurrence_pattern}) with "
+                                    f"{series_count} instance{'s' if series_count != 1 else ''}.\n\n"
+                                    f"Would you like me to:\n"
+                                    f"• **Delete the entire series** — removes all instances "
+                                    f"and stops future recurrence\n"
+                                    f"• **Delete just this one** — removes only the current "
+                                    f"instance (it will recur again)\n\n"
+                                    f"Say 'delete the series' or 'just this one'."
+                                ),
+                                error='delete_confirmation_required',
+                                action_type='mutate_task',
+                                created_object={
+                                    'candidates': [
+                                        {'id': t.id, 'title': t.title}
+                                        for t in tasks[:5]
+                                    ],
+                                    'is_recurring': True,
+                                    'series_count': series_count,
+                                },
+                            )
+
                     return ActionResult(
                         success=False,
                         message=(
@@ -3480,7 +3555,7 @@ class ActionHandler:
                     )
 
                 # Batch delete (>2 tasks) still requires explicit apply_to_all
-                if len(tasks) > 2 and not apply_to_all:
+                if len(tasks) > 2 and not apply_to_all and not delete_series:
                     candidates = [{'id': t.id, 'title': t.title} for t in tasks[:5]]
                     titles = [f"• {c['title']}" for c in candidates]
                     return ActionResult(
@@ -3496,16 +3571,34 @@ class ActionHandler:
                         created_object={'candidates': candidates},
                     )
 
+                # Execute deletion
                 deleted_titles = []
                 with transaction.atomic():
-                    for task in tasks:
-                        task.soft_delete()
-                        deleted_titles.append(task.title)
+                    if delete_series and is_recurring:
+                        # Delete the entire recurring series
+                        from apps.life.services.recurrence import RecurrenceService
+                        series_count = RecurrenceService.delete_task_series(
+                            representative,
+                        )
+                        deleted_titles.append(representative.title)
+                        msg = (
+                            f"✓ Deleted the recurring task "
+                            f"'{representative.title}' and all "
+                            f"{series_count} instance{'s' if series_count != 1 else ''}. "
+                            f"It won't come back."
+                        )
+                    else:
+                        for task in tasks:
+                            task.soft_delete()
+                            deleted_titles.append(task.title)
 
-                if len(deleted_titles) == 1:
-                    msg = f"✓ Deleted task: {deleted_titles[0]}"
-                else:
-                    msg = f"✓ Deleted {len(deleted_titles)} tasks: {', '.join(deleted_titles)}"
+                        if len(deleted_titles) == 1:
+                            msg = f"✓ Deleted task: {deleted_titles[0]}"
+                        else:
+                            msg = (
+                                f"✓ Deleted {len(deleted_titles)} tasks: "
+                                f"{', '.join(deleted_titles)}"
+                            )
 
                 return ActionResult(
                     success=True,
@@ -3514,6 +3607,7 @@ class ActionHandler:
                         'model': 'Task',
                         'ids': [t.id for t in tasks],
                         'action': 'delete',
+                        'series_deleted': bool(delete_series and is_recurring),
                     },
                     action_type='mutate_task',
                     confirmation_detail=self._build_confirmation(

@@ -257,6 +257,15 @@ LIFE_INTENT_TOOLS = [
                             "always let the system prompt the user for confirmation first."
                         ),
                     },
+                    "delete_series": {
+                        "type": "boolean",
+                        "description": (
+                            "For recurring tasks: set true to delete the entire series "
+                            "(all instances + stop future recurrence). Use when user says "
+                            "'delete completely', 'delete the whole thing', 'remove permanently', "
+                            "'stop this recurring task', or 'delete all of them'."
+                        ),
+                    },
                 },
                 "required": ["action", "task_query"],
             },

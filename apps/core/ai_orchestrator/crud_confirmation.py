@@ -309,7 +309,10 @@ def _build_standard_message(intent: str, label: str, params: dict) -> str:
     action = params.get('action', '')
     if action == 'delete' and intent in ('mutate_task', 'mutate_calendar_event'):
         entity = 'calendar event' if 'calendar' in intent else 'task'
-        label = f'Delete {entity}'
+        if params.get('delete_series'):
+            label = f'Delete recurring {entity} series'
+        else:
+            label = f'Delete {entity}'
 
     detail_parts = [label]
     if title:

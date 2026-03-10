@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-10 — Add recurring task series deletion + fix CoS task delete routing
+
+- **Issue 1:** CoS told user "I can't delete the task for you. You'll need to handle that manually" instead of executing delete via the intent pipeline.
+- **Issue 2:** Deleting a recurring task (e.g., "Approve Payroll") only removed one instance — it kept coming back on next recurrence cycle.
+- **Root cause:** No system prompt examples for delete routing, and no "delete series" concept for recurring tasks. Also, the multiple-matches disambiguation check blocked recurring series from reaching the delete handler.
+- **Fix — 6-part approach:**
+  1. **Intent schema** — Added `delete_series` boolean parameter to `mutate_task` intent in `apps/ai/intents/life_intents.py`
+  2. **RecurrenceService** — Added `delete_task_series(task)` and `count_series_instances(task)` to `apps/life/services/recurrence.py`. Series delete sets `is_recurring=False` on all instances (prevents regeneration) then soft-deletes active ones.
+  3. **Handler logic** — Updated delete branch in `handle_mutate_task()` with two-stage recurring flow: (a) asks "series or just this one?" when unspecified, (b) confirms with instance count before executing, (c) calls `RecurrenceService.delete_task_series()` on confirmation.
+  4. **System prompt** — Added delete routing examples and RECURRING TASK DELETION section to `_build_intent_system_prompt()`, plus explicit directive that CoS must execute deletions.
+  5. **CRUD confirmation** — Updated label to "Delete recurring task series" when `delete_series=True`.
+  6. **Disambiguation bypass** — Multiple recurring instances (same title + pattern) skip the "which one?" check for delete actions, falling through to the series-aware delete handler. Single-instance delete (`delete_series=False`) limits to first match.
+- **Files:** `apps/ai/intents/life_intents.py`, `apps/life/services/recurrence.py`, `apps/ai/action_handlers.py`, `apps/ai/intent_service.py`, `apps/core/ai_orchestrator/crud_confirmation.py`, `apps/life/tests/test_recurring_delete.py` (new)
+- **Tests:** 14 new recurring delete tests + 22 task matching + 10 intent registration + 169 orchestrator + 373 life tests — all passing
+- **Why:** Recurring tasks were undeletable through CoS, frustrating users. Series delete stops the recurrence cycle permanently.
+
 ## 2026-03-09 — Add user-affirmed completion handling to CoS
 
 - **Issue:** When user told Beth "I already completed it before I saw this reminder", Beth continued prompting about the activity. System assumptions overrode user statements.

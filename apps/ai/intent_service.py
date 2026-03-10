@@ -499,6 +499,9 @@ When the user says move, reschedule, push, postpone, change, rename, update, or 
 - "rename my call task to 'Call Mom back'" → mutate_task(action="update", task_query="call", new_title="Call Mom back")
 - "delete the laundry task" → mutate_task(action="delete", task_query="laundry")
 - "remove my dentist task" → mutate_task(action="delete", task_query="dentist")
+- "delete Approve Payroll completely" → mutate_task(action="delete", task_query="Approve Payroll", delete_series=true)
+- "remove the recurring grocery task permanently" → mutate_task(action="delete", task_query="grocery", delete_series=true)
+- "stop this recurring task from coming back" → mutate_task(action="delete", task_query=<from context>, delete_series=true)
 - "move all my tasks to tomorrow" → mutate_task(action="update", task_query="", new_due_date="tomorrow", apply_to_all=true)
 
 CRITICAL ROUTING RULE: If the user's message contains a mutation verb (move, reschedule, push, postpone, change, rename, update, delete, remove) referring to tasks, you MUST call mutate_task — NEVER call read_task for these.
@@ -516,6 +519,14 @@ DELETE CONFIRMATION FLOW (REQUIRED):
   1. User: "delete the laundry task" → mutate_task(action="delete", task_query="laundry") [NO delete_confirmed]
   2. System: "Just to confirm — you want me to delete this task? • Laundry. Say 'yes, delete' to confirm."
   3. User: "yes" → mutate_task(action="delete", task_query="laundry", delete_confirmed=true)
+
+RECURRING TASK DELETION:
+- When user says "delete completely", "permanently remove", "get rid of it entirely", or "stop this recurring task", set delete_series=true.
+- delete_series=true deletes ALL instances of the recurring series and stops future recurrence.
+- If the user just says "delete [task name]" and the task is recurring, the system will ask whether to delete the series or just this instance.
+- "delete the series" / "all of them" / "the whole thing" after being asked → mutate_task(action="delete", task_query=..., delete_confirmed=true, delete_series=true)
+- "just this one" / "only this instance" → mutate_task(action="delete", task_query=..., delete_confirmed=true, delete_series=false)
+- The CoS MUST execute task deletions — NEVER tell the user to "handle it manually" or "do it in the UI". Deletion is a supported UAIO action.
 
 IMPLICIT TASK CORRECTIONS — when the user says a task has wrong details or confirms a change should have happened:
 - "those tasks should be tomorrow" → mutate_task(action="update", task_query=<from context>, new_due_date="tomorrow", apply_to_all=true)

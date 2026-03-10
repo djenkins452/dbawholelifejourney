@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-10 — Fix: Restore rest timer for time-based exercises
+
+- **Bug:** `markTimeDone()` (time-based exercise Done handler) was deliberately skipping `startRestTimer()`, violating the requirement to not modify rest timer behavior.
+- **Fix:** Added `startRestTimer()` call to `markTimeDone()` so all exercise types (weighted, bodyweight, time) consistently trigger the rest timer after completing a set.
+- **Files:** `templates/health/fitness/workout_form.html`
+- **Why:** The original implementation made an unauthorized design decision to skip the rest timer for isometric holds. The user's instruction was clear: do not modify rest timer behavior.
+
 ## 2026-03-10 — Workout Movement Type Upgrade
 
 - **Feature:** Exercises now classified by movement type — weighted, bodyweight, or time-based — adapting the workout UI and tracking per type.

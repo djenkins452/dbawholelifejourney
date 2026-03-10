@@ -1247,7 +1247,7 @@ async function markTimeDone(button, exerciseId, setNumber) {
             markSetAsSaved(setRow);
             setsSavedCount++;
             updateSavedCount();
-            // NO rest timer for time-based exercises (isometric holds don't need rest between sets the same way)
+            startRestTimer();
         } else {
             throw new Error(data.error || 'Failed to save');
         }

@@ -568,6 +568,12 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                 elif result.get('action_taken'):
                     # Single action only
                     response_data['action_taken'] = result['action_taken']
+                # Include structured options (A/B/C chips) for confirmations
+                if result.get('options'):
+                    response_data['options'] = result['options']
+                # Include navigation hint for post-action UX
+                if result.get('navigation'):
+                    response_data['navigation'] = result['navigation']
                 # Include image info if present in user message
                 if result.get('user_message_has_image'):
                     response_data['user_message_has_image'] = True

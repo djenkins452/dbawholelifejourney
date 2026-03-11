@@ -2,20 +2,22 @@
 CRUD Confirmation Gate — deterministic user approval before any write operation.
 
 No write operation executes without explicit user confirmation.
-Uses structured command parsing (CONFIRM/CANCEL/EDIT), not natural language.
+Uses structured option parsing (A/B/C keys) with backward-compatible
+command parsing (CONFIRM/CANCEL/EDIT).
 
 Pipeline position:
     Activity Reconciliation → CRUD Confirmation Gate → Execution
 
 Includes:
-- Deterministic response parsing
+- Structured A/B/C option generation
+- Deterministic response parsing (letter keys + legacy keywords)
 - Idempotency protection via UUID action_id
 - Confirmation expiry handling (300s TTL)
 - Rich confirmation message building
 """
 
 import logging
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
 from apps.core.ai_orchestrator.activity_reconciliation import (
     ReconciliationDecision,
@@ -25,42 +27,87 @@ from apps.core.ai_orchestrator.activity_reconciliation import (
 logger = logging.getLogger(__name__)
 
 
-# ── Passthrough Intents (no confirmation needed) ─────────────────────
+# ── Passthrough / Confirmation (delegated to action_policy) ───────────
+# Import from action_policy for the canonical source of truth.
+# Keep PASSTHROUGH_INTENTS for backward compat with any direct importers.
 
-PASSTHROUGH_INTENTS = frozenset({
-    # Read-only operations
-    'read_calendar_events',
-    'read_task',
-    'check_budget',
-    # Control plane (system state, not user data)
-    'enter_learning_mode',
-    'exit_learning_mode',
-    'pause_calibration',
-    'complete_calibration',
-    # No-op
-    'no_action',
-})
+from apps.core.ai_orchestrator.action_policy import (  # noqa: E402
+    PASSTHROUGH_INTENTS,
+    requires_confirmation,
+)
+
+# Re-export so existing `from crud_confirmation import requires_confirmation`
+# continues to work.
+__all__ = [
+    'PASSTHROUGH_INTENTS',
+    'requires_confirmation',
+    'parse_confirmation_response',
+    'parse_option_response',
+    'parse_disambiguation_response',
+    'build_structured_confirmation',
+    'build_crud_confirmation_message',
+    'build_disambiguation_message',
+    'INTENT_LABELS',
+]
 
 
-def requires_confirmation(intent_type: str) -> bool:
-    """Returns True if this intent requires user confirmation before execution."""
-    return intent_type not in PASSTHROUGH_INTENTS
+# ── Standard Option Templates ─────────────────────────────────────────
+
+def _standard_options():
+    """Default A/B/C confirmation options."""
+    return [
+        {'key': 'A', 'label': 'Confirm', 'action': 'confirm', 'style': 'primary'},
+        {'key': 'B', 'label': 'Cancel', 'action': 'cancel', 'style': 'secondary'},
+        {'key': 'C', 'label': 'Edit', 'action': 'edit', 'style': 'secondary'},
+    ]
 
 
-# ── Deterministic Confirmation Parsing ───────────────────────────────
+def _skip_options():
+    """Options for a skip (already exists) scenario."""
+    return [
+        {'key': 'A', 'label': 'Keep as is', 'action': 'confirm', 'style': 'primary'},
+        {'key': 'B', 'label': 'Cancel', 'action': 'cancel', 'style': 'secondary'},
+    ]
 
-def parse_confirmation_response(response: str) -> Optional[str]:
+
+# ── Deterministic Response Parsing ────────────────────────────────────
+
+def parse_confirmation_response(
+    response: str,
+    options: Optional[List[Dict]] = None,
+) -> Optional[str]:
     """
-    Parse user response deterministically.
+    Parse user response to a confirmation prompt.
+
+    Supports:
+    - Letter keys: A, B, C (mapped to options[index].action)
+    - Legacy keywords: CONFIRM, YES, CANCEL, NO, EDIT (backward compatible)
+    - Case-insensitive, whitespace-tolerant
+
+    Args:
+        response: User's raw response text.
+        options: Structured options list (from build_structured_confirmation).
+                 If None, letter-key parsing is skipped (backward compat).
 
     Returns:
-        'confirm' — user approved
-        'cancel'  — user declined
-        'edit'    — user wants to modify
-        None      — unrecognized response
+        'confirm', 'cancel', 'edit', or the option's action string.
+        None if unrecognized.
     """
     token = response.strip().upper()
 
+    # ── Letter key parsing (A/B/C) ────────────────────────────
+    # Only when structured options are available.
+    if options and len(token) == 1 and token.isalpha():
+        idx = ord(token) - ord('A')
+        if 0 <= idx < len(options):
+            action = options[idx].get('action', 'confirm')
+            logger.info(
+                "[CRUD_GATE] Option key %s → action %s",
+                token, action,
+            )
+            return action
+
+    # ── Legacy keyword parsing (backward compatible) ──────────
     if token.startswith('CONFIRM') or token in ('YES', 'Y'):
         return 'confirm'
 
@@ -71,6 +118,36 @@ def parse_confirmation_response(response: str) -> Optional[str]:
             or token.startswith('MODIFY')
             or token.startswith('CHANGE')):
         return 'edit'
+
+    return None
+
+
+def parse_option_response(
+    response: str,
+    options: List[Dict],
+) -> Optional[str]:
+    """
+    Parse a response against a specific set of options.
+
+    Unlike parse_confirmation_response, this ONLY handles structured options
+    (no legacy keyword fallback). Use for custom A/B/C flows like
+    "this instance vs entire series".
+
+    Returns:
+        The matching option's 'action' value, or None.
+    """
+    token = response.strip().upper()
+
+    # Single letter key
+    if len(token) == 1 and token.isalpha():
+        idx = ord(token) - ord('A')
+        if 0 <= idx < len(options):
+            return options[idx].get('action', options[idx].get('value'))
+
+    # Match by label (case-insensitive, for accessibility)
+    for opt in options:
+        if token == opt.get('label', '').upper():
+            return opt.get('action', opt.get('value'))
 
     return None
 
@@ -147,7 +224,9 @@ def build_disambiguation_message(recon: ReconciliationResult) -> str:
 
 # ── Confirmation Message Builder ─────────────────────────────────────
 
-# Human-readable names for intent types
+# Human-readable names for intent types.
+# Also available via get_policy(intent).label from action_policy,
+# but kept here for backward compatibility with direct importers.
 INTENT_LABELS = {
     # Creates
     'create_task': 'Create task',
@@ -197,6 +276,62 @@ INTENT_LABELS = {
     'edit_last_entry': 'Edit last entry',
     'email_medicine_list': 'Email medicine list',
 }
+
+
+# ── Structured Confirmation Builder ──────────────────────────────────
+
+def build_structured_confirmation(
+    enriched_action,
+    recon_result: Optional[ReconciliationResult] = None,
+    decision_suggestion: Optional[Dict] = None,
+) -> Tuple[str, List[Dict]]:
+    """
+    Build both text message and structured A/B/C options.
+
+    Returns:
+        (message_text, options_list)
+
+    The options_list contains dicts with:
+        key: 'A', 'B', 'C', etc.
+        label: Human-readable label
+        action: Backend action string ('confirm', 'cancel', 'edit', etc.)
+        style: 'primary' or 'secondary'
+        is_suggested: True if decision memory suggests this option
+    """
+    text = build_crud_confirmation_message(enriched_action, recon_result)
+
+    # Determine options based on reconciliation type
+    if recon_result and recon_result.decision == ReconciliationDecision.SKIP:
+        options = _skip_options()
+    else:
+        options = _standard_options()
+
+    # Apply decision suggestion: reorder so suggested option is first
+    if decision_suggestion and decision_suggestion.get('suggested_action'):
+        suggested = decision_suggestion['suggested_action']
+        for opt in options:
+            if opt['action'] == suggested:
+                opt['is_suggested'] = True
+                break
+
+    # Replace the "Reply with: CONFIRM, CANCEL, or EDIT" line with A/B/C format
+    option_labels = ' / '.join(
+        f"{opt['key']}) {opt['label']}" for opt in options
+    )
+    # Replace last line of text
+    lines = text.split('\n')
+    # Find and replace the "Reply with:" line
+    for i in range(len(lines) - 1, -1, -1):
+        if lines[i].startswith('Reply with:'):
+            lines[i] = option_labels
+            break
+    else:
+        # No "Reply with:" found — append options
+        lines.append('')
+        lines.append(option_labels)
+
+    text = '\n'.join(lines)
+    return text, options
 
 
 def build_crud_confirmation_message(

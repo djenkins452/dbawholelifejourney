@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — CoS Action Governance Upgrade (10-part)
+
+- **Objective:** Expand the pre-execution governance stack with centralized action policy, structured A/B/C confirmation options, pending action durability, clickable+typeable UX, navigation actions, decision memory, rate limits, and auditability.
+- **New files:**
+  - `apps/core/ai_orchestrator/action_policy.py` — Centralized ACTION_POLICY dict (50+ intents), ActionCategory/RiskLevel/AuthorityLevel enums, ActionRateLimiter class, get_policy/requires_confirmation/is_destructive/get_risk_level helpers, PASSTHROUGH_INTENTS frozenset
+  - `apps/core/ai_orchestrator/decision_memory.py` — get_decision_suggestion(), record_decision(), compute_context_key(), apply_suggestion_to_options() for learning user confirmation patterns
+  - `apps/core/ai_governance/tests/test_decision_memory.py` — 18 tests for decision memory confidence, decay, thresholds, option reordering
+  - `apps/core/ai_orchestrator/tests/test_action_policy.py` — 24 tests for policy coverage, risk levels, rate limits, confirmation requirements
+  - `apps/core/migrations/0106_userdecisionpreference_pendingaction.py` — Migration for PendingAction + UserDecisionPreference models
+- **Modified files:**
+  - `apps/core/ai_governance/models.py` — Added PendingAction (UUID pk, user FK, status, options JSON, executed flag, resolve() method) and UserDecisionPreference (confidence decay, record_decision(), is_reliable() thresholds)
+  - `apps/core/ai_orchestrator/crud_confirmation.py` — Added build_structured_confirmation() returning (text, options_list), extended parse_confirmation_response() for A/B/C letter keys, parse_option_response(), _standard_options()/_skip_options() helpers
+  - `apps/core/ai_orchestrator/safety_engine.py` — Generalized delete-intent check to use is_destructive() from action_policy
+  - `apps/core/ai_orchestrator/orchestrator.py` — Added Rate Limiter layer (1.5), integrated build_structured_confirmation with decision suggestions, added options/navigation to OrchestratorResult
+  - `apps/ai/intent_service.py` — Dual-write pending actions to cache+DB, DB fallback read for crash recovery, handle_crud_confirmation() records decisions and updates PendingAction DB status
+  - `apps/ai/personal_assistant.py` — Added NAVIGATION_HINTS dict, _extract_options_from_actions(), _get_navigation_hint(), options/navigation in return dicts for both send_message and send_message_stream
+  - `apps/ai/views.py` — Pass options/navigation in JSON response
+  - `templates/components/chat_widget.html` — CSS for option chips and nav links, renderOptions()/renderNavigation()/clearActionUI() JS functions, CSP-compliant click handlers
+  - `apps/core/ai_orchestrator/tests/test_crud_confirmation.py` — Added 10 tests for A/B/C parsing and structured confirmation builder
+- **Tests:** 91 new/modified tests pass across action_policy, crud_confirmation, decision_memory suites.
+- **Why:** The pre-execution governance was a hardcoded frozenset with text-only CONFIRM/CANCEL/EDIT. This upgrade creates a scalable, auditable, user-adaptive governance system.
+
 ## 2026-03-11 — Fix LLM Timeout for General Endpoint
 
 - **Bug:** `endpoint="general"` LLM calls were timing out in production (`Request timed out` on gpt-4o-mini). The `general` endpoint fell through to `LLM_TIMEOUT_UTILITY = 3s`, which is too aggressive for real API calls under load.
@@ -26,8 +48,8 @@
 ## 2026-03-11 — Personal Operating Context Phase 2: Confidence Gates, Drift Detection, Language Scaling
 
 - **Improvement 1 — Per-dimension confidence gates:** Each behavioral dimension now has its own injection threshold (productive_windows ≥ 0.60, deferral_patterns ≥ 0.60, momentum_phase ≥ 0.40). Previously all dimensions used a flat 0.30 gate. Gates are stored as class constants on `UserOperatingProfile.CONFIDENCE_GATES` for central tuning. Dimensions below their gate are silently excluded from the prompt.
-- **Improvement 2 — Behavior drift detection:** New `_detect_behavior_drift()` function compares consecutive profile computations to detect meaningful behavioral shifts: peak hours shifting ≥ 2h, deferral rate changing ≥ 15 percentage points, and momentum phase transitions. Thresholds stored in `UserOperatingProfile.DRIFT_THRESHOLDS`. Drift results stored in `profile_data['behavior_drift']` — no extra DB reads at injection time. `previous_profile_data` JSONField stores the prior snapshot for comparison. Drift signals surfaced in the injection as "Recent shift detected: …".
-- **Improvement 3 — Confidence-scaled language:** Instead of blanket soft language, the injection now scales certainty to evidence strength: ≥ 0.80 → "Your data consistently shows…", 0.60-0.79 → "It looks like…", 0.40-0.59 → "There may be a pattern where…". New `_confidence_qualifier()` function. Beth directive updated with LANGUAGE RULE enforcing observation framing, not diagnoses.
+- **Improvement 2 — Behavior drift detection:** New `_detect_behavior_drift()` function compares consecutive profile computations to detect meaningful behavioral shifts: peak hours shifting ≥ 2h, deferral rate changing ≥ 15 percentage points, and momentum phase transitions. Thresholds stored in `UserOperatingProfile.DRIFT_THRESHOLDS`. Drift results stored in `profile_data['behavior_drift']` — no extra DB reads at injection time. `previous_profile_data` JSONField stores the prior snapshot for comparison. Drift signals surfaced in the injection as "Recent shift detected: ...".
+- **Improvement 3 — Confidence-scaled language:** Instead of blanket soft language, the injection now scales certainty to evidence strength: ≥ 0.80 → "Your data consistently shows...", 0.60-0.79 → "It looks like...", 0.40-0.59 → "There may be a pattern where...". New `_confidence_qualifier()` function. Beth directive updated with LANGUAGE RULE enforcing observation framing, not diagnoses.
 - **Improvement 4 — Schedule correction:** Changed Celery Beat schedule from 3:30 AM UTC (10:30 PM EST — user still active) to 7:00 AM UTC (2:00 AM EST — after full day captured, after health summaries at 3:00 AM UTC). Task key renamed to `operating-profiles-nightly-7am-utc`.
 - **Schema version bump:** `SCHEMA_VERSION = 2` on `UserOperatingProfile` model (was 1).
 - **Model changes:** Added `previous_profile_data` JSONField, `dimension_meets_gate()` method, `has_drift` property, `__str__` includes `[DRIFT]` marker when drift detected.

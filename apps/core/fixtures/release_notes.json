@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 154,
+    "fields": {
+      "title": "Smarter Confirmation Flow with Quick-Tap Options",
+      "description": "When Beth asks you to confirm an action (logging data, creating tasks, etc.), you now see clickable A/B/C option buttons instead of typing CONFIRM or CANCEL. Beth also learns your patterns over time — if you always confirm weight logs, she'll highlight that option first. After completing an action, you'll see a 'View it' link to jump straight to the relevant page. Behind the scenes, all pending actions are now durably stored for crash recovery, rate-limited to prevent accidental duplicates, and fully auditable.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-11",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-03-11T03:00:00Z",
+      "updated_at": "2026-03-11T03:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 153,
     "fields": {
       "title": "Smart Workout Inputs for Every Exercise Type",

@@ -310,3 +310,109 @@ class HandleCrudConfirmationTests(TestCase):
     def tearDown(self):
         """Clean up cached pending actions."""
         self.intent_service.clear_pending_crud_action(self.user)
+
+
+class ParseOptionResponseTests(TestCase):
+    """Tests for A/B/C option key parsing in confirmations."""
+
+    def setUp(self):
+        self.options = [
+            {'key': 'A', 'label': 'Confirm', 'action': 'confirm'},
+            {'key': 'B', 'label': 'Cancel', 'action': 'cancel'},
+            {'key': 'C', 'label': 'Edit', 'action': 'edit'},
+        ]
+
+    def test_letter_a_maps_to_confirm(self):
+        result = parse_confirmation_response('A', options=self.options)
+        self.assertEqual(result, 'confirm')
+
+    def test_letter_b_maps_to_cancel(self):
+        result = parse_confirmation_response('B', options=self.options)
+        self.assertEqual(result, 'cancel')
+
+    def test_letter_c_maps_to_edit(self):
+        result = parse_confirmation_response('C', options=self.options)
+        self.assertEqual(result, 'edit')
+
+    def test_lowercase_letter(self):
+        result = parse_confirmation_response('a', options=self.options)
+        self.assertEqual(result, 'confirm')
+
+    def test_letter_with_whitespace(self):
+        result = parse_confirmation_response('  b  ', options=self.options)
+        self.assertEqual(result, 'cancel')
+
+    def test_legacy_confirm_still_works_with_options(self):
+        """CONFIRM keyword should still work even when options are present."""
+        result = parse_confirmation_response('CONFIRM', options=self.options)
+        self.assertEqual(result, 'confirm')
+
+    def test_legacy_cancel_still_works_with_options(self):
+        result = parse_confirmation_response('CANCEL', options=self.options)
+        self.assertEqual(result, 'cancel')
+
+    def test_unrecognized_with_options(self):
+        result = parse_confirmation_response('something else', options=self.options)
+        self.assertIsNone(result)
+
+    def test_no_options_fallback_to_legacy(self):
+        """When no options provided, should use legacy parsing."""
+        result = parse_confirmation_response('A', options=None)
+        # Without options, single letter 'A' may not match legacy keywords
+        # This tests that the function doesn't crash
+        self.assertIsNone(result)
+
+    def test_empty_options_fallback(self):
+        result = parse_confirmation_response('CONFIRM', options=[])
+        self.assertEqual(result, 'confirm')
+
+
+class StructuredConfirmationBuilderTests(TestCase):
+    """Tests for the build_structured_confirmation function."""
+
+    def test_returns_tuple_of_text_and_options(self):
+        from apps.core.ai_orchestrator.crud_confirmation import (
+            build_structured_confirmation,
+        )
+        enriched = MagicMock()
+        enriched.intent_type = 'create_task'
+        enriched.parameters = {'title': 'Workout'}
+
+        msg, options = build_structured_confirmation(enriched)
+        self.assertIsInstance(msg, str)
+        self.assertIsInstance(options, list)
+        self.assertGreater(len(options), 0)
+
+    def test_options_have_required_keys(self):
+        from apps.core.ai_orchestrator.crud_confirmation import (
+            build_structured_confirmation,
+        )
+        enriched = MagicMock()
+        enriched.intent_type = 'log_weight'
+        enriched.parameters = {'weight': '185'}
+
+        _, options = build_structured_confirmation(enriched)
+        for opt in options:
+            self.assertIn('key', opt)
+            self.assertIn('label', opt)
+            self.assertIn('action', opt)
+
+    def test_suggestion_marks_is_suggested(self):
+        from apps.core.ai_orchestrator.crud_confirmation import (
+            build_structured_confirmation,
+        )
+        enriched = MagicMock()
+        enriched.intent_type = 'log_heart_rate'
+        enriched.parameters = {'bpm': 72}
+
+        suggestion = {
+            'suggested_action': 'cancel',
+            'confidence': 0.80,
+            'sample_size': 8,
+        }
+        _, options = build_structured_confirmation(
+            enriched, decision_suggestion=suggestion
+        )
+        # Cancel option should be marked is_suggested
+        cancel_opt = next(o for o in options if o['action'] == 'cancel')
+        self.assertTrue(cancel_opt.get('is_suggested', False))

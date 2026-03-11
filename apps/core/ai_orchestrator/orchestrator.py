@@ -45,6 +45,8 @@ class OrchestratorResult:
         "action_results",
         "original_input",
         "error",
+        "options",
+        "navigation",
         "_time_result",
         "_context_result",
         "_semantic_result",
@@ -62,6 +64,8 @@ class OrchestratorResult:
         self.action_results = kwargs.get("action_results", [])
         self.original_input = kwargs.get("original_input")
         self.error = kwargs.get("error")
+        self.options = kwargs.get("options")       # Structured A/B/C options list
+        self.navigation = kwargs.get("navigation") # Navigation hint dict
         self._time_result = None
         self._context_result = None
         self._semantic_result = None
@@ -82,6 +86,10 @@ class OrchestratorResult:
             result["actions"] = [a.to_dict() for a in self.actions_enriched]
         if self.error:
             result["error"] = self.error
+        if self.options:
+            result["options"] = self.options
+        if self.navigation:
+            result["navigation"] = self.navigation
         return result
 
 
@@ -275,7 +283,7 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
                 user.id, e, exc_info=True,
             )
 
-        # ── Layer 1.5: Entity Resolution ─────────────────────────
+        # ── Layer 1.5a: Entity Resolution ────────────────────────
         # Resolve natural language entity references (e.g., "journal" → Task #123)
         # to concrete database IDs BEFORE the CRUD gate sees them.
         # This is data enrichment only — never executes or overrides existing IDs.
@@ -292,19 +300,75 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
                 user.id, e, exc_info=True,
             )
 
+        # ── Layer 1.5b: Rate Limiter ─────────────────────────────
+        # Prevents runaway action bursts per user per minute.
+        try:
+            from apps.core.ai_orchestrator.action_policy import (
+                ActionRateLimiter,
+            )
+            allowed, reason = ActionRateLimiter.check_rate_limit(
+                user, enriched.intent_type, enriched.parameters,
+            )
+            if not allowed:
+                from apps.ai.intent_service import ActionResult
+                logger.warning(
+                    "[RATE_LIMIT] Blocked: user=%s intent=%s reason=%s",
+                    user.id, enriched.intent_type, reason,
+                )
+                result = ActionResult(
+                    success=False,
+                    message=(
+                        "You're making changes very quickly. "
+                        "Give me a moment and try again."
+                    ),
+                    error='rate_limited',
+                    action_type=enriched.intent_type,
+                )
+                action_results.append(result)
+                continue
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.error(
+                "Rate limiter error (user=%s): %s",
+                user.id, e, exc_info=True,
+            )
+
         # ── Layer 2: CRUD Confirmation Gate ──────────────────────
         # All write operations require explicit user confirmation.
         # Read-only / control-plane intents pass through to execution.
         try:
             from apps.core.ai_orchestrator.crud_confirmation import (
                 requires_confirmation,
-                build_crud_confirmation_message,
+                build_structured_confirmation,
             )
             if requires_confirmation(enriched.intent_type):
                 from apps.ai.intent_service import ActionResult
-                from django.utils import timezone as dj_tz
 
-                msg = build_crud_confirmation_message(enriched, recon_result)
+                # Get decision suggestion for option reordering
+                decision_suggestion = None
+                try:
+                    from apps.core.ai_orchestrator.decision_memory import (
+                        get_decision_suggestion,
+                        compute_context_key,
+                    )
+                    ctx_key = compute_context_key(
+                        enriched.intent_type, enriched.parameters,
+                    )
+                    decision_suggestion = get_decision_suggestion(
+                        user, enriched.intent_type, ctx_key,
+                    )
+                except ImportError:
+                    pass
+                except Exception as e:
+                    logger.error(
+                        "Decision memory lookup failed: %s", e,
+                        exc_info=True,
+                    )
+
+                msg, options = build_structured_confirmation(
+                    enriched, recon_result, decision_suggestion,
+                )
                 intent_service.store_pending_crud_action(user, {
                     'intent_type': enriched.intent_type,
                     'parameters': enriched.parameters,
@@ -317,17 +381,22 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
                         recon_result.matched_object if recon_result else None
                     ),
                     'confirmation_message': msg,
+                    'options': options,
                 })
                 logger.info(
-                    "[CRUD_GATE] Pending: %s user=%s recon=%s",
+                    "[CRUD_GATE] Pending: %s user=%s recon=%s options=%d",
                     enriched.intent_type, user.id,
                     recon_result.decision.value if recon_result else 'none',
+                    len(options),
                 )
                 result = ActionResult(
                     success=False,
                     message=msg,
                     error='crud_confirmation_required',
                     action_type=enriched.intent_type,
+                    confirmation_detail={
+                        'options': options,
+                    },
                 )
                 action_results.append(result)
                 continue  # Skip execution — wait for user confirmation

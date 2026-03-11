@@ -394,3 +394,233 @@ class SelfError(models.Model):
             f"SelfError L{self.level} {self.category}/{self.trigger_code} "
             f"at {self.created_at}"
         )
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Pending Action — durable record of confirmation requests
+# ══════════════════════════════════════════════════════════════════════
+
+
+class PendingAction(models.Model):
+    """
+    Durable record of pending user confirmations.
+
+    Primary storage is Django cache (fast reads, 300s TTL).
+    This model provides:
+    - Audit trail for all confirmation requests
+    - Crash recovery (cache eviction protection)
+    - Debugging / admin inspection
+    """
+
+    STATUS_PENDING = 'pending'
+    STATUS_CONFIRMED = 'confirmed'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_EXPIRED = 'expired'
+    STATUS_EDITED = 'edited'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_CONFIRMED, 'Confirmed'),
+        (STATUS_CANCELLED, 'Cancelled'),
+        (STATUS_EXPIRED, 'Expired'),
+        (STATUS_EDITED, 'Edited'),
+    ]
+
+    ACTION_TYPE_CHOICES = [
+        ('crud', 'CRUD Confirmation'),
+        ('disambiguation', 'Disambiguation'),
+        ('clarification', 'Entity Clarification'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='pending_actions',
+    )
+
+    action_type = models.CharField(max_length=20, choices=ACTION_TYPE_CHOICES)
+    intent_type = models.CharField(max_length=60)
+    parameters = models.JSONField(default=dict)
+    options = models.JSONField(default=list, blank=True)
+    confirmation_message = models.TextField(blank=True)
+    original_input = models.TextField(blank=True)
+
+    # State
+    status = models.CharField(
+        max_length=15,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+    )
+    executed = models.BooleanField(default=False)
+    resolved_action = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="The option the user selected (confirm/cancel/edit/etc.)",
+    )
+
+    # Reconciliation context
+    recon_decision = models.CharField(max_length=20, blank=True)
+    recon_context = models.JSONField(null=True, blank=True)
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        app_label = 'core'
+        db_table = 'core_pendingaction'
+        indexes = [
+            models.Index(fields=['user', 'status', 'created_at']),
+        ]
+        ordering = ['-created_at']
+        verbose_name = "Pending Action"
+        verbose_name_plural = "Pending Actions"
+
+    def __str__(self):
+        return (
+            f"PendingAction {self.id} ({self.intent_type}) "
+            f"status={self.status} user={self.user_id}"
+        )
+
+    @property
+    def is_expired(self):
+        from django.utils import timezone
+        return timezone.now() > self.expires_at
+
+    def resolve(self, action: str, status: str = None):
+        """Mark this pending action as resolved."""
+        from django.utils import timezone as tz
+        self.resolved_action = action
+        self.status = status or (
+            self.STATUS_CONFIRMED if action == 'confirm'
+            else self.STATUS_CANCELLED if action in ('cancel', 'edit')
+            else self.STATUS_EDITED
+        )
+        self.resolved_at = tz.now()
+        self.save(update_fields=[
+            'resolved_action', 'status', 'resolved_at',
+        ])
+
+
+# ══════════════════════════════════════════════════════════════════════
+# User Decision Preference — tracks repeated choice patterns
+# ══════════════════════════════════════════════════════════════════════
+
+
+class UserDecisionPreference(models.Model):
+    """
+    Tracks repeated user decision patterns for the same action context.
+
+    When a user consistently makes the same choice for similar confirmations
+    (sample_size >= 5, confidence >= 0.70), the system can SUGGEST the
+    preferred option (shown first, highlighted) but NEVER auto-execute.
+
+    Confidence decays by 0.02 per day after last_seen_at, allowing
+    user behavior to drift over time without hard-freezing preferences.
+    """
+
+    CONFIDENCE_THRESHOLD = 0.70
+    MIN_SAMPLE_SIZE = 5
+    DECAY_PER_DAY = 0.02
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='decision_preferences',
+    )
+
+    # What pattern this tracks
+    intent_type = models.CharField(max_length=60)
+    context_key = models.CharField(
+        max_length=120,
+        help_text="Normalized context identifier (e.g., 'mutate_task:recurring')",
+    )
+
+    # What the user typically chooses
+    preferred_action = models.CharField(max_length=20, blank=True)
+
+    # Per-action counts
+    confirm_count = models.PositiveIntegerField(default=0)
+    cancel_count = models.PositiveIntegerField(default=0)
+    edit_count = models.PositiveIntegerField(default=0)
+    # For custom options (e.g., "single" vs "series")
+    custom_counts = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Counts for custom option values beyond confirm/cancel/edit",
+    )
+
+    # Statistics
+    sample_size = models.PositiveIntegerField(default=0)
+    confidence = models.FloatField(default=0.0)
+
+    # Timestamps
+    first_seen_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = 'core'
+        db_table = 'core_userdecisionpreference'
+        unique_together = ['user', 'intent_type', 'context_key']
+        indexes = [
+            models.Index(fields=['user', 'intent_type']),
+        ]
+        verbose_name = "User Decision Preference"
+        verbose_name_plural = "User Decision Preferences"
+
+    def __str__(self):
+        return (
+            f"DecisionPref user={self.user_id} {self.intent_type}:"
+            f"{self.context_key} → {self.preferred_action} "
+            f"(conf={self.confidence:.2f}, n={self.sample_size})"
+        )
+
+    def get_effective_confidence(self):
+        """Confidence with time decay applied."""
+        from django.utils import timezone
+        days_since = (timezone.now() - self.last_seen_at).days
+        decayed = self.confidence - (days_since * self.DECAY_PER_DAY)
+        return max(0.0, decayed)
+
+    def record_decision(self, action: str):
+        """
+        Record a new decision and recompute confidence.
+
+        Args:
+            action: The action string (confirm, cancel, edit, or custom value).
+        """
+        self.sample_size += 1
+
+        if action == 'confirm':
+            self.confirm_count += 1
+        elif action == 'cancel':
+            self.cancel_count += 1
+        elif action == 'edit':
+            self.edit_count += 1
+        else:
+            # Custom option (e.g., 'single', 'series')
+            counts = self.custom_counts or {}
+            counts[action] = counts.get(action, 0) + 1
+            self.custom_counts = counts
+
+        # Recompute preferred action and confidence
+        all_counts = {
+            'confirm': self.confirm_count,
+            'cancel': self.cancel_count,
+            'edit': self.edit_count,
+        }
+        if self.custom_counts:
+            all_counts.update(self.custom_counts)
+
+        self.preferred_action = max(all_counts, key=all_counts.get)
+        self.confidence = all_counts[self.preferred_action] / self.sample_size
+        self.save()
+
+    def is_reliable(self):
+        """Whether this preference meets the threshold for suggestions."""
+        return (
+            self.sample_size >= self.MIN_SAMPLE_SIZE
+            and self.get_effective_confidence() >= self.CONFIDENCE_THRESHOLD
+        )

@@ -5811,7 +5811,7 @@ Rules for this response:
             import time as _t_llm
             _t_llm_start = _t_llm.monotonic()
             from django.conf import settings as django_settings
-            _cos_model = getattr(django_settings, 'COS_MODEL', None)
+            _cos_model = django_settings.COS_MODEL
             _llm_response = ai_service._call_api(
                 system_prompt,
                 user_prompt,
@@ -6401,7 +6401,7 @@ Rules for this response:
 
             try:
                 from django.conf import settings as django_settings
-                _cos_model_stream = getattr(django_settings, 'COS_MODEL', None)
+                _cos_model_stream = django_settings.COS_MODEL
                 for chunk in ai_service._call_api_stream(
                     ctx['system_prompt'],
                     ctx['user_prompt'],

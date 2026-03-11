@@ -6,6 +6,12 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — Fix LLM Timeout for General Endpoint
+
+- **Bug:** `endpoint="general"` LLM calls were timing out in production (`Request timed out` on gpt-4o-mini). The `general` endpoint fell through to `LLM_TIMEOUT_UTILITY = 3s`, which is too aggressive for real API calls under load.
+- **Fix:** Increased `LLM_TIMEOUT_UTILITY` from 3s to 8s, added explicit `general` endpoint mapping at 10s, and bumped `LLM_MAX_RETRIES` from 1 (no actual retries) to 2 (one retry after failure).
+- **Files modified:** `apps/ai/services.py` (timeout constants and endpoint mapping)
+
 ## 2026-03-11 — Entity Resolution Layer & Confirmation Escape Logic
 
 - **Feature 1 — Entity Resolution Layer:** New `apps/core/ai_orchestrator/entity_resolver.py` resolves natural language entity references (e.g., "journal", "workout") to concrete database objects BEFORE the CRUD confirmation gate. Supports Tasks, Goals, Habits, and Medicines. Uses tiered matching (exact → prefix → substring) with tie-breaking by earliest due_date. Never overrides existing IDs, never crosses user boundaries, and gracefully falls back on failure.

@@ -31,17 +31,17 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 # LLM call resilience defaults
-LLM_MAX_RETRIES = 1  # Single attempt — no retries on sync page loads
+LLM_MAX_RETRIES = 2  # One retry after initial failure (2 total attempts)
 LLM_BASE_BACKOFF_SECONDS = 1.0  # doubles each retry: 1s, 2s, 4s
-LLM_TIMEOUT_SECONDS = 3  # per-request timeout for lightweight utilities (fast-fail to unblock sync workers)
+LLM_TIMEOUT_SECONDS = 8  # per-request timeout for lightweight utilities
 
 # Per-endpoint timeout strategy: CoS chat and briefing flows need longer
 # timeouts because they involve large system prompts (50+ context keys)
-# and generate substantial responses. The 3s default was causing silent
-# fallbacks on ~20% of streaming CoS requests.
+# and generate substantial responses.
 LLM_TIMEOUT_COS_CHAT = 45  # CoS chat/briefing — large prompt, long response
 LLM_TIMEOUT_INTENT = 10    # Intent recognition — structured output, moderate
-LLM_TIMEOUT_UTILITY = 3    # Lightweight utilities (summary, extraction, etc.)
+LLM_TIMEOUT_GENERAL = 10   # General/unclassified calls — moderate headroom
+LLM_TIMEOUT_UTILITY = 8    # Lightweight utilities (summary, extraction, etc.)
 
 # Endpoint → timeout mapping
 ENDPOINT_TIMEOUTS = {
@@ -51,7 +51,7 @@ ENDPOINT_TIMEOUTS = {
     'proactive_briefing': LLM_TIMEOUT_COS_CHAT,
     'intent_recognition': LLM_TIMEOUT_INTENT,
     'journal_reflection': LLM_TIMEOUT_INTENT,
-    # Everything else uses LLM_TIMEOUT_UTILITY (default)
+    'general': LLM_TIMEOUT_GENERAL,
 }
 
 

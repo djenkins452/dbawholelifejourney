@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — Full System Audit v3 (85.6/B+)
+
+- **Issue:** Post-event-bus-completion audit to measure system quality and identify remaining gaps.
+- **Changes:**
+  - Conducted comprehensive 7-domain system audit (CoS Architecture, Engine Architecture, Configuration Discipline, Observability, Proactive Coaching, AI Decision Quality, UX Consistency)
+  - Overall score: **85.6/100 (B+)** — up from 82.0/B after event bus completion pass
+  - Top improvements: Config Discipline (+9), Proactive Coaching (+7), Engine Architecture (+6)
+  - Identified path to 90+ (A range): decompose god objects (cos_context.py, action_handlers.py), CSP remediation, migrate remaining ~18 hardcoded constants
+- **Files:** `architecture_governance/system_audits/cos_system_audit_2026_03_11_v3.md`
+- **Why:** Regular audit cadence to track architecture quality and prioritize improvements.
+
 ## 2026-03-11 — Event Bus Completion Pass (6 Objectives + 4 Safeguards)
 
 - **Issue:** Post-integration-pass finding: only the AI chat path emitted domain events. Web forms (~23 views) and HealthKit sync emitted nothing — subscribers (SAE cache, PIE insights, CoS context) were deaf to most user mutations.

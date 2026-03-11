@@ -6,11 +6,11 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-## 2026-03-11 — Update Default Model Fallback from gpt-4o-mini to gpt-4o
+## 2026-03-11 — Centralize OpenAI Model Config (Single Source of Truth)
 
-- **Issue:** Six service files had `getattr(settings, 'OPENAI_MODEL', 'gpt-4o-mini')` fallbacks, inconsistent with the intended gpt-4o model.
-- **Fix:** Updated all fallbacks to `'gpt-4o'` to match `config/settings.py` default and Railway env var.
-- **Files modified:** `apps/ai/services.py`, `apps/health/services/ai_nutrition.py`, `apps/capture/services/summarization.py`, `apps/scan/services/product_lookup.py`, `apps/scan/services/barcode.py`, `apps/scan/services/medicine_lookup.py`
+- **Issue:** 15 service files had hardcoded model strings (`gpt-4o-mini`) or redundant `getattr` fallbacks instead of reading `settings.OPENAI_MODEL` / `settings.OPENAI_VISION_MODEL` directly. Model changes required editing 15+ files.
+- **Fix:** All service files now use `settings.OPENAI_MODEL` or `settings.OPENAI_VISION_MODEL` directly. Zero model name strings outside `config/settings.py`, fixture/pricing data, and tests.
+- **Files modified (17):** `apps/ai/services.py`, `apps/ai/intent_service.py`, `apps/ai/web_search_service.py`, `apps/ai/executive_briefing.py`, `apps/ai/personal_assistant.py`, `apps/health/views.py`, `apps/health/services/ai_nutrition.py`, `apps/capture/services/summarization.py`, `apps/scan/services/product_lookup.py`, `apps/scan/services/barcode.py`, `apps/scan/services/medicine_lookup.py`, `apps/scan/services/vision.py`, `apps/scan/services/comprehensive_vision.py`, `apps/life/services/recipe_photo_import.py`, `apps/meals/services/pantry_photo_detection.py`, `apps/meals/services/receipt_vision.py`, `apps/core/ai_insights/health/screenshot_parser.py`
 
 ## 2026-03-11 — CoS Action Governance Upgrade (10-part)
 

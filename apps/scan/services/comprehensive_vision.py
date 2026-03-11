@@ -50,7 +50,7 @@ class ComprehensiveVisionService:
 
     def __init__(self):
         self.client = None
-        self.model = getattr(settings, "OPENAI_VISION_MODEL", "gpt-4o")
+        self.model = settings.OPENAI_VISION_MODEL
 
     @property
     def is_available(self) -> bool:

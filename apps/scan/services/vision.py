@@ -324,7 +324,7 @@ class VisionService:
 
     def __init__(self):
         self.client = None
-        self.model = getattr(settings, 'OPENAI_VISION_MODEL', 'gpt-4o')
+        self.model = settings.OPENAI_VISION_MODEL
         self.timeout = getattr(settings, 'SCAN_REQUEST_TIMEOUT_SECONDS', 30)
         self._initialize_client()
         self._fatsecret_available = None

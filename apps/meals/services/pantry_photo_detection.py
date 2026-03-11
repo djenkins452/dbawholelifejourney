@@ -190,7 +190,7 @@ class PantryPhotoDetectionService:
             return {"error": "Vision API client not available"}
 
         prompt = PANTRY_VISION_PROMPT.format(location_type=location_type)
-        model = getattr(settings, "OPENAI_VISION_MODEL", "gpt-4o")
+        model = settings.OPENAI_VISION_MODEL
 
         try:
             response = self.client.chat.completions.create(

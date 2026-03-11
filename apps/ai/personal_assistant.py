@@ -5532,7 +5532,7 @@ Rules for voice responses:
         # Check if this is a web search query (weather, news, etc.)
         # Handle these with web search before falling back to general AI.
         # v5: Skip web search if already identified as a personal data query —
-        # those need the full CoS pipeline, not a generic gpt-4o-mini response.
+        # those need the full CoS pipeline, not a generic LLM response.
         from apps.ai.web_search_service import needs_web_search, search_web, get_user_location
 
         _skip_web_search = (

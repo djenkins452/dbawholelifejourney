@@ -340,7 +340,7 @@ class ReceiptVisionService:
         if not self.client:
             return ReceiptVisionResult(error="Vision API client not available")
 
-        model = getattr(settings, "OPENAI_VISION_MODEL", "gpt-4o")
+        model = settings.OPENAI_VISION_MODEL
 
         try:
             response = self.client.chat.completions.create(
@@ -400,7 +400,7 @@ class ReceiptVisionService:
         if not self.client:
             return ReceiptVisionResult(error="Vision API client not available")
 
-        model = getattr(settings, "OPENAI_VISION_MODEL", "gpt-4o")
+        model = settings.OPENAI_VISION_MODEL
 
         try:
             response = self.client.chat.completions.create(

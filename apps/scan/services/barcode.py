@@ -133,7 +133,7 @@ class BarcodeService:
 
     def __init__(self):
         self.client = None
-        self.model = getattr(settings, 'OPENAI_MODEL', 'gpt-4o')
+        self.model = settings.OPENAI_MODEL
         self.timeout = getattr(settings, 'BARCODE_LOOKUP_TIMEOUT_SECONDS', 15)
         self._initialize_client()
 

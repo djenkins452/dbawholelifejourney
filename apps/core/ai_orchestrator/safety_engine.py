@@ -22,11 +22,9 @@ from apps.core.time.system_clock import get_current_time
 
 logger = logging.getLogger(__name__)
 
-# Maximum days in the past we'll accept for backdated entries
-MAX_BACKDATE_DAYS = 365
-
-# Maximum days in the future for scheduled actions
-MAX_FUTURE_DAYS = 365
+# Defaults for timestamp bounds (runtime values from AIThresholdConfig)
+_DEFAULT_MAX_BACKDATE_DAYS = 365
+_DEFAULT_MAX_FUTURE_DAYS = 365
 
 # Words that explicitly signal delete intent (case-insensitive)
 _DELETE_VERBS = re.compile(
@@ -103,6 +101,11 @@ def validate_action(enriched_action):
         now = get_current_time()
 
         # Check if too far in the past
+        from apps.core.ai_config import get_threshold
+
+        MAX_BACKDATE_DAYS = get_threshold("max_backdate_days", _DEFAULT_MAX_BACKDATE_DAYS)
+        MAX_FUTURE_DAYS = get_threshold("max_future_days", _DEFAULT_MAX_FUTURE_DAYS)
+
         max_past = now - timedelta(days=MAX_BACKDATE_DAYS)
         if recorded_at < max_past:
             return SafetyResult(

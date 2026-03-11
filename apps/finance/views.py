@@ -29,6 +29,8 @@ from django.views.generic import (
 
 from apps.core.utils import get_user_today
 
+from apps.core.events.domain_events import safe_emit_event, EventTypes
+
 from .models import (
     FinancialAccount,
     TransactionCategory,
@@ -497,7 +499,11 @@ class TransactionCreateView(FinanceAuditMixin, LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         messages.success(self.request, 'Transaction created.')
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        safe_emit_event(EventTypes.FINANCE_TRANSACTION_LOGGED, self.request.user, {
+            "entry_id": self.object.id, "source": "web_view",
+        })
+        return response
 
 
 class TransactionUpdateView(FinanceAuditMixin, FinanceUserMixin, UpdateView):
@@ -539,6 +545,9 @@ def quick_transaction(request):
         form = QuickTransactionForm(request.user, request.POST)
         if form.is_valid():
             transaction = form.save()
+            safe_emit_event(EventTypes.FINANCE_TRANSACTION_LOGGED, request.user, {
+                "entry_id": transaction.id, "source": "web_view",
+            })
             messages.success(request, f'Transaction added: {transaction.description}')
             return redirect('finance:dashboard')
     return redirect('finance:dashboard')

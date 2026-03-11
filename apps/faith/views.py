@@ -38,6 +38,8 @@ from apps.help.mixins import HelpContextMixin
 from apps.journal.models import JournalEntry
 from apps.journal.forms import JournalEntryForm
 
+from apps.core.events.domain_events import safe_emit_event, EventTypes
+
 from .forms import (
     BibleBookmarkForm,
     BibleHighlightForm,
@@ -353,7 +355,7 @@ class ScriptureSaveView(LoginRequiredMixin, FaithRequiredMixin, View):
         translation_abbrev = translation.split(' - ')[0].strip() if ' - ' in translation else translation[:10]
 
         # Create the user's saved verse
-        SavedVerse.objects.create(
+        verse = SavedVerse.objects.create(
             user=request.user,
             reference=reference,
             text=text,
@@ -366,6 +368,9 @@ class ScriptureSaveView(LoginRequiredMixin, FaithRequiredMixin, View):
             themes=themes,
             notes=notes,
         )
+        safe_emit_event(EventTypes.FAITH_SCRIPTURE_READ, request.user, {
+            "entry_id": verse.id, "source": "web_view",
+        })
 
         messages.success(request, f'"{reference}" saved to your Scripture library.')
         return redirect('faith:scripture_list')
@@ -494,7 +499,11 @@ class PrayerCreateView(LoginRequiredMixin, FaithRequiredMixin, CreateView):
     def form_valid(self, form):
         form.instance.user = self.request.user
         messages.success(self.request, "Prayer request added.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        safe_emit_event(EventTypes.FAITH_PRAYER_CREATED, self.request.user, {
+            "entry_id": self.object.id, "source": "web_view",
+        })
+        return response
 
 
 class PrayerUpdateView(LoginRequiredMixin, FaithRequiredMixin, UpdateView):
@@ -529,6 +538,9 @@ class MarkPrayerAnsweredView(LoginRequiredMixin, FaithRequiredMixin, View):
         )
         notes = request.POST.get("notes", "")
         prayer.mark_answered(notes)
+        safe_emit_event(EventTypes.FAITH_PRAYER_ANSWERED, request.user, {
+            "entry_id": prayer.id, "source": "web_view",
+        })
         messages.success(
             request,
             "Praise God! Prayer marked as answered."

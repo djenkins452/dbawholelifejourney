@@ -136,6 +136,50 @@ class AIThresholdConfig(models.Model):
         help_text="Stable data cache TTL in seconds (slowly-changing data)",
     )
 
+    # ---- Insight Budget Limits ----
+    max_insights_per_day = models.PositiveSmallIntegerField(
+        default=12,
+        help_text="Maximum PIE insights per user per day (noise budget)",
+    )
+    max_insights_per_6h_window = models.PositiveSmallIntegerField(
+        default=5,
+        help_text="Maximum PIE insights per 6-hour window (noise budget)",
+    )
+    max_cross_domain_per_day = models.PositiveSmallIntegerField(
+        default=4,
+        help_text="Maximum cross-domain insights per user per day",
+    )
+    max_notifications_per_day = models.PositiveSmallIntegerField(
+        default=3,
+        help_text="Maximum insight notifications per user per day",
+    )
+    insight_freshness_hours = models.PositiveSmallIntegerField(
+        default=48,
+        help_text="Hours before stored insights are considered stale",
+    )
+
+    # ---- Safety & Rate Limits ----
+    max_backdate_days = models.PositiveSmallIntegerField(
+        default=365,
+        help_text="Maximum days in the past for backdated entries",
+    )
+    max_future_days = models.PositiveSmallIntegerField(
+        default=365,
+        help_text="Maximum days in the future for scheduled actions",
+    )
+    max_destructive_per_minute = models.PositiveSmallIntegerField(
+        default=2,
+        help_text="Maximum destructive actions per minute per user",
+    )
+    max_general_per_minute = models.PositiveSmallIntegerField(
+        default=10,
+        help_text="Maximum general actions per minute per user",
+    )
+    max_actions_per_message = models.PositiveSmallIntegerField(
+        default=5,
+        help_text="Maximum actions per single chat message",
+    )
+
     # ---- Metadata ----
     active = models.BooleanField(
         default=True,

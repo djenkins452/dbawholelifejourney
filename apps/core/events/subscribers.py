@@ -80,6 +80,18 @@ def on_task_event_invalidate_state(event):
         pass
 
 
+@subscribe("faith.*")
+def on_faith_event_invalidate_state(event):
+    """Invalidate SAE cached state when faith data changes."""
+    if not event.user:
+        return
+    try:
+        from django.core.cache import cache
+        cache.delete(f"wlj:user_state:{event.user.id}")
+    except Exception:
+        pass
+
+
 # =========================================================================
 # PIE — Proactive Insight Engine (check for patterns on key events)
 # =========================================================================
@@ -178,11 +190,18 @@ def on_any_event_telemetry(event):
     """Track domain event volume for system observability."""
     try:
         from django.core.cache import cache
-        # Increment daily event counter (lightweight)
+        # Increment daily event counter
         counter_key = "wlj:domain_events:daily_count"
         try:
             cache.incr(counter_key)
         except ValueError:
             cache.set(counter_key, 1, timeout=86400)
+
+        # Per-type hourly counter (for Ops Wall top event types)
+        type_key = f"wlj:domain_events:hourly:{event.event_type}"
+        try:
+            cache.incr(type_key)
+        except ValueError:
+            cache.set(type_key, 1, timeout=3600)
     except Exception:
         pass

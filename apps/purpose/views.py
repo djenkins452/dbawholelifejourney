@@ -44,6 +44,8 @@ from .models import (
 )
 from .services import streak_service, analytics_service, recommendation_service
 
+from apps.core.events.domain_events import safe_emit_event, EventTypes
+
 
 class PurposeAccessMixin(LoginRequiredMixin):
     """Base mixin for Purpose module views."""
@@ -347,6 +349,9 @@ class GoalCreateView(SaveAddAnotherMixin, PurposeAccessMixin, CreateView):
         response = super().form_valid(form)
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
         fire_intelligence(self.request.user, "purpose", self.object.id, "create_goal")
+        safe_emit_event(EventTypes.PURPOSE_GOAL_CREATED, self.request.user, {
+            "entry_id": self.object.id, "source": "web_view",
+        })
         return response
 
     def get_success_url(self):
@@ -952,6 +957,9 @@ class HabitLogTodayView(PurposeAccessMixin, View):
         # Fire intelligence chain
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
         fire_intelligence(request.user, "purpose", entry.id, "log_habit")
+        safe_emit_event(EventTypes.PURPOSE_HABIT_LOGGED, request.user, {
+            "entry_id": entry.id, "source": "web_view",
+        })
 
         # Sync with CoS — cancel pre-prompt, schedule reflection
         try:
@@ -1059,6 +1067,10 @@ class HabitLogDateView(PurposeAccessMixin, View):
             CosCompletionService.on_habit_logged(goal, selected_date, request.user)
         except Exception:
             pass
+
+        safe_emit_event(EventTypes.PURPOSE_HABIT_LOGGED, request.user, {
+            "entry_id": entry.id, "source": "web_view",
+        })
 
         return JsonResponse({
             'success': True,

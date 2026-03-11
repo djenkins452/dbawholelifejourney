@@ -313,6 +313,9 @@ class OpsStreamView(View):
         # System Complexity Score (recomputed each poll)
         complexity = _get_complexity_score()
 
+        # Domain event bus telemetry
+        domain_events = _get_domain_event_telemetry()
+
         return JsonResponse({
             "server_time": now.isoformat(),
             "posture": posture,
@@ -329,6 +332,7 @@ class OpsStreamView(View):
             "coas_health": coas_health,
             "aafr": aafr,
             "complexity": complexity,
+            "domain_events": domain_events,
             "next_since": now.isoformat(),
         })
 
@@ -1005,4 +1009,5 @@ from apps.core.ai_observability.ops_telemetry import (  # noqa: E402, F401
     _get_health_intelligence_telemetry,
     _get_ingestion_stats,
     _get_complexity_score,
+    _get_domain_event_telemetry,
 )

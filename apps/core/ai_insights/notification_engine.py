@@ -44,7 +44,10 @@ def maybe_notify(user, insight):
         notified_at__gte=today_start,
     ).count()
 
-    if today_count >= MAX_NOTIFICATIONS_PER_DAY:
+    from apps.core.ai_config import get_threshold
+
+    max_notifications = get_threshold("max_notifications_per_day", MAX_NOTIFICATIONS_PER_DAY)
+    if today_count >= max_notifications:
         logger.info(
             f"Rate limited: user {user.id} already has {today_count} "
             f"notifications today"

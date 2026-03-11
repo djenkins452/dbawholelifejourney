@@ -444,14 +444,17 @@ def health_ingest(request):
     updated = 0
     skipped = 0
     errors = []
+    changed_types = set()
 
     for i, metric in enumerate(metrics):
         try:
             result = process_health_metric(user, metric, existing_glucose_sync_ids)
             if result == "created":
                 created += 1
+                changed_types.add(metric.get("type", "unknown"))
             elif result == "updated":
                 updated += 1
+                changed_types.add(metric.get("type", "unknown"))
             elif result == "skipped":
                 skipped += 1
         except ValueError as e:
@@ -506,6 +509,37 @@ def health_ingest(request):
                     "Failed to queue summary rebuild after ingest",
                     exc_info=True,
                 )
+
+    # Emit domain events for changed metric types (batch: one per type)
+    if changed_types:
+        try:
+            from apps.core.events.domain_events import safe_emit_event, EventTypes
+
+            METRIC_EVENT_MAP = {
+                "weight": EventTypes.HEALTH_WEIGHT_LOGGED,
+                "blood_pressure": EventTypes.HEALTH_BP_LOGGED,
+                "blood_glucose": EventTypes.HEALTH_GLUCOSE_LOGGED,
+                "sleep": EventTypes.HEALTH_SLEEP_LOGGED,
+                "water": EventTypes.HEALTH_WATER_LOGGED,
+                "workout": EventTypes.HEALTH_WORKOUT_COMPLETED,
+                "dietary_nutrients": EventTypes.HEALTH_NUTRITION_LOGGED,
+            }
+            for metric_type in changed_types:
+                event_type = METRIC_EVENT_MAP.get(metric_type)
+                if event_type:
+                    safe_emit_event(event_type, user, {
+                        "source": "healthkit_sync",
+                        "ingestion_id": ingestion_run.id,
+                    })
+            # Catch-all event for SAE cache invalidation
+            safe_emit_event(EventTypes.HEALTH_SYNC_COMPLETED, user, {
+                "source": "healthkit_sync",
+                "ingestion_id": ingestion_run.id,
+                "created": created,
+                "updated": updated,
+            })
+        except Exception:
+            pass  # Never block HealthKit response
 
     return JsonResponse({
         "success": True,

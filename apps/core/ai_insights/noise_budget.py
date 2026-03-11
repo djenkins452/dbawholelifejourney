@@ -16,13 +16,24 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-# Budget caps
-MAX_INSIGHTS_PER_DAY = 12
-MAX_INSIGHTS_PER_6H_WINDOW = 5
-MAX_CROSS_DOMAIN_PER_DAY = 4
+# Budget cap defaults (runtime values loaded from AIThresholdConfig)
+_DEFAULT_MAX_INSIGHTS_PER_DAY = 12
+_DEFAULT_MAX_INSIGHTS_PER_6H_WINDOW = 5
+_DEFAULT_MAX_CROSS_DOMAIN_PER_DAY = 4
 
 # Cross-domain rule prefix for identification
 CROSS_DOMAIN_PREFIX = "cross_domain_"
+
+
+def _budget_caps():
+    """Load budget caps from AIThresholdConfig at runtime."""
+    from apps.core.ai_config import get_threshold
+
+    return (
+        get_threshold("max_insights_per_day", _DEFAULT_MAX_INSIGHTS_PER_DAY),
+        get_threshold("max_insights_per_6h_window", _DEFAULT_MAX_INSIGHTS_PER_6H_WINDOW),
+        get_threshold("max_cross_domain_per_day", _DEFAULT_MAX_CROSS_DOMAIN_PER_DAY),
+    )
 
 
 def check_noise_budget(user, insight_data, rule):
@@ -39,6 +50,8 @@ def check_noise_budget(user, insight_data, rule):
     """
     try:
         from apps.core.ai_insights.models import Insight
+
+        MAX_INSIGHTS_PER_DAY, MAX_INSIGHTS_PER_6H_WINDOW, MAX_CROSS_DOMAIN_PER_DAY = _budget_caps()
 
         now = timezone.now()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -107,6 +120,8 @@ def get_budget_status(user):
     """
     try:
         from apps.core.ai_insights.models import Insight
+
+        MAX_INSIGHTS_PER_DAY, MAX_INSIGHTS_PER_6H_WINDOW, MAX_CROSS_DOMAIN_PER_DAY = _budget_caps()
 
         now = timezone.now()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)

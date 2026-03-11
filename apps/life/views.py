@@ -42,6 +42,8 @@ from django.views.generic import (
 from apps.core.utils import get_user_today
 from apps.help.mixins import HelpContextMixin
 
+from apps.core.events.domain_events import safe_emit_event, EventTypes
+
 from .models import (
     Project,
     Task,
@@ -392,7 +394,11 @@ class TaskCreateView(LifeAccessMixin, CreateView):
                 form.add_error('recurrence_pattern', 'Invalid recurrence pattern.')
                 return self.form_invalid(form)
         messages.success(self.request, f"Task '{form.instance.title}' created.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        safe_emit_event(EventTypes.TASK_CREATED, self.request.user, {
+            "task_id": self.object.id, "source": "web_view",
+        })
+        return response
 
     def get_success_url(self):
         # If we came from a project page, return to that project
@@ -473,6 +479,12 @@ class TaskToggleView(LifeAccessMixin, View):
             # Log error but don't fail - task state may have changed
             import logging
             logging.getLogger(__name__).error(f"Error toggling task {pk}: {e}")
+
+        # Emit domain event only on completion (not un-completion)
+        if not was_completed and task.is_completed:
+            safe_emit_event(EventTypes.TASK_COMPLETED, request.user, {
+                "task_id": task.id, "source": "web_view",
+            })
 
         # Check if this is an AJAX request
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':

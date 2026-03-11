@@ -1087,3 +1087,29 @@ def _get_complexity_score():
     except Exception as e:
         logger.debug("OpsWall: complexity score unavailable: %s", e)
         return None
+
+
+def _get_domain_event_telemetry():
+    """Domain event bus statistics for the Operations Wall."""
+    try:
+        from apps.core.events.domain_events import get_event_bus_stats
+
+        stats = get_event_bus_stats()
+
+        from django.core.cache import cache
+
+        daily_count = cache.get("wlj:domain_events:daily_count", 0)
+
+        return {
+            "total_emitted": stats.get("total_events_emitted", 0),
+            "suppressed": stats.get("suppressed_count", 0),
+            "registered_patterns": stats.get("registered_patterns", 0),
+            "total_handlers": stats.get("total_handlers", 0),
+            "avg_handler_ms": stats.get("avg_handler_ms", 0),
+            "p95_handler_ms": stats.get("p95_handler_ms", 0),
+            "type_counts": stats.get("type_counts", {}),
+            "daily_count": daily_count,
+        }
+    except Exception as e:
+        logger.debug("OpsWall: domain event telemetry unavailable: %s", e)
+        return None

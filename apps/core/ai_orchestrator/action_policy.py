@@ -304,9 +304,21 @@ class ActionRateLimiter:
     - max 5 actions per single message (enforced by caller)
     """
 
+    # Defaults (runtime values from AIThresholdConfig)
     MAX_DESTRUCTIVE_PER_MINUTE = 2
     MAX_GENERAL_PER_MINUTE = 10
     MAX_ACTIONS_PER_MESSAGE = 5
+
+    @classmethod
+    def _get_limits(cls):
+        """Load rate limits from AIThresholdConfig at runtime."""
+        from apps.core.ai_config import get_threshold
+
+        return (
+            get_threshold("max_destructive_per_minute", cls.MAX_DESTRUCTIVE_PER_MINUTE),
+            get_threshold("max_general_per_minute", cls.MAX_GENERAL_PER_MINUTE),
+            get_threshold("max_actions_per_message", cls.MAX_ACTIONS_PER_MESSAGE),
+        )
 
     @staticmethod
     def _minute_key() -> str:
@@ -327,12 +339,13 @@ class ActionRateLimiter:
             (allowed, reason_if_blocked)
         """
         minute = cls._minute_key()
+        max_destructive, max_general, _ = cls._get_limits()
 
         # Destructive rate limit
         if is_destructive(intent_type, parameters):
             key = f"action_rate:destructive:{user.id}:{minute}"
             count = cache.get(key, 0)
-            if count >= cls.MAX_DESTRUCTIVE_PER_MINUTE:
+            if count >= max_destructive:
                 logger.warning(
                     "[RATE_LIMIT] Destructive limit hit: user=%s intent=%s count=%d",
                     user.id, intent_type, count,
@@ -346,7 +359,7 @@ class ActionRateLimiter:
         # General rate limit
         key = f"action_rate:general:{user.id}:{minute}"
         count = cache.get(key, 0)
-        if count >= cls.MAX_GENERAL_PER_MINUTE:
+        if count >= max_general:
             logger.warning(
                 "[RATE_LIMIT] General limit hit: user=%s intent=%s count=%d",
                 user.id, intent_type, count,
@@ -366,9 +379,10 @@ class ActionRateLimiter:
 
         Called by the orchestrator before processing each action in a batch.
         """
-        if action_count >= cls.MAX_ACTIONS_PER_MESSAGE:
+        _, _, max_per_msg = cls._get_limits()
+        if action_count >= max_per_msg:
             return False, (
-                f"That's a lot of actions at once (max {cls.MAX_ACTIONS_PER_MESSAGE}). "
+                f"That's a lot of actions at once (max {max_per_msg}). "
                 "Try breaking it into smaller requests."
             )
         return True, ''

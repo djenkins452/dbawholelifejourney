@@ -42,6 +42,8 @@ from django.db import models
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
+
+from apps.core.events.domain_events import safe_emit_event, EventTypes
 from django.views.generic import (
     CreateView,
     DetailView,
@@ -394,6 +396,10 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
         # Fire intelligence chain (SAE → PIE → PRIE)
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
         fire_intelligence(self.request.user, "journal", self.object.id, "create_journal_entry")
+
+        safe_emit_event(EventTypes.JOURNAL_ENTRY_CREATED, self.request.user, {
+            "entry_id": self.object.id, "source": "web_view",
+        })
 
         # Check for potential milestone completion (async-safe, non-blocking)
         self._check_milestone_completion(form.instance)

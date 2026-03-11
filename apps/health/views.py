@@ -25,6 +25,7 @@ from django.views.generic import (
 from django.http import JsonResponse
 from django.template.loader import render_to_string
 
+from apps.core.events.domain_events import safe_emit_event, EventTypes
 from apps.core.utils import get_user_today, user_log_id
 from apps.core.views import SaveAddAnotherMixin, UndoDeleteMixin
 from apps.help.mixins import HelpContextMixin
@@ -549,6 +550,9 @@ class WeightCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin
         response = super().form_valid(form)
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
         fire_intelligence(self.request.user, "health", self.object.id, "log_weight")
+        safe_emit_event(EventTypes.HEALTH_WEIGHT_LOGGED, self.request.user, {
+            "entry_id": self.object.id, "source": "web_view",
+        })
         return response
 
 
@@ -1088,7 +1092,11 @@ class WaterCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
         form.instance.user = self.request.user
         if 'save_add_another' not in self.request.POST:
             messages.success(self.request, "Water logged.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        safe_emit_event(EventTypes.HEALTH_WATER_LOGGED, self.request.user, {
+            "entry_id": self.object.id, "source": "web_view",
+        })
+        return response
 
 
 class WaterUpdateView(LoginRequiredMixin, UpdateView):
@@ -1136,13 +1144,16 @@ class QuickWaterLogView(LoginRequiredMixin, View):
         except ValueError:
             amount = 8.0
 
-        WaterEntry.objects.create(
+        entry = WaterEntry.objects.create(
             user=request.user,
             amount=amount,
             unit="oz",
             container="glass" if amount <= 12 else "bottle",
             logged_date=get_user_today(request.user),
         )
+        safe_emit_event(EventTypes.HEALTH_WATER_LOGGED, request.user, {
+            "entry_id": entry.id, "amount": amount, "source": "web_view_quick",
+        })
 
         messages.success(request, f"Logged {amount}oz of water!")
 
@@ -3021,6 +3032,9 @@ class MedicineTakeView(LoginRequiredMixin, View):
             medicine.save(update_fields=["current_supply", "updated_at"])
 
         messages.success(request, f"Marked {medicine.name} as taken.")
+        safe_emit_event(EventTypes.HEALTH_MEDICATION_TAKEN, request.user, {
+            "log_id": log.id, "medicine_name": medicine.name, "source": "web_view",
+        })
 
         # Return to referring page or home
         next_url = request.POST.get("next", reverse_lazy("health:medicine_home"))
@@ -3179,6 +3193,10 @@ class MedicineBulkTakeView(LoginRequiredMixin, View):
 
         time_display = dict(MedicineSchedule.TIME_OF_DAY_CHOICES).get(time_of_day, time_of_day)
         messages.success(request, f"Marked {taken_count} {time_display} dose{'s' if taken_count != 1 else ''} as taken.")
+        if taken_count > 0:
+            safe_emit_event(EventTypes.HEALTH_MEDICATION_TAKEN, request.user, {
+                "count": taken_count, "time_of_day": time_of_day, "source": "web_view_bulk",
+            })
 
         next_url = request.POST.get("next", reverse_lazy("health:medicine_home"))
         return redirect(next_url)
@@ -3266,7 +3284,7 @@ class PRNLogView(LoginRequiredMixin, TemplateView):
             today = get_user_today(request.user)
 
             # Create the log
-            MedicineLog.objects.create(
+            log = MedicineLog.objects.create(
                 user=request.user,
                 medicine=medicine,
                 scheduled_date=today,
@@ -3283,6 +3301,10 @@ class PRNLogView(LoginRequiredMixin, TemplateView):
                 medicine.save(update_fields=["current_supply", "updated_at"])
 
             messages.success(request, f"Logged PRN dose of {medicine.name}.")
+            safe_emit_event(EventTypes.HEALTH_MEDICATION_TAKEN, request.user, {
+                "log_id": log.id, "medicine_name": medicine.name, "is_prn": True,
+                "source": "web_view",
+            })
             return redirect("health:medicine_home")
 
         context = self.get_context_data()
@@ -4023,6 +4045,9 @@ class FoodEntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMi
         if 'save_and_scan' in self.request.POST:
             # Save the form first
             super().form_valid(form)
+            safe_emit_event(EventTypes.HEALTH_NUTRITION_LOGGED, self.request.user, {
+                "entry_id": self.object.id, "source": "web_view",
+            })
             messages.success(self.request, "Food logged. Scan another!")
             # Redirect to scan page with barcode mode
             scan_url = reverse('scan:home') + '?mode=barcode'
@@ -4033,7 +4058,11 @@ class FoodEntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMi
             return redirect(scan_url)
         elif 'save_add_another' not in self.request.POST:
             messages.success(self.request, "Food logged.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        safe_emit_event(EventTypes.HEALTH_NUTRITION_LOGGED, self.request.user, {
+            "entry_id": self.object.id, "source": "web_view",
+        })
+        return response
 
 
 class FoodEntryUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
@@ -4138,6 +4167,9 @@ class QuickAddFoodView(HelpContextMixin, LoginRequiredMixin, View):
             messages.success(request, f"Logged {entry.total_calories} calories.")
             from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
             fire_intelligence(request.user, "health", entry.id, "log_food")
+            safe_emit_event(EventTypes.HEALTH_NUTRITION_LOGGED, request.user, {
+                "entry_id": entry.id, "source": "web_view_quick",
+            })
             return redirect("health:nutrition_home")
         return render(request, self.template_name, {"form": form})
 
@@ -5122,6 +5154,9 @@ class BloodPressureCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequir
         response = super().form_valid(form)
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
         fire_intelligence(self.request.user, "health", self.object.id, "log_blood_pressure")
+        safe_emit_event(EventTypes.HEALTH_BP_LOGGED, self.request.user, {
+            "entry_id": self.object.id, "source": "web_view",
+        })
         return response
 
 
@@ -6024,7 +6059,11 @@ class GlucoseCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
         form.instance.user = self.request.user
         form.instance.source = 'manual'
         messages.success(self.request, "Glucose reading logged.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        safe_emit_event(EventTypes.HEALTH_GLUCOSE_LOGGED, self.request.user, {
+            "entry_id": self.object.id, "source": "web_view",
+        })
+        return response
 
 
 class GlucoseUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
@@ -6391,6 +6430,9 @@ class SleepCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
         response = super().form_valid(form)
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
         fire_intelligence(self.request.user, "health", self.object.id, "log_sleep")
+        safe_emit_event(EventTypes.HEALTH_SLEEP_LOGGED, self.request.user, {
+            "entry_id": self.object.id, "source": "web_view",
+        })
         return response
 
 
@@ -6412,7 +6454,11 @@ class SleepQuickCreateView(LoginRequiredMixin, CreateView):
     def form_valid(self, form):
         form.instance.user = self.request.user
         messages.success(self.request, "Sleep logged.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        safe_emit_event(EventTypes.HEALTH_SLEEP_LOGGED, self.request.user, {
+            "entry_id": self.object.id, "source": "web_view",
+        })
+        return response
 
 
 class SleepUpdateView(LoginRequiredMixin, UpdateView):

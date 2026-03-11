@@ -6,6 +6,37 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — Event Bus Completion Pass (6 Objectives + 4 Safeguards)
+
+- **Issue:** Post-integration-pass finding: only the AI chat path emitted domain events. Web forms (~23 views) and HealthKit sync emitted nothing — subscribers (SAE cache, PIE insights, CoS context) were deaf to most user mutations.
+- **Changes (6 objectives + 4 safeguards):**
+  1. **Event Infrastructure Hardening:** Added 4 safeguards to `_EventBus`: idempotency dedupe (5s TTL by event_type+entity_id), loop protection (max depth 2), latency tracking (sliding window avg/p95), per-type counters. Added `safe_emit_event()` public helper. Added `HEALTH_WATER_LOGGED`, `HEALTH_SYNC_COMPLETED` EventTypes. Added faith.* SAE cache subscriber.
+  2. **Health Web View Events (12 views):** Wired `safe_emit_event()` into all health create views: Weight, BP, Glucose, Sleep, SleepQuick, MedicineTake, MedicineBulkTake (aggregated), PRNLog, FoodEntry (both paths), QuickAddFood, Water, QuickWater.
+  3. **Non-Health Web View Events (11 views):** Wired events into Journal EntryCreate, Purpose GoalCreate + HabitLogToday + HabitLogDate, Faith PrayerCreate + MarkPrayerAnswered + ScriptureSave, Life TaskCreate + TaskToggle (complete only), Finance TransactionCreate + quick_transaction.
+  4. **HealthKit Sync Batch Events:** Added `changed_types` tracking to `health_ingest()` processing loop. After processing, emits one event per changed metric type via `METRIC_EVENT_MAP` + one `HEALTH_SYNC_COMPLETED` catch-all.
+  5. **Event Telemetry on Operations Wall:** Added `_get_domain_event_telemetry()` to ops_telemetry.py (total emitted, suppressed, per-type counts, avg/p95 latency, daily count). Wired into OpsStreamView JSON response.
+  6. **AIThresholdConfig Migration (10 new fields):** Added 10 fields: max_insights_per_day, max_insights_per_6h_window, max_cross_domain_per_day, max_notifications_per_day, insight_freshness_hours, max_backdate_days, max_future_days, max_destructive_per_minute, max_general_per_minute, max_actions_per_message. Rewired 5 consumer files (noise_budget, notification_engine, services, safety_engine, action_policy) from hardcoded constants to `get_threshold()`.
+- **Files modified (17 files):**
+  - `apps/core/events/domain_events.py` — 4 safeguards, new EventTypes, safe_emit_event()
+  - `apps/core/events/subscribers.py` — faith.* subscriber, per-type telemetry counters
+  - `apps/health/views.py` — 12 safe_emit_event() calls
+  - `apps/journal/views.py` — import + EntryCreateView event
+  - `apps/purpose/views.py` — import + 3 view events (GoalCreate, HabitLogToday, HabitLogDate)
+  - `apps/faith/views.py` — import + 3 view events (Prayer, MarkAnswered, ScriptureSave)
+  - `apps/life/views.py` — import + 2 view events (TaskCreate, TaskToggle)
+  - `apps/finance/views.py` — import + 2 view events (TransactionCreate, quick_transaction)
+  - `apps/mobile/views.py` — changed_types tracking + batch event emission in health_ingest()
+  - `apps/core/ai_observability/ops_telemetry.py` — _get_domain_event_telemetry()
+  - `apps/core/ai_observability/ops_views.py` — domain_events in stream response
+  - `apps/core/ai_config.py` — 10 new AIThresholdConfig fields
+  - `apps/core/migrations/0111_add_threshold_budget_and_ratelimit_fields.py` — migration
+  - `apps/core/ai_insights/noise_budget.py` — 3 constants → _budget_caps() → get_threshold()
+  - `apps/core/ai_insights/notification_engine.py` — MAX_NOTIFICATIONS → get_threshold()
+  - `apps/core/ai_insights/services.py` — INSIGHT_FRESHNESS_HOURS → get_threshold()
+  - `apps/core/ai_orchestrator/safety_engine.py` — MAX_BACKDATE/FUTURE_DAYS → get_threshold()
+  - `apps/core/ai_orchestrator/action_policy.py` — 3 rate limits → _get_limits() → get_threshold()
+- **Why:** Completes event-driven architecture — ALL user data mutation paths (web, AI, HealthKit) now emit domain events. Subscribers react uniformly regardless of entry point. Budget/rate-limit constants are now DB-tunable without code deploys.
+
 ## 2026-03-11 — System Integration Pass (6 Objectives)
 
 - **Issue:** Post-audit finding: infrastructure built during stabilization pass (AIThresholdConfig, domain events, MessageOrchestrator, engine registry, complexity metrics) had zero runtime consumers. Score: 82.0/B.

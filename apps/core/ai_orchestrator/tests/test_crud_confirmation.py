@@ -116,7 +116,6 @@ class ConfirmationMessageBuilderTests(TestCase):
         enriched.parameters = {'title': 'Grocery Run', 'scheduled_time': '15:00'}
 
         msg = build_crud_confirmation_message(enriched)
-        self.assertIn('Proposed Action', msg)
         self.assertIn('Grocery Run', msg)
         self.assertIn('CONFIRM', msg)
         self.assertIn('CANCEL', msg)
@@ -127,8 +126,7 @@ class ConfirmationMessageBuilderTests(TestCase):
         enriched.parameters = {'weight': '185'}
 
         msg = build_crud_confirmation_message(enriched)
-        self.assertIn('Proposed Action', msg)
-        self.assertIn('Log weight', msg)
+        self.assertIn('185', msg)
         self.assertIn('CONFIRM', msg)
 
     def test_reschedule_message_includes_from_to(self):
@@ -149,8 +147,8 @@ class ConfirmationMessageBuilderTests(TestCase):
 
         msg = build_crud_confirmation_message(enriched, recon)
         self.assertIn('Workout', msg)
-        self.assertIn('From:', msg)
-        self.assertIn('To:', msg)
+        self.assertIn('from', msg.lower())
+        self.assertIn('to', msg.lower())
         self.assertIn('CONFIRM', msg)
 
     def test_skip_message(self):
@@ -217,7 +215,7 @@ class HandleCrudConfirmationTests(TestCase):
             'original_input': 'create a test task',
             'recon_decision': 'create',
             'recon_context': None,
-            'confirmation_message': 'Proposed Action\nCreate task "Test Task"\n\nReply: CONFIRM, CANCEL, or EDIT',
+            'confirmation_message': 'Adding a task: "Test Task"\n\nReply with: CONFIRM, CANCEL, or EDIT',
         }
         data.update(overrides)
         self.intent_service.store_pending_crud_action(self.user, data)
@@ -317,9 +315,9 @@ class ParseOptionResponseTests(TestCase):
 
     def setUp(self):
         self.options = [
-            {'key': 'A', 'label': 'Confirm', 'action': 'confirm'},
-            {'key': 'B', 'label': 'Cancel', 'action': 'cancel'},
-            {'key': 'C', 'label': 'Edit', 'action': 'edit'},
+            {'key': 'A', 'label': 'Sounds good', 'action': 'confirm'},
+            {'key': 'B', 'label': 'Never mind', 'action': 'cancel'},
+            {'key': 'C', 'label': 'Change something', 'action': 'edit'},
         ]
 
     def test_letter_a_maps_to_confirm(self):

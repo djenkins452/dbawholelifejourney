@@ -56,17 +56,17 @@ __all__ = [
 def _standard_options():
     """Default A/B/C confirmation options."""
     return [
-        {'key': 'A', 'label': 'Confirm', 'action': 'confirm', 'style': 'primary'},
-        {'key': 'B', 'label': 'Cancel', 'action': 'cancel', 'style': 'secondary'},
-        {'key': 'C', 'label': 'Edit', 'action': 'edit', 'style': 'secondary'},
+        {'key': 'A', 'label': 'Sounds good', 'action': 'confirm', 'style': 'primary'},
+        {'key': 'B', 'label': 'Never mind', 'action': 'cancel', 'style': 'secondary'},
+        {'key': 'C', 'label': 'Change something', 'action': 'edit', 'style': 'secondary'},
     ]
 
 
 def _skip_options():
     """Options for a skip (already exists) scenario."""
     return [
-        {'key': 'A', 'label': 'Keep as is', 'action': 'confirm', 'style': 'primary'},
-        {'key': 'B', 'label': 'Cancel', 'action': 'cancel', 'style': 'secondary'},
+        {'key': 'A', 'label': 'Keep it', 'action': 'confirm', 'style': 'primary'},
+        {'key': 'B', 'label': 'Never mind', 'action': 'cancel', 'style': 'secondary'},
     ]
 
 
@@ -204,7 +204,7 @@ def build_disambiguation_message(recon: ReconciliationResult) -> str:
     if recon.confirm_message:
         parts.append(recon.confirm_message)
     else:
-        parts.append('I found multiple matches. Which one did you mean?')
+        parts.append('I found a few matches. Which one did you mean?')
 
     parts.append('')
     for i, c in enumerate(recon.candidates[:5]):
@@ -218,7 +218,7 @@ def build_disambiguation_message(recon: ReconciliationResult) -> str:
         parts.append(line)
 
     parts.append('')
-    parts.append('Reply with a number, NONE to create new, or CANCEL')
+    parts.append('Pick a number, or say "none of these" to create a new one.')
     return '\n'.join(parts)
 
 
@@ -229,52 +229,52 @@ def build_disambiguation_message(recon: ReconciliationResult) -> str:
 # but kept here for backward compatibility with direct importers.
 INTENT_LABELS = {
     # Creates
-    'create_task': 'Create task',
-    'create_routine_task': 'Create routine task',
-    'create_event': 'Create calendar event',
-    'create_goal': 'Create goal',
-    'set_intention': 'Set intention',
-    'add_reminder': 'Add reminder',
-    'create_journal_entry': 'Create journal entry',
-    'add_gratitude': 'Log gratitude',
-    'add_faith_milestone': 'Add faith milestone',
-    'save_verse': 'Save verse',
+    'create_task': 'Adding a task',
+    'create_routine_task': 'Adding a daily routine',
+    'create_event': 'Adding to your calendar',
+    'create_goal': 'Creating a goal',
+    'set_intention': 'Setting your intention',
+    'add_reminder': 'Setting a reminder',
+    'create_journal_entry': 'Saving a journal entry',
+    'add_gratitude': 'Noting gratitude',
+    'add_faith_milestone': 'Recording a faith milestone',
+    'save_verse': 'Saving a verse',
     # Mutations
-    'mutate_task': 'Update task',
-    'mutate_calendar_event': 'Update calendar event',
-    'complete_task': 'Complete task',
-    'skip_task': 'Skip task',
-    'mark_prayer_answered': 'Mark prayer answered',
-    'update_goal_progress': 'Update goal progress',
-    'complete_shopping_item': 'Mark shopping item purchased',
-    'set_cos_name': 'Change assistant name',
+    'mutate_task': 'Updating your task',
+    'mutate_calendar_event': 'Updating your calendar event',
+    'complete_task': 'Marking task complete',
+    'skip_task': 'Skipping a task',
+    'mark_prayer_answered': 'Marking prayer as answered',
+    'update_goal_progress': 'Updating goal progress',
+    'complete_shopping_item': 'Marking item as purchased',
+    'set_cos_name': 'Changing assistant name',
     # Logs
-    'log_weight': 'Log weight',
-    'log_blood_pressure': 'Log blood pressure',
-    'log_heart_rate': 'Log heart rate',
-    'log_glucose': 'Log blood sugar',
-    'log_blood_oxygen': 'Log blood oxygen',
-    'log_body_measurement': 'Log body measurement',
-    'log_food': 'Log food',
-    'log_sleep': 'Log sleep',
-    'log_water': 'Log water intake',
-    'log_steps': 'Log steps',
-    'take_medicine': 'Mark medicine taken',
-    'take_medicines_by_time': 'Mark medicines taken',
-    'start_fast': 'Start fast',
-    'end_fast': 'End fast',
-    'log_prayer': 'Log prayer',
-    'log_habit': 'Log habit',
-    'log_workout': 'Log workout',
-    'log_exercise_set': 'Log exercise set',
-    'log_cardio': 'Log cardio session',
-    'log_transaction': 'Log transaction',
-    'log_transformation_protocol': 'Log transformation',
-    'log_shopping_item': 'Add shopping item',
+    'log_weight': 'Logging your weight',
+    'log_blood_pressure': 'Logging blood pressure',
+    'log_heart_rate': 'Logging heart rate',
+    'log_glucose': 'Logging blood sugar',
+    'log_blood_oxygen': 'Logging blood oxygen',
+    'log_body_measurement': 'Logging a measurement',
+    'log_food': 'Logging food',
+    'log_sleep': 'Logging sleep',
+    'log_water': 'Logging water intake',
+    'log_steps': 'Logging steps',
+    'take_medicine': 'Marking medicine as taken',
+    'take_medicines_by_time': 'Marking medicines as taken',
+    'start_fast': 'Starting a fast',
+    'end_fast': 'Ending your fast',
+    'log_prayer': 'Adding a prayer',
+    'log_habit': 'Logging a habit',
+    'log_workout': 'Logging a workout',
+    'log_exercise_set': 'Logging an exercise set',
+    'log_cardio': 'Logging cardio',
+    'log_transaction': 'Logging a transaction',
+    'log_transformation_protocol': 'Logging transformation',
+    'log_shopping_item': 'Adding to shopping list',
     # System
-    'undo_last_action': 'Undo last action',
-    'edit_last_entry': 'Edit last entry',
-    'email_medicine_list': 'Email medicine list',
+    'undo_last_action': 'Undoing last action',
+    'edit_last_entry': 'Editing last entry',
+    'email_medicine_list': 'Emailing medicine list',
 }
 
 
@@ -380,22 +380,12 @@ def _build_reschedule_message(recon: ReconciliationResult, params: dict) -> str:
 
     new_time = params.get('scheduled_time') or params.get('start_time') or params.get('new_scheduled_time')
 
-    parts = [f'I found an existing "{existing_title}"']
-    if existing_time and existing_time != 'None':
-        parts[0] += f' scheduled at {_format_time_str(existing_time)}'
-    parts[0] += '.'
+    from_str = _format_time_str(existing_time) if existing_time and existing_time != 'None' else 'unscheduled'
 
     if new_time:
-        parts.append(f'You mentioned doing it at {_format_time_str(new_time)}.')
-        parts.append('')
-        parts.append('Proposed Action')
-        parts.append(f'Move "{existing_title}"')
-        parts.append(f'From: {_format_time_str(existing_time) if existing_time and existing_time != "None" else "unscheduled"}')
-        parts.append(f'To: {_format_time_str(new_time)}')
+        parts = [f'Moving {existing_title} from {from_str} to {_format_time_str(new_time)}']
     else:
-        parts.append('')
-        parts.append('Proposed Action')
-        parts.append(f'Update "{existing_title}"')
+        parts = [f'Updating {existing_title}']
 
     parts.append('')
     parts.append('Reply with: CONFIRM, CANCEL, or EDIT')
@@ -408,7 +398,7 @@ def _build_skip_message(recon: ReconciliationResult) -> str:
         return f"{recon.skip_message}\n\nReply with: CONFIRM to keep, or CANCEL"
     matched = recon.matched_object or {}
     title = matched.get('title', 'activity')
-    return f'You already have "{title}" scheduled. No changes needed.\n\nReply with: CONFIRM to keep, or CANCEL'
+    return f'{title} is already scheduled \u2014 no changes needed.\n\nReply with: CONFIRM to keep, or CANCEL'
 
 
 def _build_confirm_ambiguous_message(
@@ -432,8 +422,6 @@ def _build_confirm_ambiguous_message(
 
 def _build_standard_message(intent: str, label: str, params: dict) -> str:
     """Build standard confirmation for new create/log/mutate actions."""
-    parts = ['Proposed Action']
-
     # Extract key details based on intent type.
     # resolved_name is set by EntityResolver when it matches a database entity.
     title = (
@@ -453,22 +441,27 @@ def _build_standard_message(intent: str, label: str, params: dict) -> str:
     if action == 'delete' and intent in ('mutate_task', 'mutate_calendar_event'):
         entity = 'calendar event' if 'calendar' in intent else 'task'
         if params.get('delete_series'):
-            label = f'Delete recurring {entity} series'
+            label = f'Removing recurring {entity} series'
         else:
-            label = f'Delete {entity}'
+            label = f'Removing {entity}'
 
-    detail_parts = [label]
+    # Build conversational summary (no "Proposed Action" heading)
+    parts = []
+    summary = label
     if title:
-        detail_parts[0] += f': "{title}"'
+        summary += f': "{title}"'
     elif value:
-        detail_parts[0] += f': {value}'
+        summary += f': {value}'
+    parts.append(summary)
 
-    if date_str:
-        detail_parts.append(f'Date: {date_str}')
-    if time_str:
-        detail_parts.append(f'Time: {_format_time_str(time_str)}')
+    # Add date/time naturally
+    if date_str and time_str:
+        parts.append(f'{date_str} at {_format_time_str(time_str)}')
+    elif time_str:
+        parts.append(f'at {_format_time_str(time_str)}')
+    elif date_str:
+        parts.append(f'{date_str}')
 
-    parts.extend(detail_parts)
     parts.append('')
     parts.append('Reply with: CONFIRM, CANCEL, or EDIT')
     return '\n'.join(parts)

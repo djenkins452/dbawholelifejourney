@@ -1151,115 +1151,115 @@ the Medications page), honor the explicit domain.
         return False, ""
 
     def _build_confirmation_message(self, intent_type: str, parameters: dict) -> str:
-        """Build a confirmation message for an action."""
+        """Build a human-sounding confirmation message for an action."""
         if intent_type == 'log_heart_rate':
             bpm = parameters.get('bpm', 0)
             context = parameters.get('context', 'resting')
-            return f"I'll log your heart rate as {bpm} BPM ({context}). Confirm?"
+            return f"Logging {bpm} BPM ({context}) for your heart rate."
 
         elif intent_type == 'log_blood_pressure':
             systolic = parameters.get('systolic', 0)
             diastolic = parameters.get('diastolic', 0)
-            return f"I'll log your blood pressure as {systolic}/{diastolic}. Confirm?"
+            return f"Logging blood pressure: {systolic}/{diastolic}."
 
         elif intent_type == 'log_weight':
             value = parameters.get('value', 0)
             unit = parameters.get('unit', 'lb')
-            return f"I'll log your weight as {value} {unit}. Confirm?"
+            return f"Logging your weight as {value} {unit}."
 
         elif intent_type == 'log_glucose':
             value = parameters.get('value', 0)
             unit = parameters.get('unit', 'mg/dL')
-            return f"I'll log your blood glucose as {value} {unit}. Confirm?"
+            return f"Logging blood glucose: {value} {unit}."
 
         elif intent_type == 'log_blood_oxygen':
             spo2 = parameters.get('spo2', 0)
-            return f"I'll log your blood oxygen as {spo2}%. Confirm?"
+            return f"Logging blood oxygen: {spo2}%."
 
         elif intent_type == 'log_food':
             food = parameters.get('food_name', 'food')
             quantity = parameters.get('quantity', 1)
-            return f"I'll log {quantity} serving(s) of {food}. Confirm?"
+            return f"Logging {quantity} serving(s) of {food}."
 
         elif intent_type == 'take_medicine':
             medicine = parameters.get('medicine_name', 'medicine')
-            return f"I'll log that you took {medicine}. Confirm?"
+            return f"Marking {medicine} as taken."
 
         elif intent_type == 'take_medicines_by_time':
             tod = parameters.get('time_of_day', 'scheduled')
             scheduled = parameters.get('use_scheduled_time', False)
             time_note = " at their scheduled times" if scheduled else ""
-            return f"I'll mark all {tod} medicines as taken{time_note}. Confirm?"
+            return f"Marking all {tod} medicines as taken{time_note}."
 
         elif intent_type == 'start_fast':
             fasting_type = parameters.get('fasting_type', '16:8')
-            return f"I'll start a {fasting_type} fast for you. Confirm?"
+            return f"Starting a {fasting_type} fast."
 
         elif intent_type == 'end_fast':
-            return "I'll end your current fast. Confirm?"
+            return "Ending your current fast."
 
         # Journal intents
         elif intent_type == 'create_journal_entry':
             body = parameters.get('body', '')[:50]
-            return f"I'll create a journal entry: \"{body}...\". Confirm?"
+            return f"Saving a journal entry: \"{body}...\""
 
         elif intent_type == 'add_gratitude':
             gratitude = parameters.get('gratitude', '')
-            return f"I'll log gratitude for: {gratitude}. Confirm?"
+            return f"Noting gratitude: {gratitude}."
 
         # Faith intents
         elif intent_type == 'log_prayer':
             title = parameters.get('title', 'prayer')
-            return f"I'll add prayer request: {title}. Confirm?"
+            return f"Adding prayer: {title}."
 
         elif intent_type == 'save_verse':
             reference = parameters.get('reference', '')
-            return f"I'll save {reference} to your collection. Confirm?"
+            return f"Saving {reference} to your collection."
 
         # Purpose intents
         elif intent_type == 'create_goal':
             title = parameters.get('title', 'goal')
-            return f"I'll create goal: {title}. Confirm?"
+            return f"Creating goal: {title}."
 
         elif intent_type == 'set_intention':
             intention = parameters.get('intention', '')
-            return f"I'll set intention: {intention}. Confirm?"
+            return f"Setting your intention: {intention}."
 
         # Life intents
         elif intent_type == 'create_task':
             title = parameters.get('title', 'task')
-            return f"I'll create task: {title}. Confirm?"
+            return f"Adding \"{title}\" to your tasks."
 
         elif intent_type == 'create_routine_task':
             title = parameters.get('title', 'routine')
             time = parameters.get('scheduled_time', '')
-            return f"I'll create daily routine: {title} at {time}. Confirm?"
+            return f"Adding daily routine: {title} at {time}."
 
         elif intent_type == 'mutate_task':
             task_query = parameters.get('task_query', 'task')
             action = parameters.get('action', 'update')
             if action == 'delete':
-                return f"I'll delete task matching '{task_query}'. Confirm?"
+                return f"Removing task \"{task_query}\"."
             else:
                 new_date = parameters.get('new_due_date', '')
                 date_hint = f" to {new_date}" if new_date else ""
-                return f"I'll update task matching '{task_query}'{date_hint}. Confirm?"
+                return f"Updating \"{task_query}\"{date_hint}."
 
         elif intent_type == 'create_event':
             title = parameters.get('title', 'event')
-            return f"I'll schedule: {title}. Confirm?"
+            return f"Adding {title} to your calendar."
 
         # Fitness intents
         elif intent_type == 'log_workout':
             name = parameters.get('name', 'workout')
-            return f"I'll log workout: {name}. Confirm?"
+            return f"Logging workout: {name}."
 
         elif intent_type == 'log_cardio':
             activity = parameters.get('activity', 'cardio')
             duration = parameters.get('duration_minutes', 0)
-            return f"I'll log {activity} for {duration} minutes. Confirm?"
+            return f"Logging {activity} for {duration} minutes."
 
-        return "Confirm this action?"
+        return "Confirming this action."
 
     def execute_intent(self, intent_result: IntentResult, user) -> ActionResult:
         """

@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — Beth Humanization: Natural Language, Cross-Domain Resolution, Visual Polish
+
+- **Issue:** Beth's responses felt robotic — success messages used "✓ Logged heart rate: 72 BPM", confirmations showed "Proposed Action\nCreate task:", errors started with "Sorry, I couldn't...", and pill button labels said "Confirm"/"Cancel". Additionally, cross-domain object resolution was asymmetric (task→calendar fallback existed, but calendar→task did not).
+- **Changes:**
+  1. **Human narration layer** — All 65+ handler messages in `action_handlers.py` migrated from mechanical "✓" prefixed strings to natural conversational tone with rotating openers ("All set", "Got it", "Done", "Perfect", "Noted" for success; "Hmm", "I ran into a problem" for errors)
+  2. **Confirmation text humanization** — Removed "Proposed Action" heading from confirmations, replaced with natural descriptions ("Adding 'Buy milk' to your tasks" instead of "Proposed Action\nCreate task: 'Buy milk'"). Pill labels changed: "Sounds good"/"Never mind"/"Change something" instead of "Confirm"/"Cancel"/"Edit"
+  3. **Pre-execution confirmations** — All 25+ branches in `_build_confirmation_message()` updated from "I'll [action]. Confirm?" to natural present participle ("Logging 72 BPM for your heart rate.")
+  4. **Intent labels humanized** — INTENT_LABELS dictionary updated ("Adding a task" not "Create task", "Logging your weight" not "Log weight")
+  5. **Cross-domain object resolver** — Added `_resolve_across_domains()` method with `CrossDomainMatch` dataclass. Both `handle_mutate_task` and `handle_mutate_calendar_event` now have symmetric fallback, offering to redirect when the item is found in the other domain
+  6. **CSS confirmation card polish** — Added subtle background tint (rgba indigo 4%), border-radius 12px, and thin border to `.assistant-options` container for visual grouping
+  7. **Confirmation detail formatting** — Changed from "(Health > Weight)" to "Saved in Health > Weight"
+- **Files modified:**
+  - `apps/ai/action_handlers.py` — CrossDomainMatch dataclass, _pick_opener(), _resolve_across_domains(), all handler messages
+  - `apps/core/ai_orchestrator/crud_confirmation.py` — Option labels, INTENT_LABELS, message builders
+  - `apps/ai/intent_service.py` — _build_confirmation_message() 25+ branches
+  - `apps/ai/personal_assistant.py` — _format_confirmation_detail()
+  - `templates/components/chat_widget.html` — .assistant-options CSS
+  - `apps/core/ai_orchestrator/tests/test_crud_confirmation.py` — Updated assertions for new message format
+  - `apps/core/ai_orchestrator/tests/test_confirmation_escape.py` — Updated fixture string
+  - `apps/ai/tests/test_intent_service.py` — Updated assertions for new confirmation messages
+- **Tests:** 96 targeted tests pass (intent_service, crud_confirmation, confirmation_escape); 38 validator gate tests pass
+
 ## 2026-03-11 — Fix CRUD Confirmation Lifecycle Bugs (Cancel Crash, State Persistence, Error Handling)
 
 - **Issue:** Cancelling a pending CRUD confirmation caused HTTP 500 errors. Refreshing the page resurrected cancelled confirmations. Users saw generic "The server encountered an error" instead of assistant messages.

@@ -178,7 +178,7 @@ class IntentServiceTests(TestCase):
         )
 
         self.assertTrue(requires)
-        self.assertIn('Confirm', message)
+        self.assertIn('75', message)  # BPM value present in confirmation
 
     def test_build_confirmation_message_heart_rate(self):
         """Test confirmation message for heart rate."""
@@ -192,7 +192,6 @@ class IntentServiceTests(TestCase):
 
         self.assertIn('60 BPM', message)
         self.assertIn('resting', message)
-        self.assertIn('Confirm', message)
 
     def test_build_confirmation_message_weight(self):
         """Test confirmation message for weight."""
@@ -205,7 +204,6 @@ class IntentServiceTests(TestCase):
         )
 
         self.assertIn('175 lb', message)
-        self.assertIn('Confirm', message)
 
     @patch('apps.ai.intent_service.cache')
     def test_store_and_retrieve_pending_confirmation(self, mock_cache):

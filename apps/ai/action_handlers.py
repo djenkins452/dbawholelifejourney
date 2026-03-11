@@ -12,6 +12,7 @@ Each handler creates the appropriate model instance based on extracted parameter
 Handlers validate data and return ActionResult with success status and created object.
 """
 
+from dataclasses import dataclass, field
 import hashlib
 import logging
 import re
@@ -59,6 +60,33 @@ DEFAULT_YOUVERSION_BIBLE_ID = "111"
 # Fallback Bible ID (BSB - Berean Standard Bible)
 # Used when primary translation fails (403/404 errors)
 FALLBACK_YOUVERSION_BIBLE_ID = "3034"
+
+
+# ── Cross-Domain Resolution ─────────────────────────────────────────
+
+@dataclass
+class CrossDomainMatch:
+    """Result of cross-domain entity resolution (tasks vs calendar events)."""
+    found_in: str  # 'task', 'calendar_event', 'both', 'none'
+    tasks: list = field(default_factory=list)
+    events: list = field(default_factory=list)
+    suggestion: str = ''
+
+
+# ── Beth Narration System ────────────────────────────────────────────
+# Warm, human-sounding message templates for all action outcomes.
+# Beth should feel like a calm, competent human assistant.
+
+_SUCCESS_OPENERS = ["All set", "Got it", "Done", "Perfect", "Noted"]
+_ERROR_OPENERS = ["Hmm", "I ran into a problem", "That didn't work"]
+
+
+def _pick_opener(pool: list, seed: str = '') -> str:
+    """Pick a deterministic-but-varied opener from a pool."""
+    import time
+    seed_str = seed or str(int(time.time()) // 60)
+    idx = int(hashlib.md5(seed_str.encode()).hexdigest()[:4], 16) % len(pool)
+    return pool[idx]
 
 
 class ActionHandler:
@@ -159,7 +187,7 @@ class ActionHandler:
             tasks, _ = self._resolve_tasks_by_query(keyword)
             if len(tasks) == 1:
                 tasks[0].mark_complete()
-                return f"✓ Also marked task complete: {tasks[0].title}"
+                return f"Also marked {tasks[0].title} as complete."
         except Exception:
             pass
         return None
@@ -183,7 +211,7 @@ class ActionHandler:
                 if not created and not entry.completed:
                     entry.completed = True
                     entry.save()
-                return f"✓ Also logged habit: {habit.name}"
+                return f"Also logged your {habit.name} habit."
         except Exception:
             pass
         return None
@@ -212,6 +240,87 @@ class ActionHandler:
         except Exception:
             pass
         return None
+
+    def _resolve_across_domains(self, query, primary='task'):
+        """
+        Check both tasks and calendar events for a title match.
+
+        Returns a CrossDomainMatch indicating where matches were found,
+        enabling symmetric cross-domain fallback for mutation handlers.
+        """
+        from apps.life.models import Task
+
+        query_stripped = query.strip()
+
+        # Check tasks (same filter as _resolve_tasks_by_query)
+        matching_tasks = list(
+            Task.objects.filter(
+                user=self.user, status='active', completion_status='pending',
+            ).filter(
+                Q(title__icontains=query_stripped)
+            )[:5]
+        )
+
+        # Check calendar events (same filter as _resolve_event_query)
+        matching_events = []
+        try:
+            from apps.calendar_engine.models import CalendarEvent
+            matching_events = list(
+                CalendarEvent.objects.filter(
+                    user=self.user,
+                    title__icontains=query_stripped,
+                    deleted_at__isnull=True,
+                ).exclude(
+                    status=CalendarEvent.STATUS_CANCELED,
+                )[:5]
+            )
+        except Exception:
+            logger.debug("Calendar lookup skipped in cross-domain resolve")
+
+        has_tasks = len(matching_tasks) > 0
+        has_events = len(matching_events) > 0
+
+        if has_tasks and has_events:
+            found_in = 'both'
+        elif has_tasks:
+            found_in = 'task'
+        elif has_events:
+            found_in = 'calendar_event'
+        else:
+            found_in = 'none'
+
+        # Build a helpful suggestion when found in the "other" domain
+        suggestion = ''
+        if found_in == 'calendar_event' and primary == 'task':
+            names = ', '.join(f'"{e.title}"' for e in matching_events[:3])
+            suggestion = (
+                f"I didn't find a task called \"{query_stripped}\", "
+                f"but I found a calendar event: {names}. "
+                f"Would you like me to update that instead?"
+            )
+        elif found_in == 'task' and primary == 'calendar_event':
+            names = ', '.join(f'"{t.title}"' for t in matching_tasks[:3])
+            suggestion = (
+                f"I didn't find a calendar event called \"{query_stripped}\", "
+                f"but I found a task: {names}. "
+                f"Would you like me to update that instead?"
+            )
+        elif found_in == 'both':
+            task_name = matching_tasks[0].title
+            event_name = matching_events[0].title
+            suggestion = (
+                f"I found \"{query_stripped}\" in both your tasks and calendar.\n\n"
+                f"A) Task: {task_name}\n"
+                f"B) Calendar: {event_name}\n\n"
+                f"Which one did you mean?"
+            )
+
+        return CrossDomainMatch(
+            found_in=found_in,
+            tasks=matching_tasks,
+            events=matching_events,
+            suggestion=suggestion,
+        )
 
     def _resolve_tasks_by_query(self, query, include_completed=False):
         """
@@ -399,7 +508,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Logged heart rate: {bpm} BPM ({context}) at {time_str}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'hr')} \u2014 {bpm} BPM ({context}) at {time_str} is logged.",
                 created_object={
                     'model': 'HeartRateEntry',
                     'id': entry.id,
@@ -419,7 +528,7 @@ class ActionHandler:
             logger.error(f"Error logging heart rate: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log your heart rate.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'hr')} \u2014 I wasn't able to log your heart rate. Please try again.",
                 error='internal_error'
             )
 
@@ -467,7 +576,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Logged blood pressure: {bp_str} mmHg{pulse_str} at {time_str}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'bp')} \u2014 {bp_str} mmHg{pulse_str} at {time_str} is recorded.",
                 created_object={
                     'model': 'BloodPressureEntry',
                     'id': entry.id,
@@ -489,7 +598,7 @@ class ActionHandler:
             logger.error(f"Error logging blood pressure: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log your blood pressure.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'bp')} \u2014 I wasn't able to log your blood pressure.",
                 error='internal_error'
             )
 
@@ -523,7 +632,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Logged weight: {value} {unit}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'wt')} \u2014 {value} {unit} is logged.",
                 created_object={
                     'model': 'WeightEntry',
                     'id': entry.id,
@@ -543,7 +652,7 @@ class ActionHandler:
             logger.error(f"Error logging weight: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log your weight.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'wt')} \u2014 I wasn't able to log your weight.",
                 error='internal_error'
             )
 
@@ -581,7 +690,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Logged blood glucose: {value} {unit} ({context})",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'gl')} \u2014 {value} {unit} ({context}) is recorded.",
                 created_object={
                     'model': 'GlucoseEntry',
                     'id': entry.id,
@@ -603,7 +712,7 @@ class ActionHandler:
             logger.error(f"Error logging glucose: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log your blood glucose.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'gl')} \u2014 I wasn't able to log your blood glucose.",
                 error='internal_error'
             )
 
@@ -639,7 +748,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Logged blood oxygen: {spo2}% SpO2{pulse_str} at {time_str}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'ox')} \u2014 {spo2}% SpO2{pulse_str} at {time_str} is logged.",
                 created_object={
                     'model': 'BloodOxygenEntry',
                     'id': entry.id,
@@ -659,7 +768,7 @@ class ActionHandler:
             logger.error(f"Error logging blood oxygen: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log your blood oxygen.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'ox')} \u2014 I wasn't able to log your blood oxygen.",
                 error='internal_error'
             )
 
@@ -813,7 +922,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Logged {quantity} {matched_name}{cal_str} for {meal_type}{source_note}{name_note}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'food')} \u2014 {quantity} {matched_name}{cal_str} logged for {meal_type}{source_note}{name_note}.",
                 created_object={
                     'model': 'FoodEntry',
                     'id': entry.id,
@@ -839,7 +948,7 @@ class ActionHandler:
             logger.error(f"Error logging food: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log that food.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'food')} \u2014 I wasn't able to log that food.",
                 error='internal_error'
             )
 
@@ -938,7 +1047,7 @@ class ActionHandler:
             quality_str = f" ({quality})" if quality else ""
             return ActionResult(
                 success=True,
-                message=f"✓ Logged {hours}h sleep{quality_str}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'sleep')} \u2014 {hours} hours of sleep{quality_str} is logged.",
                 created_object={
                     'model': 'SleepEntry',
                     'id': entry.id,
@@ -958,7 +1067,7 @@ class ActionHandler:
             logger.error(f"Error logging sleep: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log your sleep.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'sleep')} \u2014 I wasn't able to log your sleep.",
                 error='internal_error'
             )
 
@@ -1001,7 +1110,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Logged {amount} {unit} of water",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'water')} \u2014 {amount} {unit} of water, logged.",
                 created_object={
                     'model': 'WaterEntry',
                     'id': entry.id,
@@ -1021,7 +1130,7 @@ class ActionHandler:
             logger.error(f"Error logging water: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log your water intake.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'water')} \u2014 I wasn't able to log your water intake.",
                 error='internal_error'
             )
 
@@ -1074,7 +1183,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Logged {count:,} steps",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'steps')} \u2014 {count:,} steps logged.",
                 created_object={
                     'model': 'StepsEntry',
                     'id': entry.id,
@@ -1093,7 +1202,7 @@ class ActionHandler:
             logger.error(f"Error logging steps: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log your steps.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'steps')} \u2014 I wasn't able to log your steps.",
                 error='internal_error'
             )
 
@@ -1164,7 +1273,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Logged {label}: {value} {unit}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'meas')} \u2014 {label}: {value} {unit} is recorded.",
                 created_object={
                     'model': 'BodyCompositionEntry',
                     'id': entry.id,
@@ -1184,7 +1293,7 @@ class ActionHandler:
             logger.error(f"Error logging body measurement: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log that measurement.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'meas')} \u2014 I wasn't able to log that measurement.",
                 error='internal_error'
             )
 
@@ -1265,7 +1374,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Logged {txn_type}: {amt_display} — {description}{cat_str}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'txn')} \u2014 {txn_type}: {amt_display} for {description}{cat_str} is logged.",
                 created_object={
                     'model': 'Transaction',
                     'id': entry.id,
@@ -1284,7 +1393,7 @@ class ActionHandler:
             logger.error(f"Error logging transaction: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log that transaction.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'txn')} \u2014 I wasn't able to log that transaction.",
                 error='internal_error'
             )
 
@@ -1358,7 +1467,7 @@ class ActionHandler:
             logger.error(f"Error checking budget: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't check your budget.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'budget')} \u2014 I wasn't able to check your budget.",
                 error='internal_error'
             )
 
@@ -1438,7 +1547,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Undone — removed the {action_type.replace('_', ' ')} entry.",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'undo')} \u2014 the {action_type.replace('_', ' ')} entry is removed.",
                 action_type='undo_last_action',
             )
 
@@ -1446,7 +1555,7 @@ class ActionHandler:
             logger.error(f"Error undoing action: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't undo that action.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'undo')} \u2014 I wasn't able to undo that action.",
                 error='internal_error'
             )
 
@@ -1519,7 +1628,7 @@ class ActionHandler:
             display_value = new_value if new_value is not None else new_text
             return ActionResult(
                 success=True,
-                message=f"✓ Updated {entry_type}: {target_field} changed from {old_value} to {display_value}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'edit')} \u2014 {entry_type}: {target_field} changed from {old_value} to {display_value}.",
                 action_type='edit_last_entry',
                 confirmation_detail=self._build_confirmation(
                     what=f"{display_value}",
@@ -1531,7 +1640,7 @@ class ActionHandler:
             logger.error(f"Error editing entry: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't edit that entry.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'edit')} \u2014 I wasn't able to edit that entry.",
                 error='internal_error'
             )
 
@@ -1619,7 +1728,7 @@ class ActionHandler:
             logger.error(f"Error logging medicine: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log that medicine.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'med')} \u2014 I wasn't able to log that medicine.",
                 error='internal_error'
             )
 
@@ -1693,7 +1802,7 @@ class ActionHandler:
 
         return ActionResult(
             success=True,
-            message=f"✓ Logged {medicine.name} ({medicine.dose}) taken at {time_str}",
+            message=f"{_pick_opener(_SUCCESS_OPENERS, 'med')} \u2014 {medicine.name} ({medicine.dose}) marked as taken at {time_str}.",
             created_object={
                 'model': 'MedicineLog',
                 'id': log.id,
@@ -1810,7 +1919,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Logged {taken_count} {time_display.lower()} medicine{'s' if taken_count != 1 else ''}{time_note}:\n{names_list}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'meds')} \u2014 {taken_count} {time_display.lower()} medicine{'s' if taken_count != 1 else ''} marked as taken{time_note}:\n{names_list}",
                 created_object={
                     'model': 'MedicineLog',
                     'count': taken_count,
@@ -1828,7 +1937,7 @@ class ActionHandler:
             logger.error(f"Error bulk logging medicines: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log those medicines.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'meds')} \u2014 I wasn't able to log those medicines.",
                 error='internal_error'
             )
 
@@ -1984,7 +2093,7 @@ class ActionHandler:
             logger.error(f"Error emailing medicine list: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't send the email. Please try again.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'email')} \u2014 I wasn't able to send that email. Please try again.",
                 error='internal_error'
             )
 
@@ -2051,7 +2160,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Started {fasting_type} fast at {time_str}{target_str}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'fast')} \u2014 your {fasting_type} fast started at {time_str}{target_str}.",
                 created_object={
                     'model': 'FastingWindow',
                     'id': fast.id,
@@ -2071,7 +2180,7 @@ class ActionHandler:
             logger.error(f"Error starting fast: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't start your fast.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'fast')} \u2014 I wasn't able to start your fast.",
                 error='internal_error'
             )
 
@@ -2146,7 +2255,7 @@ class ActionHandler:
             logger.error(f"Error ending fast: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't end your fast.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'fast_end')} \u2014 I wasn't able to end your fast.",
                 error='internal_error'
             )
 
@@ -2208,7 +2317,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Created journal entry: \"{display_title}\"",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'journal')} \u2014 your journal entry \"{display_title}\" is saved.",
                 created_object={
                     'model': 'JournalEntry',
                     'id': entry.id,
@@ -2228,7 +2337,7 @@ class ActionHandler:
             logger.error(f"Error creating journal entry: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't create that journal entry.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'journal')} \u2014 I wasn't able to create that journal entry.",
                 error='internal_error'
             )
 
@@ -2273,7 +2382,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Logged gratitude: {gratitude}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'grat')} \u2014 gratitude noted: {gratitude}.",
                 created_object={
                     'model': 'JournalEntry',
                     'id': entry.id,
@@ -2291,7 +2400,7 @@ class ActionHandler:
             logger.error(f"Error logging gratitude: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log that gratitude.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'grat')} \u2014 I wasn't able to log that gratitude.",
                 error='internal_error'
             )
 
@@ -2327,7 +2436,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Added prayer: {title}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'prayer')} \u2014 prayer added: {title}.",
                 created_object={
                     'model': 'PrayerRequest',
                     'id': prayer.id,
@@ -2346,7 +2455,7 @@ class ActionHandler:
             logger.error(f"Error creating prayer: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't add that prayer.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'prayer')} \u2014 I wasn't able to add that prayer.",
                 error='internal_error'
             )
 
@@ -2387,7 +2496,7 @@ class ActionHandler:
 
                 return ActionResult(
                     success=True,
-                    message=f"✓ Marked prayer as answered: {prayer.title} 🙏",
+                    message=f"{_pick_opener(_SUCCESS_OPENERS, 'prayer_a')} \u2014 marked as answered: {prayer.title}.",
                     created_object={
                         'model': 'PrayerRequest',
                         'id': prayer.id,
@@ -2414,7 +2523,7 @@ class ActionHandler:
             logger.error(f"Error marking prayer answered: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't mark that prayer as answered.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'prayer_a')} \u2014 I wasn't able to mark that prayer as answered.",
                 error='internal_error'
             )
 
@@ -2485,7 +2594,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Saved {reference}{memory_str}{text_preview}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'verse')} \u2014 {reference} is saved{memory_str}{text_preview}.",
                 created_object={
                     'model': 'SavedVerse',
                     'id': verse.id,
@@ -2504,7 +2613,7 @@ class ActionHandler:
             logger.error(f"Error saving verse: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't save that verse.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'verse')} \u2014 I wasn't able to save that verse.",
                 error='internal_error'
             )
 
@@ -2545,7 +2654,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Recorded milestone: {title}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'milestone')} \u2014 milestone recorded: {title}.",
                 created_object={
                     'model': 'FaithMilestone',
                     'id': milestone.id,
@@ -2564,7 +2673,7 @@ class ActionHandler:
             logger.error(f"Error adding faith milestone: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't add that milestone.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'milestone')} \u2014 I wasn't able to add that milestone.",
                 error='internal_error'
             )
 
@@ -2612,7 +2721,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Created goal: {title}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'goal')} \u2014 goal created: {title}.",
                 created_object={
                     'model': 'LifeGoal',
                     'id': goal.id,
@@ -2632,7 +2741,7 @@ class ActionHandler:
             logger.error(f"Error creating goal: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't create that goal.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'goal')} \u2014 I wasn't able to create that goal.",
                 error='internal_error'
             )
 
@@ -2685,7 +2794,7 @@ class ActionHandler:
 
                 return ActionResult(
                     success=True,
-                    message=f"✓ Updated progress on: {goal.title}{status_msg}",
+                    message=f"{_pick_opener(_SUCCESS_OPENERS, 'goal_p')} \u2014 progress updated on {goal.title}{status_msg}.",
                     created_object={
                         'model': 'LifeGoal',
                         'id': goal.id,
@@ -2710,7 +2819,7 @@ class ActionHandler:
             logger.error(f"Error updating goal: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't update that goal.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'goal_p')} \u2014 I wasn't able to update that goal.",
                 error='internal_error'
             )
 
@@ -2737,7 +2846,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Set intention: {intention}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'intent')} \u2014 your intention is set: {intention}.",
                 created_object={
                     'model': 'ChangeIntention',
                     'id': intent.id,
@@ -2755,7 +2864,7 @@ class ActionHandler:
             logger.error(f"Error setting intention: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't set that intention.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'intent')} \u2014 I wasn't able to set that intention.",
                 error='internal_error'
             )
 
@@ -2870,7 +2979,7 @@ class ActionHandler:
             logger.error(f"Error logging habit: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log that habit.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'habit')} \u2014 I wasn't able to log that habit.",
                 error='internal_error'
             )
 
@@ -3015,7 +3124,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Created task: {title}{due_str}{project_str}.{location_hint}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'task')} \u2014 \"{title}\" is on your list{due_str}{project_str}.{location_hint}",
                 created_object={
                     'model': 'Task',
                     'id': task.id,
@@ -3037,7 +3146,7 @@ class ActionHandler:
             logger.error(f"Error creating task: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't create that task.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'task')} \u2014 I wasn't able to create that task.",
                 error='internal_error'
             )
 
@@ -3160,7 +3269,7 @@ class ActionHandler:
             logger.error(f"Error creating routine task: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't create that routine.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'routine')} \u2014 I wasn't able to create that routine.",
                 error='internal_error',
             )
 
@@ -3256,7 +3365,7 @@ class ActionHandler:
             logger.error(f"Error completing task: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't complete that task.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'complete')} \u2014 I wasn't able to complete that task.",
                 error='internal_error'
             )
 
@@ -3347,7 +3456,7 @@ class ActionHandler:
             logger.error(f"Error skipping task: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't skip that task.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'skip')} \u2014 I wasn't able to skip that task.",
                 error='internal_error',
             )
 
@@ -3408,34 +3517,20 @@ class ActionHandler:
             count = len(tasks)
 
             if count == 0:
-                # Cross-domain fallback: check if a calendar event matches
-                hint = ''
-                try:
-                    from apps.calendar_engine.models import CalendarEvent
-                    matching_events = CalendarEvent.objects.filter(
-                        user=self.user,
-                        title__icontains=task_query,
-                    ).exclude(
-                        status=CalendarEvent.STATUS_CANCELED,
-                    )[:3]
-                    if matching_events:
-                        event_titles = ', '.join(
-                            f'"{e.title}"' for e in matching_events
-                        )
-                        hint = (
-                            f" However, I found a calendar event matching "
-                            f"that name: {event_titles}. "
-                            f"Would you like me to {action} that calendar "
-                            f"event instead?"
-                        )
-                except Exception:
-                    pass  # Non-critical — just skip the hint
-
+                # Cross-domain fallback: check calendar events
+                cross = self._resolve_across_domains(task_query, primary='task')
+                if cross.suggestion:
+                    return ActionResult(
+                        success=False,
+                        message=cross.suggestion,
+                        error='task_not_found',
+                        action_type='mutate_task',
+                    )
                 return ActionResult(
                     success=False,
                     message=(
-                        f"I couldn't find an active task matching "
-                        f"'{task_query}'.{hint}"
+                        f"I couldn't find an active task called "
+                        f"\"{task_query}\"."
                     ),
                     error='task_not_found',
                     action_type='mutate_task',
@@ -3584,10 +3679,10 @@ class ActionHandler:
                         )
                         deleted_titles.append(representative.title)
                         msg = (
-                            f"✓ Deleted the recurring task "
-                            f"'{representative.title}' and all "
-                            f"{series_count} instance{'s' if series_count != 1 else ''}. "
-                            f"It won't come back."
+                            f"{_pick_opener(_SUCCESS_OPENERS, 'del_series')} \u2014 "
+                            f"the recurring task \"{representative.title}\" and all "
+                            f"{series_count} instance{'s' if series_count != 1 else ''} "
+                            f"are removed. It won't come back."
                         )
                     else:
                         for task in tasks:
@@ -3595,11 +3690,12 @@ class ActionHandler:
                             deleted_titles.append(task.title)
 
                         if len(deleted_titles) == 1:
-                            msg = f"✓ Deleted task: {deleted_titles[0]}"
+                            msg = f"{_pick_opener(_SUCCESS_OPENERS, 'del')} \u2014 {deleted_titles[0]} is removed."
                         else:
                             msg = (
-                                f"✓ Deleted {len(deleted_titles)} tasks: "
-                                f"{', '.join(deleted_titles)}"
+                                f"{_pick_opener(_SUCCESS_OPENERS, 'del')} \u2014 "
+                                f"{len(deleted_titles)} tasks removed: "
+                                f"{', '.join(deleted_titles)}."
                             )
 
                 return ActionResult(
@@ -3841,9 +3937,9 @@ class ActionHandler:
                 changes_str = ", ".join(changes_desc) if changes_desc else "updated"
 
                 if len(updated_titles) == 1:
-                    msg = f"✓ Updated '{updated_titles[0]}' → {changes_str}"
+                    msg = f"{_pick_opener(_SUCCESS_OPENERS, 'upd')} \u2014 {updated_titles[0]} is now {changes_str}."
                 else:
-                    msg = f"✓ Updated {len(updated_titles)} tasks → {changes_str}:\n" + "\n".join(f"• {t}" for t in updated_titles)
+                    msg = f"{_pick_opener(_SUCCESS_OPENERS, 'upd')} \u2014 {len(updated_titles)} tasks updated ({changes_str}):\n" + "\n".join(f"\u2022 {t}" for t in updated_titles)
 
                 return ActionResult(
                     success=True,
@@ -3873,7 +3969,7 @@ class ActionHandler:
             logger.error(f"Error mutating task: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't update that task.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'mutate_task')} \u2014 I wasn't able to update that task.",
                 error='internal_error',
             )
 
@@ -4017,7 +4113,7 @@ class ActionHandler:
                          self.user.id, e, exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't look up that task.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'read_task')} \u2014 I wasn't able to look up that task.",
                 error='internal_error',
                 action_type='read_task',
             )
@@ -4379,7 +4475,7 @@ class ActionHandler:
             logger.error(f"Error creating event: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't create that event.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'event')} \u2014 I wasn't able to create that event.",
                 error='internal_error'
             )
 
@@ -4572,7 +4668,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Added reminder: {title} on {date_str} (will remind {reminder_days} days before)",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'remind')} \u2014 reminder set: {title} on {date_str} (will notify {reminder_days} days before).",
                 created_object={
                     'model': 'SignificantEvent',
                     'id': event.id,
@@ -4591,7 +4687,7 @@ class ActionHandler:
             logger.error(f"Error adding reminder: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't add that reminder.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'remind')} \u2014 I wasn't able to add that reminder.",
                 error='internal_error'
             )
 
@@ -4670,7 +4766,7 @@ class ActionHandler:
             logger.error(f"Error logging workout: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log that workout.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'workout')} \u2014 I wasn't able to log that workout.",
                 error='internal_error'
             )
 
@@ -4756,7 +4852,7 @@ class ActionHandler:
 
             return ActionResult(
                 success=True,
-                message=f"✓ Logged: {exercise_name} - Set {set_number}: {weight} x {reps}{warmup_str}{pr_str}",
+                message=f"{_pick_opener(_SUCCESS_OPENERS, 'set')} \u2014 {exercise_name}: Set {set_number} \u2014 {weight} x {reps}{warmup_str}{pr_str}.",
                 created_object={
                     'model': 'ExerciseSet',
                     'id': exercise_set.id,
@@ -4777,7 +4873,7 @@ class ActionHandler:
             logger.error(f"Error logging exercise set: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log that set.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'set')} \u2014 I wasn't able to log that set.",
                 error='internal_error'
             )
 
@@ -4887,7 +4983,7 @@ class ActionHandler:
             logger.error(f"Error logging cardio: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't log that cardio session.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'cardio')} \u2014 I wasn't able to log that cardio session.",
                 error='internal_error'
             )
 
@@ -4933,7 +5029,7 @@ class ActionHandler:
             logger.error(f"Error creating protocol: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't create that protocol.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'protocol')} \u2014 I wasn't able to create that protocol.",
                 error='internal_error'
             )
 
@@ -4985,7 +5081,7 @@ class ActionHandler:
             logger.error(f"Error adding shopping item: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't add that to your shopping list.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'shop')} \u2014 I wasn't able to add that to your shopping list.",
                 error='internal_error'
             )
 
@@ -5041,7 +5137,7 @@ class ActionHandler:
             logger.error(f"Error completing shopping item: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't mark that item as purchased.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'shop_done')} \u2014 I wasn't able to mark that item as purchased.",
                 error='internal_error'
             )
 
@@ -5083,7 +5179,7 @@ class ActionHandler:
             logger.error(f"Error setting CoS name: {e}", exc_info=True)
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't update the name right now.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'cos_name')} \u2014 I wasn't able to update the name right now.",
                 error='internal_error'
             )
 
@@ -5437,7 +5533,7 @@ class ActionHandler:
             )
             return ActionResult(
                 success=False,
-                message="Sorry, I couldn't read your calendar right now.",
+                message=f"{_pick_opener(_ERROR_OPENERS, 'cal_read')} \u2014 I wasn't able to read your calendar right now.",
                 error='internal_error',
                 action_type='read_calendar_events',
             )
@@ -5483,12 +5579,24 @@ class ActionHandler:
                 event_query, event_date, timezone,
             )
             if resolved is None:
+                # Symmetric cross-domain fallback: check tasks
+                cross = self._resolve_across_domains(
+                    event_query, primary='calendar_event',
+                )
+                if cross.suggestion:
+                    return ActionResult(
+                        success=False,
+                        message=cross.suggestion,
+                        error='event_not_found',
+                        action_type='mutate_calendar_event',
+                    )
                 return ActionResult(
                     success=False,
                     message=(
-                        f"Could not find an event matching '{event_query}'"
+                        f"I couldn't find a calendar event called "
+                        f"\"{event_query}\""
                         + (f" on {event_date}" if event_date else "")
-                        + ". Please check the event name and date."
+                        + "."
                     ),
                     error='event_not_found',
                     action_type='mutate_calendar_event',
@@ -5748,7 +5856,7 @@ class ActionHandler:
             )
 
         event = result.event
-        msg_parts = [f"✓ Updated: {event.title}"]
+        msg_parts = [f"{_pick_opener(_SUCCESS_OPENERS, 'cal_upd')} \u2014 {event.title} is updated"]
         if result.fields_changed:
             for field_name, diff in result.fields_changed.items():
                 if field_name == 'start_dt':
@@ -5793,9 +5901,9 @@ class ActionHandler:
             )
 
         event = result.event
-        msg = f"✓ Removed from calendar: {event.title}"
+        msg = f"{_pick_opener(_SUCCESS_OPENERS, 'cal_del')} \u2014 {event.title} is removed from your calendar."
         if result.gcal_synced:
-            msg += " — Also removed from Google Calendar."
+            msg += " Also removed from Google Calendar."
 
         return ActionResult(
             success=True,

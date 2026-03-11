@@ -6,6 +6,12 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — Update Default Model Fallback from gpt-4o-mini to gpt-4o
+
+- **Issue:** Six service files had `getattr(settings, 'OPENAI_MODEL', 'gpt-4o-mini')` fallbacks, inconsistent with the intended gpt-4o model.
+- **Fix:** Updated all fallbacks to `'gpt-4o'` to match `config/settings.py` default and Railway env var.
+- **Files modified:** `apps/ai/services.py`, `apps/health/services/ai_nutrition.py`, `apps/capture/services/summarization.py`, `apps/scan/services/product_lookup.py`, `apps/scan/services/barcode.py`, `apps/scan/services/medicine_lookup.py`
+
 ## 2026-03-11 — CoS Action Governance Upgrade (10-part)
 
 - **Objective:** Expand the pre-execution governance stack with centralized action policy, structured A/B/C confirmation options, pending action durability, clickable+typeable UX, navigation actions, decision memory, rate limits, and auditability.

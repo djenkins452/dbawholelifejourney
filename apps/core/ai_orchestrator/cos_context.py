@@ -2050,9 +2050,15 @@ def _format_operating_profile_injection(profile_data):
     """
     Format the Personal Operating Context as a concise prompt block.
 
-    Converts structured profile_data into factual behavioral summaries
+    Converts structured profile_data into behavioral observations
     that Beth can reference when framing guidance. Output is capped at
     ~300-500 tokens. Does NOT inject raw data — only interpreted signals.
+
+    Each dimension is gated by its own confidence threshold (from model
+    constants). Language certainty scales with confidence:
+      ≥0.80 → "Your data consistently shows…"
+      0.60-0.79 → "It looks like…"
+      0.40-0.59 → "There may be a pattern where…"
 
     Args:
         profile_data: dict from UserOperatingProfile.profile_data
@@ -2060,63 +2066,82 @@ def _format_operating_profile_injection(profile_data):
     Returns:
         str — formatted profile block, or empty string if nothing to inject.
     """
+    from apps.core.ai_state.models import UserOperatingProfile
+
+    gates = UserOperatingProfile.CONFIDENCE_GATES
     sections = []
 
     # ── Productive Windows ──
     pw = profile_data.get('productive_windows', {})
-    if pw.get('confidence', 0) >= 0.3 and pw.get('peak_hours'):
+    pw_conf = pw.get('confidence', 0)
+    if pw_conf >= gates.get('productive_windows', 0.60) and pw.get('peak_hours'):
         peak = pw['peak_hours']
         peak_strs = [f"{_hour_label(h)}" for h in peak[:3]]
-        section = f"Peak activity hours: {', '.join(peak_strs)}"
+        qualifier = _confidence_qualifier(pw_conf)
+        section = f"{qualifier} peak activity hours are around {', '.join(peak_strs)}"
         if pw.get('low_hours'):
             low_strs = [f"{_hour_label(h)}" for h in pw['low_hours'][:2]]
-            section += f". Low activity: {', '.join(low_strs)}"
+            section += f", with lower activity around {', '.join(low_strs)}"
         sections.append(section)
 
     # ── Deferral Patterns ──
     dp = profile_data.get('deferral_patterns', {})
-    if dp.get('confidence', 0) >= 0.3:
+    dp_conf = dp.get('confidence', 0)
+    if dp_conf >= gates.get('deferral_patterns', 0.60):
         rate = dp.get('overall_deferral_rate', 0)
         if rate >= 0.15:  # Only mention if deferral is notable
+            qualifier = _confidence_qualifier(dp_conf)
             parts = []
             parts.append(
-                f"Task skip rate: {rate:.0%} of resolved tasks are skipped"
+                f"{qualifier} about {rate:.0%} of tasks tend to be skipped rather than completed"
             )
             # Prone modules
             prone = dp.get('prone_modules', [])
             if prone:
                 module_strs = [
-                    f"{m['module']} ({m['deferral_rate']:.0%})"
+                    f"{m['module']} (~{m['deferral_rate']:.0%})"
                     for m in prone[:2]
                 ]
-                parts.append(f"Deferral-prone areas: {', '.join(module_strs)}")
+                parts.append(f"particularly in: {', '.join(module_strs)}")
             # Intervention response
             dismiss_rate = dp.get('intervention_dismiss_rate', 0)
             if dismiss_rate >= 0.3:
                 parts.append(
-                    f"Nudge dismissal rate: {dismiss_rate:.0%} "
-                    f"(coaching reminders are often dismissed)"
+                    f"coaching nudges appear to be dismissed about {dismiss_rate:.0%} "
+                    f"of the time"
                 )
             sections.append('. '.join(parts))
 
     # ── Momentum Phase ──
     mp = profile_data.get('momentum_phase', {})
-    if mp.get('confidence', 0) >= 0.3 and mp.get('current_phase') != 'insufficient_data':
+    mp_conf = mp.get('confidence', 0)
+    if (
+        mp_conf >= gates.get('momentum_phase', 0.40)
+        and mp.get('current_phase') != 'insufficient_data'
+    ):
         phase = mp['current_phase']
-        trend = mp.get('trend', '')
         recent = mp.get('recent_active_days', 0)
         domains = mp.get('active_domain_count', 0)
+        qualifier = _confidence_qualifier(mp_conf)
 
         phase_labels = {
-            'building': 'Building momentum — recent activity exceeds baseline',
-            'sustaining': 'Sustaining — activity is steady and consistent',
-            'declining': 'Declining — recent activity below baseline',
-            'recovering': 'Recovering — activity significantly below normal',
+            'building': 'momentum is building — recent activity exceeds the baseline',
+            'sustaining': 'activity appears steady and consistent',
+            'declining': 'recent activity appears to be below the usual baseline',
+            'recovering': 'activity is significantly below normal levels',
         }
-        phase_text = phase_labels.get(phase, f"Phase: {phase}")
-        section = f"Momentum: {phase_text}"
-        section += f" ({recent}/7 active days this week, {domains} domains)"
+        phase_text = phase_labels.get(phase, f"current phase: {phase}")
+        section = f"{qualifier} {phase_text}"
+        section += f" ({recent}/7 active days this week across {domains} domains)"
         sections.append(section)
+
+    # ── Behavior Drift (if detected) ──
+    drift = profile_data.get('behavior_drift', {})
+    if drift.get('detected') and drift.get('signals'):
+        for signal in drift['signals'][:2]:  # Cap at 2 drift observations
+            summary = signal.get('summary', '')
+            if summary:
+                sections.append(f"Recent shift detected: {summary}")
 
     if not sections:
         return ""
@@ -2129,14 +2154,41 @@ def _format_operating_profile_injection(profile_data):
         lines.append(f"• {s}")
     lines.append("")
     lines.append(
-        "USE THIS PROFILE TO: Frame timing suggestions around peak hours. "
-        "Flag deferral-prone tasks proactively. Adjust urgency based on "
-        "momentum phase. This profile influences HOW you frame guidance — "
-        "it does NOT override task priorities, insights, or predictions."
+        "HOW TO USE THIS PROFILE:\n"
+        "- Frame timing suggestions around observed peak hours\n"
+        "- Flag deferral-prone tasks proactively when scheduling\n"
+        "- Adjust tone and urgency based on momentum phase\n"
+        "- Reference drift observations when coaching on behavioral changes\n"
+        "- This profile influences HOW you frame guidance — "
+        "it does NOT override task priorities, insights, or predictions\n"
+        "\n"
+        "LANGUAGE RULE: Behavioral observations are patterns, not diagnoses. "
+        "Frame them as observations ('It looks like…', 'Your data suggests…'). "
+        "Never state behavioral patterns as definitive facts. "
+        "The user's experience of their own behavior is the authority — "
+        "these patterns are conversation context, not conclusions."
     )
     lines.append("")
     lines.append("=== END OPERATING PROFILE ===")
     return "\n".join(lines)
+
+
+def _confidence_qualifier(confidence):
+    """
+    Return a language qualifier scaled to confidence level.
+
+    Higher confidence → more direct language.
+    Lower confidence → more tentative framing.
+
+    This prevents Beth from stating low-confidence patterns as facts,
+    while allowing her to be authoritative when the data is strong.
+    """
+    if confidence >= 0.80:
+        return "Your data consistently shows"
+    elif confidence >= 0.60:
+        return "It looks like"
+    else:
+        return "There may be a pattern where"
 
 
 def _hour_label(hour):

@@ -98,12 +98,31 @@ def compute_user_operating_profile(user):
             user.id, exc_info=True,
         )
 
+    # ── Drift detection ──
+    # Compare new profile against previous snapshot before overwriting.
+    # Drift metadata is stored inside profile_data so it travels with
+    # the profile and requires no extra DB reads at injection time.
+    previous_snapshot = {}
+    try:
+        existing = UserOperatingProfile.objects.filter(user=user).first()
+        if existing and existing.profile_data:
+            previous_snapshot = existing.profile_data
+            drift = _detect_behavior_drift(previous_snapshot, profile_data)
+            if drift:
+                profile_data['behavior_drift'] = drift
+    except Exception:
+        logger.debug(
+            "Operating profile: drift detection failed for user=%s",
+            user.id, exc_info=True,
+        )
+
     # Persist
     try:
         profile, created = UserOperatingProfile.objects.update_or_create(
             user=user,
             defaults={
                 'profile_data': profile_data,
+                'previous_profile_data': previous_snapshot,
                 'sample_days': sample_days,
                 'last_computed': now,
                 'version': UserOperatingProfile.SCHEMA_VERSION,
@@ -571,6 +590,112 @@ def _count_active_domains(user, start, end):
         pass
 
     return len(domains)
+
+
+# =========================================================================
+# Drift Detection
+# =========================================================================
+
+def _detect_behavior_drift(previous, current):
+    """
+    Compare previous and current profile data to detect meaningful
+    behavioral shifts.
+
+    Only flags changes that exceed defined thresholds — small fluctuations
+    are noise, not drift. Returns a drift metadata dict or None.
+
+    Args:
+        previous: dict — the prior profile_data snapshot
+        current: dict — the newly computed profile_data
+
+    Returns:
+        dict with drift signals, or None if no meaningful drift detected.
+    """
+    from apps.core.ai_state.models import UserOperatingProfile
+
+    thresholds = UserOperatingProfile.DRIFT_THRESHOLDS
+    signals = []
+
+    # ── Peak hours shift ──
+    prev_pw = previous.get('productive_windows', {})
+    curr_pw = current.get('productive_windows', {})
+    prev_peaks = prev_pw.get('peak_hours', [])
+    curr_peaks = curr_pw.get('peak_hours', [])
+
+    if prev_peaks and curr_peaks:
+        prev_median = sorted(prev_peaks)[len(prev_peaks) // 2]
+        curr_median = sorted(curr_peaks)[len(curr_peaks) // 2]
+        hour_shift = abs(curr_median - prev_median)
+
+        if hour_shift >= thresholds['peak_hours_shift']:
+            direction = 'earlier' if curr_median < prev_median else 'later'
+            signals.append({
+                'dimension': 'productive_windows',
+                'type': 'peak_hours_shift',
+                'direction': direction,
+                'magnitude': hour_shift,
+                'summary': f"Peak productive hours shifting {direction} by ~{hour_shift}h",
+                'previous_value': prev_peaks,
+                'current_value': curr_peaks,
+            })
+
+    # ── Deferral rate shift ──
+    prev_dp = previous.get('deferral_patterns', {})
+    curr_dp = current.get('deferral_patterns', {})
+    prev_rate = prev_dp.get('overall_deferral_rate', 0)
+    curr_rate = curr_dp.get('overall_deferral_rate', 0)
+
+    rate_shift = abs(curr_rate - prev_rate)
+    if rate_shift >= thresholds['deferral_rate_shift']:
+        direction = 'increasing' if curr_rate > prev_rate else 'decreasing'
+        signals.append({
+            'dimension': 'deferral_patterns',
+            'type': 'deferral_rate_shift',
+            'direction': direction,
+            'magnitude': round(rate_shift, 2),
+            'summary': f"Task deferral rate {direction} ({prev_rate:.0%} → {curr_rate:.0%})",
+            'previous_value': prev_rate,
+            'current_value': curr_rate,
+        })
+
+    # ── Momentum phase transition ──
+    prev_mp = previous.get('momentum_phase', {})
+    curr_mp = current.get('momentum_phase', {})
+    prev_phase = prev_mp.get('current_phase', '')
+    curr_phase = curr_mp.get('current_phase', '')
+
+    if (
+        thresholds['momentum_phase_change']
+        and prev_phase
+        and curr_phase
+        and prev_phase != curr_phase
+        and prev_phase != 'insufficient_data'
+        and curr_phase != 'insufficient_data'
+    ):
+        # Classify direction: building > sustaining > declining > recovering
+        phase_order = {'building': 3, 'sustaining': 2, 'declining': 1, 'recovering': 0}
+        prev_ord = phase_order.get(prev_phase, -1)
+        curr_ord = phase_order.get(curr_phase, -1)
+        direction = 'improving' if curr_ord > prev_ord else 'declining'
+
+        signals.append({
+            'dimension': 'momentum_phase',
+            'type': 'phase_transition',
+            'direction': direction,
+            'summary': f"Momentum shifted from {prev_phase} to {curr_phase}",
+            'previous_value': prev_phase,
+            'current_value': curr_phase,
+        })
+
+    if not signals:
+        return None
+
+    return {
+        'detected': True,
+        'signal_count': len(signals),
+        'signals': signals,
+        'drift_summary': '; '.join(s['summary'] for s in signals),
+    }
 
 
 # =========================================================================

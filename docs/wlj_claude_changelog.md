@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — Personal Operating Context Phase 2: Confidence Gates, Drift Detection, Language Scaling
+
+- **Improvement 1 — Per-dimension confidence gates:** Each behavioral dimension now has its own injection threshold (productive_windows ≥ 0.60, deferral_patterns ≥ 0.60, momentum_phase ≥ 0.40). Previously all dimensions used a flat 0.30 gate. Gates are stored as class constants on `UserOperatingProfile.CONFIDENCE_GATES` for central tuning. Dimensions below their gate are silently excluded from the prompt.
+- **Improvement 2 — Behavior drift detection:** New `_detect_behavior_drift()` function compares consecutive profile computations to detect meaningful behavioral shifts: peak hours shifting ≥ 2h, deferral rate changing ≥ 15 percentage points, and momentum phase transitions. Thresholds stored in `UserOperatingProfile.DRIFT_THRESHOLDS`. Drift results stored in `profile_data['behavior_drift']` — no extra DB reads at injection time. `previous_profile_data` JSONField stores the prior snapshot for comparison. Drift signals surfaced in the injection as "Recent shift detected: …".
+- **Improvement 3 — Confidence-scaled language:** Instead of blanket soft language, the injection now scales certainty to evidence strength: ≥ 0.80 → "Your data consistently shows…", 0.60-0.79 → "It looks like…", 0.40-0.59 → "There may be a pattern where…". New `_confidence_qualifier()` function. Beth directive updated with LANGUAGE RULE enforcing observation framing, not diagnoses.
+- **Improvement 4 — Schedule correction:** Changed Celery Beat schedule from 3:30 AM UTC (10:30 PM EST — user still active) to 7:00 AM UTC (2:00 AM EST — after full day captured, after health summaries at 3:00 AM UTC). Task key renamed to `operating-profiles-nightly-7am-utc`.
+- **Schema version bump:** `SCHEMA_VERSION = 2` on `UserOperatingProfile` model (was 1).
+- **Model changes:** Added `previous_profile_data` JSONField, `dimension_meets_gate()` method, `has_drift` property, `__str__` includes `[DRIFT]` marker when drift detected.
+- **Tests:** Expanded from 37 to 71 tests. New test classes: `TestConfidenceQualifier` (6 tests), `TestPerDimensionGating` (6 tests), `TestBehaviorDriftDetection` (12 tests), `TestDriftInInjection` (4 tests), `TestProfileDriftPreservation` (3 tests). All 71 pass. Updated existing injection tests for new format (confidence-scaled language, momentum phase labels).
+- **Files modified:** `apps/core/ai_state/models.py`, `apps/core/ai_state/operating_profile.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/core/ai_state/tests_operating_profile.py`, `config/settings.py`, `docs/ENGINE_COS_REFERENCE.md`
+- **Files created:** `apps/core/migrations/0107_add_operating_profile_drift_fields.py`
+
 ## 2026-03-10 — Fix task list ordering by due date
 
 - **Problem:** Tasks on the task list page (/life/tasks/) were not sorted by due date. Within each priority group (Now/Soon/Someday), tasks were ordered by `scheduled_time` first, then `due_date`. This caused tasks with later due dates but earlier scheduled times to appear before tasks due sooner.

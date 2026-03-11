@@ -962,6 +962,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for CoS Action Governance upgrade (PK 154)
         self._reset_action_governance_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Beth humanization (PK 155)
+        self._reset_beth_humanization_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5903,3 +5906,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset action governance fixtures FAILED: {e}'))
+
+    def _reset_beth_humanization_fixtures(self, DataLoadConfig, force, verbosity):
+        """
+        One-time reset to reload release_notes for Beth humanization (PK 155).
+        """
+        reset_tracker_name = 'reset_beth_humanization_2026_03_11'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for loader_name in ['release_notes']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader_name} loader for Beth humanization')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Beth humanization',
+                'command',
+                'One-time reset to reload release_notes PK 156'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Beth humanization fixtures FAILED: {e}'))

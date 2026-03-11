@@ -3515,7 +3515,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         parts = []
         where = detail.get('where')
         if where:
-            parts.append(f"({where})")
+            parts.append(f"Saved in {where}")
         trend = detail.get('trend')
         if trend:
             parts.append(trend)

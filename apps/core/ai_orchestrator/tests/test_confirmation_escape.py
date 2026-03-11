@@ -35,7 +35,7 @@ class ConfirmationEscapeTests(TestCase):
             'parameters': {'task_keyword': 'Journal'},
             'original_input': 'complete my journal task',
             'confirmation_message': (
-                'Proposed Action\nComplete task: "Journal"\n\n'
+                'Completing your task: "Journal"\n\n'
                 'Reply with: CONFIRM, CANCEL, or EDIT'
             ),
         })

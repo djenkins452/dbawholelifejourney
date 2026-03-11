@@ -985,6 +985,113 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 .ops-coas-overall.CRITICAL { color: var(--ops-red); }
 
 /* =========================================================================
+   AAFR TILE — AI Action Success Rate monitor
+   ========================================================================= */
+.ops-aafr {
+    padding: 16px 20px;
+    margin-bottom: 14px;
+}
+.ops-aafr-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.ops-aafr-pulse {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.ops-aafr-pulse.HEALTHY { background: var(--ops-green); box-shadow: 0 0 8px var(--ops-green); }
+.ops-aafr-pulse.WARNING { background: var(--ops-yellow); box-shadow: 0 0 8px var(--ops-yellow); animation: aafrPulse 1.5s ease-in-out infinite; }
+.ops-aafr-pulse.CRITICAL { background: var(--ops-red); box-shadow: 0 0 12px var(--ops-red); animation: aafrPulse 0.8s ease-in-out infinite; }
+@keyframes aafrPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+.ops-aafr-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ops-text-bright);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.ops-aafr-status-label {
+    margin-left: auto;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 2px 8px;
+    border-radius: 3px;
+}
+.ops-aafr-status-label.HEALTHY { color: var(--ops-green); background: var(--ops-green-dim); }
+.ops-aafr-status-label.WARNING { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
+.ops-aafr-status-label.CRITICAL { color: var(--ops-red); background: var(--ops-red-dim); }
+.ops-aafr-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 10px;
+}
+.ops-aafr-window {
+    background: var(--ops-surface-alt);
+    border-radius: var(--ops-radius-sm);
+    padding: 12px 14px;
+    border: 1px solid var(--ops-glass-border);
+    text-align: center;
+}
+.ops-aafr-window-label {
+    font-size: 0.625rem;
+    font-weight: 600;
+    color: var(--ops-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+}
+.ops-aafr-window-rate {
+    font-size: 1.75rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+.ops-aafr-window-rate.HEALTHY { color: var(--ops-green); }
+.ops-aafr-window-rate.WARNING { color: var(--ops-yellow); }
+.ops-aafr-window-rate.CRITICAL { color: var(--ops-red); }
+.ops-aafr-window-counts {
+    font-size: 0.6875rem;
+    color: var(--ops-text-dim);
+    font-variant-numeric: tabular-nums;
+}
+.ops-aafr-summary {
+    display: flex;
+    gap: 18px;
+    font-size: 0.75rem;
+    color: var(--ops-text-muted);
+    margin-bottom: 6px;
+}
+.ops-aafr-summary-blocked { color: var(--ops-yellow); }
+.ops-aafr-summary-failed { color: var(--ops-red); }
+.ops-aafr-errors {
+    font-size: 0.6875rem;
+    color: var(--ops-text-muted);
+}
+.ops-aafr-error-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    border-bottom: 1px solid var(--ops-glass-border);
+}
+.ops-aafr-error-cat { color: var(--ops-text); }
+.ops-aafr-error-cnt { color: var(--ops-red); font-weight: 600; font-variant-numeric: tabular-nums; }
+@media (max-width: 768px) {
+    .ops-aafr-grid { grid-template-columns: 1fr; }
+    .ops-aafr-summary { flex-direction: column; gap: 4px; }
+}
+
+/* =========================================================================
    LEARNING HEALTH TILE — Persistent Learning subsystem monitor
    ========================================================================= */
 .ops-learning-health {
@@ -1782,6 +1889,37 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
                 <div class="ops-coas-sub-score HEALTHY" id="coasScoreFreshness">&mdash;</div>
             </div>
         </div>
+    </div>
+
+    <!-- AAFR — AI Action Success Rate Tile -->
+    <div class="ops-section ops-glass ops-aafr" id="aafrTile">
+        <div class="ops-aafr-header">
+            <div class="ops-aafr-pulse HEALTHY" id="aafrPulse"></div>
+            <span class="ops-aafr-title">AI Action Success Rate</span>
+            <span class="ops-aafr-status-label HEALTHY" id="aafrStatusLabel">HEALTHY</span>
+        </div>
+        <div class="ops-aafr-grid">
+            <div class="ops-aafr-window">
+                <div class="ops-aafr-window-label">5 min</div>
+                <div class="ops-aafr-window-rate HEALTHY" id="aafrRate5m">&mdash;</div>
+                <div class="ops-aafr-window-counts"><span id="aafrOk5m">0</span> / <span id="aafrTotal5m">0</span></div>
+            </div>
+            <div class="ops-aafr-window">
+                <div class="ops-aafr-window-label">1 hour</div>
+                <div class="ops-aafr-window-rate HEALTHY" id="aafrRate1h">&mdash;</div>
+                <div class="ops-aafr-window-counts"><span id="aafrOk1h">0</span> / <span id="aafrTotal1h">0</span></div>
+            </div>
+            <div class="ops-aafr-window">
+                <div class="ops-aafr-window-label">24 hours</div>
+                <div class="ops-aafr-window-rate HEALTHY" id="aafrRate24h">&mdash;</div>
+                <div class="ops-aafr-window-counts"><span id="aafrOk24h">0</span> / <span id="aafrTotal24h">0</span></div>
+            </div>
+        </div>
+        <div class="ops-aafr-summary">
+            <span>Blocked (24h): <span class="ops-aafr-summary-blocked" id="aafrBlocked24h">0</span></span>
+            <span>Failures (24h): <span class="ops-aafr-summary-failed" id="aafrFailed24h">0</span></span>
+        </div>
+        <div class="ops-aafr-errors" id="aafrTopErrors"></div>
     </div>
 
     <!-- Learning Health Tile -->
@@ -2684,6 +2822,7 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
         renderIntegrity(data.integrity);
         renderSchedulerHeartbeats(data.scheduler_heartbeats || []);
         renderCOASHealth(data.coas_health);
+        renderAAFR(data.aafr);
         renderLearningHealth(data.learning_health);
         renderHealthIntelligence(data.health_intelligence);
         renderPosture(data.posture, data.narrative);
@@ -2732,6 +2871,64 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
                 subEl.className = 'ops-coas-sub ' + cls;
             }
         });
+    }
+
+    function renderAAFR(aafr) {
+        if (!aafr) return;
+        var status = aafr.status || 'HEALTHY';
+
+        var pulseEl = document.getElementById('aafrPulse');
+        if (pulseEl) pulseEl.className = 'ops-aafr-pulse ' + status;
+
+        var labelEl = document.getElementById('aafrStatusLabel');
+        if (labelEl) {
+            labelEl.textContent = status;
+            labelEl.className = 'ops-aafr-status-label ' + status;
+        }
+
+        function rateClass(r) {
+            if (r >= 3) return 'CRITICAL';
+            if (r >= 1) return 'WARNING';
+            return 'HEALTHY';
+        }
+
+        var windows = [
+            {key: '5m', rateId: 'aafrRate5m', okId: 'aafrOk5m', totalId: 'aafrTotal5m'},
+            {key: '1h', rateId: 'aafrRate1h', okId: 'aafrOk1h', totalId: 'aafrTotal1h'},
+            {key: '24h', rateId: 'aafrRate24h', okId: 'aafrOk24h', totalId: 'aafrTotal24h'}
+        ];
+        windows.forEach(function(w) {
+            var d = aafr[w.key];
+            if (!d) return;
+            var rateEl = document.getElementById(w.rateId);
+            if (rateEl) {
+                rateEl.textContent = d.success_rate.toFixed(1) + '%';
+                rateEl.className = 'ops-aafr-window-rate ' + rateClass(d.failure_rate);
+            }
+            var okEl = document.getElementById(w.okId);
+            if (okEl) okEl.textContent = d.success;
+            var totalEl = document.getElementById(w.totalId);
+            if (totalEl) totalEl.textContent = d.total;
+        });
+
+        var d24 = aafr['24h'];
+        if (d24) {
+            var blockedEl = document.getElementById('aafrBlocked24h');
+            if (blockedEl) blockedEl.textContent = d24.blocked;
+            var failedEl = document.getElementById('aafrFailed24h');
+            if (failedEl) failedEl.textContent = d24.failed;
+        }
+
+        var errContainer = document.getElementById('aafrTopErrors');
+        if (errContainer && aafr.top_errors && aafr.top_errors.length > 0) {
+            var html = '<div style="margin-top:4px;font-size:0.625rem;font-weight:600;color:var(--ops-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Top Failures (24h)</div>';
+            aafr.top_errors.forEach(function(e) {
+                html += '<div class="ops-aafr-error-row"><span class="ops-aafr-error-cat">' + e.category + '</span><span class="ops-aafr-error-cnt">' + e.count + '</span></div>';
+            });
+            errContainer.innerHTML = html;
+        } else if (errContainer) {
+            errContainer.innerHTML = '';
+        }
     }
 
     function renderSchedulerHeartbeats(schedulers) {

@@ -23,6 +23,26 @@
 - **Files modified:** `apps/ai/intent_service.py`, `apps/ai/personal_assistant.py`, `templates/components/assistant_panel.html`
 - **Tests:** 359 tests pass (117 intent_service/personal_assistant/governance + 242 orchestrator)
 
+## 2026-03-11 — AAFR: AI Action Failure Rate Telemetry
+
+- **New model:** `AIActionMetric` — records every AI mutation attempt with three-outcome model (success/blocked/failure), intent type, error category, duration, and user ID
+- **Execution engine instrumented:** All 5 exit paths in `execute_action()` now record AAFR telemetry via `_record_aafr()` helper (learning mode blocked, LM check crash, safety blocked, handler exception, normal return)
+- **Aggregation helper:** `_get_aafr_metrics()` computes success/blocked/failed counts for 5m/1h/24h windows with status thresholds (HEALTHY <1%, WARNING ≥1%, CRITICAL ≥3% failure rate)
+- **Operations Wall tile:** "AI Action Success Rate" glassmorphism tile with 3-column success rate display, blocked/failed summary, and top error categories
+- **19 tests:** Model, helper resilience, all 5 hook integration paths, aggregation thresholds, time window filtering, blocked vs failure distinction, OpsStreamView key presence
+
+**Files Created:**
+- `apps/core/ai_observability/tests_aafr.py`
+- `apps/core/migrations/0108_add_ai_action_metric.py`
+
+**Files Modified:**
+- `apps/core/ai_observability/models.py` — added `AIActionMetric` model
+- `apps/core/ai_orchestrator/execution_engine.py` — added `_record_aafr()` helper + 5 hook points
+- `apps/core/ai_observability/ops_views.py` — added `_get_aafr_metrics()` + wired into `OpsStreamView`
+- `templates/admin_console/operations_wall.html` — added CSS, HTML tile, JS `renderAAFR()`
+
+**Why:** Infrastructure monitoring (engine cadence, scheduler health) doesn't detect AI interaction layer failures — confirmation crashes, entity resolution failures, execution exceptions, safety blocks. AAFR instruments the execution gateway to surface success/failure rates on the Operations Wall.
+
 ## 2026-03-11 — Model String Guard Test + CoS COS_MODEL Cleanup
 
 - **Guard test:** New `apps/ai/tests/test_model_guard.py` — fails the build if any `'gpt-*'` string appears in service code outside allowed locations (`config/settings.py`, `owner_finance/`, tests, seed data, fixtures, comments). Prevents model name drift.

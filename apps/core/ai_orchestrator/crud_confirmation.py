@@ -299,8 +299,16 @@ def _build_standard_message(intent: str, label: str, params: dict) -> str:
     """Build standard confirmation for new create/log/mutate actions."""
     parts = ['Proposed Action']
 
-    # Extract key details based on intent type
-    title = params.get('title') or params.get('name') or params.get('task_query', '')
+    # Extract key details based on intent type.
+    # resolved_name is set by EntityResolver when it matches a database entity.
+    title = (
+        params.get('resolved_name')
+        or params.get('title')
+        or params.get('name')
+        or params.get('task_query')
+        or params.get('task_keyword')
+        or ''
+    )
     value = params.get('value') or params.get('weight') or params.get('bpm', '')
     time_str = params.get('scheduled_time') or params.get('start_time', '')
     date_str = params.get('due_date') or params.get('start_date') or params.get('date', '')

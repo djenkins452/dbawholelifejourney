@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — Entity Resolution Layer & Confirmation Escape Logic
+
+- **Feature 1 — Entity Resolution Layer:** New `apps/core/ai_orchestrator/entity_resolver.py` resolves natural language entity references (e.g., "journal", "workout") to concrete database objects BEFORE the CRUD confirmation gate. Supports Tasks, Goals, Habits, and Medicines. Uses tiered matching (exact → prefix → substring) with tie-breaking by earliest due_date. Never overrides existing IDs, never crosses user boundaries, and gracefully falls back on failure.
+- **Feature 2 — Confirmation Escape Logic:** Fixed infinite confirmation loop bug. Previously, if a CRUD confirmation was active and the user asked a question ("what task?", "which one?"), the system would repeat the confirmation prompt indefinitely. Now, unrecognized responses cancel the pending confirmation and route the message back through normal AI processing.
+- **Bonus — Resolved entity names in confirmations:** Confirmation prompts now display resolved entity names. Example: "Complete task: Journal" instead of "Complete task".
+- **Pipeline integration:** Entity resolution inserted as Layer 1.5 between Activity Reconciliation and CRUD Confirmation Gate. Non-blocking — failures fall through to handler's own keyword search.
+- **Both streaming and non-streaming paths updated** for confirmation escape parity.
+- **Tests:** 27 new tests (entity resolver: 23, confirmation escape: 15, confirmation message: 4). All 70 new + 205 existing orchestrator tests pass.
+- **Files created:** `apps/core/ai_orchestrator/entity_resolver.py`, `apps/core/ai_orchestrator/tests/test_entity_resolver.py`, `apps/core/ai_orchestrator/tests/test_confirmation_escape.py`
+- **Files modified:** `apps/core/ai_orchestrator/orchestrator.py` (Layer 1.5 integration), `apps/core/ai_orchestrator/crud_confirmation.py` (resolved_name in message builder), `apps/ai/intent_service.py` (escape logic), `apps/ai/personal_assistant.py` (escape handling in both paths), `apps/core/ai_orchestrator/tests/test_crud_confirmation.py` (updated test for new escape behavior)
+
 ## 2026-03-11 — Personal Operating Context Phase 2: Confidence Gates, Drift Detection, Language Scaling
 
 - **Improvement 1 — Per-dimension confidence gates:** Each behavioral dimension now has its own injection threshold (productive_windows ≥ 0.60, deferral_patterns ≥ 0.60, momentum_phase ≥ 0.40). Previously all dimensions used a flat 0.30 gate. Gates are stored as class constants on `UserOperatingProfile.CONFIDENCE_GATES` for central tuning. Dimensions below their gate are silently excluded from the prompt.

@@ -3025,7 +3025,12 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     self.user, message,
                 )
                 if crud_result:
-                    if crud_result.action_type in (
+                    if crud_result.action_type == 'confirmation_escaped':
+                        # User said something other than CONFIRM/CANCEL/EDIT.
+                        # Pending action already cancelled — fall through to
+                        # normal AI processing with the user's message.
+                        pass  # response stays None → handled by normal pipeline below
+                    elif crud_result.action_type in (
                         'cancelled', 'expired', 'idempotent_skip',
                     ):
                         response = crud_result.message
@@ -3038,7 +3043,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             self._build_action_taken(crud_result)
                         )
                 else:
-                    # Unrecognized response — re-show confirmation
+                    # Should not happen now (handle_crud_confirmation always returns)
+                    # but keep as safety net
                     response = (
                         f"{pending_crud['confirmation_message']}\n\n"
                         "Please reply with: CONFIRM, CANCEL, or EDIT"
@@ -6666,7 +6672,12 @@ Rules for this response:
                                 )
                             )
                             if _crud_result:
-                                if _crud_result.action_type in (
+                                if _crud_result.action_type == 'confirmation_escaped':
+                                    # User said something other than CONFIRM/CANCEL/EDIT.
+                                    # Pending action already cancelled — let the message
+                                    # fall through to normal AI processing.
+                                    pass  # _direct_response stays None
+                                elif _crud_result.action_type in (
                                     'cancelled', 'expired',
                                     'idempotent_skip',
                                 ):
@@ -6685,7 +6696,7 @@ Rules for this response:
                                             )
                                         )
                             else:
-                                # Unrecognized — re-show confirmation
+                                # Safety net (should not happen)
                                 _direct_response = (
                                     f"{_pending_crud['confirmation_message']}"
                                     "\n\nPlease reply with: "

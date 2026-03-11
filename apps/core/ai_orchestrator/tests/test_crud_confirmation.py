@@ -253,13 +253,14 @@ class HandleCrudConfirmationTests(TestCase):
         self.assertIn('instead', result.message)
         self.assertIsNone(self.intent_service.get_pending_crud_action(self.user))
 
-    def test_unrecognized_returns_none(self):
+    def test_unrecognized_escapes_confirmation(self):
         self._store_pending()
 
         result = self.intent_service.handle_crud_confirmation(self.user, 'something random')
-        self.assertIsNone(result)
-        # Pending should still exist
-        self.assertIsNotNone(self.intent_service.get_pending_crud_action(self.user))
+        self.assertIsNotNone(result)
+        self.assertEqual(result.action_type, 'confirmation_escaped')
+        # Pending should be cleared (escape cancels it)
+        self.assertIsNone(self.intent_service.get_pending_crud_action(self.user))
 
     def test_expired_action_returns_expiry_message(self):
         # Don't store anything — simulates expiry

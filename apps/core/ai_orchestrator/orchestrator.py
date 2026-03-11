@@ -275,6 +275,23 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
                 user.id, e, exc_info=True,
             )
 
+        # ── Layer 1.5: Entity Resolution ─────────────────────────
+        # Resolve natural language entity references (e.g., "journal" → Task #123)
+        # to concrete database IDs BEFORE the CRUD gate sees them.
+        # This is data enrichment only — never executes or overrides existing IDs.
+        try:
+            from apps.core.ai_orchestrator.entity_resolver import resolve_entities
+            resolve_entities(user, enriched)
+        except ImportError:
+            pass  # Module not installed yet
+        except Exception as e:
+            # Entity resolution failure must not block the pipeline.
+            # The handler will fall back to its own keyword search.
+            logger.warning(
+                "Entity resolution failed (non-blocking, user=%s): %s",
+                user.id, e, exc_info=True,
+            )
+
         # ── Layer 2: CRUD Confirmation Gate ──────────────────────
         # All write operations require explicit user confirmation.
         # Read-only / control-plane intents pass through to execution.

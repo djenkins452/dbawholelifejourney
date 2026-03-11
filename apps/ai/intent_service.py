@@ -1991,8 +1991,21 @@ the Medications page), honor the explicit domain.
                 action_type='cancelled',
             )
 
-        # Unrecognized — return None to trigger re-prompt
-        return None
+        # Unrecognized response — escape confirmation loop.
+        # Cancel the pending action and let the message route back through
+        # normal AI interpretation so the user isn't trapped.
+        self.clear_pending_crud_action(user)
+        logger.info(
+            "[CRUD_GATE] Escape: unrecognized response '%s' for %s user=%s — "
+            "cancelling pending action and routing to AI",
+            response[:50], pending['intent_type'], user.id,
+        )
+        return ActionResult(
+            success=False,
+            message=None,  # Caller should route to normal AI pipeline
+            error='confirmation_escaped',
+            action_type='confirmation_escaped',
+        )
 
     # ── Pending Clarification (entity disambiguation) ──────────────
 

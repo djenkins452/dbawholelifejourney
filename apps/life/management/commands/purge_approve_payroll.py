@@ -87,7 +87,7 @@ class Command(BaseCommand):
 
             # Find rules that no longer have any events attached
             orphan_rules = RecurrenceRule.objects.filter(
-                events__isnull=True,
+                event__isnull=True,
             )
             # Also check for rules tied to the deleted events
             # by looking for rules with no remaining events

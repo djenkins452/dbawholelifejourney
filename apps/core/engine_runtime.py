@@ -66,6 +66,7 @@ TASK_ENGINE_MAP = {
     "deliver_cos_prompts": "COSDELIV",
     "create_maturity_snapshot": "MATURITY",
     "generate_cdce_check_ins": "CDCE_CI",
+    "run_proactive_guidance": "PGS",
 }
 
 # Engine → intelligence pipeline phase (legacy fallback)
@@ -86,6 +87,7 @@ ENGINE_PHASE_MAP = {
     "GLOE": 2,
     "CDCE": 2,
     "IOCD": 2,
+    "PGS": 2,
 }
 DEFAULT_PHASE = 3  # Post-execution / governance
 

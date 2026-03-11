@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-11 (AAFR — AI Action Failure Rate telemetry on Operations Wall)
+**Last updated:** 2026-03-11 (Proactive Guidance Scheduler — PGS engine wired into ISE at 15m interval, dispatches 16+ check-in types by per-user time window with 3 new daily rhythm touchpoints)
 
 ---
 
@@ -90,6 +90,7 @@ Phase 1 (Interpretation)        Phase 2 (Execution)          Phase 3 (Post-Execu
 | **SAME** Monitoring | `apps/core/ai_observability/same_engine.py` | `run_same()` | Celery Beat 60s | Every 60s | Engine heartbeats | `OpsAnomaly`, `OpsNarrativeSnapshot` |
 | **Maturity** Engine | `apps/core/ai_observability/maturity_engine.py` | `compute_all_maturity_scores()` | On-demand + daily snapshot | Daily | All engines + registry | `SystemMaturitySnapshot` |
 | **AAFR** Telemetry | `apps/core/ai_orchestrator/execution_engine.py` | `_record_aafr()` | Every `execute_action()` call | Real-time | AI mutation outcomes | `AIActionMetric` |
+| **PGS** Proactive Guidance | `apps/ai/proactive_checkins.py` | `run_proactive_guidance_scheduler()` | ISE 15m | Every 15m | Per-user time windows, feature flags | `AssistantMessage(is_proactive=True)` via DNE |
 
 ### Blueprint & Governance Engines
 
@@ -156,7 +157,7 @@ Phase 1 (Interpretation)        Phase 2 (Execution)          Phase 3 (Post-Execu
 | `generate_birthday_reminders()` | Daily 12PM UTC | Birthday/memorial reminders |
 | `run_intelligence_scheduler()` | Every 5m | ISE scheduler cycle |
 
-### ISE Registry (42+ Tasks — apps/core/ai_scheduler/scheduler_registry.py)
+### ISE Registry (43+ Tasks — apps/core/ai_scheduler/scheduler_registry.py)
 
 Key tasks by interval:
 
@@ -173,6 +174,7 @@ Key tasks by interval:
 
 **Every 15 minutes:**
 - `run_assistant_triggers` — Assistant trigger conditions
+- `run_proactive_guidance` — PGS: time-window check-in dispatch (medicine, workout, journal, overdue tasks, faith, finance, goals, relationships, patterns, birthdays, midday alignment, afternoon momentum, evening wrap)
 
 **Every 1 hour:**
 - `run_prie_synthetic` — PRIE predictions batch
@@ -389,37 +391,43 @@ Outputs:
 
 | Type | Function | Trigger | Throttle |
 |------|----------|---------|----------|
-| Medicine (grouped) | `generate_grouped_medicine_check_in()` | `generate_health_reminders` command | 1 per time_of_day per day |
-| Workout | `generate_workout_check_in()` | Daily check-in command | 1 per day |
-| Journal | `generate_journal_check_in()` | Daily check-in command | 1 per day |
-| Overdue Task | `generate_overdue_task_check_in(task)` | Daily check-in command | 1 per run |
-| Busy Day Warning | `generate_busy_day_check_in(count)` | Daily if ≥5 items tomorrow | 1 per day |
-| Pattern Observation | `generate_pattern_observation()` | Daily check-in command | 1 per run |
-| Streak Acknowledgment | `generate_streak_acknowledgment()` | On milestone | 1 per activity |
-| Birthday/Anniversary | `generate_birthday_greeting(event)` | Daily check-in command | 1 per event |
-| Faith Reading Gap | `generate_faith_reading_check_in(plan, days)` | `generate_faith_check_ins_for_user` | 4h throttle |
-| Faith Prayer | `generate_faith_prayer_check_in(count)` | `generate_faith_check_ins_for_user` | 4h throttle |
-| Finance Budget | `generate_finance_budget_check_in(budget, pct, days)` | `generate_finance_check_ins_for_user` | 4h throttle |
-| Finance Goal | `generate_finance_goal_check_in(goal, stalling_days)` | `generate_finance_check_ins_for_user` | 4h throttle |
-| Relationship Drift | `generate_relationship_drift_check_in(drift_alert)` | `generate_relationship_check_ins_for_user` | 4h throttle |
-| Goal Deadline | `generate_goal_deadline_check_in(goal, days_until)` | `generate_goal_check_ins_for_user` | 4h throttle |
-| Goal Stalling | `generate_goal_stalling_check_in(goal, days_stalled)` | `generate_goal_check_ins_for_user` | 4h throttle |
-| Habit Streak | `generate_habit_streak_check_in(habit, streak, is_break)` | `generate_goal_check_ins_for_user` | 4h throttle |
-| Journal Concern | `generate_journal_concern_check_in(concern, count)` | `generate_journal_intelligence_check_ins_for_user` | 4h throttle |
-| Journal Gap | `generate_journal_gap_check_in(days_since)` | `generate_journal_intelligence_check_ins_for_user` | 4h throttle |
+| Medicine (grouped) | `generate_grouped_medicine_check_in()` | PGS (all active hours) | 1 per time_of_day per day |
+| Workout | `generate_workout_check_in()` | PGS midday | 1 per day |
+| Journal | `generate_journal_check_in()` | PGS evening | 1 per day |
+| Overdue Task | `generate_overdue_task_check_in(task)` | PGS midday | 1 per run |
+| Busy Day Warning | `generate_busy_day_check_in(count)` | PGS evening | 1 per day |
+| Pattern Observation | `generate_pattern_observation()` | PGS afternoon | 1 per run |
+| Birthday/Anniversary | `generate_birthday_greeting(event)` | PGS morning | 1 per event |
+| NN Skip | `generate_nn_skip_check_in(task)` | PGS midday | 1 per day |
+| Faith Reading Gap | `generate_faith_reading_check_in(plan, days)` | PGS morning | 4h throttle |
+| Faith Prayer | `generate_faith_prayer_check_in(count)` | PGS morning | 4h throttle |
+| Finance Budget | `generate_finance_budget_check_in(budget, pct, days)` | PGS afternoon | 4h throttle |
+| Finance Goal | `generate_finance_goal_check_in(goal, stalling_days)` | PGS afternoon | 4h throttle |
+| Relationship Drift | `generate_relationship_drift_check_in(drift_alert)` | PGS evening | 4h throttle |
+| Goal Deadline | `generate_goal_deadline_check_in(goal, days_until)` | PGS afternoon | 4h throttle |
+| Goal Stalling | `generate_goal_stalling_check_in(goal, days_stalled)` | PGS afternoon | 4h throttle |
+| Habit Streak | `generate_habit_streak_check_in(habit, streak, is_break)` | PGS afternoon | 4h throttle |
+| Journal Concern | `generate_journal_concern_check_in(concern, count)` | PGS afternoon | 4h throttle |
+| Journal Gap | `generate_journal_gap_check_in(days_since)` | PGS afternoon | 4h throttle |
+| **Midday Alignment** | `generate_midday_alignment_for_user(user)` | PGS midday (weekdays) | 1 per day |
+| **Afternoon Momentum** | `generate_afternoon_momentum_for_user(user)` | PGS afternoon (weekdays) | 1 per day |
+| **Evening Wrap** | `generate_evening_wrap_for_user(user)` | PGS evening | 1 per day |
 
-### Medicine Check-In Flow
+### PGS Time Window Dispatch
 
 ```
-APScheduler → generate_health_reminders (--medicine-only --time-period=morning)
-  → For each user with proactive_checkins enabled:
-    → Query MedicineSchedule + MedicineLog for today
-    → Group by time_of_day (morning, evening, nightly)
-    → Only doses PAST current_time in user's LOCAL timezone
-    → generate_grouped_medicine_check_in(time_of_day, medicines, due_time)
-      → Collects med_names = ', '.join(m.name for m, s in medicines)  ✓
-      → Gets template: "Your {group} meds are due by {time}."  ✗ NO {names}!
-      → Creates AssistantMessage with quick_replies
+ISE (every 15m) → run_proactive_guidance_scheduler()
+  → _get_proactive_users() — AI + PA consent + proactive_checkins enabled
+  → For each user:
+    → get_user_now(user) → local hour + is_weekend
+    → Quiet hours (<7 or ≥22): skip
+    → _dispatch_for_window(user, prefs, hour, is_weekend):
+      Morning (7–9):  medicine, birthday, faith
+      Midday (10–12): medicine, workout, overdue, nn_skip, midday_alignment (weekday)
+      Afternoon (13–16): medicine, goals, journal_intel, patterns, finance, afternoon_momentum (weekday)
+      Evening (17–21): medicine, journal, busy_day, relationships, evening_wrap
+    → All generators dedup internally (1/type/day) + InteractionThrottler (3/hour max)
+    → Messages route through DNE for multi-channel delivery
 ```
 
 ---

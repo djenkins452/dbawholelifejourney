@@ -181,6 +181,12 @@ SCHEDULED_TASKS = {
         "interval_seconds": 21600,  # 6 hours
         "description": "Generate proactive check-ins from CDCE cross-domain correlations (Phase 7.2).",
     },
+    # --- Proactive Guidance Scheduler ---
+    "run_proactive_guidance": {
+        "function_path": "apps.ai.proactive_checkins.run_proactive_guidance_scheduler",
+        "interval_seconds": 900,  # 15 minutes
+        "description": "Dispatch proactive check-ins based on per-user time windows (PGS).",
+    },
 }
 
 

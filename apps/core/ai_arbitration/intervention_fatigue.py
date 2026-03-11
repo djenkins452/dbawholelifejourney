@@ -14,6 +14,8 @@ Safety bounds: bias never exceeds ±0.05.
 import logging
 from datetime import date, timedelta
 
+from apps.core.ai_config import get_threshold
+
 logger = logging.getLogger(__name__)
 
 # Rolling window for fatigue analysis
@@ -23,9 +25,9 @@ FATIGUE_WINDOW_DAYS = 7
 MAX_POSITIVE_BIAS = 0.03
 MAX_NEGATIVE_BIAS = -0.05
 
-# Fatigue thresholds
-HIGH_FATIGUE_THRESHOLD = 0.6
-LOW_FATIGUE_THRESHOLD = 0.3
+# Fatigue thresholds (from AIThresholdConfig)
+HIGH_FATIGUE_THRESHOLD = get_threshold("high_fatigue_threshold", 0.6)
+LOW_FATIGUE_THRESHOLD = get_threshold("low_fatigue_threshold", 0.3)
 
 # Compliance ratio threshold for positive bias
 HIGH_COMPLIANCE_THRESHOLD = 0.6

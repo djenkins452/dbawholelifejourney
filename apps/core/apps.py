@@ -34,3 +34,5 @@ class CoreConfig(AppConfig):
         # Enhance all NumberInput widgets with mobile-friendly inputmode
         from apps.core.widgets import enhance_number_inputs
         enhance_number_inputs()
+        # Register domain event subscribers for intelligence pipeline
+        import apps.core.events.subscribers  # noqa: F401

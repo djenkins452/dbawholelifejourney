@@ -61,6 +61,11 @@ def deliver_single(user, source_engine, source_object, payload=None):
     """
     Deliver a single intelligence item immediately (called from pipeline hooks).
 
+    Routes through MessageOrchestrator for coordinated delivery:
+    - Per-channel delivery limits (prevents message flooding)
+    - Per-message-type cooldowns (prevents duplicate messaging)
+    - Cross-domain conflict prevention
+
     Non-blocking — failures are logged but never raised.
 
     Args:
@@ -75,15 +80,51 @@ def deliver_single(user, source_engine, source_object, payload=None):
         if not payload:
             return
 
+        # ── MessageOrchestrator coordination gate ──
+        message_type = payload.get("message_type", source_engine.lower())
+        try:
+            from apps.core.cos.message_orchestrator import MessageOrchestrator
+            orchestrator = MessageOrchestrator(user)
+            should_send, reason = orchestrator.should_deliver(
+                message_type=message_type,
+                channel="chat",
+                source=source_engine,
+            )
+            if not should_send:
+                logger.info(
+                    "DNE: delivery suppressed by orchestrator for user %s: %s",
+                    user.id, reason,
+                )
+                return
+        except Exception as e:
+            # Orchestrator gate is best-effort — never blocks delivery
+            logger.debug("DNE: orchestrator gate skipped: %s", e)
+
         channels = _get_enabled_channels(user)
         obj_type = type(source_object).__name__
         obj_id = source_object.id
 
+        delivered = False
         for channel in channels:
-            _deliver_to_channel(
+            result = _deliver_to_channel(
                 user, channel, payload, source_engine, obj_type, obj_id,
                 priority=payload.get("priority"),
             )
+            if result is True:
+                delivered = True
+
+        # ── Record delivery in orchestrator ──
+        if delivered:
+            try:
+                from apps.core.cos.message_orchestrator import MessageOrchestrator
+                orchestrator = MessageOrchestrator(user)
+                orchestrator.record_delivery(
+                    message_type=message_type,
+                    channel="chat",
+                    source=source_engine,
+                )
+            except Exception:
+                pass  # Recording is best-effort
 
     except Exception as e:
         logger.error(f"DNE: deliver_single failed for user {user.id}: {e}")

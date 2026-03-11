@@ -35,10 +35,23 @@ ENGINE_CADENCES = {
     "GLOE": 21600,  # Every 6 hours (was 86400 — mismatched scheduler)
 }
 
-# All instrumented engines (must include all ENGINE_CADENCES keys)
-ALL_ENGINES = [
-    "UAL", "SAE", "PIE", "PRIE", "PGE", "ICQG", "DBE", "WIRE", "DNE", "GLOE",
-]
+# All instrumented engines — sourced from central registry when available,
+# with fallback to ENGINE_CADENCES keys for backward compatibility.
+def _get_all_engines():
+    """Build ALL_ENGINES list from central registry, falling back to cadence keys."""
+    try:
+        from apps.core.engine_registry import get_scheduled_engines
+        scheduled = get_scheduled_engines()
+        if scheduled:
+            # Use registry codes, ensuring cadence-monitored engines are included
+            registry_codes = {e.code for e in scheduled}
+            return sorted(registry_codes | set(ENGINE_CADENCES.keys()))
+    except Exception:
+        pass
+    return sorted(ENGINE_CADENCES.keys())
+
+
+ALL_ENGINES = _get_all_engines()
 
 
 def get_engine_pulse(engine_name):

@@ -28,6 +28,15 @@ from .intent_service import ActionResult
 
 logger = logging.getLogger(__name__)
 
+
+def _emit_domain_event(event_type, user, data=None):
+    """Emit a domain event (non-blocking, never raises)."""
+    try:
+        from apps.core.events.domain_events import emit_event
+        emit_event(event_type, user=user, data=data or {}, source="action_handlers")
+    except Exception:
+        pass  # Domain events must never block intent execution
+
 # YouVersion Bible API constants
 BIBLE_API_BASE = "https://api.youversion.com/v1"
 
@@ -563,6 +572,11 @@ class ActionHandler:
                 recorded_at=self._get_recorded_at(kwargs)
             )
 
+            _emit_domain_event("health.bp.logged", self.user, {
+                "entry_id": entry.id, "systolic": systolic,
+                "diastolic": diastolic,
+            })
+
             time_str = entry.recorded_at.strftime("%I:%M %p")
             bp_str = f"{systolic}/{diastolic}"
             pulse_str = f", pulse {pulse}" if pulse else ""
@@ -623,6 +637,10 @@ class ActionHandler:
                 recorded_at=self._get_recorded_at(kwargs)
             )
 
+            _emit_domain_event("health.weight.logged", self.user, {
+                "entry_id": entry.id, "value": float(value), "unit": unit,
+            })
+
             # Trend lookup (safe — never blocks action)
             trend = None
             try:
@@ -680,6 +698,10 @@ class ActionHandler:
                 notes=notes or "",
                 recorded_at=self._get_recorded_at(kwargs)
             )
+
+            _emit_domain_event("health.glucose.logged", self.user, {
+                "entry_id": entry.id, "value": float(value), "unit": unit,
+            })
 
             # Trend lookup (safe — never blocks action)
             trend = None
@@ -898,6 +920,12 @@ class ActionHandler:
                 notes=notes or ""
             )
 
+            _emit_domain_event("health.nutrition.logged", self.user, {
+                "entry_id": entry.id, "food_name": matched_name,
+                "calories": float(nutrition_data['total_calories']),
+                "meal_type": meal_type,
+            })
+
             # Build response message
             cal_val = float(nutrition_data['total_calories'])
             cal_str = f" ({int(cal_val)} cal)" if cal_val > 0 else ""
@@ -1030,6 +1058,11 @@ class ActionHandler:
                 source="manual",
                 recorded_at=recorded_at,
             )
+
+            _emit_domain_event("health.sleep.logged", self.user, {
+                "entry_id": entry.id, "duration_minutes": total_minutes,
+                "quality": quality or "",
+            })
 
             # Trend: 7-day average sleep
             trend = None
@@ -1360,6 +1393,11 @@ class ActionHandler:
                 category=cat,
                 notes=notes or "",
             )
+
+            _emit_domain_event("finance.transaction.logged", self.user, {
+                "transaction_id": entry.id, "amount": float(amount),
+                "description": description,
+            })
 
             # Update account balance
             try:
@@ -1797,6 +1835,11 @@ class ActionHandler:
                     log_status=MedicineLog.STATUS_TAKEN,
                     notes=notes or ""
                 )
+
+        _emit_domain_event("health.medication.taken", self.user, {
+            "log_id": log.id, "medicine_name": medicine.name,
+            "medicine_id": medicine.id,
+        })
 
         time_str = now.strftime("%I:%M %p")
 
@@ -2295,6 +2338,11 @@ class ActionHandler:
                 mood=mood or 'okay'
             )
 
+            _emit_domain_event("journal.entry.created", self.user, {
+                "entry_id": entry.id, "mood": mood or "okay",
+                "word_count": len(body.split()) if body else 0,
+            })
+
             # Add categories if provided (Category is system-wide, not per-user)
             if categories:
                 for cat_name in categories:
@@ -2433,6 +2481,10 @@ class ActionHandler:
                 is_personal=is_personal,
                 prayer_status='active'
             )
+
+            _emit_domain_event("faith.prayer.created", self.user, {
+                "prayer_id": prayer.id, "title": title,
+            })
 
             return ActionResult(
                 success=True,
@@ -2927,6 +2979,11 @@ class ActionHandler:
                     entry.notes = notes or entry.notes
                     entry.save()
 
+                _emit_domain_event("purpose.habit.logged", self.user, {
+                    "habit_id": habit.id, "habit_name": habit.name,
+                    "completed": completed,
+                })
+
                 status = "completed" if completed else "skipped"
 
                 # Trend lookup — weekly habit count (safe — never blocks action)
@@ -3328,6 +3385,10 @@ class ActionHandler:
                     task.notes = (task.notes + "\n" + notes).strip() if task.notes else notes
                     task.save(update_fields=['notes', 'updated_at'])
                 task.mark_complete()  # handles recurrence + calendar sync + CoS
+
+                _emit_domain_event("task.completed", self.user, {
+                    "task_id": task.id, "title": task.title,
+                })
 
                 # Cross-complete: also log matching habit
                 habit_msg = self._cross_log_habit(task_keyword)
@@ -4723,6 +4784,11 @@ class ActionHandler:
                 started_at=now,
                 completed_at=now
             )
+
+            _emit_domain_event("health.workout.completed", self.user, {
+                "session_id": session.id, "name": name,
+                "duration_minutes": duration_minutes,
+            })
 
             duration_str = f" ({duration_minutes} min)" if duration_minutes else ""
 

@@ -68,7 +68,9 @@ TASK_ENGINE_MAP = {
     "generate_cdce_check_ins": "CDCE_CI",
 }
 
-# Engine → intelligence pipeline phase
+# Engine → intelligence pipeline phase (legacy fallback)
+# The authoritative source is apps.core.engine_registry.
+# get_engine_phase() checks the central registry first, then falls back here.
 ENGINE_PHASE_MAP = {
     # Phase 1: Interpretation
     "UAL": 1,
@@ -86,6 +88,23 @@ ENGINE_PHASE_MAP = {
     "IOCD": 2,
 }
 DEFAULT_PHASE = 3  # Post-execution / governance
+
+
+def get_engine_phase(engine_name):
+    """
+    Look up engine phase from the central registry, with fallback.
+
+    Uses apps.core.engine_registry as authoritative source.
+    Falls back to ENGINE_PHASE_MAP if registry lookup fails.
+    """
+    try:
+        from apps.core.engine_registry import get_engine
+        engine_def = get_engine(engine_name)
+        if engine_def:
+            return engine_def.phase
+    except Exception:
+        pass
+    return ENGINE_PHASE_MAP.get(engine_name, DEFAULT_PHASE)
 
 
 def get_engine_name(task_name):
@@ -118,7 +137,7 @@ def run_engine(engine_name, fn, *args, **kwargs):
     from apps.core.ai_observability.models import EngineRun
 
     trace_id = str(uuid.uuid4())
-    phase = ENGINE_PHASE_MAP.get(engine_name, DEFAULT_PHASE)
+    phase = get_engine_phase(engine_name)
     now = timezone.now()
 
     run = EngineRun(

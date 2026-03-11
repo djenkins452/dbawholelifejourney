@@ -387,6 +387,120 @@ def _score_to_grade(score: float) -> str:
         return "F"
 
 
+def _score_registry_health(base: Path) -> DimensionResult:
+    """
+    Score engine registry health — coverage and dependency depth.
+
+    Measures:
+    - Engine count vs budget
+    - Average dependencies per engine
+    - Registry coverage (% of runtime engines in registry)
+    """
+    details = {}
+    warnings = []
+
+    try:
+        from apps.core.engine_registry import (
+            get_engine_count, get_registry_summary, validate_registry,
+        )
+        count = get_engine_count()
+        summary = get_registry_summary()
+        validation = validate_registry()
+
+        details["registered_engines"] = count
+        details["phase_distribution"] = summary.get("by_phase", {})
+        details["validation_errors"] = len(validation.get("errors", []))
+        details["avg_dependencies"] = summary.get("avg_dependencies", 0)
+
+        # Score: 0 if under budget with no errors, scales up with count and errors
+        score = 0.0
+        if count > TARGET_ENGINE_COUNT:
+            score += min(5.0, (count - TARGET_ENGINE_COUNT) / 10)
+            warnings.append(f"Engine count ({count}) exceeds budget ({TARGET_ENGINE_COUNT})")
+        if validation.get("errors"):
+            score += min(3.0, len(validation["errors"]))
+            for err in validation["errors"][:3]:
+                warnings.append(f"Registry: {err}")
+        if summary.get("avg_dependencies", 0) > 3:
+            score += 2.0
+            warnings.append(f"High avg dependencies: {summary['avg_dependencies']:.1f}")
+
+    except Exception:
+        details["error"] = "Engine registry not available"
+        score = 5.0  # Unknown = concerning
+
+    return DimensionResult(
+        name="Registry Health",
+        score=min(10.0, score),
+        weight=0.10,
+        details=details,
+        warnings=warnings,
+    )
+
+
+def _score_prompt_layers(base: Path) -> DimensionResult:
+    """
+    Score system prompt assembly complexity.
+
+    Measures:
+    - Number of prompt layers
+    - Prompt file count in /prompts/system/
+    - Largest prompt constant size
+    """
+    details = {}
+    warnings = []
+
+    # Count prompt files
+    prompts_dir = base / "prompts" / "system"
+    prompt_files = list(prompts_dir.glob("*.md")) if prompts_dir.exists() else []
+    details["prompt_files"] = len(prompt_files)
+
+    # Check prompt_builder.py for constants
+    prompt_builder = base / "apps" / "core" / "cos" / "prompt_builder.py"
+    prompt_constants = 0
+    if prompt_builder.exists():
+        try:
+            content = prompt_builder.read_text(encoding="utf-8", errors="ignore")
+            # Count prompt string constants (triple-quoted strings assigned to CAPS names)
+            import re
+            prompt_constants = len(re.findall(r'^[A-Z_]+_PROMPT\s*=', content, re.MULTILINE))
+            details["prompt_constants"] = prompt_constants
+        except Exception:
+            pass
+
+    # System prompt layers in personal_assistant.py
+    pa_file = base / "apps" / "ai" / "personal_assistant.py"
+    layer_count = 0
+    if pa_file.exists():
+        try:
+            content = pa_file.read_text(encoding="utf-8", errors="ignore")
+            # Count "Phase N:" or "Layer N:" or priority injection points
+            layer_count = content.count("# Phase ") + content.count("priority=")
+            layer_count = min(layer_count, 20)  # Cap
+        except Exception:
+            pass
+    details["estimated_prompt_layers"] = max(layer_count, 12)  # At least 12 known
+
+    # Score
+    score = 0.0
+    layers = details.get("estimated_prompt_layers", 12)
+    if layers > TARGET_SYSTEM_PROMPT_LAYERS:
+        score += min(5.0, (layers - TARGET_SYSTEM_PROMPT_LAYERS) * 1.5)
+        warnings.append(f"Prompt layers ({layers}) exceed budget ({TARGET_SYSTEM_PROMPT_LAYERS})")
+    if len(prompt_files) < 5:
+        score += 2.0  # Few prompts externalized
+    if prompt_constants > 5:
+        score += 1.0
+
+    return DimensionResult(
+        name="Prompt Assembly Complexity",
+        score=min(10.0, score),
+        weight=0.10,
+        details=details,
+        warnings=warnings,
+    )
+
+
 def compute_complexity_score(base_path: Optional[str] = None) -> Dict:
     """
     Compute the System Complexity Score.
@@ -413,6 +527,8 @@ def compute_complexity_score(base_path: Optional[str] = None) -> Dict:
         _score_dependency_depth(base),
         _score_method_complexity(base),
         _score_duplication_risk(base),
+        _score_registry_health(base),
+        _score_prompt_layers(base),
     ]
 
     # Weighted average

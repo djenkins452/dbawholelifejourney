@@ -13,6 +13,8 @@ Capacity state modifies:
 import logging
 from datetime import date
 
+from apps.core.ai_config import get_threshold
+
 logger = logging.getLogger(__name__)
 
 # Capacity states
@@ -31,11 +33,11 @@ CAPACITY_WEIGHTS = {
     "open_loop_count": 0.10,
 }
 
-# State thresholds (capacity is INVERTED — higher signals = lower capacity)
+# State thresholds (from AIThresholdConfig)
 # Score represents available capacity (1 = full, 0 = empty)
-HIGH_CAPACITY_THRESHOLD = 0.75
-NORMAL_THRESHOLD = 0.45
-LOW_THRESHOLD = 0.25
+HIGH_CAPACITY_THRESHOLD = get_threshold("capacity_high_threshold", 0.75)
+NORMAL_THRESHOLD = get_threshold("capacity_normal_threshold", 0.45)
+LOW_THRESHOLD = get_threshold("capacity_low_threshold", 0.25)
 # Below LOW_THRESHOLD = CRITICAL
 
 # Max surfaced items by capacity state

@@ -4,6 +4,12 @@ EAE — Constants & Thresholds.
 All scoring weights, budget caps, escalation thresholds, and timing constants
 for the Executive Arbitration Engine. Centralized here for tuning and audit.
 
+CONFIGURATION:
+    Tunable thresholds (confidence, capacity, budget, fatigue) are sourced
+    from AIThresholdConfig via get_threshold(). This allows runtime tuning
+    through the admin panel without code deployment. The hard-coded defaults
+    below serve as safe fallbacks if the DB record is missing.
+
 INTENSITY MULTIPLIER:
     A central scalar (default 1.0) that deterministically adjusts sensitivity
     across scoring, escalation, budget compression, and tone transitions.
@@ -12,6 +18,8 @@ INTENSITY MULTIPLIER:
     Future-proofed for per-user configuration via Blueprint, but not
     user-facing in Phase 8 rollout.
 """
+
+from apps.core.ai_config import get_threshold
 
 # =============================================================================
 # INTENSITY MULTIPLIER (central tuning scalar)
@@ -122,24 +130,24 @@ HORIZON_URGENCY = {
 # CONFIDENCE THRESHOLDS (§4.3)
 # =============================================================================
 
-# Minimum confidence to surface a signal
-CONFIDENCE_MIN_CHAT = 0.40
-CONFIDENCE_MIN_PUSH = 0.60
-CONFIDENCE_MIN_BRIEFING = 0.30
+# Minimum confidence to surface a signal (sourced from AIThresholdConfig)
+CONFIDENCE_MIN_CHAT = get_threshold("confidence_min_chat", 0.40)
+CONFIDENCE_MIN_PUSH = get_threshold("confidence_min_push", 0.60)
+CONFIDENCE_MIN_BRIEFING = get_threshold("confidence_min_briefing", 0.30)
 
-# Scoring modifiers based on confidence
-CONFIDENCE_HIGH_BOOST = 10      # Added to normalized score when confidence >= 0.85
-CONFIDENCE_HIGH_THRESHOLD = 0.85
-CONFIDENCE_LOW_PENALTY = -15    # Added to normalized score when confidence <= 0.50
-CONFIDENCE_LOW_THRESHOLD = 0.50
+# Scoring modifiers based on confidence (thresholds from AIThresholdConfig)
+CONFIDENCE_HIGH_BOOST = 10      # Added to normalized score when confidence >= high threshold
+CONFIDENCE_HIGH_THRESHOLD = get_threshold("confidence_high_threshold", 0.85)
+CONFIDENCE_LOW_PENALTY = -15    # Added to normalized score when confidence <= low threshold
+CONFIDENCE_LOW_THRESHOLD = get_threshold("confidence_low_threshold", 0.50)
 
 # =============================================================================
 # NOISE BUDGET (§5.2)
 # =============================================================================
 
-# Per-channel cognitive unit caps
-BUDGET_CHAT = 3
-BUDGET_PUSH = 1
+# Per-channel cognitive unit caps (chat/push from AIThresholdConfig)
+BUDGET_CHAT = get_threshold("budget_chat", 3)
+BUDGET_PUSH = get_threshold("budget_push", 1)
 BUDGET_SMS = 1
 BUDGET_EMAIL = 5
 BUDGET_BRIEFING = 5
@@ -154,8 +162,8 @@ BUDGET_EMAIL_MAX = 7
 BUDGET_BRIEFING_MAX = 7
 BUDGET_WEEKLY_REPORT_MAX = 10
 
-# Global daily budget across all channels
-BUDGET_GLOBAL_DAILY = 8
+# Global daily budget across all channels (from AIThresholdConfig)
+BUDGET_GLOBAL_DAILY = get_threshold("budget_global_daily", 8)
 
 # Capacity adjustments to budget
 CAPACITY_CRITICAL_ADJUSTMENT = -2   # capacity_score < 0.2
@@ -164,8 +172,8 @@ CAPACITY_NORMAL_ADJUSTMENT = 0      # capacity_score 0.4-0.7
 CAPACITY_HIGH_ADJUSTMENT = 1        # capacity_score > 0.7
 
 CAPACITY_CRITICAL_THRESHOLD = 0.2
-CAPACITY_LOW_THRESHOLD = 0.4
-CAPACITY_HIGH_THRESHOLD = 0.7
+CAPACITY_LOW_THRESHOLD = get_threshold("capacity_low_threshold", 0.4)
+CAPACITY_HIGH_THRESHOLD = get_threshold("capacity_high_threshold", 0.7)
 
 # Floor: always surface at least this many items
 BUDGET_FLOOR = 1

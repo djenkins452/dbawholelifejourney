@@ -1071,3 +1071,19 @@ def _get_ingestion_stats(since):
         }
     except Exception:
         return {'runs': 0, 'metrics_ingested': None, 'error_rate': None}
+
+
+def _get_complexity_score():
+    """
+    Compute and return the System Complexity Score for the Operations Wall.
+
+    Returns dict with score (0-10), grade (A-F), dimension breakdown,
+    and aggregated warnings.  Returns None if computation fails.
+    """
+    try:
+        from apps.core.observability.complexity_metrics import compute_complexity_score
+
+        return compute_complexity_score()
+    except Exception as e:
+        logger.debug("OpsWall: complexity score unavailable: %s", e)
+        return None

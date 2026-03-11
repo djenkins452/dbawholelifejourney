@@ -24,6 +24,7 @@ import logging
 
 from django.utils import timezone
 
+from apps.core.ai_config import get_threshold
 from apps.core.blueprint.protective_models import (
     ProtectiveActionLog,
     ProtectiveAlert,
@@ -47,8 +48,8 @@ DENSITY_OVERLOADED = 0.85
 # Minimum free gap (minutes) to suggest a time block
 MIN_FREE_GAP_MINUTES = 30
 
-# Breach probability threshold for renegotiation prompt
-BREACH_PROB_THRESHOLD = 0.6
+# Breach probability threshold for renegotiation prompt (from AIThresholdConfig)
+BREACH_PROB_THRESHOLD = get_threshold("breach_probability_threshold", 0.6)
 
 # Collision thresholds
 COLLISION_HARD_DEADLINE_DAY_MAX = 3
@@ -64,9 +65,9 @@ ALERT_OFFSETS = {
 # Supersede window (hours)
 SUPERSEDE_WINDOW_HOURS = 12
 
-# DNE throttle defaults (per user per day)
-DNE_MAX_ALERTS_PER_HOUR = 3
-DNE_MAX_ALERTS_PER_DAY = 10
+# DNE throttle defaults (from AIThresholdConfig)
+DNE_MAX_ALERTS_PER_HOUR = get_threshold("dne_max_alerts_per_hour", 3)
+DNE_MAX_ALERTS_PER_DAY = get_threshold("dne_max_alerts_per_day", 10)
 
 # Day boundaries for available minutes calculation
 DAY_START_HOUR = 7

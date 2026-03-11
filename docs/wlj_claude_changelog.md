@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — System Integration Pass (6 Objectives)
+
+- **Issue:** Post-audit finding: infrastructure built during stabilization pass (AIThresholdConfig, domain events, MessageOrchestrator, engine registry, complexity metrics) had zero runtime consumers. Score: 82.0/B.
+- **Changes (6 integration objectives):**
+  1. **Config-Driven Thresholds (Obj 1):** Wired `get_threshold()` into 4 engine files replacing 16 hard-coded values: EAE constants (confidence, budget, capacity), intervention_fatigue (fatigue thresholds), capacity_engine (capacity bands), protective_engine (breach probability, DNE alert limits).
+  2. **Event-Driven Intelligence (Obj 2):** Added `_emit_domain_event()` helper to action_handlers.py; wired 12 domain event emissions (weight, sleep, BP, glucose, medication, food, journal, task, workout, habit, transaction, prayer). Created `apps/core/events/subscribers.py` with SAE cache invalidation, PIE insight triggers, CoS context invalidation, and telemetry counter. Registered at app startup in CoreConfig.ready().
+  3. **Message Delivery Centralization (Obj 3):** Wired MessageOrchestrator gate into `deliver_single()` — all proactive messages now check `should_deliver()` before sending and call `record_delivery()` after success.
+  4. **Engine Registry Activation (Obj 4):** Added `get_engine_phase()` to engine_runtime.py (checks central registry first, falls back to legacy map). Updated `ALL_ENGINES` in ops_aggregates.py to source from registry.
+  5. **Complexity Metric Enrichment (Obj 5):** Added 2 new dimensions to complexity scorer: `_score_registry_health()` (engine count vs budget, validation errors, avg dependencies) and `_score_prompt_layers()` (prompt layer count, externalized files). Now 7 dimensions, score 4.0/10 (B). Exposed to Operations Wall via `_get_complexity_score()` in stream endpoint.
+  6. **Event Coverage Validation (Obj 6):** Scanned 8 apps, found ~65 create operations lacking event emission. Key gap: web forms and HealthKit sync don't emit events (only AI chat path does). ~36 high-priority gaps identified for future work.
+- **Files modified:**
+  - `apps/core/ai_eae/constants.py` — 8 thresholds → get_threshold()
+  - `apps/core/ai_arbitration/intervention_fatigue.py` — 2 thresholds → get_threshold()
+  - `apps/core/ai_arbitration/capacity_engine.py` — 3 thresholds → get_threshold()
+  - `apps/core/blueprint/protective_engine.py` — 3 thresholds → get_threshold()
+  - `apps/ai/action_handlers.py` — Added _emit_domain_event() + 12 emit calls
+  - `apps/core/events/subscribers.py` — NEW: 11 event subscribers
+  - `apps/core/apps.py` — Subscriber registration
+  - `apps/core/ai_delivery/delivery_engine.py` — MessageOrchestrator gate
+  - `apps/core/engine_runtime.py` — get_engine_phase() + registry lookup
+  - `apps/core/ai_observability/ops_aggregates.py` — ALL_ENGINES from registry
+  - `apps/core/observability/complexity_metrics.py` — 2 new dimensions
+  - `apps/core/ai_observability/ops_telemetry.py` — _get_complexity_score()
+  - `apps/core/ai_observability/ops_views.py` — Complexity in stream endpoint
+- **Why:** Wire existing infrastructure into runtime to close the "infrastructure without consumers" gap identified in audit v2. Target: move toward 90+ audit score.
+
 ## 2026-03-11 — Post-Stabilization Full System Audit (v2)
 
 - **Issue:** After the 10-improvement stabilization pass, needed a full system re-audit to measure impact and identify remaining gaps.

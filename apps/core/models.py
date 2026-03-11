@@ -2311,3 +2311,5 @@ from apps.core.drift.models import (  # noqa: E402, F401
     DriftSignal,
     ExecutionLog,
 )
+
+from apps.core.ai_config import AIThresholdConfig  # noqa: E402, F401

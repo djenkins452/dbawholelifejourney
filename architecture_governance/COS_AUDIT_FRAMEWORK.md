@@ -1,8 +1,8 @@
 # WLJ CoS Architecture Audit Framework
 
-**Version:** 1.0
+**Version:** 1.1
 **Created:** 2026-03-11
-**Last updated:** 2026-03-11
+**Last updated:** 2026-03-11 (Stabilization Pass — added infrastructure sections)
 
 ---
 
@@ -222,6 +222,53 @@ Measure and track line counts for key files:
 ### Blueprint Engine Observability
 - Verify blueprint engine mutations have structured logging
 - Assess whether `system_execute_action()` gateway is needed
+
+### System Complexity Score (Added 2026-03-11)
+Automated complexity measurement via `apps/core/observability/complexity_metrics.py`.
+
+**Dimensions (5):**
+1. **File Size Complexity** (25%) — Key file line counts vs thresholds
+2. **Engine Proliferation** (20%) — Total engines, scheduled tasks, directory sprawl
+3. **Inter-Engine Coupling** (20%) — Cross-engine import dependencies
+4. **Method Complexity** (20%) — Function count in critical files
+5. **Configuration Scatter** (15%) — Threshold constants spread across files
+
+**Score:** 0-10 scale (lower is better)
+- 0-2: A (Excellent) — Complexity well-managed
+- 2-4: B (Good) — Manageable, some areas to simplify
+- 4-6: C (Acceptable) — Growing complexity, attention needed
+- 6-8: D (Concerning) — Significant refactoring needed
+- 8-10: F (Critical) — Complexity impeding development
+
+**To compute:** `from apps.core.observability.complexity_metrics import compute_complexity_score`
+
+### Central Engine Registry (Added 2026-03-11)
+All engines are now declared in `apps/core/engine_registry.py` with:
+- Engine code, name, phase, module path
+- Schedule interval (if ISE-scheduled)
+- Signal types produced
+- State mutation flag
+- Category (core, blueprint, observability, domain)
+
+**To validate:** `from apps.core.engine_registry import validate_registry`
+
+### Domain Events Infrastructure (Added 2026-03-11)
+Domain event bus at `apps/core/events/domain_events.py` enables real-time
+intelligence triggers without polling. Events are emitted when domain
+mutations occur and subscribed to by intelligence engines.
+
+### AI Threshold Configuration (Added 2026-03-11)
+DB-backed threshold configuration via `apps/core/ai_config.py`:
+- `AIThresholdConfig` model (singleton pattern)
+- Covers: confidence, capacity, delivery, fatigue, protective, cache thresholds
+- Accessible via `get_ai_config()` or `get_threshold(name, default)`
+
+### Message Orchestration (Added 2026-03-11)
+Centralized message coordination at `apps/core/cos/message_orchestrator.py`:
+- Per-channel delivery limits
+- Per-type cooldown enforcement
+- Priority-based message deduplication
+- Delivery budget tracking
 
 ---
 

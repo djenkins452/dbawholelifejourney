@@ -6,6 +6,37 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — System Stabilization & Architecture Improvement Pass
+
+- **Issue:** Inaugural audit scored 78.9/100 (C+) with complexity drift at 65/100 (D). personal_assistant.py was 8,007 lines, hard-coded thresholds scattered across 40+ files, no engine registry, no domain event system, no centralized message coordination.
+- **Changes (10 architectural improvements):**
+  1. **Central Engine Registry** (`apps/core/engine_registry.py`) — Declarative registry of all 45 engines with metadata: phase, module path, signal types, schedule intervals, mutation flags, categories. Queryable via `get_engine()`, `get_engines_by_phase()`, `validate_registry()`.
+  2. **Complexity Drift Metric** (`apps/core/observability/complexity_metrics.py`) — Automated 5-dimension complexity scorer (0-10 scale): file sizes, engine proliferation, coupling, method complexity, config scatter. Current score: 3.4/10 (B).
+  3. **System Prompt Extraction** — Created `prompts/system/` directory with markdown prompt files (`cos_operational_rules.md`, `faith_integration.md`). Prompt loader at `apps/core/cos/prompt_loader.py` with LRU caching.
+  4. **CoS Module Decomposition** — Created `apps/core/cos/` package with `prompt_builder.py` (system prompt assembly), `prompt_loader.py` (file loading), `message_orchestrator.py` (delivery coordination). Extracted 570 lines from personal_assistant.py (8,007 → 7,437).
+  5. **Domain Events Infrastructure** (`apps/core/events/domain_events.py`) — Lightweight event bus with `emit_event()` / `@subscribe()` API. Standard event types for health, journal, faith, purpose, tasks, CoS. Thread-safe, wildcard patterns, synchronous dispatch.
+  6. **Message Orchestrator** (`apps/core/cos/message_orchestrator.py`) — Per-channel delivery limits, per-type cooldown enforcement, priority-based deduplication, delivery budget tracking. Prevents message flooding from independent engines.
+  7. **AI Threshold Config** (`apps/core/ai_config.py`) — DB-backed singleton model (`AIThresholdConfig`) for confidence, capacity, delivery, fatigue, protective, and cache thresholds. Follows PressureWeightConfig singleton pattern. Accessible via `get_threshold()`.
+  8. **ops_views.py Cleanup** — Extracted 1,049 lines of telemetry helper functions to `apps/core/ai_observability/ops_telemetry.py` (2,025 → 1,002 lines).
+  9. **Governance Documentation** — Updated `COS_AUDIT_FRAMEWORK.md` v1.1 with new infrastructure sections: System Complexity Score, Central Engine Registry, Domain Events, AI Threshold Configuration, Message Orchestration.
+  10. **Migration** — `0110_add_ai_threshold_config` for new AIThresholdConfig model.
+- **Files created:**
+  - `apps/core/engine_registry.py` — Central engine registry (45 engines)
+  - `apps/core/observability/__init__.py` + `complexity_metrics.py` — Complexity scorer
+  - `apps/core/cos/__init__.py` + `prompt_builder.py` + `prompt_loader.py` + `message_orchestrator.py`
+  - `apps/core/events/__init__.py` + `domain_events.py` — Domain event bus
+  - `apps/core/ai_config.py` — AI threshold configuration model
+  - `apps/core/ai_observability/ops_telemetry.py` — Extracted telemetry helpers
+  - `prompts/system/cos_operational_rules.md` + `faith_integration.md`
+  - `apps/core/migrations/0110_add_ai_threshold_config.py`
+- **Files modified:**
+  - `apps/ai/personal_assistant.py` — Prompt extraction (8,007 → 7,437 lines)
+  - `apps/core/ai_observability/ops_views.py` — Telemetry extraction (2,025 → 1,002 lines)
+  - `apps/core/models.py` — Added AIThresholdConfig import
+  - `architecture_governance/COS_AUDIT_FRAMEWORK.md` — v1.1 with new sections
+- **Tests passed:** 71 (AI) + 278 (admin_console) + 10 (intent registration) = 359 tests
+- **Why:** Move system from 78.9/100 (C+) toward 95+ by addressing the top structural weaknesses identified in the inaugural audit, without breaking any existing functionality.
+
 ## 2026-03-11 — Architecture Governance Framework & Inaugural System Audit
 
 - **Issue:** No formal architecture governance process existed. No way to systematically assess system health, complexity drift, or architectural compliance across the 50+ engine, 266+ file CoS platform.

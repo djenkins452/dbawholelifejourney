@@ -1607,6 +1607,10 @@ the Medications page), honor the explicit domain.
                 if remaining_ttl > 0:
                     cache.set(cache_key, data, remaining_ttl)
                 return data
+            elif pending and pending.is_expired:
+                # Auto-cleanup: mark expired in DB so it can't resurrect
+                pending.status = 'expired'
+                pending.save(update_fields=['status'])
         except Exception as e:
             logger.error(
                 "[PENDING_ACTION] DB fallback read failed: %s",
@@ -1615,9 +1619,19 @@ the Medications page), honor the explicit domain.
         return None
 
     def clear_pending_crud_action(self, user):
-        """Clear any pending CRUD action for a user."""
+        """Clear any pending CRUD action from both cache and database."""
         cache_key = f"pending_crud_{user.id}"
         cache.delete(cache_key)
+        try:
+            from apps.core.ai_governance.models import PendingAction
+            PendingAction.objects.filter(
+                user=user, status='pending', action_type='crud',
+            ).update(status='cancelled')
+        except Exception as e:
+            logger.error(
+                "[PENDING_ACTION] DB clear failed for user %s: %s",
+                user.id, e, exc_info=True,
+            )
 
     # ── Disambiguation (multi-candidate selection) ────────────────
 
@@ -2047,7 +2061,8 @@ the Medications page), honor the explicit domain.
                 _record_and_resolve('confirm', 'confirmed')
                 logger.info(
                     "[CRUD_GATE] Confirmed: %s action_id=%s user=%s",
-                    pending['intent_type'], pending['action_id'], user.id,
+                    pending.get('intent_type', 'unknown'),
+                    pending.get('action_id', 'unknown'), user.id,
                 )
                 return result
             except Exception as e:
@@ -2068,7 +2083,8 @@ the Medications page), honor the explicit domain.
             _record_and_resolve('cancel', 'cancelled')
             logger.info(
                 "[CRUD_GATE] Cancelled: %s action_id=%s user=%s",
-                pending['intent_type'], pending['action_id'], user.id,
+                pending.get('intent_type', 'unknown'),
+                pending.get('action_id', 'unknown'), user.id,
             )
             return ActionResult(
                 success=True,
@@ -2081,7 +2097,8 @@ the Medications page), honor the explicit domain.
             _record_and_resolve('edit', 'edited')
             logger.info(
                 "[CRUD_GATE] Edit requested: %s action_id=%s user=%s",
-                pending['intent_type'], pending['action_id'], user.id,
+                pending.get('intent_type', 'unknown'),
+                pending.get('action_id', 'unknown'), user.id,
             )
             return ActionResult(
                 success=True,
@@ -2096,7 +2113,7 @@ the Medications page), honor the explicit domain.
         logger.info(
             "[CRUD_GATE] Escape: unrecognized response '%s' for %s user=%s — "
             "cancelling pending action and routing to AI",
-            response[:50], pending['intent_type'], user.id,
+            response[:50], pending.get('intent_type', 'unknown'), user.id,
         )
         return ActionResult(
             success=False,

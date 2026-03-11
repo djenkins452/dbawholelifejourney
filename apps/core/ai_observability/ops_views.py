@@ -307,6 +307,9 @@ class OpsStreamView(View):
         # COAS health scores (read stored snapshot, not live recompute)
         coas_health = _get_coas_health()
 
+        # AI Action Failure Rate metrics
+        aafr = _get_aafr_metrics()
+
         return JsonResponse({
             "server_time": now.isoformat(),
             "posture": posture,
@@ -321,6 +324,7 @@ class OpsStreamView(View):
             "learning_health": learning_health,
             "health_intelligence": health_intelligence,
             "coas_health": coas_health,
+            "aafr": aafr,
             "next_since": now.isoformat(),
         })
 
@@ -1375,6 +1379,74 @@ def _get_coas_health():
         }
     except Exception as e:
         logger.debug("OpsWall: COAS health unavailable: %s", e)
+        return None
+
+
+def _get_aafr_metrics():
+    """
+    Compute AI Action Failure Rate metrics for 5m, 1h, and 24h windows.
+
+    Returns success rate as the hero metric, with blocked and failed counts
+    surfaced separately so safety blocks don't inflate the failure signal.
+    Status is based on the 1h failure rate (excludes blocked).
+    """
+    try:
+        from django.db.models import Count, Q
+        from apps.core.ai_observability.models import AIActionMetric
+
+        now = timezone.now()
+        windows = {
+            "5m": now - timedelta(minutes=5),
+            "1h": now - timedelta(hours=1),
+            "24h": now - timedelta(hours=24),
+        }
+
+        result = {}
+        for label, cutoff in windows.items():
+            qs = AIActionMetric.objects.filter(created_at__gte=cutoff)
+            total = qs.count()
+            success_count = qs.filter(outcome="success").count()
+            blocked_count = qs.filter(outcome="blocked").count()
+            failed_count = qs.filter(outcome="failure").count()
+            success_rate = (success_count / total * 100) if total > 0 else 100.0
+            failure_rate = (failed_count / total * 100) if total > 0 else 0.0
+            result[label] = {
+                "total": total,
+                "success": success_count,
+                "blocked": blocked_count,
+                "failed": failed_count,
+                "success_rate": round(success_rate, 1),
+                "failure_rate": round(failure_rate, 2),
+            }
+
+        # Top failure categories (24h, failures only)
+        categories = list(
+            AIActionMetric.objects.filter(
+                created_at__gte=windows["24h"],
+                outcome="failure",
+            )
+            .values("error_category")
+            .annotate(count=Count("id"))
+            .order_by("-count")[:5]
+        )
+        result["top_errors"] = [
+            {"category": c["error_category"] or "unknown", "count": c["count"]}
+            for c in categories
+        ]
+
+        # Status based on 1h failure rate (excludes blocked)
+        failure_rate_1h = result["1h"]["failure_rate"]
+        if failure_rate_1h >= 3.0:
+            result["status"] = "CRITICAL"
+        elif failure_rate_1h >= 1.0:
+            result["status"] = "WARNING"
+        else:
+            result["status"] = "HEALTHY"
+
+        return result
+
+    except Exception as e:
+        logger.debug("OpsWall: AAFR metrics unavailable: %s", e)
         return None
 
 

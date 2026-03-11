@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-11 (Personal Operating Context Phase 2 — confidence gates, drift detection, language scaling)
+**Last updated:** 2026-03-11 (AAFR — AI Action Failure Rate telemetry on Operations Wall)
 
 ---
 
@@ -89,6 +89,7 @@ Phase 1 (Interpretation)        Phase 2 (Execution)          Phase 3 (Post-Execu
 | **IOCD** Observability | `apps/core/ai_observability/observability_engine.py` | `generate_daily_snapshot()` | ISE 24h | Daily | All engine metrics | `IntelligenceMetricsSnapshot` |
 | **SAME** Monitoring | `apps/core/ai_observability/same_engine.py` | `run_same()` | Celery Beat 60s | Every 60s | Engine heartbeats | `OpsAnomaly`, `OpsNarrativeSnapshot` |
 | **Maturity** Engine | `apps/core/ai_observability/maturity_engine.py` | `compute_all_maturity_scores()` | On-demand + daily snapshot | Daily | All engines + registry | `SystemMaturitySnapshot` |
+| **AAFR** Telemetry | `apps/core/ai_orchestrator/execution_engine.py` | `_record_aafr()` | Every `execute_action()` call | Real-time | AI mutation outcomes | `AIActionMetric` |
 
 ### Blueprint & Governance Engines
 
@@ -758,6 +759,8 @@ When the user asks a health intelligence question with a brevity keyword ("keep 
 | `apps/core/engine_runtime.py` | Engine telemetry wrapper (EngineRun records) |
 | `apps/core/ai_observability/same_engine.py` | SAME — monitoring |
 | `apps/core/ai_observability/maturity_engine.py` | Maturity scoring (6 dimensions + snapshots + recommendations) |
+| `apps/core/ai_observability/ops_views.py` | Operations Wall data (OpsStreamView JSON endpoint, AAFR aggregation) |
+| `apps/core/ai_observability/models.py` | Observability models (AIActionMetric, EngineRun, SystemMaturitySnapshot, etc.) |
 | `apps/core/ai_delivery/delivery_engine.py` | DNE — notification delivery |
 | `apps/core/domain_registry/registry.py` | Domain Capability Registry (autodiscover, coverage) |
 | `apps/core/domain_registry/descriptors.py` | DomainCapability descriptor dataclass |

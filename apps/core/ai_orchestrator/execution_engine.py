@@ -12,10 +12,28 @@ this function.
 """
 
 import logging
+import time as _time
 
 from apps.core.ai_orchestrator.safety_engine import validate_action
 
 logger = logging.getLogger(__name__)
+
+
+def _record_aafr(user, intent_type, outcome, error_category="", start_time=None):
+    """Record an AI action metric (AAFR). Never raises — telemetry must not block execution."""
+    try:
+        from apps.core.ai_observability.models import AIActionMetric
+
+        duration_ms = int((_time.monotonic() - start_time) * 1000) if start_time else 0
+        AIActionMetric.objects.create(
+            intent_type=intent_type or "unknown",
+            outcome=outcome,
+            error_category=error_category or "",
+            duration_ms=duration_ms,
+            user_id=user.id if user else None,
+        )
+    except Exception as e:
+        logger.debug("AAFR recording failed (non-blocking): %s", e)
 
 
 def execute_action(user, enriched_action):
@@ -42,6 +60,8 @@ def execute_action(user, enriched_action):
     """
     from apps.ai.intent_service import IntentResult, intent_service
 
+    _aafr_start = _time.monotonic()
+
     # Step 0: Learning Mode gate — block domain execution
     # Control-plane intents (enter/exit learning mode) always bypass this gate.
     LEARNING_MODE_CONTROL_INTENTS = {'enter_learning_mode', 'exit_learning_mode'}
@@ -54,6 +74,7 @@ def execute_action(user, enriched_action):
                 "UAIO execution blocked (Learning Mode active): %s for user %s",
                 enriched_action.intent_type, user.id,
             )
+            _record_aafr(user, enriched_action.intent_type, 'blocked', 'learning_mode_active', _aafr_start)
             return ActionResult(
                 success=False,
                 message=(
@@ -72,6 +93,7 @@ def execute_action(user, enriched_action):
             "(blocking execution for safety): %s", e, exc_info=True,
         )
         from apps.ai.intent_service import ActionResult
+        _record_aafr(user, enriched_action.intent_type, 'failure', 'learning_mode_check_failed', _aafr_start)
         return ActionResult(
             success=False,
             message="Unable to verify safety state. Please try again.",
@@ -88,6 +110,7 @@ def execute_action(user, enriched_action):
         )
         from apps.ai.intent_service import ActionResult
 
+        _record_aafr(user, enriched_action.intent_type, 'blocked', 'safety_blocked', _aafr_start)
         return ActionResult(
             success=False,
             message=safety_result.user_message,
@@ -118,6 +141,7 @@ def execute_action(user, enriched_action):
         )
         from apps.ai.intent_service import ActionResult
 
+        _record_aafr(user, enriched_action.intent_type, 'failure', 'internal_error', _aafr_start)
         return ActionResult(
             success=False,
             message="Sorry, I couldn't complete that action.",
@@ -136,6 +160,15 @@ def execute_action(user, enriched_action):
     # Step 5: Intelligence chain (only on successful execution)
     if result and result.success:
         _run_intelligence_chain(user, enriched_action, result)
+
+    # AAFR telemetry — record final outcome
+    if result:
+        _record_aafr(
+            user, enriched_action.intent_type,
+            'success' if result.success else 'failure',
+            result.error or "" if not result.success else "",
+            _aafr_start,
+        )
 
     return result
 

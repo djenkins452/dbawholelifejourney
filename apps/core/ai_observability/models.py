@@ -1296,3 +1296,68 @@ class SystemMaturitySnapshot(models.Model):
 
     def __str__(self):
         return f"Maturity {self.snapshot_date}: {self.overall_score}/100"
+
+
+class AIActionMetric(models.Model):
+    """
+    Per-attempt telemetry for AI-initiated mutations (AAFR).
+
+    One row per execute_action() call. Lightweight with indexed columns
+    for time-window aggregation. Used by the AI Action Success Rate tile
+    on the Operations Wall.
+
+    Outcomes:
+      success — mutation completed normally
+      blocked — prevented by safety gate (learning mode, safety engine)
+      failure — attempted but errored (handler crash, internal error)
+    """
+
+    OUTCOME_CHOICES = [
+        ("success", "Success"),
+        ("blocked", "Blocked"),
+        ("failure", "Failure"),
+    ]
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_ai_action_metric"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["-created_at"],
+                name="idx_aafr_time",
+            ),
+            models.Index(
+                fields=["outcome", "-created_at"],
+                name="idx_aafr_outcome_time",
+            ),
+        ]
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    intent_type = models.CharField(
+        max_length=100,
+        help_text="Intent type attempted (e.g. create_task, log_weight).",
+    )
+    outcome = models.CharField(
+        max_length=10,
+        choices=OUTCOME_CHOICES,
+        help_text="Action outcome: success, blocked, or failure.",
+    )
+    error_category = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="Failure/block category (e.g. safety_blocked, internal_error).",
+    )
+    duration_ms = models.IntegerField(
+        default=0,
+        help_text="Total execution time in milliseconds.",
+    )
+    user_id = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="User ID (no FK to avoid joins on hot path).",
+    )
+
+    def __str__(self):
+        return f"{self.intent_type} [{self.outcome}] {self.duration_ms}ms"

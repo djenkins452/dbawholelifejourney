@@ -227,10 +227,29 @@ class UserOperatingProfile(models.Model):
     """
 
     # Current profile schema version — increment when profile_data structure changes
-    SCHEMA_VERSION = 1
+    SCHEMA_VERSION = 2
 
     # Minimum days of data for the profile to be considered reliable
     MIN_CONFIDENCE_DAYS = 14
+
+    # ── Per-dimension confidence gates for injection ──
+    # Each dimension must meet its own threshold to be injected into the
+    # CoS prompt. Stored here (not in cos_context.py) so they're centrally
+    # tunable. Higher thresholds for dimensions that make specific claims
+    # (timing, deferral rates), lower for broader signals (momentum).
+    CONFIDENCE_GATES = {
+        'productive_windows': 0.60,
+        'deferral_patterns': 0.60,
+        'momentum_phase': 0.40,
+    }
+
+    # ── Drift detection thresholds ──
+    # Minimum change between consecutive profiles to flag as behavioral shift.
+    DRIFT_THRESHOLDS = {
+        'peak_hours_shift': 2,      # hours — median peak moved by 2+ hours
+        'deferral_rate_shift': 0.15, # 15 percentage points
+        'momentum_phase_change': True,  # any phase transition is a drift signal
+    }
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -241,7 +260,16 @@ class UserOperatingProfile(models.Model):
         default=dict,
         help_text=(
             "Structured behavioral synthesis keyed by dimension. "
-            "Phase 1 dimensions: productive_windows, deferral_patterns, momentum_phase."
+            "Phase 1 dimensions: productive_windows, deferral_patterns, momentum_phase. "
+            "Also contains 'behavior_drift' metadata when shifts are detected."
+        ),
+    )
+    previous_profile_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Snapshot of the prior profile_data before recomputation. "
+            "Used for drift detection — comparing old vs new profiles."
         ),
     )
     sample_days = models.IntegerField(
@@ -270,16 +298,29 @@ class UserOperatingProfile(models.Model):
 
     def __str__(self):
         phase = self.get_dimension("momentum_phase", {}).get("current_phase", "unknown")
+        drift = " [DRIFT]" if self.has_drift else ""
         return (
             f"Operating Profile for {self.user} — "
-            f"sample_days={self.sample_days}, phase={phase}"
+            f"sample_days={self.sample_days}, phase={phase}{drift}"
         )
 
     def get_dimension(self, dimension, default=None):
         """Get a specific behavioral dimension from profile_data."""
         return self.profile_data.get(dimension, default or {})
 
+    def dimension_meets_gate(self, dimension):
+        """Check if a dimension's confidence meets its injection threshold."""
+        gate = self.CONFIDENCE_GATES.get(dimension, 0.60)
+        dim_data = self.get_dimension(dimension)
+        return dim_data.get('confidence', 0) >= gate
+
     @property
     def is_reliable(self):
         """Whether this profile has enough data to be useful."""
         return self.sample_days >= self.MIN_CONFIDENCE_DAYS
+
+    @property
+    def has_drift(self):
+        """Whether a behavioral shift was detected in the last computation."""
+        drift = self.profile_data.get('behavior_drift', {})
+        return drift.get('detected', False)

@@ -56,6 +56,84 @@ from .assistant_intelligence import (
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# DEDUP CACHE — Batch-loads today's proactive messages in 1 query
+# =============================================================================
+
+class _ProactiveDedupCache:
+    """
+    In-memory cache of today's proactive messages for a single user.
+
+    Eliminates 20-30 per-generator AssistantMessage dedup queries by loading
+    all proactive metadata once and checking in memory.
+
+    Usage:
+        cache = _ProactiveDedupCache(user, today)
+        if cache.already_sent('medicine_group', time_of_day='morning'):
+            return  # skip
+    """
+
+    def __init__(self, user, today):
+        self.user = user
+        self.today = today
+        self._entries = None  # Lazy load
+
+    def _load(self):
+        """Batch-load all proactive message metadata for today (single query)."""
+        if self._entries is not None:
+            return
+        raw = AssistantMessage.objects.filter(
+            conversation__user=self.user,
+            is_proactive=True,
+            created_at__date=self.today,
+        ).values_list('metadata', flat=True)
+        self._entries = [m for m in raw if m]
+
+    def already_sent(self, check_in_type, **extra_filters):
+        """
+        Check if a proactive message of this type was already sent today.
+
+        Args:
+            check_in_type: The metadata.check_in_type value.
+            **extra_filters: Additional metadata keys to match
+                (e.g., time_of_day='morning', plan_id=5).
+
+        Returns:
+            bool — True if a matching message already exists.
+        """
+        self._load()
+        for meta in self._entries:
+            if meta.get('check_in_type') != check_in_type:
+                continue
+            if extra_filters:
+                if all(meta.get(k) == v for k, v in extra_filters.items()):
+                    return True
+            else:
+                return True
+        return False
+
+
+# Thread-local holder so generators can access the cache without parameter changes.
+# Set by run_proactive_guidance_scheduler() before dispatching, cleared after.
+import threading
+_dedup_local = threading.local()
+
+
+def _get_dedup_cache(user):
+    """
+    Get the current dedup cache for this user, or create a per-call one.
+
+    When called from PGS runner, returns the pre-loaded batch cache.
+    When called standalone (e.g., tests), creates a new cache on demand.
+    """
+    cache = getattr(_dedup_local, 'cache', None)
+    if cache is not None and cache.user == user:
+        return cache
+    # Fallback: create a new cache (still better than N queries if reused)
+    from apps.core.utils import get_user_today
+    return _ProactiveDedupCache(user, get_user_today(user))
+
+
 class ProactiveCheckInService:
     """
     Service for generating proactive check-in messages.
@@ -1028,8 +1106,21 @@ def generate_medicine_check_ins_for_user(user, dose_time: str = None):
     user_now = get_user_now(user)
     current_time = user_now.time()
 
-    # Get active medicines
-    medicines = Medicine.objects.filter(user=user, medicine_status='active')
+    # Get active medicines with prefetch_related to avoid N+1 on schedules
+    medicines = Medicine.objects.filter(
+        user=user, medicine_status='active',
+    ).prefetch_related('medicineschedule_set')
+
+    # Batch-load today's logs in a single query (eliminates N+1 per schedule)
+    medicine_ids = [m.id for m in medicines]
+    logged_keys = set()
+    if medicine_ids:
+        logs = MedicineLog.objects.filter(
+            medicine_id__in=medicine_ids,
+            scheduled_date=today,
+            log_status__in=['taken', 'skipped'],
+        ).values_list('medicine_id', 'scheduled_time')
+        logged_keys = {(mid, st) for mid, st in logs}
 
     # Collect un-logged medicines grouped by time_of_day
     # Key: time_of_day (e.g., "morning") → list of (medicine, schedule) tuples
@@ -1038,7 +1129,8 @@ def generate_medicine_check_ins_for_user(user, dose_time: str = None):
     group_due_times = {}
 
     for medicine in medicines:
-        schedules = MedicineSchedule.objects.filter(medicine=medicine, is_active=True)
+        # Use prefetched schedules (no additional query)
+        schedules = [s for s in medicine.medicineschedule_set.all() if s.is_active]
 
         for schedule in schedules:
             if not schedule.applies_to_day(today.weekday()):
@@ -1050,14 +1142,8 @@ def generate_medicine_check_ins_for_user(user, dose_time: str = None):
             if current_time < scheduled_time:
                 continue
 
-            # Check if already logged
-            log = MedicineLog.objects.filter(
-                medicine=medicine,
-                scheduled_date=today,
-                scheduled_time=scheduled_time,
-            ).first()
-
-            if log and log.log_status in ['taken', 'skipped']:
+            # Check if already logged (in-memory from batch query)
+            if (medicine.id, scheduled_time) in logged_keys:
                 continue
 
             # Group by time_of_day (morning, evening, etc.)
@@ -1068,21 +1154,32 @@ def generate_medicine_check_ins_for_user(user, dose_time: str = None):
             if group_key not in group_due_times or scheduled_time > group_due_times[group_key]:
                 group_due_times[group_key] = scheduled_time
 
+    # Dedup cache: batch-loaded today's proactive messages
+    dedup = _get_dedup_cache(user)
+
     # Generate ONE grouped check-in per time_of_day group
     for group_key, med_schedules in pending_by_group.items():
         if not med_schedules:
             continue
 
         # Check if we already sent a grouped check-in for this group today
-        recent_group_checkin = AssistantMessage.objects.filter(
-            conversation__user=user,
-            is_proactive=True,
-            metadata__check_in_type='medicine_group',
-            metadata__time_of_day=group_key,
-            created_at__date=today,
-        ).exists()
+        if dedup.already_sent('medicine_group', time_of_day=group_key):
+            continue
 
-        if recent_group_checkin:
+        # Freshness check: re-verify at least one medicine is still untaken
+        # (user may have logged since PGS started this cycle)
+        still_pending = False
+        for med, sched in med_schedules:
+            fresh_log = MedicineLog.objects.filter(
+                medicine=med,
+                scheduled_date=today,
+                scheduled_time=sched.scheduled_time,
+                log_status__in=['taken', 'skipped'],
+            ).exists()
+            if not fresh_log:
+                still_pending = True
+                break
+        if not still_pending:
             continue
 
         # Build the grouped message
@@ -1146,15 +1243,9 @@ def generate_daily_check_ins_for_user(user, check_type: str):
     service = get_proactive_service(user)
     today = get_user_today(user)
 
-    # Check if we already sent this type of check-in today
-    recent_checkin = AssistantMessage.objects.filter(
-        conversation__user=user,
-        is_proactive=True,
-        metadata__check_in_type=check_type,
-        created_at__date=today,
-    ).exists()
-
-    if recent_checkin:
+    # Check if we already sent this type of check-in today (batch dedup)
+    dedup = _get_dedup_cache(user)
+    if dedup.already_sent(check_type):
         return
 
     if check_type == 'workout':
@@ -1179,7 +1270,7 @@ def generate_overdue_task_check_ins_for_user(user):
     service = get_proactive_service(user)
     today = get_user_today(user)
 
-    # Get the most overdue incomplete task
+    # Get the most overdue incomplete task (freshness: query at point of use)
     overdue_task = Task.objects.filter(
         user=user,
         due_date__lt=today,
@@ -1188,7 +1279,10 @@ def generate_overdue_task_check_ins_for_user(user):
     ).order_by('due_date').first()
 
     if overdue_task:
-        service.generate_overdue_task_check_in(overdue_task)
+        # Freshness re-check: task may have been completed since query
+        overdue_task.refresh_from_db(fields=['completion_status', 'deleted_at'])
+        if overdue_task.completion_status == 'pending' and overdue_task.deleted_at is None:
+            service.generate_overdue_task_check_in(overdue_task)
 
 
 def generate_nn_skip_check_ins_for_user(user):
@@ -1312,17 +1406,9 @@ def generate_birthday_check_ins_for_user(user):
         event_date__day=today.day,
     )
 
+    dedup = _get_dedup_cache(user)
     for event in events:
-        # Check if we already sent a greeting today
-        recent = AssistantMessage.objects.filter(
-            conversation__user=user,
-            is_proactive=True,
-            metadata__check_in_type='birthday',
-            metadata__event_id=event.id,
-            created_at__date=today,
-        ).exists()
-
-        if not recent:
+        if not dedup.already_sent('birthday', event_id=event.id):
             service.generate_birthday_greeting(event)
 
 
@@ -1356,6 +1442,7 @@ def generate_faith_check_ins_for_user(user):
             user=user, plan_status='active',
         )
 
+        dedup = _get_dedup_cache(user)
         for plan in active_plans:
             # Check if today's reading is done
             today_done = UserReadingProgress.objects.filter(
@@ -1365,16 +1452,7 @@ def generate_faith_check_ins_for_user(user):
             ).exists()
 
             if not today_done:
-                # Check if we already sent this today
-                recent = AssistantMessage.objects.filter(
-                    conversation__user=user,
-                    is_proactive=True,
-                    metadata__check_in_type='faith_reading',
-                    metadata__plan_id=plan.id,
-                    created_at__date=today,
-                ).exists()
-
-                if not recent:
+                if not dedup.already_sent('faith_reading', plan_id=plan.id):
                     service.generate_faith_reading_check_in(plan)
                     break  # Only one reading plan nudge per run
 
@@ -1395,14 +1473,8 @@ def generate_faith_check_ins_for_user(user):
         ).count()
 
         if daily_prayers > 0:
-            recent = AssistantMessage.objects.filter(
-                conversation__user=user,
-                is_proactive=True,
-                metadata__check_in_type='faith_prayer',
-                created_at__date=today,
-            ).exists()
-
-            if not recent:
+            dedup = _get_dedup_cache(user)
+            if not dedup.already_sent('faith_prayer'):
                 service.generate_faith_prayer_check_in(daily_prayers)
 
     except ImportError:
@@ -1449,15 +1521,8 @@ def generate_finance_check_ins_for_user(user):
             percent_used = int((spent / budget.total_budget) * 100)
 
             if percent_used >= 80:
-                recent = AssistantMessage.objects.filter(
-                    conversation__user=user,
-                    is_proactive=True,
-                    metadata__check_in_type='finance_budget',
-                    metadata__budget_id=budget.id,
-                    created_at__date=today,
-                ).exists()
-
-                if not recent:
+                dedup = _get_dedup_cache(user)
+                if not dedup.already_sent('finance_budget', budget_id=budget.id):
                     service.generate_finance_budget_check_in(
                         budget, percent_used, days_left,
                     )
@@ -1480,15 +1545,8 @@ def generate_finance_check_ins_for_user(user):
             days_since_update = (today - goal.updated_at.date()).days if goal.updated_at else 999
 
             if days_since_update > 14:
-                recent = AssistantMessage.objects.filter(
-                    conversation__user=user,
-                    is_proactive=True,
-                    metadata__check_in_type='finance_goal',
-                    metadata__goal_id=goal.id,
-                    created_at__date=today,
-                ).exists()
-
-                if not recent:
+                dedup = _get_dedup_cache(user)
+                if not dedup.already_sent('finance_goal', goal_id=goal.id):
                     service.generate_finance_goal_check_in(
                         goal, stalling_days=days_since_update,
                     )
@@ -1521,16 +1579,9 @@ def generate_relationship_check_ins_for_user(user):
 
         alerts = detect_relational_drift(user)
 
+        dedup = _get_dedup_cache(user)
         for alert in alerts[:2]:  # Max 2 per run
-            recent = AssistantMessage.objects.filter(
-                conversation__user=user,
-                is_proactive=True,
-                metadata__check_in_type='relationship_drift',
-                metadata__person_id=alert['person_id'],
-                created_at__date=today,
-            ).exists()
-
-            if not recent:
+            if not dedup.already_sent('relationship_drift', person_id=alert['person_id']):
                 service.generate_relationship_drift_check_in(alert)
 
     except ImportError:
@@ -1556,6 +1607,7 @@ def generate_goal_check_ins_for_user(user):
 
     service = get_proactive_service(user)
     today = get_user_today(user)
+    dedup = _get_dedup_cache(user)
 
     # 1. Goal deadlines
     try:
@@ -1572,16 +1624,7 @@ def generate_goal_check_ins_for_user(user):
 
         for goal in goals_near_deadline[:2]:
             days_until = (goal.target_date - today).days
-
-            recent = AssistantMessage.objects.filter(
-                conversation__user=user,
-                is_proactive=True,
-                metadata__check_in_type='goal_deadline',
-                metadata__goal_id=goal.id,
-                created_at__date=today,
-            ).exists()
-
-            if not recent:
+            if not dedup.already_sent('goal_deadline', goal_id=goal.id):
                 service.generate_goal_deadline_check_in(goal, days_until)
 
     except ImportError:
@@ -1589,37 +1632,37 @@ def generate_goal_check_ins_for_user(user):
     except Exception as e:
         logger.warning("Goal deadline check-in error: %s", e, exc_info=True)
 
-    # 2. Goal stalling
+    # 2. Goal stalling — batch milestone lookup (eliminates N+1)
     try:
         from apps.purpose.models import LifeGoal, GoalMilestone
+        from django.db.models import Max
 
-        active_goals = LifeGoal.objects.filter(
+        active_goals = list(LifeGoal.objects.filter(
             user=user, status='active',
-        )
+        ))
 
-        for goal in active_goals:
-            # Check last milestone update
-            last_milestone = GoalMilestone.objects.filter(
-                goal=goal,
-            ).order_by('-updated_at').first()
+        if active_goals:
+            # Single query: latest milestone date per goal
+            goal_ids = [g.id for g in active_goals]
+            latest_milestones = dict(
+                GoalMilestone.objects.filter(
+                    goal_id__in=goal_ids,
+                ).values('goal_id').annotate(
+                    latest=Max('updated_at'),
+                ).values_list('goal_id', 'latest')
+            )
 
-            if last_milestone:
-                days_stalled = (today - last_milestone.updated_at.date()).days
-            else:
-                days_stalled = (today - goal.created_at.date()).days if goal.created_at else 0
+            for goal in active_goals:
+                last_update = latest_milestones.get(goal.id)
+                if last_update:
+                    days_stalled = (today - last_update.date()).days
+                else:
+                    days_stalled = (today - goal.created_at.date()).days if goal.created_at else 0
 
-            if days_stalled > 30:
-                recent = AssistantMessage.objects.filter(
-                    conversation__user=user,
-                    is_proactive=True,
-                    metadata__check_in_type='goal_stalling',
-                    metadata__goal_id=goal.id,
-                    created_at__date=today,
-                ).exists()
-
-                if not recent:
-                    service.generate_goal_stalling_check_in(goal, days_stalled)
-                    break  # Only one per run
+                if days_stalled > 30:
+                    if not dedup.already_sent('goal_stalling', goal_id=goal.id):
+                        service.generate_goal_stalling_check_in(goal, days_stalled)
+                        break  # Only one per run
 
     except ImportError:
         pass
@@ -1639,12 +1682,10 @@ def generate_goal_check_ins_for_user(user):
             try:
                 streak = get_current_streak(habit)
             except Exception:
-                # If no streak util exists, try a simple completion check
                 continue
 
             if streak == 0:
                 # Check if there was a streak that just broke
-                # (had completions in recent days but not yesterday/today)
                 from apps.purpose.models import HabitEntry
                 recent_completions = HabitEntry.objects.filter(
                     goal=habit,
@@ -1654,30 +1695,13 @@ def generate_goal_check_ins_for_user(user):
                 ).count()
 
                 if recent_completions >= 3:
-                    recent = AssistantMessage.objects.filter(
-                        conversation__user=user,
-                        is_proactive=True,
-                        metadata__check_in_type='habit_streak',
-                        metadata__habit_id=habit.id,
-                        created_at__date=today,
-                    ).exists()
-
-                    if not recent:
+                    if not dedup.already_sent('habit_streak', habit_id=habit.id):
                         service.generate_habit_streak_check_in(
                             habit, streak=recent_completions, is_break=True,
                         )
 
             elif streak in (7, 14, 21, 30, 60, 90):
-                # Milestone acknowledgment
-                recent = AssistantMessage.objects.filter(
-                    conversation__user=user,
-                    is_proactive=True,
-                    metadata__check_in_type='habit_streak',
-                    metadata__habit_id=habit.id,
-                    created_at__date=today,
-                ).exists()
-
-                if not recent:
+                if not dedup.already_sent('habit_streak', habit_id=habit.id):
                     service.generate_habit_streak_check_in(
                         habit, streak=streak, is_break=False,
                     )
@@ -1706,6 +1730,7 @@ def generate_journal_intelligence_check_ins_for_user(user):
 
     service = get_proactive_service(user)
     today = get_user_today(user)
+    dedup = _get_dedup_cache(user)
 
     # 1. Recurring concerns
     try:
@@ -1715,14 +1740,7 @@ def generate_journal_intelligence_check_ins_for_user(user):
 
         if concerns:
             top_concern = concerns[0]
-            recent = AssistantMessage.objects.filter(
-                conversation__user=user,
-                is_proactive=True,
-                metadata__check_in_type='journal_concern',
-                created_at__date=today,
-            ).exists()
-
-            if not recent:
+            if not dedup.already_sent('journal_concern'):
                 service.generate_journal_concern_check_in(
                     concern=top_concern['term'],
                     entry_count=top_concern['entries'],
@@ -1745,14 +1763,7 @@ def generate_journal_intelligence_check_ins_for_user(user):
             days_since = (today - last_entry.entry_date).days
 
             if days_since >= 3:
-                recent = AssistantMessage.objects.filter(
-                    conversation__user=user,
-                    is_proactive=True,
-                    metadata__check_in_type='journal_gap',
-                    created_at__date=today,
-                ).exists()
-
-                if not recent:
+                if not dedup.already_sent('journal_gap'):
                     service.generate_journal_gap_check_in(days_since)
 
     except ImportError:
@@ -1787,17 +1798,9 @@ def generate_cdce_correlation_check_ins_for_user(user):
             strength__in=['strong', 'moderate'],
         ).order_by('-strength_score')[:5]
 
+        dedup = _get_dedup_cache(user)
         for corr in correlations:
-            # Skip if already sent today for this correlation type
-            recent = AssistantMessage.objects.filter(
-                conversation__user=user,
-                is_proactive=True,
-                metadata__check_in_type='cdce_correlation',
-                metadata__correlation_type=corr.correlation_type,
-                created_at__date=today,
-            ).exists()
-
-            if not recent:
+            if not dedup.already_sent('cdce_correlation', correlation_type=corr.correlation_type):
                 service.generate_cdce_correlation_check_in(
                     correlation_type=corr.correlation_type,
                     narrative=corr.narrative,
@@ -1872,14 +1875,9 @@ def generate_midday_alignment_for_user(user):
     today = get_user_today(user)
     user_now = get_user_now(user)
 
-    # Dedup: already sent today?
-    recent = AssistantMessage.objects.filter(
-        conversation__user=user,
-        is_proactive=True,
-        metadata__check_in_type='midday_alignment',
-        created_at__date=today,
-    ).exists()
-    if recent:
+    # Dedup: already sent today? (batch cache)
+    dedup = _get_dedup_cache(user)
+    if dedup.already_sent('midday_alignment'):
         return
 
     # Count today's tasks
@@ -1943,14 +1941,9 @@ def generate_afternoon_momentum_for_user(user):
 
     today = get_user_today(user)
 
-    # Dedup
-    recent = AssistantMessage.objects.filter(
-        conversation__user=user,
-        is_proactive=True,
-        metadata__check_in_type='afternoon_momentum',
-        created_at__date=today,
-    ).exists()
-    if recent:
+    # Dedup (batch cache)
+    dedup = _get_dedup_cache(user)
+    if dedup.already_sent('afternoon_momentum'):
         return
 
     # Non-negotiable tasks still pending
@@ -2003,14 +1996,9 @@ def generate_evening_wrap_for_user(user):
     today = get_user_today(user)
     tomorrow = today + timedelta(days=1)
 
-    # Dedup
-    recent = AssistantMessage.objects.filter(
-        conversation__user=user,
-        is_proactive=True,
-        metadata__check_in_type='evening_wrap',
-        created_at__date=today,
-    ).exists()
-    if recent:
+    # Dedup (batch cache)
+    dedup = _get_dedup_cache(user)
+    if dedup.already_sent('evening_wrap'):
         return
 
     completed_today = Task.objects.filter(
@@ -2155,13 +2143,14 @@ def run_proactive_guidance_scheduler():
         dict — metrics for EngineRun telemetry.
     """
     from apps.core.ai_observability.trace import trace_context
-    from apps.core.utils import get_user_now
+    from apps.core.utils import get_user_now, get_user_today
 
     with trace_context(source="scheduler"):
         users = _get_proactive_users()
         users_processed = 0
         check_ins_attempted = 0
         errors = 0
+        dedup_queries_saved = 0
 
         for user in users:
             try:
@@ -2174,9 +2163,19 @@ def run_proactive_guidance_scheduler():
                     continue
 
                 prefs = user.preferences
-                attempted = _dispatch_for_window(user, prefs, hour, is_weekend)
-                check_ins_attempted += attempted
-                users_processed += 1
+
+                # Pre-load dedup cache: 1 query replaces 20-30 per-generator queries
+                today = get_user_today(user)
+                user_dedup = _ProactiveDedupCache(user, today)
+                user_dedup._load()  # Force immediate load
+                _dedup_local.cache = user_dedup
+
+                try:
+                    attempted = _dispatch_for_window(user, prefs, hour, is_weekend)
+                    check_ins_attempted += attempted
+                    users_processed += 1
+                finally:
+                    _dedup_local.cache = None  # Clean up thread-local
 
             except Exception as e:
                 errors += 1

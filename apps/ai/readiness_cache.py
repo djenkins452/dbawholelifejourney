@@ -46,9 +46,12 @@ READINESS_KEY_PREFIX = "cos_ready:v1"
 ACTIVE_USERS_KEY = "cos_active_users:v1"
 
 # TTL constants (seconds)
-CONTEXT_CACHE_TTL = 45       # CoS context cache lifetime (flat/dynamic)
+# Extended from 45s→90s: profiling showed slow typists consistently missed the
+# 45s window, causing full rebuilds. Event-based invalidation (see
+# invalidate_cos_context_on_action) handles freshness instead of tight TTL.
+CONTEXT_CACHE_TTL = 90       # CoS context cache lifetime (flat/dynamic)
 STABLE_CACHE_TTL = 300       # 5 minutes — slowly-changing context components
-DYNAMIC_CACHE_TTL = 45       # 45 seconds — fast-changing components
+DYNAMIC_CACHE_TTL = 90       # 90 seconds — fast-changing components
 READINESS_STATE_TTL = 120    # Readiness state tracking
 ACTIVE_USER_TTL = 300        # 5 minutes — users considered "active"
 
@@ -336,3 +339,23 @@ def warm_openai_client():
     except Exception:
         logger.debug("CoS readiness cache: OpenAI client warm-up failed")
         return False
+
+
+def invalidate_cos_context_on_action(user):
+    """
+    Invalidate CoS context cache when user takes an action that changes state.
+
+    Call this after: task completion, medicine logging, weight entry, journal
+    save, calendar event changes, or any CRUD action that affects guidance.
+    With the TTL extended from 45s→90s, event-based invalidation ensures
+    freshness without relying solely on short TTL windows.
+
+    This is intentionally lightweight — just 3 Redis DELETEs (O(1) each).
+    """
+    try:
+        invalidate_cos_context(user)
+        logger.debug(
+            "CoS readiness cache: invalidated on action for user %s", user.id,
+        )
+    except Exception:
+        pass  # Best-effort — never block user actions

@@ -6,6 +6,30 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — Performance, Accuracy & Stability Hardening Pass
+
+- **Issue:** Profiling revealed PGS generating 80-120 DB queries per user per 15-min cycle due to N+1 patterns and per-generator dedup queries. Also, no freshness validation before proactive delivery, and CoS cache TTL too aggressive (45s) causing unnecessary rebuilds.
+- **Changes:**
+  1. **Batch dedup cache (`_ProactiveDedupCache`)** — Single query loads all today's proactive messages per user. All 12 generators now check dedup in-memory instead of individual DB queries. Reduces ~20-30 dedup queries/user/cycle → 1.
+  2. **Medicine N+1 fix** — `prefetch_related('medicineschedule_set')` + batch `MedicineLog` query. Reduces `medicines × schedules` individual queries → 2 queries total.
+  3. **Goal milestone N+1 fix** — Single `GoalMilestone.objects.filter(...).annotate(Max('updated_at'))` replaces per-goal milestone queries. Reduces N+1 → 1 query.
+  4. **Freshness validation** — Overdue task generator now calls `refresh_from_db()` before delivery. Medicine generator re-verifies at least one medicine is still untaken before sending grouped check-in. Prevents stale "take your medicine" after user already logged.
+  5. **CoS cache TTL extension** — Dynamic/flat TTL 45s→90s. Safe because execution engine + task signals + event bus already invalidate on state changes.
+  6. **Event-based invalidation helper** — Added `invalidate_cos_context_on_action()` convenience function.
+  7. **Thread-local PGS dedup** — Runner pre-loads dedup cache per user, stores in thread-local, clears in `finally` block. Generators access via `_get_dedup_cache()`.
+  8. **15 regression tests** — DedupCache (7), freshness (2), medicine fix (1), goal batch (1), cache TTL (3), PGS batch (2).
+- **Files modified:**
+  - `apps/ai/proactive_checkins.py` — DedupCache class, batch medicine queries, batch milestone, freshness checks, all dedup query replacements, PGS runner thread-local
+  - `apps/ai/readiness_cache.py` — TTL 45→90, `invalidate_cos_context_on_action()`
+  - `apps/ai/tests/test_hardening.py` — 15 new regression tests
+- **Before/After:**
+  - PGS queries/user/cycle: ~80-120 → ~15-25 (5-8x reduction)
+  - Dedup queries/user/cycle: ~20-30 → 1
+  - Medicine queries/user: ~20+ → 3
+  - Stale guidance risk: unguarded → freshness-validated
+  - Cache miss rate: aggressive (45s TTL) → tolerant (90s + event invalidation)
+- **Tests:** 35 tests pass (20 existing PGS + 15 new hardening)
+
 ## 2026-03-11 — Full System Audit v4 (89.8/B+) + Stale Field Fixes
 
 - **Issue:** Post-PGS audit to measure system quality improvements from Event Bus, AIThresholdConfig, MessageOrchestrator, and PGS activation. Also found 3 stale field references in proactive check-in generators that would cause runtime FieldErrors.

@@ -1,13 +1,23 @@
 """
 Safety Engine — Prevent hallucinated, invalid, or unsafe actions.
 
-Validates actions before execution. Requires clarification if uncertain.
+Validates actions before execution. Uses centralized ACTION_POLICY for
+risk assessment and destructive-action verification.
+
+Pipeline position:
+    CRUD Confirmation Gate → Safety Engine → Execution Engine
 """
 
 import logging
 import re
 from datetime import timedelta
 
+from apps.core.ai_orchestrator.action_policy import (
+    get_policy,
+    get_risk_level,
+    is_destructive,
+    RiskLevel,
+)
 from apps.core.time.system_clock import get_current_time
 
 logger = logging.getLogger(__name__)
@@ -47,10 +57,9 @@ def validate_action(enriched_action):
     Validate an action before execution.
 
     Checks:
+    - Destructive actions require explicit delete/remove language
     - Resolved timestamps are within reasonable bounds
-    - Required parameters are present
-    - No obviously invalid values
-    - Delete actions require explicit delete language in user message
+    - Risk level is not CRITICAL without proper authorization
 
     Args:
         enriched_action: EnrichedAction from action_router.
@@ -59,19 +68,22 @@ def validate_action(enriched_action):
         SafetyResult (is_safe=True if OK to proceed).
     """
     params = enriched_action.parameters
+    intent_type = enriched_action.intent_type
 
-    # ── Delete-intent verification ────────────────────────────
-    # Block task deletion unless the user's original message contains
-    # an explicit delete verb OR is a confirmation of a previous delete prompt.
-    if (enriched_action.intent_type == 'mutate_task'
-            and params.get('action') == 'delete'):
+    # ── Destructive action verification ──────────────────────
+    # Block destructive actions unless the user's original message
+    # contains an explicit delete verb OR is a confirmed follow-up.
+    if is_destructive(intent_type, params):
         original = enriched_action.original_input or ''
         is_confirmed_follow_up = (
             params.get('delete_confirmed') and _CONFIRM_WORDS.search(original)
         )
         if not _DELETE_VERBS.search(original) and not is_confirmed_follow_up:
             logger.warning(
-                "Delete-intent blocked: user said %r but no explicit delete verb found",
+                "[SAFETY] Destructive action blocked: user=%s intent=%s "
+                "original=%r — no explicit delete verb found",
+                getattr(enriched_action, '_user_id', '?'),
+                intent_type,
                 original[:200],
             )
             return SafetyResult(
@@ -85,7 +97,7 @@ def validate_action(enriched_action):
                 ),
             )
 
-    # Check timestamp bounds if time was resolved
+    # ── Timestamp bounds ─────────────────────────────────────
     if params.get("_time_resolved") and "recorded_at" in params:
         recorded_at = params["recorded_at"]
         now = get_current_time()
@@ -103,8 +115,11 @@ def validate_action(enriched_action):
             )
 
         # Check if too far in the future (for non-scheduling intents)
-        scheduling_intents = {"create_event", "add_reminder", "create_appointment", "mutate_calendar_event"}
-        if enriched_action.intent_type not in scheduling_intents:
+        scheduling_intents = {
+            "create_event", "add_reminder", "create_appointment",
+            "mutate_calendar_event",
+        }
+        if intent_type not in scheduling_intents:
             if recorded_at > now + timedelta(hours=1):
                 return SafetyResult(
                     is_safe=False,

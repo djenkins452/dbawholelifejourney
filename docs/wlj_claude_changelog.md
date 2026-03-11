@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — CoS Action Governance Upgrade (10-part)
+
+- **Objective:** Expand the pre-execution governance stack with centralized action policy, structured A/B/C confirmation options, pending action durability, clickable+typeable UX, navigation actions, decision memory, rate limits, and auditability.
+- **New files:**
+  - `apps/core/ai_orchestrator/action_policy.py` — Centralized ACTION_POLICY dict (50+ intents), ActionCategory/RiskLevel/AuthorityLevel enums, ActionRateLimiter class, get_policy/requires_confirmation/is_destructive/get_risk_level helpers, PASSTHROUGH_INTENTS frozenset
+  - `apps/core/ai_orchestrator/decision_memory.py` — get_decision_suggestion(), record_decision(), compute_context_key(), apply_suggestion_to_options() for learning user confirmation patterns
+  - `apps/core/ai_governance/tests/test_decision_memory.py` — 18 tests for decision memory confidence, decay, thresholds, option reordering
+  - `apps/core/ai_orchestrator/tests/test_action_policy.py` — 24 tests for policy coverage, risk levels, rate limits, confirmation requirements
+  - `apps/core/migrations/0106_userdecisionpreference_pendingaction.py` — Migration for PendingAction + UserDecisionPreference models
+- **Modified files:**
+  - `apps/core/ai_governance/models.py` — Added PendingAction (UUID pk, user FK, status, options JSON, executed flag, resolve() method) and UserDecisionPreference (confidence decay, record_decision(), is_reliable() thresholds)
+  - `apps/core/ai_orchestrator/crud_confirmation.py` — Added build_structured_confirmation() returning (text, options_list), extended parse_confirmation_response() for A/B/C letter keys, parse_option_response(), _standard_options()/_skip_options() helpers
+  - `apps/core/ai_orchestrator/safety_engine.py` — Generalized delete-intent check to use is_destructive() from action_policy
+  - `apps/core/ai_orchestrator/orchestrator.py` — Added Rate Limiter layer (1.5), integrated build_structured_confirmation with decision suggestions, added options/navigation to OrchestratorResult
+  - `apps/ai/intent_service.py` — Dual-write pending actions to cache+DB, DB fallback read for crash recovery, handle_crud_confirmation() records decisions and updates PendingAction DB status
+  - `apps/ai/personal_assistant.py` — Added NAVIGATION_HINTS dict, _extract_options_from_actions(), _get_navigation_hint(), options/navigation in return dicts for both send_message and send_message_stream
+  - `apps/ai/views.py` — Pass options/navigation in JSON response
+  - `templates/components/chat_widget.html` — CSS for option chips and nav links, renderOptions()/renderNavigation()/clearActionUI() JS functions, CSP-compliant click handlers
+  - `apps/core/ai_orchestrator/tests/test_crud_confirmation.py` — Added 10 tests for A/B/C parsing and structured confirmation builder
+- **Tests:** 91 new/modified tests pass across action_policy, crud_confirmation, decision_memory suites.
+- **Why:** The pre-execution governance was a hardcoded frozenset with text-only CONFIRM/CANCEL/EDIT. This upgrade creates a scalable, auditable, user-adaptive governance system.
+
 ## 2026-03-10 — Fix task list ordering by due date
 
 - **Problem:** Tasks on the task list page (/life/tasks/) were not sorted by due date. Within each priority group (Now/Soon/Someday), tasks were ordered by `scheduled_time` first, then `due_date`. This caused tasks with later due dates but earlier scheduled times to appear before tasks due sooner.

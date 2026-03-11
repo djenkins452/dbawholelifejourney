@@ -3038,11 +3038,22 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             self._build_action_taken(crud_result)
                         )
                 else:
-                    # Unrecognized response — re-show confirmation
-                    response = (
-                        f"{pending_crud['confirmation_message']}\n\n"
-                        "Please reply with: CONFIRM, CANCEL, or EDIT"
-                    )
+                    # Unrecognized response — re-show confirmation with options
+                    _crud_options = pending_crud.get('options', [])
+                    if _crud_options:
+                        _opts_text = "  ".join(
+                            f"[{o['key']}] {o['label']}"
+                            for o in _crud_options
+                        )
+                        response = (
+                            f"{pending_crud['confirmation_message']}\n\n"
+                            f"{_opts_text}"
+                        )
+                    else:
+                        response = (
+                            f"{pending_crud['confirmation_message']}\n\n"
+                            "Please reply with: CONFIRM, CANCEL, or EDIT"
+                        )
             # Then check for pending activity disambiguation (multi-candidate)
             elif (pending_disambig := intent_service.get_pending_disambiguation(self.user)):
                 disambig_result = intent_service.handle_disambiguation_response(
@@ -3438,6 +3449,19 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             result['action_taken'] = actions_taken[0] if len(actions_taken) == 1 else None
             result['actions_taken'] = actions_taken
 
+        # Include structured options for CRUD confirmations (A/B/C chips)
+        _resp_options = self._extract_options_from_actions(actions_taken)
+        if _resp_options:
+            result['options'] = _resp_options
+        # Also check pending_crud for re-shown confirmations
+        elif 'pending_crud' in dir() and pending_crud and pending_crud.get('options'):
+            result['options'] = pending_crud['options']
+
+        # Include navigation hint for successful actions
+        _nav = self._get_navigation_hint(actions_taken)
+        if _nav:
+            result['navigation'] = _nav
+
         # Include flag if user message had image(s)
         if has_any_images:
             result['user_message_has_image'] = True
@@ -3522,6 +3546,75 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         for keyword, module in module_map.items():
             if keyword in where_lower:
                 return module
+        return None
+
+    # ── Navigation hints for post-action UX ─────────────────────────
+    # Maps action_type → URL path so the front-end can offer "View it"
+    NAVIGATION_HINTS = {
+        'log_heart_rate': '/health/vitals/',
+        'log_blood_pressure': '/health/vitals/',
+        'log_blood_glucose': '/health/vitals/',
+        'log_oxygen_saturation': '/health/vitals/',
+        'log_temperature': '/health/vitals/',
+        'log_weight': '/health/weight/',
+        'log_body_measurements': '/health/weight/',
+        'log_medicine': '/health/medicine/log/',
+        'create_medicine': '/health/medicine/',
+        'log_workout': '/health/fitness/',
+        'log_cardio': '/health/fitness/',
+        'log_nutrition': '/health/nutrition/',
+        'log_fasting': '/health/fasting/',
+        'log_journal': '/journal/',
+        'create_journal': '/journal/',
+        'log_prayer': '/faith/prayer/',
+        'log_scripture_reading': '/faith/scripture/',
+        'create_task': '/life/tasks/',
+        'mutate_task': '/life/tasks/',
+        'complete_task': '/life/tasks/',
+        'create_goal': '/purpose/goals/',
+        'create_habit': '/life/habits/',
+        'create_event': '/life/calendar/',
+        'mutate_calendar_event': '/life/calendar/',
+        'create_appointment': '/medical/appointments/',
+    }
+
+    @staticmethod
+    def _extract_options_from_actions(actions_taken):
+        """
+        Extract structured options from action results.
+
+        When a CRUD confirmation was required, the confirmation_detail
+        contains the options list that should be rendered as clickable chips.
+        """
+        if not actions_taken:
+            return None
+        for action in actions_taken:
+            detail = action.get('confirmation_detail') or {}
+            opts = detail.get('options')
+            if opts:
+                return opts
+        return None
+
+    def _get_navigation_hint(self, actions_taken):
+        """
+        Get a navigation hint for successful actions.
+
+        Returns a dict with 'url' and 'label' if the action type
+        has a known destination page, or None.
+        """
+        if not actions_taken:
+            return None
+        for action in actions_taken:
+            if not action.get('success'):
+                continue
+            action_type = action.get('type', '')
+            url = self.NAVIGATION_HINTS.get(action_type)
+            if url:
+                return {
+                    'url': url,
+                    'label': 'View it',
+                    'action_type': action_type,
+                }
         return None
 
     def _check_feature_request(
@@ -6685,12 +6778,23 @@ Rules for this response:
                                             )
                                         )
                             else:
-                                # Unrecognized — re-show confirmation
-                                _direct_response = (
-                                    f"{_pending_crud['confirmation_message']}"
-                                    "\n\nPlease reply with: "
-                                    "CONFIRM, CANCEL, or EDIT"
-                                )
+                                # Unrecognized — re-show with options
+                                _crud_opts = _pending_crud.get('options', [])
+                                if _crud_opts:
+                                    _opts_text = "  ".join(
+                                        f"[{o['key']}] {o['label']}"
+                                        for o in _crud_opts
+                                    )
+                                    _direct_response = (
+                                        f"{_pending_crud['confirmation_message']}"
+                                        f"\n\n{_opts_text}"
+                                    )
+                                else:
+                                    _direct_response = (
+                                        f"{_pending_crud['confirmation_message']}"
+                                        "\n\nPlease reply with: "
+                                        "CONFIRM, CANCEL, or EDIT"
+                                    )
                     except Exception as crud_err:
                         logger.warning(
                             "Streaming CRUD confirmation check failed: %s",
@@ -7129,10 +7233,23 @@ Rules for this response:
             except Exception:
                 pass
 
-        # Done event
+        # Done event — include options and navigation for front-end rendering
         result_data = {'conversation_id': conversation.id}
         if actions_taken:
             result_data['actions_taken'] = actions_taken
+
+        # Structured options (A/B/C chips)
+        _stream_options = self._extract_options_from_actions(actions_taken)
+        if _stream_options:
+            result_data['options'] = _stream_options
+        elif '_pending_crud' in dir() and _pending_crud and _pending_crud.get('options'):
+            result_data['options'] = _pending_crud['options']
+
+        # Navigation hint
+        _stream_nav = self._get_navigation_hint(actions_taken)
+        if _stream_nav:
+            result_data['navigation'] = _stream_nav
+
         yield {'type': 'done', 'data': result_data}
 
     def _try_calibration_intents(self, message, intent_service, actions_taken):

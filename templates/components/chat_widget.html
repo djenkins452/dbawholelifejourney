@@ -767,6 +767,108 @@
         padding: 6px 12px;
     }
 }
+
+/* ── Action Governance: Option Chips & Navigation Links ─────── */
+.assistant-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 0 4px;
+}
+
+.assistant-option-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: 1.5px solid var(--color-accent, #6366f1);
+    border-radius: 20px;
+    background: transparent;
+    color: var(--color-accent, #6366f1);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, transform 0.1s;
+    min-height: 44px;
+    min-width: 44px;
+    line-height: 1.2;
+}
+
+.assistant-option-chip:hover {
+    background: var(--color-accent, #6366f1);
+    color: #fff;
+}
+
+.assistant-option-chip:active {
+    transform: scale(0.96);
+}
+
+.assistant-option-chip .chip-key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--color-accent, #6366f1);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.assistant-option-chip:hover .chip-key {
+    background: #fff;
+    color: var(--color-accent, #6366f1);
+}
+
+.assistant-option-chip.suggested {
+    border-color: var(--color-success, #22c55e);
+    color: var(--color-success, #22c55e);
+}
+
+.assistant-option-chip.suggested .chip-key {
+    background: var(--color-success, #22c55e);
+}
+
+.assistant-option-chip.suggested:hover {
+    background: var(--color-success, #22c55e);
+    color: #fff;
+}
+
+.assistant-option-chip.suggested:hover .chip-key {
+    background: #fff;
+    color: var(--color-success, #22c55e);
+}
+
+.assistant-nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 6px 14px;
+    border-radius: 16px;
+    background: var(--bg-surface, #f8fafc);
+    color: var(--color-accent, #6366f1);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s;
+    min-height: 44px;
+}
+
+.assistant-nav-link:hover {
+    background: var(--color-accent-light, #e0e7ff);
+    text-decoration: none;
+}
+
+.assistant-nav-link svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
 </style>
 
 <!-- Assistant Drawer JavaScript -->
@@ -1587,6 +1689,118 @@
     }
 
     // =========================================================================
+    // ACTION GOVERNANCE: Option Chips & Navigation Links
+    // =========================================================================
+
+    /**
+     * Render structured option chips (A/B/C) below the latest message.
+     * Clicking a chip sends the key letter as a new message.
+     *
+     * @param {Array} options - [{key:'A', label:'Confirm', action:'confirm', is_suggested:bool}]
+     */
+    function renderOptions(options) {
+        if (!options || !options.length) return;
+
+        // Remove any existing options container
+        var existing = messagesContainer.querySelector('.assistant-options');
+        if (existing) existing.remove();
+
+        var container = document.createElement('div');
+        container.className = 'assistant-options';
+
+        for (var i = 0; i < options.length; i++) {
+            var opt = options[i];
+            var chip = document.createElement('button');
+            chip.className = 'assistant-option-chip' + (opt.is_suggested ? ' suggested' : '');
+            chip.setAttribute('data-key', opt.key);
+            chip.setAttribute('data-action', opt.action || '');
+            chip.setAttribute('type', 'button');
+
+            var keySpan = document.createElement('span');
+            keySpan.className = 'chip-key';
+            keySpan.textContent = opt.key;
+            chip.appendChild(keySpan);
+
+            var labelSpan = document.createElement('span');
+            labelSpan.textContent = opt.label + (opt.is_suggested ? ' ★' : '');
+            chip.appendChild(labelSpan);
+
+            container.appendChild(chip);
+        }
+
+        messagesContainer.appendChild(container);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        // Delegate click handler — CSP compliant
+        container.addEventListener('click', function(e) {
+            var chip = e.target.closest('.assistant-option-chip');
+            if (!chip) return;
+            var key = chip.getAttribute('data-key');
+            if (!key) return;
+
+            // Remove the options container
+            container.remove();
+
+            // Send the key as a user message
+            var inputEl = document.getElementById('assistant-message-input');
+            if (inputEl) {
+                inputEl.value = key;
+                // Trigger send
+                var form = document.getElementById('assistant-chat-form');
+                if (form) {
+                    form.dispatchEvent(new Event('submit', {bubbles: true}));
+                }
+            }
+        });
+    }
+
+    /**
+     * Render a navigation link after an action is completed.
+     *
+     * @param {Object} nav - {url: '/health/vitals/', label: 'View it', action_type: 'log_heart_rate'}
+     */
+    function renderNavigation(nav) {
+        if (!nav || !nav.url) return;
+
+        var existing = messagesContainer.querySelector('.assistant-nav-link');
+        if (existing) existing.remove();
+
+        var link = document.createElement('a');
+        link.className = 'assistant-nav-link';
+        link.href = nav.url;
+        link.setAttribute('data-action-type', nav.action_type || '');
+
+        // Arrow icon
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '2');
+        var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', 'M5 12h14M12 5l7 7-7 7');
+        svg.appendChild(path);
+        link.appendChild(svg);
+
+        var labelSpan = document.createElement('span');
+        labelSpan.textContent = nav.label || 'View it';
+        link.appendChild(labelSpan);
+
+        messagesContainer.appendChild(link);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    /**
+     * Clear any option chips or navigation links from the chat.
+     * Called before sending a new message to keep the UI tidy.
+     */
+    function clearActionUI() {
+        var opts = messagesContainer.querySelector('.assistant-options');
+        if (opts) opts.remove();
+        var nav = messagesContainer.querySelector('.assistant-nav-link');
+        if (nav) nav.remove();
+    }
+
+    // =========================================================================
     // FRIENDLY ERROR RECOVERY — rotating messages with retry button
     // =========================================================================
 
@@ -1785,6 +1999,9 @@
         var message = input.value.trim();
         if (!message && attachedImages.length === 0) return;
 
+        // Clear previous action UI (option chips, nav links)
+        clearActionUI();
+
         // Save message for restoration on failure
         var savedMessage = message;
 
@@ -1863,6 +2080,12 @@
                 hideTyping();
                 if (data.success) {
                     addMessage(data.response, false);
+                    if (data.options && data.options.length) {
+                        renderOptions(data.options);
+                    }
+                    if (data.navigation && data.navigation.url) {
+                        renderNavigation(data.navigation);
+                    }
                     errorRetryCount = 0;
                 } else {
                     addErrorWithRetry(savedMessage, null, sendContext);
@@ -1918,6 +2141,14 @@
                         messagesContainer.scrollTop = messagesContainer.scrollHeight;
                     } else if (eventType === 'done') {
                         finalizeStreamingMessage(msgEl, fullText);
+                        // Render structured options from done event
+                        if (evt.options && evt.options.length) {
+                            renderOptions(evt.options);
+                        }
+                        // Render navigation link from done event
+                        if (evt.navigation && evt.navigation.url) {
+                            renderNavigation(evt.navigation);
+                        }
                     } else if (eventType === 'error') {
                         if (fullText) {
                             finalizeStreamingMessage(msgEl, fullText);
@@ -2011,6 +2242,14 @@
 
                 if (data.success) {
                     addMessage(data.response, false);
+                    // Render structured options (A/B/C chips)
+                    if (data.options && data.options.length) {
+                        renderOptions(data.options);
+                    }
+                    // Render navigation link
+                    if (data.navigation && data.navigation.url) {
+                        renderNavigation(data.navigation);
+                    }
                     errorRetryCount = 0; // Reset tone rotation on success
                     if (voiceConversationMode && 'speechSynthesis' in window) {
                         speakResponse(data.response);

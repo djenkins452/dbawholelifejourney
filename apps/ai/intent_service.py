@@ -1521,29 +1521,98 @@ the Medications page), honor the explicit domain.
         """
         Store a pending CRUD action awaiting user confirmation.
 
+        Dual-writes to cache (primary, fast) and DB (audit, durable).
         Adds idempotency key (action_id) and execution guard (executed flag).
 
         Args:
             user: The User model instance
-            data: Dict with intent_type, parameters, confirmation_message, etc.
+            data: Dict with intent_type, parameters, confirmation_message,
+                  options, etc.
             ttl: Time to live in seconds (default 5 minutes)
         """
-        import uuid
-        data['action_id'] = str(uuid.uuid4())
+        import uuid as _uuid
+        action_id = str(_uuid.uuid4())
+        data['action_id'] = action_id
         data['executed'] = False
         data['timestamp'] = timezone.now().isoformat()
+
+        # Primary: cache write
         cache_key = f"pending_crud_{user.id}"
         cache.set(cache_key, data, ttl)
 
+        # Secondary: DB write for audit and crash recovery
+        try:
+            from apps.core.ai_governance.models import PendingAction
+            # Expire any stale pending actions for this user
+            PendingAction.objects.filter(
+                user=user, status='pending', action_type='crud',
+            ).update(status='expired')
+            PendingAction.objects.create(
+                id=action_id,
+                user=user,
+                action_type='crud',
+                intent_type=data.get('intent_type', ''),
+                parameters=data.get('parameters', {}),
+                options=data.get('options', []),
+                confirmation_message=data.get('confirmation_message', ''),
+                original_input=data.get('original_input', ''),
+                recon_decision=data.get('recon_decision', ''),
+                recon_context=data.get('recon_context'),
+                expires_at=timezone.now() + timezone.timedelta(seconds=ttl),
+            )
+        except Exception as e:
+            logger.error(
+                "[PENDING_ACTION] DB write failed (cache is primary): %s",
+                e, exc_info=True,
+            )
+
     def get_pending_crud_action(self, user) -> Optional[Dict]:
         """
-        Retrieve a pending CRUD action from cache.
+        Retrieve a pending CRUD action.
+
+        Reads from cache first (fast), falls back to DB (durable).
 
         Returns:
             Dict with action details, or None if expired/missing
         """
         cache_key = f"pending_crud_{user.id}"
-        return cache.get(cache_key)
+        result = cache.get(cache_key)
+        if result:
+            return result
+
+        # Fallback: check DB for crash recovery
+        try:
+            from apps.core.ai_governance.models import PendingAction
+            pending = PendingAction.objects.filter(
+                user=user, status='pending', action_type='crud',
+            ).order_by('-created_at').first()
+            if pending and not pending.is_expired:
+                # Reconstruct cache-compatible dict
+                data = {
+                    'action_id': str(pending.id),
+                    'intent_type': pending.intent_type,
+                    'parameters': pending.parameters,
+                    'options': pending.options,
+                    'confirmation_message': pending.confirmation_message,
+                    'original_input': pending.original_input,
+                    'recon_decision': pending.recon_decision,
+                    'recon_context': pending.recon_context,
+                    'executed': pending.executed,
+                    'timestamp': pending.created_at.isoformat(),
+                }
+                # Re-populate cache
+                remaining_ttl = int(
+                    (pending.expires_at - timezone.now()).total_seconds()
+                )
+                if remaining_ttl > 0:
+                    cache.set(cache_key, data, remaining_ttl)
+                return data
+        except Exception as e:
+            logger.error(
+                "[PENDING_ACTION] DB fallback read failed: %s",
+                e, exc_info=True,
+            )
+        return None
 
     def clear_pending_crud_action(self, user):
         """Clear any pending CRUD action for a user."""
@@ -1896,8 +1965,10 @@ the Medications page), honor the explicit domain.
         """
         Handle user's response to a CRUD confirmation request.
 
-        Uses deterministic command parsing (CONFIRM/CANCEL/EDIT).
-        Includes idempotency protection and expiry handling.
+        Uses deterministic command parsing — supports both legacy
+        CONFIRM/CANCEL/EDIT text AND structured A/B/C option keys.
+        Includes idempotency protection, expiry handling, decision memory
+        recording, and PendingAction DB status updates.
 
         Args:
             user: The User model instance
@@ -1930,7 +2001,31 @@ the Medications page), honor the explicit domain.
         from apps.core.ai_orchestrator.crud_confirmation import (
             parse_confirmation_response,
         )
-        decision = parse_confirmation_response(response)
+
+        # Pass stored options so A/B/C letter keys are recognized
+        options = pending.get('options', [])
+        decision = parse_confirmation_response(response, options=options or None)
+
+        # Helper to record decision in decision_memory and update DB
+        def _record_and_resolve(action_str, db_status):
+            try:
+                from apps.core.ai_orchestrator.decision_memory import (
+                    record_decision, compute_context_key,
+                )
+                ctx_key = compute_context_key(
+                    pending.get('intent_type', ''),
+                    pending.get('parameters', {}),
+                )
+                record_decision(user, pending.get('intent_type', ''), ctx_key, action_str)
+            except Exception as e:
+                logger.error("[DECISION_MEMORY] Record failed: %s", e, exc_info=True)
+            try:
+                from apps.core.ai_governance.models import PendingAction as PA
+                pa = PA.objects.filter(id=pending.get('action_id')).first()
+                if pa:
+                    pa.resolve(resolved_action=action_str, status=db_status)
+            except Exception as e:
+                logger.error("[PENDING_ACTION] DB resolve failed: %s", e, exc_info=True)
 
         if decision == 'confirm':
             # Mark executed BEFORE execution (prevents double-fire)
@@ -1949,6 +2044,7 @@ the Medications page), honor the explicit domain.
                 )
                 self.clear_pending_crud_action(user)
                 result = execute_action(user, enriched)
+                _record_and_resolve('confirm', 'confirmed')
                 logger.info(
                     "[CRUD_GATE] Confirmed: %s action_id=%s user=%s",
                     pending['intent_type'], pending['action_id'], user.id,
@@ -1969,6 +2065,7 @@ the Medications page), honor the explicit domain.
 
         elif decision == 'cancel':
             self.clear_pending_crud_action(user)
+            _record_and_resolve('cancel', 'cancelled')
             logger.info(
                 "[CRUD_GATE] Cancelled: %s action_id=%s user=%s",
                 pending['intent_type'], pending['action_id'], user.id,
@@ -1981,6 +2078,7 @@ the Medications page), honor the explicit domain.
 
         elif decision == 'edit':
             self.clear_pending_crud_action(user)
+            _record_and_resolve('edit', 'edited')
             logger.info(
                 "[CRUD_GATE] Edit requested: %s action_id=%s user=%s",
                 pending['intent_type'], pending['action_id'], user.id,

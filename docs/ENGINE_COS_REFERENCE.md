@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-10 (PIE Health Screenshot Interpretation — sleep analysis from health screenshots with CoS injection)
+**Last updated:** 2026-03-11 (CoS Action Governance Upgrade — centralized action policy, structured confirmations, decision memory, rate limiting)
 
 ---
 
@@ -725,9 +725,12 @@ When the user asks a health intelligence question with a brevity keyword ("keep 
 | File | Purpose | Lines |
 |------|---------|-------|
 | `apps/core/ai_orchestrator/cos_context.py` | CoS context builder (THE BIG ONE) | ~4,668 |
-| `apps/core/ai_orchestrator/orchestrator.py` | Main orchestrator entry (reconciliation + CRUD gate) | ~374 |
+| `apps/core/ai_orchestrator/orchestrator.py` | Main orchestrator entry (reconciliation + rate limit + CRUD gate) | ~467 |
 | `apps/core/ai_orchestrator/activity_reconciliation.py` | Activity Reconciliation Layer (duplicate detection, 17 registered intents) | ~883 |
-| `apps/core/ai_orchestrator/crud_confirmation.py` | CRUD Confirmation Gate (deterministic approval before writes) | ~270 |
+| `apps/core/ai_orchestrator/crud_confirmation.py` | CRUD Confirmation Gate (A/B/C structured options + legacy text parsing) | ~340 |
+| `apps/core/ai_orchestrator/action_policy.py` | Centralized ACTION_POLICY (50+ intents, risk/category/authority enums, rate limiter) | ~375 |
+| `apps/core/ai_orchestrator/decision_memory.py` | Decision memory (confidence tracking, decay, suggestion reordering) | ~120 |
+| `apps/core/ai_governance/models.py` | PendingAction + UserDecisionPreference models | ~630 |
 | `apps/core/ai_orchestrator/commitment_contract.py` | ECC commitment tracking | ~1,678 |
 | `apps/ai/personal_assistant.py` | Main assistant, send_message() | ~6,452 |
 | `apps/ai/views.py` | Chat API endpoints | ~1,661 |

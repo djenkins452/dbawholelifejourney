@@ -306,7 +306,7 @@ class ProactiveCheckInService:
         Returns:
             AssistantMessage with quick reply buttons, or None
         """
-        if task.is_complete:
+        if task.is_completed:
             return None
 
         if not self.throttler.can_send('task_overdue', task.id):
@@ -1245,13 +1245,15 @@ def generate_busy_day_check_ins_for_user(user):
     tasks_due = Task.objects.filter(
         user=user,
         due_date=tomorrow,
-        is_complete=False,
+        completion_status='pending',
+        deleted_at__isnull=True,
     ).count()
 
     events = CalendarEvent.objects.filter(
         user=user,
-        start_time__date=tomorrow,
-    ).count()
+        start_dt__date=tomorrow,
+        deleted_at__isnull=True,
+    ).exclude(status=CalendarEvent.STATUS_CANCELED).count()
 
     total = tasks_due + events
 

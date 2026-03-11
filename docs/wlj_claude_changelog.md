@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — Full System Audit v4 (89.8/B+) + Stale Field Fixes
+
+- **Issue:** Post-PGS audit to measure system quality improvements from Event Bus, AIThresholdConfig, MessageOrchestrator, and PGS activation. Also found 3 stale field references in proactive check-in generators that would cause runtime FieldErrors.
+- **Changes:**
+  1. **System Audit v4** — Comprehensive 7-domain audit: overall **89.8/100 (B+)**, up from 85.6 in v3 (+4.2)
+     - CoS Action 90 (↑+1), Engine 82 (↑+3), Config 85 (↑+4), Observability 93 (↑+1), Proactive Coaching 97 (↑+7), AI Decision 84 (↑+1), UX 86 (↑+2)
+     - Path to 95+: decompose god objects (+2.0), decompose action_handlers (+1.0), unify streaming (+1.0), decompose cos_context (+0.8), migrate PA constants (+0.4)
+  2. **Stale field fixes in proactive_checkins.py:**
+     - `task.is_complete` → `task.is_completed` (ProactiveCheckInService.generate_overdue_task_check_in, line 309)
+     - `is_complete=False` → `completion_status='pending', deleted_at__isnull=True` (generate_busy_day_check_ins_for_user, line 1248)
+     - `start_time__date=tomorrow` → `start_dt__date=tomorrow, deleted_at__isnull=True` + exclude canceled (generate_busy_day_check_ins_for_user, line 1253)
+- **Files:**
+  - `architecture_governance/system_audits/cos_system_audit_2026_03_11_v4.md` — New audit report
+  - `apps/ai/proactive_checkins.py` — 3 stale field reference fixes
+- **Why:** Regular audit cadence + prevent runtime FieldErrors in busy-day and overdue-task check-in generators.
+
 ## 2026-03-11 — Proactive Guidance Scheduler (PGS) — Wire All Check-In Generators into ISE
 
 - **Issue:** 16 of 19 proactive check-in generators were fully implemented in `proactive_checkins.py` but never scheduled — the management command `generate_health_reminders` was orphaned and not wired into ISE or Celery Beat. Result: Beth went silent after the morning briefing.

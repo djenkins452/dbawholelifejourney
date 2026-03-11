@@ -3021,44 +3021,55 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     response = f"Please confirm: {intent_service._build_confirmation_message(pending['intent_type'], pending['parameters'])} (yes/no)"
             # Then check for pending CRUD action confirmation
             elif (pending_crud := intent_service.get_pending_crud_action(self.user)):
-                crud_result = intent_service.handle_crud_confirmation(
-                    self.user, message,
-                )
-                if crud_result:
-                    if crud_result.action_type == 'confirmation_escaped':
-                        # User said something other than CONFIRM/CANCEL/EDIT.
-                        # Pending action already cancelled — fall through to
-                        # normal AI processing with the user's message.
-                        pass  # response stays None → handled by normal pipeline below
-                    elif crud_result.action_type in (
-                        'cancelled', 'expired', 'idempotent_skip',
-                    ):
-                        response = crud_result.message
+                try:
+                    crud_result = intent_service.handle_crud_confirmation(
+                        self.user, message,
+                    )
+                    if crud_result:
+                        if crud_result.action_type == 'confirmation_escaped':
+                            # User said something other than CONFIRM/CANCEL/EDIT.
+                            # Pending action already cancelled — fall through to
+                            # normal AI processing with the user's message.
+                            pass  # response stays None → handled by normal pipeline below
+                        elif crud_result.action_type in (
+                            'cancelled', 'expired', 'idempotent_skip',
+                        ):
+                            response = crud_result.message
+                        else:
+                            response = (
+                                crud_result.message
+                                + self._format_confirmation_detail(crud_result)
+                            )
+                            actions_taken.append(
+                                self._build_action_taken(crud_result)
+                            )
                     else:
-                        response = (
-                            crud_result.message
-                            + self._format_confirmation_detail(crud_result)
-                        )
-                        actions_taken.append(
-                            self._build_action_taken(crud_result)
-                        )
-                else:
-                    # Unrecognized response — re-show confirmation with options
-                    _crud_options = pending_crud.get('options', [])
-                    if _crud_options:
-                        _opts_text = "  ".join(
-                            f"[{o['key']}] {o['label']}"
-                            for o in _crud_options
-                        )
-                        response = (
-                            f"{pending_crud['confirmation_message']}\n\n"
-                            f"{_opts_text}"
-                        )
-                    else:
-                        response = (
-                            f"{pending_crud['confirmation_message']}\n\n"
-                            "Please reply with: CONFIRM, CANCEL, or EDIT"
-                        )
+                        # Unrecognized response — re-show confirmation with options
+                        _crud_options = pending_crud.get('options', [])
+                        if _crud_options:
+                            _opts_text = "  ".join(
+                                f"[{o['key']}] {o['label']}"
+                                for o in _crud_options
+                            )
+                            response = (
+                                f"{pending_crud['confirmation_message']}\n\n"
+                                f"{_opts_text}"
+                            )
+                        else:
+                            response = (
+                                f"{pending_crud['confirmation_message']}\n\n"
+                                "Please reply with: CONFIRM, CANCEL, or EDIT"
+                            )
+                except Exception as crud_err:
+                    logger.error(
+                        "[CRUD_GATE] Confirmation handling failed: %s",
+                        crud_err, exc_info=True,
+                    )
+                    intent_service.clear_pending_crud_action(self.user)
+                    response = (
+                        "Something went wrong processing that action. "
+                        "I've reset it so we can try again."
+                    )
             # Then check for pending activity disambiguation (multi-candidate)
             elif (pending_disambig := intent_service.get_pending_disambiguation(self.user)):
                 disambig_result = intent_service.handle_disambiguation_response(

@@ -6,6 +6,23 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — Fix CRUD Confirmation Lifecycle Bugs (Cancel Crash, State Persistence, Error Handling)
+
+- **Issue:** Cancelling a pending CRUD confirmation caused HTTP 500 errors. Refreshing the page resurrected cancelled confirmations. Users saw generic "The server encountered an error" instead of assistant messages.
+- **Root causes identified:**
+  1. `clear_pending_crud_action()` only cleared cache, leaving DB records as `status='pending'` — page refresh reconstructed them
+  2. Non-streaming confirmation path in `send_message()` lacked try/except — exceptions propagated to HTTP 500
+  3. Logger calls used fragile `pending['action_id']` dict access — KeyError if key missing from legacy/reconstructed state
+  4. Frontend threw errors on non-OK responses without reading JSON body — assistant messages never displayed
+- **Fixes:**
+  1. `clear_pending_crud_action()` now clears both cache AND database (`PendingAction.objects.filter(...).update(status='cancelled')`)
+  2. Non-streaming CRUD confirmation block wrapped in try/except with fallback message and state cleanup
+  3. All `pending['key']` access in logging replaced with `pending.get('key', 'unknown')`
+  4. Frontend fetch handler attempts `r.json()` on error responses before falling back to generic message
+  5. Added auto-cleanup: expired DB confirmations marked `status='expired'` during retrieval
+- **Files modified:** `apps/ai/intent_service.py`, `apps/ai/personal_assistant.py`, `templates/components/assistant_panel.html`
+- **Tests:** 359 tests pass (117 intent_service/personal_assistant/governance + 242 orchestrator)
+
 ## 2026-03-11 — Update Default Model Fallback from gpt-4o-mini to gpt-4o
 
 - **Issue:** Six service files had `getattr(settings, 'OPENAI_MODEL', 'gpt-4o-mini')` fallbacks, inconsistent with the intended gpt-4o model.

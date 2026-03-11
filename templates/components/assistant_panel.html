@@ -949,7 +949,21 @@
         fetch('/assistant/api/chat/', fetchOpts)
         .then(function(r) {
             clearTimeout(fallbackTimeout);
-            if (!r.ok) throw new Error('status_' + r.status);
+            if (!r.ok) {
+                // Try to extract assistant message from error response JSON
+                return r.json().then(function(data) {
+                    if (data && (data.response || data.error)) {
+                        return data;  // Server sent a structured error — use it
+                    }
+                    throw new Error('status_' + r.status);
+                }).catch(function(parseErr) {
+                    // JSON parse failed or no useful fields — fall through
+                    if (parseErr.message && parseErr.message.indexOf('status_') === 0) {
+                        throw parseErr;  // Re-throw our own status error
+                    }
+                    throw new Error('status_' + r.status);
+                });
+            }
             return r.json();
         })
         .then(function(data) {

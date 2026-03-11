@@ -111,7 +111,7 @@ class SummarizationService:
 
     def __init__(self):
         self.client = None
-        self.model = getattr(settings, 'OPENAI_MODEL', 'gpt-4o')
+        self.model = settings.OPENAI_MODEL
         self._initialize_client()
 
     def _initialize_client(self):

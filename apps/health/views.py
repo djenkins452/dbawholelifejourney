@@ -5479,7 +5479,7 @@ Return ONLY valid JSON with no explanation. If information is not available, omi
 Example format: {{"phone": "(555) 123-4567", "address_line1": "123 Main St", "city": "Springfield", "state": "IL", "postal_code": "62701"}}"""
 
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=settings.OPENAI_MODEL,
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant that looks up healthcare provider information. Return only valid JSON."},
                     {"role": "user", "content": prompt}
@@ -5498,7 +5498,7 @@ Example format: {{"phone": "(555) 123-4567", "address_line1": "123 Main St", "ci
                     log_llm_usage(
                         user=self.request.user,
                         feature='HEALTHCARE_LOOKUP',
-                        model_name='gpt-4o-mini',
+                        model_name=settings.OPENAI_MODEL,
                         input_tokens=getattr(usage, 'prompt_tokens', 0),
                         output_tokens=getattr(usage, 'completion_tokens', 0),
                     )

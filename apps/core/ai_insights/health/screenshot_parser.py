@@ -172,7 +172,7 @@ def parse_health_screenshot(image_base64, mime_type='image/jpeg'):
         logger.warning("HEALTH_SCREENSHOT_PARSER: Vision API not available")
         return None
 
-    model = getattr(settings, 'OPENAI_VISION_MODEL', 'gpt-4o')
+    model = settings.OPENAI_VISION_MODEL
     media_type = mime_type or 'image/jpeg'
     data_uri = f"data:{media_type};base64,{image_base64}"
 

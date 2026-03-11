@@ -239,7 +239,7 @@ def maybe_generate_rolling_summary(user, conversation) -> None:
     Post-response hook: generate a rolling summary if message count > 20
     and no recent summary exists.
 
-    Uses gpt-4o-mini for cost efficiency. Stores in conversation.context_summary.
+    Uses the configured OPENAI_MODEL. Stores in conversation.context_summary.
     Non-blocking — failures are silently caught.
 
     Args:

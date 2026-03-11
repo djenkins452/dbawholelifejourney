@@ -1183,7 +1183,8 @@ def generate_overdue_task_check_ins_for_user(user):
     overdue_task = Task.objects.filter(
         user=user,
         due_date__lt=today,
-        is_complete=False,
+        completion_status='pending',
+        deleted_at__isnull=True,
     ).order_by('due_date').first()
 
     if overdue_task:
@@ -1808,3 +1809,387 @@ def generate_cdce_correlation_check_ins_for_user(user):
         pass
     except Exception as e:
         logger.warning("CDCE correlation check-in error: %s", e, exc_info=True)
+
+
+# =============================================================================
+# PROACTIVE GUIDANCE SCHEDULER (PGS)
+# =============================================================================
+# ISE-scheduled runner that dispatches proactive check-ins based on each
+# user's local time window. Replaces the orphaned generate_health_reminders
+# management command with proper ISE integration and full generator coverage.
+# =============================================================================
+
+# Time window ranges (user-local hour). Quiet hours = no proactive messages.
+WINDOW_MORNING = range(7, 10)      # 7:00–9:59
+WINDOW_MIDDAY = range(10, 13)      # 10:00–12:59
+WINDOW_AFTERNOON = range(13, 17)   # 13:00–16:59
+WINDOW_EVENING = range(17, 22)     # 17:00–21:59
+
+
+def _get_proactive_users():
+    """
+    Query users eligible for proactive check-ins.
+
+    Requirements:
+    - Active account
+    - Personal Assistant enabled + consent
+    - AI enabled + consent
+    - Proactive check-ins master switch on
+    """
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
+    return User.objects.filter(
+        is_active=True,
+        preferences__personal_assistant_enabled=True,
+        preferences__personal_assistant_consent=True,
+        preferences__ai_enabled=True,
+        preferences__ai_data_consent=True,
+        preferences__assistant_proactive_checkins=True,
+    ).select_related('preferences')
+
+
+# -----------------------------------------------------------------------------
+# Daily Rhythm Generators
+# -----------------------------------------------------------------------------
+
+def generate_midday_alignment_for_user(user):
+    """
+    Midday alignment check-in (10–12, weekdays only).
+
+    Provides a factual progress snapshot: tasks completed vs remaining,
+    upcoming events for the rest of the day.
+    """
+    from apps.core.utils import get_user_today, get_user_now
+    from apps.life.models import Task
+
+    prefs = user.preferences
+    if not getattr(prefs, 'assistant_proactive_checkins', True):
+        return
+
+    today = get_user_today(user)
+    user_now = get_user_now(user)
+
+    # Dedup: already sent today?
+    recent = AssistantMessage.objects.filter(
+        conversation__user=user,
+        is_proactive=True,
+        metadata__check_in_type='midday_alignment',
+        created_at__date=today,
+    ).exists()
+    if recent:
+        return
+
+    # Count today's tasks
+    today_tasks = Task.objects.filter(
+        user=user, due_date=today, deleted_at__isnull=True,
+    ).exclude(completion_status='skipped')
+
+    completed = today_tasks.filter(
+        completion_status='completed', completed_at__date=today,
+    ).count()
+    pending = today_tasks.filter(completion_status='pending').count()
+
+    if completed == 0 and pending == 0:
+        return  # Nothing to report
+
+    # Upcoming events
+    try:
+        from apps.life.models import CalendarEvent
+        upcoming_events = CalendarEvent.objects.filter(
+            user=user,
+            start_dt__date=today,
+            start_dt__gt=user_now,
+            deleted_at__isnull=True,
+        ).exclude(status=CalendarEvent.STATUS_CANCELED).count()
+    except Exception:
+        upcoming_events = 0
+
+    # Build message
+    parts = []
+    parts.append(f"Midday check: {completed} done, {pending} remaining")
+    if upcoming_events:
+        parts.append(f"{upcoming_events} event{'s' if upcoming_events != 1 else ''} ahead")
+    message = ", ".join(parts) + "."
+
+    service = get_proactive_service(user)
+    service._create_proactive_message(
+        content=message,
+        quick_replies=[],
+        message_type='nudge',
+        metadata={
+            'check_in_type': 'midday_alignment',
+            'completed': completed,
+            'pending': pending,
+            'upcoming_events': upcoming_events,
+        },
+    )
+
+
+def generate_afternoon_momentum_for_user(user):
+    """
+    Afternoon momentum check-in (13–16, weekdays only).
+
+    Surfaces non-negotiable tasks still pending for today.
+    """
+    from apps.core.utils import get_user_today
+    from apps.life.models import Task
+
+    prefs = user.preferences
+    if not getattr(prefs, 'assistant_proactive_checkins', True):
+        return
+
+    today = get_user_today(user)
+
+    # Dedup
+    recent = AssistantMessage.objects.filter(
+        conversation__user=user,
+        is_proactive=True,
+        metadata__check_in_type='afternoon_momentum',
+        created_at__date=today,
+    ).exists()
+    if recent:
+        return
+
+    # Non-negotiable tasks still pending
+    nn_pending = Task.objects.filter(
+        user=user,
+        due_date=today,
+        completion_status='pending',
+        commitment_level='non_negotiable',
+        deleted_at__isnull=True,
+    )
+
+    nn_list = list(nn_pending[:3])
+    if not nn_list:
+        return
+
+    if len(nn_list) == 1:
+        message = f"'{nn_list[0].title}' is still on today's list. Afternoon's a good window."
+    else:
+        message = f"{len(nn_list)} non-negotiables still pending today."
+
+    service = get_proactive_service(user)
+    quick_replies = []
+    if len(nn_list) == 1:
+        quick_replies = generate_task_check_in_replies(nn_list[0].id, nn_list[0].title)
+
+    service._create_proactive_message(
+        content=message,
+        quick_replies=quick_replies,
+        message_type='nudge',
+        metadata={
+            'check_in_type': 'afternoon_momentum',
+            'nn_count': len(nn_list),
+        },
+    )
+
+
+def generate_evening_wrap_for_user(user):
+    """
+    Evening wrap-up check-in (17–21, every day).
+
+    Summarises completed tasks, missed tasks, and tomorrow's load.
+    """
+    from apps.core.utils import get_user_today
+    from apps.life.models import Task
+
+    prefs = user.preferences
+    if not getattr(prefs, 'assistant_proactive_checkins', True):
+        return
+
+    today = get_user_today(user)
+    tomorrow = today + timedelta(days=1)
+
+    # Dedup
+    recent = AssistantMessage.objects.filter(
+        conversation__user=user,
+        is_proactive=True,
+        metadata__check_in_type='evening_wrap',
+        created_at__date=today,
+    ).exists()
+    if recent:
+        return
+
+    completed_today = Task.objects.filter(
+        user=user, completed_at__date=today, completion_status='completed',
+        deleted_at__isnull=True,
+    ).count()
+
+    missed_today = Task.objects.filter(
+        user=user, due_date=today, completion_status='pending',
+        deleted_at__isnull=True,
+    ).count()
+
+    tomorrow_load = Task.objects.filter(
+        user=user, due_date=tomorrow, deleted_at__isnull=True,
+    ).exclude(completion_status='skipped').count()
+
+    if completed_today == 0 and missed_today == 0 and tomorrow_load == 0:
+        return
+
+    parts = []
+    if completed_today:
+        parts.append(f"{completed_today} task{'s' if completed_today != 1 else ''} completed")
+    if missed_today:
+        parts.append(f"{missed_today} still open")
+    if tomorrow_load:
+        parts.append(f"{tomorrow_load} item{'s' if tomorrow_load != 1 else ''} tomorrow")
+    message = "Day closing: " + ", ".join(parts) + "."
+
+    service = get_proactive_service(user)
+    service._create_proactive_message(
+        content=message,
+        quick_replies=[],
+        message_type='nudge',
+        metadata={
+            'check_in_type': 'evening_wrap',
+            'completed': completed_today,
+            'missed': missed_today,
+            'tomorrow': tomorrow_load,
+        },
+    )
+
+
+# -----------------------------------------------------------------------------
+# Time Window Dispatch
+# -----------------------------------------------------------------------------
+
+def _dispatch_for_window(user, prefs, hour, is_weekend):
+    """
+    Call the appropriate generators for the user's current time window.
+
+    Returns the number of generator invocations attempted.
+    """
+    count = 0
+
+    # --- Always active (any non-quiet hour) ---
+    if getattr(prefs, 'health_enabled', False):
+        generate_medicine_check_ins_for_user(user)
+        count += 1
+
+    # --- Morning 7–9 ---
+    if hour in WINDOW_MORNING:
+        generate_birthday_check_ins_for_user(user)
+        count += 1
+
+        if getattr(prefs, 'faith_enabled', False):
+            generate_faith_check_ins_for_user(user)
+            count += 1
+
+    # --- Midday 10–12 ---
+    elif hour in WINDOW_MIDDAY:
+        if getattr(prefs, 'health_enabled', False):
+            generate_daily_check_ins_for_user(user, 'workout')
+            count += 1
+
+        generate_overdue_task_check_ins_for_user(user)
+        count += 1
+
+        generate_nn_skip_check_ins_for_user(user)
+        count += 1
+
+        if not is_weekend:
+            generate_midday_alignment_for_user(user)
+            count += 1
+
+    # --- Afternoon 13–16 ---
+    elif hour in WINDOW_AFTERNOON:
+        generate_goal_check_ins_for_user(user)
+        count += 1
+
+        if getattr(prefs, 'journal_enabled', False):
+            generate_journal_intelligence_check_ins_for_user(user)
+            count += 1
+
+        if getattr(prefs, 'health_enabled', False):
+            generate_pattern_check_ins_for_user(user)
+            count += 1
+
+        if getattr(prefs, 'finances_enabled', False):
+            generate_finance_check_ins_for_user(user)
+            count += 1
+
+        if not is_weekend:
+            generate_afternoon_momentum_for_user(user)
+            count += 1
+
+    # --- Evening 17–21 ---
+    elif hour in WINDOW_EVENING:
+        if getattr(prefs, 'journal_enabled', False):
+            generate_daily_check_ins_for_user(user, 'journal')
+            count += 1
+
+        generate_busy_day_check_ins_for_user(user)
+        count += 1
+
+        generate_relationship_check_ins_for_user(user)
+        count += 1
+
+        generate_evening_wrap_for_user(user)
+        count += 1
+
+    # Quiet hours (<7 or >=22): no proactive messages
+
+    return count
+
+
+# -----------------------------------------------------------------------------
+# ISE Runner
+# -----------------------------------------------------------------------------
+
+def run_proactive_guidance_scheduler():
+    """
+    ISE runner: dispatch proactive check-ins based on per-user time windows.
+
+    Called every 15 minutes by ISE. Each invocation:
+    1. Queries eligible users
+    2. Determines each user's local hour and weekend status
+    3. Calls the appropriate generators for their time window
+
+    All generators handle their own dedup and throttling internally.
+
+    Returns:
+        dict — metrics for EngineRun telemetry.
+    """
+    from apps.core.ai_observability.trace import trace_context
+    from apps.core.utils import get_user_now
+
+    with trace_context(source="scheduler"):
+        users = _get_proactive_users()
+        users_processed = 0
+        check_ins_attempted = 0
+        errors = 0
+
+        for user in users:
+            try:
+                user_now = get_user_now(user)
+                hour = user_now.hour
+                is_weekend = user_now.weekday() >= 5
+
+                # Skip quiet hours
+                if hour < 7 or hour >= 22:
+                    continue
+
+                prefs = user.preferences
+                attempted = _dispatch_for_window(user, prefs, hour, is_weekend)
+                check_ins_attempted += attempted
+                users_processed += 1
+
+            except Exception as e:
+                errors += 1
+                logger.warning(
+                    "PGS: check-in dispatch failed for user %s: %s",
+                    user.pk, e, exc_info=True,
+                )
+
+        logger.info(
+            "PGS: processed %d users, %d generators called, %d errors",
+            users_processed, check_ins_attempted, errors,
+        )
+
+        return {
+            "users_processed": users_processed,
+            "check_ins_attempted": check_ins_attempted,
+            "errors": errors,
+        }

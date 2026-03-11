@@ -6,6 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — Proactive Guidance Scheduler (PGS) — Wire All Check-In Generators into ISE
+
+- **Issue:** 16 of 19 proactive check-in generators were fully implemented in `proactive_checkins.py` but never scheduled — the management command `generate_health_reminders` was orphaned and not wired into ISE or Celery Beat. Result: Beth went silent after the morning briefing.
+- **Changes:**
+  1. **ISE runner** — Added `run_proactive_guidance_scheduler()` at 15-minute interval via ISE. Queries eligible users, determines per-user local time window via `get_user_now()`, dispatches appropriate generators for each window. Per-user try/except, returns telemetry metrics.
+  2. **Time window dispatch** — `_dispatch_for_window()` routes generators by user-local hour: Morning (7–9), Midday (10–12), Afternoon (13–16), Evening (17–21), Quiet (<7/≥22 = no messages). Weekend-aware: midday alignment and afternoon momentum skip on weekends.
+  3. **Three new daily rhythm generators:**
+     - `generate_midday_alignment_for_user()` — Tasks completed vs remaining, upcoming events
+     - `generate_afternoon_momentum_for_user()` — Non-negotiable tasks still pending
+     - `generate_evening_wrap_for_user()` — Day closing summary: completed, missed, tomorrow load
+  4. **User query helper** — `_get_proactive_users()` filters on AI consent + PA consent + proactive checkins master switch
+  5. **Engine registration** — PGS in `TASK_ENGINE_MAP`, Phase 2 in `ENGINE_PHASE_MAP`, registry entry in `SCHEDULED_TASKS`
+  6. **Bug fix** — Fixed stale `is_complete=False` in `generate_overdue_task_check_ins_for_user()` → `completion_status='pending'` (field was renamed)
+- **Files modified:**
+  - `apps/ai/proactive_checkins.py` — Runner, 3 generators, dispatch, helper, overdue bug fix
+  - `apps/core/ai_scheduler/scheduler_registry.py` — `run_proactive_guidance` entry
+  - `apps/core/engine_runtime.py` — PGS in TASK_ENGINE_MAP + ENGINE_PHASE_MAP
+  - `apps/ai/tests/test_proactive_scheduler.py` — 20 tests (runner, dispatch, weekend, flags, generators, registration)
+  - `docs/ENGINE_COS_REFERENCE.md` — PGS engine, ISE schedule, check-in types table
+  - `apps/core/fixtures/release_notes.json` — What's New entry
+  - `apps/core/management/commands/load_initial_data.py` — Fixture reset
+- **Tests:** 20 PGS tests pass
+
 ## 2026-03-11 — Beth Humanization: Natural Language, Cross-Domain Resolution, Visual Polish
 
 - **Issue:** Beth's responses felt robotic — success messages used "✓ Logged heart rate: 72 BPM", confirmations showed "Proposed Action\nCreate task:", errors started with "Sorry, I couldn't...", and pill button labels said "Confirm"/"Cancel". Additionally, cross-domain object resolution was asymmetric (task→calendar fallback existed, but calendar→task did not).

@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — Model String Guard Test + CoS COS_MODEL Cleanup
+
+- **Guard test:** New `apps/ai/tests/test_model_guard.py` — fails the build if any `'gpt-*'` string appears in service code outside allowed locations (`config/settings.py`, `owner_finance/`, tests, seed data, fixtures, comments). Prevents model name drift.
+- **CoS fix:** `personal_assistant.py` CoS paths (both streaming and non-streaming) now use `settings.COS_MODEL` directly instead of `getattr(settings, 'COS_MODEL', None)`.
+- **Files created:** `apps/ai/tests/test_model_guard.py`
+- **Files modified:** `apps/ai/personal_assistant.py`
+
 ## 2026-03-11 — Centralize OpenAI Model Config (Single Source of Truth)
 
 - **Issue:** 15 service files had hardcoded model strings (`gpt-4o-mini`) or redundant `getattr` fallbacks instead of reading `settings.OPENAI_MODEL` / `settings.OPENAI_VISION_MODEL` directly. Model changes required editing 15+ files.

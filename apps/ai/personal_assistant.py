@@ -538,11 +538,19 @@ class PersonalAssistant:
             'urgency_message': urgency_message
         }
 
-    def _build_system_prompt(self, include_time_context: bool = True) -> str:
+    def _build_system_prompt(self, include_time_context: bool = True,
+                             include_proactive_prompt: bool = True) -> str:
         """
         Build the complete system prompt with coaching style and time context.
+
+        Args:
+            include_time_context: Include current time/urgency context.
+            include_proactive_prompt: Include COS_PROACTIVE_INTELLIGENCE_PROMPT
+                (~2,900 tokens). Set False for simple data queries when
+                WLJ_CONDITIONAL_FRAMEWORKS_ENABLED is on.
         """
         time_context = self._get_time_context() if include_time_context else None
+        _proactive = COS_PROACTIVE_INTELLIGENCE_PROMPT if include_proactive_prompt else None
         return build_personal_assistant_prompt(
             coaching_style=self.coaching_style,
             faith_enabled=self.faith_enabled,
@@ -550,7 +558,7 @@ class PersonalAssistant:
             time_context=time_context,
             personal_context=self.personal_context,
             personal_facts_prompt=self._personal_facts_prompt,
-            cos_proactive_prompt=COS_PROACTIVE_INTELLIGENCE_PROMPT,
+            cos_proactive_prompt=_proactive,
         )
 
     # =========================================================================
@@ -2622,26 +2630,50 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         _ltrace=_ltrace,
                     )
                 elif not response:
-                    # Build lean conversation history for intent context
-                    # resolution (anaphora: "the other one", "that event", "it").
-                    from apps.ai.conversation.message_builder import build_messages_from_history
-                    _intent_history = build_messages_from_history(
-                        conversation.messages.order_by('-created_at'),
-                        message,
-                        max_messages=5,
-                        max_content_chars=300,
-                        token_budget=800,
+                    # ── Intent bypass: skip expensive intent LLM call when
+                    # router detects no action signals in the message ──────
+                    _skip_intent = (
+                        _route_result is not None
+                        and getattr(_route_result, 'skip_intent', False)
                     )
+                    if _skip_intent:
+                        logger.info(
+                            "INTENT_BYPASS user=%s reason=no_action_signal msg=%r",
+                            self.user.id, message[:80],
+                        )
+                        if _ltrace:
+                            _ltrace.set_governance_decision('intent_bypassed')
+                        intent_results = []
+                        actionable_intents = []
+                    else:
+                        # Build lean conversation history for intent context
+                        # resolution (anaphora: "the other one", "that event", "it").
+                        from apps.ai.conversation.message_builder import build_messages_from_history
+                        _intent_history = build_messages_from_history(
+                            conversation.messages.order_by('-created_at'),
+                            message,
+                            max_messages=5,
+                            max_content_chars=300,
+                            token_budget=800,
+                        )
 
-                    # Try to recognize intents (supports multiple)
-                    if _ltrace:
-                        _ltrace.start('INTENT_RECOGNITION')
-                    intent_results = intent_service.recognize_intents(
-                        message, self.user, conversation_history=_intent_history,
-                        page_context=page_context,
-                    )
-                    if _ltrace:
-                        _ltrace.end('INTENT_RECOGNITION')
+                        # Try to recognize intents (supports multiple)
+                        if _ltrace:
+                            _ltrace.start('INTENT_RECOGNITION')
+                        _intent_domain = (
+                            _route_result.domain if _route_result else None
+                        )
+                        intent_results = intent_service.recognize_intents(
+                            message, self.user, conversation_history=_intent_history,
+                            page_context=page_context,
+                            domain=_intent_domain,
+                        )
+                        if _ltrace:
+                            _ltrace.end('INTENT_RECOGNITION')
+                            if _intent_domain:
+                                _ltrace.set_governance_decision(
+                                    'scoped_tools', _intent_domain
+                                )
 
                     # Filter out no_action results
                     actionable_intents = [ir for ir in intent_results if ir.intent_type != 'no_action']
@@ -3616,7 +3648,32 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
         # Always include time context so the AI knows the user's current time
         # (e.g., "what time is it?" queries). Urgency messaging is part of time context.
-        system_prompt = self._build_system_prompt(include_time_context=True)
+        # Conditional framework: skip COS_PROACTIVE_INTELLIGENCE_PROMPT (~2.9K tokens)
+        # for simple domain-specific data queries (Phase 4 token governance).
+        _include_proactive = True
+        from django.conf import settings as _fw_settings
+        if getattr(_fw_settings, 'WLJ_CONDITIONAL_FRAMEWORKS_ENABLED', False):
+            _is_simple_domain = (
+                route_result is not None
+                and route_result.domain is not None
+                and route_result.category not in ('checkin_prefilter',)
+            )
+            _coaching_keywords = (
+                'should i', 'what should', 'help me', 'advice',
+                'recommend', 'suggest', 'coach', 'motivat',
+                'priorit', 'focus', 'struggling',
+            )
+            _needs_coaching = any(kw in message.lower() for kw in _coaching_keywords)
+            if _is_simple_domain and not _needs_coaching:
+                _include_proactive = False
+                if _ltrace:
+                    _ltrace.set_governance_decision(
+                        'framework_skipped', 'proactive_intelligence'
+                    )
+        system_prompt = self._build_system_prompt(
+            include_time_context=True,
+            include_proactive_prompt=_include_proactive,
+        )
 
         # ── v4: Functional query detection ──────────────────────────────
         # Suppress calibration injection for ANY functional query.
@@ -4001,7 +4058,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     if _health_analysis:
                         cos_context['health_screenshot_analysis'] = _health_analysis
 
-                    cos_injection = format_cos_system_injection(cos_context)
+                    cos_injection = format_cos_system_injection(
+                        cos_context, user_message=message,
+                    )
                     # Append operational context AFTER personality layers
                     # so the LLM prioritizes relationship over raw data.
                     append_layers.append(cos_injection)
@@ -5674,7 +5733,7 @@ Rules for this response:
                         cos_ctx['affirmed_completions'] = _affirmed
                 except Exception:
                     pass  # Affirmation context must never break streaming
-                cos_injection = format_cos_system_injection(cos_ctx)
+                cos_injection = format_cos_system_injection(cos_ctx, user_message=message)
                 if cos_injection:
                     system_prompt += "\n\n" + cos_injection
             except Exception:
@@ -6557,7 +6616,19 @@ Rules for this response:
                 # Run intent recognition BEFORE streaming so action
                 # requests (create task, delete event, etc.) are handled
                 # by the action pipeline, not the conversational LLM.
-                if not _direct_response and not _is_checkin_stream:
+                # Intent bypass: skip when router detected no action signals.
+                _skip_intent_stream = (
+                    _route_result_stream is not None
+                    and getattr(_route_result_stream, 'skip_intent', False)
+                )
+                if _skip_intent_stream and not _direct_response and not _is_checkin_stream:
+                    logger.info(
+                        "INTENT_BYPASS user=%s path=stream reason=no_action_signal msg=%r",
+                        self.user.id, message[:80],
+                    )
+                    if _ltrace_s:
+                        _ltrace_s.set_governance_decision('intent_bypassed')
+                if not _direct_response and not _is_checkin_stream and not _skip_intent_stream:
                     try:
                         from apps.ai.intent_service import intent_service
                         from apps.core.ai_orchestrator.orchestrator import (
@@ -6581,10 +6652,15 @@ Rules for this response:
                         except Exception:
                             pass
 
+                        _stream_intent_domain = (
+                            _route_result_stream.domain
+                            if _route_result_stream else None
+                        )
                         intent_results = intent_service.recognize_intents(
                             message, self.user,
                             conversation_history=_stream_history,
                             page_context=page_context,
+                            domain=_stream_intent_domain,
                         )
                         actionable = [
                             ir for ir in intent_results

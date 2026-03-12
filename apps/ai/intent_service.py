@@ -158,7 +158,7 @@ class IntentService:
         return any(pattern in msg_lower for pattern in self._CORRECTION_PATTERNS)
 
     def recognize_intents(self, user_message: str, user, conversation_history: list = None,
-                          page_context: dict = None) -> List[IntentResult]:
+                          page_context: dict = None, domain: str = None) -> List[IntentResult]:
         """
         Recognize one or more user intents from natural language message.
 
@@ -173,6 +173,9 @@ class IntentService:
                 anaphoric references ("the other one", "that event", "it").
             page_context: Optional dict with url, module, page_title, help_context_id
                           for UI context grounding (domain preference).
+            domain: Optional router-inferred domain for scoped tool loading.
+                    When set, only domain-relevant tools are sent (~2-6K tokens
+                    instead of ~19K). None sends all tools.
 
         Returns:
             List of IntentResult objects (may be empty if no intents recognized)
@@ -207,10 +210,13 @@ class IntentService:
             _messages.append({"role": "user", "content": user_message})
 
             # Call OpenAI with function tools - parallel_tool_calls enabled by default
+            # Phase 5: Load only domain-relevant tools to reduce ~19K → ~2-6K tokens
+            from apps.ai.intents import get_scoped_intent_tools
+            _tools = get_scoped_intent_tools(domain)
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=_messages,
-                tools=ALL_INTENT_TOOLS,
+                tools=_tools,
                 tool_choice="auto",
                 max_tokens=500,  # Increased for multiple tool calls
                 temperature=0.1,  # Low temperature for consistent parsing

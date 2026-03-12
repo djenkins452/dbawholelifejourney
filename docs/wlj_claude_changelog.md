@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-12 — Token Governance: 7-Phase Prompt Optimization (~52K → ~8K tokens/msg)
+
+- **Purpose:** Reduce Beth's per-message token cost from ~52K to ≤8K average (≤12K max) to cut ~31s latency to ≤6s and reduce cost from ~$0.13 to ~$0.02 per message. Pure performance pass — no behavior changes.
+- **Phase 1 — Observability:** Extended `LatencyTrace` with `set_token_report()` and `set_governance_decision()` methods. Extended `_get_chat_latency_telemetry()` to aggregate intent bypass rate, framework skip rate, and per-component token breakdowns.
+- **Phase 2 — Intent Bypass (~24K saved on 70% of msgs):** Added `has_action_signal()` to `deterministic_router.py` — detects logging verbs, mutation verbs, numeric+unit patterns, medicine patterns. When no signal detected, sets `skip_intent=True` on `RouteResult`, skipping the ~24K-token intent recognition LLM call. Wired into both `send_message()` and `send_message_stream()`. Feature flag: `WLJ_INTENT_BYPASS_ENABLED` (default True).
+- **Phase 3 — Domain-Scoped Context:** Flipped `WLJ_DOMAIN_SCOPED_CONTEXT_ENABLED` and `WLJ_MEMORY_GATING_ENABLED` defaults from False to True. Now only domain-relevant + 8 core builders run for domain-specific queries.
+- **Phase 4 — Conditional Frameworks (~4.2K saved):** Made `COGNITIVE_PRECISION_FRAMEWORK` (~1.3K tokens) conditional — only injects when trajectory drift detected or decision keywords present. Made `COS_PROACTIVE_INTELLIGENCE_PROMPT` (~2.9K tokens) conditional — skipped for simple domain-specific queries. Feature flag: `WLJ_CONDITIONAL_FRAMEWORKS_ENABLED` (default True).
+- **Phase 5 — Lazy Tool Schemas (~13.8K saved when intent runs):** Added `DOMAIN_INTENT_TOOLS` mapping and `get_scoped_intent_tools()` to `intents/__init__.py`. Reduces 47 tools (~19K tokens) to domain-relevant subset (e.g., health=25, faith=11). Wired through `intent_service.recognize_intents()` via new `domain` parameter. Feature flag: `WLJ_SCOPED_INTENT_TOOLS_ENABLED` (default True).
+- **Phase 6 — Tiktoken + Global Budget:** Added `tiktoken>=0.7.0` to requirements.txt. Replaced `CHARS_PER_TOKEN=3.5` heuristic with accurate tiktoken encoder in `token_budget.py`. Created `token_governor.py` with `govern_prompt()` that enforces 12K hard ceiling by trimming history first, then system prompt. Wired into `services.py._call_api()`. Feature flag: `WLJ_TOKEN_BUDGET_ENABLED` (default True).
+- **Phase 7 — CoS Injection Limits:** Added 6K-token hard cap on total CoS injection output in `format_cos_system_injection()`. Truncates from end (lowest-priority sections) when exceeded. Feature flag: `WLJ_BUILDER_TOKEN_LIMITS_ENABLED` (default True).
+- **New settings:** `WLJ_INTENT_BYPASS_ENABLED`, `WLJ_CONDITIONAL_FRAMEWORKS_ENABLED`, `WLJ_SCOPED_INTENT_TOOLS_ENABLED`, `WLJ_BUILDER_TOKEN_LIMITS_ENABLED`, `WLJ_TOKEN_BUDGET_MAX`, `WLJ_TOKEN_BUDGET_ENABLED`
+- **Files:** `apps/core/ai_observability/latency_trace.py`, `apps/core/ai_observability/ops_telemetry.py`, `apps/ai/deterministic_router.py`, `apps/ai/personal_assistant.py`, `apps/ai/intent_service.py`, `apps/ai/intents/__init__.py`, `apps/ai/services.py`, `apps/ai/conversation/token_budget.py`, `apps/ai/conversation/token_governor.py` (new), `apps/core/ai_orchestrator/cos_context.py`, `apps/core/cos/prompt_builder.py`, `config/settings.py`, `requirements.txt`
+
 ## 2026-03-12 — Dashboard V2: Behavioral Guidance UX Layer
 
 - **"Next Action" panel:** New prominent panel between Goal Momentum and Execution section shows the single most important thing to do right now. Priority logic: overdue tasks → items within 30 minutes → next incomplete routine → untaken medicine stack → upcoming schedule item. Shows "All Clear" when everything is done. Auto-refreshes via `HX-Trigger: refresh-next-action` when any action is completed.

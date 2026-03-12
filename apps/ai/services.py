@@ -406,6 +406,15 @@ class AIService:
             messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_content})
 
+        # Token governor: enforce global budget ceiling (Phase 6)
+        try:
+            from apps.ai.conversation.token_governor import govern_prompt
+            messages, _token_report = govern_prompt(messages)
+        except ImportError:
+            pass
+        except Exception as _gov_err:
+            logger.debug("Token governor skipped: %s", _gov_err)
+
         last_error = None
         _effective_timeout = get_timeout_for_endpoint(endpoint)
         for attempt in range(1, LLM_MAX_RETRIES + 1):

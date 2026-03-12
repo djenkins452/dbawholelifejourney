@@ -2235,7 +2235,7 @@ def _hour_label(hour):
         return f"{hour - 12} PM"
 
 
-def format_cos_system_injection(context):
+def format_cos_system_injection(context, user_message=None):
     """
     Format the CoS context as a system prompt injection string.
 
@@ -3209,10 +3209,30 @@ def format_cos_system_injection(context):
     # (Layer 5) to avoid duplication in the situational awareness block.
 
     # Phase 2: Cognitive Precision Framework
-    # Injected into every non-learning-mode interaction.
-    # The LLM self-selects depth based on request complexity.
-    lines.append("")
-    lines.append(COGNITIVE_PRECISION_FRAMEWORK.strip())
+    # Conditionally injected: only when drift is detected, decision keywords
+    # are present, or the conditional frameworks flag is disabled (legacy mode).
+    _inject_cognitive = True
+    if getattr(settings, 'WLJ_CONDITIONAL_FRAMEWORKS_ENABLED', False):
+        activation_state_check = context.get(
+            'trajectory_activation_state', ACTIVATION_CLEAN
+        )
+        _decision_keywords = (
+            'should i', 'what should', 'is it worth', 'trade-off',
+            'tradeoff', 'instead of', 'priority', 'conflict',
+            'which is more important', 'pros and cons', 'better to',
+            'decide', 'dilemma', 'struggling with',
+        )
+        _has_decision = False
+        if user_message:
+            _msg_low = user_message.lower()
+            _has_decision = any(kw in _msg_low for kw in _decision_keywords)
+        _inject_cognitive = (
+            activation_state_check != ACTIVATION_CLEAN
+            or _has_decision
+        )
+    if _inject_cognitive:
+        lines.append("")
+        lines.append(COGNITIVE_PRECISION_FRAMEWORK.strip())
 
     # Phase 3: Trajectory Precision Layer (Tiered Activation)
     # Activation state determines which framework variant is injected:
@@ -3630,8 +3650,36 @@ def format_cos_system_injection(context):
     result = '\n'.join(lines)
 
     # Token budget telemetry — log prompt size for monitoring
-    # Approximate: 1 token ~= 4 chars for English text
-    approx_tokens = len(result) // 4
+    try:
+        from apps.ai.conversation.token_budget import estimate_tokens as _est_tokens
+        approx_tokens = _est_tokens(result)
+    except ImportError:
+        approx_tokens = len(result) // 4
+
+    # Phase 7: Per-builder token limit — hard-cap the entire CoS injection
+    # to prevent runaway prompt sizes. The global TokenGovernor (Phase 6)
+    # provides a secondary safety net at the message assembly level.
+    _COS_INJECTION_MAX_TOKENS = 6000
+    if getattr(settings, 'WLJ_BUILDER_TOKEN_LIMITS_ENABLED', False):
+        if approx_tokens > _COS_INJECTION_MAX_TOKENS:
+            # Truncate from the end (lowest-priority sections appended last)
+            _target_chars = _COS_INJECTION_MAX_TOKENS * 4  # ~4 chars/token
+            if len(result) > _target_chars:
+                _truncated = result[:_target_chars]
+                _last_nl = _truncated.rfind('\n')
+                if _last_nl > len(_truncated) // 2:
+                    _truncated = _truncated[:_last_nl]
+                result = _truncated + "\n\n[CoS context trimmed to token budget]"
+                logger.info(
+                    "COS_INJECTION_TRUNCATED user=%s from=%d to~=%d tokens",
+                    context.get('user_id', 'unknown'),
+                    approx_tokens, _COS_INJECTION_MAX_TOKENS,
+                )
+                try:
+                    approx_tokens = _est_tokens(result)
+                except Exception:
+                    approx_tokens = len(result) // 4
+
     if approx_tokens > 6000:
         logger.warning(
             "COS_PROMPT_BUDGET user=%s tokens~=%d (exceeds 6000 soft limit)",

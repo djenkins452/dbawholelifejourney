@@ -1265,7 +1265,18 @@ WLJ_DETERMINISTIC_ROUTER_ENABLED = env.bool('WLJ_DETERMINISTIC_ROUTER_ENABLED', 
 # Enable new L2 data query routes (weight, workouts, sleep, glucose, etc.)
 WLJ_DETERMINISTIC_DATA_ROUTES_ENABLED = env.bool('WLJ_DETERMINISTIC_DATA_ROUTES_ENABLED', default=True)
 # Enable domain-scoped CoS context building (reduced builder count for LLM calls)
-WLJ_DOMAIN_SCOPED_CONTEXT_ENABLED = env.bool('WLJ_DOMAIN_SCOPED_CONTEXT_ENABLED', default=False)
+WLJ_DOMAIN_SCOPED_CONTEXT_ENABLED = env.bool('WLJ_DOMAIN_SCOPED_CONTEXT_ENABLED', default=True)
 # Enable semantic memory gating (skip embedding API for deterministic routes)
-WLJ_MEMORY_GATING_ENABLED = env.bool('WLJ_MEMORY_GATING_ENABLED', default=False)
+WLJ_MEMORY_GATING_ENABLED = env.bool('WLJ_MEMORY_GATING_ENABLED', default=True)
+# Skip intent recognition LLM call when router detects no action signals
+WLJ_INTENT_BYPASS_ENABLED = env.bool('WLJ_INTENT_BYPASS_ENABLED', default=True)
+# Only inject COGNITIVE_PRECISION / PROACTIVE_INTELLIGENCE frameworks when needed
+WLJ_CONDITIONAL_FRAMEWORKS_ENABLED = env.bool('WLJ_CONDITIONAL_FRAMEWORKS_ENABLED', default=True)
+# Load only domain-relevant tool schemas for intent recognition
+WLJ_SCOPED_INTENT_TOOLS_ENABLED = env.bool('WLJ_SCOPED_INTENT_TOOLS_ENABLED', default=True)
+# Enforce per-builder token limits in CoS context injection
+WLJ_BUILDER_TOKEN_LIMITS_ENABLED = env.bool('WLJ_BUILDER_TOKEN_LIMITS_ENABLED', default=True)
+# Global token budget ceiling for assembled prompts
+WLJ_TOKEN_BUDGET_MAX = env.int('WLJ_TOKEN_BUDGET_MAX', default=12000)
+WLJ_TOKEN_BUDGET_ENABLED = env.bool('WLJ_TOKEN_BUDGET_ENABLED', default=True)
     

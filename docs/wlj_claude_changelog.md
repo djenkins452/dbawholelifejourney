@@ -6,6 +6,12 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-12 — Fix Railpack 0.18.0 build failure (Dexcom env vars)
+
+- **Issue:** Railway deploy failed with `secret DEXCOM_CLIENT_ID: not found`. Railpack 0.18.0 detects django-environ `env()` calls and tries to mount them as Docker build secrets. The `env()` call triggers this even with `default=''`.
+- **Fix:** Switched all 4 Dexcom settings (`DEXCOM_CLIENT_ID`, `DEXCOM_CLIENT_SECRET`, `DEXCOM_REDIRECT_URI`, `DEXCOM_USE_SANDBOX`) from `env()` to `os.environ.get()`. This bypasses Railpack's secret detection while preserving identical runtime behavior. Added note that Dexcom direct integration is deprecated in favor of HealthKit.
+- **Files:** `config/settings.py`
+
 ## 2026-03-12 — Phase 5/6: Domain-Scoped Context & Memory Gating Wiring
 
 - **Issue:** When a message falls through to the LLM with a known domain (e.g., a health question needing analysis), all 18 CoS context builders run — including faith, finance, brain training, capture, etc. — wasting DB queries and compute. Semantic memory embedding API calls also run for deterministic data routes even though those responses are pre-computed.

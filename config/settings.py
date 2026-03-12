@@ -961,21 +961,16 @@ APNS_USE_SANDBOX = env.bool('APNS_USE_SANDBOX', default=DEBUG)
 # ==============================================================================
 # Register your app at: https://developer.dexcom.com/
 # OAuth 2.0 credentials for blood glucose data access
-
-DEXCOM_CLIENT_ID = env('DEXCOM_CLIENT_ID', default='')
-DEXCOM_CLIENT_SECRET = env('DEXCOM_CLIENT_SECRET', default='')
-
-# Redirect URI - must match exactly what's registered in Dexcom developer portal
-if DEBUG:
-    DEXCOM_REDIRECT_URI = 'http://localhost:8000/health/glucose/dexcom/callback/'
-else:
-    DEXCOM_REDIRECT_URI = env(
-        'DEXCOM_REDIRECT_URI',
-        default='https://wholelifejourney.com/health/glucose/dexcom/callback/'
-    )
-
-# Use sandbox for development (simulated data, no real Dexcom account needed)
-DEXCOM_USE_SANDBOX = env.bool('DEXCOM_USE_SANDBOX', default=DEBUG)
+# NOTE: Dexcom direct integration deprecated — glucose data now comes via HealthKit.
+# Using os.environ.get() instead of env() to avoid Railpack build-secret requirements.
+DEXCOM_CLIENT_ID = os.environ.get('DEXCOM_CLIENT_ID', '')
+DEXCOM_CLIENT_SECRET = os.environ.get('DEXCOM_CLIENT_SECRET', '')
+DEXCOM_REDIRECT_URI = os.environ.get(
+    'DEXCOM_REDIRECT_URI',
+    'http://localhost:8000/health/glucose/dexcom/callback/' if DEBUG
+    else 'https://wholelifejourney.com/health/glucose/dexcom/callback/'
+)
+DEXCOM_USE_SANDBOX = os.environ.get('DEXCOM_USE_SANDBOX', str(DEBUG)).lower() in ('true', '1', 'yes')
 
 
 # ==============================================================================

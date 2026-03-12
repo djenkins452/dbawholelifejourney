@@ -370,7 +370,7 @@ def handle_start_journal(user, params: dict) -> dict:
         'message': "Great idea! Head to your journal to capture your thoughts.",
         'data': {
             'action': 'navigate',
-            'url': '/journal/entry/new/',
+            'url': '/journal/new/',
         },
     }
 

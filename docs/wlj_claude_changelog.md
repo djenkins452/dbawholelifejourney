@@ -6,6 +6,12 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-11 — Fix broken "Start journaling" link in proactive check-in
+
+- **Issue:** "Start journaling" button in journal check-in navigated to `/journal/entry/new/` which is a 404. Correct URL is `/journal/new/`.
+- **Fix:** Updated `handle_start_journal()` in `apps/ai/quick_reply_handlers.py` to use `/journal/new/`.
+- **Files:** `apps/ai/quick_reply_handlers.py`
+
 ## 2026-03-11 — Performance, Accuracy & Stability Hardening Pass
 
 - **Issue:** Profiling revealed PGS generating 80-120 DB queries per user per 15-min cycle due to N+1 patterns and per-generator dedup queries. Also, no freshness validation before proactive delivery, and CoS cache TTL too aggressive (45s) causing unnecessary rebuilds.

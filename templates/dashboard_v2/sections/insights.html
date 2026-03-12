@@ -1,3 +1,5 @@
+{% if has_actionable_insights %}
+<h2 class="v2-section-title">Insights & Guidance</h2>
 <div class="v2-insights-list">
     {% for item in guidance_items %}
     <div class="v2-insight-card v2-priority-{{ item.priority }}">
@@ -12,10 +14,5 @@
         <p class="v2-insight-message">{{ insight.message|truncatewords:30 }}</p>
     </div>
     {% endif %}
-
-    {% if not guidance_items and not insight %}
-    <div class="v2-empty-state">
-        <p>No insights available right now. Check back later.</p>
-    </div>
-    {% endif %}
 </div>
+{% endif %}

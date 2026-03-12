@@ -1,7 +1,7 @@
-<div class="v2-action-row" id="routine-row-{{ task.pk }}">
+<div class="v2-action-row {% if task.is_next %}v2-next-item{% endif %}" id="routine-row-{{ task.pk }}">
     <button class="v2-action-toggle {% if task.is_completed %}v2-completed{% endif %}"
             hx-post="{% url 'dashboard_v2:routine_complete' pk=task.pk %}"
-            hx-target="#routine-row-{{ task.pk }}"
+            hx-target="#routine-card"
             hx-swap="outerHTML">
         {% if task.is_completed %}
             <span class="v2-check">&#10003;</span>
@@ -10,7 +10,9 @@
         {% endif %}
     </button>
     <div class="v2-action-content">
-        <span class="v2-action-title {% if task.is_completed %}v2-strikethrough{% endif %}">{{ task.title }}</span>
+        <a href="{{ task.detail_url }}" class="v2-action-title-link">
+            {% if task.is_next %}<strong>Next:</strong> {% endif %}{{ task.title }}
+        </a>
         {% if task.scheduled_time %}
             <span class="v2-action-detail">{{ task.scheduled_time|time:"g:i A" }}</span>
         {% endif %}

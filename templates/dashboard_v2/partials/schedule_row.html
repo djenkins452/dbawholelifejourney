@@ -1,0 +1,37 @@
+<div class="v2-action-row" id="schedule-row-{{ item.type }}-{{ item.pk }}">
+    {% if item.can_complete %}
+    <button class="v2-action-toggle {% if item.is_completed %}v2-completed{% endif %}"
+            hx-post="{% url 'dashboard_v2:task_toggle' pk=item.pk %}"
+            hx-target="#schedule-card"
+            hx-swap="outerHTML">
+        {% if item.is_completed %}
+            <span class="v2-check">&#10003;</span>
+        {% else %}
+            <span class="v2-check-empty">&#9675;</span>
+        {% endif %}
+    </button>
+    {% else %}
+    <div class="v2-time-indicator">
+        {% if item.time_display %}
+            <span class="v2-schedule-time">{{ item.time_display }}</span>
+        {% endif %}
+    </div>
+    {% endif %}
+    <div class="v2-action-content">
+        {% if item.can_complete and item.time_display %}
+            <span class="v2-action-detail">{{ item.time_display }}</span>
+        {% endif %}
+        <a href="{{ item.source_url }}" class="v2-action-title-link {% if item.is_completed %}v2-strikethrough{% endif %}">
+            {{ item.title }}
+        </a>
+        {% if item.is_overdue %}
+            <span class="v2-action-badge v2-badge-overdue">Overdue</span>
+        {% endif %}
+        {% if item.commitment_level == "non_negotiable" %}
+            <span class="v2-action-badge v2-badge-priority">Non-Negotiable</span>
+        {% endif %}
+        {% if item.goal_name %}
+            <span class="v2-goal-tag">{{ item.goal_name }}</span>
+        {% endif %}
+    </div>
+</div>

@@ -16,8 +16,10 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
+from apps.core.utils import get_user_today
 from apps.help.mixins import HelpContextMixin
 
+from .cache import DashboardV2CacheService
 from .services.dashboard_service import DashboardV2Service
 
 logger = logging.getLogger(__name__)
@@ -114,10 +116,14 @@ class TaskToggleAction(LoginRequiredMixin, View):
         else:
             task.mark_complete()
 
-        # Return updated task row partial
+        # Invalidate cache and return full schedule card
+        DashboardV2CacheService.invalidate(request.user.pk, "execution")
+        service = DashboardV2Service(request.user)
+        exec_ctx = service.get_execution_context()
+
         html = render_to_string(
-            "dashboard_v2/partials/task_row.html",
-            {"task": task, "request": request},
+            "dashboard_v2/partials/schedule_card.html",
+            {**exec_ctx, "request": request},
             request=request,
         )
         return HttpResponse(html)
@@ -192,9 +198,78 @@ class RoutineCompleteAction(LoginRequiredMixin, View):
         else:
             task.mark_complete()
 
+        # Invalidate cache and return full routine card
+        DashboardV2CacheService.invalidate(request.user.pk, "execution")
+        service = DashboardV2Service(request.user)
+        exec_ctx = service.get_execution_context()
+
         html = render_to_string(
-            "dashboard_v2/partials/routine_row.html",
-            {"task": task, "request": request},
+            "dashboard_v2/partials/routine_card.html",
+            {**exec_ctx, "request": request},
+            request=request,
+        )
+        return HttpResponse(html)
+
+
+class MedicineGroupLogAction(LoginRequiredMixin, View):
+    """HTMX POST endpoint to log/unlog all medicines in a time_of_day group."""
+
+    def post(self, request, time_of_day):
+        from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+
+        today = get_user_today(request.user)
+
+        # Get all active schedules for this time_of_day
+        schedules = MedicineSchedule.objects.filter(
+            medicine__user=request.user,
+            medicine__medicine_status=Medicine.STATUS_ACTIVE,
+            time_of_day=time_of_day,
+        ).select_related("medicine")
+
+        if not schedules.exists():
+            return HttpResponse(status=404)
+
+        # Check if ALL are already logged
+        today_logs = set(
+            MedicineLog.objects.filter(
+                user=request.user,
+                scheduled_date=today,
+                log_status__in=["taken", "late"],
+                schedule__in=schedules,
+            ).values_list("schedule_id", flat=True)
+        )
+        all_taken = len(today_logs) == schedules.count()
+
+        if all_taken:
+            # Un-log all
+            MedicineLog.objects.filter(
+                user=request.user,
+                scheduled_date=today,
+                log_status__in=["taken", "late"],
+                schedule__in=schedules,
+            ).delete()
+        else:
+            # Log missing ones
+            now = timezone.now()
+            for schedule in schedules:
+                if schedule.pk not in today_logs:
+                    MedicineLog.objects.create(
+                        user=request.user,
+                        medicine=schedule.medicine,
+                        schedule=schedule,
+                        scheduled_date=today,
+                        log_status="taken",
+                        taken_at=now,
+                    )
+
+        # Invalidate cache and re-render medicine card
+        DashboardV2CacheService.invalidate(request.user.pk, "execution")
+        service = DashboardV2Service(request.user)
+        exec_ctx = service.get_execution_context()
+
+        html = render_to_string(
+            "dashboard_v2/partials/medicine_card.html",
+            {**exec_ctx, "request": request},
             request=request,
         )
         return HttpResponse(html)

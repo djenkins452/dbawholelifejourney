@@ -40,6 +40,11 @@ urlpatterns = [
         name="medicine_log",
     ),
     path(
+        "actions/medicine/group/<str:time_of_day>/log/",
+        views.MedicineGroupLogAction.as_view(),
+        name="medicine_group_log",
+    ),
+    path(
         "actions/routine/<int:pk>/complete/",
         views.RoutineCompleteAction.as_view(),
         name="routine_complete",

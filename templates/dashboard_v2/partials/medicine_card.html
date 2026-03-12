@@ -1,0 +1,12 @@
+{% csrf_token %}
+<div class="v2-execution-card" id="medicine-card">
+    <div class="v2-card-header">
+        <h3 class="v2-card-title">Medicine</h3>
+        <span class="v2-count-badge">{{ medicine_done }}/{{ medicine_total }}</span>
+    </div>
+    <div class="v2-task-list">
+        {% for group in medicine_groups %}
+            {% include "dashboard_v2/partials/medicine_group_row.html" %}
+        {% endfor %}
+    </div>
+</div>

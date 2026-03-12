@@ -1,0 +1,31 @@
+{% csrf_token %}
+<div class="v2-execution-card" id="routine-card">
+    <div class="v2-card-header">
+        <h3 class="v2-card-title">Routines</h3>
+        <span class="v2-count-badge">{{ routine_done }}/{{ routine_total }}</span>
+    </div>
+
+    {% if completed_routines %}
+    <div class="v2-completed-strip">
+        {% for task in completed_routines %}
+        <div class="v2-completed-compact" id="routine-row-{{ task.pk }}">
+            <button class="v2-compact-toggle"
+                    hx-post="{% url 'dashboard_v2:routine_complete' pk=task.pk %}"
+                    hx-target="#routine-card"
+                    hx-swap="outerHTML">
+                <span class="v2-check-sm">&#10003;</span>
+            </button>
+            <a href="{{ task.detail_url }}" class="v2-compact-title">{{ task.title }}</a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if pending_routines %}
+    <div class="v2-task-list">
+        {% for task in pending_routines %}
+            {% include "dashboard_v2/partials/routine_row.html" %}
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>

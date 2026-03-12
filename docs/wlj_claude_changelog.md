@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-12 — Deterministic Health Summary Fast Path (30s → <1s)
+
+- **Issue:** Health summary questions ("how have I been doing with my health?") took ~30 seconds because they triggered the full CoS pipeline: 18 parallel context builders, OpenAI Embedding API for semantic memory, and a gpt-4o LLM call — all to restate 4 pre-computed numbers (weight, workouts, sleep, glucose).
+- **Root cause:** No short-circuit for health metric queries. The check-in prefilter correctly skipped intent recognition but still fell through to `_generate_response()` with full CoS context build + LLM call.
+- **Fix:** Added deterministic health summary fast path that fires BEFORE the check-in prefilter. When a message is detected as a health-focused summary query (lexical matching, no LLM), the response is built directly from pre-computed SAE state (single cached DB hit) in ~200ms, skipping the entire CoS build, embedding API, and LLM call.
+- **Detection:** Dual-condition matcher — requires both a summary-intent phrase ("how am I doing", "my progress") AND a health keyword ("health", "weight", "workout", etc.), OR a health-specific intent phrase ("health status", "my stats", "wellness summary"). Intentionally narrow to avoid false positives; non-matching queries fall through to normal LLM path.
+- **Wired into:** Both non-streaming (`send_message`) and streaming (`send_message_stream`) chat paths.
+- **Fallback:** If deterministic builder returns None (insufficient data) or throws, falls through to existing check-in/LLM path transparently.
+- **Files:**
+  - `apps/ai/deterministic_health_summary.py` — NEW: `is_health_summary_query()`, `build_health_summary_response()`
+  - `apps/ai/personal_assistant.py` — Health fast path wired into both non-streaming (line ~2562) and streaming (line ~6377) paths
+  - `apps/ai/tests/test_deterministic_health_summary.py` — NEW: 27 tests (15 detection, 7 builder, 5 edge cases)
+
 ## 2026-03-11 — Fix broken "Start journaling" link in proactive check-in
 
 - **Issue:** "Start journaling" button in journal check-in navigated to `/journal/entry/new/` which is a 404. Correct URL is `/journal/new/`.

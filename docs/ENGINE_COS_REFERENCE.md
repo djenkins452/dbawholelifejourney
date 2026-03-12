@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-12 (LLM-Last Deterministic Router — shared routing layer for streaming/non-streaming, 8 new data query routes, feature flags, observability)
+**Last updated:** 2026-03-12 (Phase 5/6: domain-scoped context builders via `_TAGGED_BUILDERS`, memory gating wiring, `route_result` threaded through chat pipeline)
 
 ---
 
@@ -224,8 +224,10 @@ User Message
 
 ### Context Builder (19 Parallel Builders)
 
-**Function:** `build_cos_context(user)` — `apps/core/ai_orchestrator/cos_context.py:1068`
+**Function:** `build_cos_context(user, scoped_builders=None)` — `apps/core/ai_orchestrator/cos_context.py:1068`
 Uses `ThreadPoolExecutor(max_workers=6)`.
+
+**Domain Scoping (Phase 5):** Builders are tagged in `_TAGGED_BUILDERS` (list of `(tag, fn)` tuples). When `scoped_builders` is a set of tag strings, only matching builders run. The deterministic router infers the message domain and calls `get_scoped_builders(domain)` to get the relevant set (domain-specific + core tags). Feature-flagged: `WLJ_DOMAIN_SCOPED_CONTEXT_ENABLED` (default False). When disabled or domain is ambiguous, all builders run (full backward compatibility).
 
 **SAE Truth Layer:** `build_cos_context()` pre-loads `get_user_state(user)` into `user._sae_cache` so all builders share one DB hit for SAE reads. Builders read from SAE via `get_state_value()` / `get_module_state()` instead of raw ORM queries for domain state.
 
@@ -744,7 +746,7 @@ When the user asks a health intelligence question with a brevity keyword ("keep 
 | `apps/core/ai_governance/models.py` | PendingAction + UserDecisionPreference models | ~630 |
 | `apps/core/ai_orchestrator/commitment_contract.py` | ECC commitment tracking | ~1,678 |
 | `apps/ai/personal_assistant.py` | Main assistant, send_message() | ~6,500 |
-| `apps/ai/deterministic_router.py` | LLM-last shared routing layer (8 data routes, registry, feature flags) | ~470 |
+| `apps/ai/deterministic_router.py` | LLM-last shared routing layer (8 data routes, domain scoping, memory gating, feature flags) | ~470 |
 | `apps/ai/deterministic_health_summary.py` | Health summary fast path (lexical detection + SAE formatting) | ~287 |
 | `apps/ai/views.py` | Chat API endpoints | ~1,661 |
 | `apps/ai/proactive_checkins.py` | Proactive check-in service (20 check-in types, 5 domain schedulers) | ~1200+ |

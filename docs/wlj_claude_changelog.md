@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-12 — Phase 5/6: Domain-Scoped Context & Memory Gating Wiring
+
+- **Issue:** When a message falls through to the LLM with a known domain (e.g., a health question needing analysis), all 18 CoS context builders run — including faith, finance, brain training, capture, etc. — wasting DB queries and compute. Semantic memory embedding API calls also run for deterministic data routes even though those responses are pre-computed.
+- **Solution (Phase 5):** Tagged each builder in `_TAGGED_BUILDERS` with a domain key. Added `scoped_builders` parameter to `build_cos_context()`. When the deterministic router identifies a domain and no cache exists, only domain-relevant + core builders execute. Feature-flagged via `WLJ_DOMAIN_SCOPED_CONTEXT_ENABLED` (defaults False).
+- **Solution (Phase 6):** Wired `should_skip_semantic_memory()` into all 3 memory retrieval points in the chat pipeline (non-streaming `_generate_response`, streaming `_build_fast_context`). When memory gating is enabled and the route is deterministic, embedding API calls are skipped. Feature-flagged via `WLJ_MEMORY_GATING_ENABLED` (defaults False).
+- **Wiring:** Added `route_result` parameter to `_generate_response()`, `_generate_response_stream()`, and `_build_fast_context()`. Passed from `send_message()` and `send_message_stream()` through all code paths. Initialized `_route_result = None` early to prevent UnboundLocalError.
+- **Phase 4 (LLM narration audit):** Confirmed no changes needed — action handlers already return complete user-friendly messages via `ActionResult.message`, used directly without extra LLM narration.
+- **Updated `DOMAIN_CONTEXT_BUILDERS`/`CORE_BUILDERS`** in deterministic_router.py to use real builder tags matching cos_context.py.
+- **Files:**
+  - `apps/core/ai_orchestrator/cos_context.py` — `_PARALLEL_BUILDERS` → `_TAGGED_BUILDERS` (tagged tuples), `build_cos_context(scoped_builders=)` param, filtered builder iteration
+  - `apps/ai/deterministic_router.py` — Updated `DOMAIN_CONTEXT_BUILDERS` and `CORE_BUILDERS` to match actual builder tags
+  - `apps/ai/personal_assistant.py` — `route_result` param threaded through `_generate_response()`, `_generate_response_stream()`, `_build_fast_context()`, all calling sites in `send_message()`/`send_message_stream()`. Memory gating at 3 retrieval points. Domain scoping at full-rebuild path.
+  - `apps/ai/tests/test_deterministic_router.py` — Updated DomainScopingTests to match new builder tags
+
 ## 2026-03-12 — LLM-Last Deterministic Router (unified routing architecture)
 
 - **Issue:** Simple data queries ("what's my weight?", "how many workouts?") triggered the full LLM pipeline: intent recognition (gpt-4o-mini), 17 CoS context builders, semantic memory embedding API, and gpt-4o response generation — taking 15-30s to restate pre-computed numbers. Routing logic was duplicated between streaming and non-streaming paths, creating parity drift risk.

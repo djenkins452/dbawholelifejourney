@@ -2206,6 +2206,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             _ecc_closure_handled = False
             _ecc_closure_response = ''
             _cos_context_cache = None  # Cache cos_context from ECC to avoid recomputing
+            _route_result = None  # Shared router result for domain scoping / memory gating
             try:
                 from apps.core.ai_orchestrator.commitment_contract import (
                     Commitment as EccCommitment,
@@ -2427,6 +2428,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         image_mime_type=image_mime_type,
                         cos_context_cache=_cos_context_cache,
                         all_images=all_images,
+                        route_result=_route_result,
                     )
             # Then check for pending data visibility confirmation
             elif self._handle_data_visibility_confirmation(message, conversation):
@@ -2600,6 +2602,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         image_mime_type=image_mime_type,
                         cos_context_cache=_cos_context_cache,
                         all_images=all_images,
+                        route_result=_route_result,
                     )
                 elif not response:
                     # Build lean conversation history for intent context
@@ -2738,6 +2741,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                 image_mime_type=image_mime_type,
                                 cos_context_cache=_cos_context_cache,
                                 all_images=all_images,
+                                route_result=_route_result,
                             )
                             response += "\n\n" + bug_report_ack
                         else:
@@ -2755,6 +2759,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                     image_mime_type=image_mime_type,
                                     cos_context_cache=_cos_context_cache,
                                     all_images=all_images,
+                                    route_result=_route_result,
                                 )
 
                         # Check for feature requests ("I wish", "I want") and notify admin
@@ -3546,6 +3551,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         _return_context_only: bool = False,
         all_images: list = None,
         _defer_briefing_marking: bool = False,
+        route_result=None,
     ) -> str:
         """Generate AI response to user message using coaching style.
 
@@ -3820,7 +3826,20 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             except Exception:
                                 pass
                         else:
-                            cos_context = build_cos_context(self.user)
+                            # Domain scoping: if the router identified a
+                            # domain, only build relevant context sections.
+                            _scoped = None
+                            if route_result and route_result.domain:
+                                try:
+                                    from apps.ai.deterministic_router import (
+                                        get_scoped_builders as _get_scoped,
+                                    )
+                                    _scoped = _get_scoped(route_result.domain)
+                                except Exception:
+                                    pass
+                            cos_context = build_cos_context(
+                                self.user, scoped_builders=_scoped,
+                            )
                             try:
                                 log_full_path(self.user.id)
                             except Exception:
@@ -4003,10 +4022,20 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
         # Phase 7.1: Semantic memory retrieval — retrieve past conversations
         # relevant to the current message (cross-session, embedding-based).
+        # Memory gating: skip embedding lookup for deterministic data routes.
+        _skip_memory = False
+        if route_result:
+            try:
+                from apps.ai.deterministic_router import should_skip_semantic_memory
+                _skip_memory = should_skip_semantic_memory(route_result)
+            except Exception:
+                pass
         try:
             from apps.ai.memory_service import retrieve_relevant_memories
-            relevant_memories = retrieve_relevant_memories(
-                self.user, message, top_k=3, exclude_minutes=30,
+            relevant_memories = (
+                retrieve_relevant_memories(
+                    self.user, message, top_k=3, exclude_minutes=30,
+                ) if not _skip_memory else []
             )
             if relevant_memories:
                 mem_lines = [
@@ -4721,13 +4750,14 @@ USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
                 system_prompt += f"\nASSESSMENT:\n{state['ai_assessment']}"
 
         # Phase 3a: Inject relevant past conversations from long-term memory (RAG)
-        try:
-            from apps.ai.memory_service import get_memory_context_block
-            memory_block = get_memory_context_block(self.user, message)
-            if memory_block:
-                system_prompt += memory_block
-        except Exception as mem_err:
-            logger.debug("Memory retrieval skipped: %s", mem_err)
+        if not _skip_memory:
+            try:
+                from apps.ai.memory_service import get_memory_context_block
+                memory_block = get_memory_context_block(self.user, message)
+                if memory_block:
+                    system_prompt += memory_block
+            except Exception as mem_err:
+                logger.debug("Memory retrieval skipped: %s", mem_err)
 
         # Phase 3b: Inject relevant corrections (higher priority than memories)
         try:
@@ -5506,7 +5536,8 @@ Rules for this response:
     # -----------------------------------------------------------------
 
     def _build_fast_context(self, message, conversation,
-                            page_context=None, cos_context_cache=None):
+                            page_context=None, cos_context_cache=None,
+                            route_result=None):
         """
         Build minimal LLM context using ONLY cached data — no rebuilds.
 
@@ -5601,10 +5632,20 @@ Rules for this response:
             pass
 
         # --- f3) Phase 7.1: Semantic memory + correction retrieval (streaming)
+        # Memory gating: skip embedding lookup for deterministic data routes.
+        _skip_memory_fast = False
+        if route_result:
+            try:
+                from apps.ai.deterministic_router import should_skip_semantic_memory
+                _skip_memory_fast = should_skip_semantic_memory(route_result)
+            except Exception:
+                pass
         try:
             from apps.ai.memory_service import retrieve_relevant_memories
-            relevant_memories = retrieve_relevant_memories(
-                self.user, message, top_k=3, exclude_minutes=30,
+            relevant_memories = (
+                retrieve_relevant_memories(
+                    self.user, message, top_k=3, exclude_minutes=30,
+                ) if not _skip_memory_fast else []
             )
             if relevant_memories:
                 mem_lines = [
@@ -5862,6 +5903,7 @@ Rules for this response:
         cos_context_cache: dict = None,
         assistant_message=None,
         is_checkin: bool = False,
+        route_result=None,
     ):
         """
         Streaming version of _generate_response.
@@ -5903,6 +5945,7 @@ Rules for this response:
                     message, conversation,
                     page_context=page_context,
                     cos_context_cache=cos_context_cache,
+                    route_result=route_result,
                 )
 
             if ctx is None:
@@ -5914,6 +5957,7 @@ Rules for this response:
                     page_context=page_context,
                     cos_context_cache=cos_context_cache,
                     _return_context_only=True,
+                    route_result=route_result,
                 )
             else:
                 _fast_elapsed = (_t_fast.monotonic() - _t_fast_start) * 1000
@@ -6538,6 +6582,7 @@ Rules for this response:
                         cos_context_cache=_cos_context_cache,
                         assistant_message=assistant_msg,
                         is_checkin=_is_checkin_stream,
+                        route_result=_route_result_stream,
                     ):
                         chunks.append(chunk)
                         yield {'type': 'token', 'content': chunk}

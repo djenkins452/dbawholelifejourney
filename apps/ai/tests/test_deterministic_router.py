@@ -682,9 +682,9 @@ class DomainScopingTests(TestCase):
     def test_health_domain_includes_related_builders(self):
         builders = get_scoped_builders('health')
         self.assertIn('health', builders)
-        self.assertIn('fitness', builders)
-        self.assertIn('medication', builders)
-        self.assertIn('user_profile', builders)  # Core builder
+        self.assertIn('meals', builders)
+        self.assertIn('medical', builders)
+        self.assertIn('blueprint', builders)  # Core builder
 
     @override_settings(WLJ_DOMAIN_SCOPED_CONTEXT_ENABLED=True)
     def test_none_domain_returns_none(self):

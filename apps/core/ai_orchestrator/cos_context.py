@@ -1299,32 +1299,36 @@ def _build_purpose_context(user):
 
 
 # Registry of parallel builder functions.
-# Each takes (user, prefs) or (user,) and returns a dict of context updates.
-_PARALLEL_BUILDERS = [
-    lambda user, prefs: _build_blueprint_and_governance(user, prefs),
-    lambda user, prefs: _build_plan_and_alignment(user),
-    lambda user, prefs: _build_pressure_and_deadlines(user),
-    lambda user, prefs: _build_health_and_vitals(user),
-    lambda user, prefs: _build_calendar_events(user),
-    lambda user, prefs: _build_intelligence_signals(user),
-    lambda user, prefs: _build_people_and_mood(user),
-    lambda user, prefs: _build_loops_and_events(user),
-    lambda user, prefs: _build_strategy_and_signals(user),
-    lambda user, prefs: _build_recent_image_analyses(user),
-    lambda user, prefs: _build_meals_context(user),
-    lambda user, prefs: _build_faith_context(user),
+# Each entry: (tag, builder_fn). Tags enable domain-scoped context loading.
+# Builder functions take (user, prefs) or (user,) and return a dict of context updates.
+_TAGGED_BUILDERS = [
+    ('blueprint', lambda user, prefs: _build_blueprint_and_governance(user, prefs)),
+    ('plan', lambda user, prefs: _build_plan_and_alignment(user)),
+    ('pressure', lambda user, prefs: _build_pressure_and_deadlines(user)),
+    ('health', lambda user, prefs: _build_health_and_vitals(user)),
+    ('calendar', lambda user, prefs: _build_calendar_events(user)),
+    ('intelligence', lambda user, prefs: _build_intelligence_signals(user)),
+    ('people', lambda user, prefs: _build_people_and_mood(user)),
+    ('loops', lambda user, prefs: _build_loops_and_events(user)),
+    ('strategy', lambda user, prefs: _build_strategy_and_signals(user)),
+    ('images', lambda user, prefs: _build_recent_image_analyses(user)),
+    ('meals', lambda user, prefs: _build_meals_context(user)),
+    ('faith', lambda user, prefs: _build_faith_context(user)),
     # Phase 7.3: Additional domain context builders
-    lambda user, prefs: _build_finance_context(user),
-    lambda user, prefs: _build_brain_training_context(user),
-    lambda user, prefs: _build_capture_context(user),
-    lambda user, prefs: _build_medical_context(user),
-    lambda user, prefs: _build_purpose_context(user),
+    ('finance', lambda user, prefs: _build_finance_context(user)),
+    ('brain_training', lambda user, prefs: _build_brain_training_context(user)),
+    ('capture', lambda user, prefs: _build_capture_context(user)),
+    ('medical', lambda user, prefs: _build_medical_context(user)),
+    ('purpose', lambda user, prefs: _build_purpose_context(user)),
     # v8 SA builder temporarily disabled for production stability debugging.
     # Re-enable after confirming 524 timeout root cause.
-    # lambda user, prefs: _build_situational_awareness_context(user),
+    # ('situational', lambda user, prefs: _build_situational_awareness_context(user)),
     # Phase 1: Personal Operating Context — reads pre-computed profile (single DB hit)
-    lambda user, prefs: _build_operating_profile(user),
+    ('operating_profile', lambda user, prefs: _build_operating_profile(user)),
 ]
+
+# Backward-compatible flat list (used by telemetry and tests)
+_PARALLEL_BUILDERS = [fn for _, fn in _TAGGED_BUILDERS]
 
 
 def _build_operating_profile(user):
@@ -1374,7 +1378,7 @@ def _build_situational_awareness_context(user):
         return {}
 
 
-def build_cos_context(user):
+def build_cos_context(user, scoped_builders=None):
     """
     Assemble the full Chief of Staff operational context.
 
@@ -1386,6 +1390,9 @@ def build_cos_context(user):
 
     Args:
         user: Django User instance.
+        scoped_builders: Optional set of builder tag strings. When provided,
+            only builders whose tag is in this set will run. None means all.
+            Used by the deterministic router for domain-scoped context loading.
 
     Returns:
         dict — Comprehensive CoS context.
@@ -1438,7 +1445,13 @@ def build_cos_context(user):
         'personal_assistant': prefs.personal_assistant_enabled,
     }
 
-    # Run all builders — parallel when possible, sequential on SQLite
+    # Select builders — domain scoping filters to relevant builders only
+    if scoped_builders:
+        builders = [fn for tag, fn in _TAGGED_BUILDERS if tag in scoped_builders]
+    else:
+        builders = _PARALLEL_BUILDERS
+
+    # Run builders — parallel when possible, sequential on SQLite
     # (in-memory SQLite gives each thread a separate empty database)
     _use_threading = 'sqlite' not in settings.DATABASES.get(
         'default', {}
@@ -1460,7 +1473,7 @@ def build_cos_context(user):
             with ThreadPoolExecutor(max_workers=_PARALLEL_MAX_WORKERS) as executor:
                 futures = {
                     executor.submit(_run_builder, b): b
-                    for b in _PARALLEL_BUILDERS
+                    for b in builders
                 }
                 for future in as_completed(futures, timeout=10):
                     try:
@@ -1474,7 +1487,7 @@ def build_cos_context(user):
             logger.warning(
                 "Parallel context assembly failed, falling back to sequential: %s", e
             )
-            for builder in _PARALLEL_BUILDERS:
+            for builder in builders:
                 try:
                     updates = builder(user, prefs)
                     if updates:
@@ -1482,7 +1495,7 @@ def build_cos_context(user):
                 except Exception as be:
                     logger.debug("Sequential context builder failed: %s", be)
     else:
-        for builder in _PARALLEL_BUILDERS:
+        for builder in builders:
             try:
                 updates = builder(user, prefs)
                 if updates:
@@ -1512,7 +1525,7 @@ def build_cos_context(user):
     elapsed_ms = (_time.monotonic() - start) * 1000
     try:
         from apps.ai.readiness_telemetry import log_parallel_build
-        log_parallel_build(user.id, elapsed_ms, len(_PARALLEL_BUILDERS))
+        log_parallel_build(user.id, elapsed_ms, len(builders))
     except Exception:
         pass
 

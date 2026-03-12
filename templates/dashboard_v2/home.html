@@ -59,15 +59,11 @@
     </section>
     {% endif %}
 
-    <!-- Section 5: Insights & Guidance (HTMX lazy) -->
+    <!-- Section 5: Insights & Guidance (HTMX lazy, only renders if actionable) -->
     <section class="v2-section">
-        <h2 class="v2-section-title">Insights & Guidance</h2>
         <div hx-get="{% url 'dashboard_v2:section_insights' %}"
              hx-trigger="load delay:1s"
              hx-swap="innerHTML">
-            <div class="v2-loading-skeleton">
-                <div class="v2-skeleton-line"></div>
-            </div>
         </div>
     </section>
 

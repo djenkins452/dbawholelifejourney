@@ -7,10 +7,12 @@ Provides phased data loading:
   Phase 2 (HTMX lazy):    State, celebration, insights
 """
 
+import datetime
 import logging
 from datetime import timedelta
 
 import pytz
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.core.utils import get_user_today
@@ -134,7 +136,7 @@ class DashboardV2Service:
                 .exclude(status="deleted")
                 .order_by("scheduled_time", "title")
             )
-            # Attach goal names and engagement levels
+            # Attach goal names, engagement levels, and safe URLs
             for task in routine_tasks:
                 domain_slug = MODULE_DOMAIN_MAP.get(
                     getattr(task, "module", ""), ""
@@ -143,10 +145,23 @@ class DashboardV2Service:
                 task.engagement_level = self._match_engagement(
                     task.title, engagement
                 )
+                task.detail_url = self._resolve_task_url(task)
             context["routine_tasks"] = routine_tasks
+
+            # Split into completed (compact) and pending (full-size)
+            context["completed_routines"] = [
+                t for t in routine_tasks if t.is_completed
+            ]
+            context["pending_routines"] = [
+                t for t in routine_tasks if not t.is_completed
+            ]
+            if context["pending_routines"]:
+                context["pending_routines"][0].is_next = True
         except Exception:
             logger.error("Failed to load routine tasks", exc_info=True)
             context["routine_tasks"] = []
+            context["completed_routines"] = []
+            context["pending_routines"] = []
 
         # Non-routine tasks (due today or overdue, pending)
         try:
@@ -173,9 +188,9 @@ class DashboardV2Service:
             logger.error("Failed to load tasks", exc_info=True)
             context["non_routine_tasks"] = []
 
-        # Medicine schedule
+        # Medicine schedule — grouped by time_of_day
         try:
-            from apps.health.models import Medicine, MedicineLog
+            from apps.health.models import Medicine, MedicineLog, MedicineSchedule
 
             active_medicines = list(
                 Medicine.objects.filter(
@@ -194,19 +209,51 @@ class DashboardV2Service:
                 ).values_list("medicine_id", "schedule_id")
             )
 
-            medicine_items = []
+            # Group by time_of_day
+            groups = {}
+            medicine_items = []  # flat list for counts
             for med in active_medicines:
                 for schedule in med.schedules.all():
+                    tod = schedule.time_of_day or "unscheduled"
                     taken = (med.pk, schedule.pk) in today_logs
-                    medicine_items.append({
-                        "medicine": med,
-                        "schedule": schedule,
-                        "taken": taken,
-                        "goal_name": goals_by_domain.get("health", ""),
-                    })
+                    if tod not in groups:
+                        display = (
+                            schedule.get_time_of_day_display()
+                            if hasattr(schedule, "get_time_of_day_display")
+                            else tod.replace("_", " ").title()
+                        )
+                        groups[tod] = {
+                            "time_of_day": tod,
+                            "label": f"{display} Stack",
+                            "order": MedicineSchedule.TIME_OF_DAY_ORDER.get(
+                                tod, 99
+                            ),
+                            "items": [],
+                            "schedule_ids": [],
+                            "taken_count": 0,
+                            "total_count": 0,
+                        }
+                    groups[tod]["items"].append(
+                        {"medicine": med, "schedule": schedule, "taken": taken}
+                    )
+                    groups[tod]["schedule_ids"].append(schedule.pk)
+                    groups[tod]["total_count"] += 1
+                    if taken:
+                        groups[tod]["taken_count"] += 1
+                    medicine_items.append({"taken": taken})
+
+            medicine_groups = sorted(
+                groups.values(), key=lambda g: g["order"]
+            )
+            for g in medicine_groups:
+                g["all_taken"] = g["taken_count"] == g["total_count"]
+                g["goal_name"] = goals_by_domain.get("health", "")
+
+            context["medicine_groups"] = medicine_groups
             context["medicine_items"] = medicine_items
         except Exception:
             logger.error("Failed to load medicines", exc_info=True)
+            context["medicine_groups"] = []
             context["medicine_items"] = []
 
         # Calendar events (from CalendarEvent, not LifeEvent)
@@ -232,18 +279,22 @@ class DashboardV2Service:
             logger.error("Failed to load calendar events", exc_info=True)
             context["today_events"] = []
 
+        # Build unified schedule timeline (tasks + calendar merged)
+        context["schedule_timeline"] = self._build_schedule_timeline(
+            context.get("non_routine_tasks", []),
+            context.get("today_events", []),
+        )
+        context["schedule_count"] = len(context["schedule_timeline"])
+
         # Completion counts for group headers
         context["routine_done"] = sum(
             1 for t in context.get("routine_tasks", []) if t.is_completed
         )
         context["routine_total"] = len(context.get("routine_tasks", []))
-        context["task_done"] = 0  # Non-routine shown only if pending
-        context["task_total"] = len(context.get("non_routine_tasks", []))
         context["medicine_done"] = sum(
             1 for m in context.get("medicine_items", []) if m.get("taken")
         )
         context["medicine_total"] = len(context.get("medicine_items", []))
-        context["event_count"] = len(context.get("today_events", []))
 
         # Time phase for section ordering
         context["time_phase"] = self.get_time_phase()
@@ -320,6 +371,91 @@ class DashboardV2Service:
             if any(kw in title_lower for kw in keywords):
                 return engagement.get(activity_key, "")
         return ""
+
+    def _build_schedule_timeline(self, non_routine_tasks, today_events):
+        """
+        Merge non-routine tasks and calendar events into a single
+        sorted timeline for "Today's Schedule".
+        """
+        try:
+            user_tz = pytz.timezone(self.prefs.timezone_iana)
+        except Exception:
+            user_tz = pytz.UTC
+
+        timeline = []
+
+        for task in non_routine_tasks:
+            t = task.scheduled_time
+            timeline.append({
+                "type": "task",
+                "pk": task.pk,
+                "time": t,
+                "time_display": t.strftime("%-I:%M %p") if t else "",
+                "title": task.title,
+                "is_completed": task.is_completed,
+                "can_complete": True,
+                "source_url": self._resolve_task_url(task),
+                "is_overdue": task.is_overdue,
+                "commitment_level": getattr(task, "commitment_level", ""),
+                "goal_name": getattr(task, "goal_name", ""),
+                "is_all_day": False,
+            })
+
+        for event in today_events:
+            local_time = None
+            if event.start_dt and not event.is_all_day:
+                local_time = event.start_dt.astimezone(user_tz).time()
+            timeline.append({
+                "type": "event",
+                "pk": event.pk,
+                "time": local_time,
+                "time_display": (
+                    local_time.strftime("%-I:%M %p")
+                    if local_time
+                    else ("All Day" if event.is_all_day else "")
+                ),
+                "title": event.title,
+                "is_completed": event.status == "completed",
+                "can_complete": getattr(event, "source_type", "") == "task",
+                "source_url": self._resolve_event_url(event),
+                "is_all_day": event.is_all_day,
+                "goal_name": getattr(event, "goal_name", ""),
+                "is_overdue": False,
+                "commitment_level": "",
+            })
+
+        # Sort: items with time first (by time), then items without time
+        timeline.sort(
+            key=lambda x: (
+                x["time"] is None,
+                x["time"] or datetime.time(23, 59),
+            )
+        )
+        return timeline
+
+    @staticmethod
+    def _resolve_task_url(task):
+        """Resolve URL for a task, with fallback if task_detail doesn't exist."""
+        try:
+            return task.get_absolute_url()
+        except Exception:
+            try:
+                return reverse("life:task_update", kwargs={"pk": task.pk})
+            except Exception:
+                return reverse("life:task_list")
+
+    @staticmethod
+    def _resolve_event_url(event):
+        """Resolve the best URL for navigating to a calendar event's source."""
+        if getattr(event, "source_type", "") == "task" and event.source_id:
+            try:
+                return reverse(
+                    "life:task_update",
+                    kwargs={"pk": int(event.source_id)},
+                )
+            except (ValueError, Exception):
+                pass
+        return reverse("calendar_engine:dashboard")
 
     def get_state_panel_context(self):
         """
@@ -430,6 +566,11 @@ class DashboardV2Service:
             context["insight"] = insight
         except Exception:
             context["insight"] = None
+
+        # Only show section when there's meaningful content
+        context["has_actionable_insights"] = bool(
+            context.get("guidance_items")
+        ) or bool(context.get("insight"))
 
         return context
 

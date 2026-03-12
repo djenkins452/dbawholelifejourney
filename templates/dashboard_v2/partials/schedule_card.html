@@ -1,0 +1,12 @@
+{% csrf_token %}
+<div class="v2-execution-card" id="schedule-card">
+    <div class="v2-card-header">
+        <h3 class="v2-card-title">Today's Schedule</h3>
+        <span class="v2-count-badge">{{ schedule_count }} item{{ schedule_count|pluralize }}</span>
+    </div>
+    <div class="v2-task-list">
+        {% for item in schedule_timeline %}
+            {% include "dashboard_v2/partials/schedule_row.html" %}
+        {% endfor %}
+    </div>
+</div>

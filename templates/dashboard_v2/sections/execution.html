@@ -1,68 +1,19 @@
 {% load static %}
-{% csrf_token %}
 
 <div class="v2-execution-grid">
-    <!-- Routines -->
     {% if routine_tasks %}
-    <div class="v2-execution-card">
-        <div class="v2-card-header">
-            <h3 class="v2-card-title">Routines</h3>
-            <span class="v2-count-badge">{{ routine_done }}/{{ routine_total }}</span>
-        </div>
-        <div class="v2-task-list">
-            {% for task in routine_tasks %}
-                {% include "dashboard_v2/partials/routine_row.html" %}
-            {% endfor %}
-        </div>
-    </div>
+        {% include "dashboard_v2/partials/routine_card.html" %}
     {% endif %}
 
-    <!-- Medicine -->
-    {% if medicine_items %}
-    <div class="v2-execution-card">
-        <div class="v2-card-header">
-            <h3 class="v2-card-title">Medicine</h3>
-            <span class="v2-count-badge">{{ medicine_done }}/{{ medicine_total }}</span>
-        </div>
-        <div class="v2-task-list">
-            {% for item in medicine_items %}
-                {% include "dashboard_v2/partials/medicine_row.html" %}
-            {% endfor %}
-        </div>
-    </div>
+    {% if medicine_groups %}
+        {% include "dashboard_v2/partials/medicine_card.html" %}
     {% endif %}
 
-    <!-- Tasks -->
-    {% if non_routine_tasks %}
-    <div class="v2-execution-card">
-        <div class="v2-card-header">
-            <h3 class="v2-card-title">Tasks</h3>
-            <span class="v2-count-badge">{{ task_total }} pending</span>
-        </div>
-        <div class="v2-task-list">
-            {% for task in non_routine_tasks %}
-                {% include "dashboard_v2/partials/task_row.html" %}
-            {% endfor %}
-        </div>
-    </div>
+    {% if schedule_timeline %}
+        {% include "dashboard_v2/partials/schedule_card.html" %}
     {% endif %}
 
-    <!-- Calendar -->
-    {% if today_events %}
-    <div class="v2-execution-card">
-        <div class="v2-card-header">
-            <h3 class="v2-card-title">Calendar</h3>
-            <span class="v2-count-badge">{{ event_count }} event{{ event_count|pluralize }}</span>
-        </div>
-        <div class="v2-event-list">
-            {% for event in today_events %}
-                {% include "dashboard_v2/partials/calendar_row.html" %}
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    {% if not routine_tasks and not medicine_items and not non_routine_tasks and not today_events %}
+    {% if not routine_tasks and not medicine_groups and not schedule_timeline %}
     <div class="v2-empty-state">
         <p>Nothing scheduled for today. Enjoy the free time.</p>
     </div>

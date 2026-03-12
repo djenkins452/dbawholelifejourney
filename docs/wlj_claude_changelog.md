@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-12 — Dashboard V2: Command Console UX Overhaul
+
+- **Routine section compressed:** Completed routines collapse into a compact strip (✓ Title), freeing vertical space. First incomplete routine highlighted as "Next:" with emphasis background.
+- **Medicine grouped by time of day:** Individual medications replaced with grouped stacks (Morning Stack, Evening Stack, Night Stack). Single checkbox logs all medicines in a group. New `MedicineGroupLogAction` endpoint at `actions/medicine/group/<time_of_day>/log/`.
+- **Tasks + Calendar merged into "Today's Schedule":** Single unified timeline sorted by time, mixing tasks and calendar events. Completable items get checkboxes; non-completable events show time. Removes duplicate display of tasks that appear on both lists.
+- **Insights conditional rendering:** Section only appears when actionable content exists (warning/critical/positive insights or active guidance). Empty = invisible. No more "No insights available" filler.
+- **Navigation on all items:** Every title is now a clickable link. Routines → task edit page. Medicine groups → medicine home. Tasks → task edit page. Calendar events → calendar dashboard or linked task.
+- **HTMX card-level swaps:** Action endpoints now return entire card partials (not individual rows) to handle layout changes on completion (routine compression, group state changes).
+- **Files modified:** `dashboard_service.py`, `views.py`, `urls.py`, `execution.html`, `routine_row.html`, `insights.html`, `home.html`, `dashboard_v2.css`. New files: `routine_card.html`, `medicine_card.html`, `medicine_group_row.html`, `schedule_card.html`, `schedule_row.html`.
+
 ## 2026-03-12 — Dashboard V2: Execution Layer + Quality Fixes
 
 - **Execution Layer Promoted to Critical Path:** TODAY'S EXECUTION section now renders inline (not HTMX lazy), positioned between Goal Momentum and Today's Progress. Answers "What should I do right now?" with grouped routines, medicine, tasks, and calendar.

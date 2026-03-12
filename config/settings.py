@@ -1245,4 +1245,19 @@ if SENTRY_DSN and not DEBUG and SENTRY_AVAILABLE:
         # Filter out health check endpoints from performance monitoring
         before_send_transaction=lambda event, hint: None if event.get('transaction') == '/health/' else event,
     )
+
+# =============================================================================
+# Deterministic Router Feature Flags
+# =============================================================================
+# Controls the LLM-last routing architecture. These flags allow safe rollback
+# without code changes. Set via environment or override in settings.
+#
+# Master switch — disables ALL deterministic routing, falls through to LLM
+WLJ_DETERMINISTIC_ROUTER_ENABLED = env.bool('WLJ_DETERMINISTIC_ROUTER_ENABLED', default=True)
+# Enable new L2 data query routes (weight, workouts, sleep, glucose, etc.)
+WLJ_DETERMINISTIC_DATA_ROUTES_ENABLED = env.bool('WLJ_DETERMINISTIC_DATA_ROUTES_ENABLED', default=True)
+# Enable domain-scoped CoS context building (reduced builder count for LLM calls)
+WLJ_DOMAIN_SCOPED_CONTEXT_ENABLED = env.bool('WLJ_DOMAIN_SCOPED_CONTEXT_ENABLED', default=False)
+# Enable semantic memory gating (skip embedding API for deterministic routes)
+WLJ_MEMORY_GATING_ENABLED = env.bool('WLJ_MEMORY_GATING_ENABLED', default=False)
     

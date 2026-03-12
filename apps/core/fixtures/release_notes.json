@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 158,
+    "fields": {
+      "title": "Beth Responds Instantly to Health Questions",
+      "description": "Ask Beth about your weight, workouts, sleep, glucose, medication, steps, blood pressure, or heart rate and she'll respond in under a second — no more waiting 15-30 seconds for simple status checks. She pulls your latest data directly from your tracked metrics and offers to dig deeper if you want analysis.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-03-12",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-03-12T02:50:00Z",
+      "updated_at": "2026-03-12T02:50:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 157,
     "fields": {
       "title": "Beth Checks In Throughout the Day",

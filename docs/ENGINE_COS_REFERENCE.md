@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-11 (Proactive Guidance Scheduler — PGS engine wired into ISE at 15m interval, dispatches 16+ check-in types by per-user time window with 3 new daily rhythm touchpoints)
+**Last updated:** 2026-03-12 (LLM-Last Deterministic Router — shared routing layer for streaming/non-streaming, 8 new data query routes, feature flags, observability)
 
 ---
 
@@ -743,7 +743,9 @@ When the user asks a health intelligence question with a brevity keyword ("keep 
 | `apps/core/ai_orchestrator/decision_memory.py` | Decision memory (confidence tracking, decay, suggestion reordering) | ~120 |
 | `apps/core/ai_governance/models.py` | PendingAction + UserDecisionPreference models | ~630 |
 | `apps/core/ai_orchestrator/commitment_contract.py` | ECC commitment tracking | ~1,678 |
-| `apps/ai/personal_assistant.py` | Main assistant, send_message() | ~6,452 |
+| `apps/ai/personal_assistant.py` | Main assistant, send_message() | ~6,500 |
+| `apps/ai/deterministic_router.py` | LLM-last shared routing layer (8 data routes, registry, feature flags) | ~470 |
+| `apps/ai/deterministic_health_summary.py` | Health summary fast path (lexical detection + SAE formatting) | ~287 |
 | `apps/ai/views.py` | Chat API endpoints | ~1,661 |
 | `apps/ai/proactive_checkins.py` | Proactive check-in service (20 check-in types, 5 domain schedulers) | ~1200+ |
 | `apps/ai/assistant_intelligence.py` | Coaching style templates (22+ template keys × 4 styles) | ~600+ |

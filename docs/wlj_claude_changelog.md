@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-12 — LLM-Last Deterministic Router (unified routing architecture)
+
+- **Issue:** Simple data queries ("what's my weight?", "how many workouts?") triggered the full LLM pipeline: intent recognition (gpt-4o-mini), 17 CoS context builders, semantic memory embedding API, and gpt-4o response generation — taking 15-30s to restate pre-computed numbers. Routing logic was duplicated between streaming and non-streaming paths, creating parity drift risk.
+- **Solution:** Built a shared deterministic router (`apps/ai/deterministic_router.py`) that classifies messages and returns responses from pre-computed SAE state in <500ms. The router is called by BOTH chat paths, eliminating duplication.
+- **Route categories:** `DETERMINISTIC_DATA` (new L2 data queries), `DETERMINISTIC_HEALTH_SUMMARY` (existing), `DETERMINISTIC_STRICT_HEALTH` (existing), `CHECKIN_PREFILTER` (existing), `FALLTHROUGH` (to LLM).
+- **New deterministic data routes (8):** weight, workouts, sleep, glucose, medication adherence, steps, blood pressure, heart rate. Each uses narrow lexical matching with exclude patterns for action intents (e.g., "log my weight" is excluded). False negatives fall safely through to LLM.
+- **Insight invitations:** Data responses include optional follow-up invitations ("Want me to break down what's driving the trend?") for health/fitness domains, keeping Beth conversational without calling the LLM.
+- **Feature flags (4):** `WLJ_DETERMINISTIC_ROUTER_ENABLED`, `WLJ_DETERMINISTIC_DATA_ROUTES_ENABLED`, `WLJ_DOMAIN_SCOPED_CONTEXT_ENABLED`, `WLJ_MEMORY_GATING_ENABLED`. Set via environment variables for instant rollback.
+- **Observability:** Every routing decision logged with category, route name, domain, timing, and message preview. Structured as `ROUTE_DECISION` log entries.
+- **Safety:** Reflective/coaching questions ("am I making progress?", "analyze my patterns") are tested to NOT match data routes. All ambiguous queries fall through to LLM.
+- **Files:**
+  - `apps/ai/deterministic_router.py` — NEW: Shared router with registry, matchers, handlers, domain inference, scoping helpers
+  - `apps/ai/personal_assistant.py` — Replaced duplicated health fast path + check-in prefilter + strict health status in both streaming and non-streaming paths with single `classify_and_route()` call
+  - `apps/ai/tests/test_deterministic_router.py` — NEW: 95 tests (matchers, handlers, feature flags, ambiguity safety, domain inference, scoping, memory gating, observability, error handling, insight invitations)
+  - `config/settings.py` — Added 4 feature flag defaults with env var overrides
+
 ## 2026-03-12 — Deterministic Health Summary Fast Path (30s → <1s)
 
 - **Issue:** Health summary questions ("how have I been doing with my health?") took ~30 seconds because they triggered the full CoS pipeline: 18 parallel context builders, OpenAI Embedding API for semantic memory, and a gpt-4o LLM call — all to restate 4 pre-computed numbers (weight, workouts, sleep, glucose).

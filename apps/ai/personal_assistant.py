@@ -2554,48 +2554,39 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         "Please choose:\n" + "\n".join(numbered)
                     )
             else:
-                # ── Fast-path: Deterministic health summary ────────────────
-                # Health-focused check-in queries ("how have I been doing
-                # with my health?") can be answered in ~200ms from
-                # pre-computed SAE state, skipping the full CoS context
-                # build, embedding API, and LLM call (~15-30s savings).
-                _health_fast_response = None
+                # ── Shared Deterministic Router ────────────────────────────
+                # Unified routing layer for both streaming and non-streaming.
+                # Handles: deterministic data queries, health summary fast
+                # path, strict health status, and check-in prefilter.
+                # See apps/ai/deterministic_router.py for route registry.
+                _route_result = None
                 try:
-                    from apps.ai.deterministic_health_summary import (
-                        is_health_summary_query,
-                        build_health_summary_response,
+                    from apps.ai.deterministic_router import (
+                        classify_and_route as _classify_route,
+                        RouteCategory as _RC,
                     )
-                    if is_health_summary_query(message):
-                        import time as _t_health
-                        _t_health_start = _t_health.monotonic()
-                        _health_fast_response = build_health_summary_response(
-                            self.user,
-                        )
-                        if _health_fast_response:
-                            logger.info(
-                                "HEALTH_FAST_PATH user=%s took=%.1fms msg=%r",
-                                self.user.id,
-                                (_t_health.monotonic() - _t_health_start) * 1000,
-                                message[:80],
-                            )
-                            response = _health_fast_response
-                except ImportError:
-                    pass
-                except Exception as _hfp_err:
-                    logger.warning(
-                        "Health fast path failed, falling through: %s",
-                        _hfp_err, exc_info=True,
+                    _route_result = _classify_route(
+                        message, self.user,
+                        cos_context_cache=_cos_context_cache,
                     )
 
-                # ── Pre-filter: Check-in / status queries ──────────────────
-                # These MUST be caught BEFORE the intent service, because the
-                # intent service may misclassify "what's left for me today.
-                # meds and journals" as a calendar event search (returning
-                # "No events found"). Check-in queries need the full CoS
-                # _generate_response flow with the check-in context injection.
-                _msg_lower_precheck = message.lower()
-                _is_checkin_prefilter = any(
-                    p in _msg_lower_precheck for p in CHECKIN_PATTERNS
+                    # Terminal routes: response is complete, skip LLM
+                    if _route_result.is_terminal and _route_result.response:
+                        response = _route_result.response
+                except ImportError:
+                    pass
+                except Exception as _router_err:
+                    logger.warning(
+                        "Deterministic router failed, falling through: %s",
+                        _router_err, exc_info=True,
+                    )
+
+                # ── Check-in prefilter (detected by shared router) ─────────
+                # Check-in queries skip intent recognition but need the full
+                # CoS _generate_response flow with check-in context injection.
+                _is_checkin_prefilter = (
+                    _route_result is not None
+                    and _route_result.category == 'checkin_prefilter'
                 )
                 if not response and _is_checkin_prefilter:
                     logger.info(
@@ -6376,54 +6367,42 @@ Rules for this response:
                 # ── Fast-path: Deterministic health summary (streaming) ──
                 # Mirrors the non-streaming fast path. Health metric
                 # queries skip the full LLM pipeline (~15-30s → ~200ms).
+                # ── Shared Deterministic Router (streaming) ───────────
+                # Same classify_and_route() as non-streaming path to
+                # ensure parity. Handles data queries, health summary,
+                # strict health status, and check-in prefilter detection.
+                _route_result_stream = None
                 if not _direct_response:
                     try:
-                        from apps.ai.deterministic_health_summary import (
-                            is_health_summary_query,
-                            build_health_summary_response,
+                        from apps.ai.deterministic_router import (
+                            classify_and_route as _classify_route_s,
+                            RouteCategory as _RC_s,
                         )
-                        if is_health_summary_query(message):
-                            import time as _t_health_s
-                            _t_hs_start = _t_health_s.monotonic()
-                            _health_fast = build_health_summary_response(
-                                self.user,
-                            )
-                            if _health_fast:
-                                logger.info(
-                                    "HEALTH_FAST_PATH user=%s path=stream "
-                                    "took=%.1fms msg=%r",
-                                    self.user.id,
-                                    (_t_health_s.monotonic() - _t_hs_start) * 1000,
-                                    message[:80],
-                                )
-                                _direct_response = _health_fast
+                        _route_result_stream = _classify_route_s(
+                            message, self.user,
+                            cos_context_cache=_cos_context_cache,
+                        )
+                        if (_route_result_stream.is_terminal
+                                and _route_result_stream.response):
+                            _direct_response = _route_result_stream.response
                     except ImportError:
                         pass
-                    except Exception as _hfp_s_err:
+                    except Exception as _router_s_err:
                         logger.warning(
-                            "Health fast path (stream) failed: %s",
-                            _hfp_s_err, exc_info=True,
+                            "Deterministic router (stream) failed: %s",
+                            _router_s_err, exc_info=True,
                         )
 
-                # ── Check-in pre-filter (mirrors send_message Phase) ──
-                # Catch conversational status queries ("anything left to
-                # do today?", "what's on my plate?") BEFORE the intent
-                # service misclassifies them as read_task.
-                if not _direct_response:
-                    _msg_lower_stream = message.lower()
-                    _is_checkin_stream = any(
-                        p in _msg_lower_stream for p in CHECKIN_PATTERNS
+                # ── Check-in prefilter (detected by shared router) ─────
+                if not _direct_response and _route_result_stream is not None:
+                    _is_checkin_stream = (
+                        _route_result_stream.category == 'checkin_prefilter'
                     )
                     if _is_checkin_stream:
-                        # Skip intent service — go straight to LLM
-                        # with full CoS context (handled below at the
-                        # _generate_response_stream block).
                         logger.info(
                             "CHECKIN_PREFILTER user=%s path=stream msg=%r",
                             self.user.id, message[:80],
                         )
-                    else:
-                        _direct_response = None  # allow intent processing
 
                 # ── Intent recognition (mirrors send_message Phase 7) ──
                 # Run intent recognition BEFORE streaming so action
@@ -6533,34 +6512,7 @@ Rules for this response:
                             intent_err, exc_info=True,
                         )
 
-                # ── STRICT_HEALTH_STATUS: deterministic 4-line response ──
-                # Bypass LLM entirely when strict health status is triggered.
-                if not _direct_response:
-                    _msg_lo = message.lower()
-                    _hi_kws = [
-                        'fat loss phase', 'plateau risk',
-                        'muscle preservation', 'health intelligence status',
-                        'body comp status',
-                    ]
-                    _brevity_kws = [
-                        'keep it short', 'keep it brief',
-                        'just the numbers', 'just the status',
-                        'short answer', 'tl;dr',
-                    ]
-                    if (any(k in _msg_lo for k in _hi_kws)
-                            and any(k in _msg_lo for k in _brevity_kws)):
-                        try:
-                            from apps.ai.validators.health_response_validator import (
-                                enforce_strict_health_status,
-                            )
-                            _direct_response = enforce_strict_health_status(
-                                _cos_context_cache,
-                            )
-                        except Exception as _shi_err:
-                            logger.warning(
-                                "Streaming strict health status failed: %s",
-                                _shi_err,
-                            )
+                # ── Strict health status now handled by shared router above ──
 
                 # ── Invalidate in-request CoS cache after mutations ──
                 if actions_taken:

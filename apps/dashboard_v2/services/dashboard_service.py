@@ -40,6 +40,18 @@ MODULE_DOMAIN_MAP = {
     "life": "family",
 }
 
+# Medicine time-of-day visibility windows (hour ranges with 1h buffer)
+# Based on MedicineSchedule.save() auto-assign logic
+MEDICINE_TIME_WINDOWS = {
+    "morning": (0, 10),
+    "mid_morning": (9, 12),
+    "lunch": (11, 14),
+    "afternoon": (13, 17),
+    "evening": (16, 20),
+    "nightly": (19, 24),
+    "unscheduled": (0, 24),  # always show
+}
+
 # Engagement strength activity keywords for matching routines
 ENGAGEMENT_ACTIVITY_MAP = {
     "journal": ["journal", "journaling", "reflection", "reflect", "diary"],
@@ -251,10 +263,27 @@ class DashboardV2Service:
 
             context["medicine_groups"] = medicine_groups
             context["medicine_items"] = medicine_items
+
+            # Filter by time windows — only show relevant stacks
+            current_hour = self._get_user_now().hour
+            visible_groups = []
+            future_groups = []
+            for g in medicine_groups:
+                window = MEDICINE_TIME_WINDOWS.get(
+                    g["time_of_day"], (0, 24)
+                )
+                if g["all_taken"] or window[0] <= current_hour < window[1]:
+                    visible_groups.append(g)
+                else:
+                    future_groups.append(g)
+            context["visible_medicine_groups"] = visible_groups
+            context["future_medicine_groups"] = future_groups
         except Exception:
             logger.error("Failed to load medicines", exc_info=True)
             context["medicine_groups"] = []
             context["medicine_items"] = []
+            context["visible_medicine_groups"] = []
+            context["future_medicine_groups"] = []
 
         # Calendar events (from CalendarEvent, not LifeEvent)
         try:
@@ -280,11 +309,26 @@ class DashboardV2Service:
             context["today_events"] = []
 
         # Build unified schedule timeline (tasks + calendar merged)
-        context["schedule_timeline"] = self._build_schedule_timeline(
+        timeline = self._build_schedule_timeline(
             context.get("non_routine_tasks", []),
             context.get("today_events", []),
         )
-        context["schedule_count"] = len(context["schedule_timeline"])
+        context["schedule_timeline"] = timeline
+        context["schedule_count"] = len(timeline)
+
+        # Phase-grouped schedule lists for NOW/NEXT/LATER rendering
+        context["schedule_now"] = [
+            i for i in timeline if i.get("phase") == "now" and not i["is_completed"]
+        ]
+        context["schedule_next"] = [
+            i for i in timeline if i.get("phase") == "next" and not i["is_completed"]
+        ]
+        context["schedule_later"] = [
+            i for i in timeline if i.get("phase") == "later" and not i["is_completed"]
+        ]
+        context["schedule_done"] = [
+            i for i in timeline if i["is_completed"]
+        ]
 
         # Completion counts for group headers
         context["routine_done"] = sum(
@@ -298,6 +342,11 @@ class DashboardV2Service:
 
         # Time phase for section ordering
         context["time_phase"] = self.get_time_phase()
+
+        # Next action panel — the single most important thing to do now
+        next_action = self._determine_next_action(context)
+        context["next_action"] = next_action
+        context["all_done"] = next_action is None
 
         DashboardV2CacheService.set(self.user.pk, "execution", context)
         return context
@@ -372,6 +421,78 @@ class DashboardV2Service:
                 return engagement.get(activity_key, "")
         return ""
 
+    def _get_user_now(self):
+        """Get current datetime in the user's timezone."""
+        try:
+            user_tz = pytz.timezone(self.prefs.timezone_iana)
+            return timezone.now().astimezone(user_tz)
+        except Exception:
+            return timezone.now()
+
+    @staticmethod
+    def _time_diff_minutes(now_time, target_time):
+        """
+        Calculate minutes from now_time to target_time (positive = future).
+        Both are datetime.time objects.
+        """
+        now_mins = now_time.hour * 60 + now_time.minute
+        target_mins = target_time.hour * 60 + target_time.minute
+        return target_mins - now_mins
+
+    def _determine_next_action(self, exec_context):
+        """
+        Pick the single most important next action from all execution items.
+        Priority: overdue → within 30 min → next routine → medicine → upcoming.
+        """
+        now = self._get_user_now()
+
+        # Priority 1: Overdue tasks
+        for item in exec_context.get("schedule_timeline", []):
+            if item.get("is_overdue") and not item.get("is_completed"):
+                return {"source": "schedule", "urgency": "overdue", **item}
+
+        # Priority 2: Schedule item within 30 min
+        for item in exec_context.get("schedule_timeline", []):
+            if item.get("time") and not item.get("is_completed"):
+                delta = self._time_diff_minutes(now.time(), item["time"])
+                if -5 <= delta <= 30:
+                    return {"source": "schedule", "urgency": "now", **item}
+
+        # Priority 3: Next routine
+        pending = exec_context.get("pending_routines", [])
+        if pending:
+            task = pending[0]
+            return {
+                "source": "routine",
+                "urgency": "next",
+                "type": "task",
+                "pk": task.pk,
+                "title": task.title,
+                "source_url": task.detail_url,
+                "can_complete": True,
+                "goal_name": getattr(task, "goal_name", ""),
+            }
+
+        # Priority 4: Next untaken medicine group (visible only)
+        for g in exec_context.get("visible_medicine_groups", []):
+            if not g["all_taken"]:
+                return {
+                    "source": "medicine",
+                    "urgency": "next",
+                    "type": "medicine_group",
+                    "title": g["label"],
+                    "time_of_day": g["time_of_day"],
+                    "can_complete": True,
+                    "goal_name": g.get("goal_name", ""),
+                }
+
+        # Priority 5: Next upcoming schedule item
+        for item in exec_context.get("schedule_timeline", []):
+            if not item.get("is_completed"):
+                return {"source": "schedule", "urgency": "upcoming", **item}
+
+        return None  # All done!
+
     def _build_schedule_timeline(self, non_routine_tasks, today_events):
         """
         Merge non-routine tasks and calendar events into a single
@@ -431,6 +552,27 @@ class DashboardV2Service:
                 x["time"] or datetime.time(23, 59),
             )
         )
+
+        # Add time-aware phase (NOW / NEXT / LATER)
+        now = self._get_user_now()
+        now_time = now.time()
+        for item in timeline:
+            if item["is_completed"]:
+                item["phase"] = "done"
+            elif item["time"] is None:
+                item["phase"] = "later"
+            else:
+                delta = self._time_diff_minutes(now_time, item["time"])
+                if delta < -15:
+                    # Already passed by 15+ min — treat as NOW (overdue)
+                    item["phase"] = "now"
+                elif delta <= 30:
+                    item["phase"] = "now"
+                elif delta <= 120:
+                    item["phase"] = "next"
+                else:
+                    item["phase"] = "later"
+
         return timeline
 
     @staticmethod
@@ -504,6 +646,68 @@ class DashboardV2Service:
             ).first()
         except Exception:
             context["daily_health_summary"] = None
+
+        # Build compact metrics (primary 3 + secondary rest)
+        metrics = []
+        health_state = context.get("health_state", {})
+        fitness_state = context.get("fitness_state", {})
+        nutrition_state = context.get("nutrition_state", {})
+
+        if health_state.get("weight_current"):
+            unit = health_state.get("weight_unit", "lbs")
+            metrics.append({
+                "label": "Weight",
+                "value": f'{health_state["weight_current"]:.1f}',
+                "unit": unit,
+                "trend": health_state.get("weight_trend", ""),
+                "priority": 1,
+            })
+        if health_state.get("sleep_display"):
+            metrics.append({
+                "label": "Sleep",
+                "value": health_state["sleep_display"],
+                "unit": "",
+                "priority": 2,
+            })
+        if health_state.get("steps_avg_7d"):
+            metrics.append({
+                "label": "Steps",
+                "value": f'{health_state["steps_avg_7d"]:.0f}',
+                "unit": "",
+                "priority": 3,
+            })
+        if health_state.get("glucose_avg_7d"):
+            metrics.append({
+                "label": "Glucose",
+                "value": f'{health_state["glucose_avg_7d"]:.0f}',
+                "unit": "mg/dL",
+                "priority": 5,
+            })
+        if health_state.get("heart_rate_avg_7d"):
+            metrics.append({
+                "label": "Heart Rate",
+                "value": f'{health_state["heart_rate_avg_7d"]:.0f}',
+                "unit": "bpm",
+                "priority": 6,
+            })
+        if fitness_state.get("workouts_7d") is not None:
+            metrics.append({
+                "label": "Workouts",
+                "value": str(fitness_state["workouts_7d"]),
+                "unit": "7d",
+                "priority": 4,
+            })
+        if nutrition_state.get("calorie_compliance_pct"):
+            metrics.append({
+                "label": "Nutrition",
+                "value": f'{nutrition_state["calorie_compliance_pct"]:.0f}%',
+                "unit": "",
+                "priority": 7,
+            })
+
+        metrics.sort(key=lambda m: m["priority"])
+        context["primary_metrics"] = metrics[:3]
+        context["secondary_metrics"] = metrics[3:]
 
         DashboardV2CacheService.set(self.user.pk, "state", context)
         return context

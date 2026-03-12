@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 163,
+    "fields": {
+      "title": "Smart Dashboard: Next Action + Time-Aware Schedule",
+      "description": "The dashboard now tells you exactly what to do next. A new 'Next Action' panel highlights your most important pending item with smart priority (overdue first, then what's happening now, then next routine or medicine). Today's Schedule groups items into NOW, NEXT, and LATER sections. Medicine stacks only appear when relevant to the current time. Health metrics are compact chips instead of a large grid.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-12",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-12T13:00:00Z",
+      "updated_at": "2026-03-12T13:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 162,
     "fields": {
       "title": "Command Console: Smarter Execution",

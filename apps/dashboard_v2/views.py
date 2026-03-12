@@ -100,6 +100,20 @@ class InsightsSectionView(LoginRequiredMixin, TemplateView):
         return context
 
 
+class NextActionSectionView(LoginRequiredMixin, View):
+    """HTMX endpoint for the Next Action panel (refreshed after actions)."""
+
+    def get(self, request):
+        service = DashboardV2Service(request.user)
+        exec_ctx = service.get_execution_context()
+        html = render_to_string(
+            "dashboard_v2/partials/next_action.html",
+            {**exec_ctx, "request": request},
+            request=request,
+        )
+        return HttpResponse(html)
+
+
 # ── Action Endpoints ─────────────────────────────────────────────────
 
 
@@ -126,7 +140,9 @@ class TaskToggleAction(LoginRequiredMixin, View):
             {**exec_ctx, "request": request},
             request=request,
         )
-        return HttpResponse(html)
+        response = HttpResponse(html)
+        response["HX-Trigger"] = "refresh-next-action"
+        return response
 
 
 class MedicineLogAction(LoginRequiredMixin, View):
@@ -208,7 +224,9 @@ class RoutineCompleteAction(LoginRequiredMixin, View):
             {**exec_ctx, "request": request},
             request=request,
         )
-        return HttpResponse(html)
+        response = HttpResponse(html)
+        response["HX-Trigger"] = "refresh-next-action"
+        return response
 
 
 class MedicineGroupLogAction(LoginRequiredMixin, View):
@@ -272,7 +290,9 @@ class MedicineGroupLogAction(LoginRequiredMixin, View):
             {**exec_ctx, "request": request},
             request=request,
         )
-        return HttpResponse(html)
+        response = HttpResponse(html)
+        response["HX-Trigger"] = "refresh-next-action"
+        return response
 
 
 # ── Celebration Endpoints ────────────────────────────────────────────

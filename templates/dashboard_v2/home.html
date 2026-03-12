@@ -27,7 +27,10 @@
     </section>
     {% endif %}
 
-    <!-- Section 2: Today's Execution (critical path, inline — promoted from lazy) -->
+    <!-- Section 2: Next Action Panel (critical path, inline) -->
+    {% include "dashboard_v2/partials/next_action.html" %}
+
+    <!-- Section 3: Today's Execution (critical path, inline) -->
     <section class="v2-section v2-execution-section">
         <h2 class="v2-section-title">
             {% if time_phase == "morning" %}Morning Focus
@@ -38,28 +41,26 @@
         {% include "dashboard_v2/sections/execution.html" %}
     </section>
 
-    <!-- Section 3: Daily Progress Ring (critical path, inline) -->
+    <!-- Section 4: Daily Progress Ring (critical path, inline) -->
     <section class="v2-section v2-progress-section">
         <h2 class="v2-section-title">Today's Progress</h2>
         {% include "dashboard_v2/sections/daily_progress.html" %}
     </section>
 
-    <!-- Section 4: Current State Panel (HTMX lazy) -->
+    <!-- Section 5: Health Telemetry (HTMX lazy, compact) -->
     {% if health_enabled %}
-    <section class="v2-section">
-        <h2 class="v2-section-title">Current State</h2>
+    <section class="v2-section v2-state-section">
         <div hx-get="{% url 'dashboard_v2:section_state' %}"
              hx-trigger="load delay:500ms"
              hx-swap="innerHTML">
             <div class="v2-loading-skeleton">
-                <div class="v2-skeleton-line"></div>
                 <div class="v2-skeleton-line"></div>
             </div>
         </div>
     </section>
     {% endif %}
 
-    <!-- Section 5: Insights & Guidance (HTMX lazy, only renders if actionable) -->
+    <!-- Section 6: Insights & Guidance (HTMX lazy, only renders if actionable) -->
     <section class="v2-section">
         <div hx-get="{% url 'dashboard_v2:section_insights' %}"
              hx-trigger="load delay:1s"

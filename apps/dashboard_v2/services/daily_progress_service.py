@@ -49,9 +49,11 @@ class DailyProgressService:
             defaults={"components": {}},
         )
 
-        if created:
-            self.recompute(snapshot)
-            snapshot.refresh_from_db()
+        # Always recompute — the cache layer above (2-min TTL) prevents
+        # excessive calls.  Without this, snapshots created at midnight
+        # or first load never reflect later task/medicine completions.
+        self.recompute(snapshot)
+        snapshot.refresh_from_db()
 
         return {
             "overall_score": snapshot.overall_score,

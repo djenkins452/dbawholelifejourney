@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-12 — Fix: Dashboard V2 progress, insights, and CSS bugs
+
+- **Today's Progress stale data (critical):** `DailyProgressService.get_today()` only recomputed the snapshot on first creation. After that, task/medicine completions never updated the snapshot. Fix: always recompute (the 2-min cache TTL above prevents excessive DB queries). User now sees live progress after completing tasks.
+- **Streak language in insights:** "13-day journaling streak!" appearing in insights panel despite user not wanting streak language. Added "streak" to DIAGNOSTIC_PHRASES filter so streak-related insights/guidance are excluded from dashboard display. Data migration dismisses existing streak insights in production.
+- **Stale plateau insights:** "Strength plateau detected" and "Consider adjusting your program" persisting after user increased workouts. Root cause: `_resolve_stale_insights()` dismissed the Insight but didn't cascade to GuidanceItem. Fix: insight dismissal now also deactivates related guidance items (`strength_plateau`, `workout_frequency_adjustment`). Added "plateau" to DIAGNOSTIC_PHRASES as belt-and-suspenders filter. Data migration deactivates existing stale plateau guidance.
+- **CSS unicode escape bug:** `\25B8 More health data` showing literal text instead of ▸ triangle. The CSS `content` property had double-escaped backslash (`\\25B8`). Fixed to single backslash (`\25B8`) for proper unicode rendering.
+- **Files modified:** `daily_progress_service.py` (always recompute), `dashboard_service.py` (DIAGNOSTIC_PHRASES), `rules_transformation.py` (guidance cascade), `dashboard_v2.css` (unicode escape), `test_daily_progress.py` (updated test). New: `core/migrations/0112_cleanup_stale_streak_plateau.py`.
+
 ## 2026-03-12 — Fix: Duplicate schedule entries for task-backed calendar events
 
 - **Bug:** Tasks appearing in Today's Schedule were duplicated — once as the task itself, and again as its CalendarEvent projection (with "Launch Whole Life Journey" goal tag). E.g., "Shower" showed twice.

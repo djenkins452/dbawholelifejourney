@@ -42,11 +42,12 @@ class DailyProgressServiceTest(TestCase):
             ).exists()
         )
 
-    def test_get_today_returns_existing(self):
-        """get_today() returns existing snapshot data."""
+    def test_get_today_recomputes_existing(self):
+        """get_today() recomputes an existing snapshot from live data."""
         from apps.core.utils import get_user_today
 
         today = get_user_today(self.user)
+        # Create a stale snapshot with artificial scores
         DailyProgressSnapshot.objects.create(
             user=self.user,
             snapshot_date=today,
@@ -65,8 +66,14 @@ class DailyProgressServiceTest(TestCase):
 
         service = DailyProgressService(self.user)
         result = service.get_today()
-        self.assertEqual(result["overall_score"], 75)
-        self.assertEqual(result["routines"]["score"], 80)
+        # Should NOT return the stale 75 — always recomputes from real data.
+        # With no actual tasks/routines/medicines, the recomputed score
+        # will differ from the stale 75 we stored above.
+        self.assertIn("overall_score", result)
+        self.assertIn("routines", result)
+        # Verify snapshot was actually recomputed (not just returned as-is)
+        snapshot = DailyProgressSnapshot.objects.get(user=self.user, snapshot_date=today)
+        self.assertNotEqual(snapshot.overall_score, 75)  # stale value replaced
 
     def test_recompute_no_data(self):
         """Recompute with no data gives reasonable defaults."""

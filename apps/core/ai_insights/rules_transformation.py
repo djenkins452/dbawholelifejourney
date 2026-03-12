@@ -590,6 +590,30 @@ class StrengthPlateauRule(BaseInsightRule):
                 user.id,
                 updated,
             )
+            # Cascade: deactivate guidance items backed by plateau insights
+            try:
+                from apps.core.ai_guidance.models import GuidanceItem
+
+                guidance_updated = GuidanceItem.objects.filter(
+                    user=user,
+                    guidance_type__in=[
+                        "strength_plateau",
+                        "workout_frequency_adjustment",
+                    ],
+                    is_active=True,
+                    dismissed_at__isnull=True,
+                ).update(is_active=False)
+                if guidance_updated:
+                    _logger.info(
+                        "PLATEAU_RESOLVED user=%s deactivated %d guidance items",
+                        user.id,
+                        guidance_updated,
+                    )
+            except Exception:
+                _logger.error(
+                    "Failed to cascade plateau resolution to guidance",
+                    exc_info=True,
+                )
 
     def _evaluate_global_fallback(self, user, fitness):
         """Fallback: global plateau detection for legacy cached state."""

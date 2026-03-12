@@ -978,12 +978,12 @@ a.v2-next-action-title:hover {
 }
 
 .v2-state-more::before {
-    content: "\\25B8 ";
+    content: "\25B8  ";
     font-size: 0.625rem;
 }
 
 .v2-state-details[open] .v2-state-more::before {
-    content: "\\25BE ";
+    content: "\25BE  ";
 }
 
 .v2-state-details .v2-state-grid {

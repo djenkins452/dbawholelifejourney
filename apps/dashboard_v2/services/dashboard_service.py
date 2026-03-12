@@ -29,6 +29,8 @@ DIAGNOSTIC_PHRASES = [
     "Error",
     "N/A",
     "No domain signals",
+    "streak",
+    "plateau",
 ]
 
 # Module-to-domain mapping for goal connection

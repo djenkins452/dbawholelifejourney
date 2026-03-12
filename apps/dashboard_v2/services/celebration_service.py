@@ -34,10 +34,10 @@ STREAK_THRESHOLDS = [7, 14, 21, 30, 60, 90, 180, 365]
 # Celebration narrative templates
 TEMPLATES = {
     "streak_milestone": {
-        "headline": "{days}-Day Streak: {habit_name}",
+        "headline": "{days} Days Consistent: {habit_name}",
         "narrative": (
-            "You've maintained your {habit_name} habit for {days} consecutive days. "
-            "That's {weeks} weeks of consistent effort. The discipline you've built "
+            "You've been consistent with {habit_name} for {days} days. "
+            "That's {weeks} weeks of steady engagement. The discipline you've built "
             "here compounds over time."
         ),
     },

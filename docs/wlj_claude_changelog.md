@@ -16,6 +16,20 @@
 - **Output:** `docs/BETH_DIAGNOSTIC_REPORT.md` — read-only investigation, no code changes
 - **Files:** `docs/BETH_DIAGNOSTIC_REPORT.md`
 
+## 2026-03-12 — Dashboard V2: Execution Layer + Quality Fixes
+
+- **Execution Layer Promoted to Critical Path:** TODAY'S EXECUTION section now renders inline (not HTMX lazy), positioned between Goal Momentum and Today's Progress. Answers "What should I do right now?" with grouped routines, medicine, tasks, and calendar.
+- **Data Bug Fixes:** Fixed `exclude(is_deleted=True)` → `exclude(status="deleted")` in `dashboard_service.py` and `momentum_service.py`. Fixed MedicineLog queries: `log_date` → `scheduled_date`, `action` → `log_status`, `logged_at` → `taken_at`. Replaced `LifeEvent` with `CalendarEvent` for today's events.
+- **Goal Connection:** Each execution item now shows the goal it contributes to (e.g., "Workout → Healthy Lifestyle") via domain-to-goal mapping.
+- **Engagement Strength Indicators:** Subtle 5-bar visual indicators on routine rows showing engagement strength (strong/moderate/weak) based on 7-day completion frequency. Covers journal, workout, prayer, sleep, and nutrition activities.
+- **Insights Cleanup:** Replaced raw `GuidanceItem` query with `get_active_guidance()` engine helper (dedup, supersession). Limited to 2 items max. Filters out diagnostic phrases ("Unable to compute", "No data", etc.). Dropped predictions. Single best Insight by severity.
+- **Sleep Unit Fix:** `sleep_avg_duration_7d` was in minutes but displayed as hours (showing 416h instead of 6.9h). Now converts to "Xh Ym" format in service layer.
+- **Streak Language Removed:** All user-facing "streak" language replaced with consistency-oriented text. "7-Day Streak" → "7 Days Consistent". "Build a streak" → "Build consistent habits". Applied across momentum drivers, celebration templates, and model labels.
+- **Real Domain Signals in Drivers:** Goal gauge expansion now shows real domain data (workouts this week, weight trend, sleep avg, Scripture reading active) instead of generic counts. Includes multiple signal labels per domain.
+- **Grouped Execution with Count Badges:** Routines (2/5), Medicine (1/3), Tasks (4 pending), Calendar (2 events) — each group has a header with completion count badge.
+- **Files modified:** `dashboard_service.py`, `momentum_service.py`, `views.py`, `celebration_service.py`, `models.py`, `home.html`, `execution.html`, `state_panel.html`, `insights.html`, `momentum_gauge.html`, `task_row.html`, `routine_row.html`, `medicine_row.html`, `dashboard_v2.css`. New file: `calendar_row.html`.
+- **36 tests passing.**
+
 ## 2026-03-12 — Dashboard V2: Life Command Center (New App)
 
 - **Feature:** Created `apps/dashboard_v2/` — a parallel experimental dashboard reimagined as a life command center.

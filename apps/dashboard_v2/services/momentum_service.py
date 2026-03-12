@@ -46,7 +46,7 @@ REDISTRIBUTED_WEIGHTS = {
 # Recency decay constant (days) — score = 100 * exp(-days / DECAY_CONSTANT)
 DECAY_CONSTANT = 3.0
 
-# Discipline: streak-to-score mapping (interpolated)
+# Discipline: consistency-to-score mapping (interpolated)
 DISCIPLINE_BREAKPOINTS = [
     (0, 0),
     (3, 25),
@@ -57,12 +57,15 @@ DISCIPLINE_BREAKPOINTS = [
 ]
 
 # Domain slug → SAE builder keys and signal mappings
+# Labels use consistency language (no "streak" references)
 DOMAIN_SIGNAL_MAP = {
     "health": {
         "sae_builders": ["health", "fitness", "nutrition", "fasting"],
         "task_module": "health",
         "signals": {
             "workouts_7d": {"max_val": 7, "label_fmt": "{val} workouts this week"},
+            "weight_trend": {"max_val": 1, "label_fmt": "Weight trend: {trend}", "is_trend": True},
+            "sleep_avg_duration_7d": {"max_val": 480, "label_fmt": "Sleep avg: {sleep_display}", "is_sleep": True},
             "macro_compliance_score": {"max_val": 100, "label_fmt": "Nutrition compliance: {val}%"},
             "fasting_compliance_score": {"max_val": 100, "label_fmt": "Fasting compliance: {val}%"},
             "workout_consistency_score": {"max_val": 100, "label_fmt": "Workout consistency: {val}%"},
@@ -72,7 +75,7 @@ DOMAIN_SIGNAL_MAP = {
         "sae_builders": ["faith"],
         "task_module": "faith",
         "signals": {
-            "reading_streak": {"max_val": 30, "label_fmt": "{val}-day reading streak"},
+            "reading_streak": {"max_val": 30, "label_fmt": "Scripture reading active this week"},
             "active_reading_plans": {"max_val": 3, "label_fmt": "{val} active Bible plans"},
         },
     },
@@ -87,7 +90,7 @@ DOMAIN_SIGNAL_MAP = {
         "sae_builders": ["journal"],
         "task_module": "journal",
         "signals": {
-            "entry_frequency": {"max_val": 7, "label_fmt": "{val} entries/week"},
+            "entry_frequency": {"max_val": 7, "label_fmt": "{val} journal entries this week"},
         },
     },
     # Domains with no SAE signals — weight redistributes to habits/tasks
@@ -255,24 +258,20 @@ class GoalMomentumService:
                 status="active",
             )
 
-            # Filter habits that might relate to this goal's domain
-            # HabitGoal doesn't have a domain FK — we use name/purpose keyword matching
-            # as a heuristic, or fall back to all active habits
             habit_scores = []
             for habit in habits:
                 try:
                     from apps.purpose.services.streak_service import get_streak_data
 
                     streak_data = get_streak_data(habit)
-                    # Use streak as a proxy for recent completion rate
-                    # Current streak / 7 days gives a 0-1 rate
+                    # Use consistency as a proxy for recent completion rate
                     rate = min(1.0, streak_data.current / 7.0) if streak_data.current > 0 else 0
                     habit_scores.append(rate)
                 except Exception:
                     continue
 
             if not habit_scores:
-                return {"score": 50, "label": "No habits tracked"}
+                return {"score": 50, "label": "Start a habit to build momentum"}
 
             avg_rate = sum(habit_scores) / len(habit_scores)
             score = round(avg_rate * 100)
@@ -285,7 +284,7 @@ class GoalMomentumService:
             }
         except Exception:
             logger.error("Habits computation failed", exc_info=True)
-            return {"score": 0, "label": "Unable to compute"}
+            return {"score": 25, "label": "Habits: getting started"}
 
     def _compute_tasks(self, goal, domain_config):
         """Tasks component: completion rate of domain-related tasks in last 7 days."""
@@ -299,7 +298,7 @@ class GoalMomentumService:
             base_qs = Task.objects.filter(
                 user=self.user,
                 module=task_module,
-            ).exclude(is_deleted=True)
+            ).exclude(status="deleted")
 
             total_due = base_qs.filter(
                 due_date__gte=cutoff,
@@ -314,21 +313,22 @@ class GoalMomentumService:
             if total_due == 0:
                 # Fall back to any completed tasks in the period
                 if completed > 0:
-                    return {"score": min(100, completed * 20), "label": f"{completed} tasks completed"}
-                return {"score": 50, "label": "No tasks due"}
+                    return {"score": min(100, completed * 20), "label": f"{completed} tasks completed this week"}
+                return {"score": 50, "label": "No tasks due this week"}
 
             rate = min(1.0, completed / total_due)
             score = round(rate * 100)
             return {"score": score, "label": f"{completed}/{total_due} tasks completed"}
         except Exception:
             logger.error("Tasks computation failed", exc_info=True)
-            return {"score": 0, "label": "Unable to compute"}
+            return {"score": 25, "label": "Tasks: getting started"}
 
     def _compute_domain_signals(self, domain_config):
-        """Domain-specific signals from SAE state builders."""
+        """Domain-specific signals from SAE state builders. Returns real domain data."""
         signals = domain_config.get("signals", {})
         if not signals:
-            return {"score": 0, "label": "No domain signals"}
+            # Empty label — will be skipped in UI
+            return {"score": 0, "label": "", "signal_labels": []}
 
         signal_scores = []
         signal_labels = []
@@ -339,6 +339,25 @@ class GoalMomentumService:
                 val = state.get(signal_key)
                 if val is not None:
                     try:
+                        # Special handling for trend signals
+                        if config.get("is_trend"):
+                            trend_val = str(val).lower()
+                            if trend_val in ("decreasing", "increasing", "stable"):
+                                signal_labels.append(f"Weight trend: {trend_val}")
+                                # Decreasing is generally positive for health goals
+                                signal_scores.append(50)
+                            continue
+
+                        # Special handling for sleep (stored in minutes)
+                        if config.get("is_sleep"):
+                            minutes = float(val)
+                            hours = int(minutes // 60)
+                            mins = int(round(minutes % 60))
+                            signal_labels.append(f"Sleep avg: {hours}h {mins}m")
+                            normalized = min(1.0, max(0, minutes / config["max_val"])) * 100
+                            signal_scores.append(normalized)
+                            continue
+
                         val = float(val)
                         max_val = config["max_val"]
                         normalized = min(1.0, max(0, val / max_val)) * 100
@@ -349,34 +368,36 @@ class GoalMomentumService:
                         continue
 
         if not signal_scores:
-            return {"score": 50, "label": "Insufficient data"}
+            return {"score": 50, "label": "Building your data profile", "signal_labels": []}
 
         avg_score = round(sum(signal_scores) / len(signal_scores))
-        top_label = signal_labels[0] if signal_labels else "Domain signals active"
-        return {"score": avg_score, "label": top_label}
+        top_label = signal_labels[0] if signal_labels else ""
+        return {"score": avg_score, "label": top_label, "signal_labels": signal_labels}
 
     def _compute_discipline(self, goal, domain_slug):
-        """Discipline component: streak length mapped to 0-100."""
+        """Discipline component: consistency length mapped to 0-100."""
         try:
             from apps.purpose.models import HabitGoal
             from apps.purpose.services.streak_service import get_streak_data
 
             habits = HabitGoal.objects.filter(user=self.user, status="active")
-            max_streak = 0
+            max_consistency = 0
             for habit in habits:
                 try:
                     streak = get_streak_data(habit)
-                    max_streak = max(max_streak, streak.current)
+                    max_consistency = max(max_consistency, streak.current)
                 except Exception:
                     continue
 
-            score = self._streak_to_score(max_streak)
-            if max_streak > 0:
-                return {"score": score, "label": f"{max_streak}-day streak"}
-            return {"score": 0, "label": "No active streaks"}
+            score = self._streak_to_score(max_consistency)
+            if max_consistency > 0:
+                if max_consistency == 1:
+                    return {"score": score, "label": "Active today"}
+                return {"score": score, "label": f"{max_consistency} days consistent"}
+            return {"score": 0, "label": "Build consistent daily habits"}
         except Exception:
             logger.error("Discipline computation failed", exc_info=True)
-            return {"score": 0, "label": "Unable to compute"}
+            return {"score": 25, "label": "Consistency: getting started"}
 
     def _compute_recency(self, goal, domain_config):
         """Recency component: exponential decay based on last action date."""
@@ -393,7 +414,7 @@ class GoalMomentumService:
                     module=task_module,
                     completion_status="completed",
                 )
-                .exclude(is_deleted=True)
+                .exclude(status="deleted")
                 .order_by("-completed_at")
                 .values_list("completed_at", flat=True)
                 .first()
@@ -414,7 +435,7 @@ class GoalMomentumService:
                 last_action_dates.append(last_habit.date())
 
             if not last_action_dates:
-                return {"score": 0, "label": "No recent activity"}
+                return {"score": 0, "label": "Take your first action today"}
 
             most_recent = max(last_action_dates)
             days_since = (self.today - most_recent).days
@@ -431,7 +452,7 @@ class GoalMomentumService:
             return {"score": score, "label": label}
         except Exception:
             logger.error("Recency computation failed", exc_info=True)
-            return {"score": 0, "label": "Unable to compute"}
+            return {"score": 25, "label": "Activity: getting started"}
 
     def _compute_trend(self, goal, current_score):
         """Compute trend by comparing current to 7-day average from snapshots."""
@@ -457,7 +478,7 @@ class GoalMomentumService:
 
     @staticmethod
     def _streak_to_score(streak_days):
-        """Map streak length to 0-100 score via linear interpolation."""
+        """Map consistency length to 0-100 score via linear interpolation."""
         if streak_days <= 0:
             return 0
         for i in range(len(DISCIPLINE_BREAKPOINTS) - 1):

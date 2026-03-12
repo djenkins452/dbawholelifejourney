@@ -12,10 +12,10 @@
     </div>
     {% endif %}
 
-    {% if health_state.sleep_avg_duration_7d %}
+    {% if health_state.sleep_display %}
     <div class="v2-state-item">
         <span class="v2-state-label">Sleep (7d avg)</span>
-        <span class="v2-state-value">{{ health_state.sleep_avg_duration_7d|floatformat:1 }}h</span>
+        <span class="v2-state-value">{{ health_state.sleep_display }}</span>
     </div>
     {% endif %}
 

@@ -1,0 +1,11 @@
+<div class="v2-event-row">
+    {% if event.is_all_day %}
+        <span class="v2-event-time">All Day</span>
+    {% elif event.start_dt %}
+        <span class="v2-event-time">{{ event.start_dt|time:"g:i A" }}</span>
+    {% endif %}
+    <span class="v2-event-title">{{ event.title }}</span>
+    {% if event.goal_name %}
+        <span class="v2-goal-tag">{{ event.goal_name }}</span>
+    {% endif %}
+</div>

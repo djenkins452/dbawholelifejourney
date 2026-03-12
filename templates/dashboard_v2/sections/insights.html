@@ -6,15 +6,14 @@
     </div>
     {% endfor %}
 
-    {% for prediction in predictions %}
-    <div class="v2-insight-card v2-insight-prediction">
-        <h4 class="v2-insight-title">{{ prediction.prediction_type|title }}</h4>
-        <p class="v2-insight-message">{{ prediction.explanation|truncatewords:30 }}</p>
-        <span class="v2-insight-confidence">{{ prediction.confidence_score|floatformat:0 }}% confidence</span>
+    {% if insight %}
+    <div class="v2-insight-card v2-insight-{{ insight.severity }}">
+        <h4 class="v2-insight-title">{{ insight.title }}</h4>
+        <p class="v2-insight-message">{{ insight.message|truncatewords:30 }}</p>
     </div>
-    {% endfor %}
+    {% endif %}
 
-    {% if not guidance_items and not predictions %}
+    {% if not guidance_items and not insight %}
     <div class="v2-empty-state">
         <p>No insights available right now. Check back later.</p>
     </div>

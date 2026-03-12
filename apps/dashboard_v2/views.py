@@ -142,8 +142,8 @@ class MedicineLogAction(LoginRequiredMixin, View):
             user=request.user,
             medicine=schedule.medicine,
             schedule=schedule,
-            log_date=today,
-            action__in=["taken", "late"],
+            scheduled_date=today,
+            log_status__in=["taken", "late"],
         ).first()
 
         if existing:
@@ -156,9 +156,9 @@ class MedicineLogAction(LoginRequiredMixin, View):
                 user=request.user,
                 medicine=schedule.medicine,
                 schedule=schedule,
-                log_date=today,
-                action="taken",
-                logged_at=timezone.now(),
+                scheduled_date=today,
+                log_status="taken",
+                taken_at=timezone.now(),
             )
             taken = True
 

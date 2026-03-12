@@ -6,6 +6,12 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-12 — Fix: Duplicate schedule entries for task-backed calendar events
+
+- **Bug:** Tasks appearing in Today's Schedule were duplicated — once as the task itself, and again as its CalendarEvent projection (with "Launch Whole Life Journey" goal tag). E.g., "Shower" showed twice.
+- **Fix:** `_build_schedule_timeline()` now tracks task PKs and skips any CalendarEvent with `source_type="task"` whose `source_id` matches an already-listed task.
+- **File modified:** `apps/dashboard_v2/services/dashboard_service.py`
+
 ## 2026-03-12 — Token Governance: 7-Phase Prompt Optimization (~52K → ~8K tokens/msg)
 
 - **Purpose:** Reduce Beth's per-message token cost from ~52K to ≤8K average (≤12K max) to cut ~31s latency to ≤6s and reduce cost from ~$0.13 to ~$0.02 per message. Pure performance pass — no behavior changes.

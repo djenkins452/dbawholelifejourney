@@ -60,16 +60,27 @@
         {% endif %}
     </div>
 
-    <!-- Expandable drivers (hidden by default) -->
+    <!-- Expandable drivers (hidden by default, click card to expand) -->
     <div class="v2-momentum-drivers">
-        {% for key, driver in goal.drivers.items %}
-        <div class="v2-driver-row">
-            <span class="v2-driver-name">{{ key|title }}</span>
-            <span class="v2-driver-label">{{ driver.label }}</span>
-            <div class="v2-progress-bar v2-progress-bar-sm">
-                <div class="v2-progress-bar-fill" style="width: {{ driver.score }}%; background-color: {{ goal.domain_color }}"></div>
-            </div>
-        </div>
-        {% endfor %}
+        <h4 class="v2-drivers-title">Momentum Drivers</h4>
+        <ul class="v2-drivers-list">
+            {% for key, driver in goal.drivers.items %}
+                {% if driver.label %}
+                <li class="v2-driver-item">
+                    <span class="v2-driver-label">{{ driver.label }}</span>
+                    <div class="v2-progress-bar v2-progress-bar-sm">
+                        <div class="v2-progress-bar-fill" style="width: {{ driver.score }}%; background-color: {{ goal.domain_color }}"></div>
+                    </div>
+                </li>
+                {% endif %}
+                {% if driver.signal_labels %}
+                    {% for signal in driver.signal_labels %}
+                    <li class="v2-driver-item v2-driver-signal">
+                        <span class="v2-driver-label">{{ signal }}</span>
+                    </li>
+                    {% endfor %}
+                {% endif %}
+            {% endfor %}
+        </ul>
     </div>
 </div>

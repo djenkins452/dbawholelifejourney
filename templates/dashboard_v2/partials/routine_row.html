@@ -14,5 +14,13 @@
         {% if task.scheduled_time %}
             <span class="v2-action-detail">{{ task.scheduled_time|time:"g:i A" }}</span>
         {% endif %}
+        {% if task.goal_name %}
+            <span class="v2-goal-tag">{{ task.goal_name }}</span>
+        {% endif %}
     </div>
+    {% if task.engagement_level %}
+    <div class="v2-engagement v2-engagement-{{ task.engagement_level }}" title="Engagement: {{ task.engagement_level }}">
+        <span class="v2-bar"></span><span class="v2-bar"></span><span class="v2-bar"></span><span class="v2-bar"></span><span class="v2-bar"></span>
+    </div>
+    {% endif %}
 </div>

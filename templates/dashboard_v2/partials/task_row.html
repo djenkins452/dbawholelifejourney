@@ -17,5 +17,8 @@
         {% if task.commitment_level == "non_negotiable" %}
             <span class="v2-action-badge v2-badge-priority">Non-Negotiable</span>
         {% endif %}
+        {% if task.goal_name %}
+            <span class="v2-goal-tag">{{ task.goal_name }}</span>
+        {% endif %}
     </div>
 </div>

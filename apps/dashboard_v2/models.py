@@ -87,7 +87,7 @@ class PreparedCelebration(UserOwnedModel):
     """
 
     CELEBRATION_TYPES = [
-        ("streak_milestone", "Streak Milestone"),
+        ("streak_milestone", "Consistency Milestone"),
         ("goal_milestone", "Goal Milestone Completed"),
         ("weekly_discipline", "Strong Weekly Discipline"),
         ("momentum_surge", "Momentum Surge"),

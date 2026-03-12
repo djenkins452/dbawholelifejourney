@@ -1457,13 +1457,21 @@ def build_cos_context(user, scoped_builders=None):
         'default', {}
     ).get('ENGINE', '')
 
+    # Resolve builder tag for timing (tag → fn mapping for current builders)
+    _builder_tag_map = {fn: tag for tag, fn in _TAGGED_BUILDERS}
+    _builder_timings = {}  # {tag: duration_ms}
+
     if _use_threading:
         try:
             def _run_builder(builder_fn):
                 """Execute a builder in a thread with proper DB connection handling."""
+                _b_start = _time.monotonic()
+                _tag = _builder_tag_map.get(builder_fn, 'unknown')
                 try:
-                    return builder_fn(user, prefs)
+                    result = builder_fn(user, prefs)
+                    return result
                 finally:
+                    _builder_timings[_tag] = (_time.monotonic() - _b_start) * 1000
                     # CRITICAL: Explicitly close this thread's DB connection.
                     # close_old_connections() only closes connections older than
                     # CONN_MAX_AGE (600s) — brand new thread connections stay open
@@ -1488,20 +1496,31 @@ def build_cos_context(user, scoped_builders=None):
                 "Parallel context assembly failed, falling back to sequential: %s", e
             )
             for builder in builders:
+                _tag = _builder_tag_map.get(builder, 'unknown')
+                _b_start = _time.monotonic()
                 try:
                     updates = builder(user, prefs)
                     if updates:
                         context.update(updates)
                 except Exception as be:
                     logger.debug("Sequential context builder failed: %s", be)
+                finally:
+                    _builder_timings[_tag] = (_time.monotonic() - _b_start) * 1000
     else:
         for builder in builders:
+            _tag = _builder_tag_map.get(builder, 'unknown')
+            _b_start = _time.monotonic()
             try:
                 updates = builder(user, prefs)
                 if updates:
                     context.update(updates)
             except Exception as be:
                 logger.debug("Sequential context builder failed: %s", be)
+            finally:
+                _builder_timings[_tag] = (_time.monotonic() - _b_start) * 1000
+
+    # Store builder timings in context for latency tracer to pick up
+    context['_builder_timings'] = _builder_timings
 
     # =====================================================================
     # POST-ASSEMBLY (depends on composed context — must be sequential)

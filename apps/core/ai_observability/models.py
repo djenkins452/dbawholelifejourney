@@ -1361,3 +1361,76 @@ class AIActionMetric(models.Model):
 
     def __str__(self):
         return f"{self.intent_type} [{self.outcome}] {self.duration_ms}ms"
+
+
+class ChatLatencySnapshot(models.Model):
+    """
+    Per-request latency breakdown for Beth chat responses.
+
+    Records stage-level timing for every LLM-involved response so we can
+    identify bottlenecks. Created by LatencyTrace.report() at the end of
+    each send_message() / send_message_stream() call.
+
+    Stages dict example:
+        {
+            "ROUTER_CLASSIFICATION": 45.2,
+            "COS_CONTEXT_BUILD_TOTAL": 14800.5,
+            "COS_BUILDER_health": 2100.0,
+            "COS_BUILDER_intelligence": 3200.0,
+            ...
+            "SEMANTIC_MEMORY_RETRIEVAL": 560.3,
+            "LLM_REQUEST": 8700.1,
+            "POST_PROCESSING": 700.0,
+            "TOTAL_REQUEST_TIME": 31200.5,
+        }
+
+    Meta dict example:
+        {
+            "model": "gpt-4o",
+            "prompt_tokens": 6120,
+            "completion_tokens": 180,
+            "route_name": "no_match",
+        }
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_chat_latency_snapshot"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["-created_at"],
+                name="idx_chat_latency_time",
+            ),
+            models.Index(
+                fields=["user_id", "-created_at"],
+                name="idx_chat_latency_user",
+            ),
+        ]
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    user_id = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="User ID (no FK to avoid joins on hot path).",
+    )
+    path = models.CharField(
+        max_length=20,
+        default="non_stream",
+        help_text="Pipeline path: non_stream or stream.",
+    )
+    total_ms = models.FloatField(
+        help_text="Total end-to-end latency in milliseconds.",
+    )
+    stages = models.JSONField(
+        default=dict,
+        help_text="Stage-level latency breakdown {stage_name: duration_ms}.",
+    )
+    meta = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Request metadata: model, token counts, route info.",
+    )
+
+    def __str__(self):
+        return f"user={self.user_id} {self.path} {self.total_ms:.0f}ms @ {self.created_at}"

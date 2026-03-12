@@ -1113,3 +1113,78 @@ def _get_domain_event_telemetry():
     except Exception as e:
         logger.debug("OpsWall: domain event telemetry unavailable: %s", e)
         return None
+
+
+def _get_chat_latency_telemetry(now):
+    """
+    Chat response latency metrics for the Operations Wall.
+
+    Aggregates recent ChatLatencySnapshot records to show:
+    - Average total response time
+    - Average per-stage breakdown
+    - Recent sample count
+    - Slowest stages (for bottleneck identification)
+    """
+    try:
+        from apps.core.ai_observability.models import ChatLatencySnapshot
+        from django.db.models import Avg, Count, Max
+
+        window = now - timedelta(hours=24)
+        qs = ChatLatencySnapshot.objects.filter(created_at__gte=window)
+        stats = qs.aggregate(
+            count=Count('id'),
+            avg_total=Avg('total_ms'),
+            max_total=Max('total_ms'),
+        )
+
+        if not stats['count']:
+            return {
+                'count': 0,
+                'avg_total_ms': None,
+                'max_total_ms': None,
+                'avg_stages': {},
+            }
+
+        # Compute average per-stage latency from the JSON stages field
+        # Sample the last 20 snapshots for stage breakdown (avoid heavy scan)
+        recent = list(qs.order_by('-created_at').values('stages', 'meta')[:20])
+        stage_totals = {}
+        stage_counts = {}
+        token_totals = {'prompt_tokens': 0, 'completion_tokens': 0}
+        token_count = 0
+        for snap in recent:
+            stages = snap.get('stages') or {}
+            for label, dur in stages.items():
+                if dur is not None:
+                    stage_totals[label] = stage_totals.get(label, 0) + dur
+                    stage_counts[label] = stage_counts.get(label, 0) + 1
+            meta = snap.get('meta') or {}
+            if meta.get('prompt_tokens'):
+                token_totals['prompt_tokens'] += meta['prompt_tokens']
+                token_totals['completion_tokens'] += meta.get('completion_tokens', 0)
+                token_count += 1
+
+        avg_stages = {}
+        for label in stage_totals:
+            avg_stages[label] = round(stage_totals[label] / stage_counts[label], 1)
+
+        # Sort by duration descending (slowest first)
+        avg_stages = dict(sorted(avg_stages.items(), key=lambda x: x[1], reverse=True))
+
+        avg_tokens = {}
+        if token_count:
+            avg_tokens = {
+                'avg_prompt_tokens': round(token_totals['prompt_tokens'] / token_count),
+                'avg_completion_tokens': round(token_totals['completion_tokens'] / token_count),
+            }
+
+        return {
+            'count': stats['count'],
+            'avg_total_ms': round(stats['avg_total'] or 0, 0),
+            'max_total_ms': round(stats['max_total'] or 0, 0),
+            'avg_stages': avg_stages,
+            'avg_tokens': avg_tokens,
+        }
+    except Exception as e:
+        logger.debug("OpsWall: chat latency telemetry unavailable: %s", e)
+        return None

@@ -6,6 +6,12 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-12 — Fix: Duplicate schedule entries for task-backed calendar events
+
+- **Bug:** Tasks appearing in Today's Schedule were duplicated — once as the task itself, and again as its CalendarEvent projection (with "Launch Whole Life Journey" goal tag). E.g., "Shower" showed twice.
+- **Fix:** `_build_schedule_timeline()` now tracks task PKs and skips any CalendarEvent with `source_type="task"` whose `source_id` matches an already-listed task.
+- **File modified:** `apps/dashboard_v2/services/dashboard_service.py`
+
 ## 2026-03-12 — Dashboard V2: Behavioral Guidance UX Layer
 
 - **"Next Action" panel:** New prominent panel between Goal Momentum and Execution section shows the single most important thing to do right now. Priority logic: overdue tasks → items within 30 minutes → next incomplete routine → untaken medicine stack → upcoming schedule item. Shows "All Clear" when everything is done. Auto-refreshes via `HX-Trigger: refresh-next-action` when any action is completed.

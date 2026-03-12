@@ -505,8 +505,12 @@ class DashboardV2Service:
 
         timeline = []
 
+        # Track task PKs to deduplicate task-backed calendar events
+        task_pks = set()
+
         for task in non_routine_tasks:
             t = task.scheduled_time
+            task_pks.add(task.pk)
             timeline.append({
                 "type": "task",
                 "pk": task.pk,
@@ -523,6 +527,13 @@ class DashboardV2Service:
             })
 
         for event in today_events:
+            # Skip calendar events that are projections of tasks already listed
+            if getattr(event, "source_type", "") == "task" and event.source_id:
+                try:
+                    if int(event.source_id) in task_pks:
+                        continue
+                except (ValueError, TypeError):
+                    pass
             local_time = None
             if event.start_dt and not event.is_all_day:
                 local_time = event.start_dt.astimezone(user_tz).time()

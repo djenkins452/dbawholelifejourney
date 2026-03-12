@@ -1,0 +1,22 @@
+<div class="v2-insights-list">
+    {% for item in guidance_items %}
+    <div class="v2-insight-card v2-priority-{{ item.priority }}">
+        <h4 class="v2-insight-title">{{ item.title }}</h4>
+        <p class="v2-insight-message">{{ item.message|truncatewords:30 }}</p>
+    </div>
+    {% endfor %}
+
+    {% for prediction in predictions %}
+    <div class="v2-insight-card v2-insight-prediction">
+        <h4 class="v2-insight-title">{{ prediction.prediction_type|title }}</h4>
+        <p class="v2-insight-message">{{ prediction.explanation|truncatewords:30 }}</p>
+        <span class="v2-insight-confidence">{{ prediction.confidence_score|floatformat:0 }}% confidence</span>
+    </div>
+    {% endfor %}
+
+    {% if not guidance_items and not predictions %}
+    <div class="v2-empty-state">
+        <p>No insights available right now. Check back later.</p>
+    </div>
+    {% endif %}
+</div>

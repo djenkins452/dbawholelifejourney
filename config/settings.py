@@ -161,6 +161,7 @@ INSTALLED_APPS = [
     'apps.owner_finance',  # Owner Financial Command Center (cost telemetry & dashboards)
     'apps.meals',  # Meal Intelligence pillar — ingredient normalization, pantry, meal planning
     'apps.notes',  # Unified notes system with entity attachments
+    'apps.dashboard_v2',  # Dashboard V2 — Life Command Center (experimental)
     'assistant',
     'django_apscheduler',
     'djstripe',
@@ -1092,6 +1093,18 @@ CELERY_BEAT_SCHEDULE = {
     "operating-profiles-nightly-7am-utc": {
         "task": "apps.core.tasks.compute_operating_profiles_task",
         "schedule": crontab(hour=7, minute=0),  # 7:00 AM UTC = 2:00 AM EST — after full day captured
+    },
+    "dashboard-v2-nightly-momentum-730am-utc": {
+        "task": "dashboard_v2.compute_nightly_momentum",
+        "schedule": crontab(hour=7, minute=30),  # 7:30 AM UTC = 2:30 AM EST — after SAE + PRIE
+    },
+    "dashboard-v2-detect-celebrations-8am-utc": {
+        "task": "dashboard_v2.detect_celebrations",
+        "schedule": crontab(hour=8, minute=0),  # 8:00 AM UTC = 3:00 AM EST — after momentum
+    },
+    "dashboard-v2-expire-celebrations-9am-utc": {
+        "task": "dashboard_v2.expire_celebrations",
+        "schedule": crontab(hour=9, minute=0),  # 9:00 AM UTC = 4:00 AM EST
     },
 }
 

@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-11 (Proactive Guidance Scheduler — PGS engine wired into ISE at 15m interval, dispatches 16+ check-in types by per-user time window with 3 new daily rhythm touchpoints)
+**Last updated:** 2026-03-12 (Dashboard V2 — 3 new Celery Beat tasks for momentum, celebration detection/expiry) (Proactive Guidance Scheduler — PGS engine wired into ISE at 15m interval, dispatches 16+ check-in types by per-user time window with 3 new daily rhythm touchpoints)
 
 ---
 
@@ -143,6 +143,9 @@ Phase 1 (Interpretation)        Phase 2 (Execution)          Phase 3 (Post-Execu
 | `cos-keepalive-every-30-seconds` | 30s | `apps.ai.tasks.cos_keepalive_task` |
 | `health-nightly-summary-3am-utc` | crontab(3,0) | `health.build_nightly_health_summaries` |
 | `operating-profiles-nightly-7am-utc` | crontab(7,0) | `apps.core.tasks.compute_operating_profiles_task` |
+| `dashboard-v2-nightly-momentum-730am-utc` | crontab(7,30) | `dashboard_v2.compute_nightly_momentum` |
+| `dashboard-v2-detect-celebrations-8am-utc` | crontab(8,0) | `dashboard_v2.detect_celebrations` |
+| `dashboard-v2-expire-celebrations-9am-utc` | crontab(9,0) | `dashboard_v2.expire_celebrations` |
 
 ### APScheduler Jobs (apps/core/jobs.py)
 

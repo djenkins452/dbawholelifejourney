@@ -1,0 +1,16 @@
+<div class="v2-action-row" id="med-row-{{ item.schedule.pk }}">
+    <button class="v2-action-toggle {% if item.taken %}v2-completed{% endif %}"
+            hx-post="{% url 'dashboard_v2:medicine_log' schedule_id=item.schedule.pk %}"
+            hx-target="#med-row-{{ item.schedule.pk }}"
+            hx-swap="outerHTML">
+        {% if item.taken %}
+            <span class="v2-check">&#10003;</span>
+        {% else %}
+            <span class="v2-check-empty">&#9675;</span>
+        {% endif %}
+    </button>
+    <div class="v2-action-content">
+        <span class="v2-action-title {% if item.taken %}v2-strikethrough{% endif %}">{{ item.medicine.name }}</span>
+        <span class="v2-action-detail">{{ item.schedule.time_of_day|default:item.schedule.scheduled_time|time:"g:i A" }}</span>
+    </div>
+</div>

@@ -1,0 +1,75 @@
+<div class="v2-momentum-card" style="--domain-color: {{ goal.domain_color }}">
+    <div class="v2-momentum-header">
+        <h3 class="v2-momentum-title">{{ goal.goal_title }}</h3>
+        <span class="v2-momentum-domain">{{ goal.domain }}</span>
+    </div>
+
+    <!-- Gauge -->
+    <div class="v2-gauge-container">
+        <svg class="v2-gauge" viewBox="0 0 200 120">
+            <!-- Gauge background arc -->
+            <path d="M 20 100 A 80 80 0 0 1 180 100"
+                  fill="none"
+                  stroke="var(--color-border, #e5e7eb)"
+                  stroke-width="12"
+                  stroke-linecap="round"/>
+            <!-- Gauge filled arc (momentum) -->
+            <path d="M 20 100 A 80 80 0 0 1 180 100"
+                  fill="none"
+                  stroke="{{ goal.domain_color }}"
+                  stroke-width="12"
+                  stroke-linecap="round"
+                  stroke-dasharray="{% widthratio goal.momentum 100 251 %} 251"
+                  class="v2-gauge-fill"/>
+            <!-- Needle -->
+            <line x1="100" y1="100"
+                  x2="100" y2="30"
+                  stroke="var(--color-text, #1f2937)"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  class="v2-gauge-needle"
+                  transform="rotate({% widthratio goal.momentum 100 180 %}, 100, 100)"
+                  style="transform-origin: 100px 100px"/>
+            <!-- Center dot -->
+            <circle cx="100" cy="100" r="5" fill="var(--color-text, #1f2937)"/>
+            <!-- Momentum score -->
+            <text x="100" y="90" text-anchor="middle" class="v2-gauge-score">{{ goal.momentum }}%</text>
+            <text x="100" y="115" text-anchor="middle" class="v2-gauge-label">momentum</text>
+        </svg>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="v2-momentum-progress">
+        <div class="v2-momentum-progress-header">
+            <span class="v2-momentum-progress-label">Progress</span>
+            <span class="v2-momentum-progress-value">{{ goal.progress }}%</span>
+        </div>
+        <div class="v2-progress-bar">
+            <div class="v2-progress-bar-fill" style="width: {{ goal.progress }}%; background-color: {{ goal.domain_color }}"></div>
+        </div>
+    </div>
+
+    <!-- Trend indicator -->
+    <div class="v2-momentum-trend v2-trend-{{ goal.momentum_trend }}">
+        {% if goal.momentum_trend == "rising" %}
+            <span class="v2-trend-arrow">&#9650;</span> Rising
+        {% elif goal.momentum_trend == "falling" %}
+            <span class="v2-trend-arrow">&#9660;</span> Falling
+        {% else %}
+            <span class="v2-trend-arrow">&#9654;</span> Stable
+        {% endif %}
+    </div>
+
+    <!-- Expandable drivers (hidden by default) -->
+    <div class="v2-momentum-drivers">
+        {% for key, driver in goal.drivers.items %}
+        <div class="v2-driver-row">
+            <span class="v2-driver-name">{{ key|title }}</span>
+            <span class="v2-driver-label">{{ driver.label }}</span>
+            <div class="v2-progress-bar v2-progress-bar-sm">
+                <div class="v2-progress-bar-fill" style="width: {{ driver.score }}%; background-color: {{ goal.domain_color }}"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>

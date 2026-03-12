@@ -1,0 +1,14 @@
+{% if celebration %}
+{% csrf_token %}
+<div class="v2-celebration-banner">
+    <div class="v2-celebration-content">
+        <span class="v2-celebration-icon">&#10024;</span>
+        <span class="v2-celebration-text">{{ celebration.headline }}</span>
+    </div>
+    <button class="v2-btn v2-btn-celebrate"
+            data-action="reveal-celebration"
+            data-celebration-id="{{ celebration.pk }}">
+        Celebrate
+    </button>
+</div>
+{% endif %}

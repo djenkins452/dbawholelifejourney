@@ -6,6 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-12 — Dashboard V2: Life Command Center (New App)
+
+- **Feature:** Created `apps/dashboard_v2/` — a parallel experimental dashboard reimagined as a life command center.
+- **Goal Momentum Engine:** Per-goal momentum scores (0-100) computed from 5 weighted components: habits (30%), tasks (20%), domain signals (20%), discipline (15%), recency (15%). Delegates to existing SAE state builders, StreakService, and medicine_utils — no logic duplication.
+- **Daily Progress Tracking:** Weighted daily execution score from routines (25%), medicine (20%), tasks (20%), workout (15%), journaling (10%), faith (10%). SVG progress ring visualization.
+- **Prepared Celebrations:** System-detected meaningful progress (streak milestones, goal milestones, momentum surges, etc.) with cooldown periods and 7-day expiry. Template-based narratives, no OpenAI dependency.
+- **HTMX Lazy Loading:** Critical path (momentum + progress) loaded synchronously; execution, state panel, celebration, and insights sections lazy-loaded via HTMX endpoints.
+- **Inline Actions:** Task toggle, medicine log, routine complete — all via HTMX POST without page navigation.
+- **Time-Aware Behavior:** Section ordering adapts to morning/midday/evening based on user timezone.
+- **3 New Celery Beat Tasks:** `compute_nightly_momentum` (2:30 AM EST), `detect_celebrations` (3:00 AM EST), `expire_celebrations` (4:00 AM EST).
+- **36 tests passing:** Momentum calculation, celebration detection/cooldowns, daily progress, views, actions.
+- **Bug fix during implementation:** Renamed `PreparedCelebration.status` to `celebration_status` to avoid field shadowing with `SoftDeleteModel.status` (which filters `status="active"` via `SoftDeleteManager`). Also fixed `is_deleted` → `status="deleted"` in task queries and `completed_date` → `completed_at` in faith reading queries.
+- **Files created:**
+  - `apps/dashboard_v2/` — full app: `models.py`, `views.py`, `urls.py`, `admin.py`, `apps.py`, `signals.py`, `cache.py`, `tasks.py`
+  - `apps/dashboard_v2/services/` — `momentum_service.py`, `daily_progress_service.py`, `celebration_service.py`, `dashboard_service.py`
+  - `apps/dashboard_v2/tests/` — `test_momentum.py`, `test_celebrations.py`, `test_daily_progress.py`, `test_views.py`
+  - `apps/dashboard_v2/migrations/` — `0001_initial.py`, `0002_..._celebration_status.py`
+  - `templates/dashboard_v2/` — `home.html`, sections (5), partials (5)
+  - `static/css/dashboard_v2.css` — mobile-first responsive styles
+- **Files modified:**
+  - `config/settings.py` — added to INSTALLED_APPS, 3 Celery Beat tasks
+  - `config/urls.py` — added `/v2/` route
+
 ## 2026-03-12 — Deterministic Health Summary Fast Path (30s → <1s)
 
 - **Issue:** Health summary questions ("how have I been doing with my health?") took ~30 seconds because they triggered the full CoS pipeline: 18 parallel context builders, OpenAI Embedding API for semantic memory, and a gpt-4o LLM call — all to restate 4 pre-computed numbers (weight, workouts, sleep, glucose).

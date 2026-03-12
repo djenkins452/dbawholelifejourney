@@ -1,0 +1,62 @@
+<div class="v2-state-grid">
+    {% if health_state.weight_current %}
+    <div class="v2-state-item">
+        <span class="v2-state-label">Weight</span>
+        <span class="v2-state-value">{{ health_state.weight_current|floatformat:1 }} {{ health_state.weight_unit|default:"lbs" }}</span>
+        <span class="v2-state-trend v2-trend-{{ health_state.weight_trend }}">
+            {% if health_state.weight_trend == "decreasing" %}&#9660;
+            {% elif health_state.weight_trend == "increasing" %}&#9650;
+            {% else %}&#9654;{% endif %}
+            {{ health_state.weight_trend|default:"—" }}
+        </span>
+    </div>
+    {% endif %}
+
+    {% if health_state.sleep_avg_duration_7d %}
+    <div class="v2-state-item">
+        <span class="v2-state-label">Sleep (7d avg)</span>
+        <span class="v2-state-value">{{ health_state.sleep_avg_duration_7d|floatformat:1 }}h</span>
+    </div>
+    {% endif %}
+
+    {% if health_state.steps_avg_7d %}
+    <div class="v2-state-item">
+        <span class="v2-state-label">Steps (7d avg)</span>
+        <span class="v2-state-value">{{ health_state.steps_avg_7d|floatformat:0 }}</span>
+    </div>
+    {% endif %}
+
+    {% if health_state.glucose_avg_7d %}
+    <div class="v2-state-item">
+        <span class="v2-state-label">Glucose (7d avg)</span>
+        <span class="v2-state-value">{{ health_state.glucose_avg_7d|floatformat:0 }} mg/dL</span>
+    </div>
+    {% endif %}
+
+    {% if health_state.heart_rate_avg_7d %}
+    <div class="v2-state-item">
+        <span class="v2-state-label">Heart Rate (7d avg)</span>
+        <span class="v2-state-value">{{ health_state.heart_rate_avg_7d|floatformat:0 }} bpm</span>
+    </div>
+    {% endif %}
+
+    {% if fitness_state.workouts_7d is not None %}
+    <div class="v2-state-item">
+        <span class="v2-state-label">Workouts (7d)</span>
+        <span class="v2-state-value">{{ fitness_state.workouts_7d }}</span>
+    </div>
+    {% endif %}
+
+    {% if nutrition_state.calorie_compliance_pct %}
+    <div class="v2-state-item">
+        <span class="v2-state-label">Nutrition</span>
+        <span class="v2-state-value">{{ nutrition_state.calorie_compliance_pct|floatformat:0 }}% compliant</span>
+    </div>
+    {% endif %}
+</div>
+
+{% if not health_state %}
+<div class="v2-empty-state">
+    <p>No health data available yet. Start tracking to see your state.</p>
+</div>
+{% endif %}

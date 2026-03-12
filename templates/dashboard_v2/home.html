@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Life Command Center - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/dashboard_v2.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="v2-dashboard">
+    <!-- Header -->
+    <div class="v2-header">
+        <h1 class="v2-greeting">{{ greeting }}</h1>
+        <p class="v2-date">{{ current_date|date:"l, F j, Y" }}</p>
+    </div>
+
+    <!-- Section 1: Goal Momentum Gauges (critical path, inline) -->
+    {% if goal_momentum %}
+    <section class="v2-section v2-momentum-section">
+        <h2 class="v2-section-title">Goal Momentum</h2>
+        <div class="v2-momentum-strip">
+            {% for goal in goal_momentum %}
+                {% include "dashboard_v2/partials/momentum_gauge.html" with goal=goal %}
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Section 2: Daily Progress Ring (critical path, inline) -->
+    <section class="v2-section v2-progress-section">
+        <h2 class="v2-section-title">Today's Progress</h2>
+        {% include "dashboard_v2/sections/daily_progress.html" %}
+    </section>
+
+    <!-- Section 3: Celebration Button (HTMX lazy) -->
+    {% if has_celebration %}
+    <div hx-get="{% url 'dashboard_v2:section_celebration' %}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+    </div>
+    {% endif %}
+
+    <!-- Section 4: Today's Execution (HTMX lazy, time-aware ordering) -->
+    <section class="v2-section">
+        <h2 class="v2-section-title">
+            {% if time_phase == "morning" %}Morning Focus
+            {% elif time_phase == "midday" %}Today's Execution
+            {% else %}Evening Wrap-Up
+            {% endif %}
+        </h2>
+        <div hx-get="{% url 'dashboard_v2:section_execution' %}"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="v2-loading-skeleton">
+                <div class="v2-skeleton-line"></div>
+                <div class="v2-skeleton-line"></div>
+                <div class="v2-skeleton-line"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 5: Current State Panel (HTMX lazy) -->
+    {% if health_enabled %}
+    <section class="v2-section">
+        <h2 class="v2-section-title">Current State</h2>
+        <div hx-get="{% url 'dashboard_v2:section_state' %}"
+             hx-trigger="load delay:500ms"
+             hx-swap="innerHTML">
+            <div class="v2-loading-skeleton">
+                <div class="v2-skeleton-line"></div>
+                <div class="v2-skeleton-line"></div>
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Section 6: Insights (HTMX lazy, lowest priority) -->
+    <section class="v2-section">
+        <h2 class="v2-section-title">Insights & Guidance</h2>
+        <div hx-get="{% url 'dashboard_v2:section_insights' %}"
+             hx-trigger="load delay:1s"
+             hx-swap="innerHTML">
+            <div class="v2-loading-skeleton">
+                <div class="v2-skeleton-line"></div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!-- Celebration Modal Container -->
+<div id="celebration-modal" class="v2-celebration-modal"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    // Celebration reveal handler
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-action="reveal-celebration"]');
+        if (!btn) return;
+        e.preventDefault();
+        var celebrationId = btn.dataset.celebrationId;
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (!csrfToken) return;
+
+        fetch('/v2/celebration/' + celebrationId + '/reveal/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken.value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        }).then(function(r) { return r.text(); }).then(function(html) {
+            var modal = document.getElementById('celebration-modal');
+            modal.innerHTML = html;
+            modal.classList.add('active');
+        });
+    });
+
+    // Celebration dismiss handler
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-action="dismiss-celebration"]');
+        if (!btn) return;
+        e.preventDefault();
+        var celebrationId = btn.dataset.celebrationId;
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (!csrfToken) return;
+
+        fetch('/v2/celebration/' + celebrationId + '/dismiss/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken.value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        }).then(function() {
+            document.getElementById('celebration-modal').classList.remove('active');
+            document.getElementById('celebration-modal').innerHTML = '';
+        });
+    });
+
+    // Close celebration modal on overlay click
+    document.addEventListener('click', function(e) {
+        if (e.target.classList && e.target.classList.contains('v2-celebration-modal') && e.target.classList.contains('active')) {
+            e.target.classList.remove('active');
+            e.target.innerHTML = '';
+        }
+    });
+
+    // Momentum gauge expand/collapse
+    document.addEventListener('click', function(e) {
+        var card = e.target.closest('.v2-momentum-card');
+        if (!card) return;
+        // Don't toggle if clicking a link or button inside the card
+        if (e.target.closest('a, button')) return;
+        card.classList.toggle('expanded');
+    });
+});
+</script>
+{% endblock %}

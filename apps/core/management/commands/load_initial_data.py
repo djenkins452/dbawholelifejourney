@@ -968,6 +968,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for PGS proactive guidance scheduler (PK 157)
         self._reset_pgs_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Dashboard V2 Life Command Center (PK 158)
+        self._reset_dashboard_v2_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -5971,3 +5974,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset PGS fixtures FAILED: {e}'))
+
+    def _reset_dashboard_v2_fixtures(self, DataLoadConfig, force, verbosity):
+        """
+        One-time reset to reload release_notes for Dashboard V2 Life Command Center (PK 158).
+        """
+        reset_tracker_name = 'reset_dashboard_v2_2026_03_12'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for loader_name in ['release_notes']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader_name} loader for Dashboard V2')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Dashboard V2 Life Command Center',
+                'command',
+                'One-time reset to reload release_notes PK 158'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Dashboard V2 fixtures FAILED: {e}'))

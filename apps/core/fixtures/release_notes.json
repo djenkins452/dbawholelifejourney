@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 158,
+    "fields": {
+      "title": "Life Command Center (Beta)",
+      "description": "A new experimental dashboard at /v2/ reimagined as your life command center. See goal momentum gauges showing how strongly you're moving toward each goal, a daily progress ring tracking routines, medicine, tasks, workouts, journaling, and faith. Complete daily actions inline without navigating away. Earn celebrations when you hit meaningful milestones — streaks, goal progress, consistency patterns, and more.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-12",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-03-12T09:40:00Z",
+      "updated_at": "2026-03-12T09:40:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 157,
     "fields": {
       "title": "Beth Checks In Throughout the Day",

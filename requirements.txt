@@ -53,6 +53,7 @@ resend>=2.4.0
 
 # AI Integration
 openai>=1.0.0
+tiktoken>=0.7.0  # Accurate GPT-4o tokenization for token budget enforcement
 
 # SMS Notifications (Twilio) — removed: no longer in use
 # twilio>=9.0.0

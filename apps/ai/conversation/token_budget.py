@@ -3,6 +3,9 @@ Token budget management for conversation history.
 
 Estimates token counts and trims message arrays to stay within
 the context window budget, preserving the most recent messages.
+
+Uses tiktoken for accurate GPT-4o tokenization when available,
+with a character-ratio heuristic as fallback.
 """
 
 import logging
@@ -10,15 +13,51 @@ from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
-# Average chars per token for English text (conservative estimate).
+# Average chars per token for English text (fallback when tiktoken unavailable).
 # GPT-family models average ~4 chars/token; we use 3.5 to be safe.
 CHARS_PER_TOKEN = 3.5
 
+# Tiktoken encoder singleton (lazy-loaded, thread-safe, immutable)
+_tiktoken_encoder = None
+_tiktoken_available = None  # None = not yet checked
+
+
+def _get_tiktoken_encoder():
+    """Get or initialize the tiktoken encoder. Returns None if unavailable."""
+    global _tiktoken_encoder, _tiktoken_available
+    if _tiktoken_available is False:
+        return None
+    if _tiktoken_encoder is not None:
+        return _tiktoken_encoder
+    try:
+        import tiktoken
+        _tiktoken_encoder = tiktoken.encoding_for_model("gpt-4o")
+        _tiktoken_available = True
+        return _tiktoken_encoder
+    except ImportError:
+        logger.info("tiktoken not installed, using character-ratio heuristic")
+        _tiktoken_available = False
+        return None
+    except Exception as e:
+        logger.warning("tiktoken initialization failed, using heuristic: %s", e)
+        _tiktoken_available = False
+        return None
+
 
 def estimate_tokens(text: str) -> int:
-    """Estimate token count for a string using char-ratio heuristic."""
+    """Estimate token count for a string.
+
+    Uses tiktoken for accurate GPT-4o tokenization when available,
+    falls back to character-ratio heuristic (len/3.5) otherwise.
+    """
     if not text:
         return 0
+    enc = _get_tiktoken_encoder()
+    if enc is not None:
+        try:
+            return len(enc.encode(text))
+        except Exception:
+            pass  # Fall through to heuristic
     return int(len(text) / CHARS_PER_TOKEN) + 1
 
 

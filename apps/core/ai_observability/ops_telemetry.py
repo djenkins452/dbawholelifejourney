@@ -1178,12 +1178,52 @@ def _get_chat_latency_telemetry(now):
                 'avg_completion_tokens': round(token_totals['completion_tokens'] / token_count),
             }
 
+        # Token governance stats from _governance and _token_report in meta
+        intent_bypass_count = 0
+        intent_total = 0
+        framework_skip_count = 0
+        framework_total = 0
+        token_report_totals = {}
+        token_report_count = 0
+        for snap in recent:
+            meta = snap.get('meta') or {}
+            governance = meta.get('_governance') or []
+            intent_total += 1
+            if 'intent_bypassed' in governance:
+                intent_bypass_count += 1
+            framework_total += 1
+            if any(g.startswith('framework_skipped') for g in governance):
+                framework_skip_count += 1
+            tr = meta.get('_token_report')
+            if tr:
+                token_report_count += 1
+                for comp, count in tr.items():
+                    token_report_totals[comp] = token_report_totals.get(comp, 0) + count
+
+        governance_stats = {}
+        if intent_total:
+            governance_stats['intent_bypass_rate'] = round(
+                intent_bypass_count / intent_total * 100, 1
+            )
+        if framework_total:
+            governance_stats['framework_skip_rate'] = round(
+                framework_skip_count / framework_total * 100, 1
+            )
+        if token_report_count:
+            governance_stats['avg_token_breakdown'] = {
+                comp: round(total / token_report_count)
+                for comp, total in sorted(
+                    token_report_totals.items(), key=lambda x: -x[1]
+                )
+            }
+
         return {
             'count': stats['count'],
             'avg_total_ms': round(stats['avg_total'] or 0, 0),
             'max_total_ms': round(stats['max_total'] or 0, 0),
             'avg_stages': avg_stages,
             'avg_tokens': avg_tokens,
+            'governance': governance_stats,
         }
     except Exception as e:
         logger.debug("OpsWall: chat latency telemetry unavailable: %s", e)

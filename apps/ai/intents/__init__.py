@@ -130,9 +130,64 @@ INTENT_HANDLERS = {
     'no_action': None,
 }
 
+# =============================================================================
+# Domain-Scoped Tool Sets (Phase 5 Token Governance)
+# =============================================================================
+# Maps router domain → only the relevant tool schemas. Reduces ~19K tokens
+# to ~2-6K when the domain is known. Unknown/None domain → ALL tools.
+
+# Tools always included regardless of domain (cross-cutting)
+CORE_INTENT_TOOLS = (
+    SYSTEM_INTENT_TOOLS +
+    SETTINGS_INTENT_TOOLS +
+    CALIBRATION_INTENT_TOOLS +
+    LEARNING_MODE_INTENT_TOOLS
+)
+
+DOMAIN_INTENT_TOOLS = {
+    'health': (
+        HEALTH_INTENT_TOOLS + MEDICINE_INTENT_TOOLS +
+        FASTING_INTENT_TOOLS + FITNESS_INTENT_TOOLS
+    ),
+    'faith': FAITH_INTENT_TOOLS,
+    'journal': JOURNAL_INTENT_TOOLS,
+    'goals': PURPOSE_INTENT_TOOLS,
+    'tasks': LIFE_INTENT_TOOLS + CALENDAR_INTENT_TOOLS,
+    'finance': FINANCE_INTENT_TOOLS,
+}
+
+
+def get_scoped_intent_tools(domain=None):
+    """
+    Get domain-scoped intent tool schemas for OpenAI function calling.
+
+    When WLJ_SCOPED_INTENT_TOOLS_ENABLED is True and domain is known,
+    returns only the domain-relevant tools + core tools, reducing token
+    count from ~19K to ~2-6K.
+
+    Args:
+        domain: str or None from router's inferred domain.
+
+    Returns:
+        List of OpenAI tool schema dicts.
+    """
+    from django.conf import settings as _s
+    if not getattr(_s, 'WLJ_SCOPED_INTENT_TOOLS_ENABLED', False):
+        return ALL_INTENT_TOOLS
+    if domain is None:
+        return ALL_INTENT_TOOLS
+    domain_tools = DOMAIN_INTENT_TOOLS.get(domain)
+    if domain_tools is None:
+        return ALL_INTENT_TOOLS
+    return list(domain_tools) + list(CORE_INTENT_TOOLS)
+
+
 __all__ = [
     'ALL_INTENT_TOOLS',
     'INTENT_HANDLERS',
+    'CORE_INTENT_TOOLS',
+    'DOMAIN_INTENT_TOOLS',
+    'get_scoped_intent_tools',
     'HEALTH_INTENT_TOOLS',
     'MEDICINE_INTENT_TOOLS',
     'FASTING_INTENT_TOOLS',

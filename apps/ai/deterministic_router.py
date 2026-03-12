@@ -69,7 +69,7 @@ class RouteResult:
     """
     __slots__ = (
         'category', 'response', 'route_name', 'domain',
-        'is_terminal', 'metadata', 'elapsed_ms',
+        'is_terminal', 'metadata', 'elapsed_ms', 'skip_intent',
     )
 
     def __init__(
@@ -81,6 +81,7 @@ class RouteResult:
         is_terminal=False,
         metadata=None,
         elapsed_ms=0.0,
+        skip_intent=False,
     ):
         self.category = category
         self.response = response
@@ -89,6 +90,7 @@ class RouteResult:
         self.is_terminal = is_terminal
         self.metadata = metadata or {}
         self.elapsed_ms = elapsed_ms
+        self.skip_intent = skip_intent
 
 
 # =============================================================================
@@ -113,6 +115,86 @@ def _is_domain_scoping_enabled():
 def _is_memory_gating_enabled():
     """Check if semantic memory gating is enabled."""
     return getattr(settings, 'WLJ_MEMORY_GATING_ENABLED', False)
+
+
+def _is_intent_bypass_enabled():
+    """Check if intent recognition bypass for conversational messages is enabled."""
+    return getattr(settings, 'WLJ_INTENT_BYPASS_ENABLED', False)
+
+
+# =============================================================================
+# Intent Bypass — Action Signal Detection
+# =============================================================================
+
+import re as _re
+
+# Verbs that indicate the user wants to LOG or CREATE data
+_LOGGING_VERBS = frozenset({
+    'log', 'record', 'track', 'enter', 'save', 'add', 'took', 'had',
+    'ate', 'drank', 'slept', 'weighed', 'ran', 'walked', 'biked',
+    'swam', 'lifted', 'jogged', 'measured', 'fasted',
+})
+
+# Verbs that indicate the user wants to MUTATE existing data
+_MUTATION_VERBS = frozenset({
+    'delete', 'remove', 'cancel', 'update', 'change', 'edit',
+    'reschedule', 'move', 'create', 'schedule', 'book', 'complete',
+    'finish', 'done', 'skip', 'mark', 'start', 'end', 'set', 'pause',
+    'resume', 'snooze', 'undo',
+})
+
+# Multi-word action phrases that need exact substring matching
+_ACTION_PHRASES = (
+    'took my', 'take my', 'taking my', 'mark as done', 'mark complete',
+    'mark it done', 'check off', 'checked off', 'sign me up',
+    'set a reminder', 'set reminder', 'add a reminder', 'create a task',
+    'create task', 'create an event', 'create event', 'log a', 'log my',
+    'start a fast', 'end my fast', 'end fast',
+)
+
+# Numeric+unit patterns (e.g., "185 lbs", "98 bpm", "120/80")
+_NUMERIC_UNIT_RE = _re.compile(
+    r'\b\d+(?:\.\d+)?'
+    r'\s*(?:lbs?|lb|kg|bpm|mg|mmhg|oz|ml|cups?|steps?|hours?|hrs?|'
+    r'minutes?|mins?|cal|kcal|calories|%|mmol|units?)\b',
+    _re.IGNORECASE,
+)
+
+# Blood pressure pattern (e.g., "120/80")
+_BP_RE = _re.compile(r'\b\d{2,3}\s*/\s*\d{2,3}\b')
+
+
+def has_action_signal(msg_lower):
+    """
+    Detect whether a message contains signals that it's an action request
+    (data logging, task mutation, etc.) rather than a conversational message.
+
+    Returns True if the message likely needs intent recognition.
+    Returns False if the message is purely conversational/analytical.
+
+    Conservative: when in doubt, return True (which keeps intent recognition).
+    """
+    words = set(msg_lower.split())
+
+    # Check individual action verbs
+    if words & _LOGGING_VERBS:
+        return True
+    if words & _MUTATION_VERBS:
+        return True
+
+    # Check multi-word action phrases
+    if any(phrase in msg_lower for phrase in _ACTION_PHRASES):
+        return True
+
+    # Check numeric+unit patterns (e.g., "185 lbs", "98 bpm")
+    if _NUMERIC_UNIT_RE.search(msg_lower):
+        return True
+
+    # Blood pressure pattern
+    if _BP_RE.search(msg_lower):
+        return True
+
+    return False
 
 
 # =============================================================================
@@ -179,10 +261,16 @@ def classify_and_route(message, user, cos_context_cache=None):
 
     # ── Fallthrough ───────────────────────────────────────────────
     elapsed = (time.monotonic() - t_start) * 1000
+    _domain = _infer_domain(msg_lower)
+    _skip = (
+        _is_intent_bypass_enabled()
+        and not has_action_signal(msg_lower)
+    )
     fallthrough = RouteResult(
         route_name='no_match',
         elapsed_ms=elapsed,
-        domain=_infer_domain(msg_lower),
+        domain=_domain,
+        skip_intent=_skip,
     )
     _log_route_decision(fallthrough, user, message)
     return fallthrough

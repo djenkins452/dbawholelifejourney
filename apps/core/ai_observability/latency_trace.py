@@ -62,6 +62,19 @@ class LatencyTrace:
         """Store arbitrary metadata (model name, token counts, etc.)."""
         self._meta[key] = value
 
+    def set_token_report(self, component, count):
+        """Record per-component token count for the assembled prompt."""
+        if '_token_report' not in self._meta:
+            self._meta['_token_report'] = {}
+        self._meta['_token_report'][component] = count
+
+    def set_governance_decision(self, decision_type, detail=None):
+        """Record a token governance decision (intent_bypassed, framework_skipped, etc.)."""
+        if '_governance' not in self._meta:
+            self._meta['_governance'] = []
+        entry = decision_type if not detail else f"{decision_type}:{detail}"
+        self._meta['_governance'].append(entry)
+
     def get_duration_ms(self, label):
         """Get duration of a completed stage in milliseconds, or None."""
         stage = self._stages.get(label)
@@ -117,9 +130,28 @@ class LatencyTrace:
                     short_name = blabel.replace('COS_BUILDER_', '')
                     lines.append(f"    {short_name}: {bdur}")
 
-        # Metadata (model, tokens, etc.)
-        if self._meta:
-            meta_parts = [f"{k}={v}" for k, v in self._meta.items()]
+        # Token report (per-component breakdown)
+        token_report = self._meta.get('_token_report')
+        if token_report:
+            lines.append("  TOKEN_REPORT:")
+            total_tokens = 0
+            for comp, count in sorted(token_report.items(), key=lambda x: -x[1]):
+                lines.append(f"    {comp}: {count}")
+                total_tokens += count
+            lines.append(f"    TOTAL: {total_tokens}")
+
+        # Governance decisions
+        governance = self._meta.get('_governance')
+        if governance:
+            lines.append(f"  GOVERNANCE: {', '.join(governance)}")
+
+        # Metadata (model, tokens, etc.) — exclude internal keys
+        display_meta = {
+            k: v for k, v in self._meta.items()
+            if not k.startswith('_')
+        }
+        if display_meta:
+            meta_parts = [f"{k}={v}" for k, v in display_meta.items()]
             lines.append(f"  META: {', '.join(meta_parts)}")
 
         report_text = "\n".join(lines)

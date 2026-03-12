@@ -316,6 +316,9 @@ class OpsStreamView(View):
         # Domain event bus telemetry
         domain_events = _get_domain_event_telemetry()
 
+        # Chat latency telemetry
+        chat_latency = _get_chat_latency_telemetry(now)
+
         return JsonResponse({
             "server_time": now.isoformat(),
             "posture": posture,
@@ -333,6 +336,7 @@ class OpsStreamView(View):
             "aafr": aafr,
             "complexity": complexity,
             "domain_events": domain_events,
+            "chat_latency": chat_latency,
             "next_since": now.isoformat(),
         })
 
@@ -1010,4 +1014,5 @@ from apps.core.ai_observability.ops_telemetry import (  # noqa: E402, F401
     _get_ingestion_stats,
     _get_complexity_score,
     _get_domain_event_telemetry,
+    _get_chat_latency_telemetry,
 )

@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-12 — Chat Latency Instrumentation: Full Pipeline Tracing
+
+- **Purpose:** Instrument Beth's entire response pipeline to diagnose why LLM responses consistently take ~31 seconds. Diagnostic-only pass — no functional logic modified.
+- **New files:**
+  - `apps/core/ai_observability/latency_trace.py` — `LatencyTrace` utility: `start(label)`, `end(label)`, `set_meta()`, `report()`, `to_dict()`. Uses `time.monotonic()` for precision timing. Persists snapshots to DB and emits structured `BETH_LATENCY_REPORT` log blocks.
+  - `apps/core/migrations/0112_chat_latency_snapshot.py` — Migration for `ChatLatencySnapshot` model
+- **Model:** `ChatLatencySnapshot` added to `apps/core/ai_observability/models.py` — stores per-request latency data (stages JSONField, meta JSONField with tokens/model/route info), indexed by `created_at` and `user_id`.
+- **Instrumented stages (personal_assistant.py):**
+  - Non-streaming path (`send_message` → `_generate_response`): ROUTER_CLASSIFICATION, INTENT_RECOGNITION, COS_CONTEXT_BUILD_TOTAL, EXECUTIVE_BRIEFING, SEMANTIC_MEMORY_RETRIEVAL, LLM_REQUEST, POST_PROCESSING
+  - Streaming path (`send_message_stream` → `_generate_response_stream`): ROUTER_CLASSIFICATION, COS_CONTEXT_BUILD_TOTAL, LLM_REQUEST, LLM_FIRST_TOKEN
+  - Per-builder timing: COS_BUILDER_* synthetic stages injected from ThreadPoolExecutor timing
+- **Token tracking:** Added `_last_usage` dict to `apps/ai/services.py` after successful API call, capturing prompt_tokens, completion_tokens, total_tokens.
+- **Builder timing:** Wrapped each builder execution in `apps/core/ai_orchestrator/cos_context.py` with monotonic timing. Stored in `context['_builder_timings']` dict, then injected as synthetic stages into the trace.
+- **Operations Wall:** Added `_get_chat_latency_telemetry()` to `apps/core/ai_observability/ops_telemetry.py` — aggregates 24h snapshots with per-stage averages. Wired into `OpsStreamView` in `ops_views.py` as `chat_latency` key.
+- **Files:** `apps/core/ai_observability/latency_trace.py`, `apps/core/ai_observability/models.py`, `apps/core/migrations/0112_chat_latency_snapshot.py`, `apps/ai/personal_assistant.py`, `apps/ai/services.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/core/ai_observability/ops_telemetry.py`, `apps/core/ai_observability/ops_views.py`
+
 ## 2026-03-12 — Beth Diagnostic Report: Conversational Behavior Investigation
 
 - **Purpose:** Comprehensive 7-phase investigation into three Beth behavioral issues: (1) making strong recommendations based on incomplete/sparse data, (2) generating generic check-ins instead of contextual ones, (3) dropping active conversation topics and switching to generic prompts.

@@ -2123,6 +2123,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         import time as _t
         _t_total_start = _t.monotonic()
 
+        # ── Latency tracer (diagnostic instrumentation) ──
+        try:
+            from apps.core.ai_observability.latency_trace import LatencyTrace
+            _ltrace = LatencyTrace(user_id=self.user.id, path='non_stream')
+        except Exception:
+            _ltrace = None
+
         from .intent_service import intent_service
         from .feature_request_service import feature_request_service
         from .bug_report_service import bug_report_service
@@ -2429,6 +2436,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         cos_context_cache=_cos_context_cache,
                         all_images=all_images,
                         route_result=_route_result,
+                        _ltrace=_ltrace,
                     )
             # Then check for pending data visibility confirmation
             elif self._handle_data_visibility_confirmation(message, conversation):
@@ -2562,6 +2570,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 # path, strict health status, and check-in prefilter.
                 # See apps/ai/deterministic_router.py for route registry.
                 _route_result = None
+                if _ltrace:
+                    _ltrace.start('ROUTER_CLASSIFICATION')
                 try:
                     from apps.ai.deterministic_router import (
                         classify_and_route as _classify_route,
@@ -2582,6 +2592,12 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         "Deterministic router failed, falling through: %s",
                         _router_err, exc_info=True,
                     )
+                finally:
+                    if _ltrace:
+                        _ltrace.end('ROUTER_CLASSIFICATION')
+                        if _route_result:
+                            _ltrace.set_meta('route_name', _route_result.route_name)
+                            _ltrace.set_meta('route_category', str(_route_result.category))
 
                 # ── Check-in prefilter (detected by shared router) ─────────
                 # Check-in queries skip intent recognition but need the full
@@ -2603,6 +2619,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         cos_context_cache=_cos_context_cache,
                         all_images=all_images,
                         route_result=_route_result,
+                        _ltrace=_ltrace,
                     )
                 elif not response:
                     # Build lean conversation history for intent context
@@ -2617,10 +2634,14 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     )
 
                     # Try to recognize intents (supports multiple)
+                    if _ltrace:
+                        _ltrace.start('INTENT_RECOGNITION')
                     intent_results = intent_service.recognize_intents(
                         message, self.user, conversation_history=_intent_history,
                         page_context=page_context,
                     )
+                    if _ltrace:
+                        _ltrace.end('INTENT_RECOGNITION')
 
                     # Filter out no_action results
                     actionable_intents = [ir for ir in intent_results if ir.intent_type != 'no_action']
@@ -2742,6 +2763,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                 cos_context_cache=_cos_context_cache,
                                 all_images=all_images,
                                 route_result=_route_result,
+                                _ltrace=_ltrace,
                             )
                             response += "\n\n" + bug_report_ack
                         else:
@@ -2760,6 +2782,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                     cos_context_cache=_cos_context_cache,
                                     all_images=all_images,
                                     route_result=_route_result,
+                                    _ltrace=_ltrace,
                                 )
 
                         # Check for feature requests ("I wish", "I want") and notify admin
@@ -2784,6 +2807,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 # violations are blocked (replaced); unverifiable action
                 # claims are blocked; numeric deviations are observe-only.
                 # Validator crash returns safe response.
+                if _ltrace:
+                    _ltrace.start('POST_PROCESSING')
                 try:
                     from apps.core.ai_governance.validator_gate import (
                         validate_response,
@@ -2810,6 +2835,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 except Exception as e:
                     logger.debug("Health response validator error: %s", e)
                 # ── End health intelligence validator ─────────────────
+                if _ltrace:
+                    _ltrace.end('POST_PROCESSING')
 
         # Record calibration answer if active (advance stage for next question)
         # Skip if:
@@ -2942,6 +2969,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             result['user_message_has_image'] = True
 
         logger.warning("COS TOTAL send_message took %.1f ms", (_t.monotonic() - _t_total_start) * 1000)
+
+        # ── Latency report (diagnostic instrumentation) ──
+        if _ltrace:
+            try:
+                _ltrace.report()
+            except Exception:
+                pass
 
         # Store result for idempotency deduplication
         store_result(self.user.id, message, result)
@@ -3552,6 +3586,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         all_images: list = None,
         _defer_briefing_marking: bool = False,
         route_result=None,
+        _ltrace=None,
     ) -> str:
         """Generate AI response to user message using coaching style.
 
@@ -3779,6 +3814,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 # Layer 6: Operational context (schedule, calendar, key signals)
                 # This is COMPACT — only what the LLM needs to be situationally aware.
                 # Dual template: NORMAL vs WRITE_SUPPRESSED selected deterministically.
+                if _ltrace:
+                    _ltrace.start('COS_CONTEXT_BUILD_TOTAL')
                 try:
                     from apps.core.ai_orchestrator.cos_context import (
                         build_cos_context,
@@ -3970,6 +4007,19 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     append_layers.append(cos_injection)
                 except Exception as cos_ctx_err:
                     logger.warning("CoS context (Layer 6) failed: %s", cos_ctx_err, exc_info=True)
+                finally:
+                    if _ltrace:
+                        _ltrace.end('COS_CONTEXT_BUILD_TOTAL')
+                        # Extract per-builder timings from context
+                        try:
+                            _bt = cos_context.get('_builder_timings', {}) if cos_context else {}
+                            for _btag, _bdur in _bt.items():
+                                _ltrace.start(f'COS_BUILDER_{_btag}')
+                                _ltrace._stages[f'COS_BUILDER_{_btag}']['end'] = (
+                                    _ltrace._stages[f'COS_BUILDER_{_btag}']['start'] + _bdur / 1000
+                                )
+                        except Exception:
+                            pass
 
                 # Pending reflections (check-ins after events)
                 try:
@@ -4003,6 +4053,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         # Executive Briefing (replaces simple greeting injection)
         # Delivers morning briefing, gap detection, life events, health gates,
         # journal follow-ups on first-of-day or gap re-entry interactions.
+        if _ltrace:
+            _ltrace.start('EXECUTIVE_BRIEFING')
         briefing = ""
         try:
             from apps.ai.executive_briefing import (
@@ -4019,10 +4071,15 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 system_prompt += "\n\n" + memory
         except Exception as e:
             logger.warning("Executive briefing failed: %s", e)
+        finally:
+            if _ltrace:
+                _ltrace.end('EXECUTIVE_BRIEFING')
 
         # Phase 7.1: Semantic memory retrieval — retrieve past conversations
         # relevant to the current message (cross-session, embedding-based).
         # Memory gating: skip embedding lookup for deterministic data routes.
+        if _ltrace:
+            _ltrace.start('SEMANTIC_MEMORY_RETRIEVAL')
         _skip_memory = False
         if route_result:
             try:
@@ -4080,6 +4137,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             pass
         except Exception as e:
             logger.debug("Correction retrieval skipped: %s", e)
+        finally:
+            if _ltrace:
+                _ltrace.end('SEMANTIC_MEMORY_RETRIEVAL')
+                _ltrace.set_meta('memory_skipped', _skip_memory)
 
         # Pending CoS prompts (proactive nudging)
         try:
@@ -5397,8 +5458,12 @@ Rules for this response:
         try:
             import time as _t_llm
             _t_llm_start = _t_llm.monotonic()
+            if _ltrace:
+                _ltrace.start('LLM_REQUEST')
             from django.conf import settings as django_settings
             _cos_model = django_settings.COS_MODEL
+            if _ltrace:
+                _ltrace.set_meta('model', _cos_model)
             _llm_response = ai_service._call_api(
                 system_prompt,
                 user_prompt,
@@ -5412,6 +5477,16 @@ Rules for this response:
                 all_images=all_images,
                 model=_cos_model,
             )
+            if _ltrace:
+                _ltrace.end('LLM_REQUEST')
+                # Extract token usage from the AI service's last response
+                try:
+                    _last_usage = getattr(ai_service, '_last_usage', None)
+                    if _last_usage:
+                        _ltrace.set_meta('prompt_tokens', _last_usage.get('prompt_tokens', 0))
+                        _ltrace.set_meta('completion_tokens', _last_usage.get('completion_tokens', 0))
+                except Exception:
+                    pass
             _used_fallback = not _llm_response
             response = _llm_response or self._get_fallback_response(message)
             logger.warning("COS LLM call took %.1f ms", (_t_llm.monotonic() - _t_llm_start) * 1000)
@@ -5904,6 +5979,7 @@ Rules for this response:
         assistant_message=None,
         is_checkin: bool = False,
         route_result=None,
+        _ltrace=None,
     ):
         """
         Streaming version of _generate_response.
@@ -5934,6 +6010,8 @@ Rules for this response:
             # Check-in queries MUST use the full pipeline to get:
             #   (a) Zero conversation history (prevents stale task contamination)
             #   (b) Direct DB queries for tasks, calendar, meds (not cached CoS)
+            if _ltrace:
+                _ltrace.start('COS_CONTEXT_BUILD_TOTAL')
             if is_checkin:
                 ctx = None  # Force full pipeline path
                 logger.info(
@@ -5958,8 +6036,11 @@ Rules for this response:
                     cos_context_cache=cos_context_cache,
                     _return_context_only=True,
                     route_result=route_result,
+                    _ltrace=_ltrace,
                 )
             else:
+                if _ltrace:
+                    _ltrace.end('COS_CONTEXT_BUILD_TOTAL')
                 _fast_elapsed = (_t_fast.monotonic() - _t_fast_start) * 1000
                 logger.warning(
                     "FAST_CTX_BUILD ms=%.1f user=%s", _fast_elapsed, self.user.id,
@@ -6003,6 +6084,9 @@ Rules for this response:
             try:
                 from django.conf import settings as django_settings
                 _cos_model_stream = django_settings.COS_MODEL
+                if _ltrace:
+                    _ltrace.start('LLM_REQUEST')
+                    _ltrace.set_meta('model', _cos_model_stream)
                 for chunk in ai_service._call_api_stream(
                     ctx['system_prompt'],
                     ctx['user_prompt'],
@@ -6022,9 +6106,15 @@ Rules for this response:
                             (_t_fast.monotonic() - _t_fast_start) * 1000,
                             self.user.id,
                         )
+                        if _ltrace:
+                            _ltrace.start('LLM_FIRST_TOKEN')
+                            _ltrace.end('LLM_FIRST_TOKEN')
                         first_token_logged = True
 
                     yield chunk
+
+                if _ltrace:
+                    _ltrace.end('LLM_REQUEST')
 
                 # Normal completion — save full response to pre-created record
                 if assistant_message and full_text:
@@ -6121,6 +6211,13 @@ Rules for this response:
                 {'type': 'error', 'error': str}
         """
         import threading
+
+        # ── Latency tracer (diagnostic instrumentation) ──
+        try:
+            from apps.core.ai_observability.latency_trace import LatencyTrace
+            _ltrace_s = LatencyTrace(user_id=self.user.id, path='stream')
+        except Exception:
+            _ltrace_s = None
 
         if not conversation:
             conversation = self.get_or_create_conversation()
@@ -6417,6 +6514,8 @@ Rules for this response:
                 # strict health status, and check-in prefilter detection.
                 _route_result_stream = None
                 if not _direct_response:
+                    if _ltrace_s:
+                        _ltrace_s.start('ROUTER_CLASSIFICATION')
                     try:
                         from apps.ai.deterministic_router import (
                             classify_and_route as _classify_route_s,
@@ -6436,6 +6535,12 @@ Rules for this response:
                             "Deterministic router (stream) failed: %s",
                             _router_s_err, exc_info=True,
                         )
+                    finally:
+                        if _ltrace_s:
+                            _ltrace_s.end('ROUTER_CLASSIFICATION')
+                            if _route_result_stream:
+                                _ltrace_s.set_meta('route_name', _route_result_stream.route_name)
+                                _ltrace_s.set_meta('route_category', str(_route_result_stream.category))
 
                 # ── Check-in prefilter (detected by shared router) ─────
                 if not _direct_response and _route_result_stream is not None:
@@ -6583,6 +6688,7 @@ Rules for this response:
                         assistant_message=assistant_msg,
                         is_checkin=_is_checkin_stream,
                         route_result=_route_result_stream,
+                        _ltrace=_ltrace_s,
                     ):
                         chunks.append(chunk)
                         yield {'type': 'token', 'content': chunk}
@@ -6762,6 +6868,13 @@ Rules for this response:
         _stream_nav = self._get_navigation_hint(actions_taken)
         if _stream_nav:
             result_data['navigation'] = _stream_nav
+
+        # ── Latency report (diagnostic instrumentation) ──
+        if _ltrace_s:
+            try:
+                _ltrace_s.report()
+            except Exception:
+                pass
 
         yield {'type': 'done', 'data': result_data}
 

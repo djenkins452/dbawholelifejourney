@@ -428,6 +428,14 @@ class AIService:
                 completion_tokens = getattr(usage, 'completion_tokens', 0) if usage else 0
                 total_tokens = getattr(usage, 'total_tokens', 0) if usage else 0
 
+                # Store usage for latency tracer to pick up (thread-local safe
+                # because each request thread has its own ai_service call chain)
+                self._last_usage = {
+                    'prompt_tokens': prompt_tokens,
+                    'completion_tokens': completion_tokens,
+                    'total_tokens': total_tokens,
+                }
+
                 logger.info(
                     "LLM OK endpoint=%s model=%s tokens=%d latency=%.2fs attempt=%d",
                     endpoint, effective_model, total_tokens, elapsed, attempt,

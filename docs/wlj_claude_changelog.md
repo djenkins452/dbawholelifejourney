@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-12 — Beth Diagnostic Report: Conversational Behavior Investigation
+
+- **Purpose:** Comprehensive 7-phase investigation into three Beth behavioral issues: (1) making strong recommendations based on incomplete/sparse data, (2) generating generic check-ins instead of contextual ones, (3) dropping active conversation topics and switching to generic prompts.
+- **Findings:**
+  - **Issue 1 (Sparse data confidence):** No data coverage/frequency metadata in context pipeline. SAE averages injected without sample sizes. `_confidence_qualifier()` pattern exists for Operating Profile but not applied to health metrics. "SPARSE DATA" system instruction only addresses MISSING data, not infrequent data.
+  - **Issue 2 (Generic check-ins):** Fast path has no CoS context on cache miss. FRESH SESSION greeting injection forces topic reset. Multiple competing prompt injections.
+  - **Issue 3 (Topic dropping):** `CHECKIN_PATTERNS` (56 patterns) overly broad — "where should i start", "focus on", "what matters most" falsely trigger check-in detection which drops ALL conversation history (`history = conversation.messages.none()`).
+- **Output:** `docs/BETH_DIAGNOSTIC_REPORT.md` — read-only investigation, no code changes
+- **Files:** `docs/BETH_DIAGNOSTIC_REPORT.md`
+
 ## 2026-03-12 — Fix Railpack 0.18.0 build failure (Dexcom env vars)
 
 - **Issue:** Railway deploy failed with `secret DEXCOM_CLIENT_ID: not found`. Railpack 0.18.0 detects django-environ `env()` calls and tries to mount them as Docker build secrets. The `env()` call triggers this even with `default=''`.

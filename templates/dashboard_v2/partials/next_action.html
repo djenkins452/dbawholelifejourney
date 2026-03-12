@@ -1,0 +1,63 @@
+{% load humanize %}
+<div id="next-action-panel"
+     hx-get="{% url 'dashboard_v2:section_next_action' %}"
+     hx-trigger="refresh-next-action from:body"
+     hx-swap="outerHTML">
+{% if next_action %}
+<div class="v2-next-action-panel v2-urgency-{{ next_action.urgency }}">
+    <div class="v2-next-action-header">
+        <span class="v2-next-action-label">
+            {% if next_action.urgency == "overdue" %}Overdue
+            {% elif next_action.urgency == "now" %}Now
+            {% else %}Next Up{% endif %}
+        </span>
+        {% if next_action.time_display %}
+        <span class="v2-next-action-time">{{ next_action.time_display }}</span>
+        {% endif %}
+    </div>
+    <div class="v2-next-action-body">
+        {% if next_action.source == "routine" %}
+        <button class="v2-action-toggle"
+                hx-post="{% url 'dashboard_v2:routine_complete' pk=next_action.pk %}"
+                hx-target="#routine-card"
+                hx-swap="outerHTML">
+            <span class="v2-check-empty">&#9675;</span>
+        </button>
+        {% elif next_action.source == "medicine" %}
+        <button class="v2-action-toggle"
+                hx-post="{% url 'dashboard_v2:medicine_group_log' time_of_day=next_action.time_of_day %}"
+                hx-target="#medicine-card"
+                hx-swap="outerHTML">
+            <span class="v2-check-empty">&#9675;</span>
+        </button>
+        {% elif next_action.can_complete %}
+        <button class="v2-action-toggle"
+                hx-post="{% url 'dashboard_v2:task_toggle' pk=next_action.pk %}"
+                hx-target="#schedule-card"
+                hx-swap="outerHTML">
+            <span class="v2-check-empty">&#9675;</span>
+        </button>
+        {% endif %}
+        <div class="v2-next-action-info">
+            {% if next_action.source_url %}
+            <a href="{{ next_action.source_url }}" class="v2-next-action-title">{{ next_action.title }}</a>
+            {% else %}
+            <span class="v2-next-action-title">{{ next_action.title }}</span>
+            {% endif %}
+            {% if next_action.goal_name %}
+            <span class="v2-goal-tag">{{ next_action.goal_name }}</span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% elif all_done %}
+<div class="v2-next-action-panel v2-all-done">
+    <div class="v2-next-action-header">
+        <span class="v2-next-action-label">All Clear</span>
+    </div>
+    <div class="v2-next-action-body">
+        <span class="v2-next-action-title">Everything's done for today. Nice work.</span>
+    </div>
+</div>
+{% endif %}
+</div>

@@ -5,15 +5,15 @@
         {% include "dashboard_v2/partials/routine_card.html" %}
     {% endif %}
 
-    {% if medicine_groups %}
+    {% if visible_medicine_groups or future_medicine_groups %}
         {% include "dashboard_v2/partials/medicine_card.html" %}
     {% endif %}
 
-    {% if schedule_timeline %}
+    {% if schedule_now or schedule_next or schedule_later or schedule_done %}
         {% include "dashboard_v2/partials/schedule_card.html" %}
     {% endif %}
 
-    {% if not routine_tasks and not medicine_groups and not schedule_timeline %}
+    {% if not routine_tasks and not visible_medicine_groups and not schedule_timeline %}
     <div class="v2-empty-state">
         <p>Nothing scheduled for today. Enjoy the free time.</p>
     </div>

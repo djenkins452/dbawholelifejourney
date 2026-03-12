@@ -800,6 +800,196 @@
     background: #d97706;
 }
 
+/* ── Next Action Panel ────────────────────────────────────────── */
+
+.v2-next-action-panel {
+    background: var(--color-card-bg, #ffffff);
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    border-left: 4px solid #3b82f6;
+}
+
+.v2-next-action-panel.v2-urgency-overdue {
+    border-left-color: #dc2626;
+    background: #fef2f2;
+}
+
+.v2-next-action-panel.v2-urgency-now {
+    border-left-color: #3b82f6;
+    background: #eff6ff;
+}
+
+.v2-next-action-panel.v2-urgency-next,
+.v2-next-action-panel.v2-urgency-upcoming {
+    border-left-color: #6b7280;
+}
+
+.v2-next-action-panel.v2-all-done {
+    border-left-color: #22c55e;
+    background: #f0fdf4;
+}
+
+.v2-next-action-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.375rem;
+}
+
+.v2-next-action-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-secondary, #6b7280);
+}
+
+.v2-urgency-overdue .v2-next-action-label { color: #dc2626; }
+.v2-urgency-now .v2-next-action-label { color: #2563eb; }
+.v2-all-done .v2-next-action-label { color: #16a34a; }
+
+.v2-next-action-time {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-text-secondary, #6b7280);
+}
+
+.v2-next-action-body {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.v2-next-action-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text, #1f2937);
+    text-decoration: none;
+}
+
+a.v2-next-action-title:hover {
+    text-decoration: underline;
+}
+
+.v2-next-action-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    flex: 1;
+    min-width: 0;
+}
+
+/* ── Schedule Time Groups ────────────────────────────────────── */
+
+.v2-schedule-group {
+    border-left: 3px solid var(--color-border, #e5e7eb);
+    padding-left: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.v2-schedule-group:last-child {
+    margin-bottom: 0;
+}
+
+.v2-schedule-group-label {
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-secondary, #9ca3af);
+    margin-bottom: 0.25rem;
+    padding-top: 0.25rem;
+}
+
+.v2-schedule-now {
+    border-left-color: #3b82f6;
+}
+
+.v2-schedule-now .v2-schedule-group-label {
+    color: #2563eb;
+}
+
+.v2-schedule-next {
+    border-left-color: #f59e0b;
+}
+
+.v2-schedule-next .v2-schedule-group-label {
+    color: #d97706;
+}
+
+.v2-schedule-later {
+    border-left-color: var(--color-border, #e5e7eb);
+}
+
+/* ── Medicine Future Hint ────────────────────────────────────── */
+
+.v2-future-hint {
+    font-size: 0.75rem;
+    font-style: italic;
+    color: var(--color-text-secondary, #9ca3af);
+    padding-top: 0.5rem;
+    text-align: center;
+}
+
+/* ── State Compact Chips ─────────────────────────────────────── */
+
+.v2-state-compact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.v2-state-chip {
+    display: flex;
+    align-items: baseline;
+    gap: 0.375rem;
+}
+
+.v2-state-chip-label {
+    font-size: 0.6875rem;
+    color: var(--color-text-secondary, #6b7280);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.v2-state-chip-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text, #1f2937);
+}
+
+.v2-state-details {
+    margin-top: 0.75rem;
+}
+
+.v2-state-more {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary, #6b7280);
+    cursor: pointer;
+    list-style: none;
+    padding: 0.25rem 0;
+}
+
+.v2-state-more::-webkit-details-marker {
+    display: none;
+}
+
+.v2-state-more::before {
+    content: "\\25B8 ";
+    font-size: 0.625rem;
+}
+
+.v2-state-details[open] .v2-state-more::before {
+    content: "\\25BE ";
+}
+
+.v2-state-details .v2-state-grid {
+    margin-top: 0.75rem;
+}
+
 /* ── Empty State ──────────────────────────────────────────────── */
 
 .v2-empty-state {

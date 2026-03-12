@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-12 — Dashboard V2: Behavioral Guidance UX Layer
+
+- **"Next Action" panel:** New prominent panel between Goal Momentum and Execution section shows the single most important thing to do right now. Priority logic: overdue tasks → items within 30 minutes → next incomplete routine → untaken medicine stack → upcoming schedule item. Shows "All Clear" when everything is done. Auto-refreshes via `HX-Trigger: refresh-next-action` when any action is completed.
+- **Time-aware schedule (NOW/NEXT/LATER):** Schedule timeline now groups items into NOW (within 30 min / overdue), NEXT (within 2 hours), and LATER (rest of day). Completed items collapse into a compact strip. Visual hierarchy via colored left borders (blue=NOW, amber=NEXT, gray=LATER).
+- **Medicine time windows:** Medicine stacks only appear when relevant. Morning Stack visible until 10 AM, Evening Stack from 4 PM, etc. Completed stacks always visible. Future stacks hidden with "X more stacks later today" hint.
+- **Compact health telemetry:** State panel converted from 7-metric flat grid to 3 primary metric chips (Weight, Sleep, Steps) with an expandable "More health data" `<details>` section for secondary metrics. No JS required.
+- **Layout reorder:** State panel moved below Daily Progress (demoted from section 4 to section 5). Next Action panel inserted at section 2 (after momentum, before execution).
+- **HTMX next-action refresh:** All action endpoints (task toggle, routine complete, medicine group log) now include `HX-Trigger: refresh-next-action` header. New `NextActionSectionView` endpoint at `sections/next-action/`.
+- **Files modified:** `dashboard_service.py` (new methods: `_get_user_now()`, `_time_diff_minutes()`, `_determine_next_action()`, medicine time windows, schedule phase grouping, compact metrics), `views.py` (NextActionSectionView, HX-Trigger headers), `urls.py` (section_next_action URL), `home.html` (layout reorder), `schedule_card.html` (NOW/NEXT/LATER groups), `medicine_card.html` (visible_medicine_groups + future hint), `state_panel.html` (compact chips), `execution.html` (updated conditionals), `dashboard_v2.css` (next action, schedule groups, state chips, future hint). New file: `next_action.html`.
+
 ## 2026-03-12 — Dashboard V2: Command Console UX Overhaul
 
 - **Routine section compressed:** Completed routines collapse into a compact strip (✓ Title), freeing vertical space. First incomplete routine highlighted as "Next:" with emphasis background.

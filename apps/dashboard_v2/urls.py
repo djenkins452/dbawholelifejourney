@@ -28,6 +28,11 @@ urlpatterns = [
         views.InsightsSectionView.as_view(),
         name="section_insights",
     ),
+    path(
+        "sections/next-action/",
+        views.NextActionSectionView.as_view(),
+        name="section_next_action",
+    ),
     # Inline action endpoints
     path(
         "actions/task/<int:pk>/toggle/",

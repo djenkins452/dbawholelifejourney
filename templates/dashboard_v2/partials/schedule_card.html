@@ -4,9 +4,48 @@
         <h3 class="v2-card-title">Today's Schedule</h3>
         <span class="v2-count-badge">{{ schedule_count }} item{{ schedule_count|pluralize }}</span>
     </div>
-    <div class="v2-task-list">
-        {% for item in schedule_timeline %}
+
+    {% if schedule_now %}
+    <div class="v2-schedule-group v2-schedule-now">
+        <div class="v2-schedule-group-label">Now</div>
+        {% for item in schedule_now %}
             {% include "dashboard_v2/partials/schedule_row.html" %}
         {% endfor %}
     </div>
+    {% endif %}
+
+    {% if schedule_next %}
+    <div class="v2-schedule-group v2-schedule-next">
+        <div class="v2-schedule-group-label">Next</div>
+        {% for item in schedule_next %}
+            {% include "dashboard_v2/partials/schedule_row.html" %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if schedule_later %}
+    <div class="v2-schedule-group v2-schedule-later">
+        <div class="v2-schedule-group-label">Later</div>
+        {% for item in schedule_later %}
+            {% include "dashboard_v2/partials/schedule_row.html" %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if schedule_done %}
+    <div class="v2-completed-strip">
+        {% for item in schedule_done %}
+        <div class="v2-completed-compact">
+            <span class="v2-check-sm">&#10003;</span>
+            <a href="{{ item.source_url }}" class="v2-compact-title">{{ item.title }}</a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not schedule_now and not schedule_next and not schedule_later and not schedule_done %}
+    <div class="v2-empty-state">
+        <p>No schedule items for today.</p>
+    </div>
+    {% endif %}
 </div>

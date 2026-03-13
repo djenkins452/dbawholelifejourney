@@ -4544,8 +4544,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 completed_events = []
                 upcoming_events = []
 
-                # Tasks: use priority-based grouping matching the Organize page.
-                # This ensures Beth and the task UI show the same buckets.
+                # Tasks: EXACT same query as the Organize page.
+                # SoftDeleteManager already filters status='active'.
+                # Counts must match the UI — examples are capped at 3.
                 task_details = ''
                 _priority_items = []  # For priority synthesis
                 try:
@@ -4553,17 +4554,22 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     from apps.life.views import _refresh_stale_task_priorities
                     _refresh_stale_task_priorities(self.user)
 
+                    # Identical base queryset to Organize page
+                    pending_base = LifeTask.objects.filter(
+                        user=self.user, completion_status='pending',
+                    )
+
+                    # True counts — MUST match what the Organize page shows
+                    now_count = pending_base.filter(priority='now').count()
+                    soon_count = pending_base.filter(priority='soon').count()
+
                     _task_fields = ['title', 'commitment_level', 'module',
                                     'scheduled_time', 'is_routine', 'priority',
                                     'due_date']
-                    pending_base = LifeTask.objects.filter(
-                        user=self.user, completion_status='pending',
-                    ).exclude(status='deleted').exclude(deleted_at__isnull=False)
-
-                    # Priority-based buckets (same as Organize page)
+                    # Full list for priority scoring (capped at 15 for sanity)
                     now_tasks = list(pending_base.filter(
                         priority='now',
-                    ).values(*_task_fields)[:12])
+                    ).values(*_task_fields)[:15])
                     soon_tasks = list(pending_base.filter(
                         priority='soon',
                     ).values(*_task_fields)[:8])
@@ -4574,18 +4580,29 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
                     completed_today_tasks = list(LifeTask.objects.filter(
                         user=self.user, completion_status='completed', completed_at__date=today
-                    ).exclude(status='deleted').values_list('title', flat=True)[:10])
+                    ).values_list('title', flat=True)[:10])
 
                     parts = []
                     if overdue_tasks:
-                        parts.append(f"OVERDUE ({len(overdue_tasks)}):\n" + '\n'.join(
-                            f'  • {t["title"]}' for t in overdue_tasks))
+                        examples = [t["title"] for t in overdue_tasks[:3]]
+                        example_str = '\n'.join(f'  • {t}' for t in examples)
+                        if len(overdue_tasks) > 3:
+                            example_str += f'\n  (+{len(overdue_tasks) - 3} more)'
+                        parts.append(f"OVERDUE ({len(overdue_tasks)}):\n{example_str}")
                     if due_today_tasks:
-                        parts.append(f"NOW ({len(due_today_tasks)}):\n" + '\n'.join(
-                            f'  • {t["title"]}' for t in due_today_tasks))
-                    if soon_tasks:
-                        parts.append(f"SOON ({len(soon_tasks)}):\n" + '\n'.join(
-                            f'  • {t["title"]}' for t in soon_tasks))
+                        # Count = total now minus overdue (true count)
+                        due_today_count = now_count - len(overdue_tasks)
+                        examples = [t["title"] for t in due_today_tasks[:3]]
+                        example_str = '\n'.join(f'  • {t}' for t in examples)
+                        if due_today_count > 3:
+                            example_str += f'\n  (+{due_today_count - 3} more)'
+                        parts.append(f"NOW ({due_today_count}):\n{example_str}")
+                    if soon_count:
+                        examples = [t["title"] for t in soon_tasks[:3]]
+                        example_str = '\n'.join(f'  • {t}' for t in examples)
+                        if soon_count > 3:
+                            example_str += f'\n  (+{soon_count - 3} more)'
+                        parts.append(f"SOON ({soon_count}):\n{example_str}")
                     if completed_today_tasks:
                         parts.append(f"COMPLETED TODAY ({len(completed_today_tasks)}):\n" + '\n'.join(
                             f'  ✓ {t}' for t in completed_today_tasks))
@@ -4594,12 +4611,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     task_details = '\n'.join(parts)
 
                     # ── Priority scoring for synthesis ──
-                    # Score pending tasks so the prompt can highlight the #1 action.
                     _COMMIT_SCORE = {'non_negotiable': 3, 'important': 2, 'optional': 1}
                     _HEALTH_MODULES = {'health', 'faith'}
                     for t in overdue_tasks:
                         score = (
-                            9                                               # overdue urgency
+                            9
                             + _COMMIT_SCORE.get(t.get('commitment_level', ''), 1)
                             + (2 if t.get('module', '') in _HEALTH_MODULES else 0)
                         )
@@ -4614,19 +4630,19 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                     _dt.combine(today, _sched) - _dt.combine(today, current_time)
                                 ).total_seconds() / 60
                                 if _minutes_until <= 0:
-                                    time_bonus = 6  # past scheduled time
+                                    time_bonus = 6
                                 elif _minutes_until <= 120:
-                                    time_bonus = 4  # within 2 hours
+                                    time_bonus = 4
                                 elif _minutes_until <= 240:
-                                    time_bonus = 2  # within 4 hours
+                                    time_bonus = 2
                             except Exception:
                                 pass
                         score = (
-                            3                                               # due-today base
+                            3
                             + time_bonus
                             + _COMMIT_SCORE.get(t.get('commitment_level', ''), 1)
                             + (2 if t.get('module', '') in _HEALTH_MODULES else 0)
-                            + (0 if t.get('is_routine') else 1)             # non-routine tasks slightly higher
+                            + (0 if t.get('is_routine') else 1)
                         )
                         _priority_items.append((score, t['title'], 'due_today'))
                 except Exception as _task_err:

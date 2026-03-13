@@ -1007,45 +1007,40 @@ def _build_day_overview_section(user, user_now, today) -> str:
     except Exception:
         pass
 
-    # ── Tasks due today and overdue (non-routine — routines handled by health gate) ──
+    # ── Tasks — uses the SAME priority-based grouping as the Organize page ──
+    # The Organize page calls _refresh_stale_task_priorities() then groups by
+    # the stored `priority` field. We do the same here so Beth's task awareness
+    # matches what the user sees on the page. Non-routine filter is removed —
+    # the Organize page shows ALL tasks, and so should Beth.
     try:
         from apps.life.models import Task
+        from apps.life.views import _refresh_stale_task_priorities
 
-        # Overdue tasks (any type)
-        overdue_tasks = list(
-            Task.objects.filter(
-                user=user, completion_status='pending', due_date__lt=today
-            )
+        # Refresh stale priorities so overnight changes are reflected
+        _refresh_stale_task_priorities(user)
+
+        pending_base = (
+            Task.objects.filter(user=user, completion_status='pending')
             .exclude(status='deleted')
             .exclude(deleted_at__isnull=False)
+        )
+
+        # "Now" bucket: priority='now' (due today or overdue)
+        now_tasks = list(
+            pending_base.filter(priority='now')
+            .values_list('title', flat=True)[:12]
+        )
+
+        # "Soon" bucket: priority='soon' (due within 7 days)
+        soon_tasks = list(
+            pending_base.filter(priority='soon')
             .values_list('title', flat=True)[:8]
         )
 
-        # Non-routine tasks due today (routines already in health gate)
-        due_today_tasks = list(
-            Task.objects.filter(
-                user=user, completion_status='pending', due_date=today,
-                is_routine=False,
-            )
-            .exclude(status='deleted')
-            .exclude(deleted_at__isnull=False)
-            .values_list('title', flat=True)[:8]
-        )
-
-        # Tasks with no due date (appear in "Now" bucket on task page)
-        no_date_tasks = list(
-            Task.objects.filter(
-                user=user, completion_status='pending', due_date__isnull=True,
-            )
-            .exclude(status='deleted')
-            .exclude(deleted_at__isnull=False)
-            .values_list('title', flat=True)[:5]
-        )
-
-        # Completed today (non-routine)
+        # Completed today (all types — matches Organize completed view)
         completed_today = list(
             Task.objects.filter(
-                user=user, completion_status='completed', is_routine=False,
+                user=user, completion_status='completed',
                 completed_at__date=today,
             )
             .exclude(status='deleted')
@@ -1058,24 +1053,18 @@ def _build_day_overview_section(user, user_now, today) -> str:
                 f"Tasks Completed Today: {', '.join(completed_today)}. "
                 "Acknowledge these accomplishments."
             )
-        if overdue_tasks:
+        if now_tasks:
             lines.append(
-                f"Overdue Tasks: {', '.join(overdue_tasks)}. "
-                "Mention gently — ask if they want to tackle, reschedule, "
-                "or remove any of these."
+                f"Tasks — Now ({len(now_tasks)}): {', '.join(now_tasks)}. "
+                "These are due today or overdue — the user's immediate priorities."
             )
-        if due_today_tasks:
+        if soon_tasks:
             lines.append(
-                f"Tasks Due Today: {', '.join(due_today_tasks)}. "
-                "Mention these as part of what's on their plate."
+                f"Tasks — Soon ({len(soon_tasks)}): {', '.join(soon_tasks)}. "
+                "Due within the next 7 days."
             )
-        if no_date_tasks:
-            lines.append(
-                f"Open Tasks (no due date): {', '.join(no_date_tasks)}. "
-                "These are on their list but not time-bound."
-            )
-        if not overdue_tasks and not due_today_tasks and not completed_today:
-            lines.append("Tasks: No tasks due today or overdue.")
+        if not now_tasks and not soon_tasks and not completed_today:
+            lines.append("Tasks: No tasks due today, overdue, or due soon.")
     except Exception as e:
         logger.warning("Failed to load tasks for day overview: %s", e)
 

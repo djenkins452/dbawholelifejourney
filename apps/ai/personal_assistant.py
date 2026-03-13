@@ -2995,6 +2995,12 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         # Also check pending_crud for re-shown confirmations
         elif 'pending_crud' in dir() and pending_crud and pending_crud.get('options'):
             result['options'] = pending_crud['options']
+        else:
+            # Parse A/B/C patterns from LLM text for general responses
+            _cleaned, _text_options = self._extract_options_from_text(response)
+            if _text_options:
+                result['response'] = _cleaned
+                result['options'] = _text_options
 
         # Include navigation hint for successful actions
         _nav = self._get_navigation_hint(actions_taken)
@@ -3140,6 +3146,69 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             if opts:
                 return opts
         return None
+
+    @staticmethod
+    def _extract_options_from_text(response_text):
+        """
+        Parse A/B/C option patterns from LLM response text and convert
+        them into structured option dicts for rendering as clickable chips.
+
+        Detects patterns like:
+            A) Do it now
+            B) Schedule it for later
+            C) Skip it
+
+        Also handles:
+            A. Do it now
+            **A)** Do it now
+
+        Returns:
+            (cleaned_text, options_list) — text with options removed and
+            the structured options, or (response_text, None) if no pattern found.
+        """
+        import re
+
+        if not response_text:
+            return response_text, None
+
+        # Pattern: lines starting with a letter A-D followed by ) or .
+        # Handles optional markdown bold wrapper: **A)** or **A.**
+        _pattern = re.compile(
+            r'^\s*(?:\*\*)?([A-D])\s*[).\]]\s*(?:\*\*)?\s*(.+?)$',
+            re.MULTILINE,
+        )
+        matches = list(_pattern.finditer(response_text))
+
+        if len(matches) < 2:
+            # Need at least 2 options to form a valid set
+            return response_text, None
+
+        options = []
+        for m in matches:
+            key = m.group(1).upper()
+            label = m.group(2).strip().rstrip('*')
+            options.append({
+                'key': key,
+                'label': label,
+                'action': 'acknowledge',
+                'style': 'primary' if key == 'A' else 'secondary',
+            })
+
+        # Remove the option lines from the text so they render as chips only
+        cleaned = response_text
+        for m in reversed(matches):
+            # Remove the line containing this match
+            start = m.start()
+            end = m.end()
+            # Extend to consume the newline after the match
+            if end < len(cleaned) and cleaned[end] == '\n':
+                end += 1
+            cleaned = cleaned[:start] + cleaned[end:]
+
+        # Clean up trailing whitespace / blank lines
+        cleaned = cleaned.rstrip()
+
+        return cleaned, options
 
     def _get_navigation_hint(self, actions_taken):
         """
@@ -4756,6 +4825,8 @@ NOTE: The "Reading plan" and "Workout" lines above are checked against ACTUAL
 activity logs (WorkoutSession, UserReadingProgress), NOT routine task completion.
 These values are AUTHORITATIVE. If a routine task says "Workout" is completed
 but the line above says "not yet logged", trust the line above.
+{"⚠️ WORKOUT IS NOT LOGGED — do NOT say it is done, completed, or knocked out." if workout_status == "not yet logged" else ""}
+{"⚠️ READING/QUIET TIME IS NOT DONE — do NOT say it is completed." if reading_status == "not yet done today" else ""}
 
 TASKS:
 {task_details}
@@ -4844,10 +4915,11 @@ Never default to generic productivity filler. An empty day is a briefing opportu
                     pass  # SA must never break check-in path
 
                 system_prompt += """
-ANTI-FABRICATION RULES (ABSOLUTE):
-- NEVER claim an activity is completed unless it EXPLICITLY appears under COMPLETED, ALREADY TAKEN, or [DONE] sections above.
-- Workout status is ONLY determined by the "Workout:" line in HEALTH & ROUTINES. If it says "not yet logged", the user has NOT worked out — regardless of what any routine task says.
-- Reading/prayer status is ONLY determined by the "Reading plan / Quiet Time:" line. If it says "not yet done today", it has NOT been done.
+ANTI-FABRICATION RULES (ABSOLUTE — VIOLATION IS A CRITICAL ERROR):
+- NEVER claim an activity is completed unless it EXPLICITLY appears under COMPLETED, ALREADY TAKEN, [DONE], or [VERIFIED COMPLETED] sections above.
+- Workout status is ONLY determined by the "Workout:" line in HEALTH & ROUTINES. If it says "not yet logged", the user has NOT worked out — regardless of what any routine task says. DO NOT say "workout done" or "knocked out your workout" if it says "not yet logged".
+- Reading/prayer status is ONLY determined by the "Reading plan / Quiet Time:" line. If it says "not yet done today", it has NOT been done. DO NOT say "prayer time done" or "quiet time complete" if it says "not yet done today".
+- A task being PAST its scheduled time does NOT mean it was completed. Past time = MISSED or still pending. Only completion_status='completed' in the TASKS section means done.
 - Calendar events marked [DONE] are COMPLETED. Events marked [TODO] are NOT completed. Never reverse these.
 - If you are not 100% certain something was completed based on the data above, do NOT claim it was completed. Say you don't see a log for it.
 - You may ONLY reference task names, goal names, medication names, and calendar events that are EXPLICITLY listed in the structured data above. NEVER invent, derive, or infer a task or priority item that does not appear word-for-word in the data sections.
@@ -6963,6 +7035,11 @@ Rules for this response:
             result_data['options'] = _stream_options
         elif '_pending_crud' in dir() and _pending_crud and _pending_crud.get('options'):
             result_data['options'] = _pending_crud['options']
+        else:
+            # Parse A/B/C patterns from streamed LLM text for general responses
+            _, _text_options = self._extract_options_from_text(response_text)
+            if _text_options:
+                result_data['options'] = _text_options
 
         # Navigation hint
         _stream_nav = self._get_navigation_hint(actions_taken)

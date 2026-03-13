@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-13 — Beth Truth Integrity & A/B/C Interactive Option Bubbles
+
+**Phase 1 — Strengthen Anti-Fabrication in Executive Briefing & Check-in:**
+- Executive briefing now uses `[VERIFIED COMPLETED]` and `[NOT COMPLETED]` labels for routine tasks instead of ambiguous "Completed:" prefix
+- Added explicit negative assertions block (e.g., "Workout has NOT been logged today — do NOT say it is done")
+- Strengthened INSTRUCTION section with CRITICAL TRUTH RULES including "A task being PAST its scheduled time does NOT mean it was completed"
+- Check-in prompt now includes ⚠️ warning emoji negative assertions for workout/reading not done
+- Anti-fabrication rules header upgraded to "VIOLATION IS A CRITICAL ERROR" severity
+- Added specific anti-example: "Do NOT say 'You knocked out your workout' when workout is NOT COMPLETED"
+- **Files:** `apps/ai/executive_briefing.py`, `apps/ai/personal_assistant.py`
+
+**Phase 2 — A/B/C Response Option Extraction (Interactive Bubbles):**
+- Created `_extract_options_from_text()` static method on PersonalAssistant
+- Regex parser detects A-D option patterns (A), A., **A)**) and extracts into structured option dicts
+- Returns (cleaned_text, options_list) — option lines stripped from response text, preamble preserved
+- Wired into `send_message()` (non-streaming) — options render as clickable chips via existing frontend
+- Wired into `send_message_stream()` (streaming done event) — options sent in SSE result
+- Option A gets 'primary' style, B-D get 'secondary'; all use 'acknowledge' action type
+- Minimum 2 options required; single option lines are not extracted
+- 11 unit tests covering all patterns, edge cases, and cleaned text preservation
+- **Files:** `apps/ai/personal_assistant.py`, `apps/ai/tests/test_option_extraction.py`
+
+**Test Results:** 21 new tests pass (11 option extraction + 6 workout truth + 4 priority validation). 878/879 AI tests pass (1 pre-existing failure in `test_web_search` unrelated to changes).
+
+---
+
 ## 2026-03-13 — Fix stale task priorities: tasks due today showing under "Soon" instead of "Now"
 
 **Root cause:** Task `priority` field is stored in the DB at save time and never recalculated when the day changes. The `recalculate_task_priorities` management command existed but was never wired into Celery Beat, so priorities went stale overnight.

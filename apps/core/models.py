@@ -125,6 +125,24 @@ class SoftDeleteModel(TimeStampedModel):
         self.deleted_at = timezone.now()
         self.save(update_fields=["status", "deleted_at", "updated_at"])
 
+        # Emit domain event so caches (CoS, SAE) are invalidated.
+        # Only emit for user-owned models that have a user attribute.
+        _user = getattr(self, 'user', None)
+        if _user:
+            try:
+                from apps.core.events.domain_events import safe_emit_event, EventTypes
+                # Use the model's class name to derive a domain-specific event
+                _model_name = self.__class__.__name__.lower()
+                if _model_name == 'task':
+                    safe_emit_event(EventTypes.TASK_DELETED, _user, {
+                        "task_id": self.pk, "source": "soft_delete",
+                    })
+                # For all models: invalidate CoS context
+                from apps.ai.readiness_cache import invalidate_cos_context_on_action
+                invalidate_cos_context_on_action(_user)
+            except Exception:
+                pass  # Cache invalidation is best-effort
+
     def archive(self):
         """Archive the record (hide but preserve)."""
         self.status = "archived"

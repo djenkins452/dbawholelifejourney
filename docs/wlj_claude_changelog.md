@@ -6,6 +6,46 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-12 — Beth Integrity Pass: 4-Phase Deterministic Correctness Fixes
+
+**Root cause:** Diagnostic investigation revealed three systemic causes behind Beth's behavioral anomalies — incorrect recurring task mutations, stale cache reads, LLM task fabrication, and inconsistent workout truth checks.
+
+**Phase 1 — Prevent Incorrect Recurring Task Mutations:**
+- Extended series-vs-instance disambiguation guard from commitment_level-only to ALL mutation types (scheduled_time, due_date, end_time, title, notes, effort)
+- Date-specific phrases ("today", "tomorrow") now default to `update_series=False` (single instance)
+- When `update_series=False`, limits to today's instance (or nearest future) instead of all matches
+- Extended `is_recurring_series` check in multiple-match logic to cover `'update'` actions (not just `'delete'`)
+- Added 9 unit tests covering all recurring mutation scenarios
+- **Files:** `apps/ai/action_handlers.py`
+
+**Phase 2 — Eliminate Stale State Reads:**
+- Added `TASK_SKIPPED`, `TASK_DELETED`, `TASK_UPDATED` event types to domain events
+- `soft_delete()` now emits `TASK_DELETED` event and calls `invalidate_cos_context_on_action()`
+- `mark_complete()`, `mark_skipped()`, `mark_incomplete()` now call `invalidate_cos_context_on_action()`
+- `mark_skipped()` now emits `TASK_SKIPPED` domain event
+- `TaskSkipView` now emits `TASK_SKIPPED` event (matching `TaskToggleView`'s pattern)
+- Widened CoS cache subscriber from `task.completed` to `task.*` (catches all task state changes)
+- Calendar projection now calls `task.refresh_from_db(fields=['completion_status'])` before evaluating `is_completed`
+- Task mutations in action_handlers.py now invalidate CoS cache and emit `TASK_UPDATED` event
+- Added 8 unit tests for state invalidation
+- **Files:** `apps/core/events/domain_events.py`, `apps/core/models.py`, `apps/life/models.py`, `apps/life/views.py`, `apps/core/events/subscribers.py`, `apps/calendar_engine/services/projection.py`, `apps/ai/action_handlers.py`
+
+**Phase 3 — Remove LLM Fabrication Permission:**
+- Replaced "Otherwise derive from the data" with explicit instruction to state "no urgent priorities" when TOP PRIORITIES is empty
+- Added anti-fabrication guardrails: Beth may ONLY reference items that appear word-for-word in structured data
+- Added validation pass that re-checks task existence against DB before priority synthesis
+- Added 4 unit tests for priority validation
+- **Files:** `apps/ai/personal_assistant.py`
+
+**Phase 4 — Harden Workout Truth Source:**
+- `_get_workout_today()` now explicitly `.exclude(status='deleted')` for defense-in-depth
+- Fixed all 3 workout query paths: personal_assistant, _gather_comprehensive_state, dashboard_ai
+- Executive briefing already had the exclude — now all paths are consistent
+- Added 6 unit tests for workout truth checks
+- **Files:** `apps/ai/personal_assistant.py`, `apps/ai/dashboard_ai.py`
+
+**New test files:** `test_recurring_mutation_guard.py`, `test_state_invalidation.py`, `test_priority_validation.py`, `test_workout_truth.py` (27 new tests total)
+
 ## 2026-03-12 — Fix: Dashboard V2 progress, insights, and CSS bugs
 
 - **Today's Progress stale data (critical):** `DailyProgressService.get_today()` only recomputed the snapshot on first creation. After that, task/medicine completions never updated the snapshot. Fix: always recompute (the 2-min cache TTL above prevents excessive DB queries). User now sees live progress after completing tasks.

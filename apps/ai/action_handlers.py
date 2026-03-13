@@ -3598,10 +3598,12 @@ class ActionHandler:
                 )
 
             if count > 1 and not apply_to_all:
-                # For delete actions on recurring series (all same title + pattern),
-                # skip disambiguation — the delete handler has proper series logic.
+                # For recurring series (all same title + pattern),
+                # skip "which one?" disambiguation — the delete/update
+                # handlers have proper series-scope logic that asks
+                # "this instance or entire series?" instead.
                 is_recurring_series = (
-                    action == 'delete'
+                    action in ('delete', 'update')
                     and all(t.is_recurring for t in tasks)
                     and len({t.recurrence_pattern for t in tasks}) == 1
                     and len({t.title for t in tasks}) == 1
@@ -3846,46 +3848,84 @@ class ActionHandler:
                         )
                     new_commitment_level = normalized
 
-                # For recurring tasks with commitment_level change,
-                # ask "just today or entire series?" if not yet specified
+                # For recurring tasks, ask "just today or entire series?"
+                # if not yet specified. Applies to ALL mutation types:
+                # time, date, commitment level, title, etc.
                 update_series = kwargs.get('update_series')
                 representative = tasks[0]
+
+                # Detect if user referenced a specific date (signals
+                # single-instance intent). Check the raw new_due_date
+                # string for date-specific phrases.
+                _date_specific = False
+                if new_due_date:
+                    _due_lower = new_due_date.lower().strip()
+                    _date_specific = _due_lower in (
+                        'today', 'tomorrow', 'yesterday',
+                    ) or _due_lower.startswith('this ') or _due_lower.startswith('next ')
+
+                # Any field being changed triggers the guard
+                _has_mutation = any([
+                    new_commitment_level, parsed_due is not None,
+                    parsed_time is not None, parsed_end_time is not None,
+                    new_title, new_notes, new_effort,
+                ])
+
                 if (
-                    new_commitment_level
+                    _has_mutation
                     and representative.is_recurring
                     and update_series is None
                 ):
-                    from apps.life.services.recurrence import RecurrenceService
-                    series_count = RecurrenceService.count_series_instances(
-                        representative,
-                    )
-                    display_level = dict(
-                        representative.COMMITMENT_LEVEL_CHOICES,
-                    ).get(new_commitment_level, new_commitment_level)
-                    if series_count > 1:
-                        return ActionResult(
-                            success=False,
-                            message=(
-                                f"'{representative.title}' is a recurring task "
-                                f"({representative.recurrence_pattern}) with "
-                                f"{series_count} instance{'s' if series_count != 1 else ''}.\n\n"
-                                f"Change commitment to **{display_level}** for:\n"
-                                f"• **Just today** — only this instance\n"
-                                f"• **The entire series** — all {series_count} instances\n\n"
-                                f"Which one?"
-                            ),
-                            error='series_scope_required',
-                            action_type='mutate_task',
-                            created_object={
-                                'candidates': [
-                                    {'id': t.id, 'title': t.title}
-                                    for t in tasks[:5]
-                                ],
-                                'is_recurring': True,
-                                'series_count': series_count,
-                                'pending_commitment_level': new_commitment_level,
-                            },
+                    # If user referenced a specific date, default to
+                    # single-instance (don't cascade to entire series)
+                    if _date_specific:
+                        update_series = False
+                    else:
+                        from apps.life.services.recurrence import RecurrenceService
+                        series_count = RecurrenceService.count_series_instances(
+                            representative,
                         )
+                        if series_count > 1:
+                            # Build human-readable change description
+                            _change_parts = []
+                            if new_commitment_level:
+                                display_level = dict(
+                                    representative.COMMITMENT_LEVEL_CHOICES,
+                                ).get(new_commitment_level, new_commitment_level)
+                                _change_parts.append(f"commitment to **{display_level}**")
+                            if parsed_time is not None:
+                                _change_parts.append(f"time to **{parsed_time.strftime('%I:%M %p').lstrip('0')}**")
+                            if parsed_due is not None:
+                                _change_parts.append(f"due date to **{parsed_due.strftime('%b %d')}**")
+                            if parsed_end_time is not None:
+                                _change_parts.append(f"end time to **{parsed_end_time.strftime('%I:%M %p').lstrip('0')}**")
+                            if new_title:
+                                _change_parts.append(f"title to **{new_title}**")
+                            change_desc = ', '.join(_change_parts) if _change_parts else 'these fields'
+
+                            return ActionResult(
+                                success=False,
+                                message=(
+                                    f"'{representative.title}' is a recurring task "
+                                    f"({representative.recurrence_pattern}) with "
+                                    f"{series_count} instance{'s' if series_count != 1 else ''}.\n\n"
+                                    f"Change {change_desc} for:\n"
+                                    f"• **Just today** — only this instance\n"
+                                    f"• **The entire series** — all {series_count} instances\n\n"
+                                    f"Which one?"
+                                ),
+                                error='series_scope_required',
+                                action_type='mutate_task',
+                                created_object={
+                                    'candidates': [
+                                        {'id': t.id, 'title': t.title}
+                                        for t in tasks[:5]
+                                    ],
+                                    'is_recurring': True,
+                                    'series_count': series_count,
+                                    'pending_commitment_level': new_commitment_level,
+                                },
+                            )
 
                 # If update_series=True, expand tasks to all series instances
                 if update_series and representative.is_recurring:
@@ -3897,6 +3937,22 @@ class ActionHandler:
                         recurrence_pattern=representative.recurrence_pattern,
                         status='active',
                     ))
+                elif update_series is False and representative.is_recurring and len(tasks) > 1:
+                    # Single-instance update: limit to the nearest pending
+                    # instance (today's or closest future) to prevent cascade.
+                    _today = self._get_user_today()
+                    _today_instances = [
+                        t for t in tasks if t.due_date == _today
+                    ]
+                    if _today_instances:
+                        tasks = _today_instances[:1]
+                    else:
+                        # Pick the closest future instance
+                        _future = sorted(
+                            [t for t in tasks if t.due_date and t.due_date >= _today],
+                            key=lambda t: t.due_date,
+                        )
+                        tasks = _future[:1] if _future else tasks[:1]
 
                 # Apply updates — skip fields that are already at the target value
                 updated_titles = []
@@ -3951,6 +4007,22 @@ class ActionHandler:
                             task.save(update_fields=update_fields)
 
                         updated_titles.append(task.title)
+
+                # Invalidate CoS cache after task mutations
+                if any_actual_change:
+                    try:
+                        from apps.ai.readiness_cache import invalidate_cos_context_on_action
+                        invalidate_cos_context_on_action(self.user)
+                    except Exception:
+                        pass
+                    try:
+                        from apps.core.events.domain_events import safe_emit_event, EventTypes
+                        safe_emit_event(EventTypes.TASK_UPDATED, self.user, {
+                            "task_ids": [t.id for t in tasks],
+                            "source": "mutate_task",
+                        })
+                    except Exception:
+                        pass
 
                 # If nothing actually changed, report that it's already set
                 if not any_actual_change:

@@ -582,11 +582,11 @@ class DashboardAI:
             try:
                 from apps.health.models import WorkoutSession, PersonalRecord
 
-                # TODAY's workout status
+                # TODAY's workout status — exclude soft-deleted records
                 workout_today = WorkoutSession.objects.filter(
                     user=self.user,
                     date=today
-                ).exists()
+                ).exclude(status='deleted').exists()
                 data['workout_done_today'] = workout_today
 
                 # Workouts this week

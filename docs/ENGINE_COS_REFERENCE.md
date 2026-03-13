@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-12 (Dashboard V2 — 3 new Celery Beat tasks for momentum, celebration detection/expiry; Phase 5/6: domain-scoped context builders, memory gating wiring)
+**Last updated:** 2026-03-13 (SAE signal-driven freshness: all post_save/post_delete signals now refresh UserState modules; nightly task priority recalculation added to Celery Beat)
 
 ---
 
@@ -146,6 +146,7 @@ Phase 1 (Interpretation)        Phase 2 (Execution)          Phase 3 (Post-Execu
 | `dashboard-v2-nightly-momentum-730am-utc` | crontab(7,30) | `dashboard_v2.compute_nightly_momentum` |
 | `dashboard-v2-detect-celebrations-8am-utc` | crontab(8,0) | `dashboard_v2.detect_celebrations` |
 | `dashboard-v2-expire-celebrations-9am-utc` | crontab(9,0) | `dashboard_v2.expire_celebrations` |
+| `life-recalculate-task-priorities-6am-utc` | crontab(6,0) | `life.recalculate_task_priorities` |
 
 ### APScheduler Jobs (apps/core/jobs.py)
 
@@ -445,6 +446,7 @@ ISE (every 15m) → run_proactive_guidance_scheduler()
 Action Execution (execution_engine.py)
   ↓
 SAE Update (state_updater.py) → UserState.state_data[module]
+  ↑ also triggered by post_save/post_delete signals (ai/signals.py, dashboard/signals.py)
   ↓
 PIE (insight_engine.py) → Insight model (deduplicated)
   ↓

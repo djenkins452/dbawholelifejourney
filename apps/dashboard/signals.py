@@ -32,6 +32,15 @@ def _invalidate_health(user):
     DashboardCacheService.invalidate_health(user)
 
 
+def _refresh_sae(user, module):
+    """Refresh a single SAE module so UserState stays fresh after data changes."""
+    try:
+        from apps.core.ai_state.state_updater import update_user_state
+        update_user_state(user, module)
+    except Exception:
+        pass  # SAE refresh must never break data saves
+
+
 def _invalidate_journal(user):
     """Helper to invalidate journal cache."""
     from .cache import DashboardCacheService
@@ -72,6 +81,7 @@ def invalidate_on_weight_change(sender, instance, **kwargs):
 def invalidate_on_heart_rate_change(sender, instance, **kwargs):
     """Invalidate health cache when heart rate entry changes."""
     _invalidate_health(instance.user)
+    _refresh_sae(instance.user, 'health')
 
 
 @receiver(post_save, sender='health.GlucoseEntry')
@@ -86,6 +96,7 @@ def invalidate_on_glucose_change(sender, instance, **kwargs):
 def invalidate_on_medicine_change(sender, instance, **kwargs):
     """Invalidate health cache when medicine changes."""
     _invalidate_health(instance.user)
+    _refresh_sae(instance.user, 'health')
 
 
 @receiver(post_save, sender='health.MedicineLog')
@@ -100,6 +111,7 @@ def invalidate_on_medicine_log_change(sender, instance, **kwargs):
 def invalidate_on_medicine_schedule_change(sender, instance, **kwargs):
     """Invalidate health cache when medicine schedule changes."""
     _invalidate_health(instance.medicine.user)
+    _refresh_sae(instance.medicine.user, 'health')
 
 
 @receiver(post_save, sender='health.WorkoutSession')
@@ -107,6 +119,7 @@ def invalidate_on_medicine_schedule_change(sender, instance, **kwargs):
 def invalidate_on_workout_change(sender, instance, **kwargs):
     """Invalidate health cache when workout changes."""
     _invalidate_health(instance.user)
+    _refresh_sae(instance.user, 'fitness')
 
 
 @receiver(post_save, sender='health.PersonalRecord')
@@ -114,12 +127,14 @@ def invalidate_on_workout_change(sender, instance, **kwargs):
 def invalidate_on_pr_change(sender, instance, **kwargs):
     """Invalidate health cache when personal record changes."""
     _invalidate_health(instance.user)
+    _refresh_sae(instance.user, 'fitness')
 
 
 @receiver(post_save, sender='health.HealthProfile')
 def invalidate_on_health_profile_change(sender, instance, **kwargs):
     """Invalidate health cache when health profile changes (weight goal, etc)."""
     _invalidate_health(instance.user)
+    _refresh_sae(instance.user, 'health')
 
 
 # =============================================================================
@@ -156,6 +171,7 @@ def invalidate_on_verse_change(sender, instance, **kwargs):
 def invalidate_on_fasting_change(sender, instance, **kwargs):
     """Invalidate health cache when fasting entry changes."""
     _invalidate_health(instance.user)
+    _refresh_sae(instance.user, 'fasting')
 
 
 # =============================================================================
@@ -174,6 +190,7 @@ def invalidate_on_task_change(sender, instance, **kwargs):
 def invalidate_on_event_change(sender, instance, **kwargs):
     """Invalidate life cache when event changes."""
     _invalidate_life(instance.user)
+    _refresh_sae(instance.user, 'life_events')
 
 
 @receiver(post_save, sender='life.Project')
@@ -181,6 +198,7 @@ def invalidate_on_event_change(sender, instance, **kwargs):
 def invalidate_on_project_change(sender, instance, **kwargs):
     """Invalidate life cache when project changes."""
     _invalidate_life(instance.user)
+    _refresh_sae(instance.user, 'tasks')
 
 
 # =============================================================================
@@ -199,3 +217,4 @@ def invalidate_on_goal_change(sender, instance, **kwargs):
 def invalidate_on_milestone_change(sender, instance, **kwargs):
     """Invalidate purpose cache when milestone changes."""
     _invalidate_purpose(instance.goal.user)
+    _refresh_sae(instance.goal.user, 'goals')

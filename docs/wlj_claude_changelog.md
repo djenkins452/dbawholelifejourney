@@ -6,6 +6,37 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-13 — SAE signal-driven freshness: keep UserState in sync with all data changes
+
+**Root cause:** SAE (State Awareness Engine) `UserState` was only updated after Beth-driven actions via the execution pipeline. Data changes from web forms, the Organize page, API endpoints, and recurring task processing bypassed SAE entirely, leaving state stale for hours. This caused Beth, proactive check-ins, and other consumers to see outdated health/fitness/task/journal data.
+
+**Changes:**
+- Added `_refresh_sae_module(user, module)` helper to `apps/ai/signals.py` — wraps `update_user_state()` with error isolation
+- Added `_refresh_sae(user, module)` helper to `apps/dashboard/signals.py` — same pattern for dashboard-only signal handlers
+- Wired SAE module refresh into all existing `post_save`/`post_delete` signal handlers across both files
+- **Module coverage:** health, fitness, journal, tasks, goals, faith, nutrition, fasting, life_events
+- No new models, no new fields, no migrations — uses existing `update_user_state()` infrastructure
+- **Files:** `apps/ai/signals.py`, `apps/dashboard/signals.py`
+
+**Verification:** SAE tests (158), dashboard tests (114), AI tests (868) all pass. No regressions.
+
+---
+
+## 2026-03-13 — Fix stale task priorities: tasks due today showing under "Soon" instead of "Now"
+
+**Root cause:** Task `priority` field is stored in the DB at save time and never recalculated when the day changes. The `recalculate_task_priorities` management command existed but was never wired into Celery Beat, so priorities went stale overnight.
+
+**Changes:**
+- Added `_refresh_stale_task_priorities()` helper to `apps/life/views.py` — recalculates priorities on page load for the current user's pending tasks
+- Called from both `LifeHomeView.get_context_data()` and `TaskListView.get_queryset()` so priorities are always fresh
+- Created `recalculate_task_priorities_task` Celery task in `apps/life/tasks.py`
+- Added `life-recalculate-task-priorities-6am-utc` to `CELERY_BEAT_SCHEDULE` (6 AM UTC / 1 AM EST nightly)
+- **Files:** `apps/life/views.py`, `apps/life/tasks.py`, `config/settings.py`
+
+**Verification:** All 373 life module tests pass, Django check passes.
+
+---
+
 ## 2026-03-13 — Fix two production crashes in intent_service.py
 
 **Problem 1:** `_build_visible_entity_hint()` crashes with `AttributeError: 'dict' object has no attribute 'lower'` when `page_content` arrives as a dict instead of a string.

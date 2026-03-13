@@ -6,6 +6,33 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-13 — Fix Beth task awareness divergence from Organize page
+
+**Problem:** Beth reported different tasks than the Organize page. UI showed 11 tasks in "Now" but
+Beth returned only 5 and referenced phantom tasks like "House cleaning".
+
+**Root Cause (3 divergence points):**
+1. **No priority refresh:** Organize page calls `_refresh_stale_task_priorities()` before querying
+   so overnight priority changes are reflected. Beth's `_build_day_overview_section()` queried by
+   raw `due_date` instead of the stored `priority` field, using different grouping logic.
+2. **Routine tasks excluded:** Beth filtered `is_routine=False` for "due today" tasks, but the
+   Organize page shows ALL tasks. Routine tasks without health-gate keywords (like "House cleaning")
+   were invisible to Beth's task section but visible via the health gate, creating inconsistency.
+3. **Wrong "no due date" bucket:** Comment said these were "Now" but `calculate_priority()` returns
+   `'someday'` for null due dates. Beth incorrectly included them as immediate priorities.
+
+**Fix:** Rewrote `_build_day_overview_section()` task queries to use the same priority-based
+grouping as the Organize page:
+- Calls `_refresh_stale_task_priorities()` before querying
+- Groups by stored `priority` field (`now`/`soon`) instead of raw `due_date` comparisons
+- Includes ALL tasks (routine and non-routine) to match Organize page
+- Reports "Now" and "Soon" buckets matching what user sees
+
+**Files:** `apps/ai/executive_briefing.py`
+**Tests:** 89 AI tests pass, 373 life tests pass
+
+---
+
 ## 2026-03-13 — Fix mid-conversation check-in empty responses
 
 **Problem:** When user said "check in" or "what's left" mid-conversation, Beth responded with

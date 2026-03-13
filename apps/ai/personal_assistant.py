@@ -4476,12 +4476,31 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             history = conversation.messages.none()
 
             # User is asking about tasks or wants analysis - include full state context
-            state = self.assess_current_state()
-            time_context = self._get_time_context()
-            tasks = state.get('tasks', {})
-            remaining_tasks = tasks.get('due_today', 0) + tasks.get('overdue', 0)
+            # ── PROTECTED: entire check-in data assembly ────────────────
+            # Any crash here used to propagate to the outer except (line 5797)
+            # and silently return a fallback string. Now we catch, log the
+            # real exception, and let the LLM be called with whatever system
+            # prompt was built up to this point.
+            _checkin_assembly_ok = True
+            try:
+                state = self.assess_current_state()
+                time_context = self._get_time_context()
+                tasks = state.get('tasks', {})
+                remaining_tasks = tasks.get('due_today', 0) + tasks.get('overdue', 0)
+            except Exception as _state_err:
+                logger.error(
+                    "CHECKIN_STATE_CRASH user=%s — assess_current_state or "
+                    "_get_time_context failed: %s",
+                    self.user.id, _state_err, exc_info=True,
+                )
+                _checkin_assembly_ok = False
+                state = {}
+                time_context = {'hours_remaining': 'unknown'}
+                tasks = {}
+                remaining_tasks = 0
 
-            if is_requesting_checkin:
+            if is_requesting_checkin and _checkin_assembly_ok:
+              try:
                 # FULL CoS BRIEFING — with SPECIFIC item names, not just counts.
                 # User explicitly asked for a check-in — give them actionable specifics
                 # so they can knock items out. Never throttled.
@@ -4492,6 +4511,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 )
                 today = get_user_today(self.user)
                 user_now = get_user_now(self.user)
+                current_time = timezone.now().time()  # Define early — used by task priority scoring
 
                 faith = state.get('faith', {})
                 health = state.get('health', {})
@@ -4524,25 +4544,34 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 completed_events = []
                 upcoming_events = []
 
-                # Tasks: actual task objects with priority metadata
+                # Tasks: use priority-based grouping matching the Organize page.
+                # This ensures Beth and the task UI show the same buckets.
                 task_details = ''
                 _priority_items = []  # For priority synthesis
                 try:
                     from apps.life.models import Task as LifeTask
+                    from apps.life.views import _refresh_stale_task_priorities
+                    _refresh_stale_task_priorities(self.user)
+
                     _task_fields = ['title', 'commitment_level', 'module',
-                                    'scheduled_time', 'is_routine']
-                    overdue_qs = LifeTask.objects.filter(
-                        user=self.user, completion_status='pending', due_date__lt=today
-                    ).exclude(status='deleted').values(*_task_fields)[:10]
-                    overdue_tasks = list(overdue_qs)
-                    due_today_qs = LifeTask.objects.filter(
-                        user=self.user, completion_status='pending', due_date=today
-                    ).exclude(status='deleted').values(*_task_fields)[:10]
-                    due_today_tasks = list(due_today_qs)
-                    # Tasks with no due date show in "Now" on the task page
-                    no_date_tasks = list(LifeTask.objects.filter(
-                        user=self.user, completion_status='pending', due_date__isnull=True
-                    ).exclude(status='deleted').values_list('title', flat=True)[:5])
+                                    'scheduled_time', 'is_routine', 'priority',
+                                    'due_date']
+                    pending_base = LifeTask.objects.filter(
+                        user=self.user, completion_status='pending',
+                    ).exclude(status='deleted').exclude(deleted_at__isnull=False)
+
+                    # Priority-based buckets (same as Organize page)
+                    now_tasks = list(pending_base.filter(
+                        priority='now',
+                    ).values(*_task_fields)[:12])
+                    soon_tasks = list(pending_base.filter(
+                        priority='soon',
+                    ).values(*_task_fields)[:8])
+
+                    # Split "now" into overdue vs due-today for display
+                    overdue_tasks = [t for t in now_tasks if t.get('due_date') and t['due_date'] < today]
+                    due_today_tasks = [t for t in now_tasks if t not in overdue_tasks]
+
                     completed_today_tasks = list(LifeTask.objects.filter(
                         user=self.user, completion_status='completed', completed_at__date=today
                     ).exclude(status='deleted').values_list('title', flat=True)[:10])
@@ -4552,11 +4581,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         parts.append(f"OVERDUE ({len(overdue_tasks)}):\n" + '\n'.join(
                             f'  • {t["title"]}' for t in overdue_tasks))
                     if due_today_tasks:
-                        parts.append(f"DUE TODAY ({len(due_today_tasks)}):\n" + '\n'.join(
+                        parts.append(f"NOW ({len(due_today_tasks)}):\n" + '\n'.join(
                             f'  • {t["title"]}' for t in due_today_tasks))
-                    if no_date_tasks:
-                        parts.append(f"OPEN TASKS (no due date):\n" + '\n'.join(
-                            f'  • {t}' for t in no_date_tasks))
+                    if soon_tasks:
+                        parts.append(f"SOON ({len(soon_tasks)}):\n" + '\n'.join(
+                            f'  • {t["title"]}' for t in soon_tasks))
                     if completed_today_tasks:
                         parts.append(f"COMPLETED TODAY ({len(completed_today_tasks)}):\n" + '\n'.join(
                             f'  ✓ {t}' for t in completed_today_tasks))
@@ -4578,7 +4607,6 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     for t in due_today_tasks:
                         time_bonus = 0
                         if t.get('scheduled_time'):
-                            # Tasks with a scheduled time get a boost if within 2 hours
                             from datetime import datetime as _dt
                             try:
                                 _sched = t['scheduled_time']
@@ -4601,7 +4629,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             + (0 if t.get('is_routine') else 1)             # non-routine tasks slightly higher
                         )
                         _priority_items.append((score, t['title'], 'due_today'))
-                except Exception:
+                except Exception as _task_err:
+                    logger.warning(
+                        "CHECKIN_TASK_QUERY user=%s — task query failed: %s",
+                        self.user.id, _task_err, exc_info=True,
+                    )
                     task_details = f"Tasks remaining: {remaining_tasks}"
 
                 # Goals: actual goal titles
@@ -4644,7 +4676,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         user=self.user, medicine_status=Medicine.STATUS_ACTIVE,
                     ).exclude(status='deleted')
 
-                    current_time = timezone.now().time()
+                    # current_time defined at top of check-in block
                     day_of_week = today.weekday()  # 0=Mon, 6=Sun
                     taken_meds = []
                     overdue_meds = []    # Past scheduled time and NOT taken
@@ -4962,6 +4994,16 @@ ANTI-FABRICATION RULES (ABSOLUTE — VIOLATION IS A CRITICAL ERROR):
 - You may ONLY reference task names, goal names, medication names, and calendar events that are EXPLICITLY listed in the structured data above. NEVER invent, derive, or infer a task or priority item that does not appear word-for-word in the data sections.
 - If no priority tasks are provided in TOP PRIORITIES, say "No urgent priorities right now." Do NOT fabricate a priority from context, summaries, or conversation history.
 """
+              except Exception as _checkin_err:
+                logger.error(
+                    "CHECKIN_DATA_CRASH user=%s — check-in data assembly "
+                    "failed. The LLM will be called WITHOUT check-in context. "
+                    "Exception: %s",
+                    self.user.id, _checkin_err, exc_info=True,
+                )
+                # Don't return fallback — let the LLM run with whatever
+                # system prompt was built so far. A generic response is
+                # better than no response at all.
             elif is_asking_for_analysis:
                 faith = state.get('faith', {})
                 health = state.get('health', {})
@@ -6249,15 +6291,36 @@ Rules for this response:
             # If context building itself failed (returned a string fallback),
             # yield it as a single chunk
             if isinstance(ctx, str):
+                # Quality gate: replace opaque fallback with honest error for check-ins
+                if is_checkin and self._is_fallback_response(ctx):
+                    logger.warning(
+                        "STREAM_CHECKIN_FALLBACK_GATE user=%s — context build "
+                        "returned fallback string for check-in. Replacing with "
+                        "honest error. Preview: %s",
+                        self.user.id, (ctx or '')[:120],
+                    )
+                    ctx = (
+                        "I wasn't able to pull your full status right now. "
+                        "Try asking again — say 'check in' or 'what's left' "
+                        "and I'll get your actual data."
+                    )
                 full_text = ctx
                 if assistant_message:
                     assistant_message.content = ctx
-                    assistant_message.save(update_fields=['content'])
+                    assistant_message.message_type = 'fallback'
+                    assistant_message.save(update_fields=['content', 'message_type'])
                 yield ctx
                 return
 
             if not ctx:
                 fallback = self._get_fallback_response(message)
+                # Quality gate: replace opaque fallback for check-ins
+                if is_checkin:
+                    fallback = (
+                        "I wasn't able to pull your full status right now. "
+                        "Try asking again — say 'check in' or 'what's left' "
+                        "and I'll get your actual data."
+                    )
                 full_text = fallback
                 logger.warning(
                     "STREAM_CTX_FALLBACK user=%s — context build returned "

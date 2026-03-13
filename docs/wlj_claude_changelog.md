@@ -6,6 +6,44 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-13 — Fix check-in data assembly crash causing silent fallback responses
+
+**Problem:** Beth returned fallback error messages ("I wasn't able to pull your full status right now")
+for ALL check-in requests. The LLM was never successfully called for check-ins — the entire check-in
+data assembly block (~500 lines) had no try/except wrapper, so any exception cascaded to the outer
+handler which returned a generic fallback string. Old fallback strings ("What can I help you move
+forward on?") masked this failure by looking like intentional responses.
+
+**Exception Path:**
+1. `send_message()` → `_generate_response()` → check-in data assembly (unprotected)
+2. Exception propagates to outer `except Exception` → `_get_fallback_response()` returns style-specific error
+3. Quality gate in `send_message()` detects fallback → replaces with "I wasn't able to pull..."
+
+**Root Cause:** The check-in data assembly block (assess_current_state, task queries, med queries,
+calendar queries, priority synthesis, prompt assembly) was NOT wrapped in try/except. Additionally,
+`current_time` was referenced in the task priority scoring block BEFORE it was defined in the
+medication block further down.
+
+**Fix (3 parts):**
+1. **Wrap check-in assembly in try/except** — Separate protection for `assess_current_state()` /
+   `_get_time_context()` (logs and sets safe defaults) and for the full check-in prompt assembly
+   (logs and lets LLM run with whatever system prompt was built). The LLM call is no longer killed
+   by data assembly failures.
+2. **Fix task queries to use priority-based grouping** — The second independent task query path
+   inside the check-in assembly used raw `due_date` comparisons and labeled no-due-date tasks as
+   "Now". Replaced with `_refresh_stale_task_priorities()` + `priority` field queries matching the
+   Organize page.
+3. **Add streaming path quality gate** — The streaming path (`_generate_response_stream`) had no
+   quality gate for fallback responses on check-in requests. Added detection and replacement matching
+   the non-streaming path.
+4. **Move `current_time` definition** — Defined at top of check-in block so it's available for
+   both task priority scoring and medication schedule comparison.
+
+**Files:** `apps/ai/personal_assistant.py`
+**Tests:** 61 personal_assistant + 28 executive_briefing + 373 life tests pass
+
+---
+
 ## 2026-03-13 — Fix Beth task awareness divergence from Organize page
 
 **Problem:** Beth reported different tasks than the Organize page. UI showed 11 tasks in "Now" but

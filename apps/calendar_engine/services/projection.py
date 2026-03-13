@@ -170,6 +170,10 @@ def upsert_from_task(task):
         existing.end_dt = end_dt
         existing.domain = domain
         existing.is_all_day = True
+        # Refresh from DB to get authoritative completion_status —
+        # the in-memory instance may be stale after a partial save
+        # (e.g., only scheduled_time was in update_fields).
+        task.refresh_from_db(fields=['completion_status'])
         if task.is_completed:
             existing.status = CalendarEvent.STATUS_COMPLETED
         else:
@@ -247,6 +251,9 @@ def upsert_from_routine_task(task):
         end_dt = start_dt + dt.timedelta(minutes=duration)
 
     domain = _resolve_domain_for_task(task)
+    # Refresh from DB to get authoritative completion_status —
+    # the in-memory instance may be stale after a partial save.
+    task.refresh_from_db(fields=['completion_status'])
     status = (
         CalendarEvent.STATUS_COMPLETED if task.is_completed
         else CalendarEvent.STATUS_SCHEDULED

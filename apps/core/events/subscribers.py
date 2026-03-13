@@ -156,9 +156,13 @@ def on_health_event_invalidate_cos(event):
         pass
 
 
-@subscribe("task.completed")
-def on_task_completed_invalidate_cos(event):
-    """Invalidate CoS context cache when tasks change."""
+@subscribe("task.*")
+def on_task_change_invalidate_cos(event):
+    """Invalidate CoS context cache on ANY task state change.
+
+    Previously only subscribed to task.completed — missed task.skipped,
+    task.deleted, and task.updated events, causing stale CoS reads.
+    """
     if not event.user:
         return
     try:

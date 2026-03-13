@@ -743,12 +743,17 @@ class PersonalAssistant:
             return {}
 
     def _get_workout_today(self, today) -> bool:
-        """Check if user has logged a workout today."""
+        """Check if user has logged a workout today.
+
+        Truth source: WorkoutSession records ONLY. Explicitly excludes
+        soft-deleted records for defense-in-depth (matches executive_briefing.py).
+        Calendar projections and task completion status are NOT consulted.
+        """
         try:
             from apps.health.models import WorkoutSession
             return WorkoutSession.objects.filter(
                 user=self.user, date=today
-            ).exists()
+            ).exclude(status='deleted').exists()
         except Exception:
             return False
 
@@ -1093,8 +1098,8 @@ class PersonalAssistant:
             started_at__date__gte=week_ago
         ).count()
 
-        # Workouts
-        workouts = WorkoutSession.objects.filter(user=self.user)
+        # Workouts — exclude soft-deleted records for defense-in-depth
+        workouts = WorkoutSession.objects.filter(user=self.user).exclude(status='deleted')
         data['workouts_week'] = workouts.filter(date__gte=week_ago).count()
         data['workout_today'] = workouts.filter(date=today).exists()
         data['workout_streak'] = self._calculate_workout_streak(today)
@@ -4638,7 +4643,22 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     _priority_items.append((5, evt_line.strip(), 'calendar'))
 
                 _priority_items.sort(key=lambda x: x[0], reverse=True)
-                _top_priorities = _priority_items[:2]
+
+                # ── Validate: verify task-sourced priorities still exist ──
+                # Prevents phantom tasks from stale snapshots / race conditions.
+                _validated_priorities = []
+                for item in _priority_items:
+                    _score, _title, _source = item
+                    if _source in ('overdue', 'due_today'):
+                        # Re-check that this task title exists in active tasks
+                        _still_exists = LifeTask.objects.filter(
+                            user=self.user, title=_title,
+                            completion_status='pending', status='active',
+                        ).exists()
+                        if not _still_exists:
+                            continue
+                    _validated_priorities.append(item)
+                _top_priorities = _validated_priorities[:2]
 
                 priority_synthesis = ''
                 if _top_priorities:
@@ -4758,8 +4778,10 @@ RESPONSE FORMAT — Follow this 6-part structure for check-in/status responses:
    noteworthy (e.g., a PR, a streak milestone, a hard-to-do item).
 2. TOP PRIORITIES — The 1-2 most important things the user should focus on
    RIGHT NOW, based on the priority scoring above. Explain WHY each is the
-   priority (overdue, health-critical, time-sensitive). If TOP PRIORITIES
-   data is provided above, use those items. Otherwise derive from the data.
+   priority (overdue, health-critical, time-sensitive). ONLY use items listed
+   in the TOP PRIORITIES section above. If no TOP PRIORITIES are provided,
+   state that no urgent priorities are identified right now. NEVER invent,
+   derive, or infer task names that do not appear in the data above.
 3. REMAINING ITEMS — Other pending tasks, grouped by urgency (overdue first,
    then due today, then upcoming). Keep this concise — the user already
    knows their task list. Use a tight list, not paragraphs.
@@ -4828,6 +4850,8 @@ ANTI-FABRICATION RULES (ABSOLUTE):
 - Reading/prayer status is ONLY determined by the "Reading plan / Quiet Time:" line. If it says "not yet done today", it has NOT been done.
 - Calendar events marked [DONE] are COMPLETED. Events marked [TODO] are NOT completed. Never reverse these.
 - If you are not 100% certain something was completed based on the data above, do NOT claim it was completed. Say you don't see a log for it.
+- You may ONLY reference task names, goal names, medication names, and calendar events that are EXPLICITLY listed in the structured data above. NEVER invent, derive, or infer a task or priority item that does not appear word-for-word in the data sections.
+- If no priority tasks are provided in TOP PRIORITIES, say "No urgent priorities right now." Do NOT fabricate a priority from context, summaries, or conversation history.
 """
             elif is_asking_for_analysis:
                 faith = state.get('faith', {})

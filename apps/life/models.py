@@ -380,6 +380,13 @@ class Task(UserOwnedModel):
         self.skip_streak = 0
         self.save(update_fields=['completion_status', 'completed_at', 'skip_streak', 'updated_at'])
 
+        # Invalidate CoS context cache so next interaction sees fresh state
+        try:
+            from apps.ai.readiness_cache import invalidate_cos_context_on_action
+            invalidate_cos_context_on_action(self.user)
+        except Exception:
+            pass  # Best-effort cache invalidation
+
         # Handle recurrence
         if self.is_recurring and self.recurrence_pattern:
             from apps.life.services.recurrence import RecurrenceService
@@ -412,6 +419,22 @@ class Task(UserOwnedModel):
         self.last_skipped_at = timezone.now()
         self.save(update_fields=['completion_status', 'skip_streak', 'last_skipped_at', 'updated_at'])
 
+        # Invalidate CoS context cache so next interaction sees fresh state
+        try:
+            from apps.ai.readiness_cache import invalidate_cos_context_on_action
+            invalidate_cos_context_on_action(self.user)
+        except Exception:
+            pass  # Best-effort cache invalidation
+
+        # Emit domain event for skip (matching task.completed pattern)
+        try:
+            from apps.core.events.domain_events import safe_emit_event, EventTypes
+            safe_emit_event(EventTypes.TASK_SKIPPED, self.user, {
+                "task_id": self.pk, "source": "mark_skipped",
+            })
+        except Exception:
+            pass  # Must never break task skip
+
         # Handle recurrence — next occurrence should still generate
         if self.is_recurring and self.recurrence_pattern:
             from apps.life.services.recurrence import RecurrenceService
@@ -431,6 +454,13 @@ class Task(UserOwnedModel):
         self.completed_at = None
         self.skip_streak = 0
         self.save(update_fields=['completion_status', 'completed_at', 'skip_streak', 'updated_at'])
+
+        # Invalidate CoS context cache so next interaction sees fresh state
+        try:
+            from apps.ai.readiness_cache import invalidate_cos_context_on_action
+            invalidate_cos_context_on_action(self.user)
+        except Exception:
+            pass  # Best-effort cache invalidation
 
     @property
     def is_overdue(self):

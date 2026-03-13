@@ -117,6 +117,9 @@ class EventTypes:
     # Tasks domain
     TASK_CREATED = "task.created"
     TASK_COMPLETED = "task.completed"
+    TASK_SKIPPED = "task.skipped"
+    TASK_DELETED = "task.deleted"
+    TASK_UPDATED = "task.updated"
     TASK_OVERDUE = "task.overdue"
 
     # CoS domain

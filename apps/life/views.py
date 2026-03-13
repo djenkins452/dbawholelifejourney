@@ -526,6 +526,11 @@ class TaskSkipView(LifeAccessMixin, View):
             import logging
             logging.getLogger(__name__).error(f"Error skipping task {pk}: {e}")
 
+        # Emit domain event for skip (matches TASK_COMPLETED pattern)
+        safe_emit_event(EventTypes.TASK_SKIPPED, request.user, {
+            "task_id": task.id, "source": "web_view",
+        })
+
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return JsonResponse({
                 'success': True,

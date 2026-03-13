@@ -1106,6 +1106,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "dashboard_v2.expire_celebrations",
         "schedule": crontab(hour=9, minute=0),  # 9:00 AM UTC = 4:00 AM EST
     },
+    "life-recalculate-task-priorities-6am-utc": {
+        "task": "life.recalculate_task_priorities",
+        "schedule": crontab(hour=6, minute=0),  # 6:00 AM UTC = 1:00 AM EST
+    },
 }
 
 # Worker settings

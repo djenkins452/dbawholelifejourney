@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-13 — Fix stale task priorities: tasks due today showing under "Soon" instead of "Now"
+
+**Root cause:** Task `priority` field is stored in the DB at save time and never recalculated when the day changes. The `recalculate_task_priorities` management command existed but was never wired into Celery Beat, so priorities went stale overnight.
+
+**Changes:**
+- Added `_refresh_stale_task_priorities()` helper to `apps/life/views.py` — recalculates priorities on page load for the current user's pending tasks
+- Called from both `LifeHomeView.get_context_data()` and `TaskListView.get_queryset()` so priorities are always fresh
+- Created `recalculate_task_priorities_task` Celery task in `apps/life/tasks.py`
+- Added `life-recalculate-task-priorities-6am-utc` to `CELERY_BEAT_SCHEDULE` (6 AM UTC / 1 AM EST nightly)
+- **Files:** `apps/life/views.py`, `apps/life/tasks.py`, `config/settings.py`
+
+**Verification:** All 373 life module tests pass, Django check passes.
+
+---
+
 ## 2026-03-12 — Beth Integrity Pass: 4-Phase Deterministic Correctness Fixes
 
 **Root cause:** Diagnostic investigation revealed three systemic causes behind Beth's behavioral anomalies — incorrect recurring task mutations, stale cache reads, LLM task fabrication, and inconsistent workout truth checks.

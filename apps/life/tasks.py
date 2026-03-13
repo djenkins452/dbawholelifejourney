@@ -1,7 +1,8 @@
 """
 Celery tasks for Life module async processing.
 
-Handles bulk recipe photo import through Vision AI.
+Handles bulk recipe photo import through Vision AI and
+nightly task priority recalculation.
 """
 
 import logging
@@ -11,6 +12,19 @@ from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(name="life.recalculate_task_priorities")
+def recalculate_task_priorities_task():
+    """Nightly task to recalculate priorities so tasks move Now/Soon/Someday."""
+    from django.core.management import call_command
+    from io import StringIO
+
+    out = StringIO()
+    call_command('recalculate_task_priorities', stdout=out, verbosity=2)
+    result = out.getvalue().strip()
+    logger.info("Task priority recalculation: %s", result)
+    return result
 
 
 @shared_task(

@@ -67,6 +67,33 @@ class LifeAccessMixin(LoginRequiredMixin):
     pass
 
 
+def _refresh_stale_task_priorities(user):
+    """
+    Refresh task priorities that have become stale overnight.
+
+    Priority is stored in the DB at save time, so tasks due "soon" yesterday
+    still show "soon" today instead of "now". This does a lightweight bulk
+    update for the current user's pending tasks whose stored priority
+    doesn't match the calculated value.
+    """
+    user_today = get_user_today(user)
+    stale_tasks = Task.objects.filter(
+        user=user,
+        completion_status='pending',
+        due_date__isnull=False,
+    ).exclude(due_date=None)
+
+    updated = 0
+    for task in stale_tasks.only('id', 'due_date', 'priority'):
+        new_priority = task.calculate_priority(user_today=user_today)
+        if task.priority != new_priority:
+            Task.objects.filter(pk=task.pk).update(priority=new_priority)
+            updated += 1
+
+    if updated:
+        logger.debug("Refreshed %d stale task priorities for user %s", updated, user.pk)
+
+
 # =============================================================================
 # Home / Dashboard
 # =============================================================================
@@ -84,6 +111,9 @@ class LifeHomeView(HelpContextMixin, LifeAccessMixin, TemplateView):
         user = self.request.user
         from apps.core.utils import get_user_today
         today = get_user_today(user)
+
+        # Refresh stale priorities so tasks move Now/Soon/Someday correctly
+        _refresh_stale_task_priorities(user)
 
         # Active projects
         context['active_projects'] = Project.objects.filter(
@@ -284,6 +314,9 @@ class TaskListView(HelpContextMixin, LifeAccessMixin, ListView):
 
     def get_queryset(self):
         from django.db.models import Q
+
+        # Refresh stale priorities before filtering
+        _refresh_stale_task_priorities(self.request.user)
 
         queryset = Task.objects.filter(user=self.request.user)
 

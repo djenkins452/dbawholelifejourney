@@ -18,6 +18,10 @@
 
 **Files:** `apps/ai/intent_service.py` (lines 806, 2050)
 
+Also generated two pending migrations that were failing CI:
+- `apps/dashboard_v2/migrations/0003_alter_preparedcelebration_celebration_type.py` — new celebration_type choices
+- `apps/life/migrations/0024_alter_task_options.py` — updated Task ordering meta
+
 ---
 
 ## 2026-03-13 — Fix mid-conversation check-in empty responses

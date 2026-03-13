@@ -97,6 +97,7 @@ def invalidate_on_medicine_change(sender, instance, **kwargs):
     """Invalidate health cache when medicine changes."""
     _invalidate_health(instance.user)
     _refresh_sae(instance.user, 'health')
+    _refresh_sae(instance.user, 'medicine')
 
 
 @receiver(post_save, sender='health.MedicineLog')
@@ -104,6 +105,7 @@ def invalidate_on_medicine_change(sender, instance, **kwargs):
 def invalidate_on_medicine_log_change(sender, instance, **kwargs):
     """Invalidate health cache when medicine log changes."""
     _invalidate_health(instance.user)
+    _refresh_sae(instance.user, 'medicine')
 
 
 @receiver(post_save, sender='health.MedicineSchedule')
@@ -112,6 +114,7 @@ def invalidate_on_medicine_schedule_change(sender, instance, **kwargs):
     """Invalidate health cache when medicine schedule changes."""
     _invalidate_health(instance.medicine.user)
     _refresh_sae(instance.medicine.user, 'health')
+    _refresh_sae(instance.medicine.user, 'medicine')
 
 
 @receiver(post_save, sender='health.WorkoutSession')

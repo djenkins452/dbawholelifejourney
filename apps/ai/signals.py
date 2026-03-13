@@ -350,6 +350,7 @@ def invalidate_cache_on_medicine_log_save(sender, instance, created, **kwargs):
     invalidate_daily_insight_cache(instance.user)
     invalidate_state_snapshot(instance.user)
     _refresh_sae_module(instance.user, 'health')
+    _refresh_sae_module(instance.user, 'medicine')
 
 
 @receiver(post_delete, sender='health.MedicineLog')
@@ -358,6 +359,7 @@ def invalidate_cache_on_medicine_log_delete(sender, instance, **kwargs):
     invalidate_personal_data_cache(instance.user, 'medication')
     invalidate_state_snapshot(instance.user)
     _refresh_sae_module(instance.user, 'health')
+    _refresh_sae_module(instance.user, 'medicine')
 
 
 # =============================================================================

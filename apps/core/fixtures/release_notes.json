@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 164,
+    "fields": {
+      "title": "Interactive A/B/C Option Buttons in Chat",
+      "description": "When Beth offers you choices (A, B, C, D), they now appear as tappable buttons instead of plain text. Pick your option with a single tap — no typing needed. This works for all conversational choices, not just confirmations. Options automatically highlight the recommended choice.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-13",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-13T10:00:00Z",
+      "updated_at": "2026-03-13T10:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 163,
     "fields": {
       "title": "Smart Dashboard: Next Action + Time-Aware Schedule",

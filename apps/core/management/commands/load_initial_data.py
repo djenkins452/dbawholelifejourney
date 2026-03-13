@@ -974,6 +974,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Dashboard V2 Life Command Center (PK 159)
         self._reset_dashboard_v2_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for A/B/C interactive option bubbles (PK 164)
+        self._reset_option_bubbles_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -6039,3 +6042,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Dashboard V2 fixtures FAILED: {e}'))
+
+    def _reset_option_bubbles_fixtures(self, DataLoadConfig, force, verbosity):
+        """
+        One-time reset to reload release_notes for A/B/C interactive option bubbles (PK 164).
+        """
+        reset_tracker_name = 'reset_option_bubbles_2026_03_13'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for loader_name in ['release_notes']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader_name} loader for A/B/C option bubbles')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for A/B/C interactive option bubbles',
+                'command',
+                'One-time reset to reload release_notes PK 164'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset option bubbles fixtures FAILED: {e}'))

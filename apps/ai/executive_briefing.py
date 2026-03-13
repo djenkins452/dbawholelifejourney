@@ -185,13 +185,17 @@ def build_executive_briefing(user, conversation) -> str:
             "INSTRUCTION: Weave the above into your greeting naturally. "
             "Do NOT present it as a bullet list or data dump. "
             "Present the day as a narrative — like a real Chief of Staff "
-            "briefing their executive over coffee. "
-            "If the data above lists completed routines or tasks, "
-            "briefly acknowledge them. But NEVER claim something is "
-            "completed unless it is EXPLICITLY listed as completed above. "
-            "If no completed routines or tasks are listed, do NOT "
-            "fabricate accomplishments — just greet warmly and move to "
-            "what's ahead. "
+            "briefing their executive over coffee.\n"
+            "CRITICAL TRUTH RULES:\n"
+            "- ONLY claim a task/routine/activity is completed if it appears "
+            "under a [VERIFIED COMPLETED] or [DONE] label above.\n"
+            "- Items marked [NOT COMPLETED] are NOT done. Do NOT say they are done.\n"
+            "- If workout says 'not yet logged', the user has NOT worked out.\n"
+            "- If reading says 'not yet done', the user has NOT done their reading.\n"
+            "- A task being PAST its scheduled time does NOT mean it was completed. "
+            "A past time means it was MISSED, not done.\n"
+            "- NEVER infer completion from schedule, habit patterns, or time of day.\n"
+            "- If no completed routines are listed, do NOT fabricate accomplishments.\n"
             "Prioritize health gates (meds, etc.), then events and "
             "relationships, then the day overview. "
             "End by inviting the user to shape their day: "
@@ -774,19 +778,32 @@ def _build_health_gate_section(user, today) -> str:
         total_routines = len(completed_routines) + len(pending_routines)
         if completed_routines and total_routines > 0:
             lines.append(
-                f"Routine Tasks Completed: {', '.join(completed_routines)}. "
-                "Acknowledge briefly."
+                f"[VERIFIED COMPLETED] Routine Tasks: {', '.join(completed_routines)}."
             )
         if pending_routines:
             lines.append(
-                f"Routine Tasks Remaining: {', '.join(pending_routines)}."
+                f"[NOT COMPLETED] Routine Tasks Still Pending: {', '.join(pending_routines)}. "
+                "These have NOT been completed — do NOT claim they are done."
             )
         if not completed_routines and not pending_routines:
             lines.append(
                 "Routines: No routine tasks found for today. "
                 "Do NOT claim the user has completed any routines — "
-                "only mention routines if they are explicitly listed above."
+                "only mention routines if they are EXPLICITLY listed as "
+                "[VERIFIED COMPLETED] above."
             )
+
+        # Explicit negative assertions for common false-positive items
+        # This prevents the LLM from inferring completion of activities
+        # that have dedicated truth sources elsewhere.
+        _neg_assertions = []
+        if not has_workout_today:
+            _neg_assertions.append(
+                "Workout has NOT been logged today — do NOT say it is done."
+            )
+        _neg_assertions_text = ' '.join(_neg_assertions)
+        if _neg_assertions_text:
+            lines.append(f"NEGATIVE ASSERTIONS: {_neg_assertions_text}")
     except Exception:
         pass
 

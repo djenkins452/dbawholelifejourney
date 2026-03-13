@@ -159,7 +159,7 @@ def build_health_state(user):
         state["bp_diastolic"] = latest_bp[1]
         state["last_bp_entry"] = latest_bp[2].isoformat()
 
-    # ── Heart Rate (7-day avg) ────────────────────────────────
+    # ── Heart Rate (7-day avg + latest) ─────────────────────────
     try:
         from django.db.models import Avg
         from apps.health.models import HeartRateEntry
@@ -169,10 +169,20 @@ def build_health_state(user):
         ).aggregate(avg=Avg("bpm"))["avg"]
         if hr_avg:
             state["heart_rate_avg_7d"] = round(float(hr_avg))
+
+        latest_hr = (
+            HeartRateEntry.objects.filter(user=user)
+            .order_by("-recorded_at")
+            .values_list("bpm", "recorded_at")
+            .first()
+        )
+        if latest_hr:
+            state["latest_heart_rate"] = latest_hr[0]
+            state["last_heart_rate_entry"] = latest_hr[1].isoformat()
     except Exception:
         pass
 
-    # ── Glucose (7-day avg) ───────────────────────────────────
+    # ── Glucose (7-day avg + latest) ──────────────────────────
     try:
         from django.db.models import Avg
         from apps.health.models import GlucoseEntry
@@ -182,10 +192,21 @@ def build_health_state(user):
         ).aggregate(avg=Avg("value"))["avg"]
         if glucose_avg:
             state["glucose_avg_7d"] = round(float(glucose_avg))
+
+        latest_glucose = (
+            GlucoseEntry.objects.filter(user=user)
+            .order_by("-recorded_at")
+            .values_list("value", "unit", "recorded_at")
+            .first()
+        )
+        if latest_glucose:
+            state["latest_glucose"] = float(latest_glucose[0])
+            state["latest_glucose_unit"] = latest_glucose[1]
+            state["last_glucose_entry"] = latest_glucose[2].isoformat()
     except Exception:
         pass
 
-    # ── Blood Oxygen (7-day avg) ──────────────────────────────
+    # ── Blood Oxygen (7-day avg + latest) ─────────────────────
     try:
         from django.db.models import Avg
         from apps.health.models import BloodOxygenEntry
@@ -195,6 +216,16 @@ def build_health_state(user):
         ).aggregate(avg=Avg("spo2"))["avg"]
         if spo2_avg:
             state["blood_oxygen_avg_7d"] = round(float(spo2_avg), 1)
+
+        latest_spo2 = (
+            BloodOxygenEntry.objects.filter(user=user)
+            .order_by("-recorded_at")
+            .values_list("spo2", "recorded_at")
+            .first()
+        )
+        if latest_spo2:
+            state["latest_blood_oxygen"] = float(latest_spo2[0])
+            state["last_blood_oxygen_entry"] = latest_spo2[1].isoformat()
     except Exception:
         pass
 
@@ -1401,6 +1432,12 @@ def build_life_events_state(user):
         logger.warning("Life events state build failed", exc_info=True)
 
     state["approaching_events"] = approaching[:5]
+
+    # Today's events (separate key for Beth to reference directly)
+    state["today_events"] = [
+        e for e in approaching if e["days_until"] == 0
+    ]
+
     return state
 
 
@@ -1576,8 +1613,124 @@ def build_task_state(user):
         ).count()
         state['overdue_nn_count'] = overdue_nn
 
+        # ── Date-based priority binning ──
+        from apps.core.utils import get_user_today
+        user_today = get_user_today(user)
+        tomorrow = user_today + timedelta(days=1)
+
+        pending_qs = Task.objects.filter(
+            user=user, status='active', completion_status='pending',
+        )
+
+        priority_counts = (
+            pending_qs.values('priority')
+            .annotate(count=Count('id'))
+        )
+        by_priority = {'now': 0, 'soon': 0, 'someday': 0}
+        for entry in priority_counts:
+            p = entry['priority']
+            if p in by_priority:
+                by_priority[p] = entry['count']
+        state['tasks_now'] = by_priority['now']
+        state['tasks_soon'] = by_priority['soon']
+        state['tasks_someday'] = by_priority['someday']
+
+        # Overdue (all commitment levels)
+        state['overdue_count'] = pending_qs.filter(
+            due_date__lt=user_today,
+        ).count()
+
+        # Due tomorrow
+        state['due_tomorrow_count'] = pending_qs.filter(
+            due_date=tomorrow,
+        ).count()
+
+        # Completed today
+        state['completed_today'] = Task.objects.filter(
+            user=user, completion_status='completed',
+            completed_at__date=user_today,
+        ).count()
+
+        # Tasks due today (titles for Beth context, max 10)
+        due_today_tasks = pending_qs.filter(
+            due_date=user_today,
+        ).order_by('commitment_level').values_list('title', flat=True)[:10]
+        state['tasks_due_today'] = list(due_today_tasks)
+
     except Exception:
         logger.warning("Task commitment state build failed", exc_info=True)
+
+    return state
+
+
+# ── Medicine State Builder ───────────────────────────────────────
+
+
+def build_medicine_state(user):
+    """
+    Build medicine state from actual database records.
+
+    Returns:
+        dict with active_medicines, today's adherence, 7-day adherence,
+        and next pending dose.
+    """
+    state = {}
+
+    try:
+        from apps.core.utils import get_user_today
+        from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+        from apps.health.medicine_utils import calculate_medicine_adherence_rate
+
+        user_today = get_user_today(user)
+
+        # Active medicines summary
+        active_meds = Medicine.objects.filter(
+            user=user, medicine_status='active',
+        )
+        state['active_count'] = active_meds.count()
+        state['active_medicines'] = list(
+            active_meds.values_list('name', flat=True)[:15]
+        )
+
+        # Refill alerts
+        needs_refill = [
+            m.name for m in active_meds
+            if m.needs_refill
+        ]
+        if needs_refill:
+            state['needs_refill'] = needs_refill
+
+        # Today's logs
+        today_logs = MedicineLog.objects.filter(
+            medicine__user=user,
+            scheduled_date=user_today,
+        )
+        state['today_taken'] = today_logs.filter(
+            log_status__in=['taken', 'late'],
+        ).count()
+        state['today_missed'] = today_logs.filter(
+            log_status='missed',
+        ).count()
+        state['today_pending'] = today_logs.filter(
+            log_status='pending',
+        ).count() if today_logs.filter(log_status='pending').exists() else 0
+
+        # Count expected doses for today (schedules that apply to today's weekday)
+        weekday = user_today.weekday()  # 0=Monday
+        expected_today = 0
+        for med in active_meds:
+            for sched in med.schedules.filter(is_active=True):
+                if sched.applies_to_day(weekday):
+                    expected_today += 1
+        state['expected_today'] = expected_today
+
+        # 7-day adherence rate (reuse existing utility)
+        adherence = calculate_medicine_adherence_rate(user, days=7)
+        if adherence is not None:
+            state['adherence_7d'] = adherence
+
+    except Exception:
+        logger.warning("Medicine state build failed", exc_info=True)
 
     return state
 
@@ -1604,6 +1757,7 @@ MODULE_BUILDERS = {
     "scan": build_scan_state,
     "governance": build_governance_state,
     "tasks": build_task_state,
+    "medicine": build_medicine_state,
 }
 
 

@@ -6,6 +6,23 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-13 — SAE Phase 2: enhance module builders with richer state data
+
+**Purpose:** Fill data gaps in SAE module builders so Beth and CoS have complete, accurate state without querying the database directly.
+
+**Changes:**
+- **`build_task_state()`** — Added date-based priority binning: `tasks_now`, `tasks_soon`, `tasks_someday` counts, `overdue_count` (all levels), `due_tomorrow_count`, `completed_today`, `tasks_due_today` (list of titles for Beth context)
+- **`build_health_state()`** — Added latest individual readings: `latest_heart_rate`, `latest_glucose` (with unit), `latest_blood_oxygen` alongside existing 7-day averages
+- **`build_life_events_state()`** — Added `today_events` filter extracted from approaching_events (days_until == 0)
+- **New `build_medicine_state()`** — Active medicines list, refill alerts, today's taken/missed/pending counts, expected doses today, 7-day adherence rate (reuses `calculate_medicine_adherence_rate()` utility)
+- Registered `"medicine"` in MODULE_BUILDERS registry
+- Wired medicine SAE refresh into Medicine, MedicineLog, MedicineSchedule signal handlers in both `apps/ai/signals.py` and `apps/dashboard/signals.py`
+- **Files:** `apps/core/ai_state/state_builder.py`, `apps/ai/signals.py`, `apps/dashboard/signals.py`
+
+**Verification:** SAE tests (158), dashboard tests (114), medicine tests (100) all pass.
+
+---
+
 ## 2026-03-13 — SAE signal-driven freshness: keep UserState in sync with all data changes
 
 **Root cause:** SAE (State Awareness Engine) `UserState` was only updated after Beth-driven actions via the execution pipeline. Data changes from web forms, the Organize page, API endpoints, and recurring task processing bypassed SAE entirely, leaving state stale for hours. This caused Beth, proactive check-ins, and other consumers to see outdated health/fitness/task/journal data.

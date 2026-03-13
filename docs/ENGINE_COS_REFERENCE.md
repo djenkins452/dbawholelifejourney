@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-13 (SAE signal-driven freshness: all post_save/post_delete signals now refresh UserState modules; nightly task priority recalculation added to Celery Beat)
+**Last updated:** 2026-03-13 (SAE Phase 2: enhanced task/health/life_events builders with richer state; new medicine module builder; medicine signals wired to SAE)
 
 ---
 

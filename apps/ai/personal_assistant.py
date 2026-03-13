@@ -2028,6 +2028,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             # valid briefings. The gate targets truly generic responses where
             # the fallback phrase IS the entire response.
             _fallback_indicators = [
+                # Old generic phrases (LLM-generated or legacy fallbacks)
                 "What do you need to get done",
                 "What's the priority right now",
                 "What's blocking progress",
@@ -2037,6 +2038,14 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 "What can I help you move forward on",
                 "How can I help",
                 "What needs your attention",
+                "What's still on your plate",
+                "What's on your list",
+                # New fallback strings (honest error messages)
+                "I wasn't able to pull your data",
+                "Something went wrong on my end",
+                "I hit a snag pulling your information",
+                "I ran into an issue loading your status",
+                "Something didn't connect right",
             ]
             if len(response_text) < 200 and any(
                 ind in (response_text or '') for ind in _fallback_indicators
@@ -2634,6 +2643,21 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         route_result=_route_result,
                         _ltrace=_ltrace,
                     )
+                    # Quality gate: reject generic fallback check-in responses.
+                    # The proactive briefing path has this gate but user-initiated
+                    # check-ins did not — generic responses leaked to the user.
+                    if response and self._is_fallback_response(response):
+                        logger.warning(
+                            "CHECKIN_FALLBACK_GATE user=%s — LLM returned "
+                            "a fallback string for a check-in request. "
+                            "Replacing with honest error. Preview: %s",
+                            self.user.id, (response or '')[:120],
+                        )
+                        response = (
+                            "I wasn't able to pull your full status right now. "
+                            "Try asking again — say 'check in' or 'what's left' "
+                            "and I'll get your actual data."
+                        )
                 elif not response:
                     # ── Intent bypass: skip expensive intent LLM call when
                     # router detects no action signals in the message ──────
@@ -4192,11 +4216,24 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         try:
             from apps.ai.executive_briefing import (
                 build_executive_briefing,
+                build_checkin_briefing,
                 get_conversation_memory,
             )
             briefing = build_executive_briefing(self.user, conversation)
             if briefing:
                 system_prompt += "\n\n" + briefing
+            elif _is_checkin_early:
+                # Mid-conversation check-in: executive briefing returned
+                # empty (not first-of-day, no 4h gap), but user explicitly
+                # asked for status. Build a lightweight check-in briefing
+                # with health gates, tasks, and calendar data.
+                checkin_briefing = build_checkin_briefing(self.user)
+                if checkin_briefing:
+                    system_prompt += "\n\n" + checkin_briefing
+                    logger.info(
+                        "CHECKIN_BRIEFING_INJECTED user=%s len=%d",
+                        self.user.id, len(checkin_briefing),
+                    )
 
             # Inject conversation memory (rolling summary of older messages)
             memory = get_conversation_memory(conversation)
@@ -7397,44 +7434,37 @@ Rules for this response:
             return self._get_reflection_response(message)
 
         # Fallbacks vary by coaching style
+        # Fallback responses are used when the LLM is unreachable or returns
+        # nothing. They must be honest about the limitation — never pretend
+        # to have data. Avoid the prohibited generic phrases from SECTION 8
+        # of COS_PROACTIVE_INTELLIGENCE_PROMPT.
         fallbacks = {
             'direct': [
-                "What do you need to get done? Let's focus.",
-                "What's the priority right now?",
-                "What's blocking progress?",
-                "What action can you take in the next hour?",
+                "I wasn't able to pull your data just now. Try again in a moment, or tell me specifically what you need and I'll look it up.",
+                "Something went wrong on my end loading your status. Give me another shot — ask me again or tell me what to check on.",
             ],
             'gentle': [
-                "I'm here to help. What feels most pressing right now?",
-                "Let's think about what would help you most today.",
-                "What's on your mind? We can work through it together.",
-                "Take your time. What would feel like a win today?",
+                "I hit a snag pulling your information together. Could you try asking again? I want to give you a real answer, not a generic one.",
+                "I wasn't quite able to load your data this time. Try me again — I want to give you something useful.",
             ],
             'supportive': [
-                "I'm here to help you stay on track. What needs your attention?",
-                "Let's focus on what's most important today. What's on your list?",
-                "What can I help you move forward on?",
-                "What's still on your plate that we can tackle?",
+                "I ran into an issue loading your status. Ask me again and I'll get your actual data — tasks, meds, schedule, whatever you need.",
+                "Something didn't connect right on my end. Try again — I want to give you real information, not just a question back.",
             ],
         }
 
         style_fallbacks = fallbacks.get(self.coaching_style, fallbacks['supportive'])
         return random.choice(style_fallbacks)
 
-    # All known fallback strings — used to detect if a saved message is a fallback
+    # All known fallback strings — used to detect if a saved message is a fallback.
+    # Must match the strings in _get_fallback_response() exactly.
     _ALL_FALLBACK_STRINGS = {
-        "What do you need to get done? Let's focus.",
-        "What's the priority right now?",
-        "What's blocking progress?",
-        "What action can you take in the next hour?",
-        "I'm here to help. What feels most pressing right now?",
-        "Let's think about what would help you most today.",
-        "What's on your mind? We can work through it together.",
-        "Take your time. What would feel like a win today?",
-        "I'm here to help you stay on track. What needs your attention?",
-        "Let's focus on what's most important today. What's on your list?",
-        "What can I help you move forward on?",
-        "What's still on your plate that we can tackle?",
+        "I wasn't able to pull your data just now. Try again in a moment, or tell me specifically what you need and I'll look it up.",
+        "Something went wrong on my end loading your status. Give me another shot — ask me again or tell me what to check on.",
+        "I hit a snag pulling your information together. Could you try asking again? I want to give you a real answer, not a generic one.",
+        "I wasn't quite able to load your data this time. Try me again — I want to give you something useful.",
+        "I ran into an issue loading your status. Ask me again and I'll get your actual data — tasks, meds, schedule, whatever you need.",
+        "Something didn't connect right on my end. Try again — I want to give you real information, not just a question back.",
     }
 
     def _is_fallback_response(self, text: str) -> bool:

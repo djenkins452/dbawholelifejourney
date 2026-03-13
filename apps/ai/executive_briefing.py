@@ -210,6 +210,79 @@ def build_executive_briefing(user, conversation) -> str:
         return ""
 
 
+def build_checkin_briefing(user) -> str:
+    """
+    Build a lightweight check-in briefing for mid-conversation status requests.
+
+    Unlike build_executive_briefing(), this has NO first-of-day or gap gate —
+    it fires every time the user asks "check in", "what's left", "status", etc.
+    Reuses the same section builders as the morning briefing but skips the
+    greeting and journal follow-up (which are morning-only concerns).
+
+    Returns a structured context block for system prompt injection, or empty
+    string if all sections are empty.
+    """
+    try:
+        from apps.core.utils import get_user_now, get_user_today
+
+        user_now = get_user_now(user)
+        today = get_user_today(user)
+
+        sections = []
+        sections.append("--- MID-CONVERSATION CHECK-IN BRIEFING ---")
+
+        # Health gate (meds, fasting, workout, reading)
+        sections.append(_build_health_gate_section(user, today))
+
+        # Day overview (calendar, tasks, overdue)
+        sections.append(_build_day_overview_section(user, user_now, today))
+
+        # Life events (approaching birthdays, etc.)
+        sections.append(_build_life_events_section(user, today))
+
+        sections.append("")
+        sections.append(
+            "INSTRUCTION: The user is asking for a status check-in. "
+            "Use the data above to give a SPECIFIC, DATA-DRIVEN response. "
+            "Report what's done, what's pending, what's overdue. "
+            "Do NOT ask generic questions like 'What can I help you with?' — "
+            "the user asked YOU for their status. ANSWER with concrete data.\n"
+            "CRITICAL TRUTH RULES:\n"
+            "- ONLY claim a task/routine/activity is completed if it appears "
+            "under a [VERIFIED COMPLETED] or [DONE] label above.\n"
+            "- Items marked [NOT COMPLETED] are NOT done. Do NOT say they are done.\n"
+            "- If workout says 'not yet logged', the user has NOT worked out.\n"
+            "- If reading says 'not yet done', the user has NOT done their reading.\n"
+            "- A task being PAST its scheduled time does NOT mean it was completed. "
+            "A past time means it was MISSED, not done.\n"
+            "- NEVER infer completion from schedule, habit patterns, or time of day.\n"
+            "- If no completed routines are listed, do NOT fabricate accomplishments.\n"
+            "Present as a brief, natural narrative — not a bullet list. "
+            "End by asking what they want to tackle next."
+        )
+        sections.append("--- END CHECK-IN BRIEFING ---")
+
+        result = "\n".join(s for s in sections if s)
+
+        # If only the wrapper lines exist (no actual data), return empty
+        if result.count('\n') <= 3:
+            logger.info(
+                "CHECKIN_BRIEFING_EMPTY user=%s — no data sections produced",
+                user.id,
+            )
+            return ""
+
+        logger.info(
+            "CHECKIN_BRIEFING_BUILT user=%s len=%d",
+            user.id, len(result),
+        )
+        return result
+
+    except Exception as e:
+        logger.warning("Mid-conversation check-in briefing failed: %s", e, exc_info=True)
+        return ""
+
+
 def mark_briefing_delivered(conversation):
     """
     Mark the executive briefing as delivered for today.

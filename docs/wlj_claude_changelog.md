@@ -6,6 +6,34 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-13 — Fix mid-conversation check-in empty responses
+
+**Problem:** When user said "check in" or "what's left" mid-conversation, Beth responded with
+generic deflection questions ("What can I help you move forward on?") instead of actual status data.
+
+**Root Cause:** `build_executive_briefing()` only fires on first-of-day or 4+ hour gaps.
+Mid-conversation check-ins got NO briefing context injected, so the LLM had no data to report.
+Fallback templates were themselves generic phrases that violated COS_PROACTIVE_INTELLIGENCE_PROMPT
+SECTION 8 prohibited behaviors. No quality gate existed for user-initiated check-in responses.
+
+**Fix (5 parts):**
+1. **New `build_checkin_briefing()`** in `executive_briefing.py` — lightweight briefing that
+   reuses existing section builders (health gates, day overview, life events) without the
+   first-of-day gate. Fires every time user requests a check-in mid-conversation.
+2. **Injected into `_generate_response()`** — when `build_executive_briefing()` returns empty
+   AND the message is a check-in, `build_checkin_briefing()` provides the data context.
+3. **Fixed fallback templates** — replaced generic question-back phrases with honest error
+   messages that acknowledge the data fetch failure and ask user to retry.
+4. **Added quality gate** for non-streaming check-in path — detects fallback responses and
+   replaces them with an honest retry message (matching proactive briefing quality gate).
+5. **Updated proactive briefing fallback indicators** — added old generic phrases and new
+   fallback strings to the detection list.
+
+**Files:** `apps/ai/executive_briefing.py`, `apps/ai/personal_assistant.py`
+**Tests:** 61 personal_assistant tests pass, 28 executive_briefing tests pass
+
+---
+
 ## 2026-03-13 — Beth Truth Integrity & A/B/C Interactive Option Bubbles
 
 **Phase 1 — Strengthen Anti-Fabrication in Executive Briefing & Check-in:**

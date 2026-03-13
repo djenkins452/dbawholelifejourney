@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-13 — Fix two production crashes in intent_service.py
+
+**Problem 1:** `_build_visible_entity_hint()` crashes with `AttributeError: 'dict' object has no attribute 'lower'` when `page_content` arrives as a dict instead of a string.
+
+**Fix:** Added type check — coerce non-string `page_content` to `str()` before calling `.lower()`.
+
+**Problem 2:** `_record_and_resolve()` crashes with `TypeError: PendingAction.resolve() got an unexpected keyword argument 'resolved_action'` — the method signature uses `action` as the parameter name, not `resolved_action`.
+
+**Fix:** Changed `resolved_action=action_str` to `action=action_str` to match the method signature.
+
+**Files:** `apps/ai/intent_service.py` (lines 806, 2050)
+
+---
+
 ## 2026-03-13 — Fix mid-conversation check-in empty responses
 
 **Problem:** When user said "check in" or "what's left" mid-conversation, Beth responded with

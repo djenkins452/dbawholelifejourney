@@ -803,6 +803,10 @@ the Medications page), honor the explicit domain.
         if not page_content:
             return ''
 
+        # page_content may arrive as a dict from some page contexts — coerce to str
+        if not isinstance(page_content, str):
+            page_content = str(page_content)
+
         hints = []
         content_lower = page_content.lower()
 
@@ -2043,7 +2047,7 @@ the Medications page), honor the explicit domain.
                 from apps.core.ai_governance.models import PendingAction as PA
                 pa = PA.objects.filter(id=pending.get('action_id')).first()
                 if pa:
-                    pa.resolve(resolved_action=action_str, status=db_status)
+                    pa.resolve(action=action_str, status=db_status)
             except Exception as e:
                 logger.error("[PENDING_ACTION] DB resolve failed: %s", e, exc_info=True)
 

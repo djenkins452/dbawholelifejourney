@@ -1007,11 +1007,12 @@ def _build_day_overview_section(user, user_now, today) -> str:
     except Exception:
         pass
 
-    # ── Tasks — uses the SAME priority-based grouping as the Organize page ──
-    # The Organize page calls _refresh_stale_task_priorities() then groups by
-    # the stored `priority` field. We do the same here so Beth's task awareness
-    # matches what the user sees on the page. Non-routine filter is removed —
-    # the Organize page shows ALL tasks, and so should Beth.
+    # ── Tasks — EXACT same query as the Organize page ──────────────────
+    # The Organize page uses Task.objects (SoftDeleteManager → status='active')
+    # filtered by completion_status='pending' and the stored `priority` field.
+    # We use the IDENTICAL queryset here. The count MUST match what the UI
+    # shows. Beth may include up to 3 example titles for context, but the
+    # count is always the true total from .count().
     try:
         from apps.life.models import Task
         from apps.life.views import _refresh_stale_task_priorities
@@ -1019,51 +1020,63 @@ def _build_day_overview_section(user, user_now, today) -> str:
         # Refresh stale priorities so overnight changes are reflected
         _refresh_stale_task_priorities(user)
 
-        pending_base = (
-            Task.objects.filter(user=user, completion_status='pending')
-            .exclude(status='deleted')
-            .exclude(deleted_at__isnull=False)
+        # Same base queryset as Organize page — SoftDeleteManager already
+        # filters status='active'. No extra .exclude() calls.
+        pending_base = Task.objects.filter(
+            user=user, completion_status='pending',
         )
 
-        # "Now" bucket: priority='now' (due today or overdue)
-        now_tasks = list(
+        # Counts — must match what the Organize page shows
+        now_count = pending_base.filter(priority='now').count()
+        soon_count = pending_base.filter(priority='soon').count()
+
+        # Up to 3 example titles for Beth's narrative
+        now_examples = list(
             pending_base.filter(priority='now')
-            .values_list('title', flat=True)[:12]
+            .values_list('title', flat=True)[:3]
         )
-
-        # "Soon" bucket: priority='soon' (due within 7 days)
-        soon_tasks = list(
+        soon_examples = list(
             pending_base.filter(priority='soon')
-            .values_list('title', flat=True)[:8]
+            .values_list('title', flat=True)[:3]
         )
 
-        # Completed today (all types — matches Organize completed view)
-        completed_today = list(
+        # Completed today
+        completed_count = Task.objects.filter(
+            user=user, completion_status='completed',
+            completed_at__date=today,
+        ).count()
+        completed_examples = list(
             Task.objects.filter(
                 user=user, completion_status='completed',
                 completed_at__date=today,
-            )
-            .exclude(status='deleted')
-            .exclude(deleted_at__isnull=False)
-            .values_list('title', flat=True)[:5]
+            ).values_list('title', flat=True)[:3]
         )
 
-        if completed_today:
+        if completed_count:
+            example_str = ', '.join(completed_examples)
+            if completed_count > len(completed_examples):
+                example_str += f' (+{completed_count - len(completed_examples)} more)'
             lines.append(
-                f"Tasks Completed Today: {', '.join(completed_today)}. "
+                f"Tasks Completed Today ({completed_count}): {example_str}. "
                 "Acknowledge these accomplishments."
             )
-        if now_tasks:
+        if now_count:
+            example_str = ', '.join(now_examples)
+            if now_count > len(now_examples):
+                example_str += f' (+{now_count - len(now_examples)} more)'
             lines.append(
-                f"Tasks — Now ({len(now_tasks)}): {', '.join(now_tasks)}. "
+                f"Tasks — Now ({now_count}): {example_str}. "
                 "These are due today or overdue — the user's immediate priorities."
             )
-        if soon_tasks:
+        if soon_count:
+            example_str = ', '.join(soon_examples)
+            if soon_count > len(soon_examples):
+                example_str += f' (+{soon_count - len(soon_examples)} more)'
             lines.append(
-                f"Tasks — Soon ({len(soon_tasks)}): {', '.join(soon_tasks)}. "
+                f"Tasks — Soon ({soon_count}): {example_str}. "
                 "Due within the next 7 days."
             )
-        if not now_tasks and not soon_tasks and not completed_today:
+        if not now_count and not soon_count and not completed_count:
             lines.append("Tasks: No tasks due today, overdue, or due soon.")
     except Exception as e:
         logger.warning("Failed to load tasks for day overview: %s", e)

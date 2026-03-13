@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-13 — Fix Beth task count mismatch with Organize page
+
+**Problem:** Beth reported "Now (3)" when Organize page showed "Now 10". Phantom task "House cleaning"
+appeared in Beth's responses despite not being in the Now list.
+
+**Root Causes:**
+1. **Wrong query — extra `.exclude()` calls:** Beth's queries used `.exclude(status='deleted').exclude(deleted_at__isnull=False)` on top of `SoftDeleteManager` (which already filters `status='active'`). The `.exclude(deleted_at__isnull=False)` is WRONG — it drops active tasks that happen to have a `deleted_at` timestamp set. The Organize page uses no extra excludes.
+2. **Count = len(limited_list):** Both `_build_day_overview_section()` and the check-in assembly used `[:12]` or `[:8]` slices, then reported `len()` as the count. If there were 10 "now" tasks, Beth would say "Now (10)" only if all fit in the slice — but if the slice was `[:3]`, she'd say "Now (3)".
+3. **Phantom tasks:** Different query filters between Beth and the Organize page meant tasks could appear in one but not the other.
+
+**Fix:**
+- Use the EXACT same queryset as the Organize page: `Task.objects.filter(user=user, completion_status='pending')` — no extra `.exclude()` calls
+- Get true counts via `.count()` (separate from example titles)
+- Show up to 3 example titles with "(+N more)" suffix when count > 3
+- Applied to both `_build_day_overview_section()` (executive_briefing.py) and the check-in data assembly block (personal_assistant.py)
+
+**Files:** `apps/ai/executive_briefing.py`, `apps/ai/personal_assistant.py`
+**Tests:** 89 AI tests pass
+
+---
+
 ## 2026-03-13 — Fix check-in data assembly crash causing silent fallback responses
 
 **Problem:** Beth returned fallback error messages ("I wasn't able to pull your full status right now")

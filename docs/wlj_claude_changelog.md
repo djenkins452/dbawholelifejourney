@@ -6,6 +6,35 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Phase 3: Migrate PA state reads from UserStateSnapshot to SAE
+
+**Problem:** Beth's `assess_current_state()` read metrics from `UserStateSnapshot` (USS), which could
+be up to 2 hours stale for non-task data. SAE `UserState` is the canonical aggregate state layer,
+updated in real-time by signals on every model save — but Beth wasn't reading from it.
+
+**Fix:** Created `_build_state_from_sae()` method that reads SAE `UserState.state_data` and maps it to
+Beth's expected dict format. Modified `assess_current_state()` to use SAE as the primary metrics source:
+- **Metrics** (tasks, health, faith, goals, journal) now come from SAE (always fresh)
+- **AI assessment** still cached in USS (regenerated every 2hrs or on coaching style change)
+- Falls back to USS-only path if SAE has no data (new users, empty state)
+- Eliminated 4 staleness-check queries (JournalEntry, WorkoutSession, WeightEntry, FoodEntry exists
+  checks) — SAE is always current, no need to check for new data
+
+**Architecture:** Beth now follows the target layering:
+  Domain Models → Domain Services → SAE (Layer 3) → Beth reads (Layer 5) → LLM narration (Layer 6)
+
+**Field mapping:** SAE tasks.tasks_now→due_today, tasks.overdue_count→overdue, health.weight_current→weight_current,
+fitness.workouts_7d→workouts_week, fasting.fasts_7d→fasts_week, medicine.adherence_7d→medicine_adherence,
+goals.active_goal_count→active, faith.unanswered_prayers→active_prayers, journal.mood_distribution→dominant_mood.
+Fields without SAE equivalents (journal_streak, workout_streak, completed_goals_month) return 0 — acceptable
+since these are minor display fields not used in Beth's check-in or prompt assembly.
+
+**Verification:** 61 PA tests pass, 168 intent+SAE tests pass, Django system check clean.
+
+**Files:** `apps/ai/personal_assistant.py`, `docs/wlj_claude_changelog.md`
+
+---
+
 ## 2026-03-14 — Phase 2: Consolidate SAE refresh signals into single canonical location
 
 **Problem:** SAE `update_user_state()` was called from BOTH `dashboard/signals.py` and `ai/signals.py`,

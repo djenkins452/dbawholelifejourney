@@ -569,167 +569,162 @@ class PersonalAssistant:
         """
         Assess the user's current state across all dimensions.
 
+        Architecture (Phase 3 migration):
+        - METRICS come from SAE UserState (always fresh, signal-updated)
+        - AI ASSESSMENT is cached in UserStateSnapshot (regenerated every 2hrs)
+        - Falls back to direct queries if SAE has no data
+
         Returns a comprehensive assessment including:
-        - Current metrics from all modules
-        - AI-generated assessment
+        - Current metrics from all modules (from SAE)
+        - AI-generated assessment (cached in USS)
         - Alignment gaps (intention vs reality)
         - Celebration-worthy achievements
-
-        Note: Task counts are ALWAYS refreshed (not cached) since they change
-        frequently throughout the day. AI assessment is cached to avoid
-        excessive API calls.
         """
         import time as _t
         _acs_start = _t.monotonic()
         from apps.core.utils import get_user_today, get_user_now
 
         today = get_user_today(self.user)
-        get_user_now(self.user)
 
-        # Always gather fresh task data (changes frequently)
-        fresh_task_data = self._get_task_state(today, today - timedelta(days=7)) if self.prefs.life_enabled else {}
+        # ── Step 1: Read live metrics from SAE (canonical source) ──
+        sae_result = self._build_state_from_sae()
+        if sae_result:
+            # Overlay fresh task counts (SAE tasks may be slightly behind
+            # signal delivery in the same request)
+            if self.prefs.life_enabled:
+                fresh_task_data = self._get_task_state(today, today - timedelta(days=7))
+                sae_result['tasks'] = {
+                    'completed_today': fresh_task_data.get('tasks_completed_today', 0),
+                    'completed_week': fresh_task_data.get('tasks_completed_week', 0),
+                    'overdue': fresh_task_data.get('tasks_overdue', 0),
+                    'due_today': fresh_task_data.get('tasks_due_today', 0),
+                }
+            # Overlay today-specific ephemeral data
+            sae_result['faith'].update(self._get_fresh_today_faith(today))
+            sae_result['health']['workout_today'] = self._get_workout_today(today)
+        else:
+            # SAE has no data — fall back to USS path (legacy)
+            logger.info("ASSESS_STATE user=%s — SAE empty, falling back to USS", self.user.id)
 
-        # Check for existing snapshot today (for AI assessment caching)
+        # ── Step 2: Check AI assessment cache (stored in USS) ──
         snapshot = UserStateSnapshot.objects.filter(
             user=self.user,
-            snapshot_date=today
+            snapshot_date=today,
         ).first()
 
-        # Check if coaching style changed - if so, we need to regenerate the AI assessment
-        # The coaching style is stored in alignment_gaps metadata when present
-        coaching_style_changed = False
-        if snapshot:
+        need_ai_regen = force_refresh
+        if not need_ai_regen and snapshot:
+            # Check coaching style change
             snapshot_metadata = snapshot.alignment_gaps or []
-            # We store coaching_style in a special metadata entry
             stored_style = None
             for item in snapshot_metadata:
                 if isinstance(item, dict) and item.get('_coaching_style'):
                     stored_style = item.get('_coaching_style')
                     break
-            # Regenerate if style changed OR if no style was stored (legacy snapshot)
             if stored_style is None or stored_style != self.coaching_style:
-                coaching_style_changed = True
-                if stored_style:
-                    logger.info(f"Coaching style changed from {stored_style} to {self.coaching_style}, regenerating assessment")
-                else:
-                    logger.info(f"No coaching style stored in snapshot, regenerating assessment with {self.coaching_style}")
-
-        # Check if snapshot is stale (>2 hours old or key data changed)
-        snapshot_stale = False
-        if snapshot and not force_refresh and not coaching_style_changed:
-            user_now = get_user_now(self.user)
-            hours_since_update = (user_now - snapshot.updated_at.astimezone(
-                user_now.tzinfo
-            )).total_seconds() / 3600
-
-            # Stale if >2 hours old (time references become inaccurate)
-            if hours_since_update >= 2:
-                snapshot_stale = True
-                logger.info(f"Snapshot stale: {hours_since_update:.1f} hours old, refreshing")
-
-            # Stale if key metrics changed (user added data)
-            if not snapshot_stale:
-                if (fresh_task_data.get('tasks_completed_today', 0) != snapshot.tasks_completed_today
-                        or fresh_task_data.get('tasks_overdue', 0) != snapshot.tasks_overdue
-                        or fresh_task_data.get('tasks_due_today', 0) != snapshot.tasks_due_today):
-                    snapshot_stale = True
-                    logger.info("Snapshot stale: task counts changed, refreshing")
-
-            # Stale if new health/journal data added since last snapshot update
-            if not snapshot_stale:
-                from apps.journal.models import JournalEntry
-                from apps.health.models import WorkoutSession, WeightEntry, FoodEntry
-                snapshot_updated = snapshot.updated_at
-                new_data = (
-                    JournalEntry.objects.filter(user=self.user, created_at__gt=snapshot_updated).exists()
-                    or WorkoutSession.objects.filter(user=self.user, created_at__gt=snapshot_updated).exists()
-                    or WeightEntry.objects.filter(user=self.user, created_at__gt=snapshot_updated).exists()
-                    or FoodEntry.objects.filter(user=self.user, created_at__gt=snapshot_updated).exists()
+                need_ai_regen = True
+                logger.info(
+                    "AI assessment regen: coaching style changed %s → %s",
+                    stored_style, self.coaching_style,
                 )
-                if new_data:
-                    snapshot_stale = True
-                    logger.info("Snapshot stale: new data entries since last update, refreshing")
 
-        if snapshot and not force_refresh and not coaching_style_changed and not snapshot_stale:
-            # Return cached data but with FRESH task counts and today-specific data
-            result = self._snapshot_to_dict(snapshot)
-            result['tasks'] = {
-                'completed_today': fresh_task_data.get('tasks_completed_today', 0),
-                'completed_week': fresh_task_data.get('tasks_completed_week', 0),
-                'overdue': fresh_task_data.get('tasks_overdue', 0),
-                'due_today': fresh_task_data.get('tasks_due_today', 0),
-            }
-            # Always refresh today-specific ephemeral data
-            result['faith'].update(self._get_fresh_today_faith(today))
-            result['health']['workout_today'] = self._get_workout_today(today)
-            return result
+            # Check time staleness (>2 hours)
+            if not need_ai_regen:
+                user_now = get_user_now(self.user)
+                hours_old = (user_now - snapshot.updated_at.astimezone(
+                    user_now.tzinfo
+                )).total_seconds() / 3600
+                if hours_old >= 2:
+                    need_ai_regen = True
+                    logger.info("AI assessment regen: %.1f hours old", hours_old)
+        elif not snapshot:
+            need_ai_regen = True
 
-        # Gather fresh data for everything
-        state_data = self._gather_comprehensive_state()
+        # ── Step 3: Regenerate AI assessment if needed ──
+        if need_ai_regen:
+            # Use _gather_comprehensive_state for AI assessment (needs flat keys)
+            state_data = self._gather_comprehensive_state()
 
-        # Generate AI assessment if enabled
-        ai_assessment = ""
-        alignment_gaps = []
-        celebration_worthy = []
+            ai_assessment = ""
+            alignment_gaps = []
+            celebration_worthy = []
 
-        if self.prefs.ai_enabled and AIService.check_user_consent(self.user):
-            ai_result = self._generate_ai_assessment(state_data)
-            ai_assessment = ai_result.get('assessment', '')
-            alignment_gaps = ai_result.get('gaps', [])
-            celebration_worthy = ai_result.get('celebrations', [])
+            if self.prefs.ai_enabled and AIService.check_user_consent(self.user):
+                ai_result = self._generate_ai_assessment(state_data)
+                ai_assessment = ai_result.get('assessment', '')
+                alignment_gaps = ai_result.get('gaps', [])
+                celebration_worthy = ai_result.get('celebrations', [])
 
-        # Store coaching style in alignment_gaps metadata so we can detect style changes
-        # and regenerate the AI assessment when needed
-        alignment_gaps_with_style = list(alignment_gaps) if alignment_gaps else []
-        alignment_gaps_with_style.append({'_coaching_style': self.coaching_style})
+            # Store coaching style marker
+            alignment_gaps_with_style = list(alignment_gaps) if alignment_gaps else []
+            alignment_gaps_with_style.append({'_coaching_style': self.coaching_style})
 
-        # Create or update snapshot
-        snapshot, created = UserStateSnapshot.objects.update_or_create(
-            user=self.user,
-            snapshot_date=today,
-            defaults={
-                'journal_count_total': state_data.get('journal_total', 0),
-                'journal_count_week': state_data.get('journal_week', 0),
-                'journal_streak': state_data.get('journal_streak', 0),
-                'dominant_mood': state_data.get('dominant_mood', ''),
-                'tasks_completed_today': state_data.get('tasks_completed_today', 0),
-                'tasks_completed_week': state_data.get('tasks_completed_week', 0),
-                'tasks_overdue': state_data.get('tasks_overdue', 0),
-                'tasks_due_today': state_data.get('tasks_due_today', 0),
-                'active_goals': state_data.get('active_goals', 0),
-                'completed_goals_month': state_data.get('completed_goals_month', 0),
-                'active_prayers': state_data.get('active_prayers', 0),
-                'answered_prayers_month': state_data.get('answered_prayers_month', 0),
-                'weight_current': state_data.get('weight_current'),
-                'weight_trend': state_data.get('weight_trend', ''),
-                'fasts_completed_week': state_data.get('fasts_week', 0),
-                'workouts_week': state_data.get('workouts_week', 0),
-                'workout_streak': state_data.get('workout_streak', 0),
-                'medicine_adherence': state_data.get('medicine_adherence'),
-                'active_intentions': state_data.get('active_intentions', 0),
-                # Habit goal tracking
-                'active_habit_goals': state_data.get('active_habit_goals', 0),
-                'habit_completion_rate': state_data.get('habit_completion_rate'),
-                'habit_current_streak': state_data.get('habit_current_streak', 0),
-                'habit_goals_data': state_data.get('habit_goals_data', []),
-                # AI assessment
-                'ai_assessment': ai_assessment,
-                'alignment_gaps': alignment_gaps_with_style,
-                'celebration_worthy': celebration_worthy,
-            }
-        )
+            # Update USS (AI assessment cache only — metrics are in SAE now)
+            snapshot, _ = UserStateSnapshot.objects.update_or_create(
+                user=self.user,
+                snapshot_date=today,
+                defaults={
+                    'journal_count_total': state_data.get('journal_total', 0),
+                    'journal_count_week': state_data.get('journal_week', 0),
+                    'journal_streak': state_data.get('journal_streak', 0),
+                    'dominant_mood': state_data.get('dominant_mood', ''),
+                    'tasks_completed_today': state_data.get('tasks_completed_today', 0),
+                    'tasks_completed_week': state_data.get('tasks_completed_week', 0),
+                    'tasks_overdue': state_data.get('tasks_overdue', 0),
+                    'tasks_due_today': state_data.get('tasks_due_today', 0),
+                    'active_goals': state_data.get('active_goals', 0),
+                    'completed_goals_month': state_data.get('completed_goals_month', 0),
+                    'active_prayers': state_data.get('active_prayers', 0),
+                    'answered_prayers_month': state_data.get('answered_prayers_month', 0),
+                    'weight_current': state_data.get('weight_current'),
+                    'weight_trend': state_data.get('weight_trend', ''),
+                    'fasts_completed_week': state_data.get('fasts_week', 0),
+                    'workouts_week': state_data.get('workouts_week', 0),
+                    'workout_streak': state_data.get('workout_streak', 0),
+                    'medicine_adherence': state_data.get('medicine_adherence'),
+                    'active_intentions': state_data.get('active_intentions', 0),
+                    'active_habit_goals': state_data.get('active_habit_goals', 0),
+                    'habit_completion_rate': state_data.get('habit_completion_rate'),
+                    'habit_current_streak': state_data.get('habit_current_streak', 0),
+                    'habit_goals_data': state_data.get('habit_goals_data', []),
+                    'ai_assessment': ai_assessment,
+                    'alignment_gaps': alignment_gaps_with_style,
+                    'celebration_worthy': celebration_worthy,
+                }
+            )
 
-        result = self._snapshot_to_dict(snapshot)
-        result['faith'].update(self._get_fresh_today_faith(today))
-        result['health']['workout_today'] = self._get_workout_today(today)
-        _tasks = result.get('tasks', {})
+        # ── Step 4: Build final result ──
+        if sae_result:
+            # SAE metrics + USS AI assessment
+            if snapshot:
+                sae_result['ai_assessment'] = snapshot.ai_assessment
+                sae_result['alignment_gaps'] = snapshot.alignment_gaps
+                sae_result['celebration_worthy'] = snapshot.celebration_worthy
+            result = sae_result
+        else:
+            # Full USS fallback (no SAE data)
+            result = self._snapshot_to_dict(snapshot) if snapshot else {}
+            if result:
+                if self.prefs.life_enabled:
+                    fresh_task_data = self._get_task_state(today, today - timedelta(days=7))
+                    result['tasks'] = {
+                        'completed_today': fresh_task_data.get('tasks_completed_today', 0),
+                        'completed_week': fresh_task_data.get('tasks_completed_week', 0),
+                        'overdue': fresh_task_data.get('tasks_overdue', 0),
+                        'due_today': fresh_task_data.get('tasks_due_today', 0),
+                    }
+                result['faith'].update(self._get_fresh_today_faith(today))
+                result['health']['workout_today'] = self._get_workout_today(today)
+
+        _tasks = result.get('tasks', {}) if result else {}
+        _source = 'sae' if sae_result else 'uss'
         logger.info(
-            "ASSESS_STATE user=%s cached=%s due_today=%s overdue=%s (%.0fms)",
-            self.user.id, bool(snapshot and not force_refresh),
+            "ASSESS_STATE user=%s source=%s ai_regen=%s due_today=%s overdue=%s (%.0fms)",
+            self.user.id, _source, need_ai_regen,
             _tasks.get('due_today', '?'), _tasks.get('overdue', '?'),
             (_t.monotonic() - _acs_start) * 1000,
         )
-        return result
+        return result or {}
 
     def _get_fresh_today_faith(self, today) -> Dict:
         """Get today-specific faith data (reading plan + task engagement)."""
@@ -1414,6 +1409,101 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'alignment_gaps': snapshot.alignment_gaps,
             'celebration_worthy': snapshot.celebration_worthy,
         }
+
+    def _build_state_from_sae(self) -> Optional[Dict]:
+        """Read live state from SAE UserState and map to Beth's dict format.
+
+        Returns the same dict structure as _snapshot_to_dict() but sourced
+        from SAE (always fresh, updated by signals). Returns None if SAE
+        has no data for this user.
+
+        This is the CANONICAL state read path. _snapshot_to_dict() is only
+        used as a fallback when SAE data is unavailable.
+        """
+        try:
+            from apps.core.ai_state.models import UserState
+            sae = UserState.objects.filter(user=self.user).first()
+            if not sae or not sae.state_data:
+                return None
+
+            sd = sae.state_data
+            tasks = sd.get('tasks', {})
+            health = sd.get('health', {})
+            fitness = sd.get('fitness', {})
+            fasting = sd.get('fasting', {})
+            medicine = sd.get('medicine', {})
+            journal = sd.get('journal', {})
+            goals = sd.get('goals', {})
+            faith = sd.get('faith', {})
+            habits = sd.get('habits', {})
+
+            # Extract dominant mood from mood_distribution
+            mood_dist = journal.get('mood_distribution', {})
+            dominant_mood = ''
+            if mood_dist:
+                dominant_mood = max(mood_dist, key=mood_dist.get, default='')
+
+            # Map SAE → Beth dict format
+            from apps.core.utils import get_user_today
+            today = get_user_today(self.user)
+
+            return {
+                'date': today,
+                'journal': {
+                    'total': journal.get('entries_30d', 0),  # Approximate
+                    'week': round(journal.get('entry_frequency', 0)),
+                    'streak': 0,  # SAE doesn't track streaks; overlaid later if needed
+                    'dominant_mood': dominant_mood,
+                },
+                'tasks': {
+                    'completed_today': tasks.get('completed_today', 0),
+                    'completed_week': 0,  # Not in SAE; acceptable approximation
+                    'overdue': tasks.get('overdue_count', 0),
+                    'due_today': tasks.get('tasks_now', 0),
+                },
+                'goals': {
+                    'active': goals.get('active_goal_count', 0),
+                    'completed_month': 0,  # Not in SAE; minor field
+                },
+                'faith': {
+                    'active_prayers': faith.get('unanswered_prayers', 0),
+                    'answered_month': 0,  # Not in SAE; minor field
+                },
+                'health': {
+                    'weight_current': health.get('weight_current'),
+                    'weight_trend': health.get('weight_trend', ''),
+                    'fasts_week': fasting.get('fasts_7d', 0),
+                    'workouts_week': fitness.get('workouts_7d', 0),
+                    'workout_streak': 0,  # Not in SAE
+                    'medicine_adherence': (
+                        round(medicine.get('adherence_7d', 0) * 100)
+                        if medicine.get('adherence_7d') is not None else None
+                    ),
+                },
+                'intentions': {
+                    'active': 0,
+                    'alignment_score': 0,
+                },
+                'habits': {
+                    'active': habits.get('active_habit_count', 0),
+                    'completion_rate': (
+                        round(habits.get('avg_completion_rate', 0) * 100, 1)
+                        if habits.get('avg_completion_rate') is not None else None
+                    ),
+                    'streak': habits.get('longest_streak', 0),
+                },
+                # AI assessment fields — NOT in SAE, must be merged from USS
+                'ai_assessment': '',
+                'alignment_gaps': [],
+                'celebration_worthy': [],
+                '_source': 'sae',
+            }
+        except Exception as _sae_err:
+            logger.warning(
+                "SAE_STATE_READ user=%s — failed, will fall back to USS: %s",
+                self.user.id, _sae_err, exc_info=True,
+            )
+            return None
 
     # =========================================================================
     # DAILY PRIORITIES

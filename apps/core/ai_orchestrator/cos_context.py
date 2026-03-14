@@ -3139,6 +3139,58 @@ def format_cos_system_injection(context, user_message=None):
             if narrative:
                 lines.append(f"  - {strength_tag}{narrative}")
 
+    # Architecture Evolution Phase 6: Commitment Gap Analysis
+    # Shows missed commitments and any compensatory activity for the day.
+    commitment_gap = context.get('daily_commitment_gap', {})
+    if commitment_gap and commitment_gap.get('total_missed', 0) > 0:
+        lines.append("")
+        lines.append("COMMITMENT GAP ANALYSIS (today):")
+        lines.append(
+            f"  Missed commitments: {commitment_gap['total_missed']} "
+            f"({commitment_gap.get('non_compensable_count', 0)} non-compensable, "
+            f"{commitment_gap.get('compensable_count', 0)} compensable)"
+        )
+        if commitment_gap.get('positive_partial_count', 0) > 0:
+            lines.append(
+                f"  Partial offsets detected: {commitment_gap['positive_partial_count']}"
+            )
+        gaps = commitment_gap.get('gaps', [])
+        for gap in gaps[:5]:
+            title = gap.get('commitment', {}).get('title', 'Unknown')
+            if not gap.get('is_compensable'):
+                lines.append(f"  - MISSED (non-compensable): {title}")
+            elif gap.get('compensating_signals'):
+                offset = int(gap.get('offset_pct', 0) * 100)
+                lines.append(
+                    f"  - MISSED (partially offset ~{offset}%): {title}"
+                )
+            else:
+                lines.append(f"  - MISSED: {title}")
+        # Include framing text for Beth to reference
+        framing_gaps = [g for g in gaps if g.get('framing')]
+        if framing_gaps:
+            lines.append("")
+            lines.append(
+                "COMPENSATORY REASONING RULES:\n"
+                "1. NEVER suggest that compensatory activity makes missing the "
+                "original commitment 'okay.'\n"
+                "2. Frame as: 'While you missed X, you still showed progress "
+                "through Y.'\n"
+                "3. NEVER apply compensatory reasoning to medication or "
+                "non-negotiable commitments.\n"
+                "4. Maximum language: 'partially offset' — never 'fully replaced' "
+                "or 'made up for.'\n"
+                "5. Always end compensatory observations with forward guidance: "
+                "'Tomorrow, let's aim for X.'\n"
+                "6. If compensating signal is inferred (from journal), "
+                "double-hedge: 'Based on your journal, it seems like...'\n"
+                "7. NEVER cite a derived pattern as compensatory evidence."
+            )
+            lines.append("")
+            lines.append("Pre-framed compensatory observations:")
+            for g in framing_gaps[:3]:
+                lines.append(f"  • {g['framing']}")
+
     # Relationship signals (people to reconnect with)
     rel_signals = context.get('relationship_signals', [])
     drifting = [r for r in rel_signals if r.get('drifting')]

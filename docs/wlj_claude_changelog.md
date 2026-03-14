@@ -70,8 +70,12 @@ journal text to feed compensatory reasoning and Beth's holistic coaching.
    `_build_compensatory_context` builder tagged as 'compensatory', injects daily_commitment_gap
    section into Beth's operational context.
 
+4. **CoS prompt formatting** (`apps/core/ai_orchestrator/cos_context.py`) — Added commitment gap
+   rendering in `format_cos_system_injection`: missed commitment list, partial offset percentages,
+   compensatory reasoning rules block, and pre-framed observations for Beth to reference.
+
 **Files created:** apps/core/ai_insights/compensatory.py, apps/core/ai_insights/rules_compensatory.py
-**Files modified:** apps/core/ai_orchestrator/cos_context.py
+**Files modified:** apps/core/ai_orchestrator/cos_context.py, apps/core/cos/prompt_builder.py
 
 **Why:** Phase 6 of the WLJ Architecture Evolution — enabling Beth to compare planned vs actual
 and produce safe, hedged compensatory analysis using verified signals only.

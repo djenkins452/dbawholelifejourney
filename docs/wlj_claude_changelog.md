@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Add Hip Hinge + Band Pull-Apart to warmup sequence
+
+**Change:** Data migration (`0062`) adds Hip Hinge (1x15 reps) and Band Pull-Apart (1x20 reps) to all 6
+templates after Baseball Bat Swing. Full warmup: Bat Swings → Hip Hinges → Band Pull-Aparts → main workout.
+
+**Files:** `apps/health/migrations/0062_add_warmup_hip_hinges_band_pull_aparts.py` (new)
+
+---
+
 ## 2026-03-14 — Add Baseball Bat Swing warmup to all 6-day program templates
 
 **Change:** Data migration (`0061`) adds Baseball Bat Swing as the first exercise (warmup) in all 6

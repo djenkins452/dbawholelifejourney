@@ -6,6 +6,30 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Phase 2: Consolidate SAE refresh signals into single canonical location
+
+**Problem:** SAE `update_user_state()` was called from BOTH `dashboard/signals.py` and `ai/signals.py`,
+causing duplicate SAE module refreshes on MedicineLog saves (medicine x2) and WorkoutSession saves
+(fitness x2). Additionally, SAE refresh ownership was split across two files with no clear canonical
+location — developers couldn't know which file to check.
+
+**Fix:** Consolidated ALL SAE refresh signal handlers into `ai/signals.py` as the single canonical
+location. Removed all 11 `_refresh_sae()` calls from `dashboard/signals.py` (it now only handles v1
+dashboard cache invalidation). Added 9 new SAE-only signal handlers to `ai/signals.py` for models that
+previously only had SAE refresh in dashboard signals (HeartRateEntry, Medicine, MedicineSchedule,
+PersonalRecord, HealthProfile, FastingWindow, LifeEvent, Project, GoalMilestone). Fixed silent exception
+handlers in `_refresh_sae_module()` and `invalidate_state_snapshot()`. `dashboard_v2/signals.py` left
+unchanged (clean, separate concern).
+
+**Result:** SAE refreshes happen exactly ONCE per model save (was 2x for MedicineLog, WorkoutSession).
+Clear ownership: ai/signals.py = SAE + AI insights, dashboard/signals.py = v1 cache, dashboard_v2 = v2 cache.
+
+**Verification:** 175 dashboard+PA tests pass, 191 health+medicine+fitness tests pass, Django system check clean.
+
+**Files:** `apps/ai/signals.py`, `apps/dashboard/signals.py`, `docs/wlj_claude_changelog.md`
+
+---
+
 ## 2026-03-14 — Phase 1: Observability stabilization — add structured logging, fix silent exception handlers
 
 **Problem:** 15+ critical-path exception handlers in `personal_assistant.py` silently swallowed errors

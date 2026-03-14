@@ -49,12 +49,20 @@ def invalidate_state_snapshot(user):
         if deleted:
             logger.debug(f"Invalidated state snapshot for user {user.id}")
     except Exception:
-        pass  # Don't let snapshot invalidation break data saves
+        logger.warning(
+            "STATE_SNAPSHOT_INVALIDATE user=%s — failed",
+            user.id, exc_info=True,
+        )
 
 
 def _refresh_sae_module(user, module):
     """
     Refresh a single SAE module so UserState stays fresh.
+
+    This file is the SINGLE CANONICAL location for all SAE refreshes
+    triggered by Django signals. dashboard/signals.py handles only v1
+    dashboard cache invalidation; dashboard_v2/signals.py handles only
+    v2 cache invalidation. Neither file calls update_user_state().
 
     Called from post_save/post_delete signals to keep SAE in sync with
     data changes that happen outside Beth's action pipeline (web forms,
@@ -70,7 +78,10 @@ def _refresh_sae_module(user, module):
         update_user_state(user, module)
     except Exception:
         # SAE refresh must never break data saves
-        logger.debug("SAE refresh failed for module '%s', user %s", module, user.id, exc_info=True)
+        logger.warning(
+            "SAE_REFRESH user=%s module=%s — failed",
+            user.id, module, exc_info=True,
+        )
 
 
 def invalidate_user_insights(user, insight_types=None):
@@ -487,3 +498,73 @@ def invalidate_cache_on_steps_delete(sender, instance, **kwargs):
     invalidate_user_insights(instance.user, insight_types)
     invalidate_state_snapshot(instance.user)
     _refresh_sae_module(instance.user, 'health')
+
+
+# =============================================================================
+# SAE-ONLY SIGNALS — Models that need SAE refresh but have no AI insight
+# invalidation. Previously these SAE calls lived in dashboard/signals.py;
+# consolidated here so all SAE refreshes have one canonical location.
+# =============================================================================
+
+@receiver(post_save, sender='health.HeartRateEntry')
+@receiver(post_delete, sender='health.HeartRateEntry')
+def refresh_sae_on_heart_rate_change(sender, instance, **kwargs):
+    """Refresh SAE health state when heart rate data changes."""
+    _refresh_sae_module(instance.user, 'health')
+
+
+@receiver(post_save, sender='health.Medicine')
+@receiver(post_delete, sender='health.Medicine')
+def refresh_sae_on_medicine_change(sender, instance, **kwargs):
+    """Refresh SAE health + medicine state when medicine model changes."""
+    _refresh_sae_module(instance.user, 'health')
+    _refresh_sae_module(instance.user, 'medicine')
+
+
+@receiver(post_save, sender='health.MedicineSchedule')
+@receiver(post_delete, sender='health.MedicineSchedule')
+def refresh_sae_on_medicine_schedule_change(sender, instance, **kwargs):
+    """Refresh SAE health + medicine state when schedule changes."""
+    _refresh_sae_module(instance.medicine.user, 'health')
+    _refresh_sae_module(instance.medicine.user, 'medicine')
+
+
+@receiver(post_save, sender='health.PersonalRecord')
+@receiver(post_delete, sender='health.PersonalRecord')
+def refresh_sae_on_pr_change(sender, instance, **kwargs):
+    """Refresh SAE fitness state when personal record changes."""
+    _refresh_sae_module(instance.user, 'fitness')
+
+
+@receiver(post_save, sender='health.HealthProfile')
+def refresh_sae_on_health_profile_change(sender, instance, **kwargs):
+    """Refresh SAE health state when health profile changes."""
+    _refresh_sae_module(instance.user, 'health')
+
+
+@receiver(post_save, sender='health.FastingWindow')
+@receiver(post_delete, sender='health.FastingWindow')
+def refresh_sae_on_fasting_change(sender, instance, **kwargs):
+    """Refresh SAE fasting state when fasting window changes."""
+    _refresh_sae_module(instance.user, 'fasting')
+
+
+@receiver(post_save, sender='life.LifeEvent')
+@receiver(post_delete, sender='life.LifeEvent')
+def refresh_sae_on_life_event_change(sender, instance, **kwargs):
+    """Refresh SAE life_events state when life event changes."""
+    _refresh_sae_module(instance.user, 'life_events')
+
+
+@receiver(post_save, sender='life.Project')
+@receiver(post_delete, sender='life.Project')
+def refresh_sae_on_project_change(sender, instance, **kwargs):
+    """Refresh SAE tasks state when project changes."""
+    _refresh_sae_module(instance.user, 'tasks')
+
+
+@receiver(post_save, sender='purpose.GoalMilestone')
+@receiver(post_delete, sender='purpose.GoalMilestone')
+def refresh_sae_on_milestone_change(sender, instance, **kwargs):
+    """Refresh SAE goals state when goal milestone changes."""
+    _refresh_sae_module(instance.goal.user, 'goals')

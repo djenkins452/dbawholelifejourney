@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Architecture Evolution Phase 8: Beth Reasoning Upgrade
+
+**Changes:** Upgraded Beth's system prompt with signal-class-aware framing rules and added
+signal-aware CoS context builder.
+
+1. **Signal Trust Rules** (`apps/core/cos/prompt_builder.py`) — Added SIGNAL_TRUST_AND_REASONING_RULES
+   constant with framing rules for verified_action (state as fact), verified_measurement (fact with
+   source), inferred_behavior (always hedge), derived_pattern (frame as observation).
+2. **Compensatory Reasoning Rules** — Language rules for commitment gap framing: "partially offset"
+   never "fully replaced", forward guidance required, medication never compensable, double-hedge
+   for inferred signals.
+3. **Holistic Coaching Rules** — Cross-domain progress acknowledgment, momentum trend references,
+   specific signal identification for declining/improving momentum.
+4. **Signal-aware CoS context** (`apps/core/ai_orchestrator/cos_context.py`) — Added
+   `_build_signal_aware_context` builder with daily_signals (score, signal_class, 7-day trend)
+   and goal_momentum (momentum_score, trend, signal breakdown).
+5. **Signal trend computation** — `_compute_signal_trend` computes improving/declining/stable
+   over 7-day window using half-window comparison.
+
+**Files modified:** apps/core/cos/prompt_builder.py, apps/core/ai_orchestrator/cos_context.py
+
+**Why:** Phase 8 of the WLJ Architecture Evolution — completing the five-layer architecture by
+upgrading Beth to reason holistically over signals, compensatory analysis, and goal momentum.
+
+---
+
 ## 2026-03-14 — Architecture Evolution Phase 7: Journal NLP Integration
 
 **Changes:** Implemented NLP-based behavioral signal extraction from journal entries.

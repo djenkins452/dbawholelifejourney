@@ -1327,6 +1327,8 @@ _TAGGED_BUILDERS = [
     ('operating_profile', lambda user, prefs: _build_operating_profile(user)),
     # Architecture Evolution Phase 6: Compensatory reasoning
     ('compensatory', lambda user, prefs: _build_compensatory_context(user)),
+    # Architecture Evolution Phase 8: Signal-aware daily context
+    ('signals', lambda user, prefs: _build_signal_aware_context(user)),
 ]
 
 # Backward-compatible flat list (used by telemetry and tests)
@@ -1415,6 +1417,126 @@ def _build_compensatory_context(user):
     except Exception as e:
         logger.debug("CoS context: compensatory reasoning unavailable: %s", e)
         return {}
+
+
+def _build_signal_aware_context(user):
+    """
+    Architecture Evolution Phase 8: Build signal-aware daily context for Beth.
+
+    Assembles today's signal snapshots with trust classification and 7-day
+    trends, plus goal momentum data with signal breakdowns.
+
+    Returns dict with 'daily_signals' and 'goal_momentum' keys.
+    """
+    try:
+        from apps.core.utils import get_user_today
+        from apps.core.ai_eae.models import SignalSnapshot
+        import datetime as dt
+
+        today = get_user_today(user)
+
+        # Today's signals with trust classification
+        snapshots = SignalSnapshot.objects.filter(user=user, date=today)
+        if not snapshots.exists():
+            return {}
+
+        daily_signals = []
+        for s in snapshots:
+            # Compute 7-day trend
+            trend = _compute_signal_trend(user, s.signal_type, today, days=7)
+            daily_signals.append({
+                'signal_type': s.signal_type,
+                'domain': s.domain,
+                'score': round(s.score, 2),
+                'signal_class': s.signal_class,
+                'confidence': round(s.confidence, 2),
+                'trend_7d': trend,
+            })
+
+        # Goal momentum data (if available)
+        goal_momentum = []
+        try:
+            from apps.dashboard_v2.models import GoalMomentumSnapshot
+            from apps.purpose.models import LifeGoal
+
+            active_goals = LifeGoal.objects.filter(
+                user=user, status='active',
+            )[:10]  # Cap at 10 goals
+
+            for goal in active_goals:
+                latest = GoalMomentumSnapshot.objects.filter(
+                    goal=goal,
+                ).order_by('-date').first()
+
+                if latest:
+                    # Get previous for trend
+                    prev = GoalMomentumSnapshot.objects.filter(
+                        goal=goal,
+                        date__lt=latest.date,
+                    ).order_by('-date').first()
+
+                    trend = 'stable'
+                    if prev:
+                        diff = latest.momentum_score - prev.momentum_score
+                        if diff > 0.05:
+                            trend = 'improving'
+                        elif diff < -0.05:
+                            trend = 'declining'
+
+                    goal_momentum.append({
+                        'goal_title': goal.title[:50],
+                        'domain': getattr(goal.domain, 'slug', 'life') if goal.domain else 'life',
+                        'momentum_score': round(latest.momentum_score, 2),
+                        'momentum_trend': trend,
+                        'signal_scores': latest.signal_scores or {},
+                    })
+        except Exception as e:
+            logger.debug("Goal momentum data unavailable: %s", e)
+
+        result = {'daily_signals': daily_signals}
+        if goal_momentum:
+            result['goal_momentum'] = goal_momentum
+
+        return result
+
+    except Exception as e:
+        logger.debug("CoS context: signal-aware context unavailable: %s", e)
+        return {}
+
+
+def _compute_signal_trend(user, signal_type, today, days=7):
+    """
+    Compute simple trend direction for a signal type over N days.
+
+    Returns 'improving', 'declining', or 'stable'.
+    """
+    import datetime as dt
+    from apps.core.ai_eae.models import SignalSnapshot
+
+    window_start = today - dt.timedelta(days=days)
+    snapshots = list(
+        SignalSnapshot.objects.filter(
+            user=user,
+            signal_type=signal_type,
+            date__gte=window_start,
+            date__lte=today,
+        ).order_by('date').values_list('score', flat=True)
+    )
+
+    if len(snapshots) < 2:
+        return 'stable'
+
+    # Compare first half avg to second half avg
+    mid = len(snapshots) // 2
+    first_half = sum(snapshots[:mid]) / mid
+    second_half = sum(snapshots[mid:]) / len(snapshots[mid:])
+
+    diff = second_half - first_half
+    if diff > 0.1:
+        return 'improving'
+    elif diff < -0.1:
+        return 'declining'
+    return 'stable'
 
 
 def _build_situational_awareness_context(user):

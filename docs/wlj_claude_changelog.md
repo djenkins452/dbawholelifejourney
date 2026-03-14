@@ -6,6 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Import 6-Day Strength Training Program
+
+**Change:** Created data migration (`0059_load_6day_strength_program`) to import a new 6-day strength
+training program into the WLJ workout system.
+
+**What it creates:**
+- 23 exercises (get_or_create — won't duplicate existing ones)
+- 6 WorkoutTemplates: Mon (Lower Strength), Tue (Chest+Triceps), Wed (Back+Biceps),
+  Thu (Lower Stability), Fri (Shoulders+Chest), Sat (Back+Arms)
+- TemplateExercise entries with correct ordering and default_sets
+- TemplateExerciseSet entries with starting weights (where specified) and rep targets
+- 1 WorkoutPlan ("6-Day Strength Program") with WorkoutSchedule mapping each day
+- Sunday is rest (no schedule entry)
+
+**Files changed:**
+- `apps/health/migrations/0059_load_6day_strength_program.py` (new)
+
+**Why:** Danny's new structured workout program needed to be imported into WLJ using the existing
+WorkoutTemplate → WorkoutPlan → WorkoutSchedule architecture. Uses a data migration so it auto-runs
+on production deploy via the Procfile migrate step.
+
+---
+
 ## 2026-03-14 — Phase 4: Create canonical Faith and Journal metrics services
 
 **Problem:** Faith and journal metrics were computed independently in 8+ locations across the codebase

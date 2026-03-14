@@ -6,6 +6,36 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Phase 6: PersonalAssistant decomposition via mixins
+
+**Problem:** `apps/ai/personal_assistant.py` was 8,021 lines — a monolithic file containing state
+assessment, priority generation, reflection prompts, greeting/opening messages, conversation handling,
+and response generation all in one class. This made the file hard to navigate and created unnecessary
+coupling between unrelated concerns.
+
+**Fix:** Extracted three cohesive method groups into mixin classes:
+- `apps/ai/state_assessment.py` — `StateAssessmentMixin` (880 lines): `assess_current_state()`,
+  `_build_state_from_sae()`, `_gather_comprehensive_state()`, all `_get_*_state()` domain gatherers,
+  streak calculations, `_generate_ai_assessment()`, `_snapshot_to_dict()`
+- `apps/ai/priority_generator.py` — `PriorityGeneratorMixin` (520 lines): `generate_daily_priorities()`,
+  all `_generate_*_priority()` methods, `generate_reflection_prompt()`, all `_*_prompts()` methods
+- `apps/ai/greeting_service.py` — `GreetingMixin` (160 lines): `get_opening_message()`,
+  `_get_greeting()`, `_should_offer_reflection()`, `_build_nudges()`
+
+`PersonalAssistant` now inherits from all three mixins via Python MRO. No method signatures changed,
+no callers updated, no behavior altered. The main file dropped from 8,021 to 6,458 lines (1,563 lines
+extracted, ~19.5% reduction).
+
+**Files changed:**
+- `apps/ai/state_assessment.py` (new)
+- `apps/ai/priority_generator.py` (new)
+- `apps/ai/greeting_service.py` (new)
+- `apps/ai/personal_assistant.py` (modified — mixin inheritance, methods removed)
+
+**Tests:** 93 passed (61 PA + 32 proactive), 0 failures
+
+---
+
 ## 2026-03-14 — Add Baseball Bat Swing warmup to all 6-day program templates
 
 **Change:** Data migration (`0061`) adds Baseball Bat Swing as the first exercise (warmup) in all 6

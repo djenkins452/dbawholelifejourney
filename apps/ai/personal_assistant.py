@@ -579,6 +579,8 @@ class PersonalAssistant:
         frequently throughout the day. AI assessment is cached to avoid
         excessive API calls.
         """
+        import time as _t
+        _acs_start = _t.monotonic()
         from apps.core.utils import get_user_today, get_user_now
 
         today = get_user_today(self.user)
@@ -720,6 +722,13 @@ class PersonalAssistant:
         result = self._snapshot_to_dict(snapshot)
         result['faith'].update(self._get_fresh_today_faith(today))
         result['health']['workout_today'] = self._get_workout_today(today)
+        _tasks = result.get('tasks', {})
+        logger.info(
+            "ASSESS_STATE user=%s cached=%s due_today=%s overdue=%s (%.0fms)",
+            self.user.id, bool(snapshot and not force_refresh),
+            _tasks.get('due_today', '?'), _tasks.get('overdue', '?'),
+            (_t.monotonic() - _acs_start) * 1000,
+        )
         return result
 
     def _get_fresh_today_faith(self, today) -> Dict:
@@ -828,6 +837,8 @@ class PersonalAssistant:
 
         Uses the same queryset pattern as the Organize page so counts match.
         """
+        import time as _t
+        _ts = _t.monotonic()
         from apps.life.models import Task
         from apps.life.views import _refresh_stale_task_priorities
 
@@ -836,7 +847,7 @@ class PersonalAssistant:
         tasks = Task.objects.filter(user=self.user)
         incomplete = tasks.filter(completion_status='pending')
 
-        return {
+        result = {
             'tasks_total': tasks.count(),
             'tasks_completed_today': tasks.filter(
                 completion_status='completed',
@@ -853,6 +864,12 @@ class PersonalAssistant:
             'tasks_overdue': incomplete.filter(priority='now', due_date__lt=today).count(),
             'tasks_due_week': incomplete.filter(priority__in=['now', 'soon']).count(),
         }
+        logger.info(
+            "TASK_STATE user=%s due_today=%s overdue=%s completed_today=%s (%.0fms)",
+            self.user.id, result['due_today'], result['overdue'],
+            result['tasks_completed_today'], (_t.monotonic() - _ts) * 1000,
+        )
+        return result
 
     def _get_purpose_state(self, today, month_ago) -> Dict:
         """Get purpose/goals-related metrics including habit goals."""
@@ -1187,8 +1204,13 @@ class PersonalAssistant:
             ).count()
             if hr_events_week > 0:
                 data['heart_rate_events_7d'] = hr_events_week
-        except Exception:
-            pass
+        except ImportError:
+            pass  # HeartRateEventEntry model may not exist yet
+        except Exception as _hr_err:
+            logger.warning(
+                "STATE_HEART_RATE user=%s — heart rate event query failed: %s",
+                self.user.id, _hr_err, exc_info=True,
+            )
 
         return data
 
@@ -2277,7 +2299,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         _rc_get_layered(self.user)
                         or _rc_get(self.user)
                     )
-                except Exception:
+                except Exception as _ecc_cache_err:
+                    logger.warning(
+                        "ECC_CACHE_LOOKUP user=%s — readiness cache failed: %s",
+                        self.user.id, _ecc_cache_err, exc_info=True,
+                    )
                     _rc_cached = None
                 logger.warning("COS CACHE lookup took %.1f ms", (_t.monotonic() - _t_cache_start) * 1000)
                 _t_ctx_start = _t.monotonic()
@@ -4013,14 +4039,18 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                 _rc_get_layered(self.user)
                                 or _rc_get_ctx(self.user)
                             )
-                        except Exception:
+                        except Exception as _rc_err:
+                            logger.warning(
+                                "COS_CACHE_LOOKUP user=%s — readiness cache failed: %s",
+                                self.user.id, _rc_err, exc_info=True,
+                            )
                             _rc_ctx = None
                         if _rc_ctx:
                             cos_context = _rc_ctx
                             try:
                                 log_fast_path(self.user.id)
                             except Exception:
-                                pass
+                                pass  # Telemetry — non-critical
                         else:
                             # Domain scoping: if the router identified a
                             # domain, only build relevant context sections.
@@ -4031,15 +4061,18 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                         get_scoped_builders as _get_scoped,
                                     )
                                     _scoped = _get_scoped(route_result.domain)
-                                except Exception:
-                                    pass
+                                except Exception as _scope_err:
+                                    logger.warning(
+                                        "COS_DOMAIN_SCOPE user=%s — scoped builder failed: %s",
+                                        self.user.id, _scope_err, exc_info=True,
+                                    )
                             cos_context = build_cos_context(
                                 self.user, scoped_builders=_scoped,
                             )
                             try:
                                 log_full_path(self.user.id)
                             except Exception:
-                                pass
+                                pass  # Telemetry — non-critical
                         # Phase 3 Tiered Activation: compute activation
                         # state from trajectory signals + user input.
                         traj_signals = cos_context.get(
@@ -4199,8 +4232,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             "naturally mention the check-in when appropriate."
                         )
                         append_layers.append("\n".join(ref_lines))
+                except ImportError:
+                    pass  # Reflection engine not installed
                 except Exception as ref_err:
-                    logger.debug("Reflection context injection skipped: %s", ref_err)
+                    logger.warning(
+                        "REFLECTION_CONTEXT user=%s — injection failed: %s",
+                        self.user.id, ref_err, exc_info=True,
+                    )
 
                 # ----------------------------------------------------------
                 # Assemble final prompt: priority layers → base → appended
@@ -4322,8 +4360,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             prompt_injection = CosPromptService.get_pending_prompt_injection(self.user)
             if prompt_injection:
                 system_prompt += "\n\n" + prompt_injection
-        except Exception:
-            pass
+        except ImportError:
+            pass  # CosPromptService not installed — optional module
+        except Exception as _cos_prompt_err:
+            logger.warning(
+                "COS_PROMPT_INJECTION user=%s — failed: %s",
+                self.user.id, _cos_prompt_err, exc_info=True,
+            )
 
         # Executive Arbitration Engine (EAE) — Phase 8
         # When enabled, EAE is the FINAL authority on what intelligence is
@@ -4341,8 +4384,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 if eae_result.prompt_injection:
                     system_prompt += "\n\n" + eae_result.prompt_injection
                     _eae_active = True
-        except Exception:
-            pass  # EAE must never break chat
+        except ImportError:
+            pass  # EAE not installed — feature-flagged
+        except Exception as _eae_err:
+            logger.warning(
+                "EAE_ARBITRATION user=%s — failed: %s",
+                self.user.id, _eae_err, exc_info=True,
+            )  # EAE must never break chat
 
         # Universal Arbitration Layer (UAL)
         # Sits between signal generation and user-facing intervention.
@@ -4532,12 +4580,18 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 day_overview = ''
                 try:
                     health_gate = _build_health_gate_section(self.user, today)
-                except Exception:
-                    pass
+                except Exception as _hg_err:
+                    logger.warning(
+                        "CHECKIN_HEALTH_GATE user=%s — health gate build failed: %s",
+                        self.user.id, _hg_err, exc_info=True,
+                    )
                 try:
                     day_overview = _build_day_overview_section(self.user, user_now, today)
-                except Exception:
-                    pass
+                except Exception as _do_err:
+                    logger.warning(
+                        "CHECKIN_DAY_OVERVIEW user=%s — day overview build failed: %s",
+                        self.user.id, _do_err, exc_info=True,
+                    )
 
                 # ── Pull SPECIFIC ITEMS (not just counts) ──
                 # Pre-initialize lists used by priority synthesis and dedup
@@ -4669,7 +4723,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         goal_details = '\n'.join(f'  • {g}' for g in active_goals)
                     else:
                         goal_details = 'No active goals.'
-                except Exception:
+                except Exception as _goal_err:
+                    logger.warning(
+                        "CHECKIN_GOALS user=%s — goal query failed: %s",
+                        self.user.id, _goal_err, exc_info=True,
+                    )
                     goal_details = f"Active goals: {state.get('goals', {}).get('active', 0)}"
 
                 # Prayers: actual prayer request titles/summaries
@@ -4683,7 +4741,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         prayer_details = f"Active prayer requests ({len(active_prayers)}):\n" + '\n'.join(f'  • {p}' for p in active_prayers)
                     else:
                         prayer_details = 'No active prayer requests.'
-                except Exception:
+                except Exception as _prayer_err:
+                    logger.warning(
+                        "CHECKIN_PRAYERS user=%s — prayer query failed: %s",
+                        self.user.id, _prayer_err, exc_info=True,
+                    )
                     prayer_details = f"Active prayers: {faith.get('active_prayers', 0)}"
 
                 # Medications: actual med names and what's outstanding
@@ -4755,7 +4817,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                        'NEVER suggest taking medications marked as ALREADY TAKEN — double-dosing is dangerous.'
                     else:
                         med_details = 'No active medications.'
-                except Exception:
+                except Exception as _med_err:
+                    logger.warning(
+                        "CHECKIN_MEDICATIONS user=%s — medication query failed: %s",
+                        self.user.id, _med_err, exc_info=True,
+                    )
                     med_details = 'Medication data unavailable.'
 
                 # Calendar: actual event names with times
@@ -4790,7 +4856,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         calendar_details = '\n'.join(cal_lines)
                     else:
                         calendar_details = 'No events scheduled today.'
-                except Exception:
+                except Exception as _cal_err:
+                    logger.warning(
+                        "CHECKIN_CALENDAR user=%s — calendar query failed: %s",
+                        self.user.id, _cal_err, exc_info=True,
+                    )
                     calendar_details = day_overview or 'Calendar data unavailable.'
 
                 # ── Priority Synthesis ────────────────────────────────

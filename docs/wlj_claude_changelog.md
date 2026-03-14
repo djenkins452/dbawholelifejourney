@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Phase 1: Observability stabilization — add structured logging, fix silent exception handlers
+
+**Problem:** 15+ critical-path exception handlers in `personal_assistant.py` silently swallowed errors
+with `except Exception: pass`, making it impossible to diagnose why Beth delivered incomplete data.
+Key blind spots: health gate, day overview, medications (safety-critical), calendar, goals, prayers,
+CoS cache lookup, CosPromptService injection, EAE arbitration, heart rate events.
+
+**Fix:** Added `logger.warning()` with `exc_info=True` to all critical-path handlers. Separated
+`ImportError` (optional modules) from `Exception` (real failures). Added structured timing logs to
+`_get_task_state()` and `assess_current_state()` so state query performance is visible in production.
+Left telemetry-only handlers (`log_fast_path`, `log_full_path`, builder timings) unchanged — they're
+non-critical diagnostic paths.
+
+**Verification:** 61 PA tests pass, 10 intent registration gate tests pass, Django system check clean.
+
+**Files:** `apps/ai/personal_assistant.py`, `docs/wlj_claude_changelog.md`
+
+---
+
 ## 2026-03-14 — Fix remaining_tasks double-count bug + Full system audit
 
 **Bug fix:** `remaining_tasks` at line 4493 was `due_today + overdue`. Since `due_today` uses

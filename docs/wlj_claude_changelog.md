@@ -6,6 +6,23 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Fix VARCHAR(10) constraint on AdminIntervention.engine_name
+
+**Changes:** Widened `AdminIntervention.engine_name` from `max_length=10` to `max_length=50`.
+Added `trigger_signal_aggregation` and `trigger_goal_momentum` to `ACTION_TYPES` choices.
+
+**Root cause:** The trigger views wrote `"EAE_SIGNALS"` (11 chars) and `"GOAL_MOMENTUM"` (13 chars)
+to a VARCHAR(10) column, causing `DataError: value too long for type character varying(10)`.
+The Celery tasks dispatched successfully but the AdminIntervention audit record creation failed,
+returning a misleading "Failed to dispatch" error.
+
+**Files modified:**
+- apps/core/ai_observability/models.py (widened engine_name, added action_type choices)
+- apps/core/migrations/0114_widen_adminintervention_engine_name.py (new migration)
+- docs/wlj_claude_changelog.md
+
+---
+
 ## 2026-03-14 — Ops Command Center: Goal Momentum manual trigger + telemetry fix
 
 **Changes:** Added "Run Momentum" button to the Intelligence Pipeline tile in the Ops

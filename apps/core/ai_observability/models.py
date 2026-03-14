@@ -477,6 +477,8 @@ class AdminIntervention(models.Model):
         ("acknowledge_anomaly", "Acknowledge Anomaly"),
         ("auto_rerun_engine", "Auto Re-run Engine"),
         ("auto_clear_suppression", "Auto Clear Suppression Cache"),
+        ("trigger_signal_aggregation", "Trigger Signal Aggregation"),
+        ("trigger_goal_momentum", "Trigger Goal Momentum"),
         ("other", "Other"),
     ]
 
@@ -495,10 +497,10 @@ class AdminIntervention(models.Model):
     )
     action_type = models.CharField(max_length=30, choices=ACTION_TYPES)
     engine_name = models.CharField(
-        max_length=10,
+        max_length=50,
         blank=True,
         default="",
-        help_text="Target engine (if applicable).",
+        help_text="Target engine or pipeline subsystem (if applicable).",
     )
     trace_id = models.CharField(
         max_length=36,

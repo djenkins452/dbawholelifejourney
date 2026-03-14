@@ -6,6 +6,31 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Fix prompt starvation: Beth under-reports task count
+
+**Root Cause:** Beth reported 2 tasks when Organize page showed 10. The query was correct (no
+`is_routine` filter), but three prompt-layer issues caused the LLM to under-report:
+1. Task title examples capped at 3 per bucket — LLM couldn't name the other 7 tasks
+2. TOP PRIORITIES capped at 2, with "ONLY use items listed in TOP PRIORITIES" instruction
+   that the LLM over-applied to the full response
+3. TONE AND STYLE examples explicitly discouraged reporting exact counts ("WRONG: You have 3
+   overdue tasks and 5 due today")
+
+**Changes:**
+- Removed `[:3]` cap on task title examples in overdue, now, and soon buckets — LLM now
+  receives ALL task titles (up to the 15-task query cap)
+- Rewrote TONE AND STYLE: separated completed-item synthesis (still summarized) from
+  pending-item reporting (must report exact count and list each task by name)
+- Clarified TOP PRIORITIES restriction applies only to section 2 of the response, not the
+  full response
+- Clarified REMAINING ITEMS section must list ALL tasks from TASKS data, including routine
+- Added TASK COUNT ACCURACY instruction: counts in TASKS headers are authoritative
+
+**Files:** `apps/ai/personal_assistant.py`
+**Tests:** 89 tests pass (61 personal_assistant + 28 executive_briefing)
+
+---
+
 ## 2026-03-14 — Task query alignment stabilization across all Beth-facing code
 
 **Objective:** Align every Beth-facing task query with the canonical Organize page pattern so counts

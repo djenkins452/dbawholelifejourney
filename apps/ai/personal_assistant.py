@@ -4588,24 +4588,24 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
                     parts = []
                     if overdue_tasks:
-                        examples = [t["title"] for t in overdue_tasks[:3]]
+                        # List ALL overdue task titles — the LLM needs every
+                        # name to report accurate counts and specifics.
+                        examples = [t["title"] for t in overdue_tasks]
                         example_str = '\n'.join(f'  • {t}' for t in examples)
-                        if len(overdue_tasks) > 3:
-                            example_str += f'\n  (+{len(overdue_tasks) - 3} more)'
                         parts.append(f"OVERDUE ({len(overdue_tasks)}):\n{example_str}")
                     if due_today_tasks:
                         # Count = total now minus overdue (true count)
                         due_today_count = now_count - len(overdue_tasks)
-                        examples = [t["title"] for t in due_today_tasks[:3]]
+                        # List ALL due-today task titles so the LLM can
+                        # reference every task by name and report the correct
+                        # total.  The old [:3] cap caused prompt starvation:
+                        # the LLM only saw 3 names and collapsed the rest.
+                        examples = [t["title"] for t in due_today_tasks]
                         example_str = '\n'.join(f'  • {t}' for t in examples)
-                        if due_today_count > 3:
-                            example_str += f'\n  (+{due_today_count - 3} more)'
                         parts.append(f"NOW ({due_today_count}):\n{example_str}")
                     if soon_count:
-                        examples = [t["title"] for t in soon_tasks[:3]]
+                        examples = [t["title"] for t in soon_tasks]
                         example_str = '\n'.join(f'  • {t}' for t in examples)
-                        if soon_count > 3:
-                            example_str += f'\n  (+{soon_count - 3} more)'
                         parts.append(f"SOON ({soon_count}):\n{example_str}")
                     if completed_today_tasks:
                         parts.append(f"COMPLETED TODAY ({len(completed_today_tasks)}):\n" + '\n'.join(
@@ -4938,13 +4938,15 @@ RESPONSE FORMAT — Follow this 6-part structure for check-in/status responses:
    noteworthy (e.g., a PR, a streak milestone, a hard-to-do item).
 2. TOP PRIORITIES — The 1-2 most important things the user should focus on
    RIGHT NOW, based on the priority scoring above. Explain WHY each is the
-   priority (overdue, health-critical, time-sensitive). ONLY use items listed
-   in the TOP PRIORITIES section above. If no TOP PRIORITIES are provided,
-   state that no urgent priorities are identified right now. NEVER invent,
-   derive, or infer task names that do not appear in the data above.
-3. REMAINING ITEMS — Other pending tasks, grouped by urgency (overdue first,
-   then due today, then upcoming). Keep this concise — the user already
-   knows their task list. Use a tight list, not paragraphs.
+   priority (overdue, health-critical, time-sensitive). For THIS SECTION
+   ONLY, use items from the TOP PRIORITIES data above. If no TOP PRIORITIES
+   are provided, state that no urgent priorities are identified right now.
+   NEVER invent task names that do not appear in the data above.
+3. REMAINING ITEMS — List ALL other pending tasks from the TASKS section
+   above, grouped by urgency (overdue first, then due today, then upcoming).
+   Every task listed in the TASKS data is a real task — include routine
+   tasks (Prayer Time, Workout, etc.) alongside non-routine tasks. They
+   all count equally. Use a tight list, not paragraphs.
 4. HEALTH / MEDICATION STATUS — Overdue meds by name with firm reminder.
    Upcoming meds as gentle note. Skip meds already taken (don't list them).
    Include workout and reading status ONLY if not yet done.
@@ -4958,12 +4960,19 @@ RESPONSE FORMAT — Follow this 6-part structure for check-in/status responses:
 TONE AND STYLE:
 - You are a Chief of Staff delivering an executive briefing, not a dashboard
   reading data aloud. SYNTHESIZE, don't list. PRIORITIZE, don't enumerate.
-- WRONG: "Wake Up is complete. Prayer Time is complete. Bible Reading is
+- For COMPLETED items, summarize — don't list every one:
+  WRONG: "Wake Up is complete. Prayer Time is complete. Bible Reading is
   complete. Workout is complete. Shower is complete."
-- RIGHT: "Morning routine is wrapped up — workout logged, quiet time done."
-- WRONG: "You have 3 overdue tasks and 5 due today."
-- RIGHT: "You've got a backlog building — the finance review from Thursday
-  is the most overdue, and your Bible reading is the easy win right now."
+  RIGHT: "Morning routine is wrapped up — workout logged, quiet time done."
+- For PENDING items, always state the accurate total count AND list each
+  task by name. Every task in the TASKS section above is a real task that
+  the Organize page shows — routine tasks count the same as any other task.
+  WRONG: "You've got a couple things left." (vague, hides the real count)
+  RIGHT: "You have 10 tasks on your plate right now — Prayer Time, Bible
+  Reading, Workout, Journal, Charge Watch, Put Watch On, plus 4 others."
+- When the user asks "how many tasks" or similar count questions, the
+  EXACT count from the TASKS section header (e.g., "NOW (10)") is the
+  authoritative answer. Report it accurately.
 - Lead with what NEEDS ATTENTION, not with a recap of what's done.
 - Be concise — this person wants an actionable briefing, not a motivational
   speech or a day review.
@@ -4973,7 +4982,13 @@ INSTRUCTIONS:
 - Do NOT list completed items individually unless remarkable. Summarize them.
 - LIST outstanding items BY NAME so they can take action.
 - For meds, list what's NOT taken yet by name — don't just say "74% adherence."
-- For tasks, list each overdue/due-today task by title — don't just say "2 tasks due."
+- For tasks, list EVERY overdue/due-today task by title from the TASKS section.
+  Routine tasks (Prayer Time, Bible Reading, Workout, etc.) are real tasks —
+  count and list them the same as any other task. Do NOT collapse routine
+  tasks into "morning routine" when listing pending items.
+- TASK COUNT ACCURACY: The number in parentheses after OVERDUE/NOW/SOON
+  (e.g., "NOW (10)") is the EXACT count from the database. When the user
+  asks "how many tasks", report this exact number. Never under-report.
 - If there are no tasks due today and nothing overdue, say so clearly.
 - CRITICAL: The data above is the AUTHORITATIVE current state. Only reference
   tasks, calendar items, and medications that appear above. If something was

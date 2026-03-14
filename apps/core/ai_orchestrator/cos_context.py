@@ -1988,6 +1988,7 @@ def _build_data_state_snapshot(user) -> str:
     the CoS evaluation.
     """
     counts = {}
+    _completed_titles = []  # v6: populated below if tasks were completed today
     try:
         from apps.health.models import (
             WeightEntry, SleepEntry, MedicineLog, Medicine,
@@ -2012,9 +2013,15 @@ def _build_data_state_snapshot(user) -> str:
         counts['active_tasks'] = LifeTask.objects.filter(
             user=user, completion_status='pending'
         ).exclude(status='deleted').count()
-        counts['completed_tasks_today'] = LifeTask.objects.filter(
+        _completed_today_qs = LifeTask.objects.filter(
             user=user, completion_status='completed', completed_at__date=today
-        ).exclude(status='deleted').count()
+        ).exclude(status='deleted')
+        counts['completed_tasks_today'] = _completed_today_qs.count()
+        # v6: Include actual titles so the LLM never infers names from
+        # conversation history or semantic memory (temporal contamination fix).
+        _completed_titles = list(
+            _completed_today_qs.values_list('title', flat=True)[:10]
+        )
         # v5: Non-negotiable skip streak data for commitment tracking
         counts['non_negotiable_skip_streaks'] = LifeTask.objects.filter(
             user=user, commitment_level='non_negotiable',
@@ -2061,6 +2068,22 @@ def _build_data_state_snapshot(user) -> str:
         lines.append(
             "\nYou MAY suggest the user start tracking these domains, "
             "but NEVER imply data exists when it does not."
+        )
+
+    # v6: Completed-today task titles — deterministic grounding for task names
+    completed_count = counts.get('completed_tasks_today', 0)
+    if completed_count > 0 and _completed_titles:
+        lines.append("")
+        lines.append("COMPLETED TASKS TODAY (AUTHORITATIVE — these are the ONLY tasks completed today):")
+        for title in _completed_titles:
+            lines.append(f"  - {title}")
+        if completed_count > len(_completed_titles):
+            lines.append(f"  (+ {completed_count - len(_completed_titles)} more)")
+        lines.append(
+            "TASK NAME GROUNDING RULE: When referencing completed tasks, you MUST use "
+            "ONLY the names listed above. NEVER infer, recall, or reconstruct task names "
+            "from conversation history, semantic memory, or prior assistant responses. "
+            "If a task name is not in this list, it was NOT completed today."
         )
 
     # Add non-negotiable skip streak awareness

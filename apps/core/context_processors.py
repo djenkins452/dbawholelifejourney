@@ -129,6 +129,7 @@ def theme_context(request):
             context['calibration_stage'] = 0
             if prefs.personal_assistant_enabled:
                 try:
+                    from django.core.cache import cache as _cache
                     from apps.core.blueprint.cos_governance import (
                         get_calibration_state,
                         _gather_user_snapshot,
@@ -145,36 +146,58 @@ def theme_context(request):
                         context['calibration_can_finish'] = (
                             cal_state.get('stage', 0) >= len(CALIBRATION_QUESTIONS)
                         )
-                        try:
-                            snapshot = _gather_user_snapshot(request.user)
-                            context['calibration_summary'] = _build_data_summary(
-                                snapshot)
-                        except Exception:
-                            pass
+                        # Cache calibration summary (expensive: ~15 DB queries)
+                        _cal_key = f'cal_summary:{request.user.id}'
+                        _cal_summary = _cache.get(_cal_key)
+                        if _cal_summary is None:
+                            try:
+                                snapshot = _gather_user_snapshot(request.user)
+                                _cal_summary = _build_data_summary(snapshot)
+                                _cache.set(_cal_key, _cal_summary, 600)  # 10 min
+                            except Exception:
+                                _cal_summary = ''
+                        context['calibration_summary'] = _cal_summary
                 except Exception:
                     pass
-            # Cycle tracking - check if user has opted in
+            # Cycle tracking - check if user has opted in (cached 24h)
             try:
-                from apps.health.models import CycleSettings
-                cycle_settings = CycleSettings.objects.filter(
-                    user=request.user, status='active'
-                ).first()
-                context['cycle_tracking_enabled'] = (
-                    cycle_settings.cycle_tracking_enabled if cycle_settings else False
-                )
+                from django.core.cache import cache as _cache
+                _cycle_key = f'cycle_tracking:{request.user.id}'
+                _cycle_val = _cache.get(_cycle_key)
+                if _cycle_val is None:
+                    from apps.health.models import CycleSettings
+                    cycle_settings = CycleSettings.objects.filter(
+                        user=request.user, status='active'
+                    ).first()
+                    _cycle_val = (
+                        cycle_settings.cycle_tracking_enabled if cycle_settings else False
+                    )
+                    _cache.set(_cycle_key, _cycle_val, 86400)  # 24h
+                context['cycle_tracking_enabled'] = _cycle_val
             except Exception:
                 context['cycle_tracking_enabled'] = False
             # Chief of Staff alignment badge (lightweight — for nav header)
             if prefs.personal_assistant_enabled:
                 try:
-                    from apps.core.blueprint.alignment_engine import (
-                        compute_alignment_score,
-                    )
-                    alignment = compute_alignment_score(request.user)
-                    context['command_brief'] = {
-                        'active': True,
-                        'alignment_score': round(alignment.score),
-                    }
+                    from django.core.cache import cache as _cache
+                    _align_key = f'alignment_score:{request.user.id}'
+                    _cached_score = _cache.get(_align_key)
+                    if _cached_score is not None:
+                        context['command_brief'] = {
+                            'active': True,
+                            'alignment_score': _cached_score,
+                        }
+                    else:
+                        from apps.core.blueprint.alignment_engine import (
+                            compute_alignment_score,
+                        )
+                        alignment = compute_alignment_score(request.user)
+                        _score = round(alignment.score)
+                        _cache.set(_align_key, _score, 900)  # 15 min
+                        context['command_brief'] = {
+                            'active': True,
+                            'alignment_score': _score,
+                        }
                 except Exception:
                     context['command_brief'] = {
                         'active': True,

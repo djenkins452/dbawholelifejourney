@@ -1299,6 +1299,136 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 }
 
 /* =========================================================================
+   INTELLIGENCE PIPELINE HEALTH — 5-layer data pipeline monitor
+   ========================================================================= */
+.ops-pipeline-health {
+    padding: 14px 20px;
+    margin-bottom: 14px;
+}
+.ops-pipeline-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.ops-pipeline-pulse {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.ops-pipeline-pulse.HEALTHY { background: var(--ops-green); box-shadow: 0 0 10px rgba(16,185,129,0.6); }
+.ops-pipeline-pulse.DEGRADED { background: var(--ops-yellow); box-shadow: 0 0 10px rgba(245,158,11,0.6); animation: schedPulseAmber 1.5s ease-in-out infinite; }
+.ops-pipeline-pulse.CRITICAL { background: var(--ops-red); box-shadow: 0 0 10px rgba(239,68,68,0.6); animation: schedPulseRed 1s ease-in-out infinite; }
+.ops-pipeline-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ops-text-bright);
+}
+.ops-pipeline-counter {
+    font-size: 0.625rem;
+    color: var(--ops-text-muted);
+}
+.ops-pipeline-status-label {
+    font-size: 0.5625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: 3px;
+    display: inline-block;
+    margin-left: auto;
+}
+.ops-pipeline-status-label.HEALTHY { color: var(--ops-green); background: var(--ops-green-dim); }
+.ops-pipeline-status-label.DEGRADED { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
+.ops-pipeline-status-label.CRITICAL { color: var(--ops-red); background: var(--ops-red-dim); }
+.ops-pipeline-trigger-btn {
+    font-size: 0.5rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border: 1px solid var(--ops-border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ops-text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.ops-pipeline-trigger-btn:hover {
+    color: var(--ops-cyan);
+    border-color: var(--ops-cyan);
+}
+.ops-pipeline-trigger-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.ops-pipeline-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+}
+.ops-pipeline-sub {
+    padding: 10px 12px;
+    background: var(--ops-surface-alt);
+    border-radius: var(--ops-radius-sm);
+    border: 1px solid var(--ops-glass-border);
+    border-left: 3px solid var(--ops-slate);
+    transition: border-color 0.3s;
+}
+.ops-pipeline-sub.HEALTHY { border-left-color: var(--ops-green); }
+.ops-pipeline-sub.STALE { border-left-color: var(--ops-yellow); }
+.ops-pipeline-sub.EMPTY { border-left-color: var(--ops-red); }
+.ops-pipeline-sub.ERROR { border-left-color: var(--ops-red); }
+.ops-pipeline-sub.NO_CHATS { border-left-color: var(--ops-purple); }
+.ops-pipeline-sub-name {
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ops-text-bright);
+    margin-bottom: 4px;
+}
+.ops-pipeline-sub-status {
+    font-size: 0.5rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1px 6px;
+    border-radius: 3px;
+    display: inline-block;
+    margin-bottom: 6px;
+}
+.ops-pipeline-sub-status.HEALTHY { color: var(--ops-green); background: var(--ops-green-dim); }
+.ops-pipeline-sub-status.STALE { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
+.ops-pipeline-sub-status.EMPTY { color: var(--ops-red); background: var(--ops-red-dim); }
+.ops-pipeline-sub-status.ERROR { color: var(--ops-red); background: var(--ops-red-dim); }
+.ops-pipeline-sub-status.NO_CHATS { color: var(--ops-purple); background: var(--ops-purple-dim); }
+.ops-pipeline-sub-metric {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1px 0;
+}
+.ops-pipeline-sub-metric-label {
+    font-size: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ops-text-dim);
+}
+.ops-pipeline-sub-metric-value {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--ops-text);
+}
+@media (max-width: 768px) {
+    .ops-pipeline-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+    .ops-pipeline-grid { grid-template-columns: 1fr; }
+}
+
+/* =========================================================================
    WAR ROOM — System Maturity Briefing (Phase 9)
    ========================================================================= */
 
@@ -2127,6 +2257,118 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
         </div>
     </div>
 
+    <!-- Intelligence Pipeline Health Tile -->
+    <div class="ops-section ops-glass ops-pipeline-health" id="pipelineHealthTile">
+        <div class="ops-pipeline-header">
+            <div class="ops-pipeline-pulse CRITICAL" id="pipelinePulse"></div>
+            <span class="ops-pipeline-title">Intelligence Pipeline</span>
+            <span class="ops-pipeline-counter" id="pipelineCounter">0 / 5 layers</span>
+            <span class="ops-pipeline-status-label CRITICAL" id="pipelineStatusLabel">INITIALIZING</span>
+            <button class="ops-pipeline-trigger-btn" id="pipelineTriggerBtn" title="Run signal aggregation now">
+                &#9654; Run Signals
+            </button>
+        </div>
+        <div class="ops-pipeline-grid">
+            <!-- Signal Snapshots -->
+            <div class="ops-pipeline-sub" id="pipelineSubSignals">
+                <div class="ops-pipeline-sub-name">Signal Snapshots</div>
+                <span class="ops-pipeline-sub-status EMPTY" id="pipelineStatusSignals">LOADING</span>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Total</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeSigTotal">0</span>
+                </div>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Last 24h</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeSig24h">0</span>
+                </div>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Users 24h</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeSigUsers">0</span>
+                </div>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Latest</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeSigAge">&mdash;</span>
+                </div>
+            </div>
+            <!-- Goal Momentum -->
+            <div class="ops-pipeline-sub" id="pipelineSubMomentum">
+                <div class="ops-pipeline-sub-name">Goal Momentum</div>
+                <span class="ops-pipeline-sub-status EMPTY" id="pipelineStatusMomentum">LOADING</span>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Total</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeMomTotal">0</span>
+                </div>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Last 24h</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeMom24h">0</span>
+                </div>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Latest</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeMomAge">&mdash;</span>
+                </div>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Avg Score</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeMomAvg">&mdash;</span>
+                </div>
+            </div>
+            <!-- Journal NLP -->
+            <div class="ops-pipeline-sub" id="pipelineSubJournal">
+                <div class="ops-pipeline-sub-name">Journal NLP</div>
+                <span class="ops-pipeline-sub-status EMPTY" id="pipelineStatusJournal">LOADING</span>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Signals</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeJnlTotal">0</span>
+                </div>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Last 7d</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeJnl7d">0</span>
+                </div>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Entries 7d</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeJnlEntries">0</span>
+                </div>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Extracted</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeJnlExtracted">0</span>
+                </div>
+            </div>
+            <!-- Compensatory -->
+            <div class="ops-pipeline-sub" id="pipelineSubComp">
+                <div class="ops-pipeline-sub-name">Compensatory</div>
+                <span class="ops-pipeline-sub-status EMPTY" id="pipelineStatusComp">LOADING</span>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Total</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeCompTotal">0</span>
+                </div>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Last 7d</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeComp7d">0</span>
+                </div>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Insights 7d</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeCompInsights">0</span>
+                </div>
+            </div>
+            <!-- CoS Context -->
+            <div class="ops-pipeline-sub" id="pipelineSubCos">
+                <div class="ops-pipeline-sub-name">CoS Context</div>
+                <span class="ops-pipeline-sub-status EMPTY" id="pipelineStatusCos">LOADING</span>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Chats 24h</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeCosChats">0</span>
+                </div>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Builders</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeCosBuilders">0</span>
+                </div>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Empty</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeCosEmpty">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Posture Banner -->
     <div class="ops-section ops-glass ops-posture OK" id="postureBanner">
         <span class="ops-posture-dot OK" id="postureDot"></span>
@@ -2825,6 +3067,7 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
         renderAAFR(data.aafr);
         renderLearningHealth(data.learning_health);
         renderHealthIntelligence(data.health_intelligence);
+        renderPipelineHealth(data.pipeline_health);
         renderPosture(data.posture, data.narrative);
         renderNarration(data.narrative);
         trackAnomalies(data.anomalies || []);
@@ -3228,6 +3471,86 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
         _setVal('hiBuilt24h', nightly.summaries_built_24h);
         _setVal('hiUsersProcessed24h', nightly.users_processed_24h);
         _setVal('hiOldestMissing', nightly.oldest_missing_user ? nightly.oldest_missing_user.split('@')[0] : 'none');
+    }
+
+    function renderPipelineHealth(ph) {
+        if (!ph) return;
+
+        var status = ph.status || 'CRITICAL';
+        var healthy = ph.healthy_count || 0;
+        var total = ph.total_subsystems || 5;
+        var subs = ph.subsystems || {};
+
+        // Overall pulse + status
+        var pulse = document.getElementById('pipelinePulse');
+        if (pulse) pulse.className = 'ops-pipeline-pulse ' + status;
+
+        var label = document.getElementById('pipelineStatusLabel');
+        if (label) {
+            label.textContent = status;
+            label.className = 'ops-pipeline-status-label ' + status;
+        }
+
+        var counter = document.getElementById('pipelineCounter');
+        if (counter) counter.textContent = healthy + ' / ' + total + ' layers';
+
+        // Signal Snapshots
+        if (subs.signal_snapshots) {
+            var ss = subs.signal_snapshots;
+            _updatePipelineSub('Signals', ss.status);
+            _setVal('pipeSigTotal', ss.total);
+            _setVal('pipeSig24h', ss.last_24h);
+            _setVal('pipeSigUsers', ss.users_24h);
+            _setVal('pipeSigAge', ss.latest_age);
+        }
+
+        // Goal Momentum
+        if (subs.goal_momentum) {
+            var gm = subs.goal_momentum;
+            _updatePipelineSub('Momentum', gm.status);
+            _setVal('pipeMomTotal', gm.total);
+            _setVal('pipeMom24h', gm.last_24h);
+            _setVal('pipeMomAge', gm.latest_age);
+            _setVal('pipeMomAvg', gm.avg_score_7d !== null && gm.avg_score_7d !== undefined ? gm.avg_score_7d : null);
+        }
+
+        // Journal NLP
+        if (subs.journal_nlp) {
+            var jn = subs.journal_nlp;
+            _updatePipelineSub('Journal', jn.status);
+            _setVal('pipeJnlTotal', jn.total_signals);
+            _setVal('pipeJnl7d', jn.last_7d);
+            _setVal('pipeJnlEntries', jn.entries_7d);
+            _setVal('pipeJnlExtracted', jn.entries_with_signals_7d);
+        }
+
+        // Compensatory
+        if (subs.compensatory) {
+            var cp = subs.compensatory;
+            _updatePipelineSub('Comp', cp.status);
+            _setVal('pipeCompTotal', cp.compensatory_total);
+            _setVal('pipeComp7d', cp.compensatory_7d);
+            _setVal('pipeCompInsights', cp.total_insights_7d);
+        }
+
+        // CoS Context
+        if (subs.cos_context) {
+            var cc = subs.cos_context;
+            _updatePipelineSub('Cos', cc.status);
+            _setVal('pipeCosChats', cc.chats_24h);
+            _setVal('pipeCosBuilders', cc.builders_active);
+            _setVal('pipeCosEmpty', cc.builders_empty);
+        }
+    }
+
+    function _updatePipelineSub(name, status) {
+        var card = document.getElementById('pipelineSub' + name);
+        if (card) card.className = 'ops-pipeline-sub ' + (status || 'EMPTY');
+        var badge = document.getElementById('pipelineStatus' + name);
+        if (badge) {
+            badge.textContent = status || 'EMPTY';
+            badge.className = 'ops-pipeline-sub-status ' + (status || 'EMPTY');
+        }
     }
 
     function renderPosture(posture, narrative) {
@@ -3936,6 +4259,38 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
             btn.disabled = false;
             btn.textContent = '\u21BB Rebuild';
         }, 3000);
+    });
+
+    // Intelligence Pipeline — Run Signals button
+    document.getElementById('pipelineTriggerBtn').addEventListener('click', function() {
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Queuing...';
+        fetch('/admin-console/ops/trigger-signals/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify({}),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                showToast('Signal aggregation queued', 'success');
+            } else {
+                showToast(data.message || 'Failed to queue', 'error');
+            }
+        })
+        .catch(function(err) {
+            showToast('Request failed: ' + err, 'error');
+        })
+        .finally(function() {
+            setTimeout(function() {
+                btn.disabled = false;
+                btn.textContent = '\u25B6 Run Signals';
+            }, 5000);
+        });
     });
 
     // Wall Mode keyboard shortcut (W key)

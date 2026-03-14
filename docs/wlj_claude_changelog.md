@@ -6,6 +6,30 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Ops Command Center: Intelligence Pipeline Health Monitor
+
+**Changes:** Added a new "Intelligence Pipeline" tile to the Ops Command Center that
+monitors the 5-layer data pipeline feeding Beth's reasoning: Signal Snapshots,
+Goal Momentum, Journal NLP, Compensatory Reasoning, and CoS Context completeness.
+Each subsystem shows status (HEALTHY/STALE/EMPTY/ERROR), row counts, freshness,
+and key metrics. Added manual "Run Signals" button to trigger compute_nightly_signals
+on demand. This directly addresses the issue where SignalSnapshot had zero rows but
+the Ops dashboard reported all systems healthy — the pipeline health tile would have
+caught this immediately.
+
+**Files modified:**
+- apps/core/ai_observability/ops_telemetry.py (new _get_intelligence_pipeline_health function)
+- apps/core/ai_observability/ops_views.py (added TriggerSignalAggregationView, pipeline_health in stream)
+- apps/admin_console/urls.py (added trigger-signals route)
+- templates/admin_console/operations_wall.html (CSS + HTML tile + JS renderer + trigger button)
+
+**Why:** The existing Ops Command Center monitored 9 scheduled intelligence engines but
+had no visibility into the data pipeline layers (SignalSnapshot, GoalMomentum, JournalSignal,
+Insight, CoS context). A critical gap where zero SignalSnapshots existed while the dashboard
+showed all-green highlighted the need for this monitoring layer.
+
+---
+
 ## 2026-03-14 — Reflection Mode: Signal-first reasoning hierarchy
 
 **Changes:** Updated Reflection Mode directive to enforce signal-first reasoning order.

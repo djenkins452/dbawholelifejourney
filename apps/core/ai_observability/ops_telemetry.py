@@ -1228,3 +1228,270 @@ def _get_chat_latency_telemetry(now):
     except Exception as e:
         logger.debug("OpsWall: chat latency telemetry unavailable: %s", e)
         return None
+
+
+def _get_intelligence_pipeline_health(now):
+    """
+    Intelligence Pipeline Health — monitors the 5-layer data pipeline
+    that feeds Beth's reasoning context.
+
+    Subsystems monitored:
+      1. Signal Snapshots — compute_nightly_signals Celery task output
+      2. Goal Momentum — GoalMomentumSnapshot freshness
+      3. Journal NLP — JournalSignal extraction pipeline
+      4. Compensatory Reasoning — commitment gap analysis availability
+      5. CoS Context Completeness — which context builders produced data
+
+    Status thresholds:
+      HEALTHY (green): ≥4 subsystems healthy
+      DEGRADED (yellow): 2-3 subsystems healthy
+      CRITICAL (red): 0-1 subsystems healthy
+    """
+    from datetime import timedelta as td
+
+    healthy_count = 0
+    subsystems = {}
+
+    # --- 1. Signal Snapshots ---
+    try:
+        from apps.core.ai_eae.models import SignalSnapshot
+        from django.db.models import Count, Max
+
+        last_24h = now - td(hours=24)
+        last_7d = now - td(days=7)
+
+        total_snapshots = SignalSnapshot.objects.count()
+        snapshots_24h = SignalSnapshot.objects.filter(
+            updated_at__gte=last_24h,
+        ).count()
+        snapshots_7d = SignalSnapshot.objects.filter(
+            updated_at__gte=last_7d,
+        ).count()
+
+        latest_snapshot = SignalSnapshot.objects.aggregate(
+            latest=Max('updated_at'),
+        )
+        latest_ts = latest_snapshot.get('latest')
+        latest_age = _human_ago(latest_ts) if latest_ts else 'never'
+
+        # Users with snapshots today
+        users_with_snapshots = (
+            SignalSnapshot.objects.filter(updated_at__gte=last_24h)
+            .values('user').distinct().count()
+        )
+
+        # Signal type distribution (latest 24h)
+        type_dist = dict(
+            SignalSnapshot.objects.filter(updated_at__gte=last_24h)
+            .values_list('signal_type')
+            .annotate(cnt=Count('id'))
+            .order_by('-cnt')
+        )
+
+        is_healthy = total_snapshots > 0 and snapshots_24h > 0
+        if is_healthy:
+            healthy_count += 1
+
+        subsystems['signal_snapshots'] = {
+            'status': 'HEALTHY' if is_healthy else ('STALE' if total_snapshots > 0 else 'EMPTY'),
+            'total': total_snapshots,
+            'last_24h': snapshots_24h,
+            'last_7d': snapshots_7d,
+            'latest_age': latest_age,
+            'users_24h': users_with_snapshots,
+            'type_distribution': type_dist,
+        }
+    except Exception as e:
+        logger.debug("Pipeline health: signal snapshots check failed: %s", e)
+        subsystems['signal_snapshots'] = {'status': 'ERROR', 'error': str(e)[:100]}
+
+    # --- 2. Goal Momentum ---
+    try:
+        from apps.dashboard_v2.models import GoalMomentumSnapshot
+
+        last_24h = now - td(hours=24)
+        last_7d = now - td(days=7)
+
+        total_momentum = GoalMomentumSnapshot.objects.count()
+        momentum_24h = GoalMomentumSnapshot.objects.filter(
+            created_at__gte=last_24h,
+        ).count()
+
+        latest_momentum = GoalMomentumSnapshot.objects.aggregate(
+            latest=Max('created_at'),
+        )
+        latest_m_ts = latest_momentum.get('latest')
+        latest_m_age = _human_ago(latest_m_ts) if latest_m_ts else 'never'
+
+        # Average momentum score (last 7d)
+        from django.db.models import Avg
+        avg_score = GoalMomentumSnapshot.objects.filter(
+            created_at__gte=last_7d,
+        ).aggregate(avg=Avg('overall_score'))
+        avg_momentum = round(avg_score['avg'], 2) if avg_score.get('avg') else None
+
+        is_healthy = total_momentum > 0 and momentum_24h > 0
+        if is_healthy:
+            healthy_count += 1
+
+        subsystems['goal_momentum'] = {
+            'status': 'HEALTHY' if is_healthy else ('STALE' if total_momentum > 0 else 'EMPTY'),
+            'total': total_momentum,
+            'last_24h': momentum_24h,
+            'latest_age': latest_m_age,
+            'avg_score_7d': avg_momentum,
+        }
+    except Exception as e:
+        logger.debug("Pipeline health: goal momentum check failed: %s", e)
+        subsystems['goal_momentum'] = {'status': 'ERROR', 'error': str(e)[:100]}
+
+    # --- 3. Journal NLP (Signal Extraction) ---
+    try:
+        from apps.journal.models import JournalSignal
+
+        last_24h = now - td(hours=24)
+        last_7d = now - td(days=7)
+
+        total_journal_signals = JournalSignal.objects.count()
+        signals_24h = JournalSignal.objects.filter(
+            created_at__gte=last_24h,
+        ).count()
+        signals_7d = JournalSignal.objects.filter(
+            created_at__gte=last_7d,
+        ).count()
+
+        latest_signal = JournalSignal.objects.aggregate(
+            latest=Max('created_at'),
+        )
+        latest_s_ts = latest_signal.get('latest')
+        latest_s_age = _human_ago(latest_s_ts) if latest_s_ts else 'never'
+
+        # Entries with signals vs total entries (7d)
+        from apps.journal.models import JournalEntry
+        entries_7d = JournalEntry.objects.filter(
+            created_at__gte=last_7d,
+        ).count()
+        entries_with_signals = (
+            JournalSignal.objects.filter(created_at__gte=last_7d)
+            .values('entry').distinct().count()
+        )
+
+        # Journal NLP is healthy if it has ever produced signals
+        # (extraction is event-driven, so 0 in 24h is okay if no entries were created)
+        is_healthy = total_journal_signals > 0
+        if is_healthy:
+            healthy_count += 1
+
+        subsystems['journal_nlp'] = {
+            'status': 'HEALTHY' if is_healthy else 'EMPTY',
+            'total_signals': total_journal_signals,
+            'last_24h': signals_24h,
+            'last_7d': signals_7d,
+            'latest_age': latest_s_age,
+            'entries_7d': entries_7d,
+            'entries_with_signals_7d': entries_with_signals,
+        }
+    except Exception as e:
+        logger.debug("Pipeline health: journal NLP check failed: %s", e)
+        subsystems['journal_nlp'] = {'status': 'ERROR', 'error': str(e)[:100]}
+
+    # --- 4. Compensatory Reasoning ---
+    try:
+        from apps.core.ai_insights.models import Insight
+
+        last_24h = now - td(hours=24)
+        last_7d = now - td(days=7)
+
+        # Compensatory insights are stored as Insight records with type 'compensatory_progress'
+        comp_total = Insight.objects.filter(
+            insight_type='compensatory_progress',
+        ).count()
+        comp_7d = Insight.objects.filter(
+            insight_type='compensatory_progress',
+            created_at__gte=last_7d,
+        ).count()
+
+        # All PIE insights (7d) for context
+        total_insights_7d = Insight.objects.filter(
+            created_at__gte=last_7d,
+        ).count()
+
+        # Compensatory is healthy if PIE is running (insights exist)
+        is_healthy = total_insights_7d > 0
+        if is_healthy:
+            healthy_count += 1
+
+        subsystems['compensatory'] = {
+            'status': 'HEALTHY' if is_healthy else ('STALE' if comp_total > 0 else 'EMPTY'),
+            'compensatory_total': comp_total,
+            'compensatory_7d': comp_7d,
+            'total_insights_7d': total_insights_7d,
+        }
+    except Exception as e:
+        logger.debug("Pipeline health: compensatory check failed: %s", e)
+        subsystems['compensatory'] = {'status': 'ERROR', 'error': str(e)[:100]}
+
+    # --- 5. CoS Context Completeness ---
+    try:
+        from django.core.cache import cache
+
+        # Check the CoS context cache for completeness indicators
+        # The context builders store their output in the CoS context dict;
+        # we check the last chat's latency snapshot for builder coverage
+        from apps.core.ai_observability.models import ChatLatencySnapshot
+
+        last_24h = now - td(hours=24)
+        recent_chats = ChatLatencySnapshot.objects.filter(
+            created_at__gte=last_24h,
+        ).count()
+
+        # Check which builders produced data in the last snapshot
+        latest_chat = (
+            ChatLatencySnapshot.objects.filter(created_at__gte=last_24h)
+            .order_by('-created_at')
+            .values('stages', 'meta')
+            .first()
+        )
+
+        builders_present = []
+        builders_empty = []
+        if latest_chat and latest_chat.get('meta'):
+            meta = latest_chat['meta']
+            # Token report shows which context sections contributed tokens
+            token_report = meta.get('_token_report', {})
+            for builder, tokens in token_report.items():
+                if tokens and tokens > 0:
+                    builders_present.append(builder)
+                else:
+                    builders_empty.append(builder)
+
+        is_healthy = recent_chats > 0 and len(builders_present) > 0
+        if is_healthy:
+            healthy_count += 1
+
+        subsystems['cos_context'] = {
+            'status': 'HEALTHY' if is_healthy else ('STALE' if recent_chats > 0 else 'NO_CHATS'),
+            'chats_24h': recent_chats,
+            'builders_active': len(builders_present),
+            'builders_empty': len(builders_empty),
+            'active_list': builders_present[:10],
+            'empty_list': builders_empty[:10],
+        }
+    except Exception as e:
+        logger.debug("Pipeline health: CoS context check failed: %s", e)
+        subsystems['cos_context'] = {'status': 'ERROR', 'error': str(e)[:100]}
+
+    # --- Overall Status ---
+    if healthy_count >= 4:
+        overall = 'HEALTHY'
+    elif healthy_count >= 2:
+        overall = 'DEGRADED'
+    else:
+        overall = 'CRITICAL'
+
+    return {
+        'status': overall,
+        'healthy_count': healthy_count,
+        'total_subsystems': 5,
+        'subsystems': subsystems,
+    }

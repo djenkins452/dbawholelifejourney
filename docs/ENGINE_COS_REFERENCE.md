@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-14 (Architecture Evolution Phase 7.5: Signal Interpretation Summary, Daily Context Summary, Conversational Response Modes, Insight-First Rule in CoS prompt)
+**Last updated:** 2026-03-14 (Intelligence Pipeline Health Monitor added to Ops Command Center — monitors SignalSnapshot, GoalMomentum, JournalSignal, Compensatory, CoS context layers with manual trigger)
 
 ---
 

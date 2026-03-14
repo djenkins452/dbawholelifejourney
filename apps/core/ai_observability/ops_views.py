@@ -319,6 +319,9 @@ class OpsStreamView(View):
         # Chat latency telemetry
         chat_latency = _get_chat_latency_telemetry(now)
 
+        # Intelligence Pipeline Health (signal snapshots, goal momentum, journal NLP, etc.)
+        pipeline_health = _get_intelligence_pipeline_health(now)
+
         return JsonResponse({
             "server_time": now.isoformat(),
             "posture": posture,
@@ -337,6 +340,7 @@ class OpsStreamView(View):
             "complexity": complexity,
             "domain_events": domain_events,
             "chat_latency": chat_latency,
+            "pipeline_health": pipeline_health,
             "next_since": now.isoformat(),
         })
 
@@ -934,6 +938,63 @@ class SchedulerRestartView(View):
         return JsonResponse(result, status=status_code)
 
 
+class TriggerSignalAggregationView(View):
+    """
+    Manual trigger for compute_nightly_signals Celery task.
+
+    POST /admin-console/ops/trigger-signals/
+
+    Dispatches the nightly signal aggregation task immediately.
+    Creates AdminIntervention audit record.
+    """
+
+    def post(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        from apps.core.ai_observability.models import AdminIntervention
+
+        trace_id = str(uuid.uuid4())
+
+        # Dispatch Celery task
+        try:
+            from apps.core.ai_eae.tasks import compute_nightly_signals
+
+            result = compute_nightly_signals.delay()
+
+            # Audit trail
+            AdminIntervention.objects.create(
+                admin_user=request.user,
+                action_type="trigger_signal_aggregation",
+                engine_name="EAE_SIGNALS",
+                trace_id=trace_id,
+                notes=(
+                    f"Manual signal aggregation triggered "
+                    f"(celery_task_id={result.id})"
+                ),
+                result_status="pending",
+            )
+
+            logger.info(
+                "Signal aggregation manual trigger by %s (celery_task_id=%s)",
+                request.user.email, result.id,
+            )
+
+            return JsonResponse({
+                "success": True,
+                "message": "Signal aggregation task queued.",
+                "celery_task_id": result.id,
+                "trace_id": trace_id,
+            })
+        except Exception as e:
+            logger.exception("Failed to dispatch signal aggregation: %s", e)
+            return JsonResponse({
+                "success": False,
+                "error": "dispatch_failed",
+                "message": f"Failed to dispatch: {str(e)[:200]}",
+            }, status=500)
+
+
 class AllEnginesView(AdminRequiredMixin, TemplateView):
     """All engines table view with search."""
 
@@ -1015,4 +1076,5 @@ from apps.core.ai_observability.ops_telemetry import (  # noqa: E402, F401
     _get_complexity_score,
     _get_domain_event_telemetry,
     _get_chat_latency_telemetry,
+    _get_intelligence_pipeline_health,
 )

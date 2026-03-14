@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Architecture Evolution Phase 6: Compensatory Reasoning Engine
+
+**Changes:** Implemented three-layer compensatory reasoning with hard gates, allowlisted pairs, and CoS context builder.
+
+1. **CompensatoryReasoningService** (`apps/core/ai_insights/compensatory.py`) — Compares planned
+   commitments (DailyScheduleService) vs actual activity (DailyActivityService/SignalSnapshots).
+   Three-layer safety: hard gate (medication/non_negotiable never compensable), allowlist
+   (4 explicit compensatory pairs with max_offset_pct), framing text for Beth.
+2. **CompensatoryProgressRule** (`apps/core/ai_insights/rules_compensatory.py`) — PIE rule that
+   fires on positive partial offsets, generating 'compensatory_progress' insights.
+3. **CoS context builder** (`apps/core/ai_orchestrator/cos_context.py`) — Added
+   `_build_compensatory_context` builder tagged as 'compensatory', injects daily_commitment_gap
+   section into Beth's operational context.
+
+**Files created:** apps/core/ai_insights/compensatory.py, apps/core/ai_insights/rules_compensatory.py
+**Files modified:** apps/core/ai_orchestrator/cos_context.py
+
+**Why:** Phase 6 of the WLJ Architecture Evolution — enabling Beth to compare planned vs actual
+and produce safe, hedged compensatory analysis using verified signals only.
+
+---
+
 ## 2026-03-14 — Architecture Evolution Phase 5: Goal-Signal Configuration
 
 **Changes:** Implemented GoalSignalSource model, GoalSignalConfigService, and auto-population on goal creation.

@@ -1325,6 +1325,8 @@ _TAGGED_BUILDERS = [
     # ('situational', lambda user, prefs: _build_situational_awareness_context(user)),
     # Phase 1: Personal Operating Context — reads pre-computed profile (single DB hit)
     ('operating_profile', lambda user, prefs: _build_operating_profile(user)),
+    # Architecture Evolution Phase 6: Compensatory reasoning
+    ('compensatory', lambda user, prefs: _build_compensatory_context(user)),
 ]
 
 # Backward-compatible flat list (used by telemetry and tests)
@@ -1362,6 +1364,56 @@ def _build_operating_profile(user):
         return {}
     except Exception as e:
         logger.debug("CoS context: operating profile unavailable: %s", e)
+        return {}
+
+
+def _build_compensatory_context(user):
+    """
+    Architecture Evolution Phase 6: Build compensatory reasoning context.
+
+    Compares planned commitments vs actual activity for today, identifying
+    missed commitments and any compensating signals that partially offset them.
+
+    Returns dict with 'daily_commitment_gap' key for Beth's reasoning.
+    """
+    try:
+        from apps.core.utils import get_user_today
+        from apps.core.ai_insights.compensatory import CompensatoryReasoningService
+
+        today = get_user_today(user)
+        gap_summary = CompensatoryReasoningService.get_daily_gap_summary(
+            user, today,
+        )
+
+        # Only include if there are actual gaps to reason about
+        if gap_summary['total_missed'] == 0:
+            return {}
+
+        # Strip full commitment dicts to reduce context size —
+        # keep only framing text and key metrics
+        slim_gaps = []
+        for gap in gap_summary['gaps']:
+            slim_gaps.append({
+                'title': gap['commitment'].get('title', ''),
+                'domain': gap['commitment'].get('domain', ''),
+                'is_compensable': gap['is_compensable'],
+                'net_assessment': gap['net_assessment'],
+                'offset_pct': gap['offset_pct'],
+                'framing': gap['framing'],
+            })
+
+        return {
+            'daily_commitment_gap': {
+                'date': gap_summary['date'],
+                'total_missed': gap_summary['total_missed'],
+                'compensable_count': gap_summary['compensable_count'],
+                'non_compensable_count': gap_summary['non_compensable_count'],
+                'positive_partial_count': gap_summary['positive_partial_count'],
+                'gaps': slim_gaps,
+            },
+        }
+    except Exception as e:
+        logger.debug("CoS context: compensatory reasoning unavailable: %s", e)
         return {}
 
 

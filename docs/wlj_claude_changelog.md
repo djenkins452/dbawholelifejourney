@@ -6,6 +6,30 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Architecture Evolution Phase 7: Journal NLP Integration
+
+**Changes:** Implemented NLP-based behavioral signal extraction from journal entries.
+
+1. **JournalSignal** (`apps/journal/models.py`) — New model storing NLP-extracted behavioral
+   signals with signal_type, domain, confidence, and extracted_text.
+2. **JournalSignalExtractor** (`apps/journal/services/signal_extractor.py`) — OpenAI-powered
+   extraction service with structured prompt. Validates signal types, enforces 0.5 confidence
+   threshold, skips entries under 20 words, idempotent.
+3. **extract_journal_signals** Celery task (`apps/journal/tasks.py`) — Async extraction triggered
+   by post_save on JournalEntry.
+4. **Signal blending** (`apps/core/ai_eae/signal_aggregation.py`) — Updated
+   SignalAggregationService with _blend_journal_signals. Verified signals take precedence;
+   journal inferred_behavior signals fill gaps with 0.7x confidence discount.
+
+**Files created:** apps/journal/services/signal_extractor.py, apps/journal/tasks.py
+**Files modified:** apps/journal/models.py, apps/journal/signals.py, apps/core/ai_eae/signal_aggregation.py
+**Migrations:** journal.0007_journalsignal
+
+**Why:** Phase 7 of the WLJ Architecture Evolution — extracting inferred_behavior signals from
+journal text to feed compensatory reasoning and Beth's holistic coaching.
+
+---
+
 ## 2026-03-14 — Architecture Evolution Phase 6: Compensatory Reasoning Engine
 
 **Changes:** Implemented three-layer compensatory reasoning with hard gates, allowlisted pairs, and CoS context builder.

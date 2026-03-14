@@ -204,6 +204,47 @@ class JournalEntry(UserOwnedModel):
         return " ".join(e.emoji for e in self.emotions.all())
 
 
+class JournalSignal(models.Model):
+    """
+    NLP-extracted behavioral signal from a journal entry.
+
+    Stores signals extracted via OpenAI from journal text, feeding
+    inferred_behavior signals into the signal persistence layer.
+
+    Part of the WLJ Architecture Evolution — Phase 7 (Journal NLP Integration).
+    """
+
+    entry = models.ForeignKey(
+        JournalEntry,
+        on_delete=models.CASCADE,
+        related_name='signals',
+    )
+    signal_type = models.CharField(
+        max_length=30,
+        help_text='Signal taxonomy type (e.g., health_activity, faith_practice)',
+    )
+    domain = models.CharField(
+        max_length=20,
+        help_text='LifeDomain slug (e.g., health, faith, mind)',
+    )
+    confidence = models.FloatField(
+        help_text='Extraction confidence 0.0-1.0',
+    )
+    extracted_text = models.TextField(
+        help_text='The exact phrase from the journal that indicates this behavior',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['entry', 'signal_type']),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"JournalSignal({self.signal_type}, {self.confidence:.2f}) for entry {self.entry_id}"
+
+
 class EntryLink(models.Model):
     """
     Link between entries (cross-module connections).

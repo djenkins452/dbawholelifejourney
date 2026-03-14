@@ -81,6 +81,15 @@ class SignalAggregationService:
                     exc_info=True,
                 )
 
+        # Phase 7: Blend journal-inferred signals into existing snapshots
+        try:
+            SignalAggregationService._blend_journal_signals(user, date, results)
+        except Exception as e:
+            logger.warning(
+                "Journal signal blending failed for user %s on %s: %s",
+                user.pk, date, e,
+            )
+
         return results
 
     @staticmethod
@@ -459,3 +468,89 @@ class SignalAggregationService:
                 'completed_today': completed_today,
             },
         )
+
+    # ──────────────────────────────────────────────────────────
+    # Phase 7: Journal Signal Blending
+    # ──────────────────────────────────────────────────────────
+
+    # Confidence discount for journal-inferred signals (reduced trust)
+    JOURNAL_CONFIDENCE_DISCOUNT = 0.7
+
+    @staticmethod
+    def _blend_journal_signals(user, date, existing_results):
+        """
+        Blend journal-extracted inferred_behavior signals into signal snapshots.
+
+        For signal types that already have a verified snapshot, journal signals
+        are noted in source_signals but don't override the verified score.
+
+        For signal types with NO verified snapshot, a new inferred_behavior
+        snapshot is created from journal signals (with confidence discount).
+
+        Modifies existing_results in-place (appends new snapshots).
+        """
+        try:
+            from apps.journal.models import JournalSignal
+        except ImportError:
+            return  # Journal app not available
+
+        # Get journal signals for this user/date via the entry's date
+        journal_signals = JournalSignal.objects.filter(
+            entry__user=user,
+            entry__entry_date=date,
+            confidence__gte=0.5,
+        ).select_related('entry')
+
+        if not journal_signals.exists():
+            return
+
+        # Group by signal_type
+        by_type = {}
+        for js in journal_signals:
+            by_type.setdefault(js.signal_type, []).append(js)
+
+        # Check which signal types already have verified snapshots
+        existing_types = {s.signal_type for s in existing_results}
+
+        for signal_type, signals in by_type.items():
+            if signal_type in existing_types:
+                # Already have verified data — just annotate the existing snapshot
+                for snapshot in existing_results:
+                    if snapshot.signal_type == signal_type:
+                        source = snapshot.source_signals or {}
+                        source['journal_inferred'] = [
+                            {
+                                'text': js.extracted_text[:100],
+                                'confidence': js.confidence,
+                            }
+                            for js in signals
+                        ]
+                        snapshot.source_signals = source
+                        snapshot.save(update_fields=['source_signals'])
+                        break
+            else:
+                # No verified data — create inferred_behavior snapshot
+                best_signal = max(signals, key=lambda s: s.confidence)
+                discounted_confidence = (
+                    best_signal.confidence
+                    * SignalAggregationService.JOURNAL_CONFIDENCE_DISCOUNT
+                )
+
+                domain = SIGNAL_TYPE_DOMAIN.get(signal_type, 'life')
+                snapshot = SignalAggregationService._upsert_snapshot(
+                    user, date, signal_type,
+                    score=discounted_confidence,  # Use discounted confidence as score
+                    confidence=discounted_confidence,
+                    signal_class='inferred_behavior',
+                    source_signals={
+                        'source': 'journal_nlp',
+                        'extractions': [
+                            {
+                                'text': js.extracted_text[:100],
+                                'confidence': js.confidence,
+                            }
+                            for js in signals
+                        ],
+                    },
+                )
+                existing_results.append(snapshot)

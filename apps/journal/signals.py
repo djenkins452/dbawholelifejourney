@@ -59,3 +59,12 @@ def extract_people_from_journal(sender, instance, created, **kwargs):
         )
     except Exception as e:
         logger.debug("Journal people extraction skipped: %s", e)
+
+    # Architecture Evolution Phase 7: Trigger async signal extraction
+    try:
+        from apps.journal.tasks import extract_journal_signals
+        extract_journal_signals.delay(instance.pk)
+    except ImportError:
+        pass  # Celery not available in test
+    except Exception as e:
+        logger.debug("Journal signal extraction dispatch skipped: %s", e)

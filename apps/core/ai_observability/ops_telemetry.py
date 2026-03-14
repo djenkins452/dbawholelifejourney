@@ -1327,8 +1327,14 @@ def _get_intelligence_pipeline_health(now):
         from django.db.models import Avg
         avg_score = GoalMomentumSnapshot.objects.filter(
             created_at__gte=last_7d,
-        ).aggregate(avg=Avg('overall_score'))
+        ).aggregate(avg=Avg('momentum_score'))
         avg_momentum = round(avg_score['avg'], 2) if avg_score.get('avg') else None
+
+        # Users covered
+        users_covered = (
+            GoalMomentumSnapshot.objects.filter(created_at__gte=last_24h)
+            .values('user').distinct().count()
+        )
 
         is_healthy = total_momentum > 0 and momentum_24h > 0
         if is_healthy:
@@ -1340,6 +1346,7 @@ def _get_intelligence_pipeline_health(now):
             'last_24h': momentum_24h,
             'latest_age': latest_m_age,
             'avg_score_7d': avg_momentum,
+            'users_24h': users_covered,
         }
     except Exception as e:
         logger.debug("Pipeline health: goal momentum check failed: %s", e)

@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Ops Command Center: Goal Momentum manual trigger + telemetry fix
+
+**Changes:** Added "Run Momentum" button to the Intelligence Pipeline tile in the Ops
+Command Center. Creates a POST endpoint at `/admin-console/ops/trigger-goal-momentum/`
+that dispatches `compute_nightly_momentum` via Celery. Fixed the telemetry function to
+use the correct field name `momentum_score` (was `overall_score`). Added `users_24h`
+metric to the Goal Momentum subsystem display.
+
+**Files modified:**
+- apps/core/ai_observability/ops_views.py (new TriggerGoalMomentumView)
+- apps/core/ai_observability/ops_telemetry.py (fixed field name, added users_24h)
+- apps/admin_console/urls.py (new route)
+- templates/admin_console/operations_wall.html (button + JS handler + users metric)
+- docs/wlj_claude_changelog.md
+
+**Why:** Goal Momentum showed ERROR status because compute_nightly_momentum hadn't run
+after signals were created. Manual trigger allows on-demand execution without waiting for
+the nightly Celery Beat schedule.
+
+---
+
 ## 2026-03-14 — Ops Command Center: Intelligence Pipeline Health Monitor
 
 **Changes:** Added a new "Intelligence Pipeline" tile to the Ops Command Center that

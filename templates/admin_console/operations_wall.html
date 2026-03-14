@@ -2267,6 +2267,9 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
             <button class="ops-pipeline-trigger-btn" id="pipelineTriggerBtn" title="Run signal aggregation now">
                 &#9654; Run Signals
             </button>
+            <button class="ops-pipeline-trigger-btn" id="momentumTriggerBtn" title="Run goal momentum computation now">
+                &#9654; Run Momentum
+            </button>
         </div>
         <div class="ops-pipeline-grid">
             <!-- Signal Snapshots -->
@@ -2305,6 +2308,10 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
                 <div class="ops-pipeline-sub-metric">
                     <span class="ops-pipeline-sub-metric-label">Latest</span>
                     <span class="ops-pipeline-sub-metric-value" id="pipeMomAge">&mdash;</span>
+                </div>
+                <div class="ops-pipeline-sub-metric">
+                    <span class="ops-pipeline-sub-metric-label">Users 24h</span>
+                    <span class="ops-pipeline-sub-metric-value" id="pipeMomUsers">0</span>
                 </div>
                 <div class="ops-pipeline-sub-metric">
                     <span class="ops-pipeline-sub-metric-label">Avg Score</span>
@@ -3511,6 +3518,7 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
             _setVal('pipeMomTotal', gm.total);
             _setVal('pipeMom24h', gm.last_24h);
             _setVal('pipeMomAge', gm.latest_age);
+            _setVal('pipeMomUsers', gm.users_24h);
             _setVal('pipeMomAvg', gm.avg_score_7d !== null && gm.avg_score_7d !== undefined ? gm.avg_score_7d : null);
         }
 
@@ -4289,6 +4297,38 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
             setTimeout(function() {
                 btn.disabled = false;
                 btn.textContent = '\u25B6 Run Signals';
+            }, 5000);
+        });
+    });
+
+    // Intelligence Pipeline — Run Momentum button
+    document.getElementById('momentumTriggerBtn').addEventListener('click', function() {
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Queuing...';
+        fetch('/admin-console/ops/trigger-goal-momentum/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify({}),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                showToast('Goal momentum computation queued', 'success');
+            } else {
+                showToast(data.message || 'Failed to queue', 'error');
+            }
+        })
+        .catch(function(err) {
+            showToast('Request failed: ' + err, 'error');
+        })
+        .finally(function() {
+            setTimeout(function() {
+                btn.disabled = false;
+                btn.textContent = '\u25B6 Run Momentum';
             }, 5000);
         });
     });

@@ -938,6 +938,61 @@ class SchedulerRestartView(View):
         return JsonResponse(result, status=status_code)
 
 
+class TriggerGoalMomentumView(View):
+    """
+    Manual trigger for compute_nightly_momentum Celery task.
+
+    POST /admin-console/ops/trigger-goal-momentum/
+
+    Dispatches the nightly goal momentum computation task immediately.
+    Creates AdminIntervention audit record.
+    """
+
+    def post(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        from apps.core.ai_observability.models import AdminIntervention
+
+        trace_id = str(uuid.uuid4())
+
+        try:
+            from apps.dashboard_v2.tasks import compute_nightly_momentum
+
+            result = compute_nightly_momentum.delay()
+
+            AdminIntervention.objects.create(
+                admin_user=request.user,
+                action_type="trigger_goal_momentum",
+                engine_name="GOAL_MOMENTUM",
+                trace_id=trace_id,
+                notes=(
+                    f"Manual goal momentum computation triggered "
+                    f"(celery_task_id={result.id})"
+                ),
+                result_status="pending",
+            )
+
+            logger.info(
+                "Goal momentum manual trigger by %s (celery_task_id=%s)",
+                request.user.email, result.id,
+            )
+
+            return JsonResponse({
+                "success": True,
+                "message": "Goal momentum computation queued.",
+                "celery_task_id": result.id,
+                "trace_id": trace_id,
+            })
+        except Exception as e:
+            logger.exception("Failed to dispatch goal momentum: %s", e)
+            return JsonResponse({
+                "success": False,
+                "error": "dispatch_failed",
+                "message": f"Failed to dispatch: {str(e)[:200]}",
+            }, status=500)
+
+
 class TriggerSignalAggregationView(View):
     """
     Manual trigger for compute_nightly_signals Celery task.

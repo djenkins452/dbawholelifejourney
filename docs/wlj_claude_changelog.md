@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Architecture Evolution Phase 2: Unified Daily View
+
+**Changes:** Implemented DailyScheduleService and DailyActivityService.
+
+1. **DailyScheduleService** (`apps/dashboard/services/daily_schedule_service.py`) — Aggregates all
+   planned commitments for a date from CalendarEngine, including recurring event expansion. Provides
+   `get_daily_schedule()` and `get_commitment_summary()` methods.
+
+2. **DailyActivityService** (`apps/dashboard/services/daily_activity_service.py`) — Aggregates all
+   completed actions for a date from 11 domain completion records (tasks, medicine, workouts, habits,
+   faith, journal, weight, glucose, blood pressure, sleep, brain training). Provides
+   `get_daily_activity()` and `get_activity_summary()` methods.
+
+**Files created:** apps/dashboard/services/daily_schedule_service.py, apps/dashboard/services/daily_activity_service.py
+
+**Why:** Phase 2 of the WLJ Architecture Evolution — building the read-time aggregation layer that
+compares planned commitments (Layer 1) against actual activity (Layer 2). These services will be
+consumed by the dashboard, CoS context assembly, signal generation, and compensatory reasoning.
+
+---
+
 ## 2026-03-14 — Architecture Evolution Phase 1: Foundation
 
 **Changes:** Implemented the foundation layer of the WLJ Architecture Evolution.

@@ -433,8 +433,6 @@ def _ensure_routine_tasks_for_today(user, today):
     # Find all distinct routine task titles for this user
     routine_titles = list(
         Task.objects.filter(user=user, is_routine=True, is_recurring=True)
-        .exclude(status='deleted')
-        .exclude(deleted_at__isnull=False)
         .values_list('title', flat=True)
         .distinct()
     )
@@ -446,8 +444,6 @@ def _ensure_routine_tasks_for_today(user, today):
             Task.objects.filter(
                 user=user, title=title, is_routine=True,
             )
-            .exclude(status='deleted')
-            .exclude(deleted_at__isnull=False)
             .order_by('-due_date')
             .first()
         )
@@ -469,7 +465,7 @@ def _ensure_routine_tasks_for_today(user, today):
             title=template_task.title,
             is_routine=True,
             due_date=today,
-        ).exclude(status='deleted').exclude(deleted_at__isnull=False).exists()
+        ).exists()
 
         if exists_today:
             continue
@@ -1199,14 +1195,17 @@ def _build_gap_context_section(user, gap_hours, today) -> str:
         except Exception:
             pass
 
-        # Overdue tasks
+        # Overdue tasks — use priority-based count matching Organize page
         try:
             from apps.life.models import Task
+            from apps.life.views import _refresh_stale_task_priorities
+            _refresh_stale_task_priorities(user)
             overdue = Task.objects.filter(
                 user=user,
+                priority='now',
                 due_date__lt=today,
                 completion_status='pending',
-            ).exclude(status='deleted').count()
+            ).count()
             if overdue > 0:
                 lines.append(f"  - {overdue} tasks now overdue")
         except Exception:

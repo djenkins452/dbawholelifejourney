@@ -359,6 +359,14 @@ class DashboardAI:
             try:
                 from apps.life.models import Task, Project, LifeEvent
 
+                # Refresh priorities so counts match the Organize page
+                from apps.life.views import _refresh_stale_task_priorities
+                _refresh_stale_task_priorities(self.user)
+
+                pending = Task.objects.filter(
+                    user=self.user, completion_status='pending',
+                )
+
                 # Tasks completed today
                 data['completed_tasks_today'] = Task.objects.filter(
                     user=self.user,
@@ -366,18 +374,12 @@ class DashboardAI:
                     completed_at__date=today
                 ).count()
 
-                # Overdue tasks
-                data['overdue_tasks'] = Task.objects.filter(
-                    user=self.user,
-                    completion_status='pending',
-                    due_date__lt=today
+                # Priority-based counts — matches Organize page buckets
+                data['overdue_tasks'] = pending.filter(
+                    priority='now', due_date__lt=today,
                 ).count()
-
-                # Tasks due today (not overdue, but actionable)
-                data['tasks_due_today'] = Task.objects.filter(
-                    user=self.user,
-                    completion_status='pending',
-                    due_date=today
+                data['tasks_due_today'] = pending.filter(
+                    priority='now',
                 ).count()
 
                 # Active projects with progress

@@ -6,6 +6,38 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Task query alignment stabilization across all Beth-facing code
+
+**Objective:** Align every Beth-facing task query with the canonical Organize page pattern so counts
+and task lists are consistent across the entire app.
+
+**Phase 1 — Remove harmful `.exclude(deleted_at__isnull=False)`:**
+- `executive_briefing.py` lines 435-437, 449-450, 468 — routine task discovery, template lookup,
+  today existence check. SoftDeleteManager already filters `status='active'`; this extra exclude
+  dropped active tasks with non-null `deleted_at`.
+- `personal_assistant.py` line 4661 — LifeGoal query had same harmful filter.
+- `auto_shift_service.py` — KEPT. CalendarEvent uses `models.Model` (not SoftDeleteModel),
+  so `.exclude(deleted_at__isnull=False)` is the only soft-delete filter. Legitimate.
+
+**Phase 2+3 — Align task queries to priority-based grouping:**
+- `personal_assistant.py :: _get_task_state()` — Added `_refresh_stale_task_priorities()`,
+  replaced `due_date__lt=today`/`due_date=today` with `priority='now'`/`priority__in=['now','soon']`.
+- `personal_assistant.py :: _generate_commitment_priorities()` — Added priority refresh,
+  replaced two separate date-based queries with single `priority='now'` query.
+- `dashboard_ai.py` — Added priority refresh, replaced `due_date__lt=today`/`due_date=today`
+  with `priority='now'` (with `due_date__lt=today` for overdue subset).
+- `executive_briefing.py` gap section — Added priority refresh, replaced `due_date__lt=today`
+  with `priority='now', due_date__lt=today`.
+
+**Phase 4 — Redundant filters left unchanged:**
+- `.exclude(status='deleted')` and `status='active'` patterns are redundant with SoftDeleteManager
+  but not harmful. Left as-is to minimize risk.
+
+**Files:** `apps/ai/personal_assistant.py`, `apps/ai/executive_briefing.py`, `apps/ai/dashboard_ai.py`
+**Tests:** 462 tests pass (61 PA + 28 briefing + 373 life), Django check clean
+
+---
+
 ## 2026-03-13 — Fix Beth task count mismatch with Organize page
 
 **Problem:** Beth reported "Now (3)" when Organize page showed "Now 10". Phantom task "House cleaning"

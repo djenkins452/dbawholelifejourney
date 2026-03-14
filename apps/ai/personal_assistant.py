@@ -824,8 +824,14 @@ class PersonalAssistant:
         }
 
     def _get_task_state(self, today, week_ago) -> Dict:
-        """Get task-related metrics."""
+        """Get task-related metrics using priority-based grouping.
+
+        Uses the same queryset pattern as the Organize page so counts match.
+        """
         from apps.life.models import Task
+        from apps.life.views import _refresh_stale_task_priorities
+
+        _refresh_stale_task_priorities(self.user)
 
         tasks = Task.objects.filter(user=self.user)
         incomplete = tasks.filter(completion_status='pending')
@@ -840,12 +846,12 @@ class PersonalAssistant:
                 completion_status='completed',
                 completed_at__date__gte=week_ago
             ).count(),
-            'tasks_overdue': incomplete.filter(due_date__lt=today).count(),
-            'tasks_due_today': incomplete.filter(due_date=today).count(),
-            'tasks_due_week': incomplete.filter(
-                due_date__gte=today,
-                due_date__lte=today + timedelta(days=7)
-            ).count(),
+            # Priority-based counts — matches Organize page buckets
+            'due_today': incomplete.filter(priority='now').count(),
+            'overdue': incomplete.filter(priority='now', due_date__lt=today).count(),
+            'tasks_due_today': incomplete.filter(priority='now').count(),
+            'tasks_overdue': incomplete.filter(priority='now', due_date__lt=today).count(),
+            'tasks_due_week': incomplete.filter(priority__in=['now', 'soon']).count(),
         }
 
     def _get_purpose_state(self, today, month_ago) -> Dict:
@@ -1689,45 +1695,43 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         return priorities
 
     def _generate_commitment_priorities(self, state: Dict) -> List[Dict]:
-        """Generate priorities for existing commitments (tasks)."""
+        """Generate priorities for existing commitments (tasks).
+
+        Uses priority-based grouping matching the Organize page.
+        """
         from apps.life.models import Task
         from apps.core.utils import get_user_today
+        from apps.life.views import _refresh_stale_task_priorities
 
         today = get_user_today(self.user)
+        _refresh_stale_task_priorities(self.user)
         priorities = []
 
-        # Overdue tasks first
-        overdue = Task.objects.filter(
+        # "Now" bucket tasks, overdue first (due_date < today)
+        now_tasks = Task.objects.filter(
             user=self.user,
             completion_status='pending',
-            due_date__lt=today
-        ).order_by('due_date')[:2]
+            priority='now',
+        ).order_by('due_date')[:4]
 
-        for task in overdue:
+        for task in now_tasks:
+            if len(priorities) >= 2:
+                break
+            is_overdue = task.due_date and task.due_date < today
             priorities.append({
                 'priority_type': 'commitment',
-                'title': f'Overdue: {task.title[:50]}',
-                'description': f'Due {task.due_date.strftime("%b %d")}',
-                'why_important': 'Completing overdue commitments reduces stress and builds trust with yourself.',
+                'title': f'{"Overdue: " if is_overdue else ""}{task.title[:50]}',
+                'description': (
+                    f'Due {task.due_date.strftime("%b %d")}' if task.due_date
+                    else 'No due date'
+                ),
+                'why_important': (
+                    'Completing overdue commitments reduces stress and builds trust with yourself.'
+                    if is_overdue else
+                    'Meeting your commitments on time builds momentum.'
+                ),
                 'linked_task_id': task.id,
             })
-
-        # Due today
-        if len(priorities) < 2:
-            due_today = Task.objects.filter(
-                user=self.user,
-                completion_status='pending',
-                due_date=today
-            ).order_by('priority')[:2 - len(priorities)]
-
-            for task in due_today:
-                priorities.append({
-                    'priority_type': 'commitment',
-                    'title': task.title[:50],
-                    'description': 'Due today',
-                    'why_important': 'Meeting your commitments on time builds momentum.',
-                    'linked_task_id': task.id,
-                })
 
         return priorities
 
@@ -4658,7 +4662,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     from apps.purpose.models import LifeGoal
                     active_goals = list(LifeGoal.objects.filter(
                         user=self.user, status='active'
-                    ).exclude(deleted_at__isnull=False).values_list('title', flat=True)[:10])
+                    ).values_list('title', flat=True)[:10])
                     if active_goals:
                         goal_details = '\n'.join(f'  • {g}' for g in active_goals)
                     else:

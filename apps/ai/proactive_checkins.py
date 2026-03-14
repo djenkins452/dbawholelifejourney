@@ -346,7 +346,6 @@ class ProactiveCheckInService:
         Returns:
             AssistantMessage with quick reply buttons, or None
         """
-        from apps.journal.models import JournalEntry
         from apps.core.utils import get_user_today
 
         if not self.throttler.can_send('journal'):
@@ -354,8 +353,10 @@ class ProactiveCheckInService:
 
         today = get_user_today(self.user)
 
-        # Already journaled? Don't ask.
-        if JournalEntry.objects.filter(user=self.user, entry_date=today).exists():
+        # Already journaled? Don't ask. Use canonical service.
+        from apps.journal.services.metrics import get_journal_metrics
+        metrics = get_journal_metrics(self.user)
+        if metrics.get('last_journal_date') == today:
             return None
 
         template = get_style_template(self.user, 'journal_check')
@@ -1461,10 +1462,13 @@ def generate_faith_check_ins_for_user(user):
     except Exception as e:
         logger.warning("Faith reading check-in error: %s", e, exc_info=True)
 
-    # 2. Prayer request reminders
+    # 2. Prayer request reminders — use FaithMetricsService for active count
     try:
         from apps.faith.models import PrayerRequest
 
+        # Daily-reminder prayers need the remind_daily flag check which
+        # is not in the generic FaithMetricsService (it tracks all active).
+        # This is an intentionally specific query.
         daily_prayers = PrayerRequest.objects.filter(
             user=user,
             remind_daily=True,
@@ -1751,17 +1755,14 @@ def generate_journal_intelligence_check_ins_for_user(user):
     except Exception as e:
         logger.warning("Journal concern check-in error: %s", e, exc_info=True)
 
-    # 2. Extended journal gap
+    # 2. Extended journal gap — use canonical JournalMetricsService
     try:
-        from apps.journal.models import JournalEntry
+        from apps.journal.services.metrics import get_journal_metrics
+        j_metrics = get_journal_metrics(user)
+        last_date = j_metrics.get('last_journal_date')
 
-        last_entry = JournalEntry.objects.filter(
-            user=user, deleted_at__isnull=True,
-        ).order_by('-entry_date').first()
-
-        if last_entry:
-            days_since = (today - last_entry.entry_date).days
-
+        if last_date:
+            days_since = (today - last_date).days
             if days_since >= 3:
                 if not dedup.already_sent('journal_gap'):
                     service.generate_journal_gap_check_in(days_since)

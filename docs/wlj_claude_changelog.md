@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Phase 5: Proactive check-in alignment with canonical services
+
+**Problem:** `apps/ai/proactive_checkins.py` contained direct `JournalEntry.objects.filter()` queries
+for journal check-ins (engagement and gap detection), duplicating logic now canonicalized in
+`apps/journal/services/metrics.py`. This created drift risk — if streak logic or metric calculations
+changed in the service, proactive check-ins would still use stale inline logic.
+
+**Fix:** Migrated two proactive check-in generators to use `get_journal_metrics()`:
+- `generate_journal_check_in()` — now reads `journal_total`, `journal_streak`, `dominant_mood`,
+  `journal_week` from the canonical service instead of inline queries
+- Journal gap check-in — now reads `last_journal_date` from the service instead of a separate
+  `JournalEntry.objects.filter().order_by('-entry_date').first()` query
+
+**Left as direct queries (justified):**
+- Prayer reminder check-in — needs `remind_daily=True` filter not available in `get_faith_metrics()`
+- Faith reading check-in — needs per-plan, per-day progress detail not in the service
+
+**Files changed:** `apps/ai/proactive_checkins.py`
+**Tests:** 93 passed (32 proactive + 61 PA), 0 failures
+
+---
+
 ## 2026-03-14 — Phase 4: Create canonical Faith and Journal metrics services
 
 **Problem:** Faith and journal metrics were computed independently in 8+ locations across the codebase

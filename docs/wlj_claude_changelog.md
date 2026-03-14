@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Add Baseball Bat Swing exercise
+
+**Change:** Added "Baseball Bat Swing" to the exercise library via data migration (`0060`).
+Bodyweight/reps-based core exercise for rotational swings (right side + left side).
+
+**Files:** `apps/health/migrations/0060_add_baseball_bat_swing_exercise.py` (new)
+
+---
+
 ## 2026-03-14 — Import 6-Day Strength Training Program
 
 **Change:** Created data migration (`0059_load_6day_strength_program`) to import a new 6-day strength

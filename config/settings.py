@@ -1110,6 +1110,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "life.recalculate_task_priorities",
         "schedule": crontab(hour=6, minute=0),  # 6:00 AM UTC = 1:00 AM EST
     },
+    "eae-nightly-signal-aggregation-430am-utc": {
+        "task": "core.compute_nightly_signals",
+        "schedule": crontab(hour=4, minute=30),  # 4:30 AM UTC = 11:30 PM EST
+    },
 }
 
 # Worker settings

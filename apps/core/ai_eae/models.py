@@ -30,6 +30,85 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
+# SIGNAL SNAPSHOT (Architecture Evolution Phase 4)
+# =============================================================================
+
+
+class SignalSnapshot(models.Model):
+    """
+    Persisted daily signal value for the WLJ Architecture Evolution.
+
+    Represents a single normalized signal score for a user on a given date.
+    Computed by the nightly signal aggregation task (or on-demand).
+
+    Key design rules:
+    - signal_class is set at creation time and never changes
+    - Missing data = no row (not score=0.0)
+    - One row per (user, date, signal_type) — unique_together enforced
+    """
+
+    SIGNAL_CLASS_CHOICES = [
+        ('verified_action', 'Verified Action'),
+        ('verified_measurement', 'Verified Measurement'),
+        ('inferred_behavior', 'Inferred Behavior'),
+        ('derived_pattern', 'Derived Pattern'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='signal_snapshots',
+    )
+    date = models.DateField(
+        help_text="The date this signal represents",
+    )
+    signal_type = models.CharField(
+        max_length=30,
+        help_text="Signal type from taxonomy (e.g., health_activity, faith_practice)",
+    )
+    domain = models.CharField(
+        max_length=20,
+        help_text="LifeDomain slug (e.g., health, faith, mind)",
+    )
+    signal_class = models.CharField(
+        max_length=25,
+        choices=SIGNAL_CLASS_CHOICES,
+        help_text="Trust classification — determines Beth's framing",
+    )
+    score = models.FloatField(
+        help_text="Normalized score 0.0–1.0",
+    )
+    confidence = models.FloatField(
+        help_text="Confidence in the score 0.0–1.0",
+    )
+    source_signals = models.JSONField(
+        default=dict,
+        help_text="Evidence: which raw data contributed to this score",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Signal Snapshot"
+        verbose_name_plural = "Signal Snapshots"
+        unique_together = ['user', 'date', 'signal_type']
+        indexes = [
+            models.Index(fields=['user', 'date'], name='idx_signal_user_date'),
+            models.Index(
+                fields=['user', 'signal_type', 'date'],
+                name='idx_signal_user_type_date',
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.signal_type} for user {self.user_id} on {self.date}: "
+            f"{self.score:.2f} ({self.signal_class})"
+        )
+
+
+# =============================================================================
 # EAE STATE (per-user singleton)
 # =============================================================================
 

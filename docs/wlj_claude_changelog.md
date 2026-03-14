@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Architecture Evolution Phase 4: Signal Persistence
+
+**Changes:** Implemented SignalSnapshot model, SignalAggregationService, and nightly Celery task.
+
+1. **SignalSnapshot** (`apps/core/ai_eae/models.py`) — Persisted daily signal values with
+   signal_type, domain, signal_class, score (0-1), confidence, and source_signals JSON evidence
+2. **SignalAggregationService** (`apps/core/ai_eae/signal_aggregation.py`) — Computes 7 signal
+   types: health_activity, health_biometrics, medication_adherence, faith_practice,
+   mental_reflection, cognitive_fitness, productivity_progress
+3. **compute_nightly_signals** Celery task (`apps/core/ai_eae/tasks.py`) — Nightly aggregation
+   at 11:30 PM EST for all active users
+4. **Admin registration** — SignalSnapshot viewable in Django admin
+
+**Files modified:** apps/core/ai_eae/models.py, apps/core/ai_eae/admin.py, config/settings.py
+**Files created:** apps/core/ai_eae/signal_aggregation.py, apps/core/ai_eae/tasks.py
+**Migrations:** ai_eae.0002_signalsnapshot
+
+**Why:** Phase 4 of the WLJ Architecture Evolution — persisting normalized daily signal values
+that will feed goal momentum (Phase 5) and compensatory reasoning (Phase 6).
+
+---
+
 ## 2026-03-14 — Architecture Evolution Phase 3: Signal Taxonomy Design
 
 **Changes:** Created `docs/SIGNAL_TAXONOMY.md` — the canonical signal taxonomy reference.

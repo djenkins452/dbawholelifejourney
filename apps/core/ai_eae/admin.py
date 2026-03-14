@@ -11,7 +11,29 @@ from apps.core.ai_eae.models import (
     EAEEscalationEvent,
     EAEOverride,
     EAEState,
+    SignalSnapshot,
 )
+
+
+@admin.register(SignalSnapshot)
+class SignalSnapshotAdmin(admin.ModelAdmin):
+    list_display = [
+        'user',
+        'date',
+        'signal_type',
+        'domain',
+        'signal_class',
+        'score',
+        'confidence',
+        'updated_at',
+    ]
+    list_filter = ['signal_type', 'domain', 'signal_class', 'date']
+    search_fields = ['user__email']
+    readonly_fields = ['created_at', 'updated_at']
+    ordering = ['-date', 'signal_type']
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(EAEState)

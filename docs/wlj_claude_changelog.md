@@ -6,6 +6,31 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Phase 7: Cache expensive per-request context processor queries
+
+**Problem:** `theme_context()` context processor runs on every authenticated request and contained
+three uncached expensive operations when Personal Assistant is enabled:
+1. `_gather_user_snapshot()` + `_build_data_summary()` — ~15 DB queries for calibration summary
+2. `compute_alignment_score()` — ~5 DB queries for nav header alignment badge
+3. `CycleSettings.objects.filter()` — 1 DB query for cycle tracking flag
+
+On a typical PA-enabled page load, this added 20+ unnecessary DB queries per request since the data
+changes infrequently (minutes to hours between updates).
+
+**Fix:** Added per-user short-TTL Django cache for all three:
+- Calibration summary: cached 10 minutes (`cal_summary:{user_id}`)
+- Alignment score: cached 15 minutes (`alignment_score:{user_id}`)
+- Cycle tracking flag: cached 24 hours (`cycle_tracking:{user_id}`)
+
+**Impact:** Eliminates ~20 DB queries on all but the first request in each cache window.
+Staleness is acceptable — calibration summary and alignment score are UI-only, and cycle
+tracking rarely changes.
+
+**Files changed:** `apps/core/context_processors.py`
+**Tests:** 52/53 core tests pass (1 pre-existing failure: `test_very_long_tag_name`), 61 PA tests pass
+
+---
+
 ## 2026-03-14 — Add Hip Hinge + Band Pull-Apart to warmup sequence
 
 **Change:** Data migration (`0062`) adds Hip Hinge (1x15 reps) and Band Pull-Apart (1x20 reps) to all 6

@@ -2439,10 +2439,20 @@ def _hour_label(hour):
 RESPONSE_MODE_DIRECTIVES = {
     'reflection': (
         "RESPONSE MODE: REFLECTION. The user is evaluating progress. "
-        "Lead with what they accomplished and how it connects to their goals. "
-        "Highlight patterns (improving or declining). Be honest about gaps "
-        "but anchor on forward momentum. End with one specific observation "
-        "they may not have noticed."
+        "Follow this reasoning hierarchy strictly — do NOT lead with tasks:\n"
+        "1. SIGNAL PERFORMANCE FIRST — Lead with how their signals performed "
+        "today (strong areas, areas needing attention). Interpret the signals "
+        "like a coach, not a dashboard.\n"
+        "2. GOAL MOMENTUM — Reference goal momentum trends (improving, stable, "
+        "declining) and what is driving them.\n"
+        "3. COMMITMENT COMPLETION — Acknowledge completed commitments that "
+        "contributed to signal strength.\n"
+        "4. MISSED COMMITMENTS — Mention missed commitments only if they "
+        "materially impacted signals or momentum. Use compensatory framing "
+        "where applicable.\n"
+        "5. OPTIONAL TASKS LAST — Only reference optional or general tasks if "
+        "nothing more meaningful is available. Never lead with task lists.\n"
+        "End with one specific observation they may not have noticed."
     ),
     'planning': (
         "RESPONSE MODE: PLANNING. The user wants concrete next actions. "

@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Reflection Mode: Signal-first reasoning hierarchy
+
+**Changes:** Updated Reflection Mode directive to enforce signal-first reasoning order.
+Beth was leading with task completion when answering "How did I do today?" instead of
+interpreting signals and goals like a coach. Updated to: 1) Signal performance first,
+2) Goal momentum, 3) Commitment completion, 4) Missed commitments, 5) Optional tasks last.
+
+**Files modified:** apps/core/ai_orchestrator/cos_context.py
+
+**Why:** Beth should behave like a coach interpreting signals and goals, not a task reminder.
+
+---
+
 ## 2026-03-14 — Architecture Evolution Phase 7.5: Beth Reasoning Quality Improvements
 
 **Changes:** Four reasoning-layer improvements to CoS prompt formatting. No models, no migrations.

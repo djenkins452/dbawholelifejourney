@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Add Baseball Bat Swing warmup to all 6-day program templates
+
+**Change:** Data migration (`0061`) adds Baseball Bat Swing as the first exercise (warmup) in all 6
+workout templates. 3 sets x 10 reps: right swings, left swings, upside-down swings.
+
+**Files:** `apps/health/migrations/0061_add_bat_swing_warmup_to_templates.py` (new)
+
+---
+
 ## 2026-03-14 — Add Baseball Bat Swing exercise
 
 **Change:** Added "Baseball Bat Swing" to the exercise library via data migration (`0060`).

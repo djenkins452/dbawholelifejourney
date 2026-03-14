@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-13 (SAE Phase 2: enhanced task/health/life_events builders with richer state; new medicine module builder; medicine signals wired to SAE)
+**Last updated:** 2026-03-14 (Architecture Evolution Phase 7.5: Signal Interpretation Summary, Daily Context Summary, Conversational Response Modes, Insight-First Rule in CoS prompt)
 
 ---
 
@@ -373,12 +373,16 @@ User opens chat → loadHistory() → maybeTriggerBriefing()
 **Function:** `format_cos_system_injection()` — `cos_context.py:1560`
 
 Outputs:
-1. **OPERATIONAL INTELLIGENCE** preamble (honesty rule, link/list formatting)
+1. **OPERATIONAL INTELLIGENCE** preamble (honesty rule, link/list formatting, **insight-first rule**)
 2. **DAILY SCAN BRIEF** — COMPLETED / OUTSTANDING / TIME-SENSITIVE / RISK FLAGS
-3. **Session mode** — DAILY_ORIENTATION vs LIGHT
-4. **Schedule blocks** with [NOW], [SOON], [done], [MISSED] markers
-5. **Protective flags, deadlines, pressure, relationship, health signals**
-6. **HEALTH SCREENSHOT ANALYSIS (PIE)** — When user uploads health screenshot: summary insight, observations, implications, recommendation (injected after user-affirmed completions block)
+3. **Session mode** — DAILY_ORIENTATION vs LIGHT (situation-aware: 8 modes)
+4. **DAILY CONTEXT SUMMARY** (Phase 7.5) — Synthesized narrative: completed commitments, missed commitments, compensatory activity, goal momentum trends, signal highlights
+5. **CONVERSATIONAL RESPONSE MODE** (Phase 7.5) — Keyword-detected: Reflection / Planning / Check-In coaching directives
+6. **Schedule blocks** with [NOW], [SOON], [done], [MISSED] markers
+7. **SIGNAL INTERPRETATION SUMMARY** (Phase 7.5) — Signals grouped by strength: Strong (≥0.7), Moderate (0.4-0.7), Needs Attention (<0.4)
+8. **COMMITMENT GAP ANALYSIS** (Phase 6) — Missed commitments, partial offsets, compensatory reasoning rules
+9. **Protective flags, deadlines, pressure, relationship, health signals**
+10. **HEALTH SCREENSHOT ANALYSIS (PIE)** — When user uploads health screenshot
 
 ### Caching Strategy
 

@@ -2432,6 +2432,183 @@ def _hour_label(hour):
         return f"{hour - 12} PM"
 
 
+# =============================================================================
+# Phase 7.5 — Beth Reasoning Quality Improvements
+# =============================================================================
+
+RESPONSE_MODE_DIRECTIVES = {
+    'reflection': (
+        "RESPONSE MODE: REFLECTION. The user is evaluating progress. "
+        "Lead with what they accomplished and how it connects to their goals. "
+        "Highlight patterns (improving or declining). Be honest about gaps "
+        "but anchor on forward momentum. End with one specific observation "
+        "they may not have noticed."
+    ),
+    'planning': (
+        "RESPONSE MODE: PLANNING. The user wants concrete next actions. "
+        "Prioritize recommendations by impact. Reference their actual tasks, "
+        "goals, and schedule. Give specific, named actions — not categories. "
+        "Suggest time windows from their schedule if available. Limit to "
+        "3 recommendations maximum."
+    ),
+    'check_in': (
+        "RESPONSE MODE: CHECK-IN. Balanced coaching — acknowledge where "
+        "they are, surface one meaningful insight, and offer one forward action. "
+        "Keep it conversational and grounded in their data."
+    ),
+}
+
+REFLECTION_KEYWORDS = (
+    'how am i doing', 'how did i do', 'how was my', 'progress',
+    'review', 'reflect', 'looking back', 'track record',
+    'am i on track', 'how have i been',
+)
+
+PLANNING_KEYWORDS = (
+    'what should i', 'next steps', 'plan', 'what now',
+    'priorities', 'focus on', 'how should i', 'what do i need',
+    'action items', 'game plan',
+)
+
+
+def _detect_response_mode(user_message):
+    """
+    Detect conversational response mode from user message keywords.
+
+    Returns 'reflection', 'planning', or 'check_in' (default).
+    """
+    if not user_message:
+        return 'check_in'
+
+    msg_lower = user_message.lower()
+
+    for kw in REFLECTION_KEYWORDS:
+        if kw in msg_lower:
+            return 'reflection'
+
+    for kw in PLANNING_KEYWORDS:
+        if kw in msg_lower:
+            return 'planning'
+
+    return 'check_in'
+
+
+def _format_signal_interpretation_summary(context):
+    """
+    Phase 7.5: Group today's signals into Strong / Moderate / Needs Attention.
+
+    Signals are sorted by score before grouping. Within Strong, highest first.
+    Within Needs Attention, lowest first (most urgent at top).
+    Returns formatted block or empty string if no signals.
+    """
+    daily_signals = context.get('daily_signals', [])
+    if not daily_signals:
+        return ''
+
+    # Sort all signals by score descending
+    sorted_signals = sorted(daily_signals, key=lambda s: s.get('score', 0), reverse=True)
+
+    strong = []
+    moderate = []
+    needs_attention = []
+
+    for s in sorted_signals:
+        score = s.get('score', 0)
+        label = s.get('signal_type', 'unknown').replace('_', ' ').title()
+        trend = s.get('trend_7d', '')
+        trend_tag = f", {trend}" if trend else ''
+        entry = f"{label} ({score:.0%}{trend_tag})"
+
+        if score >= 0.7:
+            strong.append(entry)
+        elif score >= 0.4:
+            moderate.append(entry)
+        else:
+            needs_attention.append(entry)
+
+    # Reverse needs_attention so lowest appears first (most urgent)
+    needs_attention.reverse()
+
+    lines = ["=== SIGNAL INTERPRETATION SUMMARY ==="]
+    if strong:
+        lines.append(f"Strong (performing well): {', '.join(strong)}")
+    if moderate:
+        lines.append(f"Moderate: {', '.join(moderate)}")
+    if needs_attention:
+        lines.append(f"Needs Attention: {', '.join(needs_attention)}")
+    lines.append("=== END SIGNAL INTERPRETATION SUMMARY ===")
+
+    return '\n'.join(lines)
+
+
+def _format_daily_context_summary(context):
+    """
+    Phase 7.5: Synthesized daily narrative combining commitments, gaps,
+    compensatory activity, goal momentum, and signal highlights.
+
+    Returns formatted block or empty string if no data.
+    """
+    parts = []
+
+    # Completed commitments
+    blocks = context.get('today_blocks_summary', [])
+    completed = [b['title'] for b in blocks if b.get('completed')]
+    if completed:
+        parts.append(f"Completed today: {', '.join(completed[:6])}")
+
+    # Missed commitments + compensatory
+    gap = context.get('daily_commitment_gap', {})
+    total_missed = gap.get('total_missed', 0)
+    if total_missed > 0:
+        partial = gap.get('positive_partial_count', 0)
+        non_comp = gap.get('non_compensable_count', 0)
+        gap_parts = [f"{total_missed} missed"]
+        if partial:
+            gap_parts.append(f"{partial} partially offset")
+        if non_comp:
+            gap_parts.append(f"{non_comp} non-compensable")
+        parts.append(f"Commitment gaps: {', '.join(gap_parts)}")
+
+    # Goal momentum trends
+    momentum = context.get('goal_momentum', [])
+    if momentum:
+        trends = []
+        for g in momentum[:5]:
+            title = g.get('goal_title', 'Unknown')
+            trend = g.get('momentum_trend', 'stable')
+            trends.append(f'"{title}" {trend}')
+        parts.append(f"Goal momentum: {', '.join(trends)}")
+
+    # Signal highlights (1-line conditional)
+    daily_signals = context.get('daily_signals', [])
+    if daily_signals:
+        strong_sigs = [
+            s.get('signal_type', '').replace('_', ' ')
+            for s in daily_signals if s.get('score', 0) >= 0.7
+        ]
+        weak_sigs = [
+            s.get('signal_type', '').replace('_', ' ')
+            for s in daily_signals if s.get('score', 0) < 0.4
+        ]
+        sig_parts = []
+        if strong_sigs:
+            sig_parts.append(f"Strong signals: {', '.join(strong_sigs[:3])}")
+        if weak_sigs:
+            sig_parts.append(f"Needs attention: {', '.join(weak_sigs[:3])}")
+        if sig_parts:
+            parts.append(' | '.join(sig_parts))
+
+    if not parts:
+        return ''
+
+    lines = ["=== DAILY CONTEXT SUMMARY ==="]
+    lines.extend(parts)
+    lines.append("Use this summary for quick orientation. Detailed data follows below.")
+    lines.append("=== END DAILY CONTEXT SUMMARY ===")
+
+    return '\n'.join(lines)
+
+
 def format_cos_system_injection(context, user_message=None):
     """
     Format the CoS context as a system prompt injection string.
@@ -2576,6 +2753,12 @@ def format_cos_system_injection(context, user_message=None):
         "intelligence. When a meaningful signal exists (warning, critical, or "
         "strong correlation), you SHOULD lead with it briefly, even if the user "
         "didn't ask. This is what a Chief of Staff does — surface what matters."
+    )
+    lines.append("")
+    # Phase 7.5: Insight-First Rule
+    lines.append(
+        "INSIGHT-FIRST RULE: Synthesize insights before listing raw metrics. "
+        "Prefer interpreting signals and patterns rather than enumerating values."
     )
     lines.append("")
     lines.append(
@@ -2887,6 +3070,17 @@ def format_cos_system_injection(context, user_message=None):
         except Exception:
             pass
 
+    # ── Phase 7.5: DAILY CONTEXT SUMMARY ──
+    _daily_summary = _format_daily_context_summary(context)
+    if _daily_summary:
+        lines.append("")
+        lines.append(_daily_summary)
+
+    # ── Phase 7.5: CONVERSATIONAL RESPONSE MODE ──
+    _response_mode = _detect_response_mode(user_message)
+    lines.append(RESPONSE_MODE_DIRECTIVES[_response_mode])
+    lines.append("")
+
     # ── USER OPERATING PROFILE (Personal Operating Context — Phase 1) ──
     # Pre-computed behavioral synthesis. Influences HOW Beth frames guidance,
     # not WHAT she decides. Only injected when sample_days >= 14.
@@ -3081,6 +3275,12 @@ def format_cos_system_injection(context, user_message=None):
             "  - Intelligence is 'degraded' → don't speculate\n"
             "=== END PROACTIVE INTELLIGENCE DIRECTIVE ==="
         )
+
+    # Phase 7.5: Signal Interpretation Summary
+    _signal_summary = _format_signal_interpretation_summary(context)
+    if _signal_summary:
+        lines.append("")
+        lines.append(_signal_summary)
 
     # Active insights — pattern detections from PIE
     if insights:

@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Architecture Evolution Phase 7.5: Beth Reasoning Quality Improvements
+
+**Changes:** Four reasoning-layer improvements to CoS prompt formatting. No models, no migrations.
+
+1. **Signal Interpretation Summary** — Groups daily signals into Strong (≥0.7), Moderate (0.4-0.7),
+   Needs Attention (<0.4) tiers. Sorted by score within groups (strong=highest first, needs
+   attention=lowest first for urgency).
+2. **Daily Context Summary** — Synthesized narrative block: completed commitments, missed commitments,
+   compensatory activity, goal momentum trends, and signal highlights in one block.
+3. **Conversational Response Modes** — Keyword-detected response directives:
+   Reflection Mode (progress evaluation), Planning Mode (concrete next actions),
+   Check-In Mode (balanced coaching, default).
+4. **Insight-First Rule** — Directive to synthesize insights before listing raw metrics.
+
+**Files modified:** apps/core/ai_orchestrator/cos_context.py, docs/ENGINE_COS_REFERENCE.md
+
+**Why:** Improve Beth's reasoning quality between Phase 7 (Journal NLP) and Phase 8 (Beth
+Reasoning Upgrade). These are prompt engineering improvements, not architectural changes.
+
+---
+
 ## 2026-03-14 — Architecture Evolution Phase 8: Beth Reasoning Upgrade
 
 **Changes:** Upgraded Beth's system prompt with signal-class-aware framing rules and added

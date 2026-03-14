@@ -4490,7 +4490,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 state = self.assess_current_state()
                 time_context = self._get_time_context()
                 tasks = state.get('tasks', {})
-                remaining_tasks = tasks.get('due_today', 0) + tasks.get('overdue', 0)
+                # due_today = priority='now' count, which ALREADY includes
+                # overdue tasks.  Adding overdue again double-counts them.
+                remaining_tasks = tasks.get('due_today', 0)
             except Exception as _state_err:
                 logger.error(
                     "CHECKIN_STATE_CRASH user=%s — assess_current_state or "

@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Fix remaining_tasks double-count bug + Full system audit
+
+**Bug fix:** `remaining_tasks` at line 4493 was `due_today + overdue`. Since `due_today` uses
+`priority='now'` (which already includes overdue tasks), adding `overdue` again double-counted
+them. Fixed to just `due_today`. Only affected non-check-in paths (analysis, general task queries).
+
+**System audit:** Completed full 6-phase architecture audit (Phase 1-6). Inventoried 200+ models,
+115+ services/engines, 937 URL patterns, 116 signal handlers. Identified 5 harmful architectural
+problems and produced 10-step stabilization order. See `docs/SYSTEM_AUDIT_2026_03_14.md`.
+
+**Files:** `apps/ai/personal_assistant.py`, `docs/SYSTEM_AUDIT_2026_03_14.md`
+
+---
+
 ## 2026-03-14 — Fix prompt starvation: Beth under-reports task count
 
 **Root Cause:** Beth reported 2 tasks when Organize page showed 10. The query was correct (no

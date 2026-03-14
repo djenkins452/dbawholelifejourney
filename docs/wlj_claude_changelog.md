@@ -6,6 +6,23 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Architecture Evolution Phase 3: Signal Taxonomy Design
+
+**Changes:** Created `docs/SIGNAL_TAXONOMY.md` — the canonical signal taxonomy reference.
+
+Defines 10 signal types (health_activity, health_biometrics, medication_adherence,
+nutrition_compliance, faith_practice, mental_reflection, cognitive_fitness,
+productivity_progress, financial_health, relational_engagement), 4 signal classes,
+normalization baselines, aggregation rules, mixed-class handling, and confidence calculation.
+
+**Files created:** docs/SIGNAL_TAXONOMY.md
+
+**Why:** Phase 3 of the WLJ Architecture Evolution — designing the signal vocabulary before
+implementing persistence (Phase 4). This ensures all signal types, classes, and normalization
+rules are defined before code is written.
+
+---
+
 ## 2026-03-14 — Architecture Evolution Phase 2: Unified Daily View
 
 **Changes:** Implemented DailyScheduleService and DailyActivityService.

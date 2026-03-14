@@ -795,37 +795,9 @@ class PersonalAssistant:
         return data
 
     def _get_journal_state(self, today, week_ago, month_ago) -> Dict:
-        """Get journal-related metrics."""
-        from apps.journal.models import JournalEntry
-
-        entries = JournalEntry.objects.filter(user=self.user)
-        entries_week = entries.filter(entry_date__gte=week_ago)
-
-        # Calculate streak
-        streak = self._calculate_journal_streak(today)
-
-        # Dominant mood this week
-        moods = entries_week.exclude(mood='').values('mood').annotate(
-            count=Count('mood')
-        ).order_by('-count')
-        dominant_mood = moods[0]['mood'] if moods else ''
-
-        # Recent entries for context
-        recent = list(entries.order_by('-entry_date')[:5].values(
-            'title', 'entry_date', 'mood', 'body'
-        ))
-
-        return {
-            'journal_total': entries.count(),
-            'journal_week': entries_week.count(),
-            'journal_month': entries.filter(entry_date__gte=month_ago).count(),
-            'journal_streak': streak,
-            'dominant_mood': dominant_mood,
-            'recent_entries': recent,
-            'last_journal_date': entries.order_by('-entry_date').values_list(
-                'entry_date', flat=True
-            ).first(),
-        }
+        """Get journal-related metrics via canonical JournalMetricsService."""
+        from apps.journal.services.metrics import get_journal_metrics
+        return get_journal_metrics(self.user)
 
     def _get_task_state(self, today, week_ago) -> Dict:
         """Get task-related metrics using priority-based grouping.
@@ -1049,39 +1021,9 @@ class PersonalAssistant:
         }
 
     def _get_faith_state(self, month_ago) -> Dict:
-        """Get faith-related metrics."""
-        from apps.core.utils import get_user_today
-        from apps.faith.models import (
-            FaithMilestone, PrayerRequest, UserReadingPlan,
-        )
-        from apps.faith.engagement import get_faith_engagement_details
-
-        today = get_user_today(self.user)
-        prayers = PrayerRequest.objects.filter(user=self.user)
-
-        active_plans = UserReadingPlan.objects.filter(
-            user=self.user, plan_status='active'
-        ).exclude(status='deleted')
-
-        engagement = get_faith_engagement_details(self.user, today)
-
-        return {
-            'active_prayers': prayers.filter(is_answered=False).count(),
-            'answered_prayers_month': prayers.filter(
-                is_answered=True,
-                answered_at__gte=month_ago
-            ).count(),
-            'total_prayers': prayers.count(),
-            'recent_answered': prayers.filter(is_answered=True).order_by(
-                '-answered_at'
-            ).first(),
-            'faith_milestones': FaithMilestone.objects.filter(
-                user=self.user
-            ).count(),
-            'active_reading_plans': active_plans.count(),
-            'reading_completed_today': engagement['reading_completed_today'],
-            'faith_engaged_today': engagement['faith_engaged_today'],
-        }
+        """Get faith-related metrics via canonical FaithMetricsService."""
+        from apps.faith.services import get_faith_metrics
+        return get_faith_metrics(self.user)
 
     def _get_health_state(self, today, week_ago) -> Dict:
         """Get health-related metrics across all health models."""

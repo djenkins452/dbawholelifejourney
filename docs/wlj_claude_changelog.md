@@ -6,6 +6,35 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Phase 4: Create canonical Faith and Journal metrics services
+
+**Problem:** Faith and journal metrics were computed independently in 8+ locations across the codebase
+(PA, SAE builders, executive briefing, proactive check-ins, dashboard services). Each location had its
+own direct model queries with slightly different field names, time windows, and logic — creating drift
+risk. Journal streak calculation existed in 2 places with different implementations.
+
+**Fix:** Created canonical service files:
+- `apps/faith/services.py` — `get_faith_metrics(user)` reads from SAE + direct queries for fields SAE
+  doesn't track (answered_prayers_month, milestones, total_prayers, today engagement)
+- `apps/journal/services/metrics.py` — `get_journal_metrics(user)` + `calculate_journal_streak(user, today)`
+  reads from SAE + direct queries for totals, streaks, recent entries
+
+Migrated PA's `_get_faith_state()` and `_get_journal_state()` to delegate to these services (2-line
+methods now). Other consumers (executive briefing, proactive check-ins) can be migrated in future phases.
+
+**Service contracts:**
+- `get_faith_metrics()` → active_prayers, answered_prayers_month, total_prayers, faith_milestones,
+  active_reading_plans, reading_completed_today, faith_engaged_today, reading_streak, recent_prayer_titles
+- `get_journal_metrics()` → journal_total, journal_week, journal_month, journal_streak, dominant_mood,
+  recent_entries, last_journal_date
+
+**Verification:** 208 PA+faith tests pass. Journal fixture issue pre-existing (unrelated).
+
+**Files:** `apps/faith/services.py` (new), `apps/journal/services/metrics.py` (new),
+`apps/ai/personal_assistant.py`
+
+---
+
 ## 2026-03-14 — Phase 3: Migrate PA state reads from UserStateSnapshot to SAE
 
 **Problem:** Beth's `assess_current_state()` read metrics from `UserStateSnapshot` (USS), which could

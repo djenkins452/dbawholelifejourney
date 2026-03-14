@@ -6,6 +6,34 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Fix: Completed task temporal contamination in AUTHORITATIVE DATA STATE
+
+**Problem:** When a user asked Beth "list only the tasks I have completed today," Beth
+incorrectly included "Move Bins and Boxes in garage" (completed March 1) alongside
+today's actual completion ("Prayer Time"). Investigation confirmed all deterministic
+queries correctly filter `completed_at__date=today`, but the AUTHORITATIVE DATA STATE
+snapshot only injected a **count** (`completed_tasks_today: N`) without task **titles**.
+The LLM then inferred task names from conversation history and semantic memory, pulling
+in stale historical task names — a temporal contamination bug.
+
+**Root cause:** The `_build_data_state_snapshot()` function in `cos_context.py` gave the
+LLM a number but no names, forcing it to guess from prior context.
+
+**Fix:**
+- Extended `_build_data_state_snapshot()` to include `completed_task_titles_today` —
+  the actual task names from the same canonical query, capped at 10
+- Added a TASK NAME GROUNDING RULE that explicitly prohibits the LLM from inferring
+  task names from conversation history, semantic memory, or prior responses
+- No additional DB query — reuses the same queryset used for the count
+
+**Files changed:**
+- `apps/core/ai_orchestrator/cos_context.py` — added title list + grounding rule
+- `apps/core/ai_orchestrator/tests/test_data_state_snapshot.py` — 5 new regression tests
+
+**Tests:** 5/5 new tests pass, 119/120 orchestrator tests pass (1 pre-existing disambiguation text mismatch)
+
+---
+
 ## 2026-03-14 — Phase 7: Cache expensive per-request context processor queries
 
 **Problem:** `theme_context()` context processor runs on every authenticated request and contained

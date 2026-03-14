@@ -522,6 +522,40 @@ class Task(UserOwnedModel):
 
 
 # =============================================================================
+# Task → Goal Attribution
+# =============================================================================
+
+class TaskGoalLink(models.Model):
+    """
+    Structural attribution: this task serves these goals.
+
+    Part of the WLJ Architecture Evolution (Phase 1).
+    Links a Task to one or more LifeGoals for attribution purposes.
+    Momentum flows through signals, not directly from this link.
+    """
+    task = models.ForeignKey(
+        'life.Task',
+        on_delete=models.CASCADE,
+        related_name='goal_links',
+    )
+    goal = models.ForeignKey(
+        'purpose.LifeGoal',
+        on_delete=models.CASCADE,
+        related_name='task_links',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['task', 'goal']
+        verbose_name = "Task-Goal Link"
+        verbose_name_plural = "Task-Goal Links"
+
+    def __str__(self):
+        return f"{self.task.title} → {self.goal.title}"
+
+
+# =============================================================================
 # Life Events (Calendar)
 # =============================================================================
 

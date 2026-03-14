@@ -21,3 +21,6 @@ class HealthConfig(AppConfig):
             sender=CycleDailyLog,
             dispatch_uid="cycle_daily_log_detection"
         )
+
+        # Architecture Evolution Phase 1 — calendar projections
+        import apps.health.signals  # noqa: F401

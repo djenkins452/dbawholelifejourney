@@ -37,6 +37,9 @@ class CalendarEvent(models.Model):
     SOURCE_HABIT = 'habit'
     SOURCE_LIFE_EVENT = 'life_event'
     SOURCE_EXTERNAL = 'external'
+    SOURCE_MEDICINE_SCHEDULE = 'medicine_schedule'
+    SOURCE_FAITH_ROUTINE = 'faith_routine'
+    SOURCE_WORKOUT_SCHEDULE = 'workout_schedule'
 
     SOURCE_TYPE_CHOICES = [
         (SOURCE_NONE, 'None (Manual)'),
@@ -46,6 +49,20 @@ class CalendarEvent(models.Model):
         (SOURCE_HABIT, 'Habit'),
         (SOURCE_LIFE_EVENT, 'Life Event'),
         (SOURCE_EXTERNAL, 'External'),
+        (SOURCE_MEDICINE_SCHEDULE, 'Medicine Schedule'),
+        (SOURCE_FAITH_ROUTINE, 'Faith Routine'),
+        (SOURCE_WORKOUT_SCHEDULE, 'Workout Schedule'),
+    ]
+
+    # Commitment levels (shared vocabulary with Task, HabitGoal)
+    COMMITMENT_OPTIONAL = 'optional'
+    COMMITMENT_IMPORTANT = 'important'
+    COMMITMENT_NON_NEGOTIABLE = 'non_negotiable'
+
+    COMMITMENT_LEVEL_CHOICES = [
+        (COMMITMENT_OPTIONAL, 'Optional'),
+        (COMMITMENT_IMPORTANT, 'Important'),
+        (COMMITMENT_NON_NEGOTIABLE, 'Non-Negotiable'),
     ]
 
     # Status
@@ -93,6 +110,14 @@ class CalendarEvent(models.Model):
         max_length=100,
         blank=True,
         help_text='PK of the source object (stored as string for flexibility)',
+    )
+
+    commitment_level = models.CharField(
+        max_length=20,
+        choices=COMMITMENT_LEVEL_CHOICES,
+        default=COMMITMENT_IMPORTANT,
+        help_text='Importance classification. Non-negotiable commitments are '
+                  'never compensable in the compensatory reasoning engine.',
     )
 
     is_protected = models.BooleanField(

@@ -6,6 +6,36 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Architecture Evolution Phase 1: Foundation
+
+**Changes:** Implemented the foundation layer of the WLJ Architecture Evolution.
+
+1. **TaskGoalLink** (`apps/life/models.py`) — M2M attribution model linking tasks to goals
+2. **HabitGoalLink** (`apps/purpose/models.py`) — M2M attribution model linking habits to goals
+3. **HabitGoal.commitment_level** (`apps/purpose/models.py`) — New field (optional/important/non_negotiable)
+4. **CalendarEvent.commitment_level** (`apps/calendar_engine/models.py`) — New field for importance classification
+5. **CalendarEvent source_types** — Added `medicine_schedule`, `faith_routine`, `workout_schedule`
+6. **Medicine projection** — MedicineSchedule → CalendarEvent (recurring, non_negotiable)
+7. **Faith projection** — UserReadingPlan → CalendarEvent (recurring, important)
+8. **Workout projection** — WorkoutSchedule → CalendarEvent (weekly recurring, important)
+9. **Signal handlers** — New `apps/health/signals.py` and `apps/faith/signals.py`
+10. **Commitment propagation** — Task and habit projections now copy commitment_level to CalendarEvent
+
+**Files modified:** apps/life/models.py, apps/purpose/models.py, apps/calendar_engine/models.py,
+apps/calendar_engine/services/projection.py, apps/health/apps.py, apps/faith/apps.py
+
+**Files created:** apps/health/signals.py, apps/faith/signals.py
+
+**Migrations:** life.0025, purpose.0008, calendar_engine.0009
+
+**Tests:** 687 passed (calendar_engine, life, purpose)
+
+**Why:** Phase 1 of the WLJ Architecture Evolution — establishing structural links between
+tasks/habits and goals, extending CalendarEngine to project medicine, faith, and workout
+commitments, and standardizing commitment importance across the system.
+
+---
+
 ## 2026-03-14 — Fix: Routing hardening for completed-task queries
 
 **Problem:** The previous fix added task titles to the AUTHORITATIVE DATA STATE, but the

@@ -895,6 +895,20 @@ class HabitGoal(UserOwnedModel):
         default='active'
     )
 
+    # Commitment level — shared concept with Task
+    COMMITMENT_LEVEL_CHOICES = [
+        ('optional', 'Optional'),
+        ('important', 'Important'),
+        ('non_negotiable', 'Non-Negotiable'),
+    ]
+    commitment_level = models.CharField(
+        max_length=20,
+        choices=COMMITMENT_LEVEL_CHOICES,
+        default='important',
+        help_text="Non-negotiable habits trigger coaching if missed. "
+                  "Used by compensatory reasoning engine.",
+    )
+
     # Link to annual direction
     annual_direction = models.ForeignKey(
         AnnualDirection,
@@ -1209,6 +1223,37 @@ class HabitGoal(UserOwnedModel):
             target_value__isnull=False,
         ).aggregate(total=Sum('target_value'))
         return float(result['total']) if result['total'] else 0.0
+
+
+class HabitGoalLink(models.Model):
+    """
+    Structural attribution: this habit serves these goals.
+
+    Part of the WLJ Architecture Evolution (Phase 1).
+    Links a HabitGoal to one or more LifeGoals for attribution purposes.
+    Connects the habit *definition* to goals, not the completion record.
+    Momentum flows through signals, not directly from this link.
+    """
+    habit = models.ForeignKey(
+        HabitGoal,
+        on_delete=models.CASCADE,
+        related_name='goal_links',
+    )
+    goal = models.ForeignKey(
+        LifeGoal,
+        on_delete=models.CASCADE,
+        related_name='habit_links',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['habit', 'goal']
+        verbose_name = "Habit-Goal Link"
+        verbose_name_plural = "Habit-Goal Links"
+
+    def __str__(self):
+        return f"{self.habit.name} → {self.goal.title}"
 
 
 class HabitEntry(models.Model):

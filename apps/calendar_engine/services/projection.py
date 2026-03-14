@@ -198,6 +198,7 @@ def upsert_from_task(task):
         event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
         source_type=CalendarEvent.SOURCE_TASK,
         source_id=str(task.pk),
+        commitment_level=getattr(task, 'commitment_level', CalendarEvent.COMMITMENT_IMPORTANT),
         status=CalendarEvent.STATUS_COMPLETED if task.is_completed else CalendarEvent.STATUS_SCHEDULED,
         idempotency_key=compute_idempotency_key(
             task.user_id, task_title, start_dt, end_dt=end_dt,
@@ -259,6 +260,8 @@ def upsert_from_routine_task(task):
         else CalendarEvent.STATUS_SCHEDULED
     )
 
+    commitment = getattr(task, 'commitment_level', CalendarEvent.COMMITMENT_IMPORTANT)
+
     if existing:
         old_start = existing.start_dt
         existing.title = task.title
@@ -267,6 +270,7 @@ def upsert_from_routine_task(task):
         existing.domain = domain
         existing.is_all_day = False
         existing.status = status
+        existing.commitment_level = commitment
         existing.save()
         _log_schedule_change(task.user, existing, old_start, start_dt)
 
@@ -287,6 +291,7 @@ def upsert_from_routine_task(task):
         event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
         source_type=CalendarEvent.SOURCE_TASK,
         source_id=str(task.pk),
+        commitment_level=commitment,
         status=status,
         idempotency_key=compute_idempotency_key(
             task.user_id, task.title, start_dt, end_dt=end_dt,
@@ -525,6 +530,8 @@ def upsert_from_habit(habit):
     duration = duration_map.get(habit.measurement_type, 30)
     end_dt = start_dt + dt.timedelta(minutes=duration)
 
+    habit_commitment = getattr(habit, 'commitment_level', CalendarEvent.COMMITMENT_IMPORTANT)
+
     if existing:
         old_start = existing.start_dt
         existing.title = habit.name
@@ -532,6 +539,7 @@ def upsert_from_habit(habit):
         existing.end_dt = end_dt
         existing.domain = domain
         existing.is_protected = True
+        existing.commitment_level = habit_commitment
         existing.status = CalendarEvent.STATUS_SCHEDULED
         existing.save()
         _log_schedule_change(habit.user, existing, old_start, start_dt)
@@ -547,6 +555,7 @@ def upsert_from_habit(habit):
             source_type=CalendarEvent.SOURCE_HABIT,
             source_id=str(habit.pk),
             is_protected=True,
+            commitment_level=habit_commitment,
             idempotency_key=compute_idempotency_key(
                 habit.user_id, habit.name, start_dt, end_dt=end_dt,
                 source_type='habit', source_id=str(habit.pk),
@@ -587,6 +596,307 @@ def delete_habit_events(habit):
         user=habit.user,
         source_type=CalendarEvent.SOURCE_HABIT,
         source_id=str(habit.pk),
+    ).delete()
+
+
+# ──────────────────────────────────────────────────────────
+# Medicine Schedule Projections (Architecture Evolution Phase 1)
+# ──────────────────────────────────────────────────────────
+
+def upsert_from_medicine_schedule(schedule):
+    """
+    Create/update an EXECUTION_BLOCK for a MedicineSchedule.
+
+    Each MedicineSchedule instance represents a single daily dose time
+    (e.g., "Metformin at 8:00 AM"). This projects it as a recurring
+    CalendarEvent with commitment_level='non_negotiable'.
+
+    Contract: CalendarEvent = scheduled commitment INSTANCE, not definition.
+    The MedicineSchedule is the definition; the CalendarEvent is the daily instance.
+    For recurring schedules, we use RecurrenceRule to generate occurrences dynamically.
+    """
+    if not schedule.is_active:
+        delete_medicine_events(schedule)
+        return None
+
+    medicine = schedule.medicine
+    user = medicine.user
+
+    existing = CalendarEvent.objects.filter(
+        user=user,
+        source_type=CalendarEvent.SOURCE_MEDICINE_SCHEDULE,
+        source_id=str(schedule.pk),
+    ).first()
+
+    # Build title: "Take Metformin 500mg" or "Take Metformin"
+    dosage_str = f" {medicine.dosage}" if medicine.dosage else ""
+    title = f"Take {medicine.name}{dosage_str}"
+
+    # Anchor event at schedule's time on medicine start_date or today
+    from apps.core.utils import get_user_today
+    anchor_date = getattr(medicine, 'start_date', None) or get_user_today(user)
+
+    from zoneinfo import ZoneInfo
+    user_tz = ZoneInfo(user.preferences.timezone_iana)
+    start_dt = timezone.make_aware(
+        dt.datetime.combine(anchor_date, schedule.scheduled_time),
+        user_tz,
+    )
+    end_dt = start_dt + dt.timedelta(minutes=5)  # Medication takes ~5 min
+
+    domain = _get_default_domain('health')
+
+    if existing:
+        old_start = existing.start_dt
+        existing.title = title
+        existing.start_dt = start_dt
+        existing.end_dt = end_dt
+        existing.domain = domain
+        existing.commitment_level = CalendarEvent.COMMITMENT_NON_NEGOTIABLE
+        existing.status = CalendarEvent.STATUS_SCHEDULED
+        existing.save()
+        _log_schedule_change(user, existing, old_start, start_dt)
+        event = existing
+    else:
+        event = CalendarEvent.objects.create(
+            user=user,
+            title=title,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            is_all_day=False,
+            domain=domain,
+            event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
+            source_type=CalendarEvent.SOURCE_MEDICINE_SCHEDULE,
+            source_id=str(schedule.pk),
+            commitment_level=CalendarEvent.COMMITMENT_NON_NEGOTIABLE,
+            idempotency_key=compute_idempotency_key(
+                user.pk, title, start_dt, end_dt=end_dt,
+                source_type='medicine_schedule', source_id=str(schedule.pk),
+            ),
+        )
+
+    # Upsert recurrence rule — medicine doses repeat on configured days
+    days_list = schedule.days_list
+    # Convert Python weekday (0=Mon) to ISO weekday (1=Mon) for RecurrenceRule
+    iso_days = [d + 1 for d in days_list] if days_list else []
+
+    RecurrenceRule.objects.update_or_create(
+        event=event,
+        defaults={
+            'frequency': RecurrenceRule.FREQ_DAILY,
+            'interval': 1,
+            'byweekday': iso_days if iso_days and len(iso_days) < 7 else [],
+            'timezone': user.preferences.timezone_iana,
+        },
+    )
+
+    return event
+
+
+def delete_medicine_events(schedule):
+    """Remove all calendar events projected from a medicine schedule."""
+    user = schedule.medicine.user
+    CalendarEvent.objects.filter(
+        user=user,
+        source_type=CalendarEvent.SOURCE_MEDICINE_SCHEDULE,
+        source_id=str(schedule.pk),
+    ).delete()
+
+
+# ──────────────────────────────────────────────────────────
+# Faith Routine Projections (Architecture Evolution Phase 1)
+# ──────────────────────────────────────────────────────────
+
+def upsert_from_faith_routine(user_plan):
+    """
+    Create/update a recurring CalendarEvent for a UserReadingPlan.
+
+    Projects the reading plan as a daily commitment at the plan's
+    reminder_time (or default 6:30 AM).
+
+    Contract: CalendarEvent = scheduled commitment INSTANCE.
+    The UserReadingPlan + ReadingPlanDay are the definitions.
+    """
+    if user_plan.plan_status not in ('active',):
+        delete_faith_events(user_plan)
+        return None
+
+    user = user_plan.user
+    template = user_plan.template
+
+    existing = CalendarEvent.objects.filter(
+        user=user,
+        source_type=CalendarEvent.SOURCE_FAITH_ROUTINE,
+        source_id=str(user_plan.pk),
+    ).first()
+
+    title = f"Bible Reading: {template.name}"
+    reminder_time = user_plan.reminder_time or dt.time(6, 30)
+
+    from zoneinfo import ZoneInfo
+    user_tz = ZoneInfo(user.preferences.timezone_iana)
+    start_dt = timezone.make_aware(
+        dt.datetime.combine(user_plan.started_at.date(), reminder_time),
+        user_tz,
+    )
+    end_dt = start_dt + dt.timedelta(minutes=20)  # ~20 min for reading
+
+    domain = _get_default_domain('faith')
+
+    if existing:
+        old_start = existing.start_dt
+        existing.title = title
+        existing.start_dt = start_dt
+        existing.end_dt = end_dt
+        existing.domain = domain
+        existing.commitment_level = CalendarEvent.COMMITMENT_IMPORTANT
+        existing.status = CalendarEvent.STATUS_SCHEDULED
+        existing.save()
+        _log_schedule_change(user, existing, old_start, start_dt)
+        event = existing
+    else:
+        event = CalendarEvent.objects.create(
+            user=user,
+            title=title,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            is_all_day=False,
+            domain=domain,
+            event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
+            source_type=CalendarEvent.SOURCE_FAITH_ROUTINE,
+            source_id=str(user_plan.pk),
+            commitment_level=CalendarEvent.COMMITMENT_IMPORTANT,
+            idempotency_key=compute_idempotency_key(
+                user.pk, title, start_dt, end_dt=end_dt,
+                source_type='faith_routine', source_id=str(user_plan.pk),
+            ),
+        )
+
+    # Upsert recurrence — daily until plan ends
+    RecurrenceRule.objects.update_or_create(
+        event=event,
+        defaults={
+            'frequency': RecurrenceRule.FREQ_DAILY,
+            'interval': 1,
+            'byweekday': [],
+            'timezone': user.preferences.timezone_iana,
+        },
+    )
+
+    return event
+
+
+def delete_faith_events(user_plan):
+    """Remove all calendar events projected from a faith routine."""
+    CalendarEvent.objects.filter(
+        user=user_plan.user,
+        source_type=CalendarEvent.SOURCE_FAITH_ROUTINE,
+        source_id=str(user_plan.pk),
+    ).delete()
+
+
+# ──────────────────────────────────────────────────────────
+# Workout Schedule Projections (Architecture Evolution Phase 1)
+# ──────────────────────────────────────────────────────────
+
+def upsert_from_workout_schedule(schedule):
+    """
+    Create/update a recurring CalendarEvent for a WorkoutSchedule entry.
+
+    Each WorkoutSchedule maps a day-of-week to a template within a plan.
+    Projects as a weekly recurring event on the configured day.
+
+    Contract: CalendarEvent = scheduled commitment INSTANCE.
+    The WorkoutSchedule is the definition.
+    """
+    if schedule.is_rest_day:
+        delete_workout_events(schedule)
+        return None
+
+    plan = schedule.plan
+    if not plan.is_active:
+        delete_workout_events(schedule)
+        return None
+
+    user = plan.user
+
+    existing = CalendarEvent.objects.filter(
+        user=user,
+        source_type=CalendarEvent.SOURCE_WORKOUT_SCHEDULE,
+        source_id=str(schedule.pk),
+    ).first()
+
+    title = f"Workout: {schedule.template.name}"
+    preferred_time = schedule.preferred_time or dt.time(17, 0)  # Default 5 PM
+
+    # Find the next occurrence of this day of week
+    from apps.core.utils import get_user_today
+    today = get_user_today(user)
+    # schedule.day_of_week: 0=Mon → isoweekday 1=Mon
+    target_iso = schedule.day_of_week + 1
+    days_ahead = (target_iso - today.isoweekday()) % 7
+    anchor_date = today + dt.timedelta(days=days_ahead)
+
+    from zoneinfo import ZoneInfo
+    user_tz = ZoneInfo(user.preferences.timezone_iana)
+    start_dt = timezone.make_aware(
+        dt.datetime.combine(anchor_date, preferred_time),
+        user_tz,
+    )
+    end_dt = start_dt + dt.timedelta(minutes=60)  # ~60 min workout
+
+    domain = _get_default_domain('health')
+
+    if existing:
+        old_start = existing.start_dt
+        existing.title = title
+        existing.start_dt = start_dt
+        existing.end_dt = end_dt
+        existing.domain = domain
+        existing.commitment_level = CalendarEvent.COMMITMENT_IMPORTANT
+        existing.status = CalendarEvent.STATUS_SCHEDULED
+        existing.save()
+        _log_schedule_change(user, existing, old_start, start_dt)
+        event = existing
+    else:
+        event = CalendarEvent.objects.create(
+            user=user,
+            title=title,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            is_all_day=False,
+            domain=domain,
+            event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
+            source_type=CalendarEvent.SOURCE_WORKOUT_SCHEDULE,
+            source_id=str(schedule.pk),
+            commitment_level=CalendarEvent.COMMITMENT_IMPORTANT,
+            idempotency_key=compute_idempotency_key(
+                user.pk, title, start_dt, end_dt=end_dt,
+                source_type='workout_schedule', source_id=str(schedule.pk),
+            ),
+        )
+
+    # Upsert recurrence — weekly on the configured day
+    RecurrenceRule.objects.update_or_create(
+        event=event,
+        defaults={
+            'frequency': RecurrenceRule.FREQ_WEEKLY,
+            'interval': 1,
+            'byweekday': [target_iso],
+            'timezone': user.preferences.timezone_iana,
+        },
+    )
+
+    return event
+
+
+def delete_workout_events(schedule):
+    """Remove all calendar events projected from a workout schedule."""
+    user = schedule.plan.user
+    CalendarEvent.objects.filter(
+        user=user,
+        source_type=CalendarEvent.SOURCE_WORKOUT_SCHEDULE,
+        source_id=str(schedule.pk),
     ).delete()
 
 

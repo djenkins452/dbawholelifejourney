@@ -100,6 +100,14 @@ CHECKIN_PATTERNS = frozenset([
     'tasks today', 'tasks for today',
     'things to do', 'to-do list',
     'anything left',
+    # v7: Completed-task queries (temporal contamination fix)
+    'completed today', 'i completed', 'have completed',
+    'i finished today', 'did i complete', 'did i finish',
+    'what did i complete', 'what have i completed',
+    'what did i finish', 'which tasks did i finish',
+    'tasks i completed', 'tasks i finished',
+    'tasks i have completed', 'tasks i have done',
+    'what got done', 'what have i done today',
     # Advisory / planning queries (Part 3 — v4 expansion)
     'structure my day', 'what matters most',
     'biggest improvement', 'biggest difference', 'biggest impact',
@@ -2928,10 +2936,14 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                         self.user.id, len(checkin_briefing),
                     )
 
-            # Inject conversation memory (rolling summary of older messages)
-            memory = get_conversation_memory(conversation)
-            if memory:
-                system_prompt += "\n\n" + memory
+            # Inject conversation memory (rolling summary of older messages).
+            # v7: Skip for check-in/task queries — rolling summaries may contain
+            # stale task references ("User completed Move Bins") that contaminate
+            # deterministic task responses.
+            if not _is_checkin_early:
+                memory = get_conversation_memory(conversation)
+                if memory:
+                    system_prompt += "\n\n" + memory
         except Exception as e:
             logger.warning("Executive briefing failed: %s", e)
         finally:
@@ -2944,7 +2956,12 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         if _ltrace:
             _ltrace.start('SEMANTIC_MEMORY_RETRIEVAL')
         _skip_memory = False
-        if route_result:
+        # v7: Skip semantic memory for check-in/task queries — embedding
+        # similarity retrieves past conversations about completing tasks,
+        # which contaminates deterministic "completed today" responses.
+        if _is_checkin_early:
+            _skip_memory = True
+        elif route_result:
             try:
                 from apps.ai.deterministic_router import should_skip_semantic_memory
                 _skip_memory = should_skip_semantic_memory(route_result)
@@ -3129,7 +3146,24 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             'prioritize', 'structure my day', 'should i do today',
             'my priorities', 'biggest improvement', 'biggest difference',
             'highest impact', 'most important', 'top priority',
+            # v7: Completed-task queries (temporal contamination fix)
+            'completed today', 'i completed', 'have completed',
+            'i finished today', 'did i complete', 'did i finish',
+            'what did i complete', 'what have i completed',
+            'what did i finish', 'tasks i completed',
+            'tasks i finished', 'tasks i have completed',
+            'what got done', 'what have i done today',
         ])
+
+        # v7: Safety heuristic — catch missed task-completion phrasings.
+        # If the message mentions tasks AND completion, treat as deterministic.
+        if not is_asking_about_tasks:
+            _has_task_word = any(w in message_lower for w in ('task', 'tasks'))
+            _has_done_word = any(w in message_lower for w in (
+                'completed', 'finished', 'done', 'complete', 'finish',
+            ))
+            if _has_task_word and _has_done_word:
+                is_asking_about_tasks = True
 
         # Also check for broader analysis questions about habits, consistency, focus areas
         is_asking_for_analysis = any(phrase in message_lower for phrase in [

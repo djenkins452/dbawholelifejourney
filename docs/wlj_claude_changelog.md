@@ -6,6 +6,44 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Fix: Routing hardening for completed-task queries
+
+**Problem:** The previous fix added task titles to the AUTHORITATIVE DATA STATE, but the
+message "list only the tasks I have completed today" still failed all three routing gates
+(`CHECKIN_PATTERNS`, `is_asking_about_tasks`, `_try_checkin_prefilter`). This meant
+conversation history (40 messages), conversation memory (rolling summary), and semantic
+memory (embedding retrieval) were NOT gated — stale task references from prior conversations
+contaminated the LLM response despite the grounding rule.
+
+**Root cause:** No CHECKIN_PATTERNS or `is_asking_about_tasks` phrase matched completed-task
+query phrasings like "completed today", "have completed", "tasks I completed", etc.
+
+**Fix (3 layers):**
+1. **Pattern expansion**: Added 15 completed-task phrases to both `CHECKIN_PATTERNS` and
+   `is_asking_about_tasks` (e.g., "completed today", "i completed", "what did i complete",
+   "tasks i have completed", "what got done")
+2. **Safety heuristic**: If message contains ("task"/"tasks") AND ("completed"/"finished"/
+   "done"/"complete"/"finish"), treat as deterministic task query — catches edge phrasings
+3. **Memory contamination guards**: Gated conversation memory and semantic memory retrieval
+   on `_is_checkin_early` — when a check-in/task query is detected, both are skipped to
+   prevent stale task references from entering the system prompt
+
+**Result:** For "list only the tasks I have completed today":
+- `_is_checkin_early` = True (via "completed today" pattern)
+- Conversation memory: SKIPPED
+- Semantic memory: SKIPPED
+- `is_asking_about_tasks` = True (via "have completed" pattern)
+- Upgrades to check-in → conversation history DROPPED
+- LLM sees ONLY deterministic task titles from AUTHORITATIVE DATA STATE
+
+**Files changed:**
+- `apps/ai/personal_assistant.py` — pattern expansion, safety heuristic, memory gates
+- `apps/ai/tests/test_task_routing_hardening.py` — 26 new regression tests
+
+**Tests:** 26/26 new routing tests pass, 66/66 PA tests pass, 57/57 affirmation tests pass
+
+---
+
 ## 2026-03-14 — Fix: Completed task temporal contamination in AUTHORITATIVE DATA STATE
 
 **Problem:** When a user asked Beth "list only the tasks I have completed today," Beth

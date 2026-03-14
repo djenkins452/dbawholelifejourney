@@ -1256,6 +1256,42 @@ class HabitGoalLink(models.Model):
         return f"{self.habit.name} → {self.goal.title}"
 
 
+class GoalSignalSource(models.Model):
+    """
+    Configures which signal types feed into a goal's momentum calculation
+    and with what weight.
+
+    Part of the WLJ Architecture Evolution (Phase 5).
+    Auto-populated with domain defaults when a goal is created.
+    Can be overridden by the user or by Beth.
+
+    Weights should sum to ~1.0 for a goal, but this is not enforced
+    at the database level to allow flexible tuning.
+    """
+    goal = models.ForeignKey(
+        LifeGoal,
+        on_delete=models.CASCADE,
+        related_name='signal_sources',
+    )
+    signal_type = models.CharField(
+        max_length=30,
+        help_text="Signal type from taxonomy (e.g., health_activity, faith_practice)",
+    )
+    weight = models.FloatField(
+        help_text="Relative importance 0.0-1.0. Weights should sum to ~1.0 per goal.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['goal', 'signal_type']
+        verbose_name = "Goal Signal Source"
+        verbose_name_plural = "Goal Signal Sources"
+
+    def __str__(self):
+        return f"{self.goal.title} ← {self.signal_type} (weight={self.weight})"
+
+
 class HabitEntry(models.Model):
     """
     Goal log entry supporting all measurement types.

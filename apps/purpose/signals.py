@@ -22,11 +22,12 @@ logger = logging.getLogger(__name__)
 
 
 @receiver(post_save, sender='purpose.LifeGoal')
-def handle_goal_saved(sender, instance, **kwargs):
+def handle_goal_saved(sender, instance, created, **kwargs):
     """
     When a LifeGoal is saved, project it to the calendar engine.
     Creates/updates DEADLINE_MARKER for the goal's target_date.
     Also projects any milestones with target_dates.
+    On creation, auto-populates GoalSignalSource records.
     """
     try:
         from apps.calendar_engine.services.projection import upsert_from_goal
@@ -35,6 +36,17 @@ def handle_goal_saved(sender, instance, **kwargs):
         logger.warning(
             "Failed to project goal %s to calendar: %s", instance.pk, e
         )
+
+    # Architecture Evolution Phase 5: auto-populate signal sources on creation
+    if created:
+        try:
+            from apps.purpose.services.goal_signal_config import GoalSignalConfigService
+            GoalSignalConfigService.auto_populate(instance)
+        except Exception as e:
+            logger.warning(
+                "Failed to auto-populate signal sources for goal %s: %s",
+                instance.pk, e,
+            )
 
 
 @receiver(post_save, sender='purpose.GoalMilestone')

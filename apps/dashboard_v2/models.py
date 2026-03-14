@@ -48,6 +48,15 @@ class GoalMomentumSnapshot(UserOwnedModel):
         ),
     )
 
+    # Signal-based scores (Architecture Evolution Phase 5)
+    signal_scores = models.JSONField(
+        default=dict,
+        help_text=(
+            "Per-signal-type scores from GoalSignalSource weighting. "
+            "Example: {'health_activity': 0.85, 'medication_adherence': 1.0}"
+        ),
+    )
+
     # Trend
     momentum_7d_avg = models.PositiveSmallIntegerField(null=True, blank=True)
     momentum_trend = models.CharField(

@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Architecture Evolution Phase 5: Goal-Signal Configuration
+
+**Changes:** Implemented GoalSignalSource model, GoalSignalConfigService, and auto-population on goal creation.
+
+1. **GoalSignalSource** (`apps/purpose/models.py`) — Maps signal types to goals with weights,
+   unique per (goal, signal_type). Defines how much each signal contributes to goal momentum.
+2. **GoalSignalConfigService** (`apps/purpose/services/goal_signal_config.py`) — Auto-populates
+   default signal sources based on goal domain (8 domain presets), provides weight lookup.
+3. **Signal handler update** (`apps/purpose/signals.py`) — `handle_goal_saved` now auto-populates
+   GoalSignalSource records on LifeGoal creation via GoalSignalConfigService.
+4. **GoalMomentumSnapshot** (`apps/dashboard_v2/models.py`) — Added `signal_scores` JSONField to
+   store per-signal score breakdowns alongside momentum snapshots.
+
+**Files modified:** apps/purpose/models.py, apps/purpose/signals.py, apps/dashboard_v2/models.py
+**Files created:** apps/purpose/services/goal_signal_config.py
+**Migrations:** purpose.0009_goalsignalsource, dashboard_v2.0004_goalmomentumsnapshot_signal_scores
+
+**Why:** Phase 5 of the WLJ Architecture Evolution — connecting signals to goals with configurable
+weights. This enables momentum computation to use signal data rather than raw activity counts.
+
+---
+
 ## 2026-03-14 — Architecture Evolution Phase 4: Signal Persistence
 
 **Changes:** Implemented SignalSnapshot model, SignalAggregationService, and nightly Celery task.

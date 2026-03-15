@@ -305,16 +305,18 @@ class DashboardCacheService:
 
         from apps.life.models import Task, LifeEvent, Project
 
-        # Tasks
+        # Tasks — filter on completion_status (not soft-delete status field).
+        # SoftDeleteManager already filters status='active'.
         tasks = Task.objects.filter(
             user=self.user,
-            status__in=['pending', 'in_progress']
+            completion_status='pending',
         ).select_related('project').order_by('due_date')[:10]
 
         overdue_tasks = Task.objects.filter(
             user=self.user,
-            status__in=['pending', 'in_progress'],
-            due_date__lt=today
+            completion_status='pending',
+            due_date__isnull=False,
+            due_date__lt=today,
         ).count()
 
         # Events

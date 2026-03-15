@@ -6,6 +6,31 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix Beth operational data: false workouts, wrong task counts, hallucinated task names
+
+**Root causes (3 separate bugs):**
+
+1. **False workout completions:** SAE `build_fitness_state()` counted every `WorkoutSession`
+   record with `status='active'`, but never checked `completed_at`. Sessions created by
+   HealthKit sync or templates that were never actually performed counted as "completed."
+   The `fitness_utils.get_weekly_volume()` correctly uses `completed_at__isnull=False`,
+   but the SAE builder didn't match.
+
+2. **Wrong task count + hallucinated names:** Beth only received task COUNTS without TITLES
+   for active tasks. She had no grounding for pending tasks, so she hallucinated names
+   from conversation memory/semantic recall.
+
+3. **Dashboard cache broken query:** `dashboard/cache.py` `get_life_data()` filtered on
+   `status__in=['pending', 'in_progress']` — but `status` is the soft-delete field
+   (values: active/archived/deleted). Should be `completion_status='pending'`.
+
+**Changes:**
+- `apps/core/ai_state/state_builder.py` — Added `completed_at__isnull=False` to all workout queries
+- `apps/core/ai_orchestrator/cos_context.py` — Added active task titles (up to 15) and overdue task titles (up to 10) with grounding rule
+- `apps/dashboard/cache.py` — Fixed task query field from `status` to `completion_status`
+
+---
+
 ## 2026-03-15 — Eliminate competing task-narration instructions across prompt layers
 
 **Root cause:** The REASONING HIERARCHY directive was being overwhelmed by 5 competing

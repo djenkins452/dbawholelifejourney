@@ -2214,6 +2214,22 @@ def _build_data_state_snapshot(user) -> str:
         _completed_titles = list(
             _completed_today_qs.values_list('title', flat=True)[:10]
         )
+        # v7: Active task titles — deterministic grounding to prevent
+        # hallucinating task names from conversation memory or semantic recall.
+        _active_tasks_qs = LifeTask.objects.filter(
+            user=user, completion_status='pending'
+        ).exclude(status='deleted')
+        _active_task_titles = list(
+            _active_tasks_qs.order_by('-due_date').values_list('title', flat=True)[:15]
+        )
+        # Also grab overdue tasks for accurate reporting
+        _overdue_tasks_qs = _active_tasks_qs.filter(
+            due_date__isnull=False, due_date__lt=today
+        )
+        counts['overdue_tasks'] = _overdue_tasks_qs.count()
+        _overdue_task_titles = list(
+            _overdue_tasks_qs.order_by('due_date').values_list('title', flat=True)[:10]
+        )
         # v5: Non-negotiable skip streak data for commitment tracking
         counts['non_negotiable_skip_streaks'] = LifeTask.objects.filter(
             user=user, commitment_level='non_negotiable',
@@ -2277,6 +2293,31 @@ def _build_data_state_snapshot(user) -> str:
             "from conversation history, semantic memory, or prior assistant responses. "
             "If a task name is not in this list, it was NOT completed today."
         )
+
+    # v7: Active task titles — authoritative list prevents hallucination
+    active_count = counts.get('active_tasks', 0)
+    if active_count > 0 and _active_task_titles:
+        lines.append("")
+        lines.append(
+            "ACTIVE TASKS (AUTHORITATIVE — these are the ONLY pending tasks):"
+        )
+        for title in _active_task_titles:
+            lines.append(f"  - {title}")
+        if active_count > len(_active_task_titles):
+            lines.append(f"  (+ {active_count - len(_active_task_titles)} more)")
+        lines.append(
+            "ACTIVE TASK GROUNDING RULE: When referencing pending/active tasks, "
+            "you MUST use ONLY the names listed above. NEVER infer, recall, or "
+            "reconstruct task names from conversation history or semantic memory."
+        )
+
+    # v7: Overdue task titles
+    overdue_count = counts.get('overdue_tasks', 0)
+    if overdue_count > 0 and _overdue_task_titles:
+        lines.append("")
+        lines.append("OVERDUE TASKS (past due date):")
+        for title in _overdue_task_titles:
+            lines.append(f"  - {title}")
 
     # Add non-negotiable skip streak awareness
     nn_streak_count = counts.get('non_negotiable_skip_streaks', 0)

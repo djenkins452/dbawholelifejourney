@@ -759,17 +759,23 @@ def build_fitness_state(user):
     cutoff_7d = now - timedelta(days=7)
     cutoff_30d = now - timedelta(days=30)
 
+    # Only count sessions with completed_at set — a session without
+    # completed_at was created (template/HealthKit) but never performed.
+    # Matches fitness_utils.get_weekly_volume() which uses completed_at__isnull=False.
     state["workouts_7d"] = WorkoutSession.objects.filter(
-        user=user, date__gte=cutoff_7d.date(), status="active"
+        user=user, date__gte=cutoff_7d.date(), status="active",
+        completed_at__isnull=False,
     ).count()
 
     state["workouts_30d"] = WorkoutSession.objects.filter(
-        user=user, date__gte=cutoff_30d.date(), status="active"
+        user=user, date__gte=cutoff_30d.date(), status="active",
+        completed_at__isnull=False,
     ).count()
 
     # ── Volume (7d) ──────────────────────────────────────────────
     recent_sessions = WorkoutSession.objects.filter(
-        user=user, date__gte=cutoff_7d.date(), status="active"
+        user=user, date__gte=cutoff_7d.date(), status="active",
+        completed_at__isnull=False,
     )
     total_volume = 0
     total_sets = 0
@@ -826,7 +832,9 @@ def build_fitness_state(user):
 
     # ── Last workout date ────────────────────────────────────────
     last_workout = (
-        WorkoutSession.objects.filter(user=user, status="active")
+        WorkoutSession.objects.filter(
+            user=user, status="active", completed_at__isnull=False
+        )
         .order_by("-date")
         .values_list("date", flat=True)
         .first()

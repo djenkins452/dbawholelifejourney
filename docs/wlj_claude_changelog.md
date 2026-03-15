@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix signals/momentum excluded by domain scoping
+
+**Changes:** Added `'signals'` and `'compensatory'` to `CORE_BUILDERS` in
+`deterministic_router.py`. These builders provide cross-domain intelligence
+(daily signal scores, goal momentum, compensatory reasoning) that must always
+run regardless of which domain the router identifies.
+
+**Root cause:** When a user message routes to a specific domain (health, faith,
+tasks, etc.), `get_scoped_builders()` returns `DOMAIN_CONTEXT_BUILDERS[domain] |
+CORE_BUILDERS`. The `'signals'` builder (which loads BOTH daily signals AND goal
+momentum) was not in `CORE_BUILDERS`, so it was excluded from every domain-scoped
+request. This is why momentum never appeared in Beth's responses — most messages
+route to a domain, and domain-scoped builds skipped the signals builder entirely.
+
+**Files modified:**
+- apps/ai/deterministic_router.py (added signals, compensatory to CORE_BUILDERS)
+- docs/wlj_claude_changelog.md
+
+---
+
 ## 2026-03-15 — Fix momentum data blocked by early return on missing signals
 
 **Changes:** Removed the early `return {}` in `_build_signal_aware_context()` that

@@ -470,6 +470,7 @@ DOMAIN_CONTEXT_BUILDERS = {
 CORE_BUILDERS = {
     'blueprint', 'plan', 'pressure', 'intelligence',
     'people', 'loops', 'strategy', 'operating_profile',
+    'signals', 'compensatory',
 }
 
 

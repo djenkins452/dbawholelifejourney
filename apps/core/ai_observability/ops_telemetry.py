@@ -1293,7 +1293,12 @@ def _get_signal_health():
     Read cached signal health snapshot for the polling endpoint.
 
     Signal health is computed and cached by the SAME engine on its 60s cadence.
-    Falls back to live computation if cache is empty (first load before SAME runs).
+    Returns None if cache is empty — callers must handle gracefully.
+
+    WARNING: Do NOT fall back to compute_signal_health() here. That function
+    runs multiple DB queries and will block Gunicorn workers if called on
+    every polling cycle (especially when Redis is unreachable and cache.get
+    always returns None). The SAME engine will populate the cache within 60s.
     """
     try:
         from django.core.cache import cache
@@ -1302,8 +1307,7 @@ def _get_signal_health():
         if cached is not None:
             return cached
 
-        # Fallback: compute live (only happens on first load before SAME runs)
-        return compute_signal_health()
+        return None
     except Exception as e:
         logger.debug("Signal health unavailable: %s", e)
         return None
@@ -1362,7 +1366,6 @@ def compute_signal_health():
 
     # Helper to run a single aggregated query per model (eliminates N+1)
     from django.db.models import Q as models_Q
-    from django.db.models.functions import Lower
 
     def _query_model(model_class, group_field, type_field, label):
         """Single query per model: GROUP BY domain, aggregate all metrics."""

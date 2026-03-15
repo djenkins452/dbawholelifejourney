@@ -367,8 +367,8 @@ class CacheSignalHealthTests(SignalHealthTestMixin, TestCase):
         result = _get_signal_health()
         self.assertEqual(result["domains_active"], 5)
 
-    def test_get_signal_health_fallback_on_empty_cache(self):
-        """_get_signal_health() should compute live when cache is empty."""
+    def test_get_signal_health_returns_none_on_empty_cache(self):
+        """_get_signal_health() returns None when cache is empty (no live fallback)."""
         from django.core.cache import cache
 
         from apps.core.ai_observability.ops_telemetry import _get_signal_health
@@ -377,5 +377,4 @@ class CacheSignalHealthTests(SignalHealthTestMixin, TestCase):
         self._create_insight("health", "test", hours_ago=1)
 
         result = _get_signal_health()
-        self.assertIsNotNone(result)
-        self.assertIn("domains", result)
+        self.assertIsNone(result)

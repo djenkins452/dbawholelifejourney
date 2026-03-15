@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix momentum data blocked by early return on missing signals
+
+**Changes:** Removed the early `return {}` in `_build_signal_aware_context()` that
+bailed out when no `SignalSnapshot` rows existed for today. This gate blocked ALL
+momentum data from loading, because the momentum query ran AFTER the signal check.
+Now signals and momentum are queried independently — momentum loads even when today's
+signals haven't been computed yet. Also upgraded error logging from `logger.debug` to
+`logger.warning` with `exc_info=True` on the outer exception, and added `logger.info`
+telemetry line showing signal/momentum counts per user.
+
+**Root cause:** Line 1440 had `if not snapshots.exists(): return {}` which aborted
+the entire function before reaching the GoalMomentumSnapshot query. Since signal
+computation runs at 4:30 AM UTC and momentum at 7:30 AM UTC, any chat between those
+times (or on days signals didn't compute) would have zero momentum context.
+
+**Files modified:**
+- apps/core/ai_orchestrator/cos_context.py (remove early return, add logging)
+- docs/wlj_claude_changelog.md
+
+---
+
 ## 2026-03-14 — Momentum interpretation: fix query bug + narrative formatter
 
 **Changes:**

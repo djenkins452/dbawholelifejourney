@@ -1436,11 +1436,8 @@ def _build_signal_aware_context(user):
         today = get_user_today(user)
 
         # Today's signals with trust classification
-        snapshots = SignalSnapshot.objects.filter(user=user, date=today)
-        if not snapshots.exists():
-            return {}
-
         daily_signals = []
+        snapshots = SignalSnapshot.objects.filter(user=user, date=today)
         for s in snapshots:
             # Compute 7-day trend
             trend = _compute_signal_trend(user, s.signal_type, today, days=7)
@@ -1453,7 +1450,9 @@ def _build_signal_aware_context(user):
                 'trend_7d': trend,
             })
 
-        # Goal momentum data (if available)
+        # Goal momentum data — queried independently of daily signals.
+        # Momentum snapshots are computed nightly and may exist even when
+        # today's signal snapshots haven't been computed yet.
         goal_momentum = []
         try:
             from apps.dashboard_v2.models import GoalMomentumSnapshot
@@ -1506,14 +1505,20 @@ def _build_signal_aware_context(user):
         except Exception as e:
             logger.debug("Goal momentum data unavailable: %s", e)
 
-        result = {'daily_signals': daily_signals}
+        result = {}
+        if daily_signals:
+            result['daily_signals'] = daily_signals
         if goal_momentum:
             result['goal_momentum'] = goal_momentum
 
+        logger.info(
+            "SIGNAL_AWARE_CTX user=%s signals=%d momentum=%d",
+            user.id, len(daily_signals), len(goal_momentum),
+        )
         return result
 
     except Exception as e:
-        logger.debug("CoS context: signal-aware context unavailable: %s", e)
+        logger.warning("CoS context: signal-aware context failed: %s", e, exc_info=True)
         return {}
 
 

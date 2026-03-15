@@ -6,6 +6,58 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Ops Command Center: Diagnostic Investigation Flow
+
+**What:** Implemented the full diagnostic investigation flow for the Ops Command Center, transforming it from a telemetry display into an active diagnostic console. Anomaly and maturity metric clicks now open investigation panels with structured evidence, diagnostic scans, root cause hypotheses, and debug prompt generation.
+
+**Root Problem:** The Ops Wall's "Investigate" buttons only scrolled to a panel. Maturity score clicks did nothing. The system surfaced symptoms but could not guide investigation from anomaly to root cause. Additionally, the investigate button click handler targeted the wrong CSS class (`ops-anomaly-investigate-btn`) while buttons were rendered with `ops-anomaly-compact-btn`, causing investigate buttons to silently fail.
+
+**Changes:**
+
+1. **Diagnostic Engine** (`apps/core/ai_observability/diagnostic_engine.py`) — New module with:
+   - Metric evidence API: surfaces existing scoring details for 5 maturity metrics
+   - 8 registered diagnostic scans: INFRASTRUCTURE, LIFE_IMPACT, SIGNAL_DROUGHT, ENGINE_STARVATION, INTELLIGENCE, SAFETY, COVERAGE, ERROR_SPIKE
+   - Each scan returns structured checks, root cause hypothesis, and recommended next step
+   - Debug prompt generation combining evidence + scan results into investigation-ready markdown
+
+2. **3 New API Endpoints:**
+   - `GET /admin-console/ops/metric-evidence/?target=<name>` — Returns computed evidence for investigation panel
+   - `GET /admin-console/ops/diagnose/?target=<name>` — Runs targeted diagnostic scan
+   - `GET /admin-console/ops/debug-prompt/?target=<name>` — Generates structured debug prompt
+
+3. **Investigation Panel UI** (operations_wall.html):
+   - Modal overlay with header (target name, score, status), evidence body, and action buttons
+   - Evidence panel shows component breakdowns with penalty details
+   - "Run Diagnostic Scan" button triggers scan and renders checks inline
+   - "Generate Debug Prompt" opens debug modal with full investigation context
+   - "Open Diagnostics" navigates to the full Diagnostics Console
+
+4. **Maturity Card Click Handlers** — All 5 maturity cards (Infra, Intelligence, Safety, Coverage, Life Impact) now open investigation panels with hover affordance
+
+5. **Bug Fix: Investigate Button Class Mismatch** — Fixed the click handler to match `[data-anomaly-type].ops-anomaly-compact-btn` instead of the non-existent `.ops-anomaly-investigate-btn` class. Anomaly investigate buttons now open investigation panels instead of just scrolling.
+
+6. **Anomaly → Diagnostic Routing** — Each anomaly type maps to the appropriate diagnostic scan target (e.g., SIGNAL_DROUGHT → signal drought scan, MISSED_RUN → infrastructure scan)
+
+**Files created:**
+- `apps/core/ai_observability/diagnostic_engine.py` — Diagnostic scan registry + evidence builders + debug prompt generator
+- `apps/core/ai_observability/tests_diagnostic_engine.py` — 23 tests covering unit + integration
+
+**Files modified:**
+- `apps/core/ai_observability/ops_views.py` — Added MetricEvidenceView, DiagnosticScanView, DebugPromptView
+- `apps/admin_console/urls.py` — Added 3 new URL routes
+- `templates/admin_console/operations_wall.html` — Added investigation panel CSS (~200 lines), HTML overlay, JS investigation flow (~230 lines), fixed investigate button handler, added maturity card click handlers
+
+**Why:** The Ops Command Center was designed to support anomaly → diagnostics → root cause → fix. The architecture stopped at telemetry display. This change completes the investigation pipeline using deterministic evidence from existing scoring functions.
+
+**Investigation Flow Now Supported:**
+```
+Click metric/anomaly → Investigation panel opens → Evidence displayed →
+[Run Diagnostic Scan] → Structured checks returned → Root cause hypothesis →
+[Generate Debug Prompt] → Hand off to Claude Code
+```
+
+---
+
 ## 2026-03-15 — Ops Wall 2.0 Phase 10: Hero Refinements
 
 **What:** Three UI refinements to the command center hero to improve operator scan speed and operational awareness.

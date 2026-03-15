@@ -1081,6 +1081,94 @@ class TriggerSignalAggregationView(View):
             }, status=500)
 
 
+class MetricEvidenceView(View):
+    """
+    Metric evidence endpoint for investigation panels.
+
+    GET /admin-console/ops/metric-evidence/?target=INFRASTRUCTURE
+
+    Returns the current computed evidence for a maturity metric,
+    formatted for display in the investigation panel.
+    """
+
+    def get(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        target = request.GET.get("target", "")
+        if not target:
+            return JsonResponse({"error": "target parameter required"}, status=400)
+
+        from apps.core.ai_observability.diagnostic_engine import get_metric_evidence
+
+        evidence = get_metric_evidence(target)
+        return JsonResponse(evidence)
+
+
+class DiagnosticScanView(View):
+    """
+    Diagnostic scan endpoint for the Ops Command Center.
+
+    GET /admin-console/ops/diagnose/?target=INFRASTRUCTURE
+
+    Runs a targeted diagnostic scan and returns structured evidence
+    with checks, root cause hypothesis, and recommended next steps.
+    """
+
+    def get(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        target = request.GET.get("target", "")
+        if not target:
+            return JsonResponse({"error": "target parameter required"}, status=400)
+
+        from apps.core.ai_observability.diagnostic_engine import (
+            DIAGNOSTIC_SCANS,
+            run_diagnostic_scan,
+        )
+
+        result = run_diagnostic_scan(target)
+        result["available_scans"] = list(DIAGNOSTIC_SCANS.keys())
+        return JsonResponse(result)
+
+
+class DebugPromptView(View):
+    """
+    Debug prompt generation endpoint.
+
+    GET /admin-console/ops/debug-prompt/?target=INFRASTRUCTURE
+
+    Generates a structured debug prompt combining metric evidence
+    and diagnostic scan results for investigation handoff.
+    """
+
+    def get(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        target = request.GET.get("target", "")
+        if not target:
+            return JsonResponse({"error": "target parameter required"}, status=400)
+
+        from apps.core.ai_observability.diagnostic_engine import (
+            generate_debug_prompt,
+            get_metric_evidence,
+            run_diagnostic_scan,
+        )
+
+        evidence = get_metric_evidence(target)
+        scan_result = run_diagnostic_scan(target)
+        prompt = generate_debug_prompt(target, scan_result=scan_result, evidence=evidence)
+
+        return JsonResponse({
+            "target": target,
+            "prompt": prompt,
+            "scan_status": scan_result.get("status"),
+            "score": evidence.get("score"),
+        })
+
+
 class DependencyGraphView(AdminRequiredMixin, View):
     """Return engine dependency graph as JSON (Phase 6)."""
 

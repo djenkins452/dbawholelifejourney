@@ -1837,6 +1837,237 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 }
 
 /* =========================================================================
+   INVESTIGATION PANEL — Command Center Diagnostic Flow
+   ========================================================================= */
+.ops-investigate-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 9000;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 60px 20px 20px;
+    overflow-y: auto;
+}
+.ops-investigate-overlay.visible { display: flex; }
+.ops-investigate-panel {
+    width: 100%;
+    max-width: 720px;
+    background: var(--ops-surface-solid);
+    border: 1px solid var(--ops-glass-border);
+    border-radius: var(--ops-radius);
+    box-shadow: 0 12px 60px rgba(0, 0, 0, 0.5);
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    animation: opsSlideUp 0.25s ease-out;
+}
+@keyframes opsSlideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.ops-investigate-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--ops-glass-border);
+}
+.ops-investigate-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--ops-text-bright);
+    flex: 1;
+}
+.ops-investigate-score {
+    font-size: 1.6rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+.ops-investigate-score.OPTIMAL, .ops-investigate-score.score-green { color: var(--ops-green); }
+.ops-investigate-score.NOMINAL { color: var(--ops-blue); }
+.ops-investigate-score.DEGRADED, .ops-investigate-score.score-amber { color: var(--ops-yellow); }
+.ops-investigate-score.CRITICAL, .ops-investigate-score.score-red { color: var(--ops-red); }
+.ops-investigate-close {
+    background: none;
+    border: none;
+    color: var(--ops-text-muted);
+    font-size: 1.3rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    line-height: 1;
+}
+.ops-investigate-close:hover { color: var(--ops-text-bright); }
+.ops-investigate-status {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 2px 8px;
+    border-radius: 3px;
+}
+.ops-investigate-status.OPTIMAL { color: var(--ops-green); background: var(--ops-green-dim); }
+.ops-investigate-status.NOMINAL { color: var(--ops-blue); background: var(--ops-blue-dim); }
+.ops-investigate-status.DEGRADED { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
+.ops-investigate-status.CRITICAL { color: var(--ops-red); background: var(--ops-red-dim); }
+.ops-investigate-status.OK { color: var(--ops-green); background: var(--ops-green-dim); }
+.ops-investigate-status.WARN { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
+.ops-investigate-status.FAIL { color: var(--ops-red); background: var(--ops-red-dim); }
+
+/* Evidence body */
+.ops-investigate-body { padding: 16px 20px; }
+.ops-investigate-section {
+    margin-bottom: 16px;
+}
+.ops-investigate-section-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ops-text-dim);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ops-investigate-section-score {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--ops-text);
+}
+.ops-investigate-section-weight {
+    font-size: 0.6rem;
+    color: var(--ops-text-dim);
+    font-weight: 400;
+}
+.ops-investigate-items {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.ops-investigate-item {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    align-items: center;
+    padding: 6px 10px;
+    background: var(--ops-surface-alt);
+    border-radius: 4px;
+    font-size: 0.7rem;
+}
+.ops-investigate-item-label { color: var(--ops-text); }
+.ops-investigate-item-value { color: var(--ops-text-bright); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ops-investigate-item-penalty { color: var(--ops-red); font-weight: 600; font-size: 0.6rem; }
+.ops-investigate-item-detail { grid-column: 1 / -1; font-size: 0.6rem; color: var(--ops-text-dim); margin-top: -2px; }
+.ops-investigate-summary {
+    font-size: 0.68rem;
+    color: var(--ops-text-muted);
+    font-style: italic;
+    margin-bottom: 6px;
+}
+
+/* Diagnostic scan results */
+.ops-investigate-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.ops-investigate-check {
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 8px;
+    align-items: start;
+    padding: 5px 10px;
+    background: var(--ops-surface-alt);
+    border-radius: 4px;
+    font-size: 0.68rem;
+}
+.ops-investigate-check-status {
+    font-weight: 700;
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+.ops-investigate-check-status.OK, .ops-investigate-check-status.PASS { color: var(--ops-green); background: var(--ops-green-dim); }
+.ops-investigate-check-status.WARN { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
+.ops-investigate-check-status.FAIL { color: var(--ops-red); background: var(--ops-red-dim); }
+.ops-investigate-check-status.ERROR { color: var(--ops-purple); background: var(--ops-purple-dim); }
+.ops-investigate-check-name { font-weight: 600; color: var(--ops-text); }
+.ops-investigate-check-evidence { color: var(--ops-text-muted); font-size: 0.62rem; }
+
+.ops-investigate-hypothesis {
+    padding: 10px 14px;
+    background: var(--ops-surface-alt);
+    border-radius: var(--ops-radius-sm);
+    border-left: 3px solid var(--ops-cyan);
+    font-size: 0.72rem;
+    color: var(--ops-text);
+    line-height: 1.4;
+    margin-bottom: 12px;
+}
+.ops-investigate-recommendation {
+    padding: 8px 14px;
+    background: var(--ops-surface-alt);
+    border-radius: var(--ops-radius-sm);
+    border-left: 3px solid var(--ops-blue);
+    font-size: 0.68rem;
+    color: var(--ops-text-muted);
+    line-height: 1.3;
+    margin-bottom: 12px;
+}
+
+/* Action buttons */
+.ops-investigate-actions {
+    display: flex;
+    gap: 8px;
+    padding: 12px 20px 16px;
+    border-top: 1px solid var(--ops-glass-border);
+}
+.ops-investigate-btn {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 4px;
+    border: 1px solid var(--ops-glass-border);
+    background: transparent;
+    color: var(--ops-cyan);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+.ops-investigate-btn:hover {
+    background: rgba(6, 182, 212, 0.1);
+    border-color: var(--ops-cyan);
+}
+.ops-investigate-btn.primary {
+    background: rgba(6, 182, 212, 0.15);
+    border-color: rgba(6, 182, 212, 0.3);
+}
+.ops-investigate-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.ops-investigate-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    font-size: 0.75rem;
+    color: var(--ops-text-dim);
+}
+
+/* Maturity card clickable affordance */
+.ops-maturity-card {
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+.ops-maturity-card:hover {
+    border-color: rgba(6, 182, 212, 0.3);
+    background: var(--ops-surface-hover);
+}
+
+/* =========================================================================
    Responsive
    ========================================================================= */
 @media (max-width: 1400px) {
@@ -3542,6 +3773,26 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             </div>
             <pre class="ops-debug-prompt" id="debugPromptText"></pre>
             <button class="ops-debug-copy-btn" id="debugCopyBtn">Copy to Clipboard</button>
+        </div>
+    </div>
+
+    <!-- Investigation Panel (Command Center Diagnostic Flow) -->
+    <div class="ops-investigate-overlay" id="investigateOverlay">
+        <div class="ops-investigate-panel" id="investigatePanel">
+            <div class="ops-investigate-header">
+                <span class="ops-investigate-title" id="investigateTitle">Investigation</span>
+                <span class="ops-investigate-score" id="investigateScore"></span>
+                <span class="ops-investigate-status" id="investigateStatus"></span>
+                <button class="ops-investigate-close" id="investigateClose">&times;</button>
+            </div>
+            <div class="ops-investigate-body" id="investigateBody">
+                <div class="ops-investigate-loading">Loading evidence...</div>
+            </div>
+            <div class="ops-investigate-actions" id="investigateActions">
+                <button class="ops-investigate-btn primary" id="investigateScanBtn" data-target="">Run Diagnostic Scan</button>
+                <button class="ops-investigate-btn" id="investigateDebugBtn" data-target="">Generate Debug Prompt</button>
+                <button class="ops-investigate-btn" id="investigateDiagLink">Open Diagnostics</button>
+            </div>
         </div>
     </div>
 
@@ -5509,20 +5760,27 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         .catch(function(err) { console.warn('Failed to fetch dependency graph:', err); });
     }
 
-    // Investigate: scroll to relevant panel and flash highlight
+    // Investigate: open investigation panel for anomaly type
     function investigateAnomaly(anomalyType) {
-        var panelId = ANOMALY_PANEL_MAP[anomalyType];
-        if (!panelId) return;
-        var el = document.getElementById(panelId);
-        if (!el) return;
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.remove('ops-highlight-flash');
-        void el.offsetWidth; // force reflow
-        el.classList.add('ops-highlight-flash');
-        el.addEventListener('animationend', function handler() {
-            el.classList.remove('ops-highlight-flash');
-            el.removeEventListener('animationend', handler);
-        });
+        // Map anomaly types to diagnostic scan targets
+        var ANOMALY_SCAN_MAP = {
+            'ENGINE_STARVATION': 'ENGINE_STARVATION',
+            'ERROR_SPIKE': 'ERROR_SPIKE',
+            'MISSED_RUN': 'INFRASTRUCTURE',
+            'SUPPRESSION_STORM': 'SAFETY',
+            'VALIDATOR_CRASH': 'SAFETY',
+            'VALIDATOR_SPIKE': 'SAFETY',
+            'SIGNAL_DROUGHT': 'SIGNAL_DROUGHT',
+            'SIGNAL_LOW_DIVERSITY': 'SIGNAL_DROUGHT',
+            'CONFIDENCE_VOLATILITY': 'SAFETY',
+            'LOOPING_REMINDER': 'INTELLIGENCE',
+            'DELIVERY_RETRY_SPIKE': 'INFRASTRUCTURE',
+            'COMMITMENT_RACE_CONDITION': 'INTELLIGENCE',
+            'STRUCTURAL_VIOLATION': 'SAFETY',
+            'NUMERIC_DEVIATION': 'SAFETY'
+        };
+        var scanTarget = ANOMALY_SCAN_MAP[anomalyType] || anomalyType;
+        openInvestigationPanel(scanTarget, ANOMALY_TYPE_LABELS[anomalyType] || anomalyType);
     }
 
     // Build dependency chain HTML for an anomaly's engine
@@ -6149,11 +6407,11 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
        Phase 6 — Event Listeners (CSP-compliant delegation)
        ===================================================================== */
 
-    // Investigate button: scroll to relevant panel
+    // Investigate button on anomaly cards (uses ops-anomaly-compact-btn with data-anomaly-type)
     document.addEventListener('click', function(e) {
-        var btn = e.target.closest('.ops-anomaly-investigate-btn');
-        if (!btn) return;
-        e.stopPropagation(); // don't toggle card expand
+        var btn = e.target.closest('[data-anomaly-type]');
+        if (!btn || !btn.classList.contains('ops-anomaly-compact-btn')) return;
+        e.stopPropagation();
         investigateAnomaly(btn.dataset.anomalyType);
     });
 
@@ -6229,6 +6487,289 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         if (!item) return;
         var code = item.dataset.engineCode;
         if (code) renderDepDetail(code);
+    });
+
+    /* =====================================================================
+       Command Center — Investigation Panel
+       ===================================================================== */
+
+    var METRIC_LABELS = {
+        'INFRASTRUCTURE': 'Infrastructure Health',
+        'INTELLIGENCE': 'CoS Intelligence Quality',
+        'SAFETY': 'Execution Safety',
+        'COVERAGE': 'Domain Coverage',
+        'LIFE_IMPACT': 'Life Impact',
+        'SIGNAL_DROUGHT': 'Signal Drought',
+        'ENGINE_STARVATION': 'Engine Starvation',
+        'ERROR_SPIKE': 'Error Spike'
+    };
+
+    function openInvestigationPanel(target, label) {
+        var overlay = document.getElementById('investigateOverlay');
+        var title = document.getElementById('investigateTitle');
+        var body = document.getElementById('investigateBody');
+        var scoreEl = document.getElementById('investigateScore');
+        var statusEl = document.getElementById('investigateStatus');
+        var scanBtn = document.getElementById('investigateScanBtn');
+        var debugBtn = document.getElementById('investigateDebugBtn');
+
+        title.textContent = label || METRIC_LABELS[target] || target;
+        scoreEl.textContent = '';
+        scoreEl.className = 'ops-investigate-score';
+        statusEl.textContent = '';
+        statusEl.className = 'ops-investigate-status';
+        body.innerHTML = '<div class="ops-investigate-loading">Loading evidence...</div>';
+        scanBtn.dataset.target = target;
+        scanBtn.disabled = false;
+        scanBtn.textContent = 'Run Diagnostic Scan';
+        debugBtn.dataset.target = target;
+        overlay.classList.add('visible');
+
+        // Fetch metric evidence
+        fetch('/admin-console/ops/metric-evidence/?target=' + encodeURIComponent(target), {
+            headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            renderEvidencePanel(data, body, scoreEl, statusEl);
+        })
+        .catch(function(err) {
+            body.innerHTML = '<div class="ops-investigate-loading">Failed to load evidence: ' + escapeHtml(err.message) + '</div>';
+        });
+    }
+
+    function renderEvidencePanel(data, body, scoreEl, statusEl) {
+        // Update header
+        if (data.score !== null && data.score !== undefined) {
+            scoreEl.textContent = data.score;
+            var cls = 'ops-investigate-score';
+            if (data.score >= 80) cls += ' score-green';
+            else if (data.score >= 60) cls += ' score-amber';
+            else cls += ' score-red';
+            scoreEl.className = cls;
+        }
+        if (data.status) {
+            statusEl.textContent = data.status;
+            statusEl.className = 'ops-investigate-status ' + data.status;
+        }
+
+        var html = '';
+
+        // Error state
+        if (data.error) {
+            html += '<div class="ops-investigate-section"><div class="ops-investigate-hypothesis">Error: ' + escapeHtml(data.error) + '</div></div>';
+            body.innerHTML = html;
+            return;
+        }
+
+        // Components
+        var components = data.components || [];
+        components.forEach(function(comp) {
+            html += '<div class="ops-investigate-section">';
+            html += '<div class="ops-investigate-section-title">' +
+                escapeHtml(comp.name || '') +
+                (comp.score !== null && comp.score !== undefined ? ' <span class="ops-investigate-section-score">' + comp.score + '</span>' : '') +
+                (comp.weight ? ' <span class="ops-investigate-section-weight">' + escapeHtml(comp.weight) + '</span>' : '') +
+                '</div>';
+
+            if (comp.summary) {
+                html += '<div class="ops-investigate-summary">' + escapeHtml(comp.summary) + '</div>';
+            }
+
+            html += '<div class="ops-investigate-items">';
+            (comp.items || []).forEach(function(item) {
+                html += '<div class="ops-investigate-item">';
+                html += '<span class="ops-investigate-item-label">' + escapeHtml(item.label || '') + '</span>';
+                html += '<span class="ops-investigate-item-value">' + escapeHtml(String(item.value || '')) + '</span>';
+                if (item.penalty) {
+                    html += '<span class="ops-investigate-item-penalty">-' + item.penalty + '</span>';
+                } else if (item.weight) {
+                    html += '<span style="font-size:0.6rem;color:var(--ops-text-dim)">' + escapeHtml(item.weight) + '</span>';
+                } else {
+                    html += '<span></span>';
+                }
+                if (item.detail) {
+                    html += '<div class="ops-investigate-item-detail">' + escapeHtml(item.detail) + '</div>';
+                }
+                html += '</div>';
+            });
+            html += '</div></div>';
+        });
+
+        // Placeholder for scan results
+        html += '<div id="investigateScanResults"></div>';
+
+        body.innerHTML = html || '<div class="ops-investigate-loading">No evidence data available.</div>';
+    }
+
+    function runDiagnosticScan(target) {
+        var btn = document.getElementById('investigateScanBtn');
+        var resultsContainer = document.getElementById('investigateScanResults');
+
+        btn.disabled = true;
+        btn.textContent = 'Scanning...';
+
+        if (resultsContainer) {
+            resultsContainer.innerHTML = '<div class="ops-investigate-loading">Running diagnostic scan...</div>';
+        }
+
+        fetch('/admin-console/ops/diagnose/?target=' + encodeURIComponent(target), {
+            headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.textContent = 'Scan Complete';
+            renderScanResults(data, resultsContainer);
+        })
+        .catch(function(err) {
+            btn.disabled = false;
+            btn.textContent = 'Retry Scan';
+            if (resultsContainer) {
+                resultsContainer.innerHTML = '<div class="ops-investigate-loading">Scan failed: ' + escapeHtml(err.message) + '</div>';
+            }
+        });
+    }
+
+    function renderScanResults(data, container) {
+        if (!container) return;
+
+        var html = '<div class="ops-investigate-section">';
+        html += '<div class="ops-investigate-section-title">Diagnostic Scan <span class="ops-investigate-status ' +
+            escapeAttr(data.status || '') + '">' + escapeHtml(data.status || '?') + '</span></div>';
+
+        if (data.summary) {
+            html += '<div class="ops-investigate-summary">' + escapeHtml(data.summary) + '</div>';
+        }
+
+        // Render checks
+        if (data.checks && data.checks.length) {
+            html += '<div class="ops-investigate-checks">';
+            data.checks.forEach(function(chk) {
+                html += '<div class="ops-investigate-check">';
+                html += '<span class="ops-investigate-check-status ' + escapeAttr(chk.status) + '">' + escapeHtml(chk.status) + '</span>';
+                html += '<div><div class="ops-investigate-check-name">' + escapeHtml(chk.name) + '</div>' +
+                    '<div class="ops-investigate-check-evidence">' + escapeHtml(chk.evidence) + '</div></div>';
+                html += '</div>';
+            });
+            html += '</div>';
+        }
+        html += '</div>';
+
+        // Hypothesis
+        if (data.root_cause_hypothesis) {
+            html += '<div class="ops-investigate-hypothesis"><strong>Root Cause Hypothesis:</strong> ' +
+                escapeHtml(data.root_cause_hypothesis) + '</div>';
+        }
+
+        // Recommendation
+        if (data.recommended_next_step) {
+            html += '<div class="ops-investigate-recommendation"><strong>Recommended:</strong> ' +
+                escapeHtml(data.recommended_next_step) + '</div>';
+        }
+
+        container.innerHTML = html;
+    }
+
+    function fetchDebugPrompt(target) {
+        var debugBtn = document.getElementById('investigateDebugBtn');
+        debugBtn.disabled = true;
+        debugBtn.textContent = 'Generating...';
+
+        fetch('/admin-console/ops/debug-prompt/?target=' + encodeURIComponent(target), {
+            headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            debugBtn.disabled = false;
+            debugBtn.textContent = 'Generate Debug Prompt';
+            // Show in the existing debug prompt modal
+            var textEl = document.getElementById('debugPromptText');
+            if (textEl) textEl.textContent = data.prompt || 'No prompt generated.';
+            var modal = document.getElementById('debugPromptModal');
+            if (modal) modal.classList.add('visible');
+        })
+        .catch(function(err) {
+            debugBtn.disabled = false;
+            debugBtn.textContent = 'Generate Debug Prompt';
+            showToast('Failed to generate debug prompt: ' + err.message, 'failure');
+        });
+    }
+
+    // Click handlers for investigation panel
+
+    // Close investigation panel
+    document.addEventListener('click', function(e) {
+        if (e.target.id === 'investigateClose' || e.target.id === 'investigateOverlay') {
+            document.getElementById('investigateOverlay').classList.remove('visible');
+        }
+    });
+
+    // Escape key closes investigation panel
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            var overlay = document.getElementById('investigateOverlay');
+            if (overlay && overlay.classList.contains('visible')) {
+                overlay.classList.remove('visible');
+                e.stopPropagation();
+                return;
+            }
+        }
+    });
+
+    // Don't close when clicking inside the panel
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.ops-investigate-panel')) {
+            // Let other handlers inside the panel work, but don't close
+        }
+    });
+
+    // Run Diagnostic Scan button
+    document.addEventListener('click', function(e) {
+        if (e.target.id === 'investigateScanBtn') {
+            var target = e.target.dataset.target;
+            if (target) runDiagnosticScan(target);
+        }
+    });
+
+    // Generate Debug Prompt button
+    document.addEventListener('click', function(e) {
+        if (e.target.id === 'investigateDebugBtn') {
+            var target = e.target.dataset.target;
+            if (target) fetchDebugPrompt(target);
+        }
+    });
+
+    // Open Diagnostics Console link
+    document.addEventListener('click', function(e) {
+        if (e.target.id === 'investigateDiagLink') {
+            window.location.href = '/admin-console/diagnostics/';
+        }
+    });
+
+    // Maturity card clicks — open investigation panel
+    document.addEventListener('click', function(e) {
+        var card = e.target.closest('.ops-maturity-card');
+        if (!card) return;
+        // Don't intercept clicks on the life impact toggle button
+        if (e.target.closest('.ops-life-impact-toggle')) return;
+
+        // Determine which metric was clicked from the card's label text
+        var labelEl = card.querySelector('.ops-maturity-card-label');
+        if (!labelEl) return;
+        var labelText = labelEl.textContent.trim();
+
+        var LABEL_TO_TARGET = {
+            'Infra': 'INFRASTRUCTURE',
+            'Intelligence': 'INTELLIGENCE',
+            'Safety': 'SAFETY',
+            'Coverage': 'COVERAGE',
+            'Life Impact': 'LIFE_IMPACT'
+        };
+        var target = LABEL_TO_TARGET[labelText];
+        if (!target) return;
+
+        e.stopPropagation();
+        openInvestigationPanel(target, METRIC_LABELS[target] || labelText);
     });
 
     /* =====================================================================

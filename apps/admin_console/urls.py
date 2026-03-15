@@ -45,6 +45,10 @@ urlpatterns = [
     path("ops/dependency-graph/", ops_views.DependencyGraphView.as_view(), name="ops_dependency_graph"),
     path("ops/trigger-signals/", ops_views.TriggerSignalAggregationView.as_view(), name="ops_trigger_signals"),
     path("ops/trigger-goal-momentum/", ops_views.TriggerGoalMomentumView.as_view(), name="ops_trigger_goal_momentum"),
+    # Command Center Investigation (Phase: Diagnostic Flow)
+    path("ops/metric-evidence/", ops_views.MetricEvidenceView.as_view(), name="ops_metric_evidence"),
+    path("ops/diagnose/", ops_views.DiagnosticScanView.as_view(), name="ops_diagnose"),
+    path("ops/debug-prompt/", ops_views.DebugPromptView.as_view(), name="ops_debug_prompt"),
     # Legacy poll endpoint (redirect to stream)
     path("ops/poll/", ops_views.OpsStreamView.as_view(), name="ops_poll"),
 

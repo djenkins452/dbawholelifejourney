@@ -74,6 +74,11 @@ class EngineDefinition:
     mutates_state: bool = False            # True if engine writes to DB directly
     dependencies: tuple = ()               # Engine codes this depends on
     category: str = "core"                 # core, blueprint, domain, observability
+    # --- Operational metadata (for manual triggers & observability) ---
+    can_manual_run: bool = False           # Whether ops wall can trigger manually
+    batch_runner: Optional[str] = None     # Dotted path to batch runner function
+    per_user_func: Optional[str] = None    # Dotted path to per-user function
+    execution_mode: str = "on_demand"      # on_demand, synthetic, batch
 
 
 # =========================================================================
@@ -134,6 +139,10 @@ _register(
         interval_seconds=21600,  # 6 hours
         mutates_state=True,
         category="core",
+        can_manual_run=True,
+        batch_runner="apps.core.ai_scheduler.scheduler_runner.run_sae_synthetic",
+        per_user_func="apps.core.ai_state.state_updater.update_user_state",
+        execution_mode="synthetic",
     ),
     EngineDefinition(
         code="UAL",
@@ -145,6 +154,10 @@ _register(
         ise_task_name="run_ual_synthetic",
         interval_seconds=21600,  # 6 hours
         category="core",
+        can_manual_run=True,
+        batch_runner="apps.core.ai_scheduler.scheduler_runner.run_ual_synthetic",
+        per_user_func="apps.core.ai_arbitration.arbitration_engine.run_arbitration",
+        execution_mode="synthetic",
     ),
 )
 
@@ -159,6 +172,7 @@ _register(
         module_path="apps.core.ai_orchestrator",
         signal_types=(SignalType.CONTEXT,),
         description="Central orchestrator: intent routing, action execution, safety validation.",
+        dependencies=("SUE", "SLCME", "HTIE", "SAE", "UAL"),
         category="core",
     ),
     EngineDefinition(
@@ -171,7 +185,12 @@ _register(
         ise_task_name="run_pie_synthetic",
         interval_seconds=21600,  # 6 hours
         mutates_state=True,
+        dependencies=("SAE",),
         category="core",
+        can_manual_run=True,
+        batch_runner="apps.core.ai_scheduler.scheduler_runner.run_pie_synthetic",
+        per_user_func="apps.core.ai_insights.insight_engine.run_insights",
+        execution_mode="synthetic",
     ),
     EngineDefinition(
         code="PRIE",
@@ -183,7 +202,12 @@ _register(
         ise_task_name="run_prie_synthetic",
         interval_seconds=21600,  # 6 hours
         mutates_state=True,
+        dependencies=("SAE",),  # PREDVAL adjusts confidence but is optional (feedback loop)
         category="core",
+        can_manual_run=True,
+        batch_runner="apps.core.ai_scheduler.scheduler_runner.run_prie_synthetic",
+        per_user_func="apps.core.ai_predictions.prediction_engine.generate_predictions",
+        execution_mode="synthetic",
     ),
     EngineDefinition(
         code="PGE",
@@ -195,7 +219,11 @@ _register(
         ise_task_name="refresh_guidance",
         interval_seconds=21600,  # 6 hours
         mutates_state=True,
+        dependencies=("SAE", "PIE", "PRIE", "GLOE", "ICQG"),
         category="core",
+        can_manual_run=True,
+        batch_runner="apps.core.ai_scheduler.scheduler_runner.run_guidance_refresh",
+        execution_mode="batch",
     ),
     EngineDefinition(
         code="DBE",
@@ -207,7 +235,11 @@ _register(
         ise_task_name="generate_daily_briefings",
         interval_seconds=86400,  # 24 hours
         mutates_state=True,
+        dependencies=("SAE", "PIE", "PRIE", "PGE", "PERSONA", "ICQG", "EXPLAIN"),
         category="core",
+        can_manual_run=True,
+        batch_runner="apps.core.ai_scheduler.scheduler_runner.run_daily_briefings",
+        execution_mode="batch",
     ),
     EngineDefinition(
         code="WIRE",
@@ -219,7 +251,11 @@ _register(
         ise_task_name="generate_weekly_reports",
         interval_seconds=604800,  # 7 days
         mutates_state=True,
+        dependencies=("SAE", "PIE", "PRIE", "PGE", "GLOE", "PERSONA", "ICQG", "EXPLAIN"),
         category="core",
+        can_manual_run=True,
+        batch_runner="apps.core.ai_scheduler.scheduler_runner.run_weekly_reports",
+        execution_mode="batch",
     ),
     EngineDefinition(
         code="DNE",
@@ -230,7 +266,11 @@ _register(
         description="Delivers intelligence notifications across channels (push, SMS, email).",
         ise_task_name="deliver_intelligence_notifications",
         interval_seconds=600,  # 10 minutes
+        dependencies=("PGE", "DBE", "WIRE", "PIE", "CDCE", "ICQG"),
         category="core",
+        can_manual_run=True,
+        batch_runner="apps.core.ai_scheduler.scheduler_runner.run_delivery_cycle",
+        execution_mode="batch",
     ),
     EngineDefinition(
         code="GLOE",
@@ -254,6 +294,10 @@ _register(
         ise_task_name="aggregate_quality_metrics",
         interval_seconds=604800,  # 7 days
         category="core",
+        can_manual_run=True,
+        batch_runner="apps.core.ai_scheduler.scheduler_runner.run_icqg_synthetic",
+        per_user_func="apps.core.ai_quality.quality_gate.filter_guidance_candidates",
+        execution_mode="synthetic",
     ),
     EngineDefinition(
         code="CDCE",
@@ -265,7 +309,12 @@ _register(
         ise_task_name="run_cdce_correlations",
         interval_seconds=21600,  # 6 hours
         mutates_state=True,
+        dependencies=("SAE",),
         category="core",
+        can_manual_run=True,
+        batch_runner="apps.core.ai_scheduler.scheduler_runner.run_cdce_synthetic",
+        per_user_func="apps.core.ai_cross_domain.cdce_engine.run_cdce",
+        execution_mode="synthetic",
     ),
     EngineDefinition(
         code="EAE",
@@ -341,6 +390,7 @@ _register(
         ise_task_name="run_architecture_pass",
         interval_seconds=86400,  # 24 hours
         mutates_state=True,
+        dependencies=("PRIE", "PGE", "EXPLAIN"),
         category="blueprint",
     ),
     EngineDefinition(
@@ -377,6 +427,7 @@ _register(
         ise_task_name="run_protective_sweep",
         interval_seconds=21600,  # 6 hours
         mutates_state=True,
+        dependencies=("PRESSURE", "DRIFT"),
         category="blueprint",
     ),
     EngineDefinition(
@@ -424,6 +475,7 @@ _register(
         ise_task_name="update_escalation_states",
         interval_seconds=21600,  # 6 hours
         mutates_state=True,
+        dependencies=("DRIFT",),
         category="core",
     ),
     EngineDefinition(
@@ -436,6 +488,7 @@ _register(
         ise_task_name="queue_event_reflections",
         interval_seconds=86400,  # 24 hours
         mutates_state=True,
+        dependencies=("PERSONA",),
         category="blueprint",
     ),
     EngineDefinition(
@@ -460,6 +513,7 @@ _register(
         ise_task_name="run_cross_domain_insights",
         interval_seconds=21600,  # 6 hours
         mutates_state=True,
+        dependencies=("SAE", "CDCE"),
         category="core",
     ),
     EngineDefinition(
@@ -472,6 +526,7 @@ _register(
         ise_task_name="validate_predictions",
         interval_seconds=86400,  # 24 hours
         mutates_state=True,
+        dependencies=("PRIE",),
         category="core",
     ),
     EngineDefinition(
@@ -484,6 +539,7 @@ _register(
         ise_task_name="evaluate_intervention_effectiveness",
         interval_seconds=86400,  # 24 hours
         mutates_state=True,
+        dependencies=("UAL", "ESCALATE"),
         category="core",
     ),
 )
@@ -536,6 +592,7 @@ _register(
         description="Delivers protective alerts generated by the protective sweep.",
         ise_task_name="deliver_protective_alerts",
         interval_seconds=21600,  # 6 hours
+        dependencies=("PROTECTIVE",),
         category="blueprint",
     ),
     EngineDefinition(
@@ -666,11 +723,150 @@ def get_engine_count() -> int:
     return len(ENGINE_REGISTRY)
 
 
+def get_manual_engines() -> List[EngineDefinition]:
+    """Get all engines that support manual execution from the Ops Wall."""
+    return [e for e in ENGINE_REGISTRY.values() if e.can_manual_run]
+
+
+# =========================================================================
+# Dependency Graph Queries
+# =========================================================================
+
+def get_dependents(code: str) -> List[str]:
+    """
+    Get all engine codes that depend on the given engine.
+
+    This answers: "If engine X is degraded, which engines are affected?"
+    """
+    return [
+        e.code for e in ENGINE_REGISTRY.values()
+        if code in e.dependencies
+    ]
+
+
+def get_dependency_chain(code: str, _visited: Optional[Set[str]] = None) -> List[str]:
+    """
+    Get the full transitive dependency chain for an engine (what it needs).
+
+    Returns a topologically-ordered list of engine codes that must be healthy
+    for this engine to function correctly. Includes cycle detection.
+    """
+    if _visited is None:
+        _visited = set()
+
+    engine = ENGINE_REGISTRY.get(code)
+    if not engine or code in _visited:
+        return []
+
+    _visited.add(code)
+    chain = []
+
+    for dep_code in engine.dependencies:
+        # Recurse into each dependency's dependencies first
+        chain.extend(get_dependency_chain(dep_code, _visited))
+        if dep_code not in chain:
+            chain.append(dep_code)
+
+    return chain
+
+
+def get_impact_chain(code: str, _visited: Optional[Set[str]] = None) -> List[str]:
+    """
+    Get the full transitive impact chain for an engine (what it affects).
+
+    Returns all engine codes that would be impacted if this engine fails.
+    This is the reverse of get_dependency_chain — used for root cause analysis.
+    """
+    if _visited is None:
+        _visited = set()
+
+    if code in _visited:
+        return []
+
+    _visited.add(code)
+    chain = []
+
+    for dependent_code in get_dependents(code):
+        if dependent_code not in chain:
+            chain.append(dependent_code)
+        chain.extend(get_impact_chain(dependent_code, _visited))
+
+    # Deduplicate while preserving order
+    seen = set()
+    result = []
+    for c in chain:
+        if c not in seen:
+            seen.add(c)
+            result.append(c)
+    return result
+
+
+def get_dependency_graph() -> Dict[str, Dict]:
+    """
+    Build the full dependency graph for all engines.
+
+    Returns a dict keyed by engine code with:
+        {
+            "code": str,
+            "name": str,
+            "phase": int,
+            "dependencies": [str, ...],     # What this engine needs
+            "dependents": [str, ...],        # What depends on this engine
+            "dependency_depth": int,         # Longest chain to a root
+            "impact_count": int,             # How many engines are affected if this fails
+        }
+
+    Useful for:
+    - Ops Wall dependency visualization
+    - Root cause analysis (high impact_count = high-value monitoring target)
+    - Execution order validation
+    """
+    graph = {}
+
+    for code, engine in ENGINE_REGISTRY.items():
+        dependents = get_dependents(code)
+        dep_chain = get_dependency_chain(code)
+        impact = get_impact_chain(code)
+
+        graph[code] = {
+            "code": code,
+            "name": engine.name,
+            "phase": int(engine.phase),
+            "category": engine.category,
+            "dependencies": list(engine.dependencies),
+            "dependents": dependents,
+            "dependency_depth": len(dep_chain),
+            "impact_count": len(impact),
+            "impact_chain": impact,
+        }
+
+    return graph
+
+
+def get_critical_engines(min_impact: int = 3) -> List[Dict]:
+    """
+    Get engines whose failure would impact the most other engines.
+
+    These are the highest-value monitoring targets for the Ops Wall.
+    Returns list of dicts sorted by impact_count descending.
+    """
+    graph = get_dependency_graph()
+    critical = [
+        node for node in graph.values()
+        if node["impact_count"] >= min_impact
+    ]
+    return sorted(critical, key=lambda x: x["impact_count"], reverse=True)
+
+
+# =========================================================================
+# Registry Summary & Validation
+# =========================================================================
+
 def get_registry_summary() -> Dict:
     """
     Get a summary of the engine registry for observability/audit.
 
-    Returns dict with counts by phase, category, and scheduling status.
+    Returns dict with counts by phase, category, scheduling, and dependency stats.
     """
     summary = {
         "total_engines": len(ENGINE_REGISTRY),
@@ -678,6 +874,9 @@ def get_registry_summary() -> Dict:
         "by_category": {},
         "scheduled_count": 0,
         "mutating_count": 0,
+        "manual_run_count": 0,
+        "with_dependencies": 0,
+        "dependency_edges": 0,
     }
 
     for engine in ENGINE_REGISTRY.values():
@@ -688,6 +887,11 @@ def get_registry_summary() -> Dict:
             summary["scheduled_count"] += 1
         if engine.mutates_state:
             summary["mutating_count"] += 1
+        if engine.can_manual_run:
+            summary["manual_run_count"] += 1
+        if engine.dependencies:
+            summary["with_dependencies"] += 1
+            summary["dependency_edges"] += len(engine.dependencies)
 
     return summary
 
@@ -700,6 +904,9 @@ def validate_registry() -> List[str]:
     - No duplicate codes
     - Phase boundaries respected
     - Scheduled engines have intervals
+    - Dependencies exist in registry
+    - No dependency cycles
+    - Manual-run engines have batch_runner
     """
     warnings = []
 
@@ -723,5 +930,49 @@ def validate_registry() -> List[str]:
                 warnings.append(
                     f"{code}: depends on '{dep}' which is not in the registry"
                 )
+
+        # Manual-run engines should have a batch_runner
+        if engine.can_manual_run and not engine.batch_runner:
+            warnings.append(
+                f"{code}: can_manual_run=True but no batch_runner configured"
+            )
+
+    # Check for dependency cycles
+    cycle_warnings = _detect_dependency_cycles()
+    warnings.extend(cycle_warnings)
+
+    return warnings
+
+
+def _detect_dependency_cycles() -> List[str]:
+    """Detect circular dependencies in the engine graph."""
+    warnings = []
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color = {code: WHITE for code in ENGINE_REGISTRY}
+    path = []
+
+    def dfs(code):
+        color[code] = GRAY
+        path.append(code)
+        engine = ENGINE_REGISTRY.get(code)
+        if engine:
+            for dep in engine.dependencies:
+                if dep not in color:
+                    continue
+                if color[dep] == GRAY:
+                    # Found cycle
+                    cycle_start = path.index(dep)
+                    cycle = path[cycle_start:] + [dep]
+                    warnings.append(
+                        f"Dependency cycle detected: {' → '.join(cycle)}"
+                    )
+                elif color[dep] == WHITE:
+                    dfs(dep)
+        path.pop()
+        color[code] = BLACK
+
+    for code in ENGINE_REGISTRY:
+        if color[code] == WHITE:
+            dfs(code)
 
     return warnings

@@ -474,8 +474,8 @@ class CDCESchedulerRunnerTests(TestCase):
 
         self.assertIn("CDCE", ENGINE_REGISTRY)
         meta = ENGINE_REGISTRY["CDCE"]
-        self.assertEqual(meta["phase"], 3)
-        self.assertEqual(meta["category"], "Post-Exec")
+        self.assertEqual(meta["phase"], 2)  # Execution phase (canonical)
+        self.assertEqual(meta["category"], "Execute")
         self.assertTrue(meta["can_manual_run"])
         self.assertIn("cdce_engine.run_cdce", meta["per_user_func"])
 

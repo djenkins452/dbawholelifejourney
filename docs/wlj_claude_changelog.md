@@ -6,6 +6,39 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Ops Wall 2.0 Phase 1: Engine dependency graph + registry consolidation
+
+**Context:** Architecture review identified that the engine registry had empty dependency
+declarations for all 56 engines, a duplicate observability registry with drifting metadata,
+and no dependency graph tooling for root cause analysis.
+
+**Changes:**
+1. **Engine dependency declarations** — Populated `dependencies` tuples for 17 engines
+   based on verified data flow analysis (PIE→SAE, PGE→SAE+PIE+PRIE+GLOE+ICQG,
+   DBE→SAE+PIE+PRIE+PGE+PERSONA+ICQG+EXPLAIN, etc.)
+2. **Operational metadata** — Added `can_manual_run`, `batch_runner`, `per_user_func`,
+   `execution_mode` fields to `EngineDefinition` dataclass. Populated for all 13
+   manually-triggerable engines.
+3. **Registry consolidation** — Refactored `apps/core/ai_observability/engine_registry.py`
+   from a hardcoded 13-engine dict to a lazy proxy that delegates to the canonical
+   `apps/core/engine_registry.py`. Preserves full backward compatibility for all 7 consumers.
+4. **Dependency graph queries** — Added `get_dependents()`, `get_dependency_chain()`,
+   `get_impact_chain()`, `get_dependency_graph()`, `get_critical_engines()` functions
+   with cycle detection in `validate_registry()`.
+5. **Project document** — Created `docs/OPS_WALL_2_PROJECT.md` with full architecture,
+   telemetry map, gap analysis, panel specs, 8 implementation phases, and risk analysis.
+
+**Files changed:**
+- `apps/core/engine_registry.py` — Added 3 fields to EngineDefinition, populated deps for 17 engines, added 8 query functions + cycle detection
+- `apps/core/ai_observability/engine_registry.py` — Rewritten to delegate to canonical registry via lazy proxy
+- `apps/core/tests/test_engine_registry.py` — NEW: 33 tests covering registry, deps, graph, compat
+- `apps/core/ai_cross_domain/tests.py` — Fixed CDCE phase assertion (was 3, canonical is 2)
+- `docs/OPS_WALL_2_PROJECT.md` — NEW: Full project document for Ops Wall 2.0
+
+**Tests:** 33 new tests, all passing. No migrations needed (pure Python metadata).
+
+---
+
 ## 2026-03-15 — Create canonical TaskQueries service, eliminate ad-hoc task QuerySets
 
 **Problem:** 10+ locations queried the Task model with inconsistent filters:

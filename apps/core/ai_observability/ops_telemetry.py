@@ -1462,15 +1462,21 @@ def _get_intelligence_pipeline_health(now):
 
         builders_present = []
         builders_empty = []
-        if latest_chat and latest_chat.get('meta'):
-            meta = latest_chat['meta']
-            # Token report shows which context sections contributed tokens
-            token_report = meta.get('_token_report', {})
-            for builder, tokens in token_report.items():
-                if tokens and tokens > 0:
-                    builders_present.append(builder)
+        if latest_chat:
+            stages = latest_chat.get('stages') or {}
+            # COS_BUILDER_* stage entries are set by personal_assistant.py
+            # from the _builder_timings dict returned by build_cos_context().
+            # A builder with duration > 0 produced data; duration == 0 means
+            # it ran but returned nothing (or was skipped).
+            prefix = 'COS_BUILDER_'
+            for key, duration in stages.items():
+                if not key.startswith(prefix):
+                    continue
+                name = key[len(prefix):]
+                if duration and duration > 0:
+                    builders_present.append(name)
                 else:
-                    builders_empty.append(builder)
+                    builders_empty.append(name)
 
         is_healthy = recent_chats > 0 and len(builders_present) > 0
         if is_healthy:

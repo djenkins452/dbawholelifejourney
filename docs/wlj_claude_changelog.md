@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Fix CoS Context health check: query stages instead of empty _token_report
+
+**Changes:** Fixed the Intelligence Pipeline telemetry for CoS Context subsystem. The health
+check was querying `ChatLatencySnapshot.meta['_token_report']` which is never populated because
+the `_ltrace` object isn't passed through the `_call_api()` → `govern_prompt()` call chain.
+Changed to query `ChatLatencySnapshot.stages` for `COS_BUILDER_*` keys instead — these ARE
+populated by `personal_assistant.py` which extracts `_builder_timings` from the CoS context
+dict after each chat.
+
+**Root cause:** Architectural gap — `_token_report` was designed to hold per-component token
+counts from the token governor, not per-builder data. The CoS builder-level data was always
+recorded in `stages` as `COS_BUILDER_{tag}` entries, but the telemetry checked the wrong field.
+
+**Files modified:**
+- apps/core/ai_observability/ops_telemetry.py (CoS context health check)
+- docs/wlj_claude_changelog.md
+
+**Note:** CoS Context will show HEALTHY after the next chat with Beth, since it reads from
+the most recent ChatLatencySnapshot which must contain COS_BUILDER_* stage entries.
+
+---
+
 ## 2026-03-14 — Fix VARCHAR(10) constraint on AdminIntervention.engine_name
 
 **Changes:** Widened `AdminIntervention.engine_name` from `max_length=10` to `max_length=50`.

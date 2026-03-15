@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix: 524 Site Outage from Live Signal Health Fallback in Polling Path
+
+**Root Cause:** `_get_signal_health()` fell back to `compute_signal_health()` when Redis cache was empty. During container startup (Redis circuit breaker open for ~60s), every OpsStreamView poll cycle triggered the expensive DB queries, exhausting all Gunicorn workers → Cloudflare 524 timeout on all pages.
+
+**Fix:** Removed the live `compute_signal_health()` fallback from `_get_signal_health()` — now returns `None` when cache is empty. The SAME engine populates the cache within 60s of startup. Also removed unused `Lower` import from `compute_signal_health()`.
+
+**Files:** `ops_telemetry.py`, `tests_signal_health.py`, `wlj_claude_changelog.md`
+**Tests:** 51/51 pass (diagnostic + signal health).
+
+---
+
 ## 2026-03-15 — Fix: Debug Prompt Failure + Prediction Import + Scan Timeout
 
 **Issues fixed:**

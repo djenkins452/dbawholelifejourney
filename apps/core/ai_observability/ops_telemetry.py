@@ -343,13 +343,11 @@ def _action_investigate_pipeline(domain):
     """
     Investigate and refresh a domain's signal pipeline.
 
-    Triggers the ISE signal aggregation task for the specified domain.
+    Uses cached signal health to avoid expensive live computation.
     The 'engine' parameter carries the domain name (e.g., 'purpose').
     """
     try:
-        from apps.core.ai_observability.ops_telemetry import compute_signal_health
-
-        sh = compute_signal_health()
+        sh = _get_signal_health() or {}
         domains = sh.get("domains", {})
         domain_lower = (domain or "").lower()
 
@@ -1362,125 +1360,70 @@ def compute_signal_health():
         if types_7d:
             d["types_7d"].update(types_7d)
 
+    # Helper to run a single aggregated query per model (eliminates N+1)
+    from django.db.models import Q as models_Q
+    from django.db.models.functions import Lower
+
+    def _query_model(model_class, group_field, type_field, label):
+        """Single query per model: GROUP BY domain, aggregate all metrics."""
+        try:
+            aggs = (
+                model_class.objects.filter(**{f"{group_field}__isnull": False})
+                .exclude(**{group_field: ""})
+                .values(group_field)
+                .annotate(
+                    last_at=Max("created_at"),
+                    vol_24h=Count("id", filter=models_Q(created_at__gte=last_24h)),
+                    vol_7d=Count("id", filter=models_Q(created_at__gte=last_7d)),
+                )
+            )
+            for row in aggs:
+                domain_val = row[group_field]
+                # Get distinct types in 7d (one extra query per domain but bounded)
+                types_7d = set()
+                if type_field:
+                    types_7d = set(
+                        model_class.objects.filter(
+                            **{group_field: domain_val},
+                            created_at__gte=last_7d,
+                        )
+                        .values_list(type_field, flat=True)
+                        .distinct()
+                    )
+                _merge_domain(
+                    domain_val, row["last_at"],
+                    row["vol_24h"], row["vol_7d"], types_7d
+                )
+        except Exception as e:
+            logger.debug("Signal health: %s query failed: %s", label, e)
+
     # --- Insight model (module field) ---
     try:
         from apps.core.ai_insights.models import Insight
-
-        insight_aggs = (
-            Insight.objects.filter(module__isnull=False)
-            .exclude(module="")
-            .values("module")
-            .annotate(
-                last_at=Max("created_at"),
-            )
-        )
-        for row in insight_aggs:
-            module = row["module"]
-            last_at = row["last_at"]
-            vol_24h = Insight.objects.filter(
-                module=module, created_at__gte=last_24h
-            ).count()
-            vol_7d = Insight.objects.filter(
-                module=module, created_at__gte=last_7d
-            ).count()
-            types_7d = set(
-                Insight.objects.filter(module=module, created_at__gte=last_7d)
-                .values_list("insight_type", flat=True)
-                .distinct()
-            )
-            _merge_domain(module, last_at, vol_24h, vol_7d, types_7d)
-    except Exception as e:
-        logger.debug("Signal health: Insight query failed: %s", e)
+        _query_model(Insight, "module", "insight_type", "Insight")
+    except ImportError:
+        pass
 
     # --- Prediction model (module field) ---
     try:
         from apps.core.ai_predictions.models import Prediction
-
-        pred_aggs = (
-            Prediction.objects.filter(module__isnull=False)
-            .exclude(module="")
-            .values("module")
-            .annotate(
-                last_at=Max("created_at"),
-            )
-        )
-        for row in pred_aggs:
-            module = row["module"]
-            last_at = row["last_at"]
-            vol_24h = Prediction.objects.filter(
-                module=module, created_at__gte=last_24h
-            ).count()
-            vol_7d = Prediction.objects.filter(
-                module=module, created_at__gte=last_7d
-            ).count()
-            types_7d = set(
-                Prediction.objects.filter(module=module, created_at__gte=last_7d)
-                .values_list("prediction_type", flat=True)
-                .distinct()
-            )
-            _merge_domain(module, last_at, vol_24h, vol_7d, types_7d)
-    except Exception as e:
-        logger.debug("Signal health: Prediction query failed: %s", e)
+        _query_model(Prediction, "module", "prediction_type", "Prediction")
+    except ImportError:
+        pass
 
     # --- GuidanceItem model (module field) ---
     try:
         from apps.core.ai_guidance.models import GuidanceItem
-
-        guidance_aggs = (
-            GuidanceItem.objects.filter(module__isnull=False)
-            .exclude(module="")
-            .values("module")
-            .annotate(
-                last_at=Max("created_at"),
-            )
-        )
-        for row in guidance_aggs:
-            module = row["module"]
-            last_at = row["last_at"]
-            vol_24h = GuidanceItem.objects.filter(
-                module=module, created_at__gte=last_24h
-            ).count()
-            vol_7d = GuidanceItem.objects.filter(
-                module=module, created_at__gte=last_7d
-            ).count()
-            types_7d = set(
-                GuidanceItem.objects.filter(module=module, created_at__gte=last_7d)
-                .values_list("guidance_type", flat=True)
-                .distinct()
-            )
-            _merge_domain(module, last_at, vol_24h, vol_7d, types_7d)
-    except Exception as e:
-        logger.debug("Signal health: GuidanceItem query failed: %s", e)
+        _query_model(GuidanceItem, "module", "guidance_type", "GuidanceItem")
+    except ImportError:
+        pass
 
     # --- JournalSignal model (domain field, signal_type) ---
     try:
         from apps.journal.models import JournalSignal
-
-        js_aggs = (
-            JournalSignal.objects.filter(domain__isnull=False)
-            .exclude(domain="")
-            .values("domain")
-            .annotate(
-                last_at=Max("created_at"),
-            )
-        )
-        for row in js_aggs:
-            domain = row["domain"]
-            last_at = row["last_at"]
-            vol_24h = JournalSignal.objects.filter(
-                domain=domain, created_at__gte=last_24h
-            ).count()
-            vol_7d = JournalSignal.objects.filter(
-                domain=domain, created_at__gte=last_7d
-            ).count()
-            types_7d = set(
-                JournalSignal.objects.filter(domain=domain, created_at__gte=last_7d)
-                .values_list("signal_type", flat=True)
-                .distinct()
-            )
-            _merge_domain(domain, last_at, vol_24h, vol_7d, types_7d)
-    except Exception as e:
-        logger.debug("Signal health: JournalSignal query failed: %s", e)
+        _query_model(JournalSignal, "domain", "signal_type", "JournalSignal")
+    except ImportError:
+        pass
 
     # --- Build per-domain results ---
     domains_active = 0

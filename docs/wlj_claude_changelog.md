@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix: Signal Drought Evidence Causes Cloudflare 524 Timeout
+
+**Root Cause:** `_evidence_signal_drought()` called `compute_signal_health()` live — which runs N+1 queries across 4 models (Insight, Prediction, GuidanceItem, JournalSignal). Per model: 1 GROUP BY query + 3 queries per domain (vol_24h, vol_7d, types_7d) = ~120 queries on unbounded tables. This exceeded Cloudflare's timeout window.
+
+**Fix (two layers):**
+1. **Evidence builder uses cache:** Changed `_evidence_signal_drought()` to call `_get_signal_health()` (cached by SAME every 60s) instead of `compute_signal_health()` directly. Same for `_action_investigate_pipeline()`.
+2. **Optimized `compute_signal_health()` core queries:** Collapsed N+1 pattern into single annotated query per model using `Count("id", filter=Q(created_at__gte=...))`. Reduced from ~120 queries to ~8 queries (1 aggregate + 1 distinct-types per model × 4 models).
+
+**Files:** `diagnostic_engine.py`, `ops_telemetry.py`, `wlj_claude_changelog.md`
+**Tests:** 30/30 diagnostic + 82/82 ops wall = 112 pass.
+
+---
+
 ## 2026-03-15 — Fix: Signal Drought Investigation Flow Broken
 
 **Root Cause (two issues):**

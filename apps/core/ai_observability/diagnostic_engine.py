@@ -92,10 +92,15 @@ def get_metric_evidence(target):
 
 
 def _evidence_signal_drought():
-    """Evidence for SIGNAL_DROUGHT — per-domain signal freshness."""
-    from apps.core.ai_observability.ops_telemetry import compute_signal_health
+    """Evidence for SIGNAL_DROUGHT — per-domain signal freshness.
 
-    sh = compute_signal_health()
+    Uses the cached signal health snapshot (refreshed every 60s by SAME)
+    to avoid expensive live computation that caused Cloudflare 524 timeouts.
+    Falls back to live computation only if cache is empty.
+    """
+    from apps.core.ai_observability.ops_telemetry import _get_signal_health
+
+    sh = _get_signal_health() or {}
     domains = sh.get("domains", {})
     silent = sh.get("domains_silent", 0)
     active = sh.get("domains_active", 0)

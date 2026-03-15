@@ -1466,28 +1466,41 @@ def _build_signal_aware_context(user):
             for goal in active_goals:
                 latest = GoalMomentumSnapshot.objects.filter(
                     goal=goal,
-                ).order_by('-date').first()
+                ).order_by('-snapshot_date').first()
 
                 if latest:
-                    # Get previous for trend
+                    # Get previous for trend comparison
                     prev = GoalMomentumSnapshot.objects.filter(
                         goal=goal,
-                        date__lt=latest.date,
-                    ).order_by('-date').first()
+                        snapshot_date__lt=latest.snapshot_date,
+                    ).order_by('-snapshot_date').first()
 
-                    trend = 'stable'
-                    if prev:
+                    trend = latest.momentum_trend or 'stable'
+                    if prev and not latest.momentum_trend:
+                        # Fallback: compute trend from score delta
+                        # momentum_score is 0-100 integer scale
                         diff = latest.momentum_score - prev.momentum_score
-                        if diff > 0.05:
-                            trend = 'improving'
-                        elif diff < -0.05:
-                            trend = 'declining'
+                        if diff > 5:
+                            trend = 'rising'
+                        elif diff < -5:
+                            trend = 'falling'
+
+                    # Extract driver labels for narrative context
+                    drivers = latest.drivers or {}
+                    driver_labels = []
+                    for component in ('habits', 'tasks', 'domain_signals', 'discipline'):
+                        comp_data = drivers.get(component, {})
+                        label = comp_data.get('label', '')
+                        if label:
+                            driver_labels.append(label)
 
                     goal_momentum.append({
                         'goal_title': goal.title[:50],
                         'domain': getattr(goal.domain, 'slug', 'life') if goal.domain else 'life',
-                        'momentum_score': round(latest.momentum_score, 2),
+                        'momentum_score': latest.momentum_score,
+                        'momentum_7d_avg': latest.momentum_7d_avg,
                         'momentum_trend': trend,
+                        'driver_labels': driver_labels,
                         'signal_scores': latest.signal_scores or {},
                     })
         except Exception as e:
@@ -2551,6 +2564,94 @@ def _format_signal_interpretation_summary(context):
     return '\n'.join(lines)
 
 
+def _format_momentum_interpretation(context):
+    """
+    Format GoalMomentumSnapshot data into a narrative trajectory block.
+
+    Groups goals by trend (rising/stable/falling) and describes momentum
+    as behavioral trajectory rather than numeric scores. Includes driver
+    labels to explain WHY momentum is at its current level.
+
+    Returns formatted block or empty string if no momentum data.
+    """
+    momentum = context.get('goal_momentum', [])
+    if not momentum:
+        return ''
+
+    rising = []
+    stable = []
+    falling = []
+
+    for g in momentum:
+        title = g.get('goal_title', 'Unknown')
+        trend = g.get('momentum_trend', 'stable')
+        score = g.get('momentum_score', 0)
+        avg_7d = g.get('momentum_7d_avg')
+        drivers = g.get('driver_labels', [])
+
+        # Classify momentum level for narrative
+        if score >= 70:
+            level = 'strong'
+        elif score >= 40:
+            level = 'moderate'
+        else:
+            level = 'low'
+
+        entry = {'title': title, 'level': level, 'drivers': drivers}
+
+        # Add 7-day context if available
+        if avg_7d is not None and avg_7d > 0:
+            if score > avg_7d + 5:
+                entry['vs_week'] = 'above weekly average'
+            elif score < avg_7d - 5:
+                entry['vs_week'] = 'below weekly average'
+
+        if trend == 'rising':
+            rising.append(entry)
+        elif trend == 'falling':
+            falling.append(entry)
+        else:
+            stable.append(entry)
+
+    lines = ["=== MOMENTUM INTERPRETATION ==="]
+
+    if rising:
+        parts = []
+        for e in rising:
+            desc = f'"{e["title"]}" ({e["level"]} and rising)'
+            if e.get('vs_week'):
+                desc += f' — {e["vs_week"]}'
+            parts.append(desc)
+        lines.append(f"Rising momentum: {', '.join(parts)}")
+
+    if stable:
+        parts = []
+        for e in stable:
+            desc = f'"{e["title"]}" ({e["level"]})'
+            parts.append(desc)
+        lines.append(f"Stable momentum: {', '.join(parts)}")
+
+    if falling:
+        parts = []
+        for e in falling:
+            desc = f'"{e["title"]}" ({e["level"]} and declining)'
+            if e.get('vs_week'):
+                desc += f' — {e["vs_week"]}'
+            if e['drivers']:
+                desc += f' [{"; ".join(e["drivers"][:2])}]'
+            parts.append(desc)
+        lines.append(f"Declining momentum: {', '.join(parts)}")
+
+    # Add interpretation directive
+    lines.append(
+        "Interpret momentum as trajectory: describe consistency, recovery, "
+        "or drift — never expose raw scores."
+    )
+    lines.append("=== END MOMENTUM INTERPRETATION ===")
+
+    return '\n'.join(lines)
+
+
 def _format_daily_context_summary(context):
     """
     Phase 7.5: Synthesized daily narrative combining commitments, gaps,
@@ -3187,6 +3288,12 @@ def format_cos_system_injection(context, user_message=None):
         lines.append("")
         lines.append(_signal_summary)
 
+    # Momentum Interpretation — trajectory narrative from GoalMomentumSnapshot
+    _momentum_interp = _format_momentum_interpretation(context)
+    if _momentum_interp:
+        lines.append("")
+        lines.append(_momentum_interp)
+
     # Active insights — pattern detections from PIE
     if insights:
         lines.append("")
@@ -3251,7 +3358,14 @@ def format_cos_system_injection(context, user_message=None):
         "Your PRIMARY reasoning layer is the intelligence signals and momentum "
         "data above. When composing ANY response:\n"
         "  1. SIGNALS FIRST — Describe behavioral signals across domains\n"
-        "  2. MOMENTUM — Interpret trajectory and trends\n"
+        "  2. MOMENTUM INTERPRETATION — Describe trajectory using the "
+        "MOMENTUM INTERPRETATION block above. Translate trends into natural "
+        "language: consistency, recovery, drift, or stability. Never expose "
+        "numeric scores. Examples:\n"
+        "     - Rising: 'Momentum across faith and health is building this week'\n"
+        "     - Stable: 'Your routines are holding steady'\n"
+        "     - Falling: 'Productivity momentum dipped — two tasks slipped'\n"
+        "     - Recovery: 'Momentum recovered after completing health routines'\n"
         "  3. CROSS-DOMAIN INSIGHT — Connect signals across domains when "
         "patterns exist\n"
         "  4. TASKS LAST — Reference tasks only as supporting evidence for "

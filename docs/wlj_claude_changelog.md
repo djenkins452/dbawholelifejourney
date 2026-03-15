@@ -6,6 +6,33 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Momentum interpretation: fix query bug + narrative formatter
+
+**Changes:**
+1. Fixed critical query bug in `_build_signal_aware_context()`: used `.order_by('-date')`
+   and `date__lt=` but GoalMomentumSnapshot field is `snapshot_date`. Momentum data was
+   silently returning None for all goals — Beth never saw momentum context.
+2. Fixed trend threshold: momentum_score is 0-100 integer scale, not 0-1 float. Changed
+   threshold from 0.05 to 5. Now uses model's `momentum_trend` field as primary source.
+3. Enriched momentum data: added `momentum_7d_avg` and `driver_labels` (habit/task/signal
+   completion labels) to context dict.
+4. Added `_format_momentum_interpretation()` function: groups goals by trend (rising/stable/
+   falling), describes momentum as trajectory narrative, includes driver labels for declining
+   goals, adds vs-weekly-average context.
+5. Injected MOMENTUM INTERPRETATION block into prompt between Signal Interpretation Summary
+   and PIE Insights.
+6. Enhanced REASONING HIERARCHY directive with explicit momentum interpretation examples
+   (rising, stable, falling, recovery).
+
+**Root cause:** The query bug (`-date` instead of `-snapshot_date`) meant Beth never received
+momentum data even though GoalMomentumSnapshot rows existed in the database.
+
+**Files modified:**
+- apps/core/ai_orchestrator/cos_context.py (query fix, enrichment, formatter, injection)
+- docs/wlj_claude_changelog.md
+
+---
+
 ## 2026-03-14 — Beth signal-first reasoning hierarchy
 
 **Changes:** Upgraded Beth's reasoning order so responses are driven by intelligence

@@ -64,6 +64,7 @@ def run_same():
     _cache_signal_health(precomputed=signal_health)
     _cache_validator_health()
     _cache_cos_performance()
+    _cache_maturity_scores()
 
     # Step 3: Reconcile anomalies (activate new, resolve old)
     stats = _reconcile_anomalies(detected, now)
@@ -663,6 +664,34 @@ def _cache_cos_performance():
         logger.debug("SAME: cached CoS performance (status=%s)", perf.get("status") if perf else "none")
     except Exception as e:
         logger.warning("SAME: failed to cache CoS performance: %s", e)
+
+
+def _cache_maturity_scores():
+    """
+    Compute and cache maturity scores for the Ops Wall and evidence buttons.
+
+    Only recomputes when cache is expired or empty. This avoids running
+    compute_system_life_impact() (600+ queries) every 60s SAME cycle.
+    Cache TTL: 300s (5 minutes). SAME checks every 60s but only
+    recomputes when the cache key is absent.
+    """
+    try:
+        from django.core.cache import cache
+
+        cache_key = "wlj:ops:maturity_scores"
+
+        # Skip if cache is still fresh (avoid 600+ queries every 60s)
+        if cache.get(cache_key) is not None:
+            return
+
+        from apps.core.ai_observability.maturity_engine import compute_all_maturity_scores
+
+        scores = compute_all_maturity_scores()  # system-wide (no user)
+        cache.set(cache_key, scores, timeout=300)  # 5 min TTL
+        overall = scores.get("overall", {}).get("score", "?")
+        logger.debug("SAME: cached maturity scores (overall=%s)", overall)
+    except Exception as e:
+        logger.warning("SAME: failed to cache maturity scores: %s", e)
 
 
 # =========================================================================

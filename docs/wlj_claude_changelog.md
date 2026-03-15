@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Ops Wall 2.0 Phase 10: Hero Refinements
+
+**What:** Three UI refinements to the command center hero to improve operator scan speed and operational awareness.
+
+**Changes:**
+1. **Incident Alert Strip** — Added subsystem labels (Signal Pipeline, Engine Health, Scheduler, etc.) to each incident card so operators immediately know which system is affected
+2. **Health Score Breakdown** — Added score explanation panel under the integrity gauge showing Engines, Signals, Integrity, Incidents, and Schedulers with color-coded values derived from existing telemetry
+3. **Operational Status Tiles** — Replaced trend sparklines (Column 3) with high-signal operational health indicators: Signal Pipeline, Engine Execution, Action Systems, Schedulers — each showing OK/DEGRADED/CRITICAL status
+
+**Files modified:**
+- `templates/admin_console/operations_wall.html` — Added ~80 lines CSS (breakdown, op-status tiles, subsystem label styles), modified Zone 1 Column 1 (added breakdown HTML), replaced Column 3 (sparklines → op status tiles), updated `renderWatchlist()` with subsystem mapping, added `renderHealthBreakdown()` and `renderOperationalStatus()` JS functions
+
+**Why:** Operators could see the health score but had to scan the entire page to understand why it changed. The breakdown and status tiles answer "is it healthy?" and "why?" without scrolling.
+
+---
+
 ## 2026-03-15 — Ops Wall 2.0 Phase 9: 5-Zone Command Center Layout
 
 **What:** Restructured the Ops Wall template from a 6-row grid layout into a 5-zone command center architecture with improved information hierarchy and a collapsible diagnostics panel.

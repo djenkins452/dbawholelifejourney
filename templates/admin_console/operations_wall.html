@@ -2500,6 +2500,62 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
 .ops-hero-schedulers .ops-sched-name { font-size: 0.7rem; }
 .ops-hero-schedulers .ops-sched-metrics { gap: 4px; }
 
+/* Health Score Breakdown (Refinement 2) */
+.ops-health-breakdown {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--ops-surface);
+    border: 1px solid var(--ops-glass-border);
+    border-radius: var(--ops-radius-sm);
+}
+.ops-health-breakdown-title {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ops-text-dim);
+    margin-bottom: 6px;
+}
+.ops-health-breakdown-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 0;
+    font-size: 0.65rem;
+}
+.ops-health-breakdown-label { color: var(--ops-text-muted); }
+.ops-health-breakdown-value { font-weight: 600; color: var(--ops-text-bright); }
+.ops-health-breakdown-value.good { color: var(--ops-green); }
+.ops-health-breakdown-value.warn { color: var(--ops-yellow); }
+.ops-health-breakdown-value.bad { color: var(--ops-red); }
+
+/* Operational Status Tiles (Refinement 3) */
+.ops-hero-op-status { display: flex; flex-direction: column; gap: 6px; }
+.ops-hero-op-tile {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--ops-surface);
+    border: 1px solid var(--ops-glass-border);
+    border-radius: var(--ops-radius-sm);
+    border-left: 3px solid var(--ops-green);
+}
+.ops-hero-op-tile.degraded { border-left-color: var(--ops-yellow); }
+.ops-hero-op-tile.critical { border-left-color: var(--ops-red); }
+.ops-hero-op-tile-name { font-size: 0.7rem; font-weight: 500; color: var(--ops-text); }
+.ops-hero-op-tile-status { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.ops-hero-op-tile-status.ok { color: var(--ops-green); }
+.ops-hero-op-tile-status.degraded { color: var(--ops-yellow); }
+.ops-hero-op-tile-status.critical { color: var(--ops-red); }
+
+/* Incident card subsystem label */
+.ops-anomaly-compact-subsystem {
+    font-size: 0.6rem;
+    color: var(--ops-cyan);
+    font-weight: 500;
+    margin-top: 1px;
+}
+
 /* Zone 2: Incidents Strip */
 .ops-incidents-strip {
     display: flex;
@@ -2697,6 +2753,30 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 <div class="ops-integrity-posture-label NOMINAL" id="integrityPosture">&mdash;</div>
                 <div class="ops-integrity-trend-chart" id="integrityTrend" style="height:40px;margin-top:4px"></div>
             </div>
+            <!-- Health Score Breakdown (Refinement 2) -->
+            <div class="ops-health-breakdown" id="healthBreakdown">
+                <div class="ops-health-breakdown-title">Score Breakdown</div>
+                <div class="ops-health-breakdown-row">
+                    <span class="ops-health-breakdown-label">Engines</span>
+                    <span class="ops-health-breakdown-value" id="hbEngines">&mdash;</span>
+                </div>
+                <div class="ops-health-breakdown-row">
+                    <span class="ops-health-breakdown-label">Signals</span>
+                    <span class="ops-health-breakdown-value" id="hbSignals">&mdash;</span>
+                </div>
+                <div class="ops-health-breakdown-row">
+                    <span class="ops-health-breakdown-label">Integrity</span>
+                    <span class="ops-health-breakdown-value" id="hbIntegrity">&mdash;</span>
+                </div>
+                <div class="ops-health-breakdown-row">
+                    <span class="ops-health-breakdown-label">Incidents</span>
+                    <span class="ops-health-breakdown-value" id="hbIncidents">&mdash;</span>
+                </div>
+                <div class="ops-health-breakdown-row">
+                    <span class="ops-health-breakdown-label">Schedulers</span>
+                    <span class="ops-health-breakdown-value" id="hbSchedulers">&mdash;</span>
+                </div>
+            </div>
         </div>
 
         <!-- Column 2: Posture + Components -->
@@ -2755,24 +2835,31 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             </div>
         </div>
 
-        <!-- Column 3: Trend Sparklines 2x2 -->
-        <div class="ops-hero-trends">
-            <div class="ops-hero-trend-item">
-                <div class="ops-hero-trend-label">Integrity</div>
-                <div class="ops-trend-spark" id="trendIntegrity"></div>
+        <!-- Column 3: Operational Health Status -->
+        <div class="ops-hero-op-status" id="heroOpStatus">
+            <div class="ops-hero-op-tile" id="opTileSignal">
+                <span class="ops-hero-op-tile-name">Signal Pipeline</span>
+                <span class="ops-hero-op-tile-status ok" id="opTileSignalStatus">OK</span>
             </div>
-            <div class="ops-hero-trend-item">
-                <div class="ops-hero-trend-label">CoS Latency</div>
-                <div class="ops-trend-spark" id="trendCosLatency"></div>
+            <div class="ops-hero-op-tile" id="opTileExecution">
+                <span class="ops-hero-op-tile-name">Engine Execution</span>
+                <span class="ops-hero-op-tile-status ok" id="opTileExecutionStatus">OK</span>
             </div>
-            <div class="ops-hero-trend-item">
-                <div class="ops-hero-trend-label">Engines OK</div>
-                <div class="ops-trend-spark" id="trendEngineOk"></div>
+            <div class="ops-hero-op-tile" id="opTileActions">
+                <span class="ops-hero-op-tile-name">Action Systems</span>
+                <span class="ops-hero-op-tile-status ok" id="opTileActionsStatus">OK</span>
             </div>
-            <div class="ops-hero-trend-item">
-                <div class="ops-hero-trend-label">Validator Rate</div>
-                <div class="ops-trend-spark" id="trendValidatorRate"></div>
+            <div class="ops-hero-op-tile" id="opTileSchedulers">
+                <span class="ops-hero-op-tile-name">Schedulers</span>
+                <span class="ops-hero-op-tile-status ok" id="opTileSchedulersStatus">OK</span>
             </div>
+        </div>
+        <!-- Trend sparklines (hidden, needed for updateTrendStrip) -->
+        <div style="display:none">
+            <div class="ops-trend-spark" id="trendIntegrity"></div>
+            <div class="ops-trend-spark" id="trendCosLatency"></div>
+            <div class="ops-trend-spark" id="trendEngineOk"></div>
+            <div class="ops-trend-spark" id="trendValidatorRate"></div>
         </div>
 
         <!-- Column 4: Scheduler Pulses -->
@@ -4121,6 +4208,9 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         // Phase 8 — API Health
         renderApiHealth(data.api_health);
         updateTrendStrip(data);
+        // Phase 10 — Hero refinements
+        renderHealthBreakdown(data);
+        renderOperationalStatus(data);
         document.getElementById('lastUpdateTime').textContent = new Date().toLocaleTimeString();
     }
 
@@ -4370,6 +4460,102 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             document.getElementById('icVolatility').textContent = c.confidence_volatility.stddev.toFixed(2);
             updateComponentBar('icVolatilityBar', Math.max(0, (1 - c.confidence_volatility.stddev / 0.5)) * 100);
         }
+    }
+
+    /* =====================================================================
+       Phase 10 — Health Score Breakdown (Refinement 2)
+       Derives sub-scores from existing telemetry to explain the integrity score
+       ===================================================================== */
+    function renderHealthBreakdown(data) {
+        // Engines: ok_count / total from integrity components
+        var c = (data.integrity && data.integrity.components) || {};
+        var eh = c.engine_health;
+        if (eh) {
+            setBreakdownValue('hbEngines', eh.ok_count + ' / ' + eh.total,
+                eh.ok_count === eh.total ? 'good' : eh.ok_count >= eh.total - 1 ? 'warn' : 'bad');
+        }
+
+        // Signals: active / total domains from signal_health
+        var sh = data.signal_health;
+        if (sh) {
+            var active = sh.active_domains || 0;
+            var total = (sh.active_domains || 0) + (sh.silent_domains || 0);
+            setBreakdownValue('hbSignals', active + ' / ' + total,
+                total === 0 ? 'good' : active >= total ? 'good' : active >= total / 2 ? 'warn' : 'bad');
+        }
+
+        // Integrity: COAS overall score
+        var coas = data.coas_health;
+        if (coas && coas.overall) {
+            var s = coas.overall.score;
+            setBreakdownValue('hbIntegrity', s !== null && s !== undefined ? s + ' / 100' : '\u2014',
+                s >= 80 ? 'good' : s >= 60 ? 'warn' : 'bad');
+        }
+
+        // Incidents: anomaly count
+        var anomalies = data.anomalies || [];
+        var p1 = anomalies.filter(function(a) { return a.severity === 'P1'; }).length;
+        setBreakdownValue('hbIncidents', anomalies.length === 0 ? '0 active' : anomalies.length + ' active' + (p1 ? ' (' + p1 + ' P1)' : ''),
+            anomalies.length === 0 ? 'good' : p1 > 0 ? 'bad' : 'warn');
+
+        // Schedulers: ISE + SAME alive
+        var sched = data.scheduler_heartbeats || [];
+        var aliveCount = sched.filter(function(s) { return s.status === 'ALIVE'; }).length;
+        setBreakdownValue('hbSchedulers', aliveCount + ' / ' + Math.max(sched.length, 2) + ' alive',
+            aliveCount >= 2 ? 'good' : aliveCount >= 1 ? 'warn' : 'bad');
+    }
+
+    function setBreakdownValue(id, text, cls) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = text;
+        el.className = 'ops-health-breakdown-value ' + (cls || '');
+    }
+
+    /* =====================================================================
+       Phase 10 — Operational Status Tiles (Refinement 3)
+       Shows high-level subsystem health in the hero
+       ===================================================================== */
+    function renderOperationalStatus(data) {
+        // Signal Pipeline
+        var ph = data.pipeline_health;
+        if (ph) {
+            var phStatus = ph.status || 'INITIALIZING';
+            setOpTile('opTileSignal', 'opTileSignalStatus', phStatus === 'HEALTHY' ? 'OK' : phStatus);
+        }
+
+        // Engine Execution: derive from integrity components
+        var c = (data.integrity && data.integrity.components) || {};
+        var eh = c.engine_health;
+        if (eh) {
+            var engStatus = eh.ok_count === eh.total ? 'OK' : eh.ok_count >= eh.total - 2 ? 'DEGRADED' : 'CRITICAL';
+            setOpTile('opTileExecution', 'opTileExecutionStatus', engStatus);
+        }
+
+        // Action Systems (AAFR)
+        var aafr = data.aafr;
+        if (aafr) {
+            var aafrStatus = aafr.status || 'HEALTHY';
+            setOpTile('opTileActions', 'opTileActionsStatus', aafrStatus === 'HEALTHY' ? 'OK' : aafrStatus);
+        }
+
+        // Schedulers
+        var sched = data.scheduler_heartbeats || [];
+        var alive = sched.filter(function(s) { return s.status === 'ALIVE'; }).length;
+        var schedStatus = alive >= 2 ? 'OK' : alive >= 1 ? 'DEGRADED' : 'CRITICAL';
+        setOpTile('opTileSchedulers', 'opTileSchedulersStatus', schedStatus);
+    }
+
+    function setOpTile(tileId, statusId, status) {
+        var tile = document.getElementById(tileId);
+        var statusEl = document.getElementById(statusId);
+        if (!tile || !statusEl) return;
+        var normalized = status === 'OK' || status === 'HEALTHY' || status === 'OPTIMAL' || status === 'NOMINAL' ? 'ok'
+            : status === 'DEGRADED' || status === 'WARNING' || status === 'LEARNING' ? 'degraded'
+            : status === 'CRITICAL' || status === 'ERROR' || status === 'MISSED' ? 'critical' : 'ok';
+        statusEl.textContent = status === 'OK' || normalized === 'ok' ? 'OK' : status;
+        statusEl.className = 'ops-hero-op-tile-status ' + normalized;
+        tile.className = 'ops-hero-op-tile' + (normalized !== 'ok' ? ' ' + normalized : '');
     }
 
     function renderLearningHealth(health) {
@@ -5026,12 +5212,24 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                   escapeAttr(a.anomaly_type) + '">Investigate</button>'
                 : '';
 
+            // Determine owning subsystem from anomaly type
+            var ANOMALY_SUBSYSTEM_MAP = {
+                'ENGINE_STARVATION': 'Engine Health', 'ERROR_SPIKE': 'Engine Health',
+                'MISSED_RUN': 'Scheduler', 'SUPPRESSION_STORM': 'Validator Gate',
+                'VALIDATOR_CRASH': 'Validator Gate', 'VALIDATOR_SPIKE': 'Validator Gate',
+                'SIGNAL_DROUGHT': 'Signal Pipeline', 'SIGNAL_LOW_DIVERSITY': 'Signal Pipeline',
+                'CONFIDENCE_VOLATILITY': 'Data Integrity', 'LOOPING_REMINDER': 'Action Systems',
+                'DELIVERY_RETRY_SPIKE': 'Intelligence Pipeline', 'COMMITMENT_RACE_CONDITION': 'Action Systems',
+                'STRUCTURAL_VIOLATION': 'Data Integrity', 'NUMERIC_DEVIATION': 'Data Integrity'
+            };
+            var subsystem = ANOMALY_SUBSYSTEM_MAP[a.anomaly_type] || 'System';
+
             card.innerHTML =
                 '<div class="ops-anomaly-compact-header">' +
-                '  <span class="ops-anomaly-compact-badge ' + a.severity + '">' + a.severity + '</span>' +
-                '  <span class="ops-anomaly-compact-type">' + escapeHtml(a.engine_name || 'SYSTEM') + '</span>' +
+                '  <span class="ops-anomaly-compact-badge ' + a.severity + '">' + a.severity + ' | ' + escapeHtml(a.engine_name || 'SYSTEM') + '</span>' +
                 '</div>' +
-                '<div class="ops-anomaly-compact-system">' + escapeHtml(ANOMALY_TYPE_LABELS[a.anomaly_type] || a.anomaly_type) + '</div>' +
+                '<div class="ops-anomaly-compact-type">' + escapeHtml(ANOMALY_TYPE_LABELS[a.anomaly_type] || a.anomaly_type) + '</div>' +
+                '<div class="ops-anomaly-compact-subsystem">' + subsystem + '</div>' +
                 '<div class="ops-anomaly-compact-desc">' + escapeHtml(a.summary) + '</div>' +
                 '<div class="ops-anomaly-compact-actions">' + actionsHtml + investigateBtn + '</div>';
 

@@ -1,6 +1,6 @@
 # Ops Wall 2.0 — Project Document
 
-**Status:** Phase 7 complete. Phase 8 ready.
+**Status:** Phase 8 complete. All phases delivered.
 **Author:** Claude Code / Danny Jenkins
 **Created:** 2026-03-15
 **Last Updated:** 2026-03-15
@@ -492,18 +492,21 @@ Each card clicks through to a diagnostic panel that contains what currently live
 
 ---
 
-### Phase 8: Mobile/API Health (OPTIONAL)
+### Phase 8: Mobile/API Health ✅
 
 **Goal:** Track API performance for iOS app monitoring.
 
-**Tasks:**
-1. Add API response time middleware for `/api/*` endpoints
-2. Create `APIHealthSnapshot` model
-3. Add mobile/API card to Ops Wall
+**Status:** Complete. Deployed 2026-03-15.
 
-**Risk:** Low-medium. Middleware must not affect API latency. New model requires migration.
+**Delivered:**
+- No new model needed — leverages existing `APIRequestLog` (already captures every `/api/*` request with `response_time_ms`)
+- `_get_api_health_telemetry()` in `ops_telemetry.py` — aggregates 24h request volume, avg/P95 response times, error rates, top endpoints, channel breakdown (mobile/chat/other)
+- Live Mobile/API card replaces placeholder in Row 3 — pulse indicator, 4 key metrics, 3-channel split, scrollable endpoint breakdown table
+- Wired into OpsStreamView polling (2s refresh cycle)
 
-**Estimated files changed:** 3-4
+**Risk:** Low. No new middleware, no new models, no migrations.
+
+**Estimated files changed:** 3-4 → Actual: 3 modified
 
 ---
 

@@ -1093,6 +1093,122 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 }
 
 /* =========================================================================
+   API HEALTH TILE — Mobile / API monitoring (Phase 8)
+   ========================================================================= */
+.ops-api-health {
+    padding: 8px 0;
+}
+.ops-api-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.ops-api-pulse {
+    width: 10px; height: 10px; border-radius: 50%;
+    flex-shrink: 0;
+}
+.ops-api-pulse.HEALTHY { background: var(--ops-green); box-shadow: 0 0 8px var(--ops-green); }
+.ops-api-pulse.WARNING { background: var(--ops-yellow); box-shadow: 0 0 8px var(--ops-yellow); animation: aafrPulse 1.5s ease-in-out infinite; }
+.ops-api-pulse.CRITICAL { background: var(--ops-red); box-shadow: 0 0 12px var(--ops-red); animation: aafrPulse 0.8s ease-in-out infinite; }
+.ops-api-pulse.IDLE { background: var(--ops-text-dim); }
+.ops-api-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ops-text);
+    flex: 1;
+}
+.ops-api-status-label {
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+.ops-api-status-label.HEALTHY { color: var(--ops-green); background: var(--ops-green-dim); }
+.ops-api-status-label.WARNING { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
+.ops-api-status-label.CRITICAL { color: var(--ops-red); background: var(--ops-red-dim); }
+.ops-api-status-label.IDLE { color: var(--ops-text-dim); background: rgba(255,255,255,0.05); }
+.ops-api-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.ops-api-metric {
+    text-align: center;
+}
+.ops-api-metric-label {
+    font-size: 0.6rem;
+    color: var(--ops-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.ops-api-metric-value {
+    font-size: 1rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ops-text);
+}
+.ops-api-metric-value.WARNING { color: var(--ops-yellow); }
+.ops-api-metric-value.CRITICAL { color: var(--ops-red); }
+.ops-api-channels {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 10px;
+    padding: 6px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 6px;
+}
+.ops-api-channel {
+    text-align: center;
+}
+.ops-api-channel-label {
+    font-size: 0.6rem;
+    color: var(--ops-text-dim);
+}
+.ops-api-channel-value {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--ops-text);
+    font-variant-numeric: tabular-nums;
+}
+.ops-api-endpoints {
+    max-height: 140px;
+    overflow-y: auto;
+    font-size: 0.6875rem;
+}
+.ops-api-endpoint-row {
+    display: grid;
+    grid-template-columns: 1fr 50px 60px 40px;
+    gap: 4px;
+    padding: 3px 0;
+    border-bottom: 1px solid var(--ops-glass-border);
+    align-items: center;
+}
+.ops-api-endpoint-row.header {
+    color: var(--ops-text-dim);
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.ops-api-ep-path {
+    color: var(--ops-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ops-api-ep-count { color: var(--ops-text-muted); text-align: right; font-variant-numeric: tabular-nums; }
+.ops-api-ep-ms { color: var(--ops-text-muted); text-align: right; font-variant-numeric: tabular-nums; }
+.ops-api-ep-err { color: var(--ops-red); text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 768px) {
+    .ops-api-metrics { grid-template-columns: repeat(2, 1fr); }
+    .ops-api-channels { grid-template-columns: 1fr; }
+}
+
+/* =========================================================================
    LEARNING HEALTH TILE — Persistent Learning subsystem monitor
    ========================================================================= */
 .ops-learning-health {
@@ -3023,16 +3139,66 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             </div>
         </div>
 
-        <!-- Card: Mobile / API (Placeholder) -->
+        <!-- Card: Mobile / API Health -->
         <div class="ops-cmd-card ops-glass">
             <div class="ops-cmd-card-header">
                 <span class="ops-cmd-card-title">Mobile / API</span>
+                <span class="ops-cmd-card-status" id="apiCardStatus"></span>
             </div>
             <div class="ops-cmd-card-body">
-                <div class="ops-cmd-placeholder">
-                    <div class="ops-cmd-placeholder-icon">&#128225;</div>
-                    <div class="ops-cmd-placeholder-text">Coming Soon</div>
-                    <div style="font-size:0.68rem;color:var(--ops-text-dim);margin-top:8px">Mobile API health, chat latency summary, and push notification delivery stats will appear here.</div>
+                <div class="ops-api-health" id="apiHealthTile">
+                    <!-- Header with pulse -->
+                    <div class="ops-api-header">
+                        <div class="ops-api-pulse IDLE" id="apiPulse"></div>
+                        <span class="ops-api-title">API Request Health (24h)</span>
+                        <span class="ops-api-status-label IDLE" id="apiStatusLabel">LOADING</span>
+                    </div>
+
+                    <!-- Key Metrics -->
+                    <div class="ops-api-metrics">
+                        <div class="ops-api-metric">
+                            <div class="ops-api-metric-label">Requests</div>
+                            <div class="ops-api-metric-value" id="apiTotalRequests">0</div>
+                        </div>
+                        <div class="ops-api-metric">
+                            <div class="ops-api-metric-label">Avg Response</div>
+                            <div class="ops-api-metric-value" id="apiAvgMs">&mdash;</div>
+                        </div>
+                        <div class="ops-api-metric">
+                            <div class="ops-api-metric-label">P95</div>
+                            <div class="ops-api-metric-value" id="apiP95Ms">&mdash;</div>
+                        </div>
+                        <div class="ops-api-metric">
+                            <div class="ops-api-metric-label">Error Rate</div>
+                            <div class="ops-api-metric-value" id="apiErrorRate">0%</div>
+                        </div>
+                    </div>
+
+                    <!-- Channel Breakdown -->
+                    <div class="ops-api-channels">
+                        <div class="ops-api-channel">
+                            <div class="ops-api-channel-label">Mobile</div>
+                            <div class="ops-api-channel-value" id="apiMobileCount">0</div>
+                        </div>
+                        <div class="ops-api-channel">
+                            <div class="ops-api-channel-label">Chat</div>
+                            <div class="ops-api-channel-value" id="apiChatCount">0</div>
+                        </div>
+                        <div class="ops-api-channel">
+                            <div class="ops-api-channel-label">Other</div>
+                            <div class="ops-api-channel-value" id="apiOtherCount">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Top Endpoints -->
+                    <div class="ops-api-endpoints" id="apiEndpointsList">
+                        <div class="ops-api-endpoint-row header">
+                            <span>Endpoint</span>
+                            <span style="text-align:right">Hits</span>
+                            <span style="text-align:right">Avg ms</span>
+                            <span style="text-align:right">Err</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -3747,6 +3913,8 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         renderCosPerformance(data.cos_performance);
         renderValidatorGate(data.validator_health);
         renderSignalHealth(data.signal_health);
+        // Phase 8 — API Health
+        renderApiHealth(data.api_health);
         updateTrendStrip(data);
         document.getElementById('lastUpdateTime').textContent = new Date().toLocaleTimeString();
     }
@@ -4769,6 +4937,75 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             }).join('');
         } else if (gridEl) {
             gridEl.innerHTML = '<div style="color:var(--ops-text-dim);font-size:0.72rem">No signal data available</div>';
+        }
+    }
+
+    /* =====================================================================
+       Phase 8 — API Health Rendering
+       ===================================================================== */
+
+    function renderApiHealth(api) {
+        if (!api) return;
+
+        // Status & pulse
+        var pulse = document.getElementById('apiPulse');
+        var statusLabel = document.getElementById('apiStatusLabel');
+        if (pulse) pulse.className = 'ops-api-pulse ' + (api.status || 'IDLE');
+        if (statusLabel) {
+            statusLabel.textContent = api.status || 'IDLE';
+            statusLabel.className = 'ops-api-status-label ' + (api.status || 'IDLE');
+        }
+
+        // Key metrics
+        var totalEl = document.getElementById('apiTotalRequests');
+        if (totalEl) totalEl.textContent = (api.total_requests || 0).toLocaleString();
+
+        var avgEl = document.getElementById('apiAvgMs');
+        if (avgEl) {
+            avgEl.textContent = api.avg_response_ms ? api.avg_response_ms + 'ms' : '\u2014';
+            avgEl.className = 'ops-api-metric-value' + (api.avg_response_ms > 2000 ? ' CRITICAL' : (api.avg_response_ms > 1000 ? ' WARNING' : ''));
+        }
+
+        var p95El = document.getElementById('apiP95Ms');
+        if (p95El) {
+            p95El.textContent = api.p95_response_ms ? api.p95_response_ms + 'ms' : '\u2014';
+            p95El.className = 'ops-api-metric-value' + (api.p95_response_ms > 5000 ? ' CRITICAL' : (api.p95_response_ms > 2000 ? ' WARNING' : ''));
+        }
+
+        var errEl = document.getElementById('apiErrorRate');
+        if (errEl) {
+            errEl.textContent = api.error_rate_pct + '%';
+            errEl.className = 'ops-api-metric-value' + (api.error_rate_pct > 10 ? ' CRITICAL' : (api.error_rate_pct > 5 ? ' WARNING' : ''));
+        }
+
+        // Channel breakdown
+        var mobileEl = document.getElementById('apiMobileCount');
+        if (mobileEl) mobileEl.textContent = (api.mobile_requests || 0).toLocaleString();
+        var chatEl = document.getElementById('apiChatCount');
+        if (chatEl) chatEl.textContent = (api.chat_requests || 0).toLocaleString();
+        var otherEl = document.getElementById('apiOtherCount');
+        if (otherEl) otherEl.textContent = (api.other_requests || 0).toLocaleString();
+
+        // Endpoint breakdown table
+        var listEl = document.getElementById('apiEndpointsList');
+        if (listEl && api.endpoints) {
+            var html = '<div class="ops-api-endpoint-row header">' +
+                '<span>Endpoint</span><span style="text-align:right">Hits</span>' +
+                '<span style="text-align:right">Avg ms</span><span style="text-align:right">Err</span></div>';
+            api.endpoints.forEach(function(ep) {
+                // Shorten path for display
+                var shortPath = ep.path.length > 35 ? ep.path.substring(0, 35) + '\u2026' : ep.path;
+                html += '<div class="ops-api-endpoint-row">' +
+                    '<span class="ops-api-ep-path" title="' + escapeHtml(ep.path) + '">' + escapeHtml(shortPath) + '</span>' +
+                    '<span class="ops-api-ep-count">' + ep.count + '</span>' +
+                    '<span class="ops-api-ep-ms">' + ep.avg_ms + '</span>' +
+                    '<span class="ops-api-ep-err">' + (ep.errors || 0) + '</span>' +
+                    '</div>';
+            });
+            if (!api.endpoints.length) {
+                html += '<div style="padding:8px;color:var(--ops-text-dim);font-size:0.72rem;text-align:center">No API requests in the last 24h</div>';
+            }
+            listEl.innerHTML = html;
         }
     }
 

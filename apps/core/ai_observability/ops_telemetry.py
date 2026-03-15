@@ -2051,3 +2051,115 @@ def _get_intelligence_pipeline_health(now):
         'total_subsystems': 5,
         'subsystems': subsystems,
     }
+
+
+# ================================================================== #
+#  API Health Telemetry (Phase 8)
+# ================================================================== #
+
+def _get_api_health_telemetry(now):
+    """
+    API health metrics aggregated from APIRequestLog.
+
+    Returns 24h request volume, response times, error rates,
+    top endpoints, and channel breakdown (mobile/chat/other).
+    """
+    try:
+        from apps.core.models import APIRequestLog
+        from django.db.models import Avg, Count, Q, F
+        from django.db.models.functions import Substr
+
+        window = now - timedelta(hours=24)
+        qs = APIRequestLog.objects.filter(created_at__gte=window)
+
+        # --- Overall aggregates ---
+        stats = qs.aggregate(
+            total=Count('id'),
+            avg_ms=Avg('response_time_ms'),
+            error_count=Count('id', filter=Q(status_code__gte=400)),
+            anomaly_count=Count('id', filter=Q(is_anomaly=True)),
+            mobile_count=Count('id', filter=Q(path__startswith='/api/mobile/')),
+            chat_count=Count('id', filter=Q(path__contains='/api/chat')),
+        )
+
+        total = stats['total'] or 0
+        avg_ms = round(stats['avg_ms'] or 0, 1)
+        error_count = stats['error_count'] or 0
+        anomaly_count = stats['anomaly_count'] or 0
+        mobile_count = stats['mobile_count'] or 0
+        chat_count = stats['chat_count'] or 0
+        error_rate = round((error_count / max(total, 1)) * 100, 1)
+
+        # --- P95 approximation (order by response_time desc, skip top 5%) ---
+        p95_ms = None
+        if total > 10:
+            skip = max(int(total * 0.05), 1)
+            p95_row = (
+                qs.order_by('-response_time_ms')
+                .values_list('response_time_ms', flat=True)[skip:skip + 1]
+            )
+            p95_list = list(p95_row)
+            if p95_list:
+                p95_ms = p95_list[0]
+
+        # --- Top endpoints by volume (normalize paths by stripping IDs) ---
+        # Group by the first 3 path segments to avoid per-ID fragmentation
+        # e.g. /api/mobile/health/ingest/ stays, /api/chat/stream/ stays
+        endpoint_qs = (
+            qs.values('path')
+            .annotate(
+                count=Count('id'),
+                avg_ms=Avg('response_time_ms'),
+                errors=Count('id', filter=Q(status_code__gte=400)),
+            )
+            .order_by('-count')[:8]
+        )
+        endpoints = [
+            {
+                'path': row['path'],
+                'count': row['count'],
+                'avg_ms': round(row['avg_ms'] or 0, 1),
+                'errors': row['errors'],
+            }
+            for row in endpoint_qs
+        ]
+
+        # --- Status determination ---
+        if error_rate > 10 or avg_ms > 5000:
+            status = 'CRITICAL'
+        elif error_rate > 5 or avg_ms > 2000:
+            status = 'WARNING'
+        elif total == 0:
+            status = 'IDLE'
+        else:
+            status = 'HEALTHY'
+
+        return {
+            'total_requests': total,
+            'avg_response_ms': avg_ms,
+            'p95_response_ms': p95_ms,
+            'error_count': error_count,
+            'error_rate_pct': error_rate,
+            'anomaly_count': anomaly_count,
+            'mobile_requests': mobile_count,
+            'chat_requests': chat_count,
+            'other_requests': total - mobile_count - chat_count,
+            'endpoints': endpoints,
+            'status': status,
+        }
+
+    except Exception:
+        logger.exception("Failed to compute API health telemetry")
+        return {
+            'total_requests': 0,
+            'avg_response_ms': 0,
+            'p95_response_ms': None,
+            'error_count': 0,
+            'error_rate_pct': 0,
+            'anomaly_count': 0,
+            'mobile_requests': 0,
+            'chat_requests': 0,
+            'other_requests': 0,
+            'endpoints': [],
+            'status': 'IDLE',
+        }

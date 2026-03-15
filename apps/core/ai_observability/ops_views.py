@@ -346,6 +346,9 @@ class OpsStreamView(View):
         # CoS Performance (cached by SAME cycle, read-only here)
         cos_performance = _get_cos_performance()
 
+        # API Health (aggregated from APIRequestLog)
+        api_health = _get_api_health_telemetry(now)
+
         return JsonResponse({
             "server_time": now.isoformat(),
             "posture": posture,
@@ -368,6 +371,7 @@ class OpsStreamView(View):
             "signal_health": signal_health,
             "validator_health": validator_health,
             "cos_performance": cos_performance,
+            "api_health": api_health,
             "next_since": now.isoformat(),
         })
 
@@ -1173,4 +1177,5 @@ from apps.core.ai_observability.ops_telemetry import (  # noqa: E402, F401
     _get_signal_health,
     _get_validator_health,
     _get_cos_performance,
+    _get_api_health_telemetry,
 )

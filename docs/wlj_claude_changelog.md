@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Ops Wall 2.0 Phase 8: Mobile/API Health Card
+
+**What:** Replaced the placeholder "Coming Soon" card in Row 3 with a live Mobile/API health monitor, powered by the existing `APIRequestLog` model.
+
+**Files modified:**
+- `apps/core/ai_observability/ops_telemetry.py` — Added `_get_api_health_telemetry(now)` (24h aggregation: request volume, avg/P95 response times, error rates, top endpoints, mobile/chat/other channel breakdown)
+- `apps/core/ai_observability/ops_views.py` — Added `api_health` to OpsStreamView return dict + import
+- `templates/admin_console/operations_wall.html` — Replaced placeholder with live card (CSS + HTML + JS): pulse indicator, 4 key metrics, 3-channel split, scrollable endpoint table
+- `docs/OPS_WALL_2_PROJECT.md` — Marked Phase 8 complete (all phases delivered)
+
+**Why:** The Ops Wall needed API performance visibility for iOS app monitoring. No new models or middleware needed — the existing `APIRequestLog` middleware already captures every `/api/*` request with timing data.
+
+---
+
 ## 2026-03-15 — Ops Wall 2.0 Phase 7: Canonical Query Audit (CI Protection)
 
 **What:** Added a management command and audit engine to detect direct ORM queries that bypass canonical domain services, with Ops Wall compliance metric.

@@ -159,6 +159,46 @@ class DiagnosticEngineUnitTests(TestCase):
         self.assertEqual(_score_status(None), "UNKNOWN")
 
 
+    def test_get_metric_evidence_signal_drought(self):
+        """SIGNAL_DROUGHT evidence returns structured signal health data."""
+        from apps.core.ai_observability.diagnostic_engine import get_metric_evidence
+
+        result = get_metric_evidence("SIGNAL_DROUGHT")
+        self.assertEqual(result["target"], "SIGNAL_DROUGHT")
+        self.assertIn("score", result)
+        self.assertIn("status", result)
+        self.assertIn("components", result)
+        self.assertIsInstance(result["components"], list)
+
+    def test_get_metric_evidence_engine_starvation(self):
+        """ENGINE_STARVATION evidence returns structured engine data."""
+        from apps.core.ai_observability.diagnostic_engine import get_metric_evidence
+
+        result = get_metric_evidence("ENGINE_STARVATION")
+        self.assertEqual(result["target"], "ENGINE_STARVATION")
+        self.assertIn("status", result)
+        self.assertIn("components", result)
+
+    def test_get_metric_evidence_error_spike(self):
+        """ERROR_SPIKE evidence returns structured error rate data."""
+        from apps.core.ai_observability.diagnostic_engine import get_metric_evidence
+
+        result = get_metric_evidence("ERROR_SPIKE")
+        self.assertEqual(result["target"], "ERROR_SPIKE")
+        self.assertIn("status", result)
+        self.assertIn("components", result)
+
+    def test_investigate_pipeline_action(self):
+        """investigate_pipeline action returns structured result."""
+        from apps.core.ai_observability.ops_telemetry import _execute_action
+
+        result = _execute_action("investigate_pipeline", "", "test-trace")
+        self.assertIn("status", result)
+        self.assertIn("detail", result)
+        # Should succeed (not "Unknown action")
+        self.assertNotIn("Unknown action", result.get("detail", ""))
+
+
 class DiagnosticViewTests(TestCase):
     """Test the HTTP endpoints for the diagnostic flow."""
 

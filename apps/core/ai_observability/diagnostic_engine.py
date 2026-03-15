@@ -14,6 +14,7 @@ Created: 2026-03-15
 import logging
 from datetime import timedelta
 
+from django.db.models import Count, Q as models_Q
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -56,11 +57,16 @@ def get_metric_evidence(target):
     target = target.upper().replace("-", "_")
 
     EVIDENCE_BUILDERS = {
+        # Maturity metrics
         "INFRASTRUCTURE": _evidence_infrastructure,
         "INTELLIGENCE": _evidence_intelligence,
         "SAFETY": _evidence_safety,
         "COVERAGE": _evidence_coverage,
         "LIFE_IMPACT": _evidence_life_impact,
+        # Anomaly types
+        "SIGNAL_DROUGHT": _evidence_signal_drought,
+        "ENGINE_STARVATION": _evidence_engine_starvation,
+        "ERROR_SPIKE": _evidence_error_spike,
     }
 
     builder = EVIDENCE_BUILDERS.get(target)
@@ -78,6 +84,145 @@ def get_metric_evidence(target):
             }
 
     return {"target": target, "score": None, "status": "UNKNOWN", "components": []}
+
+
+# =============================================================================
+# ANOMALY EVIDENCE — Evidence builders for anomaly-type targets
+# =============================================================================
+
+
+def _evidence_signal_drought():
+    """Evidence for SIGNAL_DROUGHT — per-domain signal freshness."""
+    from apps.core.ai_observability.ops_telemetry import compute_signal_health
+
+    sh = compute_signal_health()
+    domains = sh.get("domains", {})
+    silent = sh.get("domains_silent", 0)
+    active = sh.get("domains_active", 0)
+    total = active + silent
+
+    components = []
+    for name, data in sorted(domains.items()):
+        freshness_h = data.get("freshness_hours", 0)
+        status = data.get("status", "unknown")
+        components.append({
+            "name": f"{name} signals",
+            "value": f"{freshness_h:.0f}h since last signal",
+            "status": "OK" if status == "healthy" else "WARN" if status == "stale" else "FAIL",
+            "detail": f"24h vol: {data.get('volume_24h', 0)}, 7d vol: {data.get('volume_7d', 0)}, types: {data.get('distinct_types_7d', 0)}",
+        })
+
+    overall = "OK" if silent == 0 else "DEGRADED" if silent <= 2 else "CRITICAL"
+    return {
+        "target": "SIGNAL_DROUGHT",
+        "score": round((active / total * 100) if total else 0, 1),
+        "status": overall,
+        "components": components,
+        "recommendations": [
+            f"Stalest domain: {sh.get('stalest_domain', '?')} ({sh.get('stalest_hours', 0):.0f}h)",
+        ] if silent > 0 else [],
+    }
+
+
+def _evidence_engine_starvation():
+    """Evidence for ENGINE_STARVATION — engine run freshness and failures."""
+    now = timezone.now()
+    components = []
+
+    try:
+        from apps.core.ai_observability.models import EngineRun
+        from django.db.models import Max
+
+        # Get the latest run per engine
+        engines = EngineRun.objects.values("engine_name").annotate(
+            last_run=Max("completed_at"),
+        ).order_by("engine_name")
+
+        starved = 0
+        for e in engines:
+            if not e["last_run"]:
+                continue
+            hours_ago = (now - e["last_run"]).total_seconds() / 3600
+            # Engines expected to run at least every 24h
+            status = "OK" if hours_ago < 12 else "WARN" if hours_ago < 24 else "FAIL"
+            if status == "FAIL":
+                starved += 1
+            components.append({
+                "name": e["engine_name"],
+                "value": f"Last run {hours_ago:.1f}h ago",
+                "status": status,
+            })
+
+        overall = "OK" if starved == 0 else "DEGRADED" if starved <= 2 else "CRITICAL"
+        return {
+            "target": "ENGINE_STARVATION",
+            "score": None,
+            "status": overall,
+            "components": components,
+            "recommendations": [f"{starved} engines are starved (>24h since last run)"] if starved else [],
+        }
+    except Exception as e:
+        return {
+            "target": "ENGINE_STARVATION",
+            "score": None,
+            "status": "ERROR",
+            "components": [],
+            "error": str(e)[:300],
+        }
+
+
+def _evidence_error_spike():
+    """Evidence for ERROR_SPIKE — per-engine error rates."""
+    now = timezone.now()
+    components = []
+
+    try:
+        from apps.core.ai_observability.models import EngineRun
+
+        # Error rates in last 1h per engine
+        window = now - timedelta(hours=1)
+        engines = EngineRun.objects.filter(
+            completed_at__gte=window,
+        ).values("engine_name").annotate(
+            total=Count("id"),
+            errors=Count("id", filter=models_Q(status="error")),
+        ).order_by("engine_name")
+
+        spike_count = 0
+        for e in engines:
+            total = e["total"]
+            errors = e["errors"]
+            rate = (errors / total * 100) if total > 0 else 0
+            status = "OK" if rate < 10 else "WARN" if rate < 30 else "FAIL"
+            if status == "FAIL":
+                spike_count += 1
+            components.append({
+                "name": e["engine_name"],
+                "value": f"{errors}/{total} errors ({rate:.0f}%)",
+                "status": status,
+            })
+
+        overall = "OK" if spike_count == 0 else "DEGRADED" if spike_count <= 1 else "CRITICAL"
+        return {
+            "target": "ERROR_SPIKE",
+            "score": None,
+            "status": overall,
+            "components": components,
+            "recommendations": [f"{spike_count} engines have error rates >30%"] if spike_count else [],
+        }
+    except Exception as e:
+        return {
+            "target": "ERROR_SPIKE",
+            "score": None,
+            "status": "ERROR",
+            "components": [],
+            "error": str(e)[:300],
+        }
+
+
+# =============================================================================
+# MATURITY METRIC EVIDENCE
+# =============================================================================
 
 
 def _evidence_infrastructure():

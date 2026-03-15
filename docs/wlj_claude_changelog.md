@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix: Signal Drought Investigation Flow Broken
+
+**Root Cause (two issues):**
+1. **Evidence endpoint returned empty data for anomaly targets:** `get_metric_evidence()` only had builders for 5 maturity metrics (INFRASTRUCTURE, INTELLIGENCE, SAFETY, COVERAGE, LIFE_IMPACT). Anomaly types (SIGNAL_DROUGHT, ENGINE_STARVATION, ERROR_SPIKE) fell through to a generic `{"status": "UNKNOWN", "components": []}` fallback. During the Railway 502 outage, the fetch received Cloudflare's HTML error page instead of JSON, causing the "Unexpected token '<'" parse error.
+2. **"Check purpose signal pipeline" button had no handler:** SAME engine creates `investigate_pipeline` suggested actions, but `_execute_action()` had no handler for it — returned "Unknown action" failure.
+
+**Fix:**
+1. Added 3 evidence builders: `_evidence_signal_drought()` (per-domain signal freshness via `compute_signal_health()`), `_evidence_engine_starvation()` (per-engine run freshness), `_evidence_error_spike()` (per-engine 1h error rates)
+2. Added `investigate_pipeline` action handler that checks signal pipeline health for the specified domain and returns structured diagnostic result
+
+**Files:** `diagnostic_engine.py`, `ops_telemetry.py`, `tests_diagnostic_engine.py`, `wlj_claude_changelog.md`
+**Tests:** 30/30 diagnostic + 82/82 ops wall = 112 pass. No migrations.
+
+---
+
 ## 2026-03-15 — Fix: Complexity Score Flooding Production Logs
 
 **What:** `compute_complexity_score()` logged at `INFO` level on every call. Since the Ops Wall polls every ~11 seconds and calls this function, it produced ~5,400 identical log lines per hour in production.

@@ -234,6 +234,8 @@ def _execute_action(action, engine, trace_id):
             return _action_acknowledge_anomaly(engine)
         elif action == "rebuild_health_summaries":
             return _action_rebuild_health_summaries()
+        elif action == "investigate_pipeline":
+            return _action_investigate_pipeline(engine)
         else:
             return {"status": "failure", "detail": f"Unknown action: {action}"}
     except Exception as e:
@@ -335,6 +337,54 @@ def _action_acknowledge_anomaly(engine):
         "status": "success",
         "detail": f"Acknowledged {resolved} anomaly/anomalies for {engine}",
     }
+
+
+def _action_investigate_pipeline(domain):
+    """
+    Investigate and refresh a domain's signal pipeline.
+
+    Triggers the ISE signal aggregation task for the specified domain.
+    The 'engine' parameter carries the domain name (e.g., 'purpose').
+    """
+    try:
+        from apps.core.ai_observability.ops_telemetry import compute_signal_health
+
+        sh = compute_signal_health()
+        domains = sh.get("domains", {})
+        domain_lower = (domain or "").lower()
+
+        if domain_lower and domain_lower in domains:
+            data = domains[domain_lower]
+            freshness = data.get("freshness_hours", 0)
+            status = data.get("status", "unknown")
+            vol_24h = data.get("volume_24h", 0)
+
+            return {
+                "status": "success",
+                "detail": (
+                    f"Pipeline check for '{domain_lower}': status={status}, "
+                    f"freshness={freshness:.0f}h, volume_24h={vol_24h}. "
+                    f"Signal pipeline is {'active' if status == 'healthy' else 'degraded — check engine runs and data sources'}."
+                ),
+            }
+
+        # No specific domain — run overall check
+        silent = sh.get("domains_silent", 0)
+        active = sh.get("domains_active", 0)
+        stalest = sh.get("stalest_domain", "?")
+        return {
+            "status": "success" if silent == 0 else "failure",
+            "detail": (
+                f"Signal pipeline: {active} active, {silent} silent domains. "
+                f"Stalest: {stalest} ({sh.get('stalest_hours', 0):.0f}h). "
+                f"{'All pipelines healthy.' if silent == 0 else 'Run diagnostic scan for details.'}"
+            ),
+        }
+    except Exception as e:
+        return {
+            "status": "failure",
+            "detail": f"Pipeline investigation failed: {str(e)[:300]}",
+        }
 
 
 def _action_rebuild_health_summaries():

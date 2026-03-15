@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Enhancement: Ops Wall Hero Score Now Reflects Scheduler Health
+
+**Issue:** SAME scheduler went offline but the System Integrity Index hero score remained "85 Nominal" — a misleading operational signal. The integrity snapshot had no awareness of scheduler subsystem health.
+
+**Changes:**
+- Added scheduler health as Component 1 in `_compute_integrity_snapshot()` (max 25pt penalty): ISE OFFLINE=-12, ISE DELAYED=-5, SAME OFFLINE=-10, SAME DELAYED=-4, APScheduler DOWN=-8
+- Added scheduler failure posture gate: both ISE+SAME offline forces DEGRADED regardless of numeric score
+- Adjusted Engine health penalty cap from 30→25 and Anomaly severity cap from 40→30 to accommodate scheduler component within 100-point budget
+- Added 3 new tests for scheduler penalty, posture gating, and component presence; updated existing tests with healthy scheduler heartbeat setup
+
+**Files:** `apps/core/ai_observability/same_engine.py`, `apps/core/ai_observability/tests_ops_wall_v2.py`
+
+---
+
 ## 2026-03-15 — Doc: Observability Performance Rule Added to CLAUDE.md
 
 **Change:** Added "Observability Performance — Never Compute on Request Path" rule to the AI Engineering Rules section of CLAUDE.md. Documents the hard-learned rule that all heavy analytics must run in background workers and HTTP request paths may only read cached/DB snapshots. Includes the correct `_get_*()` pattern and background population flow.

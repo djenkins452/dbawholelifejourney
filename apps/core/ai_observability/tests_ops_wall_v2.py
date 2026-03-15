@@ -84,6 +84,20 @@ def _create_engine_run(engine, status="success", minutes_ago=0, duration_ms=50):
     )
 
 
+def _create_healthy_scheduler_heartbeats():
+    """Create ISE + SAME heartbeats that appear ALIVE (recent tick)."""
+    from apps.core.ai_observability.models import SchedulerHeartbeat
+    now = timezone.now()
+    SchedulerHeartbeat.objects.update_or_create(
+        scheduler_name="ISE",
+        defaults={"last_tick_at": now, "expected_interval_seconds": 300},
+    )
+    SchedulerHeartbeat.objects.update_or_create(
+        scheduler_name="SAME",
+        defaults={"last_tick_at": now, "expected_interval_seconds": 60},
+    )
+
+
 # ============================================================
 # Model Tests
 # ============================================================
@@ -958,7 +972,8 @@ class IntegrityScoreCalculationTest(TestCase):
     """Test the integrity score computation logic."""
 
     def test_perfect_score_when_all_healthy(self):
-        """All engines OK, no anomalies → score ~100."""
+        """All engines OK, schedulers healthy, no anomalies → score ~100."""
+        _create_healthy_scheduler_heartbeats()
         for engine in ["UAL", "SAE", "PIE", "PRIE", "PGE", "ICQG", "DBE", "WIRE", "DNE"]:
             _create_engine_run(engine, minutes_ago=1)
 
@@ -969,9 +984,11 @@ class IntegrityScoreCalculationTest(TestCase):
         self.assertGreaterEqual(snapshot.score, 90.0)
         self.assertEqual(snapshot.posture, "OPTIMAL")
         self.assertIn("engine_health", snapshot.components)
+        self.assertIn("scheduler_health", snapshot.components)
 
     def test_score_drops_with_p1_anomaly(self):
         """P1 anomaly penalizes score by ~15 points."""
+        _create_healthy_scheduler_heartbeats()
         for engine in ["UAL", "SAE", "PIE", "PRIE", "PGE", "ICQG", "DBE", "WIRE", "DNE"]:
             _create_engine_run(engine, minutes_ago=1)
 
@@ -1028,6 +1045,7 @@ class IntegrityScoreCalculationTest(TestCase):
         from apps.core.ai_observability.heartbeat import compute_heartbeats
 
         # Healthy setup → should be OPTIMAL
+        _create_healthy_scheduler_heartbeats()
         for engine in ["UAL", "SAE", "PIE", "PRIE", "PGE", "ICQG", "DBE", "WIRE", "DNE"]:
             _create_engine_run(engine, minutes_ago=1)
 
@@ -1044,8 +1062,8 @@ class IntegrityScoreCalculationTest(TestCase):
 
         components = result["integrity"].components
         expected_keys = [
-            "engine_health", "anomaly_severity", "error_spike",
-            "suppression_rate", "confidence_volatility",
+            "scheduler_health", "engine_health", "anomaly_severity",
+            "error_spike", "suppression_rate", "confidence_volatility",
         ]
         for key in expected_keys:
             self.assertIn(key, components, f"Missing component: {key}")
@@ -1075,6 +1093,73 @@ class IntegrityScoreCalculationTest(TestCase):
 
         components = result["integrity"].components
         self.assertGreater(components["error_spike"]["penalty"], 0)
+
+
+    def test_scheduler_offline_drops_score(self):
+        """SAME offline applies ~10pt scheduler penalty."""
+        from apps.core.ai_observability.models import SchedulerHeartbeat
+        from apps.core.ai_observability.same_engine import _compute_integrity_snapshot
+        from apps.core.ai_observability.heartbeat import compute_heartbeats
+
+        for engine in ["UAL", "SAE", "PIE", "PRIE", "PGE", "ICQG", "DBE", "WIRE", "DNE"]:
+            _create_engine_run(engine, minutes_ago=1)
+
+        # Create SAME heartbeat that's stale (offline — 10min old with 60s expected)
+        SchedulerHeartbeat.objects.update_or_create(
+            scheduler_name="SAME",
+            defaults={
+                "last_tick_at": timezone.now() - timedelta(minutes=10),
+                "expected_interval_seconds": 60,
+            },
+        )
+        # ISE is healthy
+        SchedulerHeartbeat.objects.update_or_create(
+            scheduler_name="ISE",
+            defaults={
+                "last_tick_at": timezone.now(),
+                "expected_interval_seconds": 300,
+            },
+        )
+
+        hbs = compute_heartbeats()
+        snapshot = _compute_integrity_snapshot(hbs, timezone.now())
+
+        # Scheduler penalty should be applied
+        sched = snapshot.components.get("scheduler_health", {})
+        self.assertGreater(sched.get("penalty", 0), 0)
+        # Score should drop from the scheduler penalty
+        self.assertLess(snapshot.score, 100.0)
+
+    def test_both_schedulers_offline_forces_degraded(self):
+        """ISE + SAME both offline → posture forced to DEGRADED."""
+        from apps.core.ai_observability.same_engine import _compute_integrity_snapshot
+        from apps.core.ai_observability.heartbeat import compute_heartbeats
+
+        for engine in ["UAL", "SAE", "PIE", "PRIE", "PGE", "ICQG", "DBE", "WIRE", "DNE"]:
+            _create_engine_run(engine, minutes_ago=1)
+
+        # No scheduler heartbeats → both OFFLINE
+
+        hbs = compute_heartbeats()
+        snapshot = _compute_integrity_snapshot(hbs, timezone.now())
+
+        # Scheduler gate should force DEGRADED
+        self.assertIn(snapshot.posture, ["DEGRADED", "CRITICAL"])
+        # Scheduler gate info should be in components
+        gate = snapshot.components.get("scheduler_gate", {})
+        self.assertTrue(gate.get("triggered", False))
+
+    def test_scheduler_health_component_present(self):
+        """Scheduler health is tracked as a named component."""
+        from apps.core.ai_observability.same_engine import run_same
+
+        _create_engine_run("UAL", minutes_ago=1)
+        result = run_same()
+
+        components = result["integrity"].components
+        self.assertIn("scheduler_health", components)
+        sched = components["scheduler_health"]
+        self.assertIn("penalty", sched)
 
 
 class IntegrityEndpointTest(TestCase):

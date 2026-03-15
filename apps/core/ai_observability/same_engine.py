@@ -1207,19 +1207,31 @@ def _compute_integrity_snapshot(heartbeats, now):
     """
     Compute System Integrity Index (0–100) and persist as snapshot.
 
-    Score formula:
-      base = 100
-      - Engine health: subtract (1 - pct_ok) * 30
-      - Anomaly penalties: subtract per active anomaly by severity (cap 40)
-      - Error spike penalty: subtract based on 30m error rate
-      - Suppression rate penalty: subtract if suppression rate > 50%
-      - Confidence volatility: subtract if UAL stddev > 0.3
+    Score formula (penalty-based, 100 - penalties):
+      Component                Max Penalty   Why
+      ─────────────────────    ───────────   ───────────────────────────────
+      Scheduler health         25 pts        Schedulers are foundational —
+                                             if they fail, engines stop,
+                                             signals dry up, insights die.
+      Engine health             25 pts        Direct engine heartbeat status
+      Anomaly severity          30 pts        Active P1/P2/P3 anomalies
+      Error spike               10 pts        30-min engine error rate
+      Suppression rate           5 pts        ICQG suppression above 50%
+      Confidence volatility      5 pts        UAL confidence stddev > 0.3
+                               ───────
+                               100 pts max (score can reach 0)
 
-    Posture:
-      OPTIMAL: 90–100
-      NOMINAL: 70–89
+    Posture thresholds:
+      OPTIMAL:  90–100
+      NOMINAL:  70–89
       DEGRADED: 40–69
       CRITICAL: 0–39
+
+    Posture override (scheduler gate):
+      If BOTH ISE and SAME are offline → force DEGRADED (minimum).
+      If APScheduler is down AND either ISE or SAME is unhealthy → force DEGRADED.
+      Rationale: a system with dead schedulers cannot be "Nominal" regardless
+      of numeric score, because engines will eventually stop running.
 
     Returns saved SystemIntegritySnapshot instance.
     """
@@ -1232,11 +1244,92 @@ def _compute_integrity_snapshot(heartbeats, now):
     score = 100.0
     components = {}
 
-    # --- Component 1: Engine health (max 30 point penalty) ---
+    # --- Component 1: Scheduler health (max 25 point penalty) ---
+    # WHY: Schedulers sit below engines in the dependency chain:
+    #   Infrastructure → Schedulers → Workers → Engines → Signals → Insights
+    # If schedulers fail, engines stop running, and the entire intelligence
+    # pipeline degrades. The hero score MUST reflect scheduler state.
+    #
+    # Penalty model (stacking, capped at 25):
+    #   ISE OFFLINE  → -12   (primary engine scheduler)
+    #   ISE DELAYED  → -5    (running but drifting)
+    #   SAME OFFLINE → -10   (monitoring + anomaly detection)
+    #   SAME DELAYED → -4    (running but drifting)
+    #   APScheduler  → -8    (process-level scheduler, affects ISE dispatch)
+    sched_penalty = 0.0
+    sched_details = {}
+    ise_offline = False
+    same_offline = False
+    aps_down = False
+
+    try:
+        from apps.core.ai_observability.models import SchedulerHeartbeat
+        from apps.core.scheduler_health import get_scheduler_status
+
+        # ISE heartbeat
+        ise_hb = SchedulerHeartbeat.get_for_scheduler("ISE")
+        ise_status = ise_hb.status if ise_hb else "OFFLINE"
+        ise_pen = 0
+        if ise_status == "OFFLINE":
+            ise_pen = 12
+            ise_offline = True
+        elif ise_status == "DELAYED":
+            ise_pen = 5
+        sched_penalty += ise_pen
+        sched_details["ise"] = {
+            "status": ise_status,
+            "penalty": ise_pen,
+            "drift_seconds": ise_hb.drift_seconds if ise_hb else None,
+        }
+
+        # SAME heartbeat
+        same_hb = SchedulerHeartbeat.get_for_scheduler("SAME")
+        same_status = same_hb.status if same_hb else "OFFLINE"
+        same_pen = 0
+        if same_status == "OFFLINE":
+            same_pen = 10
+            same_offline = True
+        elif same_status == "DELAYED":
+            same_pen = 4
+        sched_penalty += same_pen
+        sched_details["same"] = {
+            "status": same_status,
+            "penalty": same_pen,
+            "drift_seconds": same_hb.drift_seconds if same_hb else None,
+        }
+
+        # APScheduler process
+        try:
+            aps_status = get_scheduler_status()
+            aps_running = aps_status.get("running", False)
+        except Exception:
+            aps_running = False
+        if not aps_running:
+            aps_down = True
+        aps_pen = 0 if aps_running else 8
+        sched_penalty += aps_pen
+        sched_details["apscheduler"] = {
+            "running": aps_running,
+            "penalty": aps_pen,
+        }
+
+    except Exception as e:
+        logger.warning("Integrity: scheduler health check failed: %s", e)
+        sched_penalty = 15.0  # Assume degraded if we can't check
+        sched_details["error"] = str(e)[:200]
+
+    sched_penalty = min(sched_penalty, 25.0)  # Cap at 25
+    score -= sched_penalty
+    components["scheduler_health"] = {
+        **sched_details,
+        "penalty": round(sched_penalty, 1),
+    }
+
+    # --- Component 2: Engine health (max 25 point penalty) ---
     total_engines = len(heartbeats) if heartbeats else 1
     ok_count = sum(1 for h in heartbeats if h.status == "OK")
     pct_ok = ok_count / total_engines if total_engines > 0 else 1.0
-    engine_penalty = (1.0 - pct_ok) * 30.0
+    engine_penalty = (1.0 - pct_ok) * 25.0
     score -= engine_penalty
     components["engine_health"] = {
         "ok_count": ok_count,
@@ -1245,7 +1338,7 @@ def _compute_integrity_snapshot(heartbeats, now):
         "penalty": round(engine_penalty, 1),
     }
 
-    # --- Component 2: Anomaly severity penalties (max ~50 point penalty) ---
+    # --- Component 3: Anomaly severity penalties (cap 30 points) ---
     active_anomalies = OpsAnomaly.objects.filter(is_active=True)
     anomaly_penalty = 0.0
     anomaly_counts = {"P1": 0, "P2": 0, "P3": 0}
@@ -1253,15 +1346,14 @@ def _compute_integrity_snapshot(heartbeats, now):
         weight = _SEVERITY_WEIGHTS.get(anomaly.severity, 3.0)
         anomaly_penalty += weight
         anomaly_counts[anomaly.severity] = anomaly_counts.get(anomaly.severity, 0) + 1
-    # Cap anomaly penalty at 40
-    anomaly_penalty = min(anomaly_penalty, 40.0)
+    anomaly_penalty = min(anomaly_penalty, 30.0)
     score -= anomaly_penalty
     components["anomaly_severity"] = {
         "counts": anomaly_counts,
         "penalty": round(anomaly_penalty, 1),
     }
 
-    # --- Component 3: Error spike penalty (max 10 point penalty) ---
+    # --- Component 4: Error spike penalty (max 10 point penalty) ---
     thirty_min_ago = now - timedelta(minutes=30)
     total_runs_30m = EngineRun.objects.filter(
         started_at__gte=thirty_min_ago
@@ -1270,7 +1362,7 @@ def _compute_integrity_snapshot(heartbeats, now):
         started_at__gte=thirty_min_ago, status="error"
     ).count()
     error_rate = error_runs_30m / total_runs_30m if total_runs_30m > 0 else 0.0
-    error_penalty = min(error_rate * 50.0, 10.0)  # 20% error rate = 10 pts
+    error_penalty = min(error_rate * 50.0, 10.0)
     score -= error_penalty
     components["error_spike"] = {
         "errors_30m": error_runs_30m,
@@ -1279,7 +1371,7 @@ def _compute_integrity_snapshot(heartbeats, now):
         "penalty": round(error_penalty, 1),
     }
 
-    # --- Component 4: Suppression rate (max 5 point penalty) ---
+    # --- Component 5: Suppression rate (max 5 point penalty) ---
     from apps.core.ai_observability.models import DecisionRecord
 
     suppressions_30m = DecisionRecord.objects.filter(
@@ -1294,7 +1386,7 @@ def _compute_integrity_snapshot(heartbeats, now):
     suppression_rate = (
         suppressions_30m / total_icqg_30m if total_icqg_30m > 0 else 0.0
     )
-    suppression_penalty = max(0.0, (suppression_rate - 0.5) * 10.0)  # Penalty above 50%
+    suppression_penalty = max(0.0, (suppression_rate - 0.5) * 10.0)
     suppression_penalty = min(suppression_penalty, 5.0)
     score -= suppression_penalty
     components["suppression_rate"] = {
@@ -1304,7 +1396,7 @@ def _compute_integrity_snapshot(heartbeats, now):
         "penalty": round(suppression_penalty, 1),
     }
 
-    # --- Component 5: Confidence volatility (max 5 point penalty) ---
+    # --- Component 6: Confidence volatility (max 5 point penalty) ---
     twenty_four_h_ago = now - timedelta(hours=24)
     stats = DecisionRecord.objects.filter(
         engine_name="UAL",
@@ -1329,7 +1421,7 @@ def _compute_integrity_snapshot(heartbeats, now):
     # Clamp score
     score = max(0.0, min(100.0, score))
 
-    # Derive posture
+    # Derive posture from numeric score
     if score >= 90:
         posture = "OPTIMAL"
     elif score >= 70:
@@ -1338,6 +1430,26 @@ def _compute_integrity_snapshot(heartbeats, now):
         posture = "DEGRADED"
     else:
         posture = "CRITICAL"
+
+    # --- Scheduler failure gate ---
+    # WHY: A system with dead schedulers cannot be "Nominal" or "Optimal"
+    # regardless of numeric score. Schedulers are a foundational dependency;
+    # without them, engines will stop running within minutes.
+    sched_gate_reason = None
+    if ise_offline and same_offline:
+        sched_gate_reason = "ISE + SAME both offline"
+    elif aps_down and (ise_offline or same_offline):
+        sched_gate_reason = (
+            f"APScheduler down + {'ISE' if ise_offline else 'SAME'} offline"
+        )
+
+    if sched_gate_reason and posture in ("OPTIMAL", "NOMINAL"):
+        posture = "DEGRADED"
+        components["scheduler_gate"] = {
+            "triggered": True,
+            "reason": sched_gate_reason,
+            "original_posture": "OPTIMAL" if score >= 90 else "NOMINAL",
+        }
 
     snapshot = SystemIntegritySnapshot.objects.create(
         score=round(score, 1),

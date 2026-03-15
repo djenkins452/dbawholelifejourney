@@ -1103,10 +1103,20 @@ class MetricEvidenceView(View):
         if not target:
             return JsonResponse({"error": "target parameter required"}, status=400)
 
-        from apps.core.ai_observability.diagnostic_engine import get_metric_evidence
+        try:
+            from apps.core.ai_observability.diagnostic_engine import get_metric_evidence
 
-        evidence = get_metric_evidence(target)
-        return JsonResponse(evidence)
+            evidence = get_metric_evidence(target)
+            return JsonResponse(evidence)
+        except Exception as e:
+            logger.warning("Metric evidence failed for %s: %s", target, e, exc_info=True)
+            return JsonResponse({
+                "target": target,
+                "score": None,
+                "status": "ERROR",
+                "components": [],
+                "error": f"Evidence loading failed: {str(e)[:300]}",
+            }, status=500)
 
 
 class DiagnosticScanView(View):
@@ -1127,14 +1137,23 @@ class DiagnosticScanView(View):
         if not target:
             return JsonResponse({"error": "target parameter required"}, status=400)
 
-        from apps.core.ai_observability.diagnostic_engine import (
-            DIAGNOSTIC_SCANS,
-            run_diagnostic_scan,
-        )
+        try:
+            from apps.core.ai_observability.diagnostic_engine import (
+                DIAGNOSTIC_SCANS,
+                run_diagnostic_scan,
+            )
 
-        result = run_diagnostic_scan(target)
-        result["available_scans"] = list(DIAGNOSTIC_SCANS.keys())
-        return JsonResponse(result)
+            result = run_diagnostic_scan(target)
+            result["available_scans"] = list(DIAGNOSTIC_SCANS.keys())
+            return JsonResponse(result)
+        except Exception as e:
+            logger.warning("Diagnostic scan failed for %s: %s", target, e, exc_info=True)
+            return JsonResponse({
+                "target": target,
+                "status": "ERROR",
+                "checks": [],
+                "error": f"Diagnostic scan failed: {str(e)[:300]}",
+            }, status=500)
 
 
 class DebugPromptView(View):

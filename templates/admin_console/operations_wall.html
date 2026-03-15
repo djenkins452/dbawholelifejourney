@@ -6987,7 +6987,16 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         fetch('/admin-console/ops/metric-evidence/?target=' + encodeURIComponent(target), {
             headers: { 'X-CSRFToken': getCookie('csrftoken') }
         })
-        .then(function(r) { return r.json(); })
+        .then(function(r) {
+            if (!r.ok && r.status !== 500) {
+                throw new Error('Server returned ' + r.status);
+            }
+            var ct = r.headers.get('content-type') || '';
+            if (ct.indexOf('application/json') === -1) {
+                throw new Error('Server returned non-JSON response (status ' + r.status + '). Try refreshing the page.');
+            }
+            return r.json();
+        })
         .then(function(data) {
             renderEvidencePanel(data, body, scoreEl, statusEl);
         })
@@ -7074,7 +7083,13 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         fetch('/admin-console/ops/diagnose/?target=' + encodeURIComponent(target), {
             headers: { 'X-CSRFToken': getCookie('csrftoken') }
         })
-        .then(function(r) { return r.json(); })
+        .then(function(r) {
+            var ct = r.headers.get('content-type') || '';
+            if (ct.indexOf('application/json') === -1) {
+                throw new Error('Server returned non-JSON response (status ' + r.status + '). Try refreshing the page.');
+            }
+            return r.json();
+        })
         .then(function(data) {
             btn.textContent = 'Scan Complete';
             renderScanResults(data, resultsContainer);
@@ -7159,7 +7174,13 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         fetch('/admin-console/ops/debug-prompt/?target=' + encodeURIComponent(target), {
             headers: { 'X-CSRFToken': getCookie('csrftoken') }
         })
-        .then(function(r) { return r.json(); })
+        .then(function(r) {
+            var ct = r.headers.get('content-type') || '';
+            if (ct.indexOf('application/json') === -1) {
+                throw new Error('Server returned non-JSON response (status ' + r.status + '). Try refreshing the page.');
+            }
+            return r.json();
+        })
         .then(function(data) {
             debugBtn.disabled = false;
             debugBtn.textContent = 'Generate Debug Prompt';

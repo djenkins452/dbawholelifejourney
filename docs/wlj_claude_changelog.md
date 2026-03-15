@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix: Evidence/Scan Endpoints Return HTML Instead of JSON on Error
+
+**Issue:** MetricEvidenceView and DiagnosticScanView had no try/except — exceptions during evidence computation returned HTML 500 page. JS fetch failed with "Unexpected token '<'" since it expected JSON.
+
+**Root cause:** `_evidence_signal_drought()` used `f"{freshness_h:.0f}"` where `freshness_h` could be `None`, causing `TypeError`.
+
+**Fixes:**
+1. Added try/except to MetricEvidenceView and DiagnosticScanView — return structured JSON error on failure
+2. Fixed None-safe formatting in `_evidence_signal_drought()` — `data.get("freshness_hours") or 0`
+3. Added content-type validation to all three frontend fetch calls — clean error instead of cryptic JSON parse error
+
+**Files:** `diagnostic_engine.py`, `ops_views.py`, `operations_wall.html`, `wlj_claude_changelog.md`
+**Tests:** 30/30 pass.
+
+---
+
 ## 2026-03-15 — Fix: 524 Site Outage from Live Signal Health Fallback in Polling Path
 
 **Root Cause:** `_get_signal_health()` fell back to `compute_signal_health()` when Redis cache was empty. During container startup (Redis circuit breaker open for ~60s), every OpsStreamView poll cycle triggered the expensive DB queries, exhausting all Gunicorn workers → Cloudflare 524 timeout on all pages.

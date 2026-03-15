@@ -108,7 +108,7 @@ def _evidence_signal_drought():
 
     components = []
     for name, data in sorted(domains.items()):
-        freshness_h = data.get("freshness_hours", 0)
+        freshness_h = data.get("freshness_hours") or 0
         status = data.get("status", "unknown")
         components.append({
             "name": f"{name} signals",
@@ -124,7 +124,7 @@ def _evidence_signal_drought():
         "status": overall,
         "components": components,
         "recommendations": [
-            f"Stalest domain: {sh.get('stalest_domain', '?')} ({sh.get('stalest_hours', 0):.0f}h)",
+            f"Stalest domain: {sh.get('stalest_domain', '?')} ({(sh.get('stalest_hours') or 0):.0f}h)",
         ] if silent > 0 else [],
     }
 

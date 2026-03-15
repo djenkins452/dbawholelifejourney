@@ -1276,17 +1276,14 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         projects = Project.objects.filter(user=user)
         active_projects = projects.filter(status='active')
 
-        # Tasks
-        tasks = Task.objects.filter(user=user, completion_status='pending')
-        overdue_tasks = tasks.filter(due_date__lt=today)
+        # Tasks — canonical queries via TaskQueries service
+        from apps.life.services.task_queries import TaskQueries
+        tasks = TaskQueries.pending(user)
+        overdue_tasks = TaskQueries.overdue(user, today)
         due_soon = tasks.filter(due_date__gte=today, due_date__lte=week_ahead)
 
         # Tasks completed today
-        completed_today = Task.objects.filter(
-            user=user,
-            completion_status='completed',
-            completed_at__date=today
-        ).count()
+        completed_today = TaskQueries.completed_on(user, today).count()
 
         # Upcoming events (excludes today - those are current, not upcoming)
         upcoming_events = LifeEvent.objects.filter(

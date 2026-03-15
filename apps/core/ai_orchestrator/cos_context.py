@@ -2201,40 +2201,28 @@ def _build_data_state_snapshot(user) -> str:
         counts['workout_sessions'] = WorkoutSession.objects.filter(user=user).count()
         counts['goals_defined'] = LifeGoal.objects.filter(user=user).count()
         counts['journal_entries'] = JournalEntry.objects.filter(user=user).count()
-        # v4: Task counts — key for preventing "3 of 5 tasks" hallucination
-        counts['active_tasks'] = LifeTask.objects.filter(
-            user=user, completion_status='pending'
-        ).exclude(status='deleted').count()
-        _completed_today_qs = LifeTask.objects.filter(
-            user=user, completion_status='completed', completed_at__date=today
-        ).exclude(status='deleted')
+        # v8: All task queries via canonical TaskQueries service.
+        # Matches Organize page, dashboard, and signal engine exactly.
+        from apps.life.services.task_queries import TaskQueries
+
+        _pending_qs = TaskQueries.pending(user)
+        counts['active_tasks'] = _pending_qs.count()
+        _completed_today_qs = TaskQueries.completed_on(user, today)
         counts['completed_tasks_today'] = _completed_today_qs.count()
-        # v6: Include actual titles so the LLM never infers names from
-        # conversation history or semantic memory (temporal contamination fix).
         _completed_titles = list(
             _completed_today_qs.values_list('title', flat=True)[:10]
         )
-        # v7: Active task titles — deterministic grounding to prevent
-        # hallucinating task names from conversation memory or semantic recall.
-        _active_tasks_qs = LifeTask.objects.filter(
-            user=user, completion_status='pending'
-        ).exclude(status='deleted')
         _active_task_titles = list(
-            _active_tasks_qs.order_by('-due_date').values_list('title', flat=True)[:15]
+            _pending_qs.order_by('-due_date').values_list('title', flat=True)[:15]
         )
-        # Also grab overdue tasks for accurate reporting
-        _overdue_tasks_qs = _active_tasks_qs.filter(
-            due_date__isnull=False, due_date__lt=today
-        )
-        counts['overdue_tasks'] = _overdue_tasks_qs.count()
+        _overdue_qs = TaskQueries.overdue(user, today)
+        counts['overdue_tasks'] = _overdue_qs.count()
         _overdue_task_titles = list(
-            _overdue_tasks_qs.order_by('due_date').values_list('title', flat=True)[:10]
+            _overdue_qs.order_by('due_date').values_list('title', flat=True)[:10]
         )
-        # v5: Non-negotiable skip streak data for commitment tracking
-        counts['non_negotiable_skip_streaks'] = LifeTask.objects.filter(
-            user=user, commitment_level='non_negotiable',
-            skip_streak__gte=2, status='active',
-        ).count()
+        counts['non_negotiable_skip_streaks'] = (
+            TaskQueries.non_negotiable_at_risk(user).count()
+        )
     except Exception as e:
         logger.warning("Failed to build data state snapshot: %s", e)
         return ""

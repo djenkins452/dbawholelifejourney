@@ -6,6 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Create canonical TaskQueries service, eliminate ad-hoc task QuerySets
+
+**Problem:** 10+ locations queried the Task model with inconsistent filters:
+- CoS context builder used `.exclude(status='deleted')` (redundant with SoftDeleteManager)
+- Situation computer used `is_complete=False` — a non-existent DB field (property only),
+  causing silent query failures for deadline detection, overdue counting, and delta tracking
+- Dashboard cache, views, state_builder, dashboard_v2 all wrote ad-hoc QuerySets
+- No canonical source of truth existed
+
+**Fix:** Created `apps/life/services/task_queries.py` with `TaskQueries` class providing
+canonical classmethods: `pending()`, `overdue()`, `due_within()`, `completed_on()`,
+`completed_since()`, `non_negotiable_at_risk()`, `routines_for_date()`.
+
+Refactored all consumers to use `TaskQueries`:
+- `apps/core/ai_orchestrator/cos_context.py` — `_build_data_state_snapshot()`
+- `apps/core/ai_state/situation_computer.py` — 4 queries (fixed `is_complete` bug)
+- `apps/core/ai_state/state_builder.py` — `build_task_state()`
+- `apps/dashboard/views.py` — `_get_life_data()`
+- `apps/dashboard/cache.py` — `get_life_data()`
+- `apps/dashboard_v2/services/dashboard_service.py` — routine/non-routine/engagement queries
+
+---
+
 ## 2026-03-15 — Fix Beth operational data: false workouts, wrong task counts, hallucinated task names
 
 **Root causes (3 separate bugs):**

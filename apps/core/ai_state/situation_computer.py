@@ -265,13 +265,10 @@ def _compute_dominant_concern_and_priority(user, now):
 
     # 2. Deadline within 48 hours
     try:
-        from apps.life.models import Task
+        from apps.life.services.task_queries import TaskQueries
         deadline_cutoff = now + timedelta(hours=48)
-        urgent_tasks = Task.objects.filter(
-            user=user,
-            is_complete=False,
-            due_date__isnull=False,
-            due_date__lte=deadline_cutoff,
+        urgent_tasks = TaskQueries.due_within(
+            user, deadline_cutoff
         ).order_by('due_date')[:3]
 
         if urgent_tasks.exists():
@@ -310,13 +307,8 @@ def _compute_dominant_concern_and_priority(user, now):
 
     # 4. Overdue tasks
     try:
-        from apps.life.models import Task
-        overdue = Task.objects.filter(
-            user=user,
-            is_complete=False,
-            due_date__isnull=False,
-            due_date__lt=now,
-        ).count()
+        from apps.life.services.task_queries import TaskQueries
+        overdue = TaskQueries.overdue(user).count()
 
         if overdue > 0:
             concern = f"{overdue} overdue task{'s' if overdue > 1 else ''}"
@@ -381,12 +373,8 @@ def _compute_changes_since_last_interaction(user, situation):
             })
 
         # Tasks completed since last interaction
-        from apps.life.models import Task
-        completed_tasks = Task.objects.filter(
-            user=user,
-            is_complete=True,
-            updated_at__gt=last,
-        ).count()
+        from apps.life.services.task_queries import TaskQueries
+        completed_tasks = TaskQueries.completed_since(user, last).count()
         if completed_tasks:
             changes.append({
                 'what': f"{completed_tasks} task{'s' if completed_tasks > 1 else ''} completed",
@@ -423,13 +411,8 @@ def _compute_escalations(user, previous_escalations):
 
     try:
         # Growing overdue task count
-        from apps.life.models import Task
-        overdue = Task.objects.filter(
-            user=user,
-            is_complete=False,
-            due_date__isnull=False,
-            due_date__lt=timezone.now(),
-        ).count()
+        from apps.life.services.task_queries import TaskQueries
+        overdue = TaskQueries.overdue(user).count()
         if overdue >= 3:
             escalations.append({
                 'signal': 'task_overdue_growing',

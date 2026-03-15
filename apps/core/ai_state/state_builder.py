@@ -1548,9 +1548,10 @@ def build_task_state(user):
     state = {}
 
     try:
-        # Active tasks by commitment level
+        # Active tasks by commitment level — canonical query
+        from apps.life.services.task_queries import TaskQueries
         level_counts = (
-            Task.objects.filter(user=user, status='active', completion_status='pending')
+            TaskQueries.pending(user)
             .values('commitment_level')
             .annotate(count=Count('id'))
         )

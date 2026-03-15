@@ -139,16 +139,10 @@ class DashboardV2Service:
 
         # Routine tasks (due today, is_routine=True)
         try:
-            from apps.life.models import Task
+            from apps.life.services.task_queries import TaskQueries
 
             routine_tasks = list(
-                Task.objects.filter(
-                    user=self.user,
-                    is_routine=True,
-                    due_date=self.today,
-                )
-                .exclude(status="deleted")
-                .order_by("scheduled_time", "title")
+                TaskQueries.routines_for_date(self.user, self.today)
             )
             # Attach goal names, engagement levels, and safe URLs
             for task in routine_tasks:
@@ -179,16 +173,13 @@ class DashboardV2Service:
 
         # Non-routine tasks (due today or overdue, pending)
         try:
-            from apps.life.models import Task
+            from apps.life.services.task_queries import TaskQueries
 
             non_routine_tasks = list(
-                Task.objects.filter(
-                    user=self.user,
+                TaskQueries.pending(self.user).filter(
                     is_routine=False,
                     due_date__lte=self.today,
-                    completion_status="pending",
                 )
-                .exclude(status="deleted")
                 .select_related("project")
                 .order_by("due_date", "priority", "title")[:20]
             )
@@ -389,7 +380,6 @@ class DashboardV2Service:
                     completion_status="completed",
                     completed_at__date__gte=cutoff,
                 )
-                .exclude(status="deleted")
                 .values_list("title", "completed_at")
             )
 

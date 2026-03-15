@@ -1062,6 +1062,17 @@ class TriggerSignalAggregationView(View):
             }, status=500)
 
 
+class DependencyGraphView(AdminRequiredMixin, View):
+    """Return engine dependency graph as JSON (Phase 6)."""
+
+    def get(self, request):
+        from apps.core.engine_registry import get_critical_engines, get_dependency_graph
+
+        graph = get_dependency_graph()
+        critical = get_critical_engines(min_impact=3)
+        return JsonResponse({"graph": graph, "critical_engines": critical})
+
+
 class AllEnginesView(AdminRequiredMixin, TemplateView):
     """All engines table view with search."""
 

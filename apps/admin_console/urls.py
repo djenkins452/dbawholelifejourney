@@ -42,6 +42,7 @@ urlpatterns = [
     path("ops/scheduler-heartbeat/", ops_views.SchedulerHeartbeatView.as_view(), name="ops_scheduler_heartbeat"),
     path("ops/scheduler-health/", ops_views.SchedulerHealthView.as_view(), name="ops_scheduler_health"),
     path("ops/scheduler-restart/", ops_views.SchedulerRestartView.as_view(), name="ops_scheduler_restart"),
+    path("ops/dependency-graph/", ops_views.DependencyGraphView.as_view(), name="ops_dependency_graph"),
     path("ops/trigger-signals/", ops_views.TriggerSignalAggregationView.as_view(), name="ops_trigger_signals"),
     path("ops/trigger-goal-momentum/", ops_views.TriggerGoalMomentumView.as_view(), name="ops_trigger_goal_momentum"),
     # Legacy poll endpoint (redirect to stream)

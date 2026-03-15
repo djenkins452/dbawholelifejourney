@@ -1,6 +1,6 @@
 # Ops Wall 2.0 — Project Document
 
-**Status:** Phase 5 complete. Phase 6 ready.
+**Status:** Phase 6 complete. Phase 7 ready.
 **Author:** Claude Code / Danny Jenkins
 **Created:** 2026-03-15
 **Last Updated:** 2026-03-15
@@ -458,19 +458,18 @@ Each card clicks through to a diagnostic panel that contains what currently live
 
 ---
 
-### Phase 6: Incident Feed + Dependency Chain UI
+### Phase 6: Incident Feed + Dependency Chain UI ✅
 
 **Goal:** Connect anomalies to investigation panels and visualize dependency chains.
 
-**Tasks:**
-1. Add anomaly-to-panel mapping (anomaly type → diagnostic panel URL)
-2. Build incident feed component with severity ordering and panel links
-3. Build dependency chain visualization (uses Phase 1 metadata)
-4. Add "Generate Debug Prompt" button on incident detail (uses existing WLJ debugging template)
+**Completed:**
+1. ✅ Anomaly-to-panel mapping (14 types → 8 panels) with "Investigate →" button + smooth-scroll + flash highlight
+2. ✅ Expandable incident detail: type, engine, duration, escalation, dependency chain (upstream/downstream)
+3. ✅ Dependency Explorer: clickable engine list sorted by impact, upstream/downstream tree visualization, critical engine highlighting
+4. ✅ Debug Prompt Generator: 6-step WLJ debugging prompt from anomaly data + dependency graph, modal with "Copy to Clipboard"
+5. ✅ New `GET /admin-console/ops/dependency-graph/` API endpoint using existing `get_dependency_graph()` + `get_critical_engines()`
 
-**Risk:** Low-medium. UI additions on top of Phase 5 restructuring.
-
-**Estimated files changed:** 2-3
+**Files changed:** `operations_wall.html`, `ops_views.py`, `admin_console/urls.py`
 
 ---
 

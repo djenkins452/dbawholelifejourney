@@ -6,6 +6,35 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Ops Wall 2.0 Phase 6: Incident Investigation & Dependency Diagnostics
+
+**Context:** Phase 6 transforms the Ops Wall incident feed from a passive anomaly list into an
+investigation console with panel linking, expandable details, dependency visualization, and a
+debug prompt generator.
+
+**Changes:**
+1. **Incident → Panel Linking** — Each anomaly card has an "Investigate →" button mapping its type
+   to the relevant diagnostic panel (14 anomaly types → 8 panels). Click smooth-scrolls and flash-highlights.
+2. **Incident Detail Expansion** — Click an anomaly card to expand: shows type, engine, duration,
+   escalation history, dependency chain (upstream/downstream), and "Generate Debug Prompt" button.
+3. **Dependency Explorer** — In Engine Health card, "Dependencies" link opens an explorer showing
+   all 59 engines sorted by impact score. Select an engine to see upstream/downstream chains,
+   phase, category, dependency depth, and impact count. Critical engines (impact ≥ 3) highlighted.
+4. **Debug Prompt Generator** — Generates a structured 6-step WLJ debugging prompt from anomaly
+   data + dependency graph. Displayed in a modal with "Copy to Clipboard" button.
+5. **Dependency Graph API** — New `GET /admin-console/ops/dependency-graph/` endpoint serving
+   `get_dependency_graph()` + `get_critical_engines()` from engine_registry.py.
+6. **All CSP-compliant** — Event delegation via `document.addEventListener`, no inline handlers.
+
+**Files changed:**
+- `templates/admin_console/operations_wall.html` — CSS (~160 lines), HTML (explorer + modal), JS (~250 lines)
+- `apps/core/ai_observability/ops_views.py` — New `DependencyGraphView` (10 lines)
+- `apps/admin_console/urls.py` — New route for dependency graph
+
+**Tests:** 303 observability + 278 admin_console tests pass.
+
+---
+
 ## 2026-03-15 — Ops Wall 2.0 Phase 5: UI Restructuring — Command Center Layout
 
 **Context:** Phase 5 of the Ops Wall 2.0 project restructures the flat 16-section vertical stack into

@@ -1965,6 +1965,193 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     opacity: 0.3;
 }
 
+/* =====================================================================
+   Phase 6 — Incident Investigation & Dependency Explorer
+   ===================================================================== */
+/* Investigate button on anomaly cards */
+.ops-anomaly-investigate-btn {
+    display: inline-block;
+    font-size: 0.65rem;
+    color: var(--ops-cyan, #00c2ff);
+    background: rgba(0,194,255,0.08);
+    border: 1px solid rgba(0,194,255,0.2);
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+    text-decoration: none;
+    margin-left: 8px;
+    transition: background 0.2s;
+}
+.ops-anomaly-investigate-btn:hover { background: rgba(0,194,255,0.18); }
+
+/* Expandable anomaly detail */
+.ops-anomaly-detail {
+    display: none;
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 6px;
+    font-size: 0.72rem;
+    line-height: 1.5;
+}
+.ops-anomaly-card.expanded .ops-anomaly-detail { display: block; }
+.ops-anomaly-detail-row { display: flex; gap: 6px; margin-bottom: 3px; }
+.ops-anomaly-detail-label { color: var(--ops-text-dim); min-width: 80px; flex-shrink: 0; }
+.ops-anomaly-detail-value { color: var(--ops-text); }
+.ops-anomaly-dep-chain {
+    margin-top: 6px;
+    padding: 6px 8px;
+    background: rgba(0,194,255,0.05);
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.68rem;
+    color: var(--ops-cyan, #00c2ff);
+}
+.ops-anomaly-expand-toggle {
+    float: right;
+    font-size: 0.6rem;
+    color: var(--ops-text-dim);
+    cursor: pointer;
+}
+
+/* Highlight flash for scroll targets */
+@keyframes ops-flash-highlight {
+    0% { box-shadow: 0 0 0 3px rgba(255,200,0,0.6); }
+    100% { box-shadow: 0 0 0 3px rgba(255,200,0,0); }
+}
+.ops-highlight-flash { animation: ops-flash-highlight 1.5s ease-out; }
+
+/* Dependency Explorer */
+.ops-dep-explorer {
+    margin-top: 12px;
+    padding: 10px;
+    background: rgba(0,0,0,0.15);
+    border-radius: 8px;
+    display: none;
+}
+.ops-dep-explorer.visible { display: block; }
+.ops-dep-explorer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+.ops-dep-explorer-title { font-size: 0.8rem; font-weight: 600; color: var(--ops-text); }
+.ops-dep-engine-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 10px;
+    max-height: 120px;
+    overflow-y: auto;
+}
+.ops-dep-engine-item {
+    font-size: 0.62rem;
+    padding: 2px 7px;
+    border-radius: 3px;
+    cursor: pointer;
+    background: rgba(255,255,255,0.06);
+    color: var(--ops-text-dim);
+    border: 1px solid transparent;
+    transition: all 0.15s;
+}
+.ops-dep-engine-item:hover { background: rgba(0,194,255,0.1); color: var(--ops-text); }
+.ops-dep-engine-item.active { border-color: var(--ops-cyan, #00c2ff); color: var(--ops-cyan, #00c2ff); }
+.ops-dep-engine-item.critical { color: var(--ops-red, #ff4444); }
+.ops-dep-detail {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.ops-dep-section-title { font-size: 0.7rem; font-weight: 600; color: var(--ops-text-dim); margin-bottom: 6px; }
+.ops-dep-tree {
+    font-family: monospace;
+    font-size: 0.68rem;
+    line-height: 1.7;
+    color: var(--ops-text);
+}
+.ops-dep-node { padding-left: 8px; }
+.ops-dep-node.root { color: var(--ops-cyan, #00c2ff); font-weight: 600; }
+.ops-dep-arrow { color: var(--ops-text-dim); padding-left: 12px; }
+.ops-dep-impact { font-size: 0.65rem; margin-top: 6px; color: var(--ops-text-dim); }
+
+/* Debug Prompt Modal */
+.ops-debug-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0,0,0,0.7);
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+.ops-debug-modal.visible { display: flex; }
+.ops-debug-modal-content {
+    background: var(--ops-bg, #0a0e27);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    max-width: 720px;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 20px;
+}
+.ops-debug-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+.ops-debug-modal-title { font-size: 0.9rem; font-weight: 600; color: var(--ops-text); }
+.ops-debug-close-btn {
+    background: none;
+    border: none;
+    color: var(--ops-text-dim);
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+.ops-debug-prompt {
+    font-family: monospace;
+    font-size: 0.72rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    color: var(--ops-text);
+    background: rgba(0,0,0,0.3);
+    padding: 12px;
+    border-radius: 6px;
+    max-height: 55vh;
+    overflow-y: auto;
+}
+.ops-debug-copy-btn {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 6px 16px;
+    font-size: 0.72rem;
+    background: rgba(0,194,255,0.12);
+    color: var(--ops-cyan, #00c2ff);
+    border: 1px solid rgba(0,194,255,0.3);
+    border-radius: 5px;
+    cursor: pointer;
+}
+.ops-debug-copy-btn:hover { background: rgba(0,194,255,0.22); }
+.ops-debug-prompt-btn {
+    font-size: 0.62rem;
+    color: var(--ops-text-dim);
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+    margin-left: 6px;
+}
+.ops-debug-prompt-btn:hover { background: rgba(255,255,255,0.1); }
+
+@media (max-width: 768px) {
+    .ops-dep-detail { grid-template-columns: 1fr; }
+    .ops-debug-modal-content { max-width: 100%; }
+}
+
 /* Wall mode overrides for cmd rows */
 body.wall-mode .ops-cmd-row { gap: 10px; }
 body.wall-mode .ops-cmd-row + .ops-cmd-row { margin-top: 10px; }
@@ -2322,9 +2509,18 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         <div class="ops-cmd-card ops-glass">
             <div class="ops-cmd-card-header">
                 <span class="ops-cmd-card-title">Engine Health</span>
+                <a href="#" class="ops-cmd-card-link" id="depExplorerToggle">Dependencies</a>
                 <a href="{% url 'admin_console:ops_all_engines' %}" class="ops-cmd-card-link">All Engines</a>
             </div>
             <div class="ops-cmd-card-body">
+                <!-- Dependency Explorer (Phase 6) -->
+                <div class="ops-dep-explorer" id="depExplorer">
+                    <div class="ops-dep-explorer-header">
+                        <span class="ops-dep-explorer-title">Engine Dependency Explorer</span>
+                    </div>
+                    <div class="ops-dep-engine-list" id="depEngineList">Loading dependency graph...</div>
+                    <div id="depDetailPanel"></div>
+                </div>
                 <!-- Scheduler Heartbeat -->
                 <div class="ops-scheduler-heartbeat" id="schedulerHeartbeat">
                     <div class="ops-sched-card" id="schedCardISE">
@@ -2891,6 +3087,18 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             </div>
         </div>
     </div><!-- /Row 6 -->
+
+    <!-- Debug Prompt Modal (Phase 6) -->
+    <div class="ops-debug-modal" id="debugPromptModal">
+        <div class="ops-debug-modal-content">
+            <div class="ops-debug-modal-header">
+                <span class="ops-debug-modal-title">Debug Prompt</span>
+                <button class="ops-debug-close-btn" id="debugModalClose">&times;</button>
+            </div>
+            <pre class="ops-debug-prompt" id="debugPromptText"></pre>
+            <button class="ops-debug-copy-btn" id="debugCopyBtn">Copy to Clipboard</button>
+        </div>
+    </div>
 
 </div><!-- /ops-wall -->
 
@@ -4266,6 +4474,35 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     /* =====================================================================
        Watchlist — Enhanced with slide-in, severity icons, glow
        ===================================================================== */
+    // Phase 6 — Anomaly type to panel mapping
+    var ANOMALY_PANEL_MAP = {
+        'ENGINE_STARVATION':         'engineCards',
+        'ERROR_SPIKE':               'engineCards',
+        'MISSED_RUN':                'schedulerHeartbeat',
+        'SUPPRESSION_STORM':         'validatorGateCard',
+        'VALIDATOR_CRASH':           'validatorGateCard',
+        'VALIDATOR_SPIKE':           'validatorGateCard',
+        'SIGNAL_DROUGHT':            'signalHealthCard',
+        'SIGNAL_LOW_DIVERSITY':      'signalHealthCard',
+        'CONFIDENCE_VOLATILITY':     'integrityHero',
+        'LOOPING_REMINDER':          'aafrTile',
+        'DELIVERY_RETRY_SPIKE':      'pipelineHealthTile',
+        'COMMITMENT_RACE_CONDITION': 'aafrTile',
+        'STRUCTURAL_VIOLATION':      'coasHealthTile',
+        'NUMERIC_DEVIATION':         'integrityHero'
+    };
+
+    // Human-readable anomaly type labels
+    var ANOMALY_TYPE_LABELS = {
+        'MISSED_RUN': 'Missed Run', 'ERROR_SPIKE': 'Error Spike',
+        'CONFIDENCE_VOLATILITY': 'Confidence Volatility', 'SUPPRESSION_STORM': 'Suppression Storm',
+        'LOOPING_REMINDER': 'Looping Reminder', 'ENGINE_STARVATION': 'Engine Starvation',
+        'DELIVERY_RETRY_SPIKE': 'Delivery Retry Spike', 'COMMITMENT_RACE_CONDITION': 'Commitment Race Condition',
+        'STRUCTURAL_VIOLATION': 'Structural Violation', 'NUMERIC_DEVIATION': 'Numeric Deviation',
+        'VALIDATOR_CRASH': 'Validator Crash', 'VALIDATOR_SPIKE': 'Validator Block Spike',
+        'SIGNAL_DROUGHT': 'Signal Drought', 'SIGNAL_LOW_DIVERSITY': 'Signal Low Diversity'
+    };
+
     function renderWatchlist(anomalies) {
         var container = document.getElementById('watchlistPanel');
         var newIds = anomalies.map(function(a) { return a.id; });
@@ -4284,13 +4521,37 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 '  <div>All clear \u2014 no anomalies</div>' +
                 '</div>';
             previousAnomalyIds = [];
+            // Update incident feed status
+            var feedStatus = document.getElementById('incidentFeedStatus');
+            if (feedStatus) { feedStatus.textContent = ''; feedStatus.className = 'ops-cmd-card-status'; }
             return;
+        }
+
+        // Update incident feed status badge
+        var feedStatus = document.getElementById('incidentFeedStatus');
+        if (feedStatus) {
+            var p1Count = anomalies.filter(function(a) { return a.severity === 'P1'; }).length;
+            if (p1Count > 0) {
+                feedStatus.textContent = p1Count + ' CRITICAL';
+                feedStatus.className = 'ops-cmd-card-status critical';
+            } else {
+                feedStatus.textContent = anomalies.length + ' ACTIVE';
+                feedStatus.className = 'ops-cmd-card-status degraded';
+            }
         }
 
         anomalies.forEach(function(a, i) {
             var isNew = previousAnomalyIds.indexOf(a.id) === -1;
             var card = document.createElement('div');
             card.className = 'ops-glass ops-anomaly-card ' + a.severity;
+            card.dataset.anomalyId = a.id;
+            card.dataset.anomalyType = a.anomaly_type;
+            card.dataset.engineName = a.engine_name || '';
+            card.dataset.createdAt = a.created_at || '';
+            card.dataset.summary = a.summary || '';
+            card.dataset.severity = a.severity;
+            card.dataset.originalSeverity = a.original_severity || a.severity;
+            card.dataset.escalationCount = a.escalation_count || 0;
             if (isNew) {
                 card.classList.add('anomaly-enter');
                 card.style.animationDelay = (i * 50) + 'ms';
@@ -4312,16 +4573,37 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
 
             var icon = SEVERITY_ICONS[a.severity] || '\u25CF';
 
+            // Phase 6: Investigate button
+            var investigateBtn = ANOMALY_PANEL_MAP[a.anomaly_type]
+                ? ' <button class="ops-anomaly-investigate-btn" data-anomaly-type="' +
+                  escapeAttr(a.anomaly_type) + '">Investigate \u2192</button>'
+                : '';
+
+            // Phase 6: Expandable detail section
+            var depHtml = buildAnomalyDepChain(a.engine_name);
+            var durationHtml = a.created_at ? computeDuration(a.created_at) : '\u2014';
+            var detailHtml =
+                '<div class="ops-anomaly-detail">' +
+                '  <div class="ops-anomaly-detail-row"><span class="ops-anomaly-detail-label">Type</span><span class="ops-anomaly-detail-value">' + escapeHtml(ANOMALY_TYPE_LABELS[a.anomaly_type] || a.anomaly_type) + '</span></div>' +
+                '  <div class="ops-anomaly-detail-row"><span class="ops-anomaly-detail-label">Engine</span><span class="ops-anomaly-detail-value">' + escapeHtml(a.engine_name || 'SYSTEM') + '</span></div>' +
+                '  <div class="ops-anomaly-detail-row"><span class="ops-anomaly-detail-label">Duration</span><span class="ops-anomaly-detail-value">' + escapeHtml(durationHtml) + '</span></div>' +
+                (a.escalation_count > 0 ? '  <div class="ops-anomaly-detail-row"><span class="ops-anomaly-detail-label">Escalation</span><span class="ops-anomaly-detail-value">' + escapeHtml(a.original_severity) + ' \u2192 ' + escapeHtml(a.severity) + ' (\u00d7' + a.escalation_count + ')</span></div>' : '') +
+                depHtml +
+                '  <button class="ops-debug-prompt-btn" data-anomaly-id="' + a.id + '">Generate Debug Prompt</button>' +
+                '</div>';
+
             card.innerHTML =
                 '<div class="ops-anomaly-header">' +
                 '  <span class="ops-anomaly-severity ' + a.severity + '">' +
                 '    <span class="ops-severity-icon ' + a.severity + '">' + icon + '</span>' +
                 '    ' + a.severity + ' | ' + escapeHtml(a.engine_name || 'SYSTEM') + escBadge +
                 '  </span>' +
-                '  <span class="ops-anomaly-when">' + escapeHtml(a.first_detected || '') + '</span>' +
+                '  <span class="ops-anomaly-when">' + escapeHtml(a.first_detected || '') + investigateBtn + '</span>' +
+                '  <span class="ops-anomaly-expand-toggle">\u25BC</span>' +
                 '</div>' +
                 '<div class="ops-anomaly-summary">' + escapeHtml(a.summary) + '</div>' +
-                '<div class="ops-anomaly-actions">' + actionsHtml + '</div>';
+                '<div class="ops-anomaly-actions">' + actionsHtml + '</div>' +
+                detailHtml;
 
             container.appendChild(card);
         });
@@ -4507,6 +4789,204 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 }]
             }, true);
         });
+    }
+
+    /* =====================================================================
+       Phase 6 — Incident Investigation & Dependency Explorer
+       ===================================================================== */
+
+    // Cached dependency graph data (fetched once on load)
+    var depGraphData = null;
+    var depCriticalEngines = [];
+
+    function fetchDependencyGraph() {
+        fetch('/admin-console/ops/dependency-graph/', {
+            headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            depGraphData = data.graph || {};
+            depCriticalEngines = (data.critical_engines || []).map(function(e) { return e.code; });
+            renderDepEngineList();
+        })
+        .catch(function(err) { console.warn('Failed to fetch dependency graph:', err); });
+    }
+
+    // Investigate: scroll to relevant panel and flash highlight
+    function investigateAnomaly(anomalyType) {
+        var panelId = ANOMALY_PANEL_MAP[anomalyType];
+        if (!panelId) return;
+        var el = document.getElementById(panelId);
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.remove('ops-highlight-flash');
+        void el.offsetWidth; // force reflow
+        el.classList.add('ops-highlight-flash');
+        el.addEventListener('animationend', function handler() {
+            el.classList.remove('ops-highlight-flash');
+            el.removeEventListener('animationend', handler);
+        });
+    }
+
+    // Build dependency chain HTML for an anomaly's engine
+    function buildAnomalyDepChain(engineName) {
+        if (!engineName || !depGraphData || !depGraphData[engineName]) return '';
+        var node = depGraphData[engineName];
+        var parts = [];
+        if (node.dependencies && node.dependencies.length) {
+            parts.push('<strong>Upstream:</strong> ' + node.dependencies.map(function(d) { return escapeHtml(d); }).join(' \u2192 ') + ' \u2192 <em>' + escapeHtml(engineName) + '</em>');
+        }
+        if (node.dependents && node.dependents.length) {
+            parts.push('<strong>Downstream:</strong> <em>' + escapeHtml(engineName) + '</em> \u2192 ' + node.dependents.map(function(d) { return escapeHtml(d); }).join(', '));
+        }
+        if (node.impact_count > 0) {
+            parts.push('<strong>Impact:</strong> failure affects ' + node.impact_count + ' engine' + (node.impact_count > 1 ? 's' : ''));
+        }
+        if (parts.length === 0) return '';
+        return '<div class="ops-anomaly-dep-chain">' + parts.join('<br>') + '</div>';
+    }
+
+    // Compute human-readable duration from ISO timestamp
+    function computeDuration(isoStr) {
+        try {
+            var created = new Date(isoStr);
+            var now = new Date();
+            var diffMs = now - created;
+            var mins = Math.floor(diffMs / 60000);
+            if (mins < 60) return mins + 'm';
+            var hrs = Math.floor(mins / 60);
+            if (hrs < 24) return hrs + 'h ' + (mins % 60) + 'm';
+            var days = Math.floor(hrs / 24);
+            return days + 'd ' + (hrs % 24) + 'h';
+        } catch(e) { return '\u2014'; }
+    }
+
+    // Generate debug prompt from anomaly data
+    function generateDebugPrompt(anomalyCard) {
+        var type = anomalyCard.dataset.anomalyType || 'UNKNOWN';
+        var engine = anomalyCard.dataset.engineName || 'SYSTEM';
+        var severity = anomalyCard.dataset.severity || 'P3';
+        var origSev = anomalyCard.dataset.originalSeverity || severity;
+        var escCount = anomalyCard.dataset.escalationCount || '0';
+        var summary = anomalyCard.dataset.summary || '';
+        var createdAt = anomalyCard.dataset.createdAt || '';
+        var duration = createdAt ? computeDuration(createdAt) : 'unknown';
+
+        var upstream = '';
+        var downstream = '';
+        if (depGraphData && depGraphData[engine]) {
+            var node = depGraphData[engine];
+            upstream = (node.dependencies || []).join(' \u2192 ');
+            downstream = (node.dependents || []).join(', ');
+        }
+
+        var prompt =
+            '## WLJ Debugging Prompt \u2014 ' + (ANOMALY_TYPE_LABELS[type] || type) + '\n\n' +
+            '**Affected System:** ' + engine + '\n' +
+            '**Severity:** ' + severity + (escCount > 0 ? ' (escalated from ' + origSev + ' \u00d7' + escCount + ')' : '') + '\n' +
+            '**Summary:** ' + summary + '\n' +
+            '**Duration:** ' + duration + '\n\n' +
+            '### STEP 1 \u2014 TRACE\n' +
+            'Trace the ' + (ANOMALY_TYPE_LABELS[type] || type) + ' anomaly for engine ' + engine + '.\n' +
+            'Check recent EngineRun logs, DecisionRecords, and Heartbeat data.\n\n' +
+            '### STEP 2 \u2014 CANONICAL SOURCE\n' +
+            'Identify the canonical data source for ' + engine + '.\n' +
+            (upstream ? 'Upstream dependencies: ' + upstream + '\n' : 'No upstream dependencies.\n') + '\n' +
+            '### STEP 3 \u2014 AUDIT\n' +
+            'Audit the pipeline' + (upstream ? ': ' + upstream + ' \u2192 ' + engine : ' for ' + engine) +
+            (downstream ? ' \u2192 ' + downstream : '') + '.\n\n' +
+            '### STEP 4 \u2014 ROOT CAUSE\n' +
+            'Determine why: ' + summary + '\n\n' +
+            '### STEP 5 \u2014 MINIMAL FIX\n' +
+            'Propose the smallest change to resolve this anomaly.\n\n' +
+            '### STEP 6 \u2014 VERIFY\n' +
+            'Run: python3 manage.py test apps.core.ai_observability -v 1 --failfast\n';
+
+        return prompt;
+    }
+
+    // Dependency Explorer: render engine list
+    function renderDepEngineList() {
+        var container = document.getElementById('depEngineList');
+        if (!container || !depGraphData) return;
+
+        // Sort engines by impact_count descending
+        var engines = Object.values(depGraphData).sort(function(a, b) {
+            return (b.impact_count || 0) - (a.impact_count || 0);
+        });
+
+        container.innerHTML = engines.map(function(e) {
+            var cls = 'ops-dep-engine-item';
+            if (depCriticalEngines.indexOf(e.code) !== -1) cls += ' critical';
+            return '<span class="' + cls + '" data-engine-code="' + escapeAttr(e.code) + '">' +
+                escapeHtml(e.code) +
+                (e.impact_count > 0 ? ' <small>(' + e.impact_count + ')</small>' : '') +
+                '</span>';
+        }).join('');
+    }
+
+    // Dependency Explorer: render detail for selected engine
+    function renderDepDetail(code) {
+        var panel = document.getElementById('depDetailPanel');
+        if (!panel || !depGraphData || !depGraphData[code]) return;
+
+        var node = depGraphData[code];
+
+        // Build upstream tree
+        var upstreamHtml = '';
+        if (node.dependencies && node.dependencies.length) {
+            upstreamHtml = node.dependencies.map(function(dep) {
+                var depNode = depGraphData[dep];
+                return '<div class="ops-dep-node">' + escapeHtml(dep) +
+                    (depNode ? ' <small style="color:var(--ops-text-dim)">(' + escapeHtml(depNode.name) + ')</small>' : '') + '</div>' +
+                    '<div class="ops-dep-arrow">\u2193</div>';
+            }).join('') +
+            '<div class="ops-dep-node root">' + escapeHtml(code) + ' <small style="color:var(--ops-text-dim)">(' + escapeHtml(node.name) + ')</small></div>';
+        } else {
+            upstreamHtml = '<div class="ops-dep-node root">' + escapeHtml(code) + ' <small>(no upstream dependencies)</small></div>';
+        }
+
+        // Build downstream list
+        var downstreamHtml = '';
+        if (node.dependents && node.dependents.length) {
+            downstreamHtml = '<div class="ops-dep-node root">' + escapeHtml(code) + '</div>' +
+                '<div class="ops-dep-arrow">\u2193</div>' +
+                node.dependents.map(function(dep) {
+                    var depNode = depGraphData[dep];
+                    return '<div class="ops-dep-node">' + escapeHtml(dep) +
+                        (depNode ? ' <small style="color:var(--ops-text-dim)">(' + escapeHtml(depNode.name) + ')</small>' : '') + '</div>';
+                }).join('');
+        } else {
+            downstreamHtml = '<div style="color:var(--ops-text-dim);font-size:0.68rem">No downstream dependents</div>';
+        }
+
+        var phaseLabels = { 1: 'Interpretation', 2: 'Execution', 3: 'Post-Execution' };
+
+        panel.innerHTML =
+            '<div style="margin-top:10px;padding:8px;background:rgba(0,0,0,0.1);border-radius:6px">' +
+            '<div style="font-size:0.75rem;font-weight:600;color:var(--ops-text);margin-bottom:6px">' +
+                escapeHtml(code) + ' \u2014 ' + escapeHtml(node.name) +
+                ' <small style="color:var(--ops-text-dim)">(' + escapeHtml(phaseLabels[node.phase] || 'Phase ' + node.phase) + ', ' + escapeHtml(node.category || 'core') + ')</small>' +
+            '</div>' +
+            '<div class="ops-dep-detail">' +
+            '  <div>' +
+            '    <div class="ops-dep-section-title">Upstream (needs)</div>' +
+            '    <div class="ops-dep-tree">' + upstreamHtml + '</div>' +
+            '  </div>' +
+            '  <div>' +
+            '    <div class="ops-dep-section-title">Downstream (impacts)</div>' +
+            '    <div class="ops-dep-tree">' + downstreamHtml + '</div>' +
+            '  </div>' +
+            '</div>' +
+            '<div class="ops-dep-impact">Dependency depth: ' + (node.dependency_depth || 0) +
+            ' | Impact chain: ' + (node.impact_count || 0) + ' engine' + ((node.impact_count || 0) !== 1 ? 's' : '') + '</div>' +
+            '</div>';
+
+        // Highlight active engine in list
+        var items = document.querySelectorAll('.ops-dep-engine-item');
+        for (var i = 0; i < items.length; i++) {
+            items[i].classList.toggle('active', items[i].dataset.engineCode === code);
+        }
     }
 
     /* =====================================================================
@@ -4969,8 +5449,97 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     }
 
     /* =====================================================================
+       Phase 6 — Event Listeners (CSP-compliant delegation)
+       ===================================================================== */
+
+    // Investigate button: scroll to relevant panel
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.ops-anomaly-investigate-btn');
+        if (!btn) return;
+        e.stopPropagation(); // don't toggle card expand
+        investigateAnomaly(btn.dataset.anomalyType);
+    });
+
+    // Anomaly card expand/collapse
+    document.addEventListener('click', function(e) {
+        var card = e.target.closest('.ops-anomaly-card');
+        if (!card) return;
+        // Don't toggle if clicking on buttons
+        if (e.target.closest('.ops-action-btn, .ops-anomaly-investigate-btn, .ops-debug-prompt-btn')) return;
+        card.classList.toggle('expanded');
+        var toggle = card.querySelector('.ops-anomaly-expand-toggle');
+        if (toggle) toggle.textContent = card.classList.contains('expanded') ? '\u25B2' : '\u25BC';
+    });
+
+    // Debug prompt generator
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.ops-debug-prompt-btn');
+        if (!btn) return;
+        e.stopPropagation();
+        var card = btn.closest('.ops-anomaly-card');
+        if (!card) return;
+        var prompt = generateDebugPrompt(card);
+        var textEl = document.getElementById('debugPromptText');
+        if (textEl) textEl.textContent = prompt;
+        var modal = document.getElementById('debugPromptModal');
+        if (modal) modal.classList.add('visible');
+    });
+
+    // Debug modal: copy to clipboard
+    document.addEventListener('click', function(e) {
+        if (e.target.id === 'debugCopyBtn') {
+            var text = document.getElementById('debugPromptText');
+            if (text && navigator.clipboard) {
+                navigator.clipboard.writeText(text.textContent).then(function() {
+                    e.target.textContent = 'Copied!';
+                    setTimeout(function() { e.target.textContent = 'Copy to Clipboard'; }, 1500);
+                });
+            }
+        }
+    });
+
+    // Debug modal: close
+    document.addEventListener('click', function(e) {
+        if (e.target.id === 'debugModalClose' || (e.target.classList && e.target.classList.contains('ops-debug-modal'))) {
+            var modal = document.getElementById('debugPromptModal');
+            if (modal) modal.classList.remove('visible');
+        }
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            var modal = document.getElementById('debugPromptModal');
+            if (modal) modal.classList.remove('visible');
+        }
+    });
+
+    // Dependency Explorer: toggle visibility
+    document.addEventListener('click', function(e) {
+        if (e.target.id === 'depExplorerToggle' || e.target.closest('#depExplorerToggle')) {
+            e.preventDefault();
+            var explorer = document.getElementById('depExplorer');
+            if (explorer) {
+                explorer.classList.toggle('visible');
+                if (explorer.classList.contains('visible') && !depGraphData) {
+                    fetchDependencyGraph();
+                }
+            }
+        }
+    });
+
+    // Dependency Explorer: select engine
+    document.addEventListener('click', function(e) {
+        var item = e.target.closest('.ops-dep-engine-item');
+        if (!item) return;
+        var code = item.dataset.engineCode;
+        if (code) renderDepDetail(code);
+    });
+
+    /* =====================================================================
        Init
        ===================================================================== */
+    // Phase 6: fetch dependency graph on load (non-blocking)
+    fetchDependencyGraph();
+
     startPolling();
 
 })();

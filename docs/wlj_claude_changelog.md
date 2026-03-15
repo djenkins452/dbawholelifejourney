@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix: Maturity Grid Unequal Widths + API Error Color Always Red
+
+**What:** Two Ops Wall visual fixes:
+1. **Maturity grid** — Tiles rendered with inconsistent widths because `repeat(5, 1fr)` interacted poorly with content sizing. Changed to `repeat(auto-fit, minmax(160px, 1fr))` which guarantees equal-width tiles and natural responsive wrapping. Removed now-redundant `@media` overrides for 1024px and 768px breakpoints since auto-fit handles column count automatically.
+2. **API error column** — Error counts in the endpoint table were always red via hardcoded `color: var(--ops-red)` on `.ops-api-ep-err`, even when errors = 0. Added value-based color classes: `err-ok` (green, 0 errors), `err-warn` (yellow, 1–5 errors), `err-danger` (red, >5 errors). JS now derives the class from the error count.
+
+**Files:** `templates/admin_console/operations_wall.html`, `docs/wlj_claude_changelog.md`
+**Verification:** 108/108 tests pass (26 diagnostic + 82 ops wall).
+
+---
+
 ## 2026-03-15 — Fix: Scheduler Grid Overflow in Ops Wall
 
 **What:** Fixed the 3-tile scheduler grid overflowing the Ops Wall hero container. The third APScheduler tile was clipped because the parent column was fixed at 280px and the grid used fixed `1fr 1fr 1fr` columns.

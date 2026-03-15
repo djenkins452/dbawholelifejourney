@@ -1249,7 +1249,10 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 }
 .ops-api-ep-count { color: var(--ops-text-muted); text-align: right; font-variant-numeric: tabular-nums; }
 .ops-api-ep-ms { color: var(--ops-text-muted); text-align: right; font-variant-numeric: tabular-nums; }
-.ops-api-ep-err { color: var(--ops-red); text-align: right; font-variant-numeric: tabular-nums; }
+.ops-api-ep-err { text-align: right; font-variant-numeric: tabular-nums; }
+.ops-api-ep-err.err-ok { color: var(--ops-green); }
+.ops-api-ep-err.err-warn { color: var(--ops-yellow); }
+.ops-api-ep-err.err-danger { color: var(--ops-red); }
 @media (max-width: 768px) {
     .ops-api-metrics { grid-template-columns: repeat(2, 1fr); }
     .ops-api-channels { grid-template-columns: 1fr; }
@@ -1633,7 +1636,7 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 }
 .ops-maturity-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 10px;
     margin-bottom: 12px;
 }
@@ -2133,12 +2136,10 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     .ops-health-intel-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 1024px) {
-    .ops-maturity-grid { grid-template-columns: repeat(3, 1fr); }
     .ops-domain-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 768px) {
     .ops-wall { padding: 10px 12px 20px; }
-    .ops-maturity-grid { grid-template-columns: repeat(2, 1fr); }
     .ops-maturity-header { flex-direction: column; align-items: flex-start; }
     .ops-maturity-overall { margin-left: 0; }
     .ops-maturity-alerts { flex-direction: column; }
@@ -5832,11 +5833,13 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             api.endpoints.forEach(function(ep) {
                 // Shorten path for display
                 var shortPath = ep.path.length > 35 ? ep.path.substring(0, 35) + '\u2026' : ep.path;
+                var errCount = ep.errors || 0;
+                var errClass = errCount === 0 ? 'err-ok' : (errCount <= 5 ? 'err-warn' : 'err-danger');
                 html += '<div class="ops-api-endpoint-row">' +
                     '<span class="ops-api-ep-path" title="' + escapeHtml(ep.path) + '">' + escapeHtml(shortPath) + '</span>' +
                     '<span class="ops-api-ep-count">' + ep.count + '</span>' +
                     '<span class="ops-api-ep-ms">' + ep.avg_ms + '</span>' +
-                    '<span class="ops-api-ep-err">' + (ep.errors || 0) + '</span>' +
+                    '<span class="ops-api-ep-err ' + errClass + '">' + errCount + '</span>' +
                     '</div>';
             });
             if (!api.endpoints.length) {

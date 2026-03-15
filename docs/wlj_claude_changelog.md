@@ -6,6 +6,31 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Eliminate competing task-narration instructions across prompt layers
+
+**Root cause:** The REASONING HIERARCHY directive was being overwhelmed by 5 competing
+task-narration instructions scattered across the prompt:
+1. `COS_PROACTIVE_INTELLIGENCE_PROMPT` Section 3 — "State current position: what's done, what remains"
+2. `MANDATORY CONTEXT EVALUATION` Steps 1-6 — task scanning before signals
+3. Session mode instructions (MORNING/MIDDAY/EVENING) — "acknowledge progress, state outstanding items"
+4. `reasoning_instruction` step 4b — "note what they've done with specifics BEFORE discussing what's next"
+
+The LLM saw task-first instructions at layers 3, 11, and 13 of the prompt, all appearing
+before the signal-first REASONING HIERARCHY at position ~3359 in the CoS injection.
+
+**Changes:**
+1. Rewrote `COS_PROACTIVE_INTELLIGENCE_PROMPT` Section 3 — lead with signal context, not task status
+2. Rewrote `MANDATORY CONTEXT EVALUATION` v7→v8 — signals as STEP 1, tasks as STEP 5 (supporting evidence)
+3. Rewrote all session mode instructions (MORNING, MIDDAY, EVENING, DAILY ORIENTATION) to use signal-first structure
+4. Rewrote `reasoning_instruction` step 4b — check signals/momentum instead of listing completed tasks
+
+**Files modified:**
+- apps/ai/personal_assistant.py (Section 3 + reasoning_instruction)
+- apps/core/ai_orchestrator/cos_context.py (MANDATORY CONTEXT EVAL + session modes)
+- docs/wlj_claude_changelog.md
+
+---
+
 ## 2026-03-15 — Fix token truncation cutting intelligence sections + remove diagnostics
 
 **Root cause:** `_COS_INJECTION_MAX_TOKENS` was set to 6000 tokens, but with the

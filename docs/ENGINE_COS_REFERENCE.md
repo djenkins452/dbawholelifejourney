@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-15 (Raised _COS_INJECTION_MAX_TOKENS 6000→8000 to accommodate signal-first intelligence sections; removed temporary diagnostics)
+**Last updated:** 2026-03-15 (Eliminated competing task-narration instructions across 5 prompt layers; all session modes, MANDATORY CONTEXT EVAL v8, reasoning_instruction, and Section 3 now signal-first)
 
 ---
 

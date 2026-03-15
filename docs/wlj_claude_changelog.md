@@ -6,6 +6,45 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Ops Wall 2.0 Phase 3: Validator Gate Monitoring
+
+**Context:** Phase 3 of the Ops Wall 2.0 project adds per-invocation telemetry for the
+Phase 8 Validator Gate (VGE), making block/pass/crash rates visible on the Ops Wall with
+automated spike detection.
+
+**Changes:**
+1. **`ValidatorMetric` model** — New lightweight telemetry model in `ai_observability/models.py`
+   recording every `validate_response()` call with outcome (pass/block/observe/crash), triggering
+   policy (structural/action_claim/numeric/crash/none), duration_ms, and user_id. Indexed for
+   time-window aggregation (migration 0116).
+2. **`VALIDATOR_SPIKE` anomaly type** — Added to `OpsAnomaly.ANOMALY_TYPES` choices for SAME
+   detection of abnormal block/crash rates.
+3. **Validator gate instrumentation** — `validate_response()` in `validator_gate.py` now records
+   a `ValidatorMetric` row on every invocation (fire-and-forget, never affects response latency).
+   Uses `time.monotonic()` for accurate duration measurement.
+4. **`compute_validator_health()`** — New aggregation function in `ops_telemetry.py` computing
+   pass/block/observe/crash rates over 1h/24h/7d windows, average duration, per-policy breakdown,
+   and health status (healthy/degraded/critical/no_data).
+5. **SAME detector `_detect_validator_spike()`** — Triggers P2 at >10% block rate (min 5 volume),
+   P1 at >25% block rate or any crash in 1h window.
+6. **Cached aggregation** — `_cache_validator_health()` stores results in Redis (120s TTL) during
+   each SAME cycle. `_get_validator_health()` reads cache with live fallback.
+7. **Polling endpoint** — Added `validator_health` key to OpsStreamView JSON response.
+8. **26 tests** — Covering model CRUD, metric recording from validate_response, health aggregation,
+   spike detection, anomaly type creation, caching, and fallback.
+
+**Files changed:**
+- `apps/core/ai_observability/models.py` — ValidatorMetric model + VALIDATOR_SPIKE type
+- `apps/core/ai_governance/validator_gate.py` — Metric recording instrumentation
+- `apps/core/ai_observability/ops_telemetry.py` — `compute_validator_health()`, `_get_validator_health()`
+- `apps/core/ai_observability/same_engine.py` — `_detect_validator_spike()`, `_cache_validator_health()`
+- `apps/core/ai_observability/ops_views.py` — `validator_health` in OpsStreamView JSON
+- `apps/core/ai_observability/tests_validator_health.py` — 26 tests
+- `apps/core/migrations/0116_add_validator_metric_and_spike_type.py` — Migration
+- `docs/OPS_WALL_2_PROJECT.md` — Status updated to "Phase 3 complete. Phase 4 ready."
+
+---
+
 ## 2026-03-15 — Ops Wall 2.0 Phase 2: Signal Health Diagnostics
 
 **Context:** Phase 2 of the Ops Wall 2.0 project adds per-domain signal health monitoring

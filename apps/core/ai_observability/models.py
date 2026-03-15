@@ -576,6 +576,7 @@ class OpsAnomaly(models.Model):
         ("STRUCTURAL_VIOLATION", "Structural Violation"),
         ("NUMERIC_DEVIATION", "Numeric Deviation"),
         ("VALIDATOR_CRASH", "Validator Crash"),
+        ("VALIDATOR_SPIKE", "Validator Block Spike"),
         ("SIGNAL_DROUGHT", "Signal Drought"),
         ("SIGNAL_LOW_DIVERSITY", "Signal Low Diversity"),
     ]
@@ -1438,3 +1439,74 @@ class ChatLatencySnapshot(models.Model):
 
     def __str__(self):
         return f"user={self.user_id} {self.path} {self.total_ms:.0f}ms @ {self.created_at}"
+
+
+class ValidatorMetric(models.Model):
+    """
+    Per-invocation telemetry for the Phase 8 Validator Gate (VGE).
+
+    One row per validate_response() call. Lightweight with indexed columns
+    for time-window aggregation. Used by the Validator Gate Monitoring card
+    on the Operations Wall.
+
+    Outcomes:
+      pass    — response passed all checks unchanged
+      block   — response replaced (structural/action-claim violation)
+      observe — numeric deviation detected, response unchanged
+      crash   — validator itself crashed, safe fallback returned
+    """
+
+    OUTCOME_CHOICES = [
+        ("pass", "Pass"),
+        ("block", "Block"),
+        ("observe", "Observe"),
+        ("crash", "Crash"),
+    ]
+
+    POLICY_CHOICES = [
+        ("none", "No violation"),
+        ("structural", "Structural (banned terms)"),
+        ("action_claim", "Unverifiable action claim"),
+        ("numeric", "Numeric deviation"),
+        ("crash", "Validator crash"),
+    ]
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_validator_metric"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["-created_at"],
+                name="idx_validator_time",
+            ),
+            models.Index(
+                fields=["outcome", "-created_at"],
+                name="idx_validator_outcome_time",
+            ),
+        ]
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    outcome = models.CharField(
+        max_length=10,
+        choices=OUTCOME_CHOICES,
+        help_text="Validation outcome: pass, block, observe, or crash.",
+    )
+    policy = models.CharField(
+        max_length=15,
+        choices=POLICY_CHOICES,
+        default="none",
+        help_text="Which policy triggered (if any).",
+    )
+    duration_ms = models.IntegerField(
+        default=0,
+        help_text="Validation execution time in milliseconds.",
+    )
+    user_id = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="User ID (no FK to avoid joins on hot path).",
+    )
+
+    def __str__(self):
+        return f"VGE [{self.outcome}] policy={self.policy} {self.duration_ms}ms"

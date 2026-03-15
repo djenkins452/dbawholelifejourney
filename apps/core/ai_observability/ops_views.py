@@ -325,6 +325,9 @@ class OpsStreamView(View):
         # Signal Health (cached by SAME cycle, read-only here)
         signal_health = _get_signal_health()
 
+        # Validator Gate Health (cached by SAME cycle, read-only here)
+        validator_health = _get_validator_health()
+
         return JsonResponse({
             "server_time": now.isoformat(),
             "posture": posture,
@@ -345,6 +348,7 @@ class OpsStreamView(View):
             "chat_latency": chat_latency,
             "pipeline_health": pipeline_health,
             "signal_health": signal_health,
+            "validator_health": validator_health,
             "next_since": now.isoformat(),
         })
 
@@ -1137,4 +1141,5 @@ from apps.core.ai_observability.ops_telemetry import (  # noqa: E402, F401
     _get_chat_latency_telemetry,
     _get_intelligence_pipeline_health,
     _get_signal_health,
+    _get_validator_health,
 )

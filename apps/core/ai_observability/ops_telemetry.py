@@ -1480,6 +1480,116 @@ def compute_signal_health():
     }
 
 
+def _get_validator_health():
+    """
+    Read cached validator health snapshot for the polling endpoint.
+
+    Validator health is computed and cached by the SAME engine on its 60s cadence.
+    Falls back to live computation if cache is empty (first load before SAME runs).
+    """
+    try:
+        from django.core.cache import cache
+
+        cached = cache.get("wlj:ops:validator_health")
+        if cached is not None:
+            return cached
+
+        # Fallback: compute live (only happens on first load before SAME runs)
+        return compute_validator_health()
+    except Exception as e:
+        logger.debug("Validator health unavailable: %s", e)
+        return None
+
+
+def compute_validator_health():
+    """
+    Compute validator gate health metrics from ValidatorMetric records.
+
+    Aggregates pass/block/observe/crash rates over three windows:
+      - 1h: real-time operational view
+      - 24h: daily trend
+      - 7d: weekly trend
+
+    Returns:
+        dict with keys: total_1h, total_24h, total_7d, block_rate_1h,
+        block_rate_24h, block_rate_7d, crash_count_24h, avg_duration_ms,
+        by_policy_24h, status
+    """
+    from django.db.models import Avg, Count
+
+    now = timezone.now()
+    last_1h = now - timedelta(hours=1)
+    last_24h = now - timedelta(hours=24)
+    last_7d = now - timedelta(days=7)
+
+    try:
+        from apps.core.ai_observability.models import ValidatorMetric
+
+        # --- 1h window ---
+        qs_1h = ValidatorMetric.objects.filter(created_at__gte=last_1h)
+        total_1h = qs_1h.count()
+        blocks_1h = qs_1h.filter(outcome="block").count()
+        block_rate_1h = round(blocks_1h / total_1h, 3) if total_1h > 0 else 0.0
+
+        # --- 24h window ---
+        qs_24h = ValidatorMetric.objects.filter(created_at__gte=last_24h)
+        total_24h = qs_24h.count()
+        blocks_24h = qs_24h.filter(outcome="block").count()
+        crashes_24h = qs_24h.filter(outcome="crash").count()
+        block_rate_24h = round(blocks_24h / total_24h, 3) if total_24h > 0 else 0.0
+
+        # --- 7d window ---
+        qs_7d = ValidatorMetric.objects.filter(created_at__gte=last_7d)
+        total_7d = qs_7d.count()
+        blocks_7d = qs_7d.filter(outcome="block").count()
+        block_rate_7d = round(blocks_7d / total_7d, 3) if total_7d > 0 else 0.0
+
+        # Average duration
+        avg_dur = qs_24h.aggregate(avg=Avg("duration_ms"))["avg"] or 0
+
+        # By policy (24h)
+        by_policy = {}
+        policy_counts = (
+            qs_24h.exclude(policy="none")
+            .values("policy")
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+        for row in policy_counts:
+            by_policy[row["policy"]] = row["count"]
+
+        # Status determination
+        # healthy: block_rate_1h < 5% and no crashes
+        # degraded: block_rate_1h 5-20% or crashes present
+        # critical: block_rate_1h > 20% or multiple crashes
+        if total_1h == 0:
+            status = "no_data"
+        elif crashes_24h >= 2 or block_rate_1h > 0.20:
+            status = "critical"
+        elif crashes_24h >= 1 or block_rate_1h > 0.05:
+            status = "degraded"
+        else:
+            status = "healthy"
+
+        return {
+            "total_1h": total_1h,
+            "total_24h": total_24h,
+            "total_7d": total_7d,
+            "blocks_1h": blocks_1h,
+            "blocks_24h": blocks_24h,
+            "block_rate_1h": block_rate_1h,
+            "block_rate_24h": block_rate_24h,
+            "block_rate_7d": block_rate_7d,
+            "crash_count_24h": crashes_24h,
+            "avg_duration_ms": round(avg_dur, 1),
+            "by_policy_24h": by_policy,
+            "status": status,
+        }
+    except Exception as e:
+        logger.debug("Validator health computation failed: %s", e)
+        return None
+
+
 def _get_intelligence_pipeline_health(now):
     """
     Intelligence Pipeline Health — monitors the 5-layer data pipeline

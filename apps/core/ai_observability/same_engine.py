@@ -14,6 +14,7 @@ Anomaly types:
   - DELIVERY_RETRY_SPIKE: DNE retry rate exceeds baseline
   - SIGNAL_DROUGHT: Domain has no intelligence signals for >48h
   - SIGNAL_LOW_DIVERSITY: Domain producing high volume but very few signal types
+  - VALIDATOR_SPIKE: Validator gate block rate exceeds baseline
 
 Project: Whole Life Journey
 Path: apps/core/ai_observability/same_engine.py
@@ -53,9 +54,11 @@ def run_same():
     detected.extend(_detect_delivery_retry_spike(now))
     detected.extend(_detect_signal_drought(now))
     detected.extend(_detect_signal_low_diversity(now))
+    detected.extend(_detect_validator_spike(now))
 
-    # Step 2.5: Cache signal health snapshot for polling endpoint
+    # Step 2.5: Cache health snapshots for polling endpoint
     _cache_signal_health()
+    _cache_validator_health()
 
     # Step 3: Reconcile anomalies (activate new, resolve old)
     stats = _reconcile_anomalies(detected, now)
@@ -548,6 +551,91 @@ def _cache_signal_health():
         logger.debug("SAME: cached signal health (%d domains)", len(health.get("domains", {})))
     except Exception as e:
         logger.warning("SAME: failed to cache signal health: %s", e)
+
+
+def _detect_validator_spike(now):
+    """
+    Detect abnormal validator block/crash rates (VALIDATOR_SPIKE).
+
+    Thresholds:
+      P2: block_rate_1h > 10% with at least 5 validations
+      P1: block_rate_1h > 25% with at least 5 validations, OR any crash in 1h
+
+    Returns:
+        list[dict] — anomaly descriptors for reconciliation.
+    """
+    anomalies = []
+    try:
+        from apps.core.ai_observability.ops_telemetry import compute_validator_health
+
+        health = compute_validator_health()
+        if not health or health.get("total_1h", 0) < 5:
+            return anomalies
+
+        total = health["total_1h"]
+        blocks = health["blocks_1h"]
+        block_rate = health["block_rate_1h"]
+        crashes = health.get("crash_count_24h", 0)
+
+        # Check for crash in last hour
+        from apps.core.ai_observability.models import ValidatorMetric
+
+        crashes_1h = ValidatorMetric.objects.filter(
+            created_at__gte=now - timedelta(hours=1),
+            outcome="crash",
+        ).count()
+
+        if crashes_1h > 0 or block_rate > 0.25:
+            severity = "P1"
+        elif block_rate > 0.10:
+            severity = "P2"
+        else:
+            return anomalies
+
+        anomalies.append({
+            "anomaly_type": "VALIDATOR_SPIKE",
+            "severity": severity,
+            "engine_name": "VGE",
+            "summary": (
+                f"Validator block rate spike: {block_rate:.0%} "
+                f"({blocks}/{total} in 1h)"
+                + (f", {crashes_1h} crashes" if crashes_1h else "")
+            ),
+            "evidence": {
+                "block_rate_1h": block_rate,
+                "blocks_1h": blocks,
+                "total_1h": total,
+                "crashes_1h": crashes_1h,
+            },
+            "suggested_actions": [
+                {"action": "investigate_validator", "label": "Review recent blocked responses in SelfError logs"},
+                {"action": "check_prompt", "label": "Check for system prompt regression causing violations"},
+            ],
+        })
+    except Exception as e:
+        logger.warning("SAME validator spike detection failed: %s", e, exc_info=True)
+
+    return anomalies
+
+
+def _cache_validator_health():
+    """
+    Compute and cache validator health snapshot for the polling endpoint.
+
+    Called during every SAME cycle so OpsStreamView can read cached data
+    instead of running expensive queries on each 2s poll.
+    Cache TTL: 120s (2 SAME cycles).
+    """
+    try:
+        from django.core.cache import cache
+
+        from apps.core.ai_observability.ops_telemetry import compute_validator_health
+
+        health = compute_validator_health()
+        cache.set("wlj:ops:validator_health", health, timeout=120)
+        logger.debug("SAME: cached validator health (status=%s)", health.get("status") if health else "none")
+    except Exception as e:
+        logger.warning("SAME: failed to cache validator health: %s", e)
 
 
 # =========================================================================

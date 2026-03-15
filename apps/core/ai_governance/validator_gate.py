@@ -25,6 +25,7 @@ Public API:
 import hashlib
 import logging
 import re
+import time
 import uuid
 
 from django.utils import timezone
@@ -249,11 +250,19 @@ def validate_response(response, user=None, conversation=None, action_executed=No
             'blocked': bool — True if response was replaced.
             'violations': list — detected violations (for logging).
     """
+    t0 = time.monotonic()
     try:
-        return _validate_response_inner(response, user, conversation, action_executed)
+        result = _validate_response_inner(response, user, conversation, action_executed)
+        duration_ms = int((time.monotonic() - t0) * 1000)
+        # Determine outcome and policy from result
+        outcome, policy = _classify_result(result)
+        _record_validator_metric(outcome, policy, duration_ms, user)
+        return result
     except Exception as exc:
+        duration_ms = int((time.monotonic() - t0) * 1000)
         # ── VALIDATOR CRASH — never silent bypass ──
         logger.error("Phase 8: Validator gate CRASHED: %s", exc)
+        _record_validator_metric("crash", "crash", duration_ms, user)
         try:
             _handle_validator_crash(response, user, exc)
         except Exception as crash_exc:
@@ -518,3 +527,45 @@ def _handle_validator_crash(original_response, user, exc):
         )
     except Exception as e:
         logger.error("Phase 8: CRITICAL — failed to log crash anomaly: %s", e)
+
+
+# =========================================================================
+# Metric Recording (fire-and-forget)
+# =========================================================================
+
+def _classify_result(result):
+    """Classify validate_response result into (outcome, policy) tuple."""
+    violations = result.get('violations', [])
+    blocked = result.get('blocked', False)
+
+    if not violations:
+        return ("pass", "none")
+
+    # Determine policy from first violation prefix
+    first = violations[0] if violations else ""
+    if first.startswith("STRUCTURAL:"):
+        return ("block", "structural")
+    elif first.startswith("ACTION_CLAIM:"):
+        return ("block", "action_claim")
+    elif first.startswith("NUMERIC:"):
+        return ("observe", "numeric")
+    elif first.startswith("VALIDATOR_CRASH"):
+        return ("crash", "crash")
+
+    # Fallback
+    return ("block" if blocked else "pass", "none")
+
+
+def _record_validator_metric(outcome, policy, duration_ms, user):
+    """Record a ValidatorMetric row (fire-and-forget, never raises)."""
+    try:
+        from apps.core.ai_observability.models import ValidatorMetric
+
+        ValidatorMetric.objects.create(
+            outcome=outcome,
+            policy=policy,
+            duration_ms=duration_ms,
+            user_id=user.id if user else None,
+        )
+    except Exception as e:
+        logger.debug("Failed to record validator metric: %s", e)

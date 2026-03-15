@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix: Evidence Buttons Cause 524 Timeouts (Query Storm Prevention)
+
+**Issue:** Clicking evidence buttons on the Ops Wall triggered live maturity score recomputation. `_evidence_life_impact()` ran 600+ queries (200 users × 3-5 queries). This saturated the DB connection pool causing 524 timeouts site-wide.
+
+**Fixes:**
+- ALL evidence builders now read from cached maturity scores first (5-min TTL)
+- `_evidence_life_impact()` NEVER computes live — returns "waiting for data" if cache empty
+- `_get_complexity_score()` cached 10 min (was scanning filesystem every 2s poll)
+- Added `_get_cached_maturity_scores()` helper
+
+**Files:** `apps/core/ai_observability/diagnostic_engine.py`, `apps/core/ai_observability/ops_telemetry.py`
+
+---
+
 ## 2026-03-15 — Fix: Intermittent 524 Timeouts from Query Storms
 
 **Issue:** Site experiencing intermittent 524 Cloudflare timeouts — loads for a while, then blocks, then clears. Three compounding causes:

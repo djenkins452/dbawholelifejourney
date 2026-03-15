@@ -228,9 +228,51 @@ def _evidence_error_spike():
 # =============================================================================
 # MATURITY METRIC EVIDENCE
 # =============================================================================
+#
+# PERFORMANCE RULE: Evidence builders MUST read from the cached maturity
+# scores (populated by Ops Wall page load or SAME cycle) instead of
+# recomputing live. compute_system_life_impact() alone runs 600+ queries
+# and will cause 524 timeouts if called on the request path.
+# =============================================================================
+
+
+def _get_cached_maturity_scores():
+    """Read cached maturity scores. Returns None if cache is empty."""
+    try:
+        from django.core.cache import cache
+        return cache.get("wlj:ops:maturity_scores")
+    except Exception:
+        return None
 
 
 def _evidence_infrastructure():
+    """Infrastructure evidence — reads cached scores, falls back to lightweight health_scoring."""
+    # Try cached scores first (set by Ops Wall page load, 5-min TTL)
+    cached = _get_cached_maturity_scores()
+    if cached and "infrastructure" in cached:
+        infra = cached["infrastructure"]
+        score = infra.get("score", 0)
+        details = infra.get("details", {})
+        components = [{
+            "name": "Infrastructure Health",
+            "score": score,
+            "weight": "100%",
+            "items": [
+                {"label": "Scheduler", "value": f"{details.get('scheduler', 0)}%", "weight": "35%"},
+                {"label": "Engine", "value": f"{details.get('engine', 0)}%", "weight": "35%"},
+                {"label": "Freshness", "value": f"{details.get('freshness', 0)}%", "weight": "30%"},
+            ],
+        }]
+        return {
+            "target": "INFRASTRUCTURE",
+            "score": score,
+            "status": _score_status(score),
+            "components": components,
+            "available_scans": ["INFRASTRUCTURE"],
+            "cached": True,
+        }
+
+    # Fallback: compute live (health_scoring is ~10 queries, acceptable)
     from apps.core.ai_observability.health_scoring import (
         compute_engine_health,
         compute_intelligence_freshness,
@@ -241,7 +283,6 @@ def _evidence_infrastructure():
     engine = compute_engine_health()
     freshness = compute_intelligence_freshness()
 
-    # Calculate composite score
     parts = []
     if scheduler.get("score") is not None:
         parts.append(scheduler["score"] * 0.35)
@@ -254,7 +295,6 @@ def _evidence_infrastructure():
 
     components = []
 
-    # Scheduler component
     sd = scheduler.get("details", {})
     components.append({
         "name": "Scheduler Health",
@@ -273,7 +313,6 @@ def _evidence_infrastructure():
         ],
     })
 
-    # Engine component
     ed = engine.get("details", {})
     components.append({
         "name": "Engine Health",
@@ -291,7 +330,6 @@ def _evidence_infrastructure():
         ],
     })
 
-    # Freshness component
     fd = freshness.get("details", {})
     freshness_items = []
     for task_name, task_data in fd.items():
@@ -319,9 +357,15 @@ def _evidence_infrastructure():
 
 
 def _evidence_intelligence():
-    from apps.core.ai_observability.maturity_engine import compute_intelligence_score
+    """Intelligence evidence — reads cached scores, falls back to lightweight compute."""
+    cached = _get_cached_maturity_scores()
+    if cached and "intelligence" in cached:
+        result = cached["intelligence"]
+    else:
+        # Lightweight fallback: only 2-3 queries
+        from apps.core.ai_observability.maturity_engine import compute_intelligence_score
+        result = compute_intelligence_score()
 
-    result = compute_intelligence_score()
     details = result.get("details", {})
     score = result.get("score", 0)
 
@@ -349,9 +393,15 @@ def _evidence_intelligence():
 
 
 def _evidence_safety():
-    from apps.core.ai_observability.maturity_engine import compute_safety_score
+    """Safety evidence — reads cached scores, falls back to lightweight compute."""
+    cached = _get_cached_maturity_scores()
+    if cached and "safety" in cached:
+        result = cached["safety"]
+    else:
+        # Lightweight fallback: only 2 queries
+        from apps.core.ai_observability.maturity_engine import compute_safety_score
+        result = compute_safety_score()
 
-    result = compute_safety_score()
     details = result.get("details", {})
     score = result.get("score", 0)
 
@@ -377,9 +427,15 @@ def _evidence_safety():
 
 
 def _evidence_coverage():
-    from apps.core.ai_observability.maturity_engine import compute_domain_coverage_score
+    """Coverage evidence — reads cached scores, falls back to in-memory registry (no DB)."""
+    cached = _get_cached_maturity_scores()
+    if cached and "domain_coverage" in cached:
+        result = cached["domain_coverage"]
+    else:
+        # In-memory fallback: 0 queries (registry is in-memory)
+        from apps.core.ai_observability.maturity_engine import compute_domain_coverage_score
+        result = compute_domain_coverage_score()
 
-    result = compute_domain_coverage_score()
     details = result.get("details", {})
     score = result.get("score", 0)
 
@@ -410,9 +466,27 @@ def _evidence_coverage():
 
 
 def _evidence_life_impact():
-    from apps.core.ai_observability.maturity_engine import compute_system_life_impact
+    """Life Impact evidence — MUST use cache. Live compute runs 600+ queries."""
+    cached = _get_cached_maturity_scores()
+    if cached and "life_impact" in cached:
+        result = cached["life_impact"]
+    else:
+        # DO NOT call compute_system_life_impact() — it runs 600+ queries
+        # and will cause a 524 timeout. Return a "waiting for data" response.
+        return {
+            "target": "LIFE_IMPACT",
+            "score": None,
+            "status": "PENDING",
+            "components": [{
+                "name": "Life Impact (System Average)",
+                "score": None,
+                "weight": "100%",
+                "summary": "Waiting for data — scores compute on Ops Wall load or daily snapshot",
+                "items": [],
+            }],
+            "available_scans": ["LIFE_IMPACT"],
+        }
 
-    result = compute_system_life_impact()
     details = result.get("details", {})
     score = result.get("score", 0)
     sample_size = result.get("sample_size", 0)

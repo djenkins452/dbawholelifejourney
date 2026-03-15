@@ -1133,15 +1133,27 @@ def _get_ingestion_stats(since):
 
 def _get_complexity_score():
     """
-    Compute and return the System Complexity Score for the Operations Wall.
+    Return the System Complexity Score for the Operations Wall.
+
+    Cached for 10 minutes — this scans the filesystem and should not
+    run on every 2s poll cycle.
 
     Returns dict with score (0-10), grade (A-F), dimension breakdown,
     and aggregated warnings.  Returns None if computation fails.
     """
     try:
+        from django.core.cache import cache
+
+        cache_key = "wlj:ops:complexity_score"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         from apps.core.observability.complexity_metrics import compute_complexity_score
 
-        return compute_complexity_score()
+        result = compute_complexity_score()
+        cache.set(cache_key, result, timeout=600)  # 10 min cache
+        return result
     except Exception as e:
         logger.debug("OpsWall: complexity score unavailable: %s", e)
         return None

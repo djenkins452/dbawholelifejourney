@@ -3113,115 +3113,10 @@ def format_cos_system_injection(context, user_message=None):
     if pillars:
         lines.append(f"Life Priorities (ranked): {', '.join(pillars)}")
 
-    # Medication (actionable — user needs to know, with names)
-    med = context.get('medication_adherence_state', {})
-    pending_meds = context.get('pending_medications', [])
-    if pending_meds:
-        overdue = [m for m in pending_meds if m['status'] == 'overdue']
-        upcoming = [m for m in pending_meds if m['status'] == 'upcoming']
-        taken_meds = [m for m in pending_meds if m['status'] == 'taken']
-        parts = []
-        if taken_meds:
-            taken_str = ', '.join(m['name'] for m in taken_meds)
-            parts.append("Taken: " + taken_str)
-        if overdue:
-            overdue_items = []
-            for m in overdue:
-                label = m['name'] + (" (due " + m['scheduled_time'] + ")" if m['scheduled_time'] else "")
-                overdue_items.append(label)
-            parts.append("OVERDUE: " + ', '.join(overdue_items))
-        if upcoming:
-            upcoming_items = []
-            for m in upcoming:
-                label = m['name'] + (" (" + m['scheduled_time'] + ")" if m['scheduled_time'] else "")
-                upcoming_items.append(label)
-            parts.append("Upcoming: " + ', '.join(upcoming_items))
-        lines.append("Medication: " + ' | '.join(parts))
-    elif med and med.get('total_scheduled', 0) > 0:
-        lines.append(f"Medication: {med.get('taken_today', 0)}/{med.get('total_scheduled', 0)} "
-                     f"taken today")
-
-    # Active fast (actionable)
-    fast = context.get('active_fast_status', {})
-    if fast.get('active'):
-        lines.append(f"Active Fast: In progress (target: {fast.get('target_hours', 0)}h)")
-
-    # Today's schedule blocks (with temporal awareness)
-    # IMPORTANT: Schedule blocks show what was PLANNED, not necessarily what
-    # was DONE. A block in the past without [done] tag was scheduled but may
-    # not have been completed. Only blocks explicitly marked [done] are confirmed.
-    # NEVER assume a past-time block was completed just because the time has passed.
-    blocks = context.get('today_blocks_summary', [])
-    if blocks:
-        lines.append("")
-        lines.append("Today's Schedule (PLANNED blocks — only [done] means completed):")
-        now = timezone.localtime()
-        current_time = now.time()
-        current_block_title = None
-        next_block_title = None
-        next_block_time = None
-        for b in blocks[:8]:
-            # Determine temporal status
-            if b['completed']:
-                status = "[done]"
-            elif b['locked']:
-                status = "[locked]"
-            else:
-                status = ""
-            # Add NOW/NEXT tags for non-completed blocks
-            if not b['completed'] and b['start'] and b['end']:
-                try:
-                    b_start = datetime.datetime.strptime(b['start'], '%H:%M').time()
-                    b_end = datetime.datetime.strptime(b['end'], '%H:%M').time()
-                    if b_start <= current_time <= b_end:
-                        status = "[NOW]" + (" [locked]" if b['locked'] else "")
-                        current_block_title = b['title']
-                    elif not current_block_title and not next_block_title and current_time < b_start:
-                        status = "[NEXT]" + (" [locked]" if b['locked'] else "")
-                        next_block_title = b['title']
-                        next_block_time = b['start']
-                    elif current_time > b_end:
-                        # Past block NOT marked done — explicitly label it
-                        status = "[not completed]"
-                except (ValueError, TypeError):
-                    pass
-            lines.append(f"  {b['start']}-{b['end']} {b['title']} {status}")
-
-        # Add explicit current focus section
-        if current_block_title:
-            lines.append("")
-            lines.append(f"RIGHT NOW: User should be doing '{current_block_title}'.")
-            if next_block_title:
-                lines.append(f"NEXT UP: '{next_block_title}' at {next_block_time}.")
-        elif next_block_title:
-            lines.append("")
-            lines.append(f"NEXT UP: '{next_block_title}' at {next_block_time}.")
-
-    # Calendar events (what's happening today)
-    cal_events = context.get('calendar_events_today', [])
-    if cal_events:
-        lines.append("")
-        lines.append("Today's Calendar:")
-        for ev in cal_events:
-            status_tag = ""
-            if ev.get('actual_status') == 'completed':
-                status_tag = " [done]"
-            elif ev['time_status'] == 'in_progress':
-                status_tag = " [NOW]"
-            elif ev['time_status'] == 'upcoming_soon':
-                status_tag = " [SOON]"
-            elif ev['is_overdue']:
-                status_tag = " [MISSED]"
-            ev_protected = " (protected)" if ev.get('is_protected') else ""
-            lines.append(
-                f"  {ev['start']}-{ev['end']} {ev['title']}"
-                f"{ev_protected}{status_tag}"
-            )
-
-    # ── PROACTIVE INTELLIGENCE SIGNALS ──
-    # These are pattern-level findings from the intelligence engines.
-    # Unlike operational data (schedule, meds, tasks), intelligence signals
-    # should be surfaced PROACTIVELY when they are meaningful.
+    # ── INTELLIGENCE SIGNALS (PRIMARY REASONING LAYER) ──
+    # Intelligence signals are placed BEFORE operational data because the LLM
+    # weights earlier context more heavily. Beth should reason from signals
+    # and momentum first, then reference tasks as supporting evidence.
 
     # Intelligence status — tells CoS if awareness is complete or degraded
     intel_status = context.get('intelligence_status', 'full')
@@ -3348,6 +3243,137 @@ def format_cos_system_injection(context, user_message=None):
             narrative = c.get('narrative', '')
             if narrative:
                 lines.append(f"  - {strength_tag}{narrative}")
+
+    # ── REASONING HIERARCHY (signal-first response structure) ──
+    lines.append("")
+    lines.append(
+        "=== REASONING HIERARCHY ===\n"
+        "Your PRIMARY reasoning layer is the intelligence signals and momentum "
+        "data above. When composing ANY response:\n"
+        "  1. SIGNALS FIRST — Describe behavioral signals across domains\n"
+        "  2. MOMENTUM — Interpret trajectory and trends\n"
+        "  3. CROSS-DOMAIN INSIGHT — Connect signals across domains when "
+        "patterns exist\n"
+        "  4. TASKS LAST — Reference tasks only as supporting evidence for "
+        "signal interpretation\n"
+        "\n"
+        "Tasks should NEVER lead your response unless intelligence signals are "
+        "unavailable. When signals exist, frame tasks within the signal narrative:\n"
+        "  WRONG: \"You completed prayer time and missed the dashboard work.\"\n"
+        "  RIGHT: \"Your faith signals remain strong this week. Productivity "
+        "momentum dipped — two tasks still open.\"\n"
+        "=== END REASONING HIERARCHY ==="
+    )
+
+    # ── OPERATIONAL DATA SNAPSHOT (supporting evidence) ──
+    # Operational data (meds, schedule, calendar) supports the intelligence
+    # signals above. Beth should reference this data to substantiate signal
+    # interpretations, not as the primary narrative.
+
+    # Medication (actionable — user needs to know, with names)
+    med = context.get('medication_adherence_state', {})
+    pending_meds = context.get('pending_medications', [])
+    if pending_meds:
+        overdue = [m for m in pending_meds if m['status'] == 'overdue']
+        upcoming = [m for m in pending_meds if m['status'] == 'upcoming']
+        taken_meds = [m for m in pending_meds if m['status'] == 'taken']
+        parts = []
+        if taken_meds:
+            taken_str = ', '.join(m['name'] for m in taken_meds)
+            parts.append("Taken: " + taken_str)
+        if overdue:
+            overdue_items = []
+            for m in overdue:
+                label = m['name'] + (" (due " + m['scheduled_time'] + ")" if m['scheduled_time'] else "")
+                overdue_items.append(label)
+            parts.append("OVERDUE: " + ', '.join(overdue_items))
+        if upcoming:
+            upcoming_items = []
+            for m in upcoming:
+                label = m['name'] + (" (" + m['scheduled_time'] + ")" if m['scheduled_time'] else "")
+                upcoming_items.append(label)
+            parts.append("Upcoming: " + ', '.join(upcoming_items))
+        lines.append("Medication: " + ' | '.join(parts))
+    elif med and med.get('total_scheduled', 0) > 0:
+        lines.append(f"Medication: {med.get('taken_today', 0)}/{med.get('total_scheduled', 0)} "
+                     f"taken today")
+
+    # Active fast (actionable)
+    fast = context.get('active_fast_status', {})
+    if fast.get('active'):
+        lines.append(f"Active Fast: In progress (target: {fast.get('target_hours', 0)}h)")
+
+    # Today's schedule blocks (with temporal awareness)
+    # IMPORTANT: Schedule blocks show what was PLANNED, not necessarily what
+    # was DONE. A block in the past without [done] tag was scheduled but may
+    # not have been completed. Only blocks explicitly marked [done] are confirmed.
+    # NEVER assume a past-time block was completed just because the time has passed.
+    blocks = context.get('today_blocks_summary', [])
+    if blocks:
+        lines.append("")
+        lines.append("Today's Schedule (PLANNED blocks — only [done] means completed):")
+        now = timezone.localtime()
+        current_time = now.time()
+        current_block_title = None
+        next_block_title = None
+        next_block_time = None
+        for b in blocks[:8]:
+            # Determine temporal status
+            if b['completed']:
+                status = "[done]"
+            elif b['locked']:
+                status = "[locked]"
+            else:
+                status = ""
+            # Add NOW/NEXT tags for non-completed blocks
+            if not b['completed'] and b['start'] and b['end']:
+                try:
+                    b_start = datetime.datetime.strptime(b['start'], '%H:%M').time()
+                    b_end = datetime.datetime.strptime(b['end'], '%H:%M').time()
+                    if b_start <= current_time <= b_end:
+                        status = "[NOW]" + (" [locked]" if b['locked'] else "")
+                        current_block_title = b['title']
+                    elif not current_block_title and not next_block_title and current_time < b_start:
+                        status = "[NEXT]" + (" [locked]" if b['locked'] else "")
+                        next_block_title = b['title']
+                        next_block_time = b['start']
+                    elif current_time > b_end:
+                        # Past block NOT marked done — explicitly label it
+                        status = "[not completed]"
+                except (ValueError, TypeError):
+                    pass
+            lines.append(f"  {b['start']}-{b['end']} {b['title']} {status}")
+
+        # Add explicit current focus section
+        if current_block_title:
+            lines.append("")
+            lines.append(f"RIGHT NOW: User should be doing '{current_block_title}'.")
+            if next_block_title:
+                lines.append(f"NEXT UP: '{next_block_title}' at {next_block_time}.")
+        elif next_block_title:
+            lines.append("")
+            lines.append(f"NEXT UP: '{next_block_title}' at {next_block_time}.")
+
+    # Calendar events (what's happening today)
+    cal_events = context.get('calendar_events_today', [])
+    if cal_events:
+        lines.append("")
+        lines.append("Today's Calendar:")
+        for ev in cal_events:
+            status_tag = ""
+            if ev.get('actual_status') == 'completed':
+                status_tag = " [done]"
+            elif ev['time_status'] == 'in_progress':
+                status_tag = " [NOW]"
+            elif ev['time_status'] == 'upcoming_soon':
+                status_tag = " [SOON]"
+            elif ev['is_overdue']:
+                status_tag = " [MISSED]"
+            ev_protected = " (protected)" if ev.get('is_protected') else ""
+            lines.append(
+                f"  {ev['start']}-{ev['end']} {ev['title']}"
+                f"{ev_protected}{status_tag}"
+            )
 
     # Architecture Evolution Phase 6: Commitment Gap Analysis
     # Shows missed commitments and any compensatory activity for the day.

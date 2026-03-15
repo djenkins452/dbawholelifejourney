@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-14 — Beth signal-first reasoning hierarchy
+
+**Changes:** Upgraded Beth's reasoning order so responses are driven by intelligence
+signals and momentum rather than task narration. Three changes:
+1. Reordered `format_cos_system_injection()` — intelligence signals (PIE insights,
+   PRIE predictions, PGE guidance, CDCE patterns, signal interpretation summary) now
+   appear BEFORE operational data (medications, schedule blocks, calendar events).
+2. Added explicit `REASONING HIERARCHY` directive between intelligence and operational
+   data sections telling Beth to lead with signals, then momentum, then cross-domain
+   insight, then tasks last.
+3. Updated Daily Orientation mandatory elements in `prompt_builder.py` — elements 1-2
+   are now signal summary and momentum interpretation; element 3 combines completed
+   actions and outstanding tasks. Updated reference examples to demonstrate the pattern.
+
+**Root cause:** The LLM weights earlier context more heavily. Operational data (tasks,
+schedule) appeared before intelligence signals in the prompt, causing Beth to narrate
+tasks instead of reasoning from signals. The Daily Orientation template also had no
+mention of signals — all 5 elements were task-focused.
+
+**Files modified:**
+- apps/core/ai_orchestrator/cos_context.py (reorder + reasoning hierarchy directive)
+- apps/core/cos/prompt_builder.py (daily orientation elements + examples)
+- docs/wlj_claude_changelog.md
+
+---
+
 ## 2026-03-14 — Fix CoS Context health check: query stages instead of empty _token_report
 
 **Changes:** Fixed the Intelligence Pipeline telemetry for CoS Context subsystem. The health

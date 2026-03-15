@@ -297,6 +297,9 @@ class HeartbeatCalculatorTest(TestCase):
 
     def test_get_latest_heartbeats(self):
         """get_latest_heartbeats returns dict of latest per engine."""
+        from django.core.cache import cache
+        cache.delete("wlj:ops:latest_heartbeats")
+
         _create_engine_run("UAL", minutes_ago=1)
         _create_engine_run("PIE", minutes_ago=1)
 

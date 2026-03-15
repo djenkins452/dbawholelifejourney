@@ -6,6 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix: Ops Wall Polling Endpoint Running ~280 DB Queries Every 2 Seconds
+
+**Issue:** The `/admin-console/ops/stream/` polling endpoint was called every 2 seconds by the browser and ran ~280 DB queries per call — uncached. `_build_engine_cards()` alone ran ~180 queries (6 per engine × 30+ engines). Combined with `_get_learning_health()` (~20), `_get_intelligence_pipeline_health()` (~30), `_get_health_intelligence_telemetry()` (~20), `_get_eae_ops_telemetry()` (~10), `_get_aafr_metrics()` (~7), `_get_chat_latency_telemetry()` (~3), and `_get_api_health_telemetry()` (~4), this produced ~140 queries/second even with a single admin session. Clicking evidence/scan buttons added more queries on top, saturating Gunicorn workers and causing 524 timeouts site-wide.
+
+**Fix:** Added short-TTL caching to every expensive streaming helper:
+- `_build_engine_cards()` → 10s cache (180 queries → 0 on cache hit)
+- `_get_learning_health()` → 60s cache (data changes slowly)
+- `_get_intelligence_pipeline_health()` → 60s cache
+- `_get_health_intelligence_telemetry()` → 60s cache
+- `_get_eae_ops_telemetry()` → 30s cache
+- `_get_aafr_metrics()` → 30s cache
+- `_get_chat_latency_telemetry()` → 30s cache
+- `_get_api_health_telemetry()` → 30s cache
+- `_get_latest_narrative()`, `_get_latest_integrity()`, `_get_active_anomalies()` → 10s cache
+- `_get_scheduler_heartbeats()`, `_get_coas_health()` → 10-30s cache
+- `get_cadence_config()`, `get_latest_heartbeats()` → 10-30s cache
+
+**Result:** Polling endpoint now serves ~0 DB queries on cache hits. First request after cache expires runs the queries, then subsequent polls within the TTL window are free. Monitoring dashboards tolerate seconds of staleness — DB saturation from uncached polling is unacceptable.
+
+**Files:** `apps/core/ai_observability/ops_telemetry.py`, `apps/core/ai_observability/heartbeat.py`, `apps/core/ai_observability/tests_ops_wall_v2.py`
+
+---
+
 ## 2026-03-15 — Enhancement: Ops Wall Hero Score Now Reflects Scheduler Health
 
 **Issue:** SAME scheduler went offline but the System Integrity Index hero score remained "85 Nominal" — a misleading operational signal. The integrity snapshot had no awareness of scheduler subsystem health.

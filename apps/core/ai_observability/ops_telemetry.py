@@ -9,6 +9,15 @@ Purpose: Extracted helper functions for the Operations Wall dashboard.
 
 Extracted from ops_views.py for maintainability.
 
+PERFORMANCE NOTE (2026-03-15):
+    The OpsStreamView polling endpoint calls these helpers every 2 seconds.
+    Without caching, a single poll runs ~250-300 DB queries. With multiple
+    admin sessions, this saturates Gunicorn workers and causes 524 timeouts.
+
+    All expensive helpers are wrapped in short-TTL caches (10-60s).
+    Monitoring dashboards tolerate seconds of staleness — DB saturation
+    from uncached polling is unacceptable.
+
 Copyright:
     (c) Whole Life Journey. All rights reserved.
 """
@@ -17,6 +26,7 @@ import json
 import logging
 from datetime import timedelta
 
+from django.core.cache import cache as django_cache
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -28,7 +38,15 @@ logger = logging.getLogger(__name__)
 
 
 def _build_engine_cards(engine_names, cadence_config, heartbeats, now):
-    """Build engine card data for each core engine."""
+    """Build engine card data for each core engine.
+
+    Cached for 10 seconds — runs ~6 queries per engine × 30+ engines = 180+
+    queries. At 2s polling, uncached = 90+ queries/second from this alone.
+    """
+    cached = django_cache.get("wlj:ops:engine_cards")
+    if cached is not None:
+        return cached
+
     from apps.core.ai_observability.models import EngineRun
 
     cards = []
@@ -146,24 +164,31 @@ def _build_engine_cards(engine_names, cadence_config, heartbeats, now):
             "is_frozen": not cfg.get("enabled", True),
         })
 
+    django_cache.set("wlj:ops:engine_cards", cards, timeout=10)
     return cards
 
 
 def _get_latest_narrative():
-    """Get the most recent OpsNarrativeSnapshot as dict."""
+    """Get the most recent OpsNarrativeSnapshot as dict. Cached 10s."""
+    cached = django_cache.get("wlj:ops:latest_narrative")
+    if cached is not None:
+        return cached
+
     from apps.core.ai_observability.models import OpsNarrativeSnapshot
 
     snapshot = OpsNarrativeSnapshot.objects.first()
     if not snapshot:
-        return {
+        result = {
             "posture": "OK",
             "headline": "SAME not yet initialized — awaiting first run.",
             "bullets_now": ["No data available yet."],
             "recommendations": ["System will begin monitoring once engines start running."],
             "watching_next": [],
         }
+        django_cache.set("wlj:ops:latest_narrative", result, timeout=10)
+        return result
 
-    return {
+    result = {
         "posture": snapshot.posture,
         "headline": snapshot.headline,
         "bullets_now": snapshot.bullets_now or [],
@@ -171,26 +196,38 @@ def _get_latest_narrative():
         "watching_next": snapshot.watching_next or [],
         "created_at": snapshot.created_at.isoformat(),
     }
+    django_cache.set("wlj:ops:latest_narrative", result, timeout=10)
+    return result
 
 
 def _get_latest_integrity():
-    """Get the latest SystemIntegritySnapshot as dict."""
+    """Get the latest SystemIntegritySnapshot as dict. Cached 10s."""
+    cached = django_cache.get("wlj:ops:latest_integrity")
+    if cached is not None:
+        return cached
+
     from apps.core.ai_observability.models import SystemIntegritySnapshot
 
     snapshot = SystemIntegritySnapshot.objects.first()
     if not snapshot:
         return None
 
-    return {
+    result = {
         "score": snapshot.score,
         "posture": snapshot.posture,
         "components": snapshot.components,
         "created_at": snapshot.created_at.isoformat(),
     }
+    django_cache.set("wlj:ops:latest_integrity", result, timeout=10)
+    return result
 
 
 def _get_active_anomalies():
-    """Get all active OpsAnomaly records as list of dicts."""
+    """Get all active OpsAnomaly records as list of dicts. Cached 10s."""
+    cached = django_cache.get("wlj:ops:active_anomalies")
+    if cached is not None:
+        return cached
+
     from apps.core.ai_observability.models import OpsAnomaly
 
     anomalies = OpsAnomaly.objects.filter(is_active=True).order_by(
@@ -216,6 +253,7 @@ def _get_active_anomalies():
         }
         result.append(entry)
 
+    django_cache.set("wlj:ops:active_anomalies", result, timeout=10)
     return result
 
 
@@ -407,7 +445,11 @@ def _action_rebuild_health_summaries():
 
 
 def _get_scheduler_heartbeats():
-    """Get heartbeat status for all tracked schedulers."""
+    """Get heartbeat status for all tracked schedulers. Cached 10s."""
+    cached = django_cache.get("wlj:ops:scheduler_heartbeats")
+    if cached is not None:
+        return cached
+
     from apps.core.ai_observability.models import SchedulerHeartbeat
 
     schedulers = []
@@ -444,6 +486,7 @@ def _get_scheduler_heartbeats():
             "updated_at": None,
         })
 
+    django_cache.set("wlj:ops:scheduler_heartbeats", schedulers, timeout=10)
     return schedulers
 
 
@@ -468,14 +511,18 @@ def _get_celery_health():
 
 
 def _get_coas_health():
-    """Read latest COAS health snapshot (stored by scheduled job, not live recompute)."""
+    """Read latest COAS health snapshot (stored by scheduled job, not live recompute). Cached 30s."""
+    cached = django_cache.get("wlj:ops:coas_health_view")
+    if cached is not None:
+        return cached
+
     try:
         from apps.core.ai_observability.models import COASHealthSnapshot
 
         snap = COASHealthSnapshot.objects.first()
         if not snap:
             return None
-        return {
+        result = {
             "scheduler": {"score": snap.scheduler_score},
             "engine": {"score": snap.engine_score},
             "freshness": {"score": snap.freshness_score},
@@ -483,6 +530,8 @@ def _get_coas_health():
             "computed_at": snap.computed_at.isoformat(),
             "details": snap.details,
         }
+        django_cache.set("wlj:ops:coas_health_view", result, timeout=30)
+        return result
     except Exception as e:
         logger.debug("OpsWall: COAS health unavailable: %s", e)
         return None
@@ -491,11 +540,16 @@ def _get_coas_health():
 def _get_aafr_metrics():
     """
     Compute AI Action Failure Rate metrics for 5m, 1h, and 24h windows.
+    Cached 30s — ~7 queries across 3 time windows + top errors.
 
     Returns success rate as the hero metric, with blocked and failed counts
     surfaced separately so safety blocks don't inflate the failure signal.
     Status is based on the 1h failure rate (excludes blocked).
     """
+    cached = django_cache.get("wlj:ops:aafr_metrics")
+    if cached is not None:
+        return cached
+
     try:
         from django.db.models import Count, Q
         from apps.core.ai_observability.models import AIActionMetric
@@ -549,6 +603,7 @@ def _get_aafr_metrics():
         else:
             result["status"] = "HEALTHY"
 
+        django_cache.set("wlj:ops:aafr_metrics", result, timeout=30)
         return result
 
     except Exception as e:
@@ -559,9 +614,14 @@ def _get_aafr_metrics():
 def _get_eae_ops_telemetry(now):
     """
     Get EAE telemetry for the Operations Wall (Phase 8.8).
+    Cached 30s — ~10 queries per call.
 
     Returns aggregate metrics across all users for monitoring EAE health.
     """
+    cached = django_cache.get("wlj:ops:eae_telemetry")
+    if cached is not None:
+        return cached
+
     try:
         from apps.core.ai_eae.models import (
             EAEDecisionLog,
@@ -614,7 +674,7 @@ def _get_eae_ops_telemetry(now):
             last=Max('last_arbitration_at'),
         )
 
-        return {
+        result = {
             'decisions_1h': {
                 'count': decisions_1h['count'] or 0,
                 'avg_duration_ms': round(decisions_1h['avg_duration_ms'] or 0, 1),
@@ -631,6 +691,8 @@ def _get_eae_ops_telemetry(now):
                 last_arb['last'].isoformat() if last_arb.get('last') else None
             ),
         }
+        django_cache.set("wlj:ops:eae_telemetry", result, timeout=30)
+        return result
     except Exception as e:
         logger.debug("OpsWall: EAE telemetry unavailable: %s", e)
         return None
@@ -653,6 +715,7 @@ def _human_ago(dt):
 def _get_learning_health(now):
     """
     Build learning health metrics for the Operations Wall.
+    Cached 60s — ~20 queries across 5 subsystems. Data changes slowly.
 
     Monitors all 5 persistent learning subsystems and returns an overall
     status (LEARNING / DEGRADED / STALE) plus per-subsystem metrics.
@@ -662,6 +725,10 @@ def _get_learning_health(now):
       DEGRADED (yellow): 1-2 subsystems active in last 7 days
       STALE (red): 0 subsystems active in last 7 days
     """
+    cached = django_cache.get("wlj:ops:learning_health")
+    if cached is not None:
+        return cached
+
     try:
         from django.db.models import Avg, Count, Max, Sum
 
@@ -858,12 +925,14 @@ def _get_learning_health(now):
         else:
             overall = 'STALE'
 
-        return {
+        result = {
             'status': overall,
             'active_subsystems': active_count,
             'total_subsystems': 5,
             'subsystems': subsystems,
         }
+        django_cache.set("wlj:ops:learning_health", result, timeout=60)
+        return result
 
     except Exception as e:
         logger.debug("Learning health check failed: %s", e)
@@ -879,6 +948,7 @@ def _get_learning_health(now):
 def _get_health_intelligence_telemetry(now):
     """
     Build Health Intelligence Engine telemetry for the Operations Wall.
+    Cached 60s — ~20 queries across multiple models. Data changes slowly.
 
     Monitors DailyHealthSummary freshness, data completeness, body comp
     coverage, health scores, and HealthKit ingestion pipeline health.
@@ -888,6 +958,10 @@ def _get_health_intelligence_telemetry(now):
       STALE (yellow): latest summary > 36h old
       ERROR (red): no summaries exist or exception
     """
+    cached = django_cache.get("wlj:ops:health_intel_telemetry")
+    if cached is not None:
+        return cached
+
     try:
         from django.contrib.auth import get_user_model
         from django.db.models import Avg, Count, Max
@@ -1023,7 +1097,7 @@ def _get_health_intelligence_telemetry(now):
             .first()
         )
 
-        return {
+        result = {
             'status': status,
             'latest_summary_date': str(latest_date) if latest_date else None,
             'latest_updated_age': age_str,
@@ -1044,6 +1118,8 @@ def _get_health_intelligence_telemetry(now):
                 'oldest_missing_user': oldest_missing,
             },
         }
+        django_cache.set("wlj:ops:health_intel_telemetry", result, timeout=60)
+        return result
 
     except Exception as e:
         logger.debug("Health intelligence telemetry failed: %s", e)
@@ -1188,6 +1264,7 @@ def _get_domain_event_telemetry():
 def _get_chat_latency_telemetry(now):
     """
     Chat response latency metrics for the Operations Wall.
+    Cached 30s — aggregates over 20 recent snapshots.
 
     Aggregates recent ChatLatencySnapshot records to show:
     - Average total response time
@@ -1195,6 +1272,10 @@ def _get_chat_latency_telemetry(now):
     - Recent sample count
     - Slowest stages (for bottleneck identification)
     """
+    cached = django_cache.get("wlj:ops:chat_latency")
+    if cached is not None:
+        return cached
+
     try:
         from apps.core.ai_observability.models import ChatLatencySnapshot
         from django.db.models import Avg, Count, Max
@@ -1287,7 +1368,7 @@ def _get_chat_latency_telemetry(now):
                 )
             }
 
-        return {
+        result = {
             'count': stats['count'],
             'avg_total_ms': round(stats['avg_total'] or 0, 0),
             'max_total_ms': round(stats['max_total'] or 0, 0),
@@ -1295,6 +1376,8 @@ def _get_chat_latency_telemetry(now):
             'avg_tokens': avg_tokens,
             'governance': governance_stats,
         }
+        django_cache.set("wlj:ops:chat_latency", result, timeout=30)
+        return result
     except Exception as e:
         logger.debug("OpsWall: chat latency telemetry unavailable: %s", e)
         return None
@@ -1796,6 +1879,7 @@ def _get_intelligence_pipeline_health(now):
     """
     Intelligence Pipeline Health — monitors the 5-layer data pipeline
     that feeds Beth's reasoning context.
+    Cached 60s — ~30 queries across 5 subsystems. Data changes slowly.
 
     Subsystems monitored:
       1. Signal Snapshots — compute_nightly_signals Celery task output
@@ -1809,6 +1893,10 @@ def _get_intelligence_pipeline_health(now):
       DEGRADED (yellow): 2-3 subsystems healthy
       CRITICAL (red): 0-1 subsystems healthy
     """
+    cached = django_cache.get("wlj:ops:pipeline_health")
+    if cached is not None:
+        return cached
+
     from datetime import timedelta as td
 
     healthy_count = 0
@@ -2064,12 +2152,14 @@ def _get_intelligence_pipeline_health(now):
     else:
         overall = 'CRITICAL'
 
-    return {
+    result = {
         'status': overall,
         'healthy_count': healthy_count,
         'total_subsystems': 5,
         'subsystems': subsystems,
     }
+    django_cache.set("wlj:ops:pipeline_health", result, timeout=60)
+    return result
 
 
 # ================================================================== #
@@ -2079,10 +2169,15 @@ def _get_intelligence_pipeline_health(now):
 def _get_api_health_telemetry(now):
     """
     API health metrics aggregated from APIRequestLog.
+    Cached 30s — ~4 queries over the full 24h request log.
 
     Returns 24h request volume, response times, error rates,
     top endpoints, and channel breakdown (mobile/chat/other).
     """
+    cached = django_cache.get("wlj:ops:api_health")
+    if cached is not None:
+        return cached
+
     try:
         from apps.core.models import APIRequestLog
         from django.db.models import Avg, Count, Q, F
@@ -2153,7 +2248,7 @@ def _get_api_health_telemetry(now):
         else:
             status = 'HEALTHY'
 
-        return {
+        result = {
             'total_requests': total,
             'avg_response_ms': avg_ms,
             'p95_response_ms': p95_ms,
@@ -2166,6 +2261,8 @@ def _get_api_health_telemetry(now):
             'endpoints': endpoints,
             'status': status,
         }
+        django_cache.set("wlj:ops:api_health", result, timeout=30)
+        return result
 
     except Exception:
         logger.exception("Failed to compute API health telemetry")

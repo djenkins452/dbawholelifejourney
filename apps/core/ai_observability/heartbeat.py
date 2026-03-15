@@ -30,10 +30,17 @@ DEFAULT_JITTER = {
 def get_cadence_config():
     """
     Get cadence configuration, preferring database records over hardcoded defaults.
+    Cached 30s — called on every poll cycle, but config rarely changes.
 
     Returns:
         dict of engine_name -> {interval, jitter, enabled}
     """
+    from django.core.cache import cache
+
+    cached = cache.get("wlj:ops:cadence_config")
+    if cached is not None:
+        return cached
+
     from apps.core.ai_observability.models import EngineExpectedCadence
 
     config = {}
@@ -62,6 +69,7 @@ def get_cadence_config():
     except Exception:
         pass  # Database not ready yet
 
+    cache.set("wlj:ops:cadence_config", config, timeout=30)
     return config
 
 
@@ -177,10 +185,17 @@ def compute_and_save_heartbeats():
 def get_latest_heartbeats():
     """
     Get the most recent heartbeat for each engine.
+    Cached 10s — called on every 2s poll. Heartbeats update every 60s via SAME.
 
     Returns:
         dict of engine_name -> heartbeat dict.
     """
+    from django.core.cache import cache
+
+    cached = cache.get("wlj:ops:latest_heartbeats")
+    if cached is not None:
+        return cached
+
     from apps.core.ai_observability.models import EngineHeartbeat
 
     result = {}
@@ -201,6 +216,7 @@ def get_latest_heartbeats():
                 "metadata": hb.metadata,
             }
 
+    cache.set("wlj:ops:latest_heartbeats", result, timeout=10)
     return result
 
 

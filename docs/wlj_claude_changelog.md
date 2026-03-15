@@ -6,6 +6,30 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Add momentum pipeline diagnostics (temporary)
+
+**Changes:** Added WARNING-level diagnostic logging at three points in the momentum
+pipeline to determine exactly what data reaches the LLM prompt:
+1. `personal_assistant.py` after `cos_context` is built — logs signal count, momentum
+   count, raw momentum data, and which intelligence keys exist in context.
+2. `personal_assistant.py` after `format_cos_system_injection()` — logs whether the
+   formatted prompt contains SIGNAL INTERPRETATION, MOMENTUM INTERPRETATION, and
+   REASONING HIERARCHY blocks plus total injection length.
+3. `cos_context.py` inside `_format_momentum_interpretation()` — logs momentum count
+   and raw data before formatting.
+
+All three log at WARNING level so they appear in Railway production logs (DEBUG is
+filtered out). Tagged with `MOMENTUM_DIAG`, `PROMPT_DIAG`, `MOMENTUM_FORMAT_DIAG`.
+
+**Purpose:** Investigation-only. Will be removed once we confirm the pipeline state.
+
+**Files modified:**
+- apps/ai/personal_assistant.py (2 diagnostic log statements)
+- apps/core/ai_orchestrator/cos_context.py (1 diagnostic log statement)
+- docs/wlj_claude_changelog.md
+
+---
+
 ## 2026-03-15 — Fix signals/momentum excluded by domain scoping
 
 **Changes:** Added `'signals'` and `'compensatory'` to `CORE_BUILDERS` in

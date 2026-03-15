@@ -2580,6 +2580,10 @@ def _format_momentum_interpretation(context):
     Returns formatted block or empty string if no momentum data.
     """
     momentum = context.get('goal_momentum', [])
+    logger.warning(
+        "MOMENTUM_FORMAT_DIAG | momentum_count=%d | data=%s",
+        len(momentum), str(momentum)[:300],
+    )
     if not momentum:
         return ''
 

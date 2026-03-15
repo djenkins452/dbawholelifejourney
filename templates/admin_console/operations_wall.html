@@ -1884,7 +1884,185 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 }
 
 /* =========================================================================
-   OPS WALL 2.0 — Command Center Layout (Phase 5)
+   OPS WALL 2.0 — 5-Zone Command Center Layout
+   ========================================================================= */
+
+/* ZONE 1: Health Hero */
+.ops-health-hero {
+    display: grid;
+    grid-template-columns: 200px 1fr 1fr 280px;
+    gap: 16px;
+    padding: 12px 0;
+    min-height: 160px;
+    align-items: start;
+}
+.ops-hero-gauge { /* col 1 */ }
+.ops-hero-posture { /* col 2 */ }
+.ops-hero-trends {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 8px;
+}
+.ops-hero-trends .ops-trend-spark { min-height: 60px; }
+.ops-hero-schedulers { /* col 4 */ }
+
+/* ZONE 2: Incidents Strip */
+.ops-incidents-zone { padding: 8px 0; }
+.ops-incidents-clear {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    padding: 0 12px;
+    font-size: 0.75rem;
+    color: var(--ops-green);
+    background: var(--ops-surface);
+    border-radius: var(--ops-radius-sm);
+    border: 1px solid var(--ops-glass-border);
+}
+.ops-incidents-strip {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 4px 0;
+    scroll-snap-type: x mandatory;
+}
+.ops-incidents-strip::-webkit-scrollbar { height: 4px; }
+.ops-incidents-strip::-webkit-scrollbar-thumb { background: var(--ops-glass-border); border-radius: 2px; }
+.ops-incident-compact {
+    min-width: 280px;
+    max-width: 340px;
+    flex-shrink: 0;
+    scroll-snap-align: start;
+    padding: 10px 14px;
+    border-radius: var(--ops-radius-sm);
+    background: var(--ops-surface);
+    border: 1px solid var(--ops-glass-border);
+    font-size: 0.72rem;
+}
+.ops-incident-compact.P1 { border-left: 3px solid var(--ops-red); }
+.ops-incident-compact.P2 { border-left: 3px solid var(--ops-yellow); }
+.ops-incident-compact.P3 { border-left: 3px solid var(--ops-text-dim); }
+.ops-incident-compact-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.ops-incident-compact-severity {
+    font-weight: 700;
+    font-size: 0.65rem;
+    padding: 1px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+.ops-incident-compact-severity.P1 { background: var(--ops-red); color: #fff; }
+.ops-incident-compact-severity.P2 { background: var(--ops-yellow); color: #000; }
+.ops-incident-compact-severity.P3 { background: var(--ops-glass-border); color: var(--ops-text); }
+.ops-incident-compact-type { color: var(--ops-text-bright); font-weight: 600; }
+.ops-incident-compact-summary { color: var(--ops-text-muted); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ops-incident-compact-footer { display: flex; justify-content: flex-end; }
+
+/* ZONE 3: Pipeline + Engines */
+.ops-pipeline-engines-zone {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    padding: 8px 0;
+}
+
+/* Engine Category Accordion */
+.ops-engine-cat-strip { display: flex; flex-direction: column; gap: 2px; }
+.ops-engine-cat-row {
+    display: grid;
+    grid-template-columns: 120px 1fr 80px 24px;
+    align-items: center;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-radius: var(--ops-radius-sm);
+    background: var(--ops-surface);
+    border: 1px solid var(--ops-glass-border);
+    font-size: 0.75rem;
+    transition: background 0.15s;
+}
+.ops-engine-cat-row:hover { background: var(--ops-surface-hover, rgba(255,255,255,0.06)); }
+.ops-engine-cat-name { font-weight: 700; color: var(--ops-text-bright); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.65rem; }
+.ops-engine-cat-counts { color: var(--ops-text-muted); font-variant-numeric: tabular-nums; }
+.ops-engine-cat-risk { text-align: right; }
+.ops-engine-cat-risk.ok { color: var(--ops-green); }
+.ops-engine-cat-risk.warn { color: var(--ops-yellow); }
+.ops-engine-cat-risk.error { color: var(--ops-red); }
+.ops-engine-cat-chevron { text-align: center; color: var(--ops-text-dim); transition: transform 0.2s; }
+.ops-engine-cat-row.expanded .ops-engine-cat-chevron { transform: rotate(90deg); }
+.ops-engine-cat-body {
+    display: none;
+    padding: 8px 0 8px 0;
+}
+.ops-engine-cat-body.visible {
+    display: block;
+}
+.ops-engine-cat-body .ops-engines-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+}
+
+/* ZONE 4: Support Row */
+.ops-support-zone {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    padding: 8px 0;
+}
+
+/* ZONE 5: Diagnostics */
+.ops-diagnostics-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ops-text-dim);
+    background: var(--ops-surface);
+    border: 1px solid var(--ops-glass-border);
+    border-radius: var(--ops-radius-sm);
+    margin-top: 8px;
+    transition: color 0.15s;
+}
+.ops-diagnostics-toggle:hover { color: var(--ops-text); }
+.ops-diagnostics-chevron { transition: transform 0.2s; }
+.ops-diagnostics-toggle.expanded .ops-diagnostics-chevron { transform: rotate(90deg); }
+.ops-diagnostics-body {
+    display: none;
+    padding: 14px 0;
+}
+.ops-diagnostics-body.visible { display: block; }
+.ops-diagnostics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+}
+.ops-diagnostics-full { grid-column: 1 / -1; }
+
+/* Responsive for new zones */
+@media (max-width: 1024px) {
+    .ops-health-hero { grid-template-columns: 200px 1fr; }
+    .ops-hero-trends, .ops-hero-schedulers { display: none; }
+    .ops-pipeline-engines-zone { grid-template-columns: 1fr; }
+    .ops-support-zone { grid-template-columns: repeat(2, 1fr); }
+    .ops-diagnostics-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+    .ops-health-hero { grid-template-columns: 1fr; }
+    .ops-support-zone { grid-template-columns: 1fr; }
+    .ops-diagnostics-grid { grid-template-columns: 1fr; }
+}
+
+/* =========================================================================
+   OPS WALL 2.0 — Legacy Command Center (Phase 5, kept for card styles)
    ========================================================================= */
 
 /* Row containers */
@@ -2283,6 +2461,196 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     .ops-cmd-row-3col,
     .ops-cmd-row-4col { grid-template-columns: 1fr; }
 }
+
+/* =====================================================================
+   5-ZONE COMMAND CENTER LAYOUT
+   ===================================================================== */
+
+/* Zone Layout */
+.ops-zone { margin-bottom: 14px; }
+
+/* Zone 1: Health Hero */
+.ops-health-hero {
+    display: grid;
+    grid-template-columns: 200px 1fr 1fr 280px;
+    gap: 16px;
+    padding: 16px;
+    align-items: start;
+}
+.ops-health-hero .ops-integrity-gauge-wrap { width: 160px; height: 160px; }
+.ops-health-hero .ops-integrity-score-big { font-size: 3rem; }
+
+/* Hero: Trend 2x2 grid */
+.ops-hero-trends {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+.ops-hero-trend-item {
+    background: var(--ops-surface);
+    border: 1px solid var(--ops-glass-border);
+    border-radius: var(--ops-radius-sm);
+    padding: 6px 8px;
+}
+.ops-hero-trend-item .ops-trend-spark { height: 32px; }
+.ops-hero-trend-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ops-text-dim); margin-bottom: 2px; }
+
+/* Hero: Scheduler compact */
+.ops-hero-schedulers .ops-sched-card { padding: 8px; margin-bottom: 6px; }
+.ops-hero-schedulers .ops-sched-name { font-size: 0.7rem; }
+.ops-hero-schedulers .ops-sched-metrics { gap: 4px; }
+
+/* Zone 2: Incidents Strip */
+.ops-incidents-strip {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 8px 0;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: thin;
+}
+.ops-incidents-strip::-webkit-scrollbar { height: 4px; }
+.ops-incidents-strip::-webkit-scrollbar-thumb { background: var(--ops-glass-border); border-radius: 2px; }
+.ops-incidents-clear {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    font-size: 0.75rem;
+    color: var(--ops-green);
+    border: 1px solid var(--ops-green-dim);
+    border-radius: var(--ops-radius-sm);
+    background: var(--ops-green-dim);
+}
+.ops-anomaly-compact {
+    min-width: 280px;
+    max-width: 340px;
+    flex-shrink: 0;
+    scroll-snap-align: start;
+    background: var(--ops-surface);
+    border: 1px solid var(--ops-glass-border);
+    border-radius: var(--ops-radius);
+    padding: 10px 14px;
+    border-left: 3px solid var(--ops-yellow);
+}
+.ops-anomaly-compact.severity-P1 { border-left-color: var(--ops-red); }
+.ops-anomaly-compact.severity-P2 { border-left-color: var(--ops-yellow); }
+.ops-anomaly-compact.severity-P3 { border-left-color: var(--ops-blue); }
+.ops-anomaly-compact-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.ops-anomaly-compact-badge { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; padding: 1px 5px; border-radius: 3px; }
+.ops-anomaly-compact-badge.P1 { background: var(--ops-red-dim); color: var(--ops-red); }
+.ops-anomaly-compact-badge.P2 { background: var(--ops-yellow-dim); color: var(--ops-yellow); }
+.ops-anomaly-compact-badge.P3 { background: var(--ops-blue-dim); color: var(--ops-blue); }
+.ops-anomaly-compact-type { font-size: 0.7rem; font-weight: 600; color: var(--ops-text-bright); }
+.ops-anomaly-compact-system { font-size: 0.6rem; color: var(--ops-text-dim); margin-top: 1px; }
+.ops-anomaly-compact-desc { font-size: 0.68rem; color: var(--ops-text-muted); margin: 4px 0; line-height: 1.3; }
+.ops-anomaly-compact-actions { display: flex; gap: 6px; margin-top: 6px; }
+.ops-anomaly-compact-btn {
+    font-size: 0.6rem;
+    padding: 3px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--ops-glass-border);
+    background: transparent;
+    color: var(--ops-cyan);
+    cursor: pointer;
+}
+
+/* Zone 3: Pipeline + Engines */
+.ops-zone-pipeline-engines {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+/* Engine Category Accordion */
+.ops-engine-accordion { display: flex; flex-direction: column; gap: 2px; }
+.ops-engine-cat-row {
+    display: grid;
+    grid-template-columns: 100px 1fr 24px;
+    align-items: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: var(--ops-radius-sm);
+    background: var(--ops-surface);
+    border: 1px solid var(--ops-glass-border);
+    transition: background var(--ops-transition);
+}
+.ops-engine-cat-row:hover { background: var(--ops-surface-hover); }
+.ops-engine-cat-row.active { background: var(--ops-surface-hover); border-color: var(--ops-cyan); }
+.ops-engine-cat-name { font-size: 0.72rem; font-weight: 600; color: var(--ops-text-bright); }
+.ops-engine-cat-summary { font-size: 0.65rem; color: var(--ops-text-muted); display: flex; gap: 8px; align-items: center; }
+.ops-engine-cat-ok { color: var(--ops-green); }
+.ops-engine-cat-err { color: var(--ops-red); }
+.ops-engine-cat-warn { color: var(--ops-yellow); }
+.ops-engine-cat-chevron { color: var(--ops-text-dim); font-size: 0.8rem; transition: transform 0.2s; }
+.ops-engine-cat-row.active .ops-engine-cat-chevron { transform: rotate(90deg); }
+.ops-engine-cat-expanded {
+    display: none;
+    padding: 8px 0;
+}
+.ops-engine-cat-expanded.visible {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+/* Zone 4: Support 4-col */
+.ops-zone-support {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+}
+
+/* Zone 5: Diagnostics */
+.ops-diagnostics-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ops-text-dim);
+    border: 1px solid var(--ops-glass-border);
+    border-radius: var(--ops-radius-sm);
+    background: var(--ops-surface);
+    transition: all var(--ops-transition);
+}
+.ops-diagnostics-toggle:hover { color: var(--ops-text); background: var(--ops-surface-hover); }
+.ops-diagnostics-chevron { transition: transform 0.2s; }
+.ops-diagnostics-toggle.active .ops-diagnostics-chevron { transform: rotate(90deg); }
+.ops-diagnostics-body {
+    display: none;
+    padding: 14px 0;
+}
+.ops-diagnostics-body.visible { display: block; }
+.ops-diagnostics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 14px;
+}
+.ops-diagnostics-full { margin-bottom: 14px; }
+
+/* Responsive for new zones */
+@media (max-width: 1024px) {
+    .ops-health-hero { grid-template-columns: 180px 1fr; }
+    .ops-health-hero > :nth-child(3),
+    .ops-health-hero > :nth-child(4) { display: none; }
+    .ops-zone-pipeline-engines { grid-template-columns: 1fr; }
+    .ops-zone-support { grid-template-columns: repeat(2, 1fr); }
+    .ops-diagnostics-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+    .ops-health-hero { grid-template-columns: 1fr; }
+    .ops-health-hero > :nth-child(2),
+    .ops-health-hero > :nth-child(3),
+    .ops-health-hero > :nth-child(4) { display: none; }
+    .ops-zone-support { grid-template-columns: 1fr; }
+    .ops-diagnostics-grid { grid-template-columns: 1fr; }
+    .ops-engine-cat-expanded.visible { grid-template-columns: 1fr; }
+}
 </style>
 
 <!-- ECharts Library -->
@@ -2291,10 +2659,10 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
 <div class="ops-wall" data-testid="ac-operations-wall">
 
     <!-- ============================================================
-         BRIEFING STRIP — Top Bar + Posture + Narration + Maturity
+         5-ZONE COMMAND CENTER LAYOUT
          ============================================================ -->
 
-    <!-- Engine Status Top Bar (moved to top) -->
+    <!-- ZONE 0 — Command Bar (unchanged) -->
     <div class="ops-section ops-topbar">
         <div class="ops-topbar-left">
             <span class="ops-topbar-title">Ops Wall 2.0</span>
@@ -2310,379 +2678,295 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         </div>
     </div>
 
-    <!-- Posture Banner -->
-    <div class="ops-section ops-glass ops-posture OK" id="postureBanner">
-        <span class="ops-posture-dot OK" id="postureDot"></span>
-        <span class="ops-posture-text" id="postureText">Initializing SAME...</span>
-        <span class="ops-posture-meta">Updated: <span id="lastUpdateTime">&mdash;</span></span>
-        <div class="ops-same-controls" id="sameControls">
-            <button class="ops-same-execute-btn" id="sameExecuteBtn" title="Manually trigger a SAME monitoring cycle">
-                <span class="ops-same-btn-icon">▶</span>
-                <span class="ops-same-btn-label">Execute Now</span>
-            </button>
-            <span class="ops-same-status-badge" id="sameStatusBadge" style="display: none;"></span>
-            <span class="ops-same-last-run" id="sameLastRun"></span>
-        </div>
-    </div>
+    <!-- ============================================================
+         ZONE 1 — System Health Hero
+         ============================================================ -->
+    <div class="ops-zone ops-section ops-glass ops-health-hero" id="integrityHero">
 
-    <!-- SAME Narration Bar -->
-    <div class="ops-section ops-glass ops-narration" id="narrationBar">
-        <div class="ops-narration-section">
-            <h3>What's Happening Now</h3>
-            <ul class="ops-narration-list" id="narrativeBullets">
-                <li>Waiting for SAME data...</li>
-            </ul>
-        </div>
-        <div class="ops-narration-section">
-            <h3>Recommendations</h3>
-            <ul class="ops-narration-list recs" id="narrativeRecs">
-                <li>Awaiting analysis...</li>
-            </ul>
-        </div>
-        <div class="ops-narration-section">
-            <h3>Watching Next</h3>
-            <ul class="ops-narration-list watching" id="narrativeWatching">
-                <li>&mdash;</li>
-            </ul>
-        </div>
-    </div>
-
-    <!-- WAR ROOM BRIEFING — System Maturity (Phase 9) -->
-    {% if maturity_scores %}
-    <div class="ops-section ops-glass ops-maturity-hero" id="maturityBriefing">
-        <div class="ops-maturity-header">
-            <span class="ops-maturity-title">WLJ System Maturity</span>
-            {% with overall=maturity_scores.overall %}
-            <div class="ops-maturity-overall">
-                {% if overall.score is not None %}
-                <span class="ops-maturity-overall-score {% if overall.score >= 80 %}score-green{% elif overall.score >= 60 %}score-amber{% else %}score-red{% endif %}">{{ overall.score }}</span>
-                {% with delta=maturity_deltas.overall %}
-                {% if delta is not None %}
-                <span class="ops-maturity-overall-delta {% if delta > 0 %}delta-up{% elif delta < 0 %}delta-down{% else %}delta-flat{% endif %}">{% if delta > 0 %}&#9650; +{{ delta }}{% elif delta < 0 %}&#9660; {{ delta }}{% else %}&mdash;{% endif %}</span>
-                {% endif %}
-                {% endwith %}
-                {% else %}
-                <span class="ops-maturity-overall-score score-none">N/A</span>
-                {% endif %}
-                <span class="ops-maturity-overall-label">Overall</span>
+        <!-- Column 1: Integrity Gauge -->
+        <div>
+            <div class="ops-integrity-gauge-wrap">
+                <div id="integrityGauge" style="width:100%;height:100%"></div>
             </div>
-            {% endwith %}
-        </div>
-        <div class="ops-maturity-grid">
-            {% for dim_key, dim_data in maturity_scores.items %}
-            {% if dim_key != "overall" %}
-            <div class="ops-maturity-card" {% if dim_key == "life_impact" %}id="lifeImpactCard"{% endif %}>
-                <div class="ops-maturity-card-label">{% if dim_key == "domain_coverage" %}Coverage{% elif dim_key == "infrastructure" %}Infra{% elif dim_key == "intelligence" %}Intelligence{% elif dim_key == "life_impact" %}Life Impact{% elif dim_key == "safety" %}Safety{% else %}{{ dim_key }}{% endif %}</div>
-                {% if dim_data.score is not None %}
-                <div class="ops-maturity-card-score {% if dim_data.score >= 80 %}score-green{% elif dim_data.score >= 60 %}score-amber{% else %}score-red{% endif %}">{{ dim_data.score }}</div>
-                {% else %}
-                <div class="ops-maturity-card-score score-none">&mdash;</div>
-                {% endif %}
-                {% with delta_val=maturity_deltas|default:"" %}
-                {% if delta_val %}
-                {% for dk, dv in delta_val.items %}
-                {% if dk == dim_key and dv is not None %}
-                <div class="ops-maturity-delta {% if dv > 0 %}delta-up{% elif dv < 0 %}delta-down{% else %}delta-flat{% endif %}">{% if dv > 0 %}&#9650; +{{ dv }}{% elif dv < 0 %}&#9660; {{ dv }}{% else %}&mdash;{% endif %}</div>
-                {% endif %}
-                {% endfor %}
-                {% endif %}
-                {% endwith %}
-                {% if dim_key == "life_impact" %}
-                {% if life_impact_sample_size %}<div style="font-size:0.55rem;color:var(--ops-text-dim);margin-top:2px">Across {{ life_impact_sample_size }} user{{ life_impact_sample_size|pluralize }}</div>{% endif %}
-                {% if life_impact_breakdown %}<button class="ops-life-impact-toggle" data-target="lifeImpactBreakdown" type="button">Factors &#9662;</button>{% endif %}
-                {% endif %}
-            </div>
-            {% endif %}
-            {% endfor %}
-        </div>
-        {% if life_impact_breakdown %}
-        <div class="ops-life-impact-breakdown" id="lifeImpactBreakdown">
-            {% for factor in life_impact_breakdown %}
-            <div class="ops-life-impact-factor">
-                <span class="ops-life-impact-factor-label">{{ factor.label }}</span>
-                <div class="ops-life-impact-factor-bar">
-                    <div class="ops-life-impact-factor-fill {% if factor.value >= 60 %}bar-green{% elif factor.value >= 30 %}bar-amber{% else %}bar-red{% endif %}" style="width:{{ factor.value }}%"></div>
+            <div style="text-align:center;margin-top:6px">
+                <div class="ops-integrity-score-row">
+                    <span class="ops-integrity-score-big NOMINAL" id="integrityScore">&mdash;</span>
+                    <span class="ops-integrity-delta neutral" id="integrityDelta"></span>
                 </div>
-                <span class="ops-life-impact-factor-value">{{ factor.value }}%</span>
-                <span class="ops-life-impact-factor-weight">({{ factor.weight_pct }}%)</span>
+                <div class="ops-integrity-mini-spark" id="integrityMiniSpark"></div>
+                <div class="ops-integrity-posture-label NOMINAL" id="integrityPosture">&mdash;</div>
+                <div class="ops-integrity-trend-chart" id="integrityTrend" style="height:40px;margin-top:4px"></div>
             </div>
-            {% endfor %}
         </div>
-        {% endif %}
-        {% if maturity_regressions or maturity_recommendations %}
-        <div class="ops-maturity-alerts">
-            {% for reg in maturity_regressions %}
-            <div class="ops-maturity-alert ops-maturity-regression">⚠ {{ reg.dimension }}: dropped {{ reg.drop }} pts</div>
-            {% endfor %}
-            {% for rec in maturity_recommendations %}
-            <div class="ops-maturity-alert priority-{{ rec.priority }}">{{ rec.message }}</div>
-            {% endfor %}
-        </div>
-        {% endif %}
-    </div>
-    {% endif %}
 
-    <!-- Domain Coverage -->
-    {% if domain_coverage %}
-    <div class="ops-section ops-glass ops-domain-coverage" id="domainCoverage">
-        <div class="ops-domain-section-title">Domain Coverage</div>
-        <div class="ops-domain-grid">
-            {% for d in domain_coverage %}
-            <div class="ops-domain-row">
-                <span class="ops-domain-name">{{ d.display_name }}</span>
-                <div class="ops-domain-bar-wrap">
-                    <div class="ops-domain-bar-fill {% if d.coverage_score >= 80 %}bar-green{% elif d.coverage_score >= 50 %}bar-amber{% else %}bar-red{% endif %}" style="width:{{ d.coverage_score }}%"></div>
+        <!-- Column 2: Posture + Components -->
+        <div>
+            <!-- Posture Banner -->
+            <div class="ops-section ops-glass ops-posture OK" id="postureBanner" style="margin-bottom:10px">
+                <span class="ops-posture-dot OK" id="postureDot"></span>
+                <span class="ops-posture-text" id="postureText">Initializing SAME...</span>
+                <span class="ops-posture-meta">Updated: <span id="lastUpdateTime">&mdash;</span></span>
+                <div class="ops-same-controls" id="sameControls">
+                    <button class="ops-same-execute-btn" id="sameExecuteBtn" title="Manually trigger a SAME monitoring cycle">
+                        <span class="ops-same-btn-icon">&#9654;</span>
+                        <span class="ops-same-btn-label">Execute Now</span>
+                    </button>
+                    <span class="ops-same-status-badge" id="sameStatusBadge" style="display: none;"></span>
+                    <span class="ops-same-last-run" id="sameLastRun"></span>
                 </div>
-                <span class="ops-domain-pct">{{ d.coverage_score|floatformat:0 }}%</span>
-                <span class="ops-domain-meta">{{ d.intent_count }}i · {{ d.signal_count }}s</span>
             </div>
-            {% endfor %}
+            <!-- Component Bars Strip -->
+            <div class="ops-integrity-strip" id="integrityStrip">
+                <div class="ops-integrity-comp">
+                    <div class="ops-integrity-comp-header">
+                        <span class="ops-integrity-comp-label">Engines</span>
+                        <span class="ops-integrity-comp-value" id="icEngines">&mdash;</span>
+                    </div>
+                    <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icEnginesBar"></div></div>
+                </div>
+                <div class="ops-integrity-comp">
+                    <div class="ops-integrity-comp-header">
+                        <span class="ops-integrity-comp-label">Anomalies</span>
+                        <span class="ops-integrity-comp-value" id="icAnomaly">&mdash;</span>
+                    </div>
+                    <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icAnomalyBar"></div></div>
+                </div>
+                <div class="ops-integrity-comp">
+                    <div class="ops-integrity-comp-header">
+                        <span class="ops-integrity-comp-label">Errors</span>
+                        <span class="ops-integrity-comp-value" id="icErrors">&mdash;</span>
+                    </div>
+                    <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icErrorsBar"></div></div>
+                </div>
+                <div class="ops-integrity-comp">
+                    <div class="ops-integrity-comp-header">
+                        <span class="ops-integrity-comp-label">Suppression</span>
+                        <span class="ops-integrity-comp-value" id="icSuppress">&mdash;</span>
+                    </div>
+                    <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icSuppressBar"></div></div>
+                </div>
+                <div class="ops-integrity-comp">
+                    <div class="ops-integrity-comp-header">
+                        <span class="ops-integrity-comp-label">Volatility</span>
+                        <span class="ops-integrity-comp-value" id="icVolatility">&mdash;</span>
+                    </div>
+                    <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icVolatilityBar"></div></div>
+                </div>
+            </div>
         </div>
-    </div>
-    {% endif %}
 
-    <!-- Proactive Intelligence -->
-    <div class="ops-section ops-glass ops-proactive-tile" id="proactiveTile">
-        <div class="ops-proactive-header">
-            <span class="ops-domain-section-title">Proactive Intelligence</span>
-            <div class="ops-proactive-total">
-                <span class="ops-proactive-total-value">{{ proactive_stats.total_7d }}</span>
-                <span class="ops-proactive-total-label">check-ins (7d)</span>
+        <!-- Column 3: Trend Sparklines 2x2 -->
+        <div class="ops-hero-trends">
+            <div class="ops-hero-trend-item">
+                <div class="ops-hero-trend-label">Integrity</div>
+                <div class="ops-trend-spark" id="trendIntegrity"></div>
+            </div>
+            <div class="ops-hero-trend-item">
+                <div class="ops-hero-trend-label">CoS Latency</div>
+                <div class="ops-trend-spark" id="trendCosLatency"></div>
+            </div>
+            <div class="ops-hero-trend-item">
+                <div class="ops-hero-trend-label">Engines OK</div>
+                <div class="ops-trend-spark" id="trendEngineOk"></div>
+            </div>
+            <div class="ops-hero-trend-item">
+                <div class="ops-hero-trend-label">Validator Rate</div>
+                <div class="ops-trend-spark" id="trendValidatorRate"></div>
             </div>
         </div>
-        {% if proactive_stats.by_type %}
-        <div class="ops-proactive-types">
-            {% for type_name, count in proactive_stats.by_type %}
-            <div class="ops-proactive-type-chip">
-                <span>{{ type_name|default:"unknown" }}</span>
-                <span class="ops-proactive-type-count">{{ count }}</span>
+
+        <!-- Column 4: Scheduler Pulses -->
+        <div class="ops-hero-schedulers">
+            <div class="ops-scheduler-heartbeat" id="schedulerHeartbeat">
+                <div class="ops-sched-card" id="schedCardISE">
+                    <div class="ops-sched-pulse OFFLINE" id="schedPulseISE"></div>
+                    <div class="ops-sched-info">
+                        <div class="ops-sched-name">ISE Scheduler</div>
+                        <span class="ops-sched-status-label OFFLINE" id="schedStatusISE">OFFLINE</span>
+                        <div class="ops-sched-metrics">
+                            <div class="ops-sched-metric"><span class="ops-sched-metric-label">Last Tick</span><span class="ops-sched-metric-value" id="schedLastTickISE">&mdash;</span></div>
+                            <div class="ops-sched-metric"><span class="ops-sched-metric-label">Interval</span><span class="ops-sched-metric-value" id="schedIntervalISE">&mdash;</span></div>
+                            <div class="ops-sched-metric"><span class="ops-sched-metric-label">Drift</span><span class="ops-sched-metric-value" id="schedDriftISE">&mdash;</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="ops-sched-card" id="schedCardSAME">
+                    <div class="ops-sched-pulse OFFLINE" id="schedPulseSAME"></div>
+                    <div class="ops-sched-info">
+                        <div class="ops-sched-name">SAME Monitor</div>
+                        <span class="ops-sched-status-label OFFLINE" id="schedStatusSAME">OFFLINE</span>
+                        <div class="ops-sched-metrics">
+                            <div class="ops-sched-metric"><span class="ops-sched-metric-label">Last Tick</span><span class="ops-sched-metric-value" id="schedLastTickSAME">&mdash;</span></div>
+                            <div class="ops-sched-metric"><span class="ops-sched-metric-label">Interval</span><span class="ops-sched-metric-value" id="schedIntervalSAME">&mdash;</span></div>
+                            <div class="ops-sched-metric"><span class="ops-sched-metric-label">Drift</span><span class="ops-sched-metric-value" id="schedDriftSAME">&mdash;</span></div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            {% endfor %}
         </div>
-        {% else %}
-        <div style="font-size:0.72rem;color:var(--ops-text-dim)">No proactive check-ins in the last 7 days.</div>
-        {% endif %}
-    </div>
+
+    </div><!-- /Zone 1 -->
 
     <!-- ============================================================
-         COMMAND CENTER — 6-Row Grid Layout (Phase 5)
+         ZONE 2 — Active Incidents Strip
          ============================================================ -->
+    <div class="ops-zone ops-zone-incidents">
+        <div class="ops-incidents-clear" id="incidentsClearBar">
+            <span class="ops-incidents-clear-icon">&#10003;</span>
+            <span>All clear — no active incidents</span>
+        </div>
+        <div class="ops-incidents-strip" id="watchlistPanel">
+            <!-- Anomaly cards rendered dynamically by renderWatchlist() -->
+        </div>
+        <span class="ops-cmd-card-status" id="incidentFeedStatus"></span>
+    </div><!-- /Zone 2 -->
 
-    <!-- ROW 1 — Executive Health -->
-    <div class="ops-cmd-row ops-cmd-row-3col">
+    <!-- ============================================================
+         ZONE 3 — Pipeline + Engine Health
+         ============================================================ -->
+    <div class="ops-zone ops-zone-pipeline-engines">
 
-        <!-- Card: System Integrity -->
+        <!-- Left: Intelligence Pipeline -->
         <div class="ops-cmd-card ops-glass">
             <div class="ops-cmd-card-header">
-                <span class="ops-cmd-card-title">System Integrity</span>
-                <span class="ops-cmd-card-status" id="integrityCardStatus"></span>
+                <span class="ops-cmd-card-title">Intelligence Pipeline</span>
             </div>
             <div class="ops-cmd-card-body">
-                <div class="ops-integrity-hero" id="integrityHero">
-                    <div class="ops-integrity-hero-main">
-                        <div class="ops-integrity-gauge-wrap">
-                            <div id="integrityGauge" style="width:100%;height:100%"></div>
-                        </div>
-                        <div class="ops-integrity-center">
-                            <div class="ops-integrity-label">System Integrity Index</div>
-                            <div class="ops-integrity-score-row">
-                                <span class="ops-integrity-score-big NOMINAL" id="integrityScore">&mdash;</span>
-                                <span class="ops-integrity-delta neutral" id="integrityDelta"></span>
-                            </div>
-                            <div class="ops-integrity-mini-spark" id="integrityMiniSpark"></div>
-                            <div class="ops-integrity-posture-label NOMINAL" id="integrityPosture">&mdash;</div>
-                        </div>
-                        <div class="ops-integrity-trend-wrap">
-                            <div class="ops-integrity-label">Score History</div>
-                            <div class="ops-integrity-trend-chart" id="integrityTrend"></div>
-                        </div>
+                <div class="ops-pipeline-health" id="pipelineHealthTile">
+                    <div class="ops-pipeline-header">
+                        <div class="ops-pipeline-pulse CRITICAL" id="pipelinePulse"></div>
+                        <span class="ops-pipeline-title">Pipeline</span>
+                        <span class="ops-pipeline-counter" id="pipelineCounter">0 / 5 layers</span>
+                        <span class="ops-pipeline-status-label CRITICAL" id="pipelineStatusLabel">INITIALIZING</span>
+                        <button class="ops-pipeline-trigger-btn" id="pipelineTriggerBtn" title="Run signal aggregation now">
+                            &#9654; Run Signals
+                        </button>
+                        <button class="ops-pipeline-trigger-btn" id="momentumTriggerBtn" title="Run goal momentum computation now">
+                            &#9654; Run Momentum
+                        </button>
                     </div>
-                    <div class="ops-integrity-strip" id="integrityStrip">
-                        <div class="ops-integrity-comp">
-                            <div class="ops-integrity-comp-header">
-                                <span class="ops-integrity-comp-label">Engines</span>
-                                <span class="ops-integrity-comp-value" id="icEngines">&mdash;</span>
-                            </div>
-                            <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icEnginesBar"></div></div>
+                    <div class="ops-pipeline-grid">
+                        <div class="ops-pipeline-sub" id="pipelineSubSignals">
+                            <div class="ops-pipeline-sub-name">Signal Snapshots</div>
+                            <span class="ops-pipeline-sub-status EMPTY" id="pipelineStatusSignals">LOADING</span>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Total</span><span class="ops-pipeline-sub-metric-value" id="pipeSigTotal">0</span></div>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Last 24h</span><span class="ops-pipeline-sub-metric-value" id="pipeSig24h">0</span></div>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Users 24h</span><span class="ops-pipeline-sub-metric-value" id="pipeSigUsers">0</span></div>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Latest</span><span class="ops-pipeline-sub-metric-value" id="pipeSigAge">&mdash;</span></div>
                         </div>
-                        <div class="ops-integrity-comp">
-                            <div class="ops-integrity-comp-header">
-                                <span class="ops-integrity-comp-label">Anomalies</span>
-                                <span class="ops-integrity-comp-value" id="icAnomaly">&mdash;</span>
-                            </div>
-                            <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icAnomalyBar"></div></div>
+                        <div class="ops-pipeline-sub" id="pipelineSubMomentum">
+                            <div class="ops-pipeline-sub-name">Goal Momentum</div>
+                            <span class="ops-pipeline-sub-status EMPTY" id="pipelineStatusMomentum">LOADING</span>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Total</span><span class="ops-pipeline-sub-metric-value" id="pipeMomTotal">0</span></div>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Last 24h</span><span class="ops-pipeline-sub-metric-value" id="pipeMom24h">0</span></div>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Latest</span><span class="ops-pipeline-sub-metric-value" id="pipeMomAge">&mdash;</span></div>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Users 24h</span><span class="ops-pipeline-sub-metric-value" id="pipeMomUsers">0</span></div>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Avg Score</span><span class="ops-pipeline-sub-metric-value" id="pipeMomAvg">&mdash;</span></div>
                         </div>
-                        <div class="ops-integrity-comp">
-                            <div class="ops-integrity-comp-header">
-                                <span class="ops-integrity-comp-label">Errors</span>
-                                <span class="ops-integrity-comp-value" id="icErrors">&mdash;</span>
-                            </div>
-                            <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icErrorsBar"></div></div>
+                        <div class="ops-pipeline-sub" id="pipelineSubJournal">
+                            <div class="ops-pipeline-sub-name">Journal NLP</div>
+                            <span class="ops-pipeline-sub-status EMPTY" id="pipelineStatusJournal">LOADING</span>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Signals</span><span class="ops-pipeline-sub-metric-value" id="pipeJnlTotal">0</span></div>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Last 7d</span><span class="ops-pipeline-sub-metric-value" id="pipeJnl7d">0</span></div>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Entries 7d</span><span class="ops-pipeline-sub-metric-value" id="pipeJnlEntries">0</span></div>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Extracted</span><span class="ops-pipeline-sub-metric-value" id="pipeJnlExtracted">0</span></div>
                         </div>
-                        <div class="ops-integrity-comp">
-                            <div class="ops-integrity-comp-header">
-                                <span class="ops-integrity-comp-label">Suppression</span>
-                                <span class="ops-integrity-comp-value" id="icSuppress">&mdash;</span>
-                            </div>
-                            <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icSuppressBar"></div></div>
+                        <div class="ops-pipeline-sub" id="pipelineSubComp">
+                            <div class="ops-pipeline-sub-name">Compensatory</div>
+                            <span class="ops-pipeline-sub-status EMPTY" id="pipelineStatusComp">LOADING</span>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Total</span><span class="ops-pipeline-sub-metric-value" id="pipeCompTotal">0</span></div>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Last 7d</span><span class="ops-pipeline-sub-metric-value" id="pipeComp7d">0</span></div>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Insights 7d</span><span class="ops-pipeline-sub-metric-value" id="pipeCompInsights">0</span></div>
                         </div>
-                        <div class="ops-integrity-comp">
-                            <div class="ops-integrity-comp-header">
-                                <span class="ops-integrity-comp-label">Volatility</span>
-                                <span class="ops-integrity-comp-value" id="icVolatility">&mdash;</span>
-                            </div>
-                            <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icVolatilityBar"></div></div>
+                        <div class="ops-pipeline-sub" id="pipelineSubCos">
+                            <div class="ops-pipeline-sub-name">CoS Context</div>
+                            <span class="ops-pipeline-sub-status EMPTY" id="pipelineStatusCos">LOADING</span>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Chats 24h</span><span class="ops-pipeline-sub-metric-value" id="pipeCosChats">0</span></div>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Builders</span><span class="ops-pipeline-sub-metric-value" id="pipeCosBuilders">0</span></div>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Empty</span><span class="ops-pipeline-sub-metric-value" id="pipeCosEmpty">0</span></div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Card: CoS Performance (NEW) -->
-        <div class="ops-cmd-card ops-glass" id="cosPerformanceCard">
-            <div class="ops-cmd-card-header">
-                <span class="ops-cmd-card-title">CoS Performance</span>
-                <span class="ops-cmd-card-status no_data" id="cosPerfStatus">NO DATA</span>
-            </div>
-            <div class="ops-cmd-card-body">
-                <div class="ops-cmd-metrics-row">
-                    <div class="ops-cmd-metric">
-                        <div class="ops-cmd-metric-value dim" id="cosPerfP50">&mdash;</div>
-                        <div class="ops-cmd-metric-label">P50 Build</div>
-                    </div>
-                    <div class="ops-cmd-metric">
-                        <div class="ops-cmd-metric-value dim" id="cosPerfP95">&mdash;</div>
-                        <div class="ops-cmd-metric-label">P95 Build</div>
-                    </div>
-                    <div class="ops-cmd-metric">
-                        <div class="ops-cmd-metric-value dim" id="cosPerfTtft">&mdash;</div>
-                        <div class="ops-cmd-metric-label">P95 TTFT</div>
-                    </div>
-                </div>
-                <div class="ops-cmd-metrics-row" style="margin-top:10px">
-                    <div class="ops-cmd-metric">
-                        <div class="ops-cmd-metric-value dim" id="cosPerfCacheHit">&mdash;</div>
-                        <div class="ops-cmd-metric-label">Cache Hit Rate</div>
-                    </div>
-                    <div class="ops-cmd-metric">
-                        <div class="ops-cmd-metric-value dim" id="cosPerfTokens">&mdash;</div>
-                        <div class="ops-cmd-metric-label">Avg Tokens</div>
-                    </div>
-                    <div class="ops-cmd-metric">
-                        <div class="ops-cmd-metric-value dim" id="cosPerfSamples">&mdash;</div>
-                        <div class="ops-cmd-metric-label">Samples 24h</div>
-                    </div>
-                </div>
-                <div id="cosPerfBuilders" style="margin-top:10px;font-size:0.68rem;color:var(--ops-text-dim)"></div>
-            </div>
-        </div>
-
-        <!-- Card: Validator Gate (NEW) -->
-        <div class="ops-cmd-card ops-glass" id="validatorGateCard">
-            <div class="ops-cmd-card-header">
-                <span class="ops-cmd-card-title">Validator Gate</span>
-                <span class="ops-cmd-card-status no_data" id="validatorStatus">NO DATA</span>
-            </div>
-            <div class="ops-cmd-card-body">
-                <div class="ops-cmd-metrics-row">
-                    <div class="ops-cmd-metric">
-                        <div class="ops-cmd-metric-value dim" id="validatorBlockRate1h">&mdash;</div>
-                        <div class="ops-cmd-metric-label">Block Rate 1h</div>
-                    </div>
-                    <div class="ops-cmd-metric">
-                        <div class="ops-cmd-metric-value dim" id="validatorBlockRate24h">&mdash;</div>
-                        <div class="ops-cmd-metric-label">Block Rate 24h</div>
-                    </div>
-                    <div class="ops-cmd-metric">
-                        <div class="ops-cmd-metric-value dim" id="validatorCrashes">&mdash;</div>
-                        <div class="ops-cmd-metric-label">Crashes 24h</div>
-                    </div>
-                </div>
-                <div class="ops-cmd-metrics-row" style="margin-top:10px">
-                    <div class="ops-cmd-metric">
-                        <div class="ops-cmd-metric-value dim" id="validatorTotal1h">&mdash;</div>
-                        <div class="ops-cmd-metric-label">Evals 1h</div>
-                    </div>
-                    <div class="ops-cmd-metric">
-                        <div class="ops-cmd-metric-value dim" id="validatorTotal24h">&mdash;</div>
-                        <div class="ops-cmd-metric-label">Evals 24h</div>
-                    </div>
-                    <div class="ops-cmd-metric">
-                        <div class="ops-cmd-metric-value dim" id="validatorAvgMs">&mdash;</div>
-                        <div class="ops-cmd-metric-label">Avg ms</div>
-                    </div>
-                </div>
-                <div id="validatorByPolicy" style="margin-top:10px;font-size:0.68rem;color:var(--ops-text-dim)"></div>
-            </div>
-        </div>
-
-    </div><!-- /Row 1 -->
-
-    <!-- ROW 2 — Core Systems -->
-    <div class="ops-cmd-row ops-cmd-row-3col">
-
-        <!-- Card: Engine Health -->
+        <!-- Right: Engine Category Accordion -->
         <div class="ops-cmd-card ops-glass">
             <div class="ops-cmd-card-header">
                 <span class="ops-cmd-card-title">Engine Health</span>
-                <a href="#" class="ops-cmd-card-link" id="depExplorerToggle">Dependencies</a>
                 <a href="{% url 'admin_console:ops_all_engines' %}" class="ops-cmd-card-link">All Engines</a>
             </div>
             <div class="ops-cmd-card-body">
-                <!-- Dependency Explorer (Phase 6) -->
-                <div class="ops-dep-explorer" id="depExplorer">
-                    <div class="ops-dep-explorer-header">
-                        <span class="ops-dep-explorer-title">Engine Dependency Explorer</span>
-                    </div>
-                    <div class="ops-dep-engine-list" id="depEngineList">Loading dependency graph...</div>
-                    <div id="depDetailPanel"></div>
+                <div class="ops-engine-accordion" id="engineAccordion">
+                    <div style="color:var(--ops-text-dim);font-size:0.75rem;text-align:center;padding:24px">Loading engine data...</div>
                 </div>
-                <!-- Scheduler Heartbeat -->
-                <div class="ops-scheduler-heartbeat" id="schedulerHeartbeat">
-                    <div class="ops-sched-card" id="schedCardISE">
-                        <div class="ops-sched-pulse OFFLINE" id="schedPulseISE"></div>
-                        <div class="ops-sched-info">
-                            <div class="ops-sched-name">ISE Scheduler</div>
-                            <span class="ops-sched-status-label OFFLINE" id="schedStatusISE">OFFLINE</span>
-                            <div class="ops-sched-metrics">
-                                <div class="ops-sched-metric"><span class="ops-sched-metric-label">Last Tick</span><span class="ops-sched-metric-value" id="schedLastTickISE">&mdash;</span></div>
-                                <div class="ops-sched-metric"><span class="ops-sched-metric-label">Interval</span><span class="ops-sched-metric-value" id="schedIntervalISE">&mdash;</span></div>
-                                <div class="ops-sched-metric"><span class="ops-sched-metric-label">Drift</span><span class="ops-sched-metric-value" id="schedDriftISE">&mdash;</span></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="ops-sched-card" id="schedCardSAME">
-                        <div class="ops-sched-pulse OFFLINE" id="schedPulseSAME"></div>
-                        <div class="ops-sched-info">
-                            <div class="ops-sched-name">SAME Monitor</div>
-                            <span class="ops-sched-status-label OFFLINE" id="schedStatusSAME">OFFLINE</span>
-                            <div class="ops-sched-metrics">
-                                <div class="ops-sched-metric"><span class="ops-sched-metric-label">Last Tick</span><span class="ops-sched-metric-value" id="schedLastTickSAME">&mdash;</span></div>
-                                <div class="ops-sched-metric"><span class="ops-sched-metric-label">Interval</span><span class="ops-sched-metric-value" id="schedIntervalSAME">&mdash;</span></div>
-                                <div class="ops-sched-metric"><span class="ops-sched-metric-label">Drift</span><span class="ops-sched-metric-value" id="schedDriftSAME">&mdash;</span></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- Macro Charts -->
-                <div class="ops-macro-charts" style="margin-top:10px">
-                    <div class="ops-glass ops-macro-chart">
-                        <div class="ops-macro-chart-title">Anomaly Trend</div>
-                        <div class="ops-macro-chart-body" id="anomalyTrendChart"></div>
-                    </div>
-                    <div class="ops-glass ops-macro-chart">
-                        <div class="ops-macro-chart-title">Engine Health by Category</div>
-                        <div class="ops-macro-chart-body" id="healthDistChart"></div>
-                    </div>
-                </div>
-                <!-- Engine Cards Grid -->
-                <div class="ops-engines-grid" id="engineCards" style="margin-top:10px">
-                    <div style="color:var(--ops-text-dim);font-size:0.8125rem;grid-column:1/-1;text-align:center;padding:48px">Loading engine data...</div>
+                <div class="ops-engines-grid" id="engineCards" style="display:none">
+                    <!-- Hidden container - existing engine cards rendered here for updateEngineCardsInPlace compatibility -->
                 </div>
             </div>
         </div>
 
-        <!-- Card: Signal Health (NEW) -->
+    </div><!-- /Zone 3 -->
+
+    <!-- ============================================================
+         ZONE 4 — Support Systems (4-col grid)
+         ============================================================ -->
+    <div class="ops-zone ops-zone-support">
+
+        <!-- Col 1: Data Integrity -->
+        <div class="ops-cmd-card ops-glass">
+            <div class="ops-cmd-card-header">
+                <span class="ops-cmd-card-title">Data Integrity</span>
+            </div>
+            <div class="ops-cmd-card-body">
+                <div class="ops-coas-health" id="coasHealthTile">
+                    <div class="ops-coas-header">
+                        <span class="ops-coas-title">COAS</span>
+                        <span class="ops-coas-overall HEALTHY" id="coasOverallScore">&mdash;</span>
+                    </div>
+                    <div class="ops-coas-grid">
+                        <div class="ops-coas-sub" id="coasSubScheduler">
+                            <div class="ops-coas-sub-name">Scheduler</div>
+                            <div class="ops-coas-sub-score HEALTHY" id="coasScoreScheduler">&mdash;</div>
+                        </div>
+                        <div class="ops-coas-sub" id="coasSubEngine">
+                            <div class="ops-coas-sub-name">Engine</div>
+                            <div class="ops-coas-sub-score HEALTHY" id="coasScoreEngine">&mdash;</div>
+                        </div>
+                        <div class="ops-coas-sub" id="coasSubFreshness">
+                            <div class="ops-coas-sub-name">Freshness</div>
+                            <div class="ops-coas-sub-score HEALTHY" id="coasScoreFreshness">&mdash;</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="ops-canonical-compliance" id="canonicalComplianceTile" style="margin-top:10px">
+                    <div class="ops-coas-header">
+                        <span class="ops-coas-title">Query Compliance</span>
+                        {% if canonical_compliance.score is not None %}
+                        <span class="ops-coas-overall {% if canonical_compliance.score >= 95 %}HEALTHY{% elif canonical_compliance.score >= 80 %}WARNING{% else %}CRITICAL{% endif %}" id="canonicalComplianceScore">{{ canonical_compliance.score }}%</span>
+                        {% else %}
+                        <span class="ops-coas-overall" id="canonicalComplianceScore" style="color:#888">&mdash;</span>
+                        {% endif %}
+                    </div>
+                    <div class="ops-coas-grid">
+                        <div class="ops-coas-sub">
+                            <div class="ops-coas-sub-name">Violations</div>
+                            <div class="ops-coas-sub-score {% if canonical_compliance.violations == 0 %}HEALTHY{% elif canonical_compliance.violations <= 10 %}WARNING{% else %}CRITICAL{% endif %}">{{ canonical_compliance.violations|default:"—" }}</div>
+                        </div>
+                        <div class="ops-coas-sub">
+                            <div class="ops-coas-sub-name">Scanned</div>
+                            <div class="ops-coas-sub-score">{{ canonical_compliance.scanned|default:"—" }}</div>
+                        </div>
+                        <div class="ops-coas-sub">
+                            <div class="ops-coas-sub-name">Last Audit</div>
+                            <div class="ops-coas-sub-score" style="font-size:11px">{% if canonical_compliance.last_run %}{{ canonical_compliance.last_run|truncatechars:16 }}{% else %}&mdash;{% endif %}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Col 2: Signal Health -->
         <div class="ops-cmd-card ops-glass" id="signalHealthCard">
             <div class="ops-cmd-card-header">
                 <span class="ops-cmd-card-title">Signal Health</span>
@@ -2707,188 +2991,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             </div>
         </div>
 
-        <!-- Card: Data Integrity -->
-        <div class="ops-cmd-card ops-glass">
-            <div class="ops-cmd-card-header">
-                <span class="ops-cmd-card-title">Data Integrity</span>
-            </div>
-            <div class="ops-cmd-card-body">
-                <!-- COAS Health -->
-                <div class="ops-coas-health" id="coasHealthTile">
-                    <div class="ops-coas-header">
-                        <span class="ops-coas-title">Operational Awareness (COAS)</span>
-                        <span class="ops-coas-overall HEALTHY" id="coasOverallScore">&mdash;</span>
-                    </div>
-                    <div class="ops-coas-grid">
-                        <div class="ops-coas-sub" id="coasSubScheduler">
-                            <div class="ops-coas-sub-name">Scheduler</div>
-                            <div class="ops-coas-sub-score HEALTHY" id="coasScoreScheduler">&mdash;</div>
-                        </div>
-                        <div class="ops-coas-sub" id="coasSubEngine">
-                            <div class="ops-coas-sub-name">Engine</div>
-                            <div class="ops-coas-sub-score HEALTHY" id="coasScoreEngine">&mdash;</div>
-                        </div>
-                        <div class="ops-coas-sub" id="coasSubFreshness">
-                            <div class="ops-coas-sub-name">Intelligence Freshness</div>
-                            <div class="ops-coas-sub-score HEALTHY" id="coasScoreFreshness">&mdash;</div>
-                        </div>
-                    </div>
-                </div>
-                <!-- Canonical Query Compliance -->
-                <div class="ops-canonical-compliance" id="canonicalComplianceTile" style="margin-top:12px">
-                    <div class="ops-coas-header">
-                        <span class="ops-coas-title">Query Compliance</span>
-                        {% if canonical_compliance.score is not None %}
-                        <span class="ops-coas-overall {% if canonical_compliance.score >= 95 %}HEALTHY{% elif canonical_compliance.score >= 80 %}WARNING{% else %}CRITICAL{% endif %}" id="canonicalComplianceScore">{{ canonical_compliance.score }}%</span>
-                        {% else %}
-                        <span class="ops-coas-overall" id="canonicalComplianceScore" style="color:#888">&mdash;</span>
-                        {% endif %}
-                    </div>
-                    <div class="ops-coas-grid">
-                        <div class="ops-coas-sub">
-                            <div class="ops-coas-sub-name">Violations</div>
-                            <div class="ops-coas-sub-score {% if canonical_compliance.violations == 0 %}HEALTHY{% elif canonical_compliance.violations <= 10 %}WARNING{% else %}CRITICAL{% endif %}">{{ canonical_compliance.violations|default:"—" }}</div>
-                        </div>
-                        <div class="ops-coas-sub">
-                            <div class="ops-coas-sub-name">Files Scanned</div>
-                            <div class="ops-coas-sub-score">{{ canonical_compliance.scanned|default:"—" }}</div>
-                        </div>
-                        <div class="ops-coas-sub">
-                            <div class="ops-coas-sub-name">Last Audit</div>
-                            <div class="ops-coas-sub-score" style="font-size:11px">{% if canonical_compliance.last_run %}{{ canonical_compliance.last_run|truncatechars:16 }}{% else %}&mdash;{% endif %}</div>
-                        </div>
-                    </div>
-                    <div style="font-size:10px; color:#888; margin-top:4px; text-align:right">
-                        Run: <code style="font-size:10px">manage.py audit_canonical_queries --cache</code>
-                    </div>
-                </div>
-                <!-- Pipeline Health -->
-                <div class="ops-pipeline-health" id="pipelineHealthTile" style="margin-top:12px">
-                    <div class="ops-pipeline-header">
-                        <div class="ops-pipeline-pulse CRITICAL" id="pipelinePulse"></div>
-                        <span class="ops-pipeline-title">Intelligence Pipeline</span>
-                        <span class="ops-pipeline-counter" id="pipelineCounter">0 / 5 layers</span>
-                        <span class="ops-pipeline-status-label CRITICAL" id="pipelineStatusLabel">INITIALIZING</span>
-                        <button class="ops-pipeline-trigger-btn" id="pipelineTriggerBtn" title="Run signal aggregation now">
-                            &#9654; Run Signals
-                        </button>
-                        <button class="ops-pipeline-trigger-btn" id="momentumTriggerBtn" title="Run goal momentum computation now">
-                            &#9654; Run Momentum
-                        </button>
-                    </div>
-                    <div class="ops-pipeline-grid">
-                        <!-- Signal Snapshots -->
-                        <div class="ops-pipeline-sub" id="pipelineSubSignals">
-                            <div class="ops-pipeline-sub-name">Signal Snapshots</div>
-                            <span class="ops-pipeline-sub-status EMPTY" id="pipelineStatusSignals">LOADING</span>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Total</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeSigTotal">0</span>
-                            </div>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Last 24h</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeSig24h">0</span>
-                            </div>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Users 24h</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeSigUsers">0</span>
-                            </div>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Latest</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeSigAge">&mdash;</span>
-                            </div>
-                        </div>
-                        <!-- Goal Momentum -->
-                        <div class="ops-pipeline-sub" id="pipelineSubMomentum">
-                            <div class="ops-pipeline-sub-name">Goal Momentum</div>
-                            <span class="ops-pipeline-sub-status EMPTY" id="pipelineStatusMomentum">LOADING</span>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Total</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeMomTotal">0</span>
-                            </div>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Last 24h</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeMom24h">0</span>
-                            </div>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Latest</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeMomAge">&mdash;</span>
-                            </div>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Users 24h</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeMomUsers">0</span>
-                            </div>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Avg Score</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeMomAvg">&mdash;</span>
-                            </div>
-                        </div>
-                        <!-- Journal NLP -->
-                        <div class="ops-pipeline-sub" id="pipelineSubJournal">
-                            <div class="ops-pipeline-sub-name">Journal NLP</div>
-                            <span class="ops-pipeline-sub-status EMPTY" id="pipelineStatusJournal">LOADING</span>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Signals</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeJnlTotal">0</span>
-                            </div>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Last 7d</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeJnl7d">0</span>
-                            </div>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Entries 7d</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeJnlEntries">0</span>
-                            </div>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Extracted</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeJnlExtracted">0</span>
-                            </div>
-                        </div>
-                        <!-- Compensatory -->
-                        <div class="ops-pipeline-sub" id="pipelineSubComp">
-                            <div class="ops-pipeline-sub-name">Compensatory</div>
-                            <span class="ops-pipeline-sub-status EMPTY" id="pipelineStatusComp">LOADING</span>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Total</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeCompTotal">0</span>
-                            </div>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Last 7d</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeComp7d">0</span>
-                            </div>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Insights 7d</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeCompInsights">0</span>
-                            </div>
-                        </div>
-                        <!-- CoS Context -->
-                        <div class="ops-pipeline-sub" id="pipelineSubCos">
-                            <div class="ops-pipeline-sub-name">CoS Context</div>
-                            <span class="ops-pipeline-sub-status EMPTY" id="pipelineStatusCos">LOADING</span>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Chats 24h</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeCosChats">0</span>
-                            </div>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Builders</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeCosBuilders">0</span>
-                            </div>
-                            <div class="ops-pipeline-sub-metric">
-                                <span class="ops-pipeline-sub-metric-label">Empty</span>
-                                <span class="ops-pipeline-sub-metric-value" id="pipeCosEmpty">0</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-    </div><!-- /Row 2 -->
-
-    <!-- ROW 3 — Support Systems -->
-    <div class="ops-cmd-row ops-cmd-row-3col">
-
-        <!-- Card: Action Systems (AAFR) -->
+        <!-- Col 3: Action Systems (AAFR) -->
         <div class="ops-cmd-card ops-glass">
             <div class="ops-cmd-card-header">
                 <span class="ops-cmd-card-title">Action Systems</span>
@@ -2898,7 +3001,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 <div class="ops-aafr" id="aafrTile">
                     <div class="ops-aafr-header">
                         <div class="ops-aafr-pulse HEALTHY" id="aafrPulse"></div>
-                        <span class="ops-aafr-title">AI Action Success Rate</span>
+                        <span class="ops-aafr-title">AAFR</span>
                         <span class="ops-aafr-status-label HEALTHY" id="aafrStatusLabel">HEALTHY</span>
                     </div>
                     <div class="ops-aafr-grid">
@@ -2919,227 +3022,15 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                         </div>
                     </div>
                     <div class="ops-aafr-summary">
-                        <span>Blocked (24h): <span class="ops-aafr-summary-blocked" id="aafrBlocked24h">0</span></span>
-                        <span>Failures (24h): <span class="ops-aafr-summary-failed" id="aafrFailed24h">0</span></span>
+                        <span>Blocked: <span class="ops-aafr-summary-blocked" id="aafrBlocked24h">0</span></span>
+                        <span>Failures: <span class="ops-aafr-summary-failed" id="aafrFailed24h">0</span></span>
                     </div>
                     <div class="ops-aafr-errors" id="aafrTopErrors"></div>
                 </div>
             </div>
         </div>
 
-        <!-- Card: Observability (Learning + Health Intel) -->
-        <div class="ops-cmd-card ops-glass">
-            <div class="ops-cmd-card-header">
-                <span class="ops-cmd-card-title">Observability</span>
-            </div>
-            <div class="ops-cmd-card-body">
-                <!-- Learning Health -->
-                <div class="ops-learning-health" id="learningHealthTile">
-                    <div class="ops-learning-header">
-                        <div class="ops-learning-pulse STALE" id="learningPulse"></div>
-                        <span class="ops-learning-title">Persistent Learning</span>
-                        <span class="ops-learning-counter" id="learningCounter">0 / 5 subsystems</span>
-                        <span class="ops-learning-status-label STALE" id="learningStatusLabel">INITIALIZING</span>
-                    </div>
-                    <div class="ops-learning-grid">
-                        <!-- Memory -->
-                        <div class="ops-learning-sub" id="learnSubMemory">
-                            <div class="ops-learning-sub-name">Memory</div>
-                            <span class="ops-learning-sub-status IDLE" id="learnStatusMemory">IDLE</span>
-                            <div class="ops-learning-sub-metrics">
-                                <div class="ops-learning-sub-metric">
-                                    <span class="ops-learning-sub-metric-label">Total</span>
-                                    <span class="ops-learning-sub-metric-value" id="learnMemTotal">0</span>
-                                </div>
-                                <div class="ops-learning-sub-metric">
-                                    <span class="ops-learning-sub-metric-label">Last 24h</span>
-                                    <span class="ops-learning-sub-metric-value" id="learnMem24h">0</span>
-                                </div>
-                                <div class="ops-learning-sub-metric">
-                                    <span class="ops-learning-sub-metric-label">Feedback</span>
-                                    <span class="ops-learning-sub-metric-value" id="learnMemFeedback">0</span>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Corrections -->
-                        <div class="ops-learning-sub" id="learnSubCorrections">
-                            <div class="ops-learning-sub-name">Corrections</div>
-                            <span class="ops-learning-sub-status IDLE" id="learnStatusCorrections">IDLE</span>
-                            <div class="ops-learning-sub-metrics">
-                                <div class="ops-learning-sub-metric">
-                                    <span class="ops-learning-sub-metric-label">Total</span>
-                                    <span class="ops-learning-sub-metric-value" id="learnCorrTotal">0</span>
-                                </div>
-                                <div class="ops-learning-sub-metric">
-                                    <span class="ops-learning-sub-metric-label">Last 7d</span>
-                                    <span class="ops-learning-sub-metric-value" id="learnCorr7d">0</span>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Patterns -->
-                        <div class="ops-learning-sub" id="learnSubPatterns">
-                            <div class="ops-learning-sub-name">Patterns</div>
-                            <span class="ops-learning-sub-status IDLE" id="learnStatusPatterns">IDLE</span>
-                            <div class="ops-learning-sub-metrics">
-                                <div class="ops-learning-sub-metric">
-                                    <span class="ops-learning-sub-metric-label">Active</span>
-                                    <span class="ops-learning-sub-metric-value" id="learnPatActive">0</span>
-                                </div>
-                                <div class="ops-learning-sub-metric">
-                                    <span class="ops-learning-sub-metric-label">Confirmed</span>
-                                    <span class="ops-learning-sub-metric-value" id="learnPatConfirmed">0</span>
-                                </div>
-                                <div class="ops-learning-sub-metric">
-                                    <span class="ops-learning-sub-metric-label">Confidence</span>
-                                    <span class="ops-learning-sub-metric-value" id="learnPatConfidence">&mdash;</span>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Response Prefs -->
-                        <div class="ops-learning-sub" id="learnSubResponsePrefs">
-                            <div class="ops-learning-sub-name">Response Prefs</div>
-                            <span class="ops-learning-sub-status IDLE" id="learnStatusResponsePrefs">IDLE</span>
-                            <div class="ops-learning-sub-metrics">
-                                <div class="ops-learning-sub-metric">
-                                    <span class="ops-learning-sub-metric-label">Feedback</span>
-                                    <span class="ops-learning-sub-metric-value" id="learnPrefFeedback">0</span>
-                                </div>
-                                <div class="ops-learning-sub-metric">
-                                    <span class="ops-learning-sub-metric-label">Helpful</span>
-                                    <span class="ops-learning-sub-metric-value" id="learnPrefHelpful">0</span>
-                                </div>
-                                <div class="ops-learning-sub-metric">
-                                    <span class="ops-learning-sub-metric-label">Unhelpful</span>
-                                    <span class="ops-learning-sub-metric-value" id="learnPrefUnhelpful">0</span>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Profile Evolution -->
-                        <div class="ops-learning-sub" id="learnSubProfile">
-                            <div class="ops-learning-sub-name">Profile</div>
-                            <span class="ops-learning-sub-status IDLE" id="learnStatusProfile">IDLE</span>
-                            <div class="ops-learning-sub-metrics">
-                                <div class="ops-learning-sub-metric">
-                                    <span class="ops-learning-sub-metric-label">Items</span>
-                                    <span class="ops-learning-sub-metric-value" id="learnProfItems">0</span>
-                                </div>
-                                <div class="ops-learning-sub-metric">
-                                    <span class="ops-learning-sub-metric-label">Evolved</span>
-                                    <span class="ops-learning-sub-metric-value" id="learnProfEvolved">0%</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- Health Intelligence Engine -->
-                <div class="ops-health-intel" id="healthIntelTile" style="margin-top:12px">
-                    <div class="ops-health-intel-header">
-                        <div class="ops-health-intel-pulse ERROR" id="healthIntelPulse"></div>
-                        <span class="ops-health-intel-title">Health Intelligence Engine</span>
-                        <span class="ops-health-intel-status ERROR" id="healthIntelStatus">INITIALIZING</span>
-                        <button class="ops-health-intel-rebuild-btn" id="hiRebuildBtn" title="Queue nightly health summary rebuild">
-                            &#8635; Rebuild
-                        </button>
-                    </div>
-                    <div class="ops-health-intel-grid">
-                        <!-- Summary Freshness -->
-                        <div class="ops-health-intel-card">
-                            <div class="ops-health-intel-card-title">Summary Pipeline</div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">Latest</span>
-                                <span class="ops-health-intel-metric-value" id="hiLatestDate">&mdash;</span>
-                            </div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">Updated</span>
-                                <span class="ops-health-intel-metric-value" id="hiUpdatedAge">&mdash;</span>
-                            </div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">7d Summaries</span>
-                                <span class="ops-health-intel-metric-value" id="hiSummaries7d">0</span>
-                            </div>
-                        </div>
-                        <!-- Scores -->
-                        <div class="ops-health-intel-card">
-                            <div class="ops-health-intel-card-title">Scores (7d Avg)</div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">Health</span>
-                                <span class="ops-health-intel-metric-value" id="hiAvgHealth">&mdash;</span>
-                            </div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">Recovery</span>
-                                <span class="ops-health-intel-metric-value" id="hiAvgRecovery">&mdash;</span>
-                            </div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">Completeness</span>
-                                <span class="ops-health-intel-metric-value" id="hiCompleteness">&mdash;</span>
-                            </div>
-                        </div>
-                        <!-- Coverage -->
-                        <div class="ops-health-intel-card">
-                            <div class="ops-health-intel-card-title">Coverage</div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">Active Users</span>
-                                <span class="ops-health-intel-metric-value" id="hiActiveUsers">0</span>
-                            </div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">With Summaries</span>
-                                <span class="ops-health-intel-metric-value" id="hiUsersWithData">0</span>
-                            </div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">Body Comp</span>
-                                <span class="ops-health-intel-metric-value" id="hiBodyCompUsers">0</span>
-                            </div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">BC Raw Data</span>
-                                <span class="ops-health-intel-metric-value" id="hiBodyCompRawUsers">0</span>
-                            </div>
-                        </div>
-                        <!-- Ingestion -->
-                        <div class="ops-health-intel-card">
-                            <div class="ops-health-intel-card-title">HealthKit (24h)</div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">Ingest Runs</span>
-                                <span class="ops-health-intel-metric-value" id="hiIngestRuns">0</span>
-                            </div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">Ingested</span>
-                                <span class="ops-health-intel-metric-value" id="hiMetricsIngested">0</span>
-                            </div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">Errors</span>
-                                <span class="ops-health-intel-metric-value" id="hiActualErrors">0</span>
-                            </div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">Dedup Skip</span>
-                                <span class="ops-health-intel-metric-value" id="hiSkipRate">0%</span>
-                            </div>
-                            <div id="hiErrorDetails" style="display:none; margin-top:0.5rem; font-size:0.75rem; text-align:left; width:100%;">
-                                <div style="font-weight:600; margin-bottom:0.25rem; color:var(--color-text-muted);">Error Breakdown:</div>
-                                <div id="hiErrorList" style="max-height:200px; overflow-y:auto;"></div>
-                            </div>
-                        </div>
-                        <!-- Nightly Task -->
-                        <div class="ops-health-intel-card">
-                            <div class="ops-health-intel-card-title">Nightly Task (24h)</div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">Built</span>
-                                <span class="ops-health-intel-metric-value" id="hiBuilt24h">0</span>
-                            </div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">Users</span>
-                                <span class="ops-health-intel-metric-value" id="hiUsersProcessed24h">0</span>
-                            </div>
-                            <div class="ops-health-intel-metric">
-                                <span class="ops-health-intel-metric-label">Missing</span>
-                                <span class="ops-health-intel-metric-value" id="hiOldestMissing">&mdash;</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card: Mobile / API Health -->
+        <!-- Col 4: Mobile / API -->
         <div class="ops-cmd-card ops-glass">
             <div class="ops-cmd-card-header">
                 <span class="ops-cmd-card-title">Mobile / API</span>
@@ -3147,21 +3038,18 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             </div>
             <div class="ops-cmd-card-body">
                 <div class="ops-api-health" id="apiHealthTile">
-                    <!-- Header with pulse -->
                     <div class="ops-api-header">
                         <div class="ops-api-pulse IDLE" id="apiPulse"></div>
-                        <span class="ops-api-title">API Request Health (24h)</span>
+                        <span class="ops-api-title">API Health (24h)</span>
                         <span class="ops-api-status-label IDLE" id="apiStatusLabel">LOADING</span>
                     </div>
-
-                    <!-- Key Metrics -->
                     <div class="ops-api-metrics">
                         <div class="ops-api-metric">
                             <div class="ops-api-metric-label">Requests</div>
                             <div class="ops-api-metric-value" id="apiTotalRequests">0</div>
                         </div>
                         <div class="ops-api-metric">
-                            <div class="ops-api-metric-label">Avg Response</div>
+                            <div class="ops-api-metric-label">Avg ms</div>
                             <div class="ops-api-metric-value" id="apiAvgMs">&mdash;</div>
                         </div>
                         <div class="ops-api-metric">
@@ -3169,12 +3057,10 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                             <div class="ops-api-metric-value" id="apiP95Ms">&mdash;</div>
                         </div>
                         <div class="ops-api-metric">
-                            <div class="ops-api-metric-label">Error Rate</div>
+                            <div class="ops-api-metric-label">Err Rate</div>
                             <div class="ops-api-metric-value" id="apiErrorRate">0%</div>
                         </div>
                     </div>
-
-                    <!-- Channel Breakdown -->
                     <div class="ops-api-channels">
                         <div class="ops-api-channel">
                             <div class="ops-api-channel-label">Mobile</div>
@@ -3189,8 +3075,6 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                             <div class="ops-api-channel-value" id="apiOtherCount">0</div>
                         </div>
                     </div>
-
-                    <!-- Top Endpoints -->
                     <div class="ops-api-endpoints" id="apiEndpointsList">
                         <div class="ops-api-endpoint-row header">
                             <span>Endpoint</span>
@@ -3203,84 +3087,364 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             </div>
         </div>
 
-    </div><!-- /Row 3 -->
+    </div><!-- /Zone 4 -->
 
-    <!-- ROW 4 — Incident Feed (full width) -->
-    <div class="ops-cmd-row ops-cmd-row-full">
-        <div class="ops-cmd-card ops-glass">
-            <div class="ops-cmd-card-header">
-                <span class="ops-cmd-card-title">Incident Feed</span>
-                <span class="ops-cmd-card-status" id="incidentFeedStatus"></span>
+    <!-- ============================================================
+         ZONE 5 — Diagnostics (collapsed by default)
+         ============================================================ -->
+    <div class="ops-zone ops-zone-diagnostics">
+        <div class="ops-diagnostics-toggle" id="diagnosticsToggle">
+            <span class="ops-diagnostics-chevron">&#9656;</span>
+            <span>Diagnostics</span>
+        </div>
+        <div class="ops-diagnostics-body" id="diagnosticsBody">
+
+            <!-- Row 1: CoS Performance, Validator Gate, System Maturity -->
+            <div class="ops-diagnostics-grid">
+                <!-- CoS Performance -->
+                <div class="ops-cmd-card ops-glass" id="cosPerformanceCard">
+                    <div class="ops-cmd-card-header">
+                        <span class="ops-cmd-card-title">CoS Performance</span>
+                        <span class="ops-cmd-card-status no_data" id="cosPerfStatus">NO DATA</span>
+                    </div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-cmd-metrics-row">
+                            <div class="ops-cmd-metric"><div class="ops-cmd-metric-value dim" id="cosPerfP50">&mdash;</div><div class="ops-cmd-metric-label">P50 Build</div></div>
+                            <div class="ops-cmd-metric"><div class="ops-cmd-metric-value dim" id="cosPerfP95">&mdash;</div><div class="ops-cmd-metric-label">P95 Build</div></div>
+                            <div class="ops-cmd-metric"><div class="ops-cmd-metric-value dim" id="cosPerfTtft">&mdash;</div><div class="ops-cmd-metric-label">P95 TTFT</div></div>
+                        </div>
+                        <div class="ops-cmd-metrics-row" style="margin-top:10px">
+                            <div class="ops-cmd-metric"><div class="ops-cmd-metric-value dim" id="cosPerfCacheHit">&mdash;</div><div class="ops-cmd-metric-label">Cache Hit</div></div>
+                            <div class="ops-cmd-metric"><div class="ops-cmd-metric-value dim" id="cosPerfTokens">&mdash;</div><div class="ops-cmd-metric-label">Avg Tokens</div></div>
+                            <div class="ops-cmd-metric"><div class="ops-cmd-metric-value dim" id="cosPerfSamples">&mdash;</div><div class="ops-cmd-metric-label">Samples 24h</div></div>
+                        </div>
+                        <div id="cosPerfBuilders" style="margin-top:10px;font-size:0.68rem;color:var(--ops-text-dim)"></div>
+                    </div>
+                </div>
+
+                <!-- Validator Gate -->
+                <div class="ops-cmd-card ops-glass" id="validatorGateCard">
+                    <div class="ops-cmd-card-header">
+                        <span class="ops-cmd-card-title">Validator Gate</span>
+                        <span class="ops-cmd-card-status no_data" id="validatorStatus">NO DATA</span>
+                    </div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-cmd-metrics-row">
+                            <div class="ops-cmd-metric"><div class="ops-cmd-metric-value dim" id="validatorBlockRate1h">&mdash;</div><div class="ops-cmd-metric-label">Block 1h</div></div>
+                            <div class="ops-cmd-metric"><div class="ops-cmd-metric-value dim" id="validatorBlockRate24h">&mdash;</div><div class="ops-cmd-metric-label">Block 24h</div></div>
+                            <div class="ops-cmd-metric"><div class="ops-cmd-metric-value dim" id="validatorCrashes">&mdash;</div><div class="ops-cmd-metric-label">Crashes</div></div>
+                        </div>
+                        <div class="ops-cmd-metrics-row" style="margin-top:10px">
+                            <div class="ops-cmd-metric"><div class="ops-cmd-metric-value dim" id="validatorTotal1h">&mdash;</div><div class="ops-cmd-metric-label">Evals 1h</div></div>
+                            <div class="ops-cmd-metric"><div class="ops-cmd-metric-value dim" id="validatorTotal24h">&mdash;</div><div class="ops-cmd-metric-label">Evals 24h</div></div>
+                            <div class="ops-cmd-metric"><div class="ops-cmd-metric-value dim" id="validatorAvgMs">&mdash;</div><div class="ops-cmd-metric-label">Avg ms</div></div>
+                        </div>
+                        <div id="validatorByPolicy" style="margin-top:10px;font-size:0.68rem;color:var(--ops-text-dim)"></div>
+                    </div>
+                </div>
+
+                <!-- System Maturity -->
+                {% if maturity_scores %}
+                <div class="ops-cmd-card ops-glass" id="maturityBriefing">
+                    <div class="ops-cmd-card-header">
+                        <span class="ops-cmd-card-title">System Maturity</span>
+                        {% with overall=maturity_scores.overall %}
+                        {% if overall.score is not None %}
+                        <span class="ops-cmd-card-status {% if overall.score >= 80 %}ok{% elif overall.score >= 60 %}degraded{% else %}critical{% endif %}">{{ overall.score }}</span>
+                        {% endif %}
+                        {% endwith %}
+                    </div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-maturity-grid">
+                            {% for dim_key, dim_data in maturity_scores.items %}
+                            {% if dim_key != "overall" %}
+                            <div class="ops-maturity-card" {% if dim_key == "life_impact" %}id="lifeImpactCard"{% endif %}>
+                                <div class="ops-maturity-card-label">{% if dim_key == "domain_coverage" %}Coverage{% elif dim_key == "infrastructure" %}Infra{% elif dim_key == "intelligence" %}Intelligence{% elif dim_key == "life_impact" %}Life Impact{% elif dim_key == "safety" %}Safety{% else %}{{ dim_key }}{% endif %}</div>
+                                {% if dim_data.score is not None %}
+                                <div class="ops-maturity-card-score {% if dim_data.score >= 80 %}score-green{% elif dim_data.score >= 60 %}score-amber{% else %}score-red{% endif %}">{{ dim_data.score }}</div>
+                                {% else %}
+                                <div class="ops-maturity-card-score score-none">&mdash;</div>
+                                {% endif %}
+                                {% with delta_val=maturity_deltas|default:"" %}
+                                {% if delta_val %}
+                                {% for dk, dv in delta_val.items %}
+                                {% if dk == dim_key and dv is not None %}
+                                <div class="ops-maturity-delta {% if dv > 0 %}delta-up{% elif dv < 0 %}delta-down{% else %}delta-flat{% endif %}">{% if dv > 0 %}&#9650; +{{ dv }}{% elif dv < 0 %}&#9660; {{ dv }}{% else %}&mdash;{% endif %}</div>
+                                {% endif %}
+                                {% endfor %}
+                                {% endif %}
+                                {% endwith %}
+                                {% if dim_key == "life_impact" %}
+                                {% if life_impact_sample_size %}<div style="font-size:0.55rem;color:var(--ops-text-dim);margin-top:2px">Across {{ life_impact_sample_size }} user{{ life_impact_sample_size|pluralize }}</div>{% endif %}
+                                {% if life_impact_breakdown %}<button class="ops-life-impact-toggle" data-target="lifeImpactBreakdown" type="button">Factors &#9662;</button>{% endif %}
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                        {% if life_impact_breakdown %}
+                        <div class="ops-life-impact-breakdown" id="lifeImpactBreakdown">
+                            {% for factor in life_impact_breakdown %}
+                            <div class="ops-life-impact-factor">
+                                <span class="ops-life-impact-factor-label">{{ factor.label }}</span>
+                                <div class="ops-life-impact-factor-bar">
+                                    <div class="ops-life-impact-factor-fill {% if factor.value >= 60 %}bar-green{% elif factor.value >= 30 %}bar-amber{% else %}bar-red{% endif %}" style="width:{{ factor.value }}%"></div>
+                                </div>
+                                <span class="ops-life-impact-factor-value">{{ factor.value }}%</span>
+                                <span class="ops-life-impact-factor-weight">({{ factor.weight_pct }}%)</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        {% if maturity_regressions or maturity_recommendations %}
+                        <div class="ops-maturity-alerts">
+                            {% for reg in maturity_regressions %}
+                            <div class="ops-maturity-alert ops-maturity-regression">{{ reg.dimension }}: dropped {{ reg.drop }} pts</div>
+                            {% endfor %}
+                            {% for rec in maturity_recommendations %}
+                            <div class="ops-maturity-alert priority-{{ rec.priority }}">{{ rec.message }}</div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
-            <div class="ops-cmd-card-body">
-                <div class="ops-watchlist">
-                    <div class="ops-incident-grid" id="watchlistPanel">
-                        <div class="ops-watchlist-empty">
-                            <div class="ops-watchlist-empty-icon">&#10003;</div>
-                            <div>All clear &mdash; no anomalies</div>
+
+            <!-- Row 2: Learning Health, Health Intelligence, Domain Coverage -->
+            <div class="ops-diagnostics-grid">
+                <!-- Learning Health -->
+                <div class="ops-cmd-card ops-glass">
+                    <div class="ops-cmd-card-header"><span class="ops-cmd-card-title">Learning Health</span></div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-learning-health" id="learningHealthTile">
+                            <div class="ops-learning-header">
+                                <div class="ops-learning-pulse STALE" id="learningPulse"></div>
+                                <span class="ops-learning-title">Persistent Learning</span>
+                                <span class="ops-learning-counter" id="learningCounter">0 / 5</span>
+                                <span class="ops-learning-status-label STALE" id="learningStatusLabel">INITIALIZING</span>
+                            </div>
+                            <div class="ops-learning-grid">
+                                <div class="ops-learning-sub" id="learnSubMemory">
+                                    <div class="ops-learning-sub-name">Memory</div>
+                                    <span class="ops-learning-sub-status IDLE" id="learnStatusMemory">IDLE</span>
+                                    <div class="ops-learning-sub-metrics">
+                                        <div class="ops-learning-sub-metric"><span class="ops-learning-sub-metric-label">Total</span><span class="ops-learning-sub-metric-value" id="learnMemTotal">0</span></div>
+                                        <div class="ops-learning-sub-metric"><span class="ops-learning-sub-metric-label">24h</span><span class="ops-learning-sub-metric-value" id="learnMem24h">0</span></div>
+                                        <div class="ops-learning-sub-metric"><span class="ops-learning-sub-metric-label">Feedback</span><span class="ops-learning-sub-metric-value" id="learnMemFeedback">0</span></div>
+                                    </div>
+                                </div>
+                                <div class="ops-learning-sub" id="learnSubCorrections">
+                                    <div class="ops-learning-sub-name">Corrections</div>
+                                    <span class="ops-learning-sub-status IDLE" id="learnStatusCorrections">IDLE</span>
+                                    <div class="ops-learning-sub-metrics">
+                                        <div class="ops-learning-sub-metric"><span class="ops-learning-sub-metric-label">Total</span><span class="ops-learning-sub-metric-value" id="learnCorrTotal">0</span></div>
+                                        <div class="ops-learning-sub-metric"><span class="ops-learning-sub-metric-label">7d</span><span class="ops-learning-sub-metric-value" id="learnCorr7d">0</span></div>
+                                    </div>
+                                </div>
+                                <div class="ops-learning-sub" id="learnSubPatterns">
+                                    <div class="ops-learning-sub-name">Patterns</div>
+                                    <span class="ops-learning-sub-status IDLE" id="learnStatusPatterns">IDLE</span>
+                                    <div class="ops-learning-sub-metrics">
+                                        <div class="ops-learning-sub-metric"><span class="ops-learning-sub-metric-label">Active</span><span class="ops-learning-sub-metric-value" id="learnPatActive">0</span></div>
+                                        <div class="ops-learning-sub-metric"><span class="ops-learning-sub-metric-label">Confirmed</span><span class="ops-learning-sub-metric-value" id="learnPatConfirmed">0</span></div>
+                                        <div class="ops-learning-sub-metric"><span class="ops-learning-sub-metric-label">Confidence</span><span class="ops-learning-sub-metric-value" id="learnPatConfidence">&mdash;</span></div>
+                                    </div>
+                                </div>
+                                <div class="ops-learning-sub" id="learnSubResponsePrefs">
+                                    <div class="ops-learning-sub-name">Response Prefs</div>
+                                    <span class="ops-learning-sub-status IDLE" id="learnStatusResponsePrefs">IDLE</span>
+                                    <div class="ops-learning-sub-metrics">
+                                        <div class="ops-learning-sub-metric"><span class="ops-learning-sub-metric-label">Feedback</span><span class="ops-learning-sub-metric-value" id="learnPrefFeedback">0</span></div>
+                                        <div class="ops-learning-sub-metric"><span class="ops-learning-sub-metric-label">Helpful</span><span class="ops-learning-sub-metric-value" id="learnPrefHelpful">0</span></div>
+                                        <div class="ops-learning-sub-metric"><span class="ops-learning-sub-metric-label">Unhelpful</span><span class="ops-learning-sub-metric-value" id="learnPrefUnhelpful">0</span></div>
+                                    </div>
+                                </div>
+                                <div class="ops-learning-sub" id="learnSubProfile">
+                                    <div class="ops-learning-sub-name">Profile</div>
+                                    <span class="ops-learning-sub-status IDLE" id="learnStatusProfile">IDLE</span>
+                                    <div class="ops-learning-sub-metrics">
+                                        <div class="ops-learning-sub-metric"><span class="ops-learning-sub-metric-label">Items</span><span class="ops-learning-sub-metric-value" id="learnProfItems">0</span></div>
+                                        <div class="ops-learning-sub-metric"><span class="ops-learning-sub-metric-label">Evolved</span><span class="ops-learning-sub-metric-value" id="learnProfEvolved">0%</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Health Intelligence -->
+                <div class="ops-cmd-card ops-glass">
+                    <div class="ops-cmd-card-header"><span class="ops-cmd-card-title">Health Intelligence</span></div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-health-intel" id="healthIntelTile">
+                            <div class="ops-health-intel-header">
+                                <div class="ops-health-intel-pulse ERROR" id="healthIntelPulse"></div>
+                                <span class="ops-health-intel-title">HIE</span>
+                                <span class="ops-health-intel-status ERROR" id="healthIntelStatus">INITIALIZING</span>
+                                <button class="ops-health-intel-rebuild-btn" id="hiRebuildBtn" title="Queue nightly health summary rebuild">&#8635; Rebuild</button>
+                            </div>
+                            <div class="ops-health-intel-grid">
+                                <div class="ops-health-intel-card">
+                                    <div class="ops-health-intel-card-title">Summary Pipeline</div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">Latest</span><span class="ops-health-intel-metric-value" id="hiLatestDate">&mdash;</span></div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">Updated</span><span class="ops-health-intel-metric-value" id="hiUpdatedAge">&mdash;</span></div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">7d Summaries</span><span class="ops-health-intel-metric-value" id="hiSummaries7d">0</span></div>
+                                </div>
+                                <div class="ops-health-intel-card">
+                                    <div class="ops-health-intel-card-title">Scores (7d Avg)</div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">Health</span><span class="ops-health-intel-metric-value" id="hiAvgHealth">&mdash;</span></div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">Recovery</span><span class="ops-health-intel-metric-value" id="hiAvgRecovery">&mdash;</span></div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">Completeness</span><span class="ops-health-intel-metric-value" id="hiCompleteness">&mdash;</span></div>
+                                </div>
+                                <div class="ops-health-intel-card">
+                                    <div class="ops-health-intel-card-title">Coverage</div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">Active Users</span><span class="ops-health-intel-metric-value" id="hiActiveUsers">0</span></div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">With Summaries</span><span class="ops-health-intel-metric-value" id="hiUsersWithData">0</span></div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">Body Comp</span><span class="ops-health-intel-metric-value" id="hiBodyCompUsers">0</span></div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">BC Raw Data</span><span class="ops-health-intel-metric-value" id="hiBodyCompRawUsers">0</span></div>
+                                </div>
+                                <div class="ops-health-intel-card">
+                                    <div class="ops-health-intel-card-title">HealthKit (24h)</div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">Ingest Runs</span><span class="ops-health-intel-metric-value" id="hiIngestRuns">0</span></div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">Ingested</span><span class="ops-health-intel-metric-value" id="hiMetricsIngested">0</span></div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">Errors</span><span class="ops-health-intel-metric-value" id="hiActualErrors">0</span></div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">Dedup Skip</span><span class="ops-health-intel-metric-value" id="hiSkipRate">0%</span></div>
+                                    <div id="hiErrorDetails" style="display:none; margin-top:0.5rem; font-size:0.75rem; text-align:left; width:100%;">
+                                        <div style="font-weight:600; margin-bottom:0.25rem; color:var(--color-text-muted);">Error Breakdown:</div>
+                                        <div id="hiErrorList" style="max-height:200px; overflow-y:auto;"></div>
+                                    </div>
+                                </div>
+                                <div class="ops-health-intel-card">
+                                    <div class="ops-health-intel-card-title">Nightly Task (24h)</div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">Built</span><span class="ops-health-intel-metric-value" id="hiBuilt24h">0</span></div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">Users</span><span class="ops-health-intel-metric-value" id="hiUsersProcessed24h">0</span></div>
+                                    <div class="ops-health-intel-metric"><span class="ops-health-intel-metric-label">Missing</span><span class="ops-health-intel-metric-value" id="hiOldestMissing">&mdash;</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Domain Coverage -->
+                {% if domain_coverage %}
+                <div class="ops-cmd-card ops-glass" id="domainCoverage">
+                    <div class="ops-cmd-card-header"><span class="ops-cmd-card-title">Domain Coverage</span></div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-domain-grid">
+                            {% for d in domain_coverage %}
+                            <div class="ops-domain-row">
+                                <span class="ops-domain-name">{{ d.display_name }}</span>
+                                <div class="ops-domain-bar-wrap">
+                                    <div class="ops-domain-bar-fill {% if d.coverage_score >= 80 %}bar-green{% elif d.coverage_score >= 50 %}bar-amber{% else %}bar-red{% endif %}" style="width:{{ d.coverage_score }}%"></div>
+                                </div>
+                                <span class="ops-domain-pct">{{ d.coverage_score|floatformat:0 }}%</span>
+                                <span class="ops-domain-meta">{{ d.intent_count }}i &middot; {{ d.signal_count }}s</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Proactive Intelligence (full width) -->
+            <div class="ops-diagnostics-full">
+                <div class="ops-cmd-card ops-glass" id="proactiveTile">
+                    <div class="ops-cmd-card-header"><span class="ops-cmd-card-title">Proactive Intelligence</span></div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-proactive-total">
+                            <span class="ops-proactive-total-value">{{ proactive_stats.total_7d }}</span>
+                            <span class="ops-proactive-total-label">check-ins (7d)</span>
+                        </div>
+                        {% if proactive_stats.by_type %}
+                        <div class="ops-proactive-types">
+                            {% for type_name, count in proactive_stats.by_type %}
+                            <div class="ops-proactive-type-chip">
+                                <span>{{ type_name|default:"unknown" }}</span>
+                                <span class="ops-proactive-type-count">{{ count }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div style="font-size:0.72rem;color:var(--ops-text-dim)">No proactive check-ins in the last 7 days.</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- SAME Narration (full width) -->
+            <div class="ops-diagnostics-full">
+                <div class="ops-cmd-card ops-glass" id="narrationBar">
+                    <div class="ops-cmd-card-header"><span class="ops-cmd-card-title">SAME Narration</span></div>
+                    <div class="ops-cmd-card-body">
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+                            <div class="ops-narration-section">
+                                <h3>What's Happening Now</h3>
+                                <ul class="ops-narration-list" id="narrativeBullets"><li>Waiting for SAME data...</li></ul>
+                            </div>
+                            <div class="ops-narration-section">
+                                <h3>Recommendations</h3>
+                                <ul class="ops-narration-list recs" id="narrativeRecs"><li>Awaiting analysis...</li></ul>
+                            </div>
+                            <div class="ops-narration-section">
+                                <h3>Watching Next</h3>
+                                <ul class="ops-narration-list watching" id="narrativeWatching"><li>&mdash;</li></ul>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div><!-- /Row 4 -->
 
-    <!-- ROW 5 — Trend Strip (4 sparklines) -->
-    <div class="ops-cmd-row ops-cmd-row-4col">
-        <div class="ops-cmd-card ops-glass">
-            <div class="ops-cmd-card-header">
-                <span class="ops-cmd-card-title">Integrity</span>
-            </div>
-            <div class="ops-cmd-card-body">
-                <div class="ops-trend-spark" id="trendIntegrity"></div>
-            </div>
-        </div>
-        <div class="ops-cmd-card ops-glass">
-            <div class="ops-cmd-card-header">
-                <span class="ops-cmd-card-title">CoS Latency</span>
-            </div>
-            <div class="ops-cmd-card-body">
-                <div class="ops-trend-spark" id="trendCosLatency"></div>
-            </div>
-        </div>
-        <div class="ops-cmd-card ops-glass">
-            <div class="ops-cmd-card-header">
-                <span class="ops-cmd-card-title">Engines OK</span>
-            </div>
-            <div class="ops-cmd-card-body">
-                <div class="ops-trend-spark" id="trendEngineOk"></div>
-            </div>
-        </div>
-        <div class="ops-cmd-card ops-glass">
-            <div class="ops-cmd-card-header">
-                <span class="ops-cmd-card-title">Validator Rate</span>
-            </div>
-            <div class="ops-cmd-card-body">
-                <div class="ops-trend-spark" id="trendValidatorRate"></div>
-            </div>
-        </div>
-    </div><!-- /Row 5 -->
-
-    <!-- ROW 6 — Recent System Events (full width) -->
-    <div class="ops-cmd-row ops-cmd-row-full">
-        <div class="ops-cmd-card ops-glass">
-            <div class="ops-cmd-card-header">
-                <span class="ops-cmd-card-title">Recent System Events</span>
-                <div class="ops-feed-filters">
-                    <button class="ops-filter-btn active" data-filter="">All</button>
-                    <button class="ops-filter-btn" data-filter="errors">Errors</button>
-                    <button class="ops-filter-btn" data-filter="decisions">Decisions</button>
+            <!-- Macro Charts (2-col) -->
+            <div class="ops-diagnostics-grid" style="grid-template-columns: 1fr 1fr">
+                <div class="ops-cmd-card ops-glass">
+                    <div class="ops-cmd-card-header"><span class="ops-cmd-card-title">Anomaly Trend</span></div>
+                    <div class="ops-cmd-card-body"><div class="ops-macro-chart-body" id="anomalyTrendChart"></div></div>
+                </div>
+                <div class="ops-cmd-card ops-glass">
+                    <div class="ops-cmd-card-header"><span class="ops-cmd-card-title">Engine Health by Category</span></div>
+                    <div class="ops-cmd-card-body"><div class="ops-macro-chart-body" id="healthDistChart"></div></div>
                 </div>
             </div>
-            <div class="ops-cmd-card-body">
-                <div class="ops-feed" id="opsFeed">
-                    <div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">
-                        Waiting for data...
+
+            <!-- Dependency Explorer -->
+            <div class="ops-diagnostics-full">
+                <div class="ops-cmd-card ops-glass">
+                    <div class="ops-cmd-card-header">
+                        <span class="ops-cmd-card-title">Dependency Explorer</span>
+                        <a href="#" class="ops-cmd-card-link" id="depExplorerToggle">Toggle</a>
+                    </div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-dep-explorer visible" id="depExplorer">
+                            <div class="ops-dep-engine-list" id="depEngineList">Loading dependency graph...</div>
+                            <div id="depDetailPanel"></div>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            <!-- Recent Events (full width) -->
+            <div class="ops-diagnostics-full">
+                <div class="ops-cmd-card ops-glass">
+                    <div class="ops-cmd-card-header">
+                        <span class="ops-cmd-card-title">Recent System Events</span>
+                        <div class="ops-feed-filters">
+                            <button class="ops-filter-btn active" data-filter="">All</button>
+                            <button class="ops-filter-btn" data-filter="errors">Errors</button>
+                            <button class="ops-filter-btn" data-filter="decisions">Decisions</button>
+                        </div>
+                    </div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-feed" id="opsFeed">
+                            <div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">Waiting for data...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
-    </div><!-- /Row 6 -->
+    </div><!-- /Zone 5 -->
 
     <!-- Debug Prompt Modal (Phase 6) -->
     <div class="ops-debug-modal" id="debugPromptModal">
@@ -3312,6 +3476,46 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         if (!panel) return;
         var isExpanded = panel.classList.toggle('expanded');
         btn.innerHTML = isExpanded ? 'Factors &#9652;' : 'Factors &#9662;';
+    });
+
+    /* =====================================================================
+       Diagnostics Toggle (Zone 5)
+       ===================================================================== */
+    document.addEventListener('click', function(e) {
+        var toggle = e.target.closest('#diagnosticsToggle');
+        if (!toggle) return;
+        toggle.classList.toggle('active');
+        var body = document.getElementById('diagnosticsBody');
+        if (body) {
+            body.classList.toggle('visible');
+            if (body.classList.contains('visible')) {
+                setTimeout(function() {
+                    if (typeof resizeAllCharts === 'function') resizeAllCharts();
+                }, 100);
+            }
+        }
+    });
+
+    /* =====================================================================
+       Engine Category Accordion Toggle (Zone 3)
+       ===================================================================== */
+    document.addEventListener('click', function(e) {
+        var row = e.target.closest('.ops-engine-cat-row');
+        if (!row) return;
+        var cat = row.getAttribute('data-category');
+        var body = document.querySelector('[data-category-body="' + cat + '"]');
+        if (!body) return;
+
+        var wasActive = row.classList.contains('active');
+
+        // Close all
+        document.querySelectorAll('.ops-engine-cat-row.active').forEach(function(r) { r.classList.remove('active'); });
+        document.querySelectorAll('.ops-engine-cat-expanded.visible').forEach(function(b) { b.classList.remove('visible'); });
+
+        if (!wasActive) {
+            row.classList.add('active');
+            body.classList.add('visible');
+        }
     });
 
     /* =====================================================================
@@ -3907,6 +4111,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         trackAnomalies(data.anomalies || []);
         renderMacroCharts(data.engine_cards || [], data.anomalies || []);
         renderEngineCards(data.engine_cards || []);
+        renderEngineAccordion(data.engine_cards || []);
         renderWatchlist(data.anomalies || []);
         renderFeed(data.feed || []);
         // Phase 5 — new card renders
@@ -4469,6 +4674,69 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         }
     }
 
+    function renderEngineAccordion(cards) {
+        var container = document.getElementById('engineAccordion');
+        if (!container || !cards || cards.length === 0) return;
+
+        var cats = {};
+        var CATEGORY_ORDER = ['System', 'Interpret', 'Execute', 'Post-Exec'];
+
+        cards.forEach(function(eng) {
+            var meta = ENGINE_META[eng.name] || { category: 'Other' };
+            var cat = meta.category;
+            if (!cats[cat]) cats[cat] = { ok: 0, degraded: 0, error: 0, engines: [] };
+            cats[cat].engines.push(eng);
+            if (eng.status === 'OK') cats[cat].ok++;
+            else if (eng.status === 'DEGRADED') cats[cat].degraded++;
+            else cats[cat].error++;
+        });
+
+        var allCats = CATEGORY_ORDER.slice();
+        Object.keys(cats).forEach(function(c) {
+            if (allCats.indexOf(c) === -1) allCats.push(c);
+        });
+
+        var html = '';
+        allCats.forEach(function(cat) {
+            var info = cats[cat];
+            if (!info) return;
+            var total = info.engines.length;
+
+            html += '<div class="ops-engine-cat-row" data-category="' + cat + '">';
+            html += '<span class="ops-engine-cat-name">' + cat.toUpperCase() + '</span>';
+            html += '<span class="ops-engine-cat-summary">';
+            html += '<span class="ops-engine-cat-ok">' + info.ok + ' OK</span>';
+            if (info.degraded > 0) html += ' <span class="ops-engine-cat-warn">' + info.degraded + ' DEGRADED</span>';
+            if (info.error > 0) html += ' <span class="ops-engine-cat-err">' + info.error + ' ERROR</span>';
+            html += ' <span style="color:var(--ops-text-dim)">(' + total + ')</span>';
+            html += '</span>';
+            html += '<span class="ops-engine-cat-chevron">&#9656;</span>';
+            html += '</div>';
+            html += '<div class="ops-engine-cat-expanded" data-category-body="' + cat + '">';
+
+            info.engines.forEach(function(eng) {
+                var sColor = STATUS_COLORS[eng.status] || '#888';
+                html += '<div class="ops-glass" style="padding:8px 10px;border-left:2px solid ' + sColor + '">';
+                html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
+                html += '<span style="font-weight:700;font-size:0.72rem;color:var(--ops-text-bright)">' + eng.name + '</span>';
+                html += '<span style="font-size:0.6rem;font-weight:600;color:' + sColor + '">' + (eng.status || '\u2014') + '</span>';
+                html += '</div>';
+                html += '<div style="display:flex;gap:8px;font-size:0.6rem;color:var(--ops-text-muted)">';
+                html += '<span>' + (eng.sparkline ? eng.sparkline.length : 0) + ' runs</span>';
+                html += '<span>' + (eng.duration_p95_1h ? eng.duration_p95_1h + 'ms P95' : '\u2014') + '</span>';
+                html += '</div>';
+                if (eng.last_run_at) {
+                    html += '<div style="font-size:0.55rem;color:var(--ops-text-dim);margin-top:3px">Last: ' + formatAgo(eng.last_run_at) + '</div>';
+                }
+                html += '</div>';
+            });
+
+            html += '</div>';
+        });
+
+        container.innerHTML = html;
+    }
+
     function computeEngineMetrics(sparkline) {
         if (!sparkline || sparkline.length === 0) return { runs: 0, avg: 0, vol: '0.00' };
         var sum = sparkline.reduce(function(a, b) { return a + b; }, 0);
@@ -4701,6 +4969,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
 
     function renderWatchlist(anomalies) {
         var container = document.getElementById('watchlistPanel');
+        var clearBar = document.getElementById('incidentsClearBar');
         var newIds = anomalies.map(function(a) { return a.id; });
 
         // Skip rebuild if same set
@@ -4711,17 +4980,17 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         container.innerHTML = '';
 
         if (anomalies.length === 0) {
-            container.innerHTML =
-                '<div class="ops-watchlist-empty">' +
-                '  <div class="ops-watchlist-empty-icon">&#10003;</div>' +
-                '  <div>All clear \u2014 no anomalies</div>' +
-                '</div>';
+            if (clearBar) clearBar.style.display = 'flex';
+            container.style.display = 'none';
             previousAnomalyIds = [];
-            // Update incident feed status
             var feedStatus = document.getElementById('incidentFeedStatus');
             if (feedStatus) { feedStatus.textContent = ''; feedStatus.className = 'ops-cmd-card-status'; }
             return;
         }
+
+        // Has anomalies — hide clear bar, show strip
+        if (clearBar) clearBar.style.display = 'none';
+        container.style.display = 'flex';
 
         // Update incident feed status badge
         var feedStatus = document.getElementById('incidentFeedStatus');
@@ -4737,69 +5006,34 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         }
 
         anomalies.forEach(function(a, i) {
-            var isNew = previousAnomalyIds.indexOf(a.id) === -1;
             var card = document.createElement('div');
-            card.className = 'ops-glass ops-anomaly-card ' + a.severity;
+            card.className = 'ops-anomaly-compact severity-' + a.severity;
             card.dataset.anomalyId = a.id;
             card.dataset.anomalyType = a.anomaly_type;
             card.dataset.engineName = a.engine_name || '';
-            card.dataset.createdAt = a.created_at || '';
-            card.dataset.summary = a.summary || '';
             card.dataset.severity = a.severity;
-            card.dataset.originalSeverity = a.original_severity || a.severity;
-            card.dataset.escalationCount = a.escalation_count || 0;
-            if (isNew) {
-                card.classList.add('anomaly-enter');
-                card.style.animationDelay = (i * 50) + 'ms';
-            }
 
             var actionsHtml = '';
             (a.suggested_actions || []).forEach(function(act) {
-                actionsHtml += '<button class="ops-action-btn" data-action="' +
+                actionsHtml += '<button class="ops-anomaly-compact-btn" data-action="' +
                     escapeAttr(act.action) + '" data-engine="' +
                     escapeAttr(a.engine_name) + '">' +
                     escapeHtml(act.label) + '</button>';
             });
 
-            var escBadge = '';
-            if (a.escalation_count > 0) {
-                escBadge = ' <span class="ops-esc-badge">ESC ' +
-                    escapeHtml(a.original_severity) + '\u2192' + escapeHtml(a.severity) + '</span>';
-            }
-
-            var icon = SEVERITY_ICONS[a.severity] || '\u25CF';
-
-            // Phase 6: Investigate button
             var investigateBtn = ANOMALY_PANEL_MAP[a.anomaly_type]
-                ? ' <button class="ops-anomaly-investigate-btn" data-anomaly-type="' +
-                  escapeAttr(a.anomaly_type) + '">Investigate \u2192</button>'
+                ? '<button class="ops-anomaly-compact-btn" data-anomaly-type="' +
+                  escapeAttr(a.anomaly_type) + '">Investigate</button>'
                 : '';
 
-            // Phase 6: Expandable detail section
-            var depHtml = buildAnomalyDepChain(a.engine_name);
-            var durationHtml = a.created_at ? computeDuration(a.created_at) : '\u2014';
-            var detailHtml =
-                '<div class="ops-anomaly-detail">' +
-                '  <div class="ops-anomaly-detail-row"><span class="ops-anomaly-detail-label">Type</span><span class="ops-anomaly-detail-value">' + escapeHtml(ANOMALY_TYPE_LABELS[a.anomaly_type] || a.anomaly_type) + '</span></div>' +
-                '  <div class="ops-anomaly-detail-row"><span class="ops-anomaly-detail-label">Engine</span><span class="ops-anomaly-detail-value">' + escapeHtml(a.engine_name || 'SYSTEM') + '</span></div>' +
-                '  <div class="ops-anomaly-detail-row"><span class="ops-anomaly-detail-label">Duration</span><span class="ops-anomaly-detail-value">' + escapeHtml(durationHtml) + '</span></div>' +
-                (a.escalation_count > 0 ? '  <div class="ops-anomaly-detail-row"><span class="ops-anomaly-detail-label">Escalation</span><span class="ops-anomaly-detail-value">' + escapeHtml(a.original_severity) + ' \u2192 ' + escapeHtml(a.severity) + ' (\u00d7' + a.escalation_count + ')</span></div>' : '') +
-                depHtml +
-                '  <button class="ops-debug-prompt-btn" data-anomaly-id="' + a.id + '">Generate Debug Prompt</button>' +
-                '</div>';
-
             card.innerHTML =
-                '<div class="ops-anomaly-header">' +
-                '  <span class="ops-anomaly-severity ' + a.severity + '">' +
-                '    <span class="ops-severity-icon ' + a.severity + '">' + icon + '</span>' +
-                '    ' + a.severity + ' | ' + escapeHtml(a.engine_name || 'SYSTEM') + escBadge +
-                '  </span>' +
-                '  <span class="ops-anomaly-when">' + escapeHtml(a.first_detected || '') + investigateBtn + '</span>' +
-                '  <span class="ops-anomaly-expand-toggle">\u25BC</span>' +
+                '<div class="ops-anomaly-compact-header">' +
+                '  <span class="ops-anomaly-compact-badge ' + a.severity + '">' + a.severity + '</span>' +
+                '  <span class="ops-anomaly-compact-type">' + escapeHtml(a.engine_name || 'SYSTEM') + '</span>' +
                 '</div>' +
-                '<div class="ops-anomaly-summary">' + escapeHtml(a.summary) + '</div>' +
-                '<div class="ops-anomaly-actions">' + actionsHtml + '</div>' +
-                detailHtml;
+                '<div class="ops-anomaly-compact-system">' + escapeHtml(ANOMALY_TYPE_LABELS[a.anomaly_type] || a.anomaly_type) + '</div>' +
+                '<div class="ops-anomaly-compact-desc">' + escapeHtml(a.summary) + '</div>' +
+                '<div class="ops-anomaly-compact-actions">' + actionsHtml + investigateBtn + '</div>';
 
             container.appendChild(card);
         });

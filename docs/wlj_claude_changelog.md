@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Ops Wall 2.0 Phase 9: 5-Zone Command Center Layout
+
+**What:** Restructured the Ops Wall template from a 6-row grid layout into a 5-zone command center architecture with improved information hierarchy and a collapsible diagnostics panel.
+
+**Zone layout:**
+- **Zone 0** — Command Bar (unchanged)
+- **Zone 1** — System Health Hero: 4-column grid with integrity gauge, posture/component bars, trend sparklines (2x2), and scheduler pulses
+- **Zone 2** — Active Incidents Strip: horizontal scroll strip replacing vertical incident feed, compact anomaly cards with severity badges
+- **Zone 3** — Pipeline + Engine Health: 2-column grid with intelligence pipeline (left) and engine category accordion (right) replacing flat engine card grid
+- **Zone 4** — Support Systems: 4-column grid with Data Integrity (COAS + Query Compliance), Signal Health, Action Systems (AAFR), Mobile/API
+- **Zone 5** — Diagnostics (collapsed by default): CoS Performance, Validator Gate, System Maturity, Learning Health, Health Intelligence, Domain Coverage, Proactive Intelligence, SAME Narration, Macro Charts, Dependency Explorer, Recent Events
+
+**Files modified:**
+- `templates/admin_console/operations_wall.html` — Added zone CSS classes (~170 lines), restructured HTML into 5 zones, added `renderEngineAccordion()` JS function, added diagnostics/accordion toggle handlers, updated `renderWatchlist()` to compact horizontal cards, added `renderEngineAccordion` call to `render()`
+
+**Why:** The flat 6-row layout put all information at equal visual weight. The 5-zone architecture creates clear priority tiers — critical health metrics at top, incidents next, then core systems, support, and deep diagnostics on demand.
+
+---
+
 ## 2026-03-15 — Ops Wall 2.0 Phase 8: Mobile/API Health Card
 
 **What:** Replaced the placeholder "Coming Soon" card in Row 3 with a live Mobile/API health monitor, powered by the existing `APIRequestLog` model.

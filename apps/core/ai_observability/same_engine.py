@@ -59,6 +59,7 @@ def run_same():
     # Step 2.5: Cache health snapshots for polling endpoint
     _cache_signal_health()
     _cache_validator_health()
+    _cache_cos_performance()
 
     # Step 3: Reconcile anomalies (activate new, resolve old)
     stats = _reconcile_anomalies(detected, now)
@@ -636,6 +637,26 @@ def _cache_validator_health():
         logger.debug("SAME: cached validator health (status=%s)", health.get("status") if health else "none")
     except Exception as e:
         logger.warning("SAME: failed to cache validator health: %s", e)
+
+
+def _cache_cos_performance():
+    """
+    Compute and cache CoS performance snapshot for the polling endpoint.
+
+    Called during every SAME cycle so OpsStreamView can read cached data
+    instead of running expensive queries on each 2s poll.
+    Cache TTL: 120s (2 SAME cycles).
+    """
+    try:
+        from django.core.cache import cache
+
+        from apps.core.ai_observability.ops_telemetry import compute_cos_performance
+
+        perf = compute_cos_performance()
+        cache.set("wlj:ops:cos_performance", perf, timeout=120)
+        logger.debug("SAME: cached CoS performance (status=%s)", perf.get("status") if perf else "none")
+    except Exception as e:
+        logger.warning("SAME: failed to cache CoS performance: %s", e)
 
 
 # =========================================================================

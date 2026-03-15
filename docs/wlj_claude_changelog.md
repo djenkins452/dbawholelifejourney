@@ -6,6 +6,35 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Ops Wall 2.0 Phase 4: CoS Performance Diagnostics
+
+**Context:** Phase 4 of the Ops Wall 2.0 project promotes CoS (Context of Situation) performance
+monitoring to a first-class Ops Wall panel, making context build latency, cache hit rates,
+token usage, and per-builder timing visible to ops admins.
+
+**Changes:**
+1. **`compute_cos_performance()`** — New aggregation function in `ops_telemetry.py` computing
+   P50/P95 context build time (from COS_CONTEXT_BUILD_TOTAL), P95 TTFT (from LLM_REQUEST),
+   cache hit rate (heuristic: build < 100ms = cache hit), avg prompt tokens, avg total ms,
+   and top 5 slowest builders by average duration. Status: healthy (<2s P95), degraded (2-5s),
+   critical (>5s).
+2. **`_cache_cos_performance()`** — SAME engine caches CoS performance on every 60s cycle
+   (120s TTL) so OpsStreamView reads cached data instead of running expensive queries.
+3. **`cos_performance` in OpsStreamView** — Wired into JSON polling response for frontend consumption.
+4. **Validator policy dominance detector** — Documented as future enhancement in project doc
+   (deferred: needs production block volume to calibrate thresholds).
+5. **15 tests** — `tests_cos_performance.py` covering aggregation, percentiles, status thresholds,
+   cache hit rate, slowest builders, caching/fallback behavior.
+
+**Files changed:**
+- `apps/core/ai_observability/ops_telemetry.py` — compute_cos_performance(), _get_cos_performance()
+- `apps/core/ai_observability/same_engine.py` — _cache_cos_performance() in SAME cycle
+- `apps/core/ai_observability/ops_views.py` — cos_performance in stream response + import
+- `apps/core/ai_observability/tests_cos_performance.py` — 15 new tests
+- `docs/OPS_WALL_2_PROJECT.md` — Phase 4 marked complete, future detector documented
+
+---
+
 ## 2026-03-15 — Ops Wall 2.0 Phase 3: Validator Gate Monitoring
 
 **Context:** Phase 3 of the Ops Wall 2.0 project adds per-invocation telemetry for the

@@ -328,6 +328,9 @@ class OpsStreamView(View):
         # Validator Gate Health (cached by SAME cycle, read-only here)
         validator_health = _get_validator_health()
 
+        # CoS Performance (cached by SAME cycle, read-only here)
+        cos_performance = _get_cos_performance()
+
         return JsonResponse({
             "server_time": now.isoformat(),
             "posture": posture,
@@ -349,6 +352,7 @@ class OpsStreamView(View):
             "pipeline_health": pipeline_health,
             "signal_health": signal_health,
             "validator_health": validator_health,
+            "cos_performance": cos_performance,
             "next_since": now.isoformat(),
         })
 
@@ -1142,4 +1146,5 @@ from apps.core.ai_observability.ops_telemetry import (  # noqa: E402, F401
     _get_intelligence_pipeline_health,
     _get_signal_health,
     _get_validator_health,
+    _get_cos_performance,
 )

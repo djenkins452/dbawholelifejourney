@@ -1590,6 +1590,189 @@ def compute_validator_health():
         return None
 
 
+def _get_cos_performance():
+    """
+    Read cached CoS performance snapshot for the polling endpoint.
+
+    CoS performance is computed and cached by the SAME engine on its 60s cadence.
+    Falls back to live computation if cache is empty (first load before SAME runs).
+    """
+    try:
+        from django.core.cache import cache
+
+        cached = cache.get("wlj:ops:cos_performance")
+        if cached is not None:
+            return cached
+
+        return compute_cos_performance()
+    except Exception as e:
+        logger.debug("CoS performance unavailable: %s", e)
+        return None
+
+
+def compute_cos_performance():
+    """
+    Compute CoS (Context of Situation) performance metrics from ChatLatencySnapshot.
+
+    Aggregates context build latency, TTFT, token usage, cache hit rate,
+    and per-builder timing breakdown from the last 24h of snapshots.
+
+    Metrics produced:
+      - p50_context_build_ms: median COS_CONTEXT_BUILD_TOTAL
+      - p95_context_build_ms: 95th percentile COS_CONTEXT_BUILD_TOTAL
+      - p95_ttft_ms: 95th percentile LLM_REQUEST time (time to first token proxy)
+      - cache_hit_rate: fraction of requests where context build < 100ms (cache hit)
+      - avg_prompt_tokens: average prompt token count
+      - avg_total_ms: average end-to-end response time
+      - sample_count_24h: number of snapshots in window
+      - slowest_builders: top 5 context builders by avg duration
+
+    Returns:
+        dict or None
+    """
+    now = timezone.now()
+    last_24h = now - timedelta(hours=24)
+
+    try:
+        from apps.core.ai_observability.models import ChatLatencySnapshot
+
+        qs = ChatLatencySnapshot.objects.filter(created_at__gte=last_24h)
+        count = qs.count()
+
+        if count == 0:
+            return {
+                "sample_count_24h": 0,
+                "p50_context_build_ms": None,
+                "p95_context_build_ms": None,
+                "p95_ttft_ms": None,
+                "cache_hit_rate": None,
+                "avg_prompt_tokens": None,
+                "avg_total_ms": None,
+                "slowest_builders": [],
+                "status": "no_data",
+            }
+
+        # Fetch recent snapshots (cap at 200 for performance)
+        snapshots = list(
+            qs.order_by("-created_at")
+            .values("stages", "meta", "total_ms")[:200]
+        )
+
+        # Extract COS_CONTEXT_BUILD_TOTAL and LLM_REQUEST durations
+        context_build_times = []
+        llm_request_times = []
+        prompt_tokens_list = []
+        total_ms_list = []
+        cache_hits = 0
+        builder_totals = {}  # builder_name -> [durations]
+
+        for snap in snapshots:
+            stages = snap.get("stages") or {}
+            meta = snap.get("meta") or {}
+
+            # Context build time
+            cos_total = stages.get("COS_CONTEXT_BUILD_TOTAL")
+            if cos_total is not None:
+                context_build_times.append(cos_total)
+                # Cache hit heuristic: context build < 100ms means cache was used
+                if cos_total < 100:
+                    cache_hits += 1
+
+            # LLM request time (TTFT proxy)
+            llm_time = stages.get("LLM_REQUEST")
+            if llm_time is not None:
+                llm_request_times.append(llm_time)
+
+            # Total ms
+            total = snap.get("total_ms")
+            if total is not None:
+                total_ms_list.append(total)
+
+            # Prompt tokens
+            pt = meta.get("prompt_tokens")
+            if pt:
+                prompt_tokens_list.append(pt)
+
+            # Per-builder timing
+            for key, dur in stages.items():
+                if key.startswith("COS_BUILDER_") and dur is not None:
+                    name = key[len("COS_BUILDER_"):]
+                    if name not in builder_totals:
+                        builder_totals[name] = []
+                    builder_totals[name].append(dur)
+
+        def _percentile(values, pct):
+            """Compute percentile from sorted values."""
+            if not values:
+                return None
+            sorted_v = sorted(values)
+            idx = max(0, int(len(sorted_v) * pct / 100) - 1)
+            return round(sorted_v[idx], 1)
+
+        p50_build = _percentile(context_build_times, 50)
+        p95_build = _percentile(context_build_times, 95)
+        p95_ttft = _percentile(llm_request_times, 95)
+
+        # Cache hit rate
+        total_with_build = len(context_build_times)
+        cache_hit_rate = (
+            round(cache_hits / total_with_build, 3)
+            if total_with_build > 0
+            else None
+        )
+
+        # Average prompt tokens
+        avg_prompt = (
+            round(sum(prompt_tokens_list) / len(prompt_tokens_list))
+            if prompt_tokens_list
+            else None
+        )
+
+        # Average total ms
+        avg_total = (
+            round(sum(total_ms_list) / len(total_ms_list), 0)
+            if total_ms_list
+            else None
+        )
+
+        # Slowest builders (by average duration, top 5)
+        slowest_builders = []
+        for name, durations in builder_totals.items():
+            avg = sum(durations) / len(durations)
+            slowest_builders.append({
+                "name": name,
+                "avg_ms": round(avg, 1),
+                "sample_count": len(durations),
+            })
+        slowest_builders.sort(key=lambda x: x["avg_ms"], reverse=True)
+        slowest_builders = slowest_builders[:5]
+
+        # Status determination
+        if p95_build is not None and p95_build > 5000:
+            status = "critical"
+        elif p95_build is not None and p95_build > 2000:
+            status = "degraded"
+        elif count > 0:
+            status = "healthy"
+        else:
+            status = "no_data"
+
+        return {
+            "sample_count_24h": count,
+            "p50_context_build_ms": p50_build,
+            "p95_context_build_ms": p95_build,
+            "p95_ttft_ms": p95_ttft,
+            "cache_hit_rate": cache_hit_rate,
+            "avg_prompt_tokens": avg_prompt,
+            "avg_total_ms": avg_total,
+            "slowest_builders": slowest_builders,
+            "status": status,
+        }
+    except Exception as e:
+        logger.debug("CoS performance computation failed: %s", e)
+        return None
+
+
 def _get_intelligence_pipeline_health(now):
     """
     Intelligence Pipeline Health — monitors the 5-layer data pipeline

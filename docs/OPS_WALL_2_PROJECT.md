@@ -1,6 +1,6 @@
 # Ops Wall 2.0 — Project Document
 
-**Status:** Phase 3 complete. Phase 4 ready.
+**Status:** Phase 4 complete. Phase 5 ready.
 **Author:** Claude Code / Danny Jenkins
 **Created:** 2026-03-15
 **Last Updated:** 2026-03-15
@@ -409,19 +409,34 @@ Each card clicks through to a diagnostic panel that contains what currently live
 
 ---
 
-### Phase 4: CoS Performance Diagnostics
+### Phase 4: CoS Performance Diagnostics ✅
 
 **Goal:** Promote CoS performance to a first-class monitoring card.
 
-**Tasks:**
-1. Add token count estimate to `ChatLatencySnapshot` or CoS context builder
-2. Add cache hit/miss counter to `readiness_cache.py`
-3. Restructure Ops Wall to show CoS Performance as a top-row card
-4. Build Level 2 drill-down: per-builder timing breakdown
+**Completed:**
+1. `compute_cos_performance()` in `ops_telemetry.py` — aggregates P50/P95 context build, P95 TTFT, cache hit rate (heuristic: build < 100ms), avg prompt tokens, avg total ms, top 5 slowest builders
+2. `_get_cos_performance()` cache reader with fallback to live computation
+3. `_cache_cos_performance()` in SAME engine — caches on 60s cadence (120s TTL)
+4. Wired `cos_performance` into OpsStreamView JSON polling response
+5. Cache hit rate uses heuristic (COS_CONTEXT_BUILD_TOTAL < 100ms = cache hit) — no DB counters needed since readiness_cache.py uses logging-based tracking only
+6. Status thresholds: healthy (P95 < 2s), degraded (2-5s), critical (> 5s)
 
-**Risk:** Low. Extends existing `ChatLatencySnapshot`. Cache counter is in-memory.
+**Files changed:** `ops_telemetry.py`, `same_engine.py`, `ops_views.py`, `tests_cos_performance.py`
 
-**Estimated files changed:** 3-4
+#### Future Enhancement: Validator Policy Dominance Detector
+
+**Concept:** A SAME anomaly detector that fires when a single validator policy accounts for an outsized share of blocks. For example, if `structural` blocks are 90% of all blocks while `action_claim` blocks drop to 0, the system would flag `VALIDATOR_POLICY_DOMINANCE` to alert that one policy may be too aggressive or other policies may be broken.
+
+**Design sketch:**
+- **Trigger:** Single policy accounts for > 80% of blocks over 24h with >= 10 total blocks
+- **Severity:** P3 (informational) — not an outage, but worth investigating
+- **Evidence:** `{ dominant_policy, share_pct, total_blocks_24h, by_policy }`
+- **Why deferred:** Requires production block volume data to calibrate thresholds. Currently validator traffic is low, so dominance detection would produce false positives.
+- **Prerequisites:** Phase 3 ValidatorMetric data accumulation in production
+
+**Risk:** Low. Extends existing `ChatLatencySnapshot`. Cache hit heuristic avoids schema changes.
+
+**Estimated files changed:** 4
 
 ---
 

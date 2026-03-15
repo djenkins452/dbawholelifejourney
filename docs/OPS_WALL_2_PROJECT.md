@@ -1,6 +1,6 @@
 # Ops Wall 2.0 — Project Document
 
-**Status:** Architecture Review (awaiting approval before deeper phases)
+**Status:** Phase 1 complete. Clarifications confirmed. Phase 2 ready.
 **Author:** Claude Code / Danny Jenkins
 **Created:** 2026-03-15
 **Last Updated:** 2026-03-15
@@ -16,6 +16,7 @@
 5. [Ops Wall 2.0 Panel Specifications](#ops-wall-20-panel-specifications)
 6. [Implementation Phases](#implementation-phases)
 7. [Risk Analysis](#risk-analysis)
+8. [Architecture Clarifications](#architecture-clarifications)
 
 ---
 
@@ -40,6 +41,8 @@ Evolve the existing Ops Wall (`/admin-console/ops/`) from a dense, flat monitori
 | **Reuse Over Build** | Every panel must map to existing telemetry models. New models only for genuinely missing data. |
 | **Extend SAME** | New real-time monitoring capabilities are added as SAME detectors, not new systems. |
 | **Declarative Metadata** | Engine dependencies, health thresholds, and contracts live in the engine registry, not scattered across scoring code. |
+| **Dependency Metadata is Informational** | Engine dependency graph is for diagnostics and UI visualization only. SAME anomaly detection does NOT use dependency metadata — it continues operating on its own deterministic signals (heartbeats, error rates, suppression, confidence volatility, delivery patterns). Dependencies explain issues after detection, never influence detection or severity. |
+| **Cached Aggregation** | Heavy aggregation queries (signal health, validator metrics) are computed on scheduled cadences (SAME 60s, COAS 5m) and cached. The 2s polling endpoint reads cached values only — never runs live aggregation. |
 
 ### Relationship to Existing Ops Wall
 
@@ -267,19 +270,35 @@ Each card clicks through to a diagnostic panel that contains what currently live
 
 **Card: Signal Health**
 - Purpose: Are all life domains producing intelligence signals?
-- Metrics: Domains active (X/Y), domains silent (>48h), signal diversity score, freshest/stalest domain
-- Data sources: `Insight` (grouped by domain), `JournalSignal`, `Prediction`, `GuidanceItem`
+- Metrics:
+  - **Signal Freshness** — Last signal timestamp per domain. Highlights domains silent >48h.
+  - **Signal Volume** — Number of signals generated per domain over rolling 24h and 7d windows.
+  - **Signal Diversity** — Number of distinct signal types generated per domain. Detects diversity collapse (only one signal type appearing).
+- Summary card shows: Domains active (X/Y), domains silent (count), stalest domain name + hours since last signal.
+- Data sources:
+  - `Insight` model (`module` field = domain, `insight_type` field = signal type, `created_at` = freshness)
+  - `Prediction` model (`module` field = domain, `created_at` = freshness)
+  - `GuidanceItem` model (`module` field = domain, `created_at` = freshness)
+  - `JournalSignal` model (`domain` field, `signal_type` field, `created_at` = freshness)
+- Monitored domains: health, faith, meals, relationships, journal, purpose, finance, calendar, brain_training, medical
+- SAME detectors added: `SIGNAL_DROUGHT` (domain silent >48h), `SIGNAL_DIVERSITY_COLLAPSE` (domain producing only 1 signal type in 7d)
 - Drill-down (Level 2): Per-domain signal freshness table, signal type distribution chart, signal production timeline (7d)
 - Drill-down (Level 3): Individual signal records per domain
+- **Performance:** Signal health metrics computed by SAME cycle (60s) and cached. Polling endpoint reads cached snapshot only.
 - **Existing telemetry:** Gap. Needs new aggregation queries on existing models.
 
 **Card: Data Integrity**
 - Purpose: Is the truth layer consistent across consumers?
-- Metrics: Domain Registry coverage (%), SAE freshness, known consumer mismatches (count)
+- Metrics:
+  - **Domain Registry coverage** (%) — How many domains have full intent/signal/context coverage.
+  - **SAE freshness** — Time since last UserState rebuild.
+  - **Known consumer mismatches** (count) — Detected divergence between canonical and direct queries.
+  - **Canonical Service Compliance** (future) — How many consumers use canonical query services vs direct ORM bypasses.
 - Data sources: `registry.get_coverage_summary()`, `UserState.last_updated`, future: consumer alignment checks
-- Drill-down (Level 2): Domain consistency map (registry coverage per domain), SAE module freshness per module, known bypass list (CoS builders reading raw tables)
+- Drill-down (Level 2): Domain consistency map (registry coverage per domain), SAE module freshness per module, known bypass list (CoS builders reading raw tables), canonical service compliance summary
 - Drill-down (Level 3): Per-consumer query comparison (future CI check output)
-- **Existing telemetry:** Partial. Registry coverage exists. Consumer alignment is a future CI check.
+- **Note:** Canonical Service Compliance is a future diagnostic. Rogue ORM query detection is best implemented as a CI check (Phase 7), not a runtime scan. The Data Integrity panel will surface CI results when available.
+- **Existing telemetry:** Partial. Registry coverage exists. Consumer alignment and canonical compliance are future phases.
 
 #### ROW 3: Support Systems
 
@@ -310,9 +329,14 @@ Each card clicks through to a diagnostic panel that contains what currently live
 
 - Purpose: Active problems requiring attention, severity-ordered
 - Format: `SEVERITY │ Description │ Affected System │ Duration │ [Investigate →]`
-- Data sources: `OpsAnomaly.objects.filter(is_active=True)`, plus new SAME detectors
-- Behavior: Each incident links to the relevant Level 2 diagnostic panel
-- **Existing telemetry:** Anomaly watchlist exists. Needs incident-to-panel linking.
+- Incident sources (all stored as `OpsAnomaly` records — no duplication):
+  1. **SAME anomaly detectors** (existing) — MISSED_RUN, ERROR_SPIKE, CONFIDENCE_VOLATILITY, SUPPRESSION_STORM, LOOPING_REMINDER, ENGINE_STARVATION, DELIVERY_RETRY_SPIKE
+  2. **Signal Health detectors** (Phase 2) — SIGNAL_DROUGHT, SIGNAL_DIVERSITY_COLLAPSE
+  3. **Validator Gate monitoring** (Phase 3) — VALIDATOR_SPIKE, VALIDATOR_CRASH (already in ANOMALY_TYPES)
+- All incidents use the existing `OpsAnomaly` model. No parallel incident model. New detector types are added to `ANOMALY_TYPES` choices and created by SAME detectors.
+- Each incident contains: severity (P1/P2/P3), summary, affected engine/subsystem, evidence (JSON), suggested_actions, created_at, is_active flag
+- Behavior: Each anomaly type maps to a diagnostic panel URL for one-click investigation
+- **Existing telemetry:** Anomaly watchlist exists. Needs incident-to-panel linking + new detector types.
 
 #### ROW 5: Trend Strip
 
@@ -355,10 +379,12 @@ Each card clicks through to a diagnostic panel that contains what currently live
 **Goal:** Add per-domain signal freshness/diversity monitoring.
 
 **Tasks:**
-1. Create `compute_signal_health()` in `ops_telemetry.py` — queries `Insight`, `JournalSignal`, `Prediction` grouped by domain
-2. Add `SIGNAL_DROUGHT` detector to SAME engine (domain silent >48h)
-3. Add signal health data to OpsStreamView JSON response
-4. Surface signal health in Ops Wall (initially as a new card in existing layout)
+1. Create `compute_signal_health()` in `ops_telemetry.py` — queries `Insight`, `JournalSignal`, `Prediction`, `GuidanceItem` grouped by domain for freshness, volume (24h/7d), and diversity
+2. Add `SIGNAL_DROUGHT` detector to SAME engine (domain silent >48h) — creates `OpsAnomaly` records
+3. Add `SIGNAL_DIVERSITY_COLLAPSE` detector to SAME engine (domain producing only 1 signal type in 7d)
+4. Cache signal health snapshot in SAME cycle (60s) for polling endpoint
+5. Add signal health data to OpsStreamView JSON response
+6. Surface signal health in Ops Wall (initially as a new card in existing layout)
 
 **Risk:** Low. Read-only queries on existing models. SAME detector follows established pattern.
 
@@ -503,4 +529,89 @@ Each card clicks through to a diagnostic panel that contains what currently live
 
 ---
 
-*This document will be reviewed by Danny and ChatGPT before implementation proceeds beyond Phase 1.*
+## 8. Architecture Clarifications
+
+*Confirmed 2026-03-15 after Danny + ChatGPT review of Phase 1.*
+
+### Clarification 1: Dependency Graph is Informational Only
+
+**Confirmed.** Engine dependency metadata (Phase 1) is used exclusively for:
+- Diagnostic visualization on the Ops Wall (dependency chain display)
+- Root cause exploration (if SAE is down, show which engines are affected)
+- Impact chain analysis in drill-down panels
+
+Dependency metadata does **NOT**:
+- Influence SAME anomaly detection logic
+- Affect anomaly severity calculations
+- Drive automated remediation decisions
+- Modify engine scheduling or execution order
+
+SAME continues to operate on its existing deterministic signals:
+heartbeats, error rates, suppression rates, confidence volatility, delivery retry patterns, engine starvation, looping detection.
+
+Dependencies explain issues **after** SAME detects them. They never influence detection.
+
+### Clarification 2: Signal Health Evaluates Intelligence Signals
+
+**Confirmed.** Signal Health measures domain intelligence signal production, not raw database activity.
+
+Three metrics per domain:
+
+| Metric | Definition | Detection |
+|--------|-----------|-----------|
+| **Signal Freshness** | `MAX(created_at)` per domain across Insight/Prediction/GuidanceItem/JournalSignal | Domain silent >48h = SIGNAL_DROUGHT anomaly |
+| **Signal Volume** | `COUNT(*)` per domain over 24h and 7d windows | Low volume trend detection |
+| **Signal Diversity** | `COUNT(DISTINCT insight_type/signal_type)` per domain over 7d | Only 1 type in 7d = SIGNAL_DIVERSITY_COLLAPSE anomaly |
+
+Models used for aggregation:
+- `Insight` (field: `module`) — from PIE rules engine
+- `Prediction` (field: `module`) — from PRIE trajectory engine
+- `GuidanceItem` (field: `module`) — from PGE guidance engine
+- `JournalSignal` (field: `domain`) — from journal NLP extraction
+
+Monitored domains: health, faith, meals, relationships, journal, purpose, finance, calendar, brain_training, medical.
+
+### Clarification 3: Incident Feed Uses OpsAnomaly (No Duplication)
+
+**Confirmed.** The incident feed draws from a single source: `OpsAnomaly.objects.filter(is_active=True)`.
+
+All incidents — regardless of origin — are stored as `OpsAnomaly` records:
+
+| Source | Detector | OpsAnomaly.anomaly_type |
+|--------|----------|------------------------|
+| SAME (existing) | Heartbeat monitor | MISSED_RUN |
+| SAME (existing) | Error rate monitor | ERROR_SPIKE |
+| SAME (existing) | UAL confidence monitor | CONFIDENCE_VOLATILITY |
+| SAME (existing) | ICQG suppression monitor | SUPPRESSION_STORM |
+| SAME (existing) | Reminder pattern monitor | LOOPING_REMINDER |
+| SAME (existing) | Cadence monitor | ENGINE_STARVATION |
+| SAME (existing) | DNE retry monitor | DELIVERY_RETRY_SPIKE |
+| Signal Health (Phase 2) | Domain silence detector | SIGNAL_DROUGHT |
+| Signal Health (Phase 2) | Diversity collapse detector | SIGNAL_DIVERSITY_COLLAPSE |
+| Validator Gate (Phase 3) | Block rate spike detector | VALIDATOR_SPIKE (exists) |
+| Validator Gate (Phase 3) | Validator crash detector | VALIDATOR_CRASH (exists) |
+
+No parallel incident model. No duplication of anomaly records.
+
+### Clarification 4: Data Integrity Includes Canonical Service Compliance
+
+**Confirmed.** The Data Integrity panel will include a future "Canonical Service Compliance" metric showing:
+- How many consumers use canonical query services (e.g., `TaskQueries`)
+- Known direct ORM bypasses (detected via CI audit in Phase 7)
+
+This is a future diagnostic, not an immediate implementation. Runtime detection of rogue queries is impractical — this will be a CI check whose results are surfaced on the Data Integrity panel.
+
+### Clarification 5: Signal Health Performance Strategy
+
+**Confirmed.** Signal Health aggregation follows the same pattern as existing COAS health scores:
+
+1. **Computation:** `compute_signal_health()` runs inside the SAME cycle (every 60s) or on a separate COAS-cadence schedule (every 5m)
+2. **Storage:** Results cached in Django cache (Redis) with a 5-minute TTL, keyed as `ops:signal_health:v1`
+3. **Polling:** `OpsStreamView` reads the cached signal health dict — zero aggregation queries on the 2s poll
+4. **Fallback:** If cache is cold, the polling endpoint returns `null` for signal health (UI shows "Computing...") rather than running live queries
+
+This is identical to how `COASHealthSnapshot` works today — computed on a schedule, read from cache by the poll.
+
+---
+
+*Phase 1 complete. Clarifications confirmed. Phase 2 (Signal Health Diagnostics) is ready to proceed.*

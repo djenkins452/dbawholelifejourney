@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix: Debug Prompt Button Always Active + Generic Modal Title
+
+**What:** Two investigation panel UX fixes:
+1. **Debug prompt button** was always enabled even when diagnostic scan found 0 failures and 0 warnings. Now: button starts disabled on panel open (tooltip: "Run a diagnostic scan first..."), remains disabled after scan if no issues found (text: "No Issues Found", tooltip explains why), and enables only when `failures > 0 || warnings > 0`.
+2. **Modal title** was always generic "Debug Prompt". Now shows contextual title: "Debug Prompt — Signal Drought", "Debug Prompt — ENGINE STARVATION", etc. Works for both investigation panel prompts (uses `METRIC_LABELS` map) and anomaly card prompts (uses `data-anomaly-type` attribute).
+
+**Files:** `templates/admin_console/operations_wall.html`, `docs/wlj_claude_changelog.md`
+**Verification:** 108/108 tests pass (26 diagnostic + 82 ops wall).
+
+---
+
 ## 2026-03-15 — Ops Wall: Celery Execution Layer Visibility
 
 **What:** Added Celery Workers tile to the Ops Wall (Zone 4: Support Systems) providing full execution layer observability. The WLJ pipeline runs APScheduler → ISE → Celery Tasks → Engines, but previously the Celery worker layer was invisible — schedulers could appear healthy while no tasks actually executed.

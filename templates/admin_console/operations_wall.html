@@ -3996,7 +3996,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     <div class="ops-debug-modal" id="debugPromptModal">
         <div class="ops-debug-modal-content">
             <div class="ops-debug-modal-header">
-                <span class="ops-debug-modal-title">Debug Prompt</span>
+                <span class="ops-debug-modal-title" id="debugModalTitle">Debug Prompt</span>
                 <button class="ops-debug-close-btn" id="debugModalClose">&times;</button>
             </div>
             <pre class="ops-debug-prompt" id="debugPromptText"></pre>
@@ -6884,6 +6884,11 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         var card = btn.closest('.ops-anomaly-card');
         if (!card) return;
         var prompt = generateDebugPrompt(card);
+        // Set contextual title from anomaly type
+        var anomalyType = card.querySelector('[data-anomaly-type]');
+        var label = anomalyType ? anomalyType.dataset.anomalyType.replace(/_/g, ' ') : 'Anomaly';
+        var titleEl = document.getElementById('debugModalTitle');
+        if (titleEl) titleEl.textContent = 'Debug Prompt \u2014 ' + label;
         var textEl = document.getElementById('debugPromptText');
         if (textEl) textEl.textContent = prompt;
         var modal = document.getElementById('debugPromptModal');
@@ -6973,6 +6978,9 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         scanBtn.disabled = false;
         scanBtn.textContent = 'Run Diagnostic Scan';
         debugBtn.dataset.target = target;
+        debugBtn.disabled = true;
+        debugBtn.textContent = 'Generate Debug Prompt';
+        debugBtn.title = 'Run a diagnostic scan first to enable debug prompt generation.';
         overlay.classList.add('visible');
 
         // Fetch metric evidence
@@ -7091,10 +7099,16 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             html += '<div class="ops-investigate-summary">' + escapeHtml(data.summary) + '</div>';
         }
 
+        // Count issues for debug prompt button state
+        var failures = 0;
+        var warnings = 0;
+
         // Render checks
         if (data.checks && data.checks.length) {
             html += '<div class="ops-investigate-checks">';
             data.checks.forEach(function(chk) {
+                if (chk.status === 'FAIL') failures++;
+                if (chk.status === 'WARN') warnings++;
                 html += '<div class="ops-investigate-check">';
                 html += '<span class="ops-investigate-check-status ' + escapeAttr(chk.status) + '">' + escapeHtml(chk.status) + '</span>';
                 html += '<div><div class="ops-investigate-check-name">' + escapeHtml(chk.name) + '</div>' +
@@ -7118,12 +7132,29 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         }
 
         container.innerHTML = html;
+
+        // Enable/disable debug prompt button based on issues found
+        var debugBtn = document.getElementById('investigateDebugBtn');
+        if (debugBtn) {
+            var hasIssues = failures > 0 || warnings > 0;
+            debugBtn.disabled = !hasIssues;
+            if (hasIssues) {
+                debugBtn.title = '';
+                debugBtn.textContent = 'Generate Debug Prompt';
+            } else {
+                debugBtn.title = 'No issues detected. Debug prompts are available only when warnings or failures exist.';
+                debugBtn.textContent = 'No Issues Found';
+            }
+        }
     }
 
     function fetchDebugPrompt(target) {
         var debugBtn = document.getElementById('investigateDebugBtn');
         debugBtn.disabled = true;
         debugBtn.textContent = 'Generating...';
+
+        // Build a readable label for the modal title
+        var targetLabel = METRIC_LABELS[target] || target.replace(/_/g, ' ');
 
         fetch('/admin-console/ops/debug-prompt/?target=' + encodeURIComponent(target), {
             headers: { 'X-CSRFToken': getCookie('csrftoken') }
@@ -7132,6 +7163,9 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         .then(function(data) {
             debugBtn.disabled = false;
             debugBtn.textContent = 'Generate Debug Prompt';
+            // Set modal title with target context
+            var titleEl = document.getElementById('debugModalTitle');
+            if (titleEl) titleEl.textContent = 'Debug Prompt \u2014 ' + targetLabel;
             // Show in the existing debug prompt modal
             var textEl = document.getElementById('debugPromptText');
             if (textEl) textEl.textContent = data.prompt || 'No prompt generated.';

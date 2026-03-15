@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix: Intermittent 524 Timeouts from Query Storms
+
+**Issue:** Site experiencing intermittent 524 Cloudflare timeouts — loads for a while, then blocks, then clears. Three compounding causes:
+
+1. **SAME engine** called `compute_signal_health()` 3 separate times per 60s cycle (~72 queries/minute)
+2. **Ops Wall page load** called `compute_all_maturity_scores()` live on every load, which iterates 200 users × 8 domain checks = ~1600 queries per page load
+3. **OpsStreamView polling** had live-computation fallbacks for `_get_validator_health()` and `_get_cos_performance()` when Redis cache empty
+
+When these overlapped: DB connection pool saturated → Gunicorn workers blocked → 524.
+
+**Fixes:**
+- SAME engine: Compute signal health ONCE per cycle, pass result to all 3 detectors (drought, diversity, cache). 3x→1x computation.
+- Ops Wall: Cache `compute_all_maturity_scores()` with 5-min TTL. Repeat page loads read cache instead of recomputing.
+- OpsStreamView: All `_get_*` fallback functions now return `None` when cache empty instead of triggering live computation. SAME populates cache within 60s.
+
+**Files:** `apps/core/ai_observability/same_engine.py`, `apps/core/ai_observability/ops_telemetry.py`, `apps/core/ai_observability/ops_views.py`
+
+---
+
 ## 2026-03-15 — Fix: Evidence/Scan Endpoints Return HTML Instead of JSON on Error
 
 **Issue:** MetricEvidenceView and DiagnosticScanView had no try/except — exceptions during evidence computation returned HTML 500 page. JS fetch failed with "Unexpected token '<'" since it expected JSON.

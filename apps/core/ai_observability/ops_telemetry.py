@@ -1491,7 +1491,7 @@ def _get_validator_health():
     Read cached validator health snapshot for the polling endpoint.
 
     Validator health is computed and cached by the SAME engine on its 60s cadence.
-    Falls back to live computation if cache is empty (first load before SAME runs).
+    Returns None if cache is empty (avoids expensive live computation on request path).
     """
     try:
         from django.core.cache import cache
@@ -1500,8 +1500,8 @@ def _get_validator_health():
         if cached is not None:
             return cached
 
-        # Fallback: compute live (only happens on first load before SAME runs)
-        return compute_validator_health()
+        # No fallback — return None until SAME populates cache (avoids query storms)
+        return None
     except Exception as e:
         logger.debug("Validator health unavailable: %s", e)
         return None
@@ -1601,7 +1601,7 @@ def _get_cos_performance():
     Read cached CoS performance snapshot for the polling endpoint.
 
     CoS performance is computed and cached by the SAME engine on its 60s cadence.
-    Falls back to live computation if cache is empty (first load before SAME runs).
+    Returns None if cache is empty (avoids expensive live computation on request path).
     """
     try:
         from django.core.cache import cache
@@ -1610,7 +1610,8 @@ def _get_cos_performance():
         if cached is not None:
             return cached
 
-        return compute_cos_performance()
+        # No fallback — return None until SAME populates cache (avoids query storms)
+        return None
     except Exception as e:
         logger.debug("CoS performance unavailable: %s", e)
         return None

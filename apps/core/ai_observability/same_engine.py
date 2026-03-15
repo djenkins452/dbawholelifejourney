@@ -52,12 +52,16 @@ def run_same():
     detected.extend(_detect_looping_reminders(now))
     detected.extend(_detect_engine_starvation(heartbeats, now))
     detected.extend(_detect_delivery_retry_spike(now))
-    detected.extend(_detect_signal_drought(now))
-    detected.extend(_detect_signal_low_diversity(now))
+
+    # Compute signal health ONCE and reuse for all signal detectors + cache
+    # (Previously computed 3x per cycle — ~72 queries reduced to ~24)
+    signal_health = _compute_signal_health_once()
+    detected.extend(_detect_signal_drought(now, signal_health=signal_health))
+    detected.extend(_detect_signal_low_diversity(now, signal_health=signal_health))
     detected.extend(_detect_validator_spike(now))
 
     # Step 2.5: Cache health snapshots for polling endpoint
-    _cache_signal_health()
+    _cache_signal_health(precomputed=signal_health)
     _cache_validator_health()
     _cache_cos_performance()
 
@@ -408,12 +412,21 @@ def _detect_delivery_retry_spike(now):
     return []
 
 
-def _detect_signal_drought(now):
+def _compute_signal_health_once():
+    """Compute signal health once per SAME cycle for reuse by all detectors."""
+    try:
+        from apps.core.ai_observability.ops_telemetry import compute_signal_health
+        return compute_signal_health()
+    except Exception as e:
+        logger.warning("SAME: signal health computation failed: %s", e, exc_info=True)
+        return {"domains": {}, "summary": {}}
+
+
+def _detect_signal_drought(now, signal_health=None):
     """
     Detect domains with no intelligence signals for >48 hours.
 
-    Uses compute_signal_health() to identify domains that have gone silent,
-    indicating a potential pipeline failure or data ingestion issue.
+    Uses precomputed signal_health to avoid redundant queries.
 
     Thresholds:
       P2: domain silent 48h–96h (2–4 days)
@@ -422,9 +435,7 @@ def _detect_signal_drought(now):
     anomalies = []
 
     try:
-        from apps.core.ai_observability.ops_telemetry import compute_signal_health
-
-        health = compute_signal_health()
+        health = signal_health or _compute_signal_health_once()
         domains = health.get("domains", {})
 
         for domain, data in domains.items():
@@ -464,13 +475,11 @@ def _detect_signal_drought(now):
     return anomalies
 
 
-def _detect_signal_low_diversity(now):
+def _detect_signal_low_diversity(now, signal_health=None):
     """
     Detect domains with collapsing signal diversity.
 
-    A domain producing high volume but only 1 signal type over 7 days
-    suggests a pipeline regression where most signal extractors have
-    stopped working.
+    Uses precomputed signal_health to avoid redundant queries.
 
     Thresholds:
       P2: distinct_types_7d == 1 AND volume_7d >= 10
@@ -479,9 +488,7 @@ def _detect_signal_low_diversity(now):
     anomalies = []
 
     try:
-        from apps.core.ai_observability.ops_telemetry import compute_signal_health
-
-        health = compute_signal_health()
+        health = signal_health or _compute_signal_health_once()
         domains = health.get("domains", {})
 
         for domain, data in domains.items():
@@ -534,10 +541,11 @@ def _detect_signal_low_diversity(now):
     return anomalies
 
 
-def _cache_signal_health():
+def _cache_signal_health(precomputed=None):
     """
-    Compute and cache signal health snapshot for the polling endpoint.
+    Cache signal health snapshot for the polling endpoint.
 
+    Accepts precomputed health data to avoid redundant queries.
     Called during every SAME cycle so OpsStreamView can read cached data
     instead of running expensive queries on each 2s poll.
     Cache TTL: 120s (2 SAME cycles, ensuring coverage even if one cycle skips).
@@ -545,9 +553,7 @@ def _cache_signal_health():
     try:
         from django.core.cache import cache
 
-        from apps.core.ai_observability.ops_telemetry import compute_signal_health
-
-        health = compute_signal_health()
+        health = precomputed or _compute_signal_health_once()
         cache.set("wlj:ops:signal_health", health, timeout=120)
         logger.debug("SAME: cached signal health (%d domains)", len(health.get("domains", {})))
     except Exception as e:

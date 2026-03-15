@@ -92,10 +92,11 @@ class OperationsWallView(AdminRequiredMixin, TemplateView):
         return {"score": None, "violations": 0, "scanned": 0, "last_run": None}
 
     def _get_maturity_data(self):
-        """Compute system-wide maturity scores for the War Room header.
+        """Read cached maturity scores for the War Room header.
 
-        Uses compute_all_maturity_scores(user=None) so Life Impact is
-        averaged across all active users, matching daily snapshots.
+        Reads from cache (populated by SAME or daily snapshot task).
+        Falls back to live computation with 5-min cache to prevent
+        1600+ query storms on page refresh.
         """
         result = {
             "maturity_scores": {},
@@ -104,13 +105,21 @@ class OperationsWallView(AdminRequiredMixin, TemplateView):
             "life_impact_sample_size": 0,
         }
         try:
+            from django.core.cache import cache
+
             from apps.core.ai_observability.maturity_engine import (
                 compute_all_maturity_scores,
                 detect_regressions,
                 generate_recommendations,
             )
 
-            scores = compute_all_maturity_scores()  # system-wide (no user)
+            # Try cache first (populated by SAME cycle or previous page load)
+            cache_key = "wlj:ops:maturity_scores"
+            scores = cache.get(cache_key)
+            if scores is None:
+                scores = compute_all_maturity_scores()  # system-wide (no user)
+                cache.set(cache_key, scores, timeout=300)  # 5 min cache
+
             # Extract sample_size from life_impact details if present
             li_data = scores.get('life_impact', {})
             result['life_impact_sample_size'] = li_data.get('sample_size', 0)

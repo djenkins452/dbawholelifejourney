@@ -1,6 +1,6 @@
 # Ops Wall 2.0 — Project Document
 
-**Status:** Phase 1 complete. Clarifications confirmed. Phase 2 ready.
+**Status:** Phase 2 complete. Phase 3 ready.
 **Author:** Claude Code / Danny Jenkins
 **Created:** 2026-03-15
 **Last Updated:** 2026-03-15
@@ -281,7 +281,7 @@ Each card clicks through to a diagnostic panel that contains what currently live
   - `GuidanceItem` model (`module` field = domain, `created_at` = freshness)
   - `JournalSignal` model (`domain` field, `signal_type` field, `created_at` = freshness)
 - Monitored domains: health, faith, meals, relationships, journal, purpose, finance, calendar, brain_training, medical
-- SAME detectors added: `SIGNAL_DROUGHT` (domain silent >48h), `SIGNAL_DIVERSITY_COLLAPSE` (domain producing only 1 signal type in 7d)
+- SAME detectors added: `SIGNAL_DROUGHT` (domain silent >48h), `SIGNAL_LOW_DIVERSITY` (domain producing only 1 signal type in 7d)
 - Drill-down (Level 2): Per-domain signal freshness table, signal type distribution chart, signal production timeline (7d)
 - Drill-down (Level 3): Individual signal records per domain
 - **Performance:** Signal health metrics computed by SAME cycle (60s) and cached. Polling endpoint reads cached snapshot only.
@@ -331,7 +331,7 @@ Each card clicks through to a diagnostic panel that contains what currently live
 - Format: `SEVERITY │ Description │ Affected System │ Duration │ [Investigate →]`
 - Incident sources (all stored as `OpsAnomaly` records — no duplication):
   1. **SAME anomaly detectors** (existing) — MISSED_RUN, ERROR_SPIKE, CONFIDENCE_VOLATILITY, SUPPRESSION_STORM, LOOPING_REMINDER, ENGINE_STARVATION, DELIVERY_RETRY_SPIKE
-  2. **Signal Health detectors** (Phase 2) — SIGNAL_DROUGHT, SIGNAL_DIVERSITY_COLLAPSE
+  2. **Signal Health detectors** (Phase 2) — SIGNAL_DROUGHT, SIGNAL_LOW_DIVERSITY
   3. **Validator Gate monitoring** (Phase 3) — VALIDATOR_SPIKE, VALIDATOR_CRASH (already in ANOMALY_TYPES)
 - All incidents use the existing `OpsAnomaly` model. No parallel incident model. New detector types are added to `ANOMALY_TYPES` choices and created by SAME detectors.
 - Each incident contains: severity (P1/P2/P3), summary, affected engine/subsystem, evidence (JSON), suggested_actions, created_at, is_active flag
@@ -381,7 +381,7 @@ Each card clicks through to a diagnostic panel that contains what currently live
 **Tasks:**
 1. Create `compute_signal_health()` in `ops_telemetry.py` — queries `Insight`, `JournalSignal`, `Prediction`, `GuidanceItem` grouped by domain for freshness, volume (24h/7d), and diversity
 2. Add `SIGNAL_DROUGHT` detector to SAME engine (domain silent >48h) — creates `OpsAnomaly` records
-3. Add `SIGNAL_DIVERSITY_COLLAPSE` detector to SAME engine (domain producing only 1 signal type in 7d)
+3. Add `SIGNAL_LOW_DIVERSITY` detector to SAME engine (domain producing only 1 signal type in 7d)
 4. Cache signal health snapshot in SAME cycle (60s) for polling endpoint
 5. Add signal health data to OpsStreamView JSON response
 6. Surface signal health in Ops Wall (initially as a new card in existing layout)
@@ -561,7 +561,7 @@ Three metrics per domain:
 |--------|-----------|-----------|
 | **Signal Freshness** | `MAX(created_at)` per domain across Insight/Prediction/GuidanceItem/JournalSignal | Domain silent >48h = SIGNAL_DROUGHT anomaly |
 | **Signal Volume** | `COUNT(*)` per domain over 24h and 7d windows | Low volume trend detection |
-| **Signal Diversity** | `COUNT(DISTINCT insight_type/signal_type)` per domain over 7d | Only 1 type in 7d = SIGNAL_DIVERSITY_COLLAPSE anomaly |
+| **Signal Diversity** | `COUNT(DISTINCT insight_type/signal_type)` per domain over 7d | Only 1 type in 7d = SIGNAL_LOW_DIVERSITY anomaly |
 
 Models used for aggregation:
 - `Insight` (field: `module`) — from PIE rules engine
@@ -587,7 +587,7 @@ All incidents — regardless of origin — are stored as `OpsAnomaly` records:
 | SAME (existing) | Cadence monitor | ENGINE_STARVATION |
 | SAME (existing) | DNE retry monitor | DELIVERY_RETRY_SPIKE |
 | Signal Health (Phase 2) | Domain silence detector | SIGNAL_DROUGHT |
-| Signal Health (Phase 2) | Diversity collapse detector | SIGNAL_DIVERSITY_COLLAPSE |
+| Signal Health (Phase 2) | Diversity collapse detector | SIGNAL_LOW_DIVERSITY |
 | Validator Gate (Phase 3) | Block rate spike detector | VALIDATOR_SPIKE (exists) |
 | Validator Gate (Phase 3) | Validator crash detector | VALIDATOR_CRASH (exists) |
 
@@ -614,4 +614,4 @@ This is identical to how `COASHealthSnapshot` works today — computed on a sche
 
 ---
 
-*Phase 1 complete. Clarifications confirmed. Phase 2 (Signal Health Diagnostics) is ready to proceed.*
+*Phase 2 complete. Signal Health Diagnostics implemented with compute_signal_health(), two SAME detectors (SIGNAL_DROUGHT, SIGNAL_LOW_DIVERSITY), cached aggregation, polling endpoint integration, and 21 tests. Phase 3 (Validator Gate Diagnostics) is ready to proceed.*

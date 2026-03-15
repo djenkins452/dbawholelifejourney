@@ -322,6 +322,9 @@ class OpsStreamView(View):
         # Intelligence Pipeline Health (signal snapshots, goal momentum, journal NLP, etc.)
         pipeline_health = _get_intelligence_pipeline_health(now)
 
+        # Signal Health (cached by SAME cycle, read-only here)
+        signal_health = _get_signal_health()
+
         return JsonResponse({
             "server_time": now.isoformat(),
             "posture": posture,
@@ -341,6 +344,7 @@ class OpsStreamView(View):
             "domain_events": domain_events,
             "chat_latency": chat_latency,
             "pipeline_health": pipeline_health,
+            "signal_health": signal_health,
             "next_since": now.isoformat(),
         })
 
@@ -1132,4 +1136,5 @@ from apps.core.ai_observability.ops_telemetry import (  # noqa: E402, F401
     _get_domain_event_telemetry,
     _get_chat_latency_telemetry,
     _get_intelligence_pipeline_health,
+    _get_signal_health,
 )

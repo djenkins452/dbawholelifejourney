@@ -576,6 +576,8 @@ class OpsAnomaly(models.Model):
         ("STRUCTURAL_VIOLATION", "Structural Violation"),
         ("NUMERIC_DEVIATION", "Numeric Deviation"),
         ("VALIDATOR_CRASH", "Validator Crash"),
+        ("SIGNAL_DROUGHT", "Signal Drought"),
+        ("SIGNAL_LOW_DIVERSITY", "Signal Low Diversity"),
     ]
 
     created_at = models.DateTimeField(auto_now_add=True)

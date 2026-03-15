@@ -6,6 +6,37 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Ops Wall 2.0 Phase 2: Signal Health Diagnostics
+
+**Context:** Phase 2 of the Ops Wall 2.0 project adds per-domain signal health monitoring
+to detect intelligence pipeline failures (signal droughts and diversity collapses).
+
+**Changes:**
+1. **`compute_signal_health()`** — New aggregation function in `ops_telemetry.py` that queries
+   Insight, Prediction, GuidanceItem, and JournalSignal models grouped by domain/module.
+   Computes per-domain freshness, freshness_hours, volume (24h/7d), distinct signal types (7d),
+   and health status (healthy/stale/silent).
+2. **SAME detectors** — Added `_detect_signal_drought()` (P2 at 48h, P1 at 96h) and
+   `_detect_signal_low_diversity()` (P2 for 1 type + 10+ volume, P3 for ≤2 types + 20+ volume)
+   to `same_engine.py`. Wired into `run_same()` detection pipeline.
+3. **Model update** — Added `SIGNAL_DROUGHT` and `SIGNAL_LOW_DIVERSITY` to
+   `OpsAnomaly.ANOMALY_TYPES` choices (migration 0115).
+4. **Cached aggregation** — `_cache_signal_health()` stores results in Redis (120s TTL) during
+   each SAME cycle. `_get_signal_health()` reads cache with live fallback.
+5. **Polling endpoint** — Added `signal_health` key to OpsStreamView JSON response.
+6. **21 tests** — Covering aggregation, detectors, model creation, caching, and fallback.
+
+**Files changed:**
+- `apps/core/ai_observability/ops_telemetry.py` — `_get_signal_health()`, `compute_signal_health()`
+- `apps/core/ai_observability/same_engine.py` — 2 detectors + cache helper + run_same() wiring
+- `apps/core/ai_observability/models.py` — 2 new ANOMALY_TYPES choices
+- `apps/core/ai_observability/ops_views.py` — signal_health in stream response
+- `apps/core/ai_observability/tests_signal_health.py` — 21 tests (NEW)
+- `apps/core/migrations/0115_alter_opsanomaly_anomaly_type.py` — (NEW)
+- `docs/OPS_WALL_2_PROJECT.md` — Status updated to Phase 2 complete
+
+---
+
 ## 2026-03-15 — Ops Wall 2.0 Phase 1: Engine dependency graph + registry consolidation
 
 **Context:** Architecture review identified that the engine registry had empty dependency

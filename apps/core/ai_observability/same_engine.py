@@ -12,6 +12,8 @@ Anomaly types:
   - LOOPING_REMINDER: Same topic fired repeatedly in short window
   - ENGINE_STARVATION: Engine never running despite signals
   - DELIVERY_RETRY_SPIKE: DNE retry rate exceeds baseline
+  - SIGNAL_DROUGHT: Domain has no intelligence signals for >48h
+  - SIGNAL_LOW_DIVERSITY: Domain producing high volume but very few signal types
 
 Project: Whole Life Journey
 Path: apps/core/ai_observability/same_engine.py
@@ -49,6 +51,11 @@ def run_same():
     detected.extend(_detect_looping_reminders(now))
     detected.extend(_detect_engine_starvation(heartbeats, now))
     detected.extend(_detect_delivery_retry_spike(now))
+    detected.extend(_detect_signal_drought(now))
+    detected.extend(_detect_signal_low_diversity(now))
+
+    # Step 2.5: Cache signal health snapshot for polling endpoint
+    _cache_signal_health()
 
     # Step 3: Reconcile anomalies (activate new, resolve old)
     stats = _reconcile_anomalies(detected, now)
@@ -395,6 +402,152 @@ def _detect_delivery_retry_spike(now):
         }]
 
     return []
+
+
+def _detect_signal_drought(now):
+    """
+    Detect domains with no intelligence signals for >48 hours.
+
+    Uses compute_signal_health() to identify domains that have gone silent,
+    indicating a potential pipeline failure or data ingestion issue.
+
+    Thresholds:
+      P2: domain silent 48h–96h (2–4 days)
+      P1: domain silent >96h (4+ days)
+    """
+    anomalies = []
+
+    try:
+        from apps.core.ai_observability.ops_telemetry import compute_signal_health
+
+        health = compute_signal_health()
+        domains = health.get("domains", {})
+
+        for domain, data in domains.items():
+            freshness_hours = data.get("freshness_hours")
+            volume_7d = data.get("volume_7d", 0)
+
+            # Skip domains that never had signals (not a drought, just unused)
+            if freshness_hours is None and volume_7d == 0:
+                continue
+
+            if freshness_hours is not None and freshness_hours > 48:
+                severity = "P1" if freshness_hours > 96 else "P2"
+                anomalies.append({
+                    "anomaly_type": "SIGNAL_DROUGHT",
+                    "severity": severity,
+                    "engine_name": "",  # cross-engine anomaly
+                    "summary": (
+                        f"Signal drought in '{domain}' — no signals for "
+                        f"{freshness_hours:.0f}h (threshold: 48h)"
+                    ),
+                    "evidence": {
+                        "domain": domain,
+                        "freshness_hours": freshness_hours,
+                        "volume_7d": volume_7d,
+                        "last_signal_at": data.get("last_signal_at"),
+                    },
+                    "suggested_actions": [
+                        {
+                            "action": "investigate_pipeline",
+                            "label": f"Check {domain} signal pipeline",
+                        },
+                    ],
+                })
+    except Exception as e:
+        logger.warning("SAME signal drought detection failed: %s", e, exc_info=True)
+
+    return anomalies
+
+
+def _detect_signal_low_diversity(now):
+    """
+    Detect domains with collapsing signal diversity.
+
+    A domain producing high volume but only 1 signal type over 7 days
+    suggests a pipeline regression where most signal extractors have
+    stopped working.
+
+    Thresholds:
+      P2: distinct_types_7d == 1 AND volume_7d >= 10
+      P3: distinct_types_7d <= 2 AND volume_7d >= 20
+    """
+    anomalies = []
+
+    try:
+        from apps.core.ai_observability.ops_telemetry import compute_signal_health
+
+        health = compute_signal_health()
+        domains = health.get("domains", {})
+
+        for domain, data in domains.items():
+            distinct = data.get("distinct_types_7d", 0)
+            volume_7d = data.get("volume_7d", 0)
+
+            # Only flag domains with meaningful volume but low diversity
+            if distinct == 1 and volume_7d >= 10:
+                anomalies.append({
+                    "anomaly_type": "SIGNAL_LOW_DIVERSITY",
+                    "severity": "P2",
+                    "engine_name": "",  # cross-engine anomaly
+                    "summary": (
+                        f"Signal diversity collapse in '{domain}' — "
+                        f"only 1 signal type across {volume_7d} signals (7d)"
+                    ),
+                    "evidence": {
+                        "domain": domain,
+                        "distinct_types_7d": distinct,
+                        "volume_7d": volume_7d,
+                    },
+                    "suggested_actions": [
+                        {
+                            "action": "investigate_pipeline",
+                            "label": f"Check {domain} signal extractors",
+                        },
+                    ],
+                })
+            elif distinct <= 2 and volume_7d >= 20:
+                anomalies.append({
+                    "anomaly_type": "SIGNAL_LOW_DIVERSITY",
+                    "severity": "P3",
+                    "engine_name": "",  # cross-engine anomaly
+                    "summary": (
+                        f"Low signal diversity in '{domain}' — "
+                        f"only {distinct} types across {volume_7d} signals (7d)"
+                    ),
+                    "evidence": {
+                        "domain": domain,
+                        "distinct_types_7d": distinct,
+                        "volume_7d": volume_7d,
+                    },
+                    "suggested_actions": [],
+                })
+    except Exception as e:
+        logger.warning(
+            "SAME signal diversity detection failed: %s", e, exc_info=True
+        )
+
+    return anomalies
+
+
+def _cache_signal_health():
+    """
+    Compute and cache signal health snapshot for the polling endpoint.
+
+    Called during every SAME cycle so OpsStreamView can read cached data
+    instead of running expensive queries on each 2s poll.
+    Cache TTL: 120s (2 SAME cycles, ensuring coverage even if one cycle skips).
+    """
+    try:
+        from django.core.cache import cache
+
+        from apps.core.ai_observability.ops_telemetry import compute_signal_health
+
+        health = compute_signal_health()
+        cache.set("wlj:ops:signal_health", health, timeout=120)
+        logger.debug("SAME: cached signal health (%d domains)", len(health.get("domains", {})))
+    except Exception as e:
+        logger.warning("SAME: failed to cache signal health: %s", e)
 
 
 # =========================================================================

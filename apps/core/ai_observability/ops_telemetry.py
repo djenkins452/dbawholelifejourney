@@ -1230,6 +1230,256 @@ def _get_chat_latency_telemetry(now):
         return None
 
 
+def _get_signal_health():
+    """
+    Read cached signal health snapshot for the polling endpoint.
+
+    Signal health is computed and cached by the SAME engine on its 60s cadence.
+    Falls back to live computation if cache is empty (first load before SAME runs).
+    """
+    try:
+        from django.core.cache import cache
+
+        cached = cache.get("wlj:ops:signal_health")
+        if cached is not None:
+            return cached
+
+        # Fallback: compute live (only happens on first load before SAME runs)
+        return compute_signal_health()
+    except Exception as e:
+        logger.debug("Signal health unavailable: %s", e)
+        return None
+
+
+def compute_signal_health():
+    """
+    Compute signal health diagnostics across intelligence domains.
+
+    Queries Insight, Prediction, GuidanceItem, and JournalSignal models
+    grouped by domain/module to compute per-domain metrics:
+      - freshness: MAX created_at (most recent signal)
+      - freshness_hours: hours since most recent signal
+      - volume_24h: COUNT signals in last 24 hours
+      - volume_7d: COUNT signals in last 7 days
+      - distinct_types_7d: COUNT DISTINCT signal types in last 7 days
+      - status: healthy / stale / silent (based on freshness + diversity)
+
+    Status thresholds:
+      healthy: freshness < 24h AND distinct_types_7d >= 2
+      stale: freshness 24h–72h OR distinct_types_7d == 1
+      silent: freshness > 72h OR volume_7d == 0
+
+    Returns:
+        dict with keys: domains_active, domains_silent, stalest_domain,
+        stalest_hours, domains (per-domain breakdown)
+    """
+    from django.db.models import Count, Max
+
+    now = timezone.now()
+    last_24h = now - timedelta(hours=24)
+    last_7d = now - timedelta(days=7)
+
+    # Aggregate signals from all four intelligence models by domain/module
+    domain_data = {}  # domain -> {last_signal_at, volume_24h, volume_7d, types_7d}
+
+    def _merge_domain(domain, last_at, count_24h, count_7d, types_7d):
+        """Merge a model's aggregation into the domain_data dict."""
+        if not domain:
+            return
+        domain = domain.lower()
+        if domain not in domain_data:
+            domain_data[domain] = {
+                "last_signal_at": None,
+                "volume_24h": 0,
+                "volume_7d": 0,
+                "types_7d": set(),
+            }
+        d = domain_data[domain]
+        if last_at and (d["last_signal_at"] is None or last_at > d["last_signal_at"]):
+            d["last_signal_at"] = last_at
+        d["volume_24h"] += count_24h or 0
+        d["volume_7d"] += count_7d or 0
+        if types_7d:
+            d["types_7d"].update(types_7d)
+
+    # --- Insight model (module field) ---
+    try:
+        from apps.core.ai_insights.models import Insight
+
+        insight_aggs = (
+            Insight.objects.filter(module__isnull=False)
+            .exclude(module="")
+            .values("module")
+            .annotate(
+                last_at=Max("created_at"),
+            )
+        )
+        for row in insight_aggs:
+            module = row["module"]
+            last_at = row["last_at"]
+            vol_24h = Insight.objects.filter(
+                module=module, created_at__gte=last_24h
+            ).count()
+            vol_7d = Insight.objects.filter(
+                module=module, created_at__gte=last_7d
+            ).count()
+            types_7d = set(
+                Insight.objects.filter(module=module, created_at__gte=last_7d)
+                .values_list("insight_type", flat=True)
+                .distinct()
+            )
+            _merge_domain(module, last_at, vol_24h, vol_7d, types_7d)
+    except Exception as e:
+        logger.debug("Signal health: Insight query failed: %s", e)
+
+    # --- Prediction model (module field) ---
+    try:
+        from apps.core.ai_predictions.models import Prediction
+
+        pred_aggs = (
+            Prediction.objects.filter(module__isnull=False)
+            .exclude(module="")
+            .values("module")
+            .annotate(
+                last_at=Max("created_at"),
+            )
+        )
+        for row in pred_aggs:
+            module = row["module"]
+            last_at = row["last_at"]
+            vol_24h = Prediction.objects.filter(
+                module=module, created_at__gte=last_24h
+            ).count()
+            vol_7d = Prediction.objects.filter(
+                module=module, created_at__gte=last_7d
+            ).count()
+            types_7d = set(
+                Prediction.objects.filter(module=module, created_at__gte=last_7d)
+                .values_list("prediction_type", flat=True)
+                .distinct()
+            )
+            _merge_domain(module, last_at, vol_24h, vol_7d, types_7d)
+    except Exception as e:
+        logger.debug("Signal health: Prediction query failed: %s", e)
+
+    # --- GuidanceItem model (module field) ---
+    try:
+        from apps.core.ai_guidance.models import GuidanceItem
+
+        guidance_aggs = (
+            GuidanceItem.objects.filter(module__isnull=False)
+            .exclude(module="")
+            .values("module")
+            .annotate(
+                last_at=Max("created_at"),
+            )
+        )
+        for row in guidance_aggs:
+            module = row["module"]
+            last_at = row["last_at"]
+            vol_24h = GuidanceItem.objects.filter(
+                module=module, created_at__gte=last_24h
+            ).count()
+            vol_7d = GuidanceItem.objects.filter(
+                module=module, created_at__gte=last_7d
+            ).count()
+            types_7d = set(
+                GuidanceItem.objects.filter(module=module, created_at__gte=last_7d)
+                .values_list("guidance_type", flat=True)
+                .distinct()
+            )
+            _merge_domain(module, last_at, vol_24h, vol_7d, types_7d)
+    except Exception as e:
+        logger.debug("Signal health: GuidanceItem query failed: %s", e)
+
+    # --- JournalSignal model (domain field, signal_type) ---
+    try:
+        from apps.journal.models import JournalSignal
+
+        js_aggs = (
+            JournalSignal.objects.filter(domain__isnull=False)
+            .exclude(domain="")
+            .values("domain")
+            .annotate(
+                last_at=Max("created_at"),
+            )
+        )
+        for row in js_aggs:
+            domain = row["domain"]
+            last_at = row["last_at"]
+            vol_24h = JournalSignal.objects.filter(
+                domain=domain, created_at__gte=last_24h
+            ).count()
+            vol_7d = JournalSignal.objects.filter(
+                domain=domain, created_at__gte=last_7d
+            ).count()
+            types_7d = set(
+                JournalSignal.objects.filter(domain=domain, created_at__gte=last_7d)
+                .values_list("signal_type", flat=True)
+                .distinct()
+            )
+            _merge_domain(domain, last_at, vol_24h, vol_7d, types_7d)
+    except Exception as e:
+        logger.debug("Signal health: JournalSignal query failed: %s", e)
+
+    # --- Build per-domain results ---
+    domains_active = 0
+    domains_silent = 0
+    stalest_domain = None
+    stalest_hours = 0.0
+    domains_result = {}
+
+    for domain, data in sorted(domain_data.items()):
+        last_at = data["last_signal_at"]
+        if last_at:
+            freshness_hours = round(
+                (now - last_at).total_seconds() / 3600, 1
+            )
+        else:
+            freshness_hours = None
+
+        volume_24h = data["volume_24h"]
+        volume_7d = data["volume_7d"]
+        distinct_types = len(data["types_7d"])
+
+        # Determine status
+        if volume_7d == 0 or freshness_hours is None:
+            status = "silent"
+        elif freshness_hours > 72:
+            status = "silent"
+        elif freshness_hours > 24 or distinct_types < 2:
+            status = "stale"
+        else:
+            status = "healthy"
+
+        if status == "silent":
+            domains_silent += 1
+        else:
+            domains_active += 1
+
+        # Track stalest domain
+        if freshness_hours is not None and freshness_hours > stalest_hours:
+            stalest_hours = freshness_hours
+            stalest_domain = domain
+
+        domains_result[domain] = {
+            "last_signal_at": last_at.isoformat() if last_at else None,
+            "freshness_hours": freshness_hours,
+            "volume_24h": volume_24h,
+            "volume_7d": volume_7d,
+            "distinct_types_7d": distinct_types,
+            "status": status,
+        }
+
+    return {
+        "domains_active": domains_active,
+        "domains_silent": domains_silent,
+        "stalest_domain": stalest_domain,
+        "stalest_hours": round(stalest_hours, 1),
+        "domains": domains_result,
+    }
+
+
 def _get_intelligence_pipeline_health(now):
     """
     Intelligence Pipeline Health — monitors the 5-layer data pipeline

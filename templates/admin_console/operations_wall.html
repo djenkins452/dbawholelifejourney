@@ -962,6 +962,123 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 .ops-sched-metric-value.drift-critical { color: var(--ops-red); }
 
 /* =========================================================================
+   CELERY WORKERS TILE — Execution layer health
+   ========================================================================= */
+.ops-celery-health {
+    padding: 10px 14px;
+}
+.ops-celery-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.ops-celery-pulse {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.ops-celery-pulse.HEALTHY { background: var(--ops-green); box-shadow: 0 0 8px rgba(16,185,129,0.5); }
+.ops-celery-pulse.DEGRADED { background: var(--ops-yellow); box-shadow: 0 0 8px rgba(245,158,11,0.5); animation: schedPulseAmber 1.5s ease-in-out infinite; }
+.ops-celery-pulse.CRITICAL,
+.ops-celery-pulse.DOWN { background: var(--ops-red); box-shadow: 0 0 8px rgba(239,68,68,0.5); animation: schedPulseRed 1s ease-in-out infinite; }
+.ops-celery-title {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ops-text-bright);
+}
+.ops-celery-status-label {
+    font-size: 0.5625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin-left: auto;
+}
+.ops-celery-status-label.HEALTHY { color: var(--ops-green); background: var(--ops-green-dim); }
+.ops-celery-status-label.DEGRADED { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
+.ops-celery-status-label.CRITICAL,
+.ops-celery-status-label.DOWN { color: var(--ops-red); background: var(--ops-red-dim); }
+.ops-celery-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.ops-celery-metric {
+    text-align: center;
+    padding: 6px 4px;
+    background: var(--ops-surface);
+    border-radius: var(--ops-radius-sm);
+    border: 1px solid var(--ops-glass-border);
+}
+.ops-celery-metric-label {
+    font-size: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ops-text-dim);
+    margin-bottom: 2px;
+}
+.ops-celery-metric-value {
+    font-size: 0.9rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ops-text);
+}
+.ops-celery-metric-value.val-ok { color: var(--ops-green); }
+.ops-celery-metric-value.val-warn { color: var(--ops-yellow); }
+.ops-celery-metric-value.val-danger { color: var(--ops-red); }
+.ops-celery-workers-list {
+    margin-top: 6px;
+}
+.ops-celery-worker-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 0.65rem;
+    color: var(--ops-text-muted);
+    border-bottom: 1px solid var(--ops-glass-border);
+}
+.ops-celery-worker-row:last-child { border-bottom: none; }
+.ops-celery-worker-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--ops-green);
+    flex-shrink: 0;
+}
+.ops-celery-worker-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: monospace;
+    font-size: 0.6rem;
+}
+.ops-celery-worker-stat {
+    font-variant-numeric: tabular-nums;
+    color: var(--ops-text-dim);
+}
+.ops-celery-broker-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.55rem;
+    color: var(--ops-text-dim);
+    margin-top: 6px;
+}
+.ops-celery-broker-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+}
+.ops-celery-broker-dot.connected { background: var(--ops-green); }
+.ops-celery-broker-dot.disconnected { background: var(--ops-red); }
+
+/* =========================================================================
    COAS HEALTH SCORES TILE — Operational Awareness subsystem scores
    ========================================================================= */
 .ops-coas-health {
@@ -2939,7 +3056,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
 /* Zone 4: Support 4-col */
 .ops-zone-support {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 14px;
 }
 
@@ -3419,7 +3536,47 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             </div>
         </div>
 
-        <!-- Col 4: Mobile / API -->
+        <!-- Col 4: Celery Workers -->
+        <div class="ops-cmd-card ops-glass">
+            <div class="ops-cmd-card-header">
+                <span class="ops-cmd-card-title">Execution Layer</span>
+                <span class="ops-cmd-card-status" id="celeryCardStatus"></span>
+            </div>
+            <div class="ops-cmd-card-body">
+                <div class="ops-celery-health" id="celeryHealthTile">
+                    <div class="ops-celery-header">
+                        <div class="ops-celery-pulse DOWN" id="celeryPulse"></div>
+                        <span class="ops-celery-title">Celery Workers</span>
+                        <span class="ops-celery-status-label DOWN" id="celeryStatusLabel">LOADING</span>
+                    </div>
+                    <div class="ops-celery-metrics">
+                        <div class="ops-celery-metric">
+                            <div class="ops-celery-metric-label">Workers</div>
+                            <div class="ops-celery-metric-value" id="celeryWorkerCount">0</div>
+                        </div>
+                        <div class="ops-celery-metric">
+                            <div class="ops-celery-metric-label">Queue</div>
+                            <div class="ops-celery-metric-value" id="celeryQueueDepth">0</div>
+                        </div>
+                        <div class="ops-celery-metric">
+                            <div class="ops-celery-metric-label">Active</div>
+                            <div class="ops-celery-metric-value" id="celeryActiveTasks">0</div>
+                        </div>
+                        <div class="ops-celery-metric">
+                            <div class="ops-celery-metric-label">Failed (1h)</div>
+                            <div class="ops-celery-metric-value" id="celeryFailed1h">0</div>
+                        </div>
+                    </div>
+                    <div class="ops-celery-workers-list" id="celeryWorkersList"></div>
+                    <div class="ops-celery-broker-badge">
+                        <div class="ops-celery-broker-dot disconnected" id="celeryBrokerDot"></div>
+                        <span id="celeryBrokerLabel">Redis broker</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Col 5: Mobile / API -->
         <div class="ops-cmd-card ops-glass">
             <div class="ops-cmd-card-header">
                 <span class="ops-cmd-card-title">Mobile / API</span>
@@ -4511,6 +4668,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         renderIntegrity(data.integrity);
         renderSchedulerHeartbeats(data.scheduler_heartbeats || []);
         renderAPSchedulerHealth(data.scheduler_health);
+        renderCeleryHealth(data.celery_health);
         renderCOASHealth(data.coas_health);
         renderAAFR(data.aafr);
         renderLearningHealth(data.learning_health);
@@ -4778,6 +4936,98 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 restartBtn.style.display = '';
                 restartBtn.classList.remove('attention');
             }
+        }
+    }
+
+    // Celery execution layer health rendering
+    function renderCeleryHealth(celery) {
+        if (!celery) return;
+
+        var status = celery.status || 'DOWN';
+
+        // Pulse + status label
+        var pulse = document.getElementById('celeryPulse');
+        if (pulse) pulse.className = 'ops-celery-pulse ' + status;
+
+        var statusLabel = document.getElementById('celeryStatusLabel');
+        if (statusLabel) {
+            statusLabel.textContent = status;
+            statusLabel.className = 'ops-celery-status-label ' + status;
+        }
+
+        // Card header status
+        var cardStatus = document.getElementById('celeryCardStatus');
+        if (cardStatus) {
+            var cardClass = (status === 'HEALTHY') ? 'ok' : (status === 'DEGRADED') ? 'degraded' : 'critical';
+            cardStatus.textContent = status === 'HEALTHY' ? 'OK' : status;
+            cardStatus.className = 'ops-cmd-card-status ' + cardClass;
+        }
+
+        // Worker count
+        var workerEl = document.getElementById('celeryWorkerCount');
+        if (workerEl) {
+            workerEl.textContent = celery.worker_count || 0;
+            workerEl.className = 'ops-celery-metric-value' + (
+                celery.worker_count >= 2 ? ' val-ok' :
+                celery.worker_count >= 1 ? ' val-warn' : ' val-danger'
+            );
+        }
+
+        // Queue depth
+        var queueEl = document.getElementById('celeryQueueDepth');
+        if (queueEl) {
+            var depth = celery.queue_depth || 0;
+            queueEl.textContent = depth;
+            queueEl.className = 'ops-celery-metric-value' + (
+                depth <= 20 ? ' val-ok' : depth <= 50 ? ' val-warn' : ' val-danger'
+            );
+        }
+
+        // Active tasks
+        var activeEl = document.getElementById('celeryActiveTasks');
+        if (activeEl) {
+            activeEl.textContent = celery.active_tasks || 0;
+        }
+
+        // Failed tasks (1h)
+        var failedEl = document.getElementById('celeryFailed1h');
+        if (failedEl) {
+            var failed = celery.failed_1h || 0;
+            failedEl.textContent = failed;
+            failedEl.className = 'ops-celery-metric-value' + (
+                failed === 0 ? ' val-ok' : failed <= 5 ? ' val-warn' : ' val-danger'
+            );
+        }
+
+        // Worker list
+        var listEl = document.getElementById('celeryWorkersList');
+        if (listEl && celery.workers) {
+            if (celery.workers.length === 0) {
+                listEl.innerHTML = '<div style="font-size:0.6rem;color:var(--ops-text-dim);padding:4px 0">No workers responding</div>';
+            } else {
+                var html = '';
+                celery.workers.forEach(function(w) {
+                    // Shorten worker name for display (e.g., "celery@hostname" → "hostname")
+                    var shortName = w.name.replace(/^celery@/, '');
+                    html += '<div class="ops-celery-worker-row">' +
+                        '<div class="ops-celery-worker-dot"></div>' +
+                        '<span class="ops-celery-worker-name" title="' + w.name + '">' + shortName + '</span>' +
+                        '<span class="ops-celery-worker-stat">' + w.active_tasks + ' active</span>' +
+                        '<span class="ops-celery-worker-stat">' + (w.processed || 0) + ' done</span>' +
+                        '</div>';
+                });
+                listEl.innerHTML = html;
+            }
+        }
+
+        // Broker badge
+        var brokerDot = document.getElementById('celeryBrokerDot');
+        if (brokerDot) {
+            brokerDot.className = 'ops-celery-broker-dot ' + (celery.broker_connected ? 'connected' : 'disconnected');
+        }
+        var brokerLabel = document.getElementById('celeryBrokerLabel');
+        if (brokerLabel) {
+            brokerLabel.textContent = 'Redis broker ' + (celery.broker_connected ? '\u2713' : '\u2717');
         }
     }
 

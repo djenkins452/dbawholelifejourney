@@ -313,6 +313,9 @@ class OpsStreamView(View):
         # APScheduler health (auto-restart detection)
         scheduler_health = _get_scheduler_health()
 
+        # Celery execution layer health
+        celery_health = _get_celery_health()
+
         # Persistent learning health
         learning_health = _get_learning_health(now)
 
@@ -359,6 +362,7 @@ class OpsStreamView(View):
             "integrity": integrity,
             "scheduler_heartbeats": scheduler_heartbeats,
             "scheduler_health": scheduler_health,
+            "celery_health": celery_health,
             "eae_telemetry": eae_telemetry,
             "learning_health": learning_health,
             "health_intelligence": health_intelligence,
@@ -1251,6 +1255,7 @@ from apps.core.ai_observability.ops_telemetry import (  # noqa: E402, F401
     _action_rebuild_health_summaries,
     _get_scheduler_heartbeats,
     _get_scheduler_health,
+    _get_celery_health,
     _get_coas_health,
     _get_aafr_metrics,
     _get_eae_ops_telemetry,

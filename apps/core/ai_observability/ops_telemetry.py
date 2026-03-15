@@ -409,6 +409,16 @@ def _get_scheduler_health():
         return None
 
 
+def _get_celery_health():
+    """Get Celery execution layer health for the Ops Wall stream."""
+    try:
+        from apps.core.ai_observability.celery_health import get_celery_health
+        return get_celery_health()
+    except Exception as e:
+        logger.debug("OpsWall: Celery health unavailable: %s", e)
+        return None
+
+
 def _get_coas_health():
     """Read latest COAS health snapshot (stored by scheduled job, not live recompute)."""
     try:

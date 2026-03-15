@@ -6,6 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Ops Wall: Celery Execution Layer Visibility
+
+**What:** Added Celery Workers tile to the Ops Wall (Zone 4: Support Systems) providing full execution layer observability. The WLJ pipeline runs APScheduler → ISE → Celery Tasks → Engines, but previously the Celery worker layer was invisible — schedulers could appear healthy while no tasks actually executed.
+
+**Architecture:**
+- **Telemetry module** (`celery_health.py`): Collects worker status via `celery.control.inspect()` with 2s timeout (non-blocking), queue depth via Redis `LLEN celery` (O(1)), and failed task count from EngineRun records. Health classification: HEALTHY (2+ workers, low queue, few failures) → DEGRADED (1 worker, rising queue, moderate failures) → CRITICAL/DOWN (no workers, queue stalled, broker unreachable).
+- **Polling integration**: `celery_health` key added to OpsStreamView response alongside existing telemetry. Uses the same `_get_*` helper pattern as scheduler_health.
+- **UI tile**: Pulse indicator, status badge, 4 metric cards (Workers, Queue, Active, Failed 1h), per-worker breakdown rows, Redis broker connectivity badge. All values color-coded green/yellow/red based on thresholds.
+
+**Files Created:**
+- `apps/core/ai_observability/celery_health.py` — Celery health collector module
+- `apps/core/ai_observability/tests_celery_health.py` — 13 tests (8 classification + 3 collector + 2 view)
+
+**Files Modified:**
+- `apps/core/ai_observability/ops_telemetry.py` — Added `_get_celery_health()` helper
+- `apps/core/ai_observability/ops_views.py` — Wired into OpsStreamView + backward-compat imports
+- `templates/admin_console/operations_wall.html` — CSS (Celery tile styles), HTML (tile markup), JS (`renderCeleryHealth()`), Zone 4 grid changed from `repeat(4, 1fr)` to `repeat(auto-fit, minmax(240px, 1fr))`
+- `docs/wlj_claude_changelog.md` — This entry
+
+**Verification:** 121/121 tests pass (13 celery + 26 diagnostic + 82 ops wall). No migrations needed.
+
+---
+
 ## 2026-03-15 — Fix: Maturity Grid Unequal Widths + API Error Color Always Red
 
 **What:** Two Ops Wall visual fixes:

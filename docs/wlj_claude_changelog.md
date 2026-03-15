@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Doc: Observability Performance Rule Added to CLAUDE.md
+
+**Change:** Added "Observability Performance — Never Compute on Request Path" rule to the AI Engineering Rules section of CLAUDE.md. Documents the hard-learned rule that all heavy analytics must run in background workers and HTTP request paths may only read cached/DB snapshots. Includes the correct `_get_*()` pattern and background population flow.
+
+**Files:** `CLAUDE.md`
+
+---
+
 ## 2026-03-15 — Fix: Evidence Buttons Cause 524 Timeouts (Query Storm Prevention)
 
 **Issue:** Clicking evidence buttons on the Ops Wall triggered live maturity score recomputation. `_evidence_life_impact()` ran 600+ queries (200 users × 3-5 queries). This saturated the DB connection pool causing 524 timeouts site-wide.

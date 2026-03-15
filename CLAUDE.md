@@ -158,6 +158,26 @@ After ANY changes (code, docs, or config), do ALL of the following **automatical
 
 These rules prevent the silent-failure and schema-drift bugs that have caused production outages.
 
+**Observability Performance — Never Compute on Request Path (CRITICAL):**
+All heavy analytics (maturity scores, signal health, validator health, CoS performance, complexity scores) MUST run in background workers (SAME cycle / Celery tasks). HTTP request paths (views, polling endpoints, evidence/scan APIs) may ONLY read pre-computed data from cache or DB snapshots. If snapshot data is not yet available, return a "pending" state — **NEVER fall back to live computation**. This rule exists because:
+- `compute_system_life_impact()` runs 600+ queries (200 users × domains)
+- `compute_signal_health()` runs ~24 queries per call
+- Gunicorn has only 2–4 workers; one slow request blocks the entire site
+- Live fallbacks caused repeated 524 Cloudflare timeouts in production (2026-03-15)
+
+The correct pattern for any `_get_*()` cache-reader function:
+```python
+def _get_expensive_metric():
+    cached = cache.get("wlj:ops:metric_key")
+    if cached is not None:
+        return cached
+    return None  # NEVER: return compute_expensive_metric()
+```
+Background population (SAME cycle, every 60s):
+```
+compute → write DB snapshot (for history) → update cache (for real-time display)
+```
+
 **Exception Handling — Never Swallow Errors:**
 - **NEVER** use `except Exception: pass` on critical paths (intent recognition, execution, safety gates). This hides real errors and causes silent functional loss.
 - **Separate `ImportError` from `Exception`:** Use `except ImportError: pass` for optional modules (expected), then `except Exception: logger.error(...)` for real errors (must be visible).

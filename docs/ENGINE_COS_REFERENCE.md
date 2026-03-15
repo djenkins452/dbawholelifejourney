@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-14 (Intelligence Pipeline Health Monitor added to Ops Command Center — monitors SignalSnapshot, GoalMomentum, JournalSignal, Compensatory, CoS context layers with manual trigger)
+**Last updated:** 2026-03-15 (Raised _COS_INJECTION_MAX_TOKENS 6000→8000 to accommodate signal-first intelligence sections; removed temporary diagnostics)
 
 ---
 

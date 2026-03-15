@@ -2852,39 +2852,8 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                     if _health_analysis:
                         cos_context['health_screenshot_analysis'] = _health_analysis
 
-                    # ── DIAGNOSTIC: log what's in cos_context before formatting ──
-                    _diag_signals = cos_context.get('daily_signals', [])
-                    _diag_momentum = cos_context.get('goal_momentum', [])
-                    logger.warning(
-                        "MOMENTUM_DIAG user=%s | signals=%d | momentum=%d | "
-                        "momentum_data=%s | context_keys=%s",
-                        self.user.id,
-                        len(_diag_signals),
-                        len(_diag_momentum),
-                        str(_diag_momentum)[:500],
-                        [k for k in cos_context.keys()
-                         if k in ('daily_signals', 'goal_momentum',
-                                  'active_insights', 'active_predictions',
-                                  'cross_domain_correlations', 'intelligence_status')],
-                    )
-
                     cos_injection = format_cos_system_injection(
                         cos_context, user_message=message,
-                    )
-
-                    # ── DIAGNOSTIC: verify momentum block in formatted output ──
-                    _has_momentum_block = 'MOMENTUM INTERPRETATION' in (cos_injection or '')
-                    _has_signal_block = 'SIGNAL INTERPRETATION' in (cos_injection or '')
-                    _has_reasoning = 'REASONING HIERARCHY' in (cos_injection or '')
-                    logger.warning(
-                        "PROMPT_DIAG user=%s | has_signal_block=%s | "
-                        "has_momentum_block=%s | has_reasoning=%s | "
-                        "injection_len=%d",
-                        self.user.id,
-                        _has_signal_block,
-                        _has_momentum_block,
-                        _has_reasoning,
-                        len(cos_injection or ''),
                     )
 
                     # Append operational context AFTER personality layers

@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix token truncation cutting intelligence sections + remove diagnostics
+
+**Root cause:** `_COS_INJECTION_MAX_TOKENS` was set to 6000 tokens, but with the
+signal-first reorder and new intelligence sections (momentum interpretation, reasoning
+hierarchy), the CoS injection grew to ~7610 tokens. The truncation cut from the end,
+potentially removing the reasoning hierarchy directive and operational data. Production
+logs confirmed: `COS_INJECTION_TRUNCATED user=1 from=7610 to~=6000 tokens`.
+
+**Changes:**
+1. Raised `_COS_INJECTION_MAX_TOKENS` from 6000 → 8000 to accommodate intelligence sections
+2. Updated soft-limit warning threshold from 6000 → 8000 to match
+3. Removed all three temporary diagnostic log statements (MOMENTUM_DIAG, PROMPT_DIAG,
+   MOMENTUM_FORMAT_DIAG) — investigation complete, data confirmed flowing correctly
+
+**Files modified:**
+- apps/core/ai_orchestrator/cos_context.py (token limit + removed MOMENTUM_FORMAT_DIAG)
+- apps/ai/personal_assistant.py (removed MOMENTUM_DIAG + PROMPT_DIAG)
+- docs/wlj_claude_changelog.md
+
+---
+
 ## 2026-03-15 — Add momentum pipeline diagnostics (temporary)
 
 **Changes:** Added WARNING-level diagnostic logging at three points in the momentum

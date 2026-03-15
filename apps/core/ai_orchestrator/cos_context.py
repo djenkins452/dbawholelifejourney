@@ -2580,10 +2580,6 @@ def _format_momentum_interpretation(context):
     Returns formatted block or empty string if no momentum data.
     """
     momentum = context.get('goal_momentum', [])
-    logger.warning(
-        "MOMENTUM_FORMAT_DIAG | momentum_count=%d | data=%s",
-        len(momentum), str(momentum)[:300],
-    )
     if not momentum:
         return ''
 
@@ -4267,7 +4263,7 @@ def format_cos_system_injection(context, user_message=None):
     # Phase 7: Per-builder token limit — hard-cap the entire CoS injection
     # to prevent runaway prompt sizes. The global TokenGovernor (Phase 6)
     # provides a secondary safety net at the message assembly level.
-    _COS_INJECTION_MAX_TOKENS = 6000
+    _COS_INJECTION_MAX_TOKENS = 8000
     if getattr(settings, 'WLJ_BUILDER_TOKEN_LIMITS_ENABLED', False):
         if approx_tokens > _COS_INJECTION_MAX_TOKENS:
             # Truncate from the end (lowest-priority sections appended last)
@@ -4288,9 +4284,9 @@ def format_cos_system_injection(context, user_message=None):
                 except Exception:
                     approx_tokens = len(result) // 4
 
-    if approx_tokens > 6000:
+    if approx_tokens > 8000:
         logger.warning(
-            "COS_PROMPT_BUDGET user=%s tokens~=%d (exceeds 6000 soft limit)",
+            "COS_PROMPT_BUDGET user=%s tokens~=%d (exceeds 8000 soft limit)",
             context.get('user_id', 'unknown'), approx_tokens,
         )
     else:

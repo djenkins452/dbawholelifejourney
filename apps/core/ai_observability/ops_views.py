@@ -1161,16 +1161,23 @@ class DebugPromptView(View):
             run_diagnostic_scan,
         )
 
-        evidence = get_metric_evidence(target)
-        scan_result = run_diagnostic_scan(target)
-        prompt = generate_debug_prompt(target, scan_result=scan_result, evidence=evidence)
+        try:
+            evidence = get_metric_evidence(target)
+            scan_result = run_diagnostic_scan(target)
+            prompt = generate_debug_prompt(target, scan_result=scan_result, evidence=evidence)
 
-        return JsonResponse({
-            "target": target,
-            "prompt": prompt,
-            "scan_status": scan_result.get("status"),
-            "score": evidence.get("score"),
-        })
+            return JsonResponse({
+                "target": target,
+                "prompt": prompt,
+                "scan_status": scan_result.get("status"),
+                "score": evidence.get("score"),
+            })
+        except Exception as e:
+            logger.warning("Debug prompt generation failed for %s: %s", target, e, exc_info=True)
+            return JsonResponse({
+                "target": target,
+                "error": f"Debug prompt generation failed: {str(e)[:300]}",
+            }, status=500)
 
 
 class DependencyGraphView(AdminRequiredMixin, View):

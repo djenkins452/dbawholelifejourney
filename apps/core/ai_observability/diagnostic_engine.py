@@ -826,7 +826,7 @@ def _scan_signal_drought():
 
     # Check 2: Predictions pipeline
     try:
-        from apps.core.ai_insights.models import Prediction
+        from apps.core.ai_predictions.models import Prediction
         recent_predictions = Prediction.objects.filter(
             created_at__gte=now - timedelta(hours=24),
         ).count()
@@ -884,10 +884,10 @@ def _scan_signal_drought():
     except Exception as e:
         checks.append(_check("Signal Aggregation Task", "ERROR", str(e)[:200]))
 
-    # Check 5: Per-domain signal health
+    # Check 5: Per-domain signal health (use cache to avoid timeout)
     try:
-        from apps.core.ai_observability.ops_telemetry import compute_signal_health
-        sh = compute_signal_health()
+        from apps.core.ai_observability.ops_telemetry import _get_signal_health
+        sh = _get_signal_health() or {}
         silent_domains = sh.get("domains_silent", 0)
         stalest = sh.get("stalest_domain", "?")
         stalest_hours = sh.get("stalest_hours", 0)

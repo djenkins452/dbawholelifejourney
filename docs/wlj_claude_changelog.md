@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix: Debug Prompt Failure + Prediction Import + Scan Timeout
+
+**Issues fixed:**
+1. **Prediction import error:** `_scan_signal_drought()` Check 2 imported `Prediction` from `apps.core.ai_insights.models` (wrong) instead of `apps.core.ai_predictions.models`. Showed as ERROR in scan results.
+2. **Scan timeout:** `_scan_signal_drought()` Check 5 called `compute_signal_health()` live (same N+1 query problem). Changed to use `_get_signal_health()` cached version.
+3. **Debug prompt failure:** `DebugPromptView` had no try/except — any exception during prompt generation returned an unhandled 500. Added error handling with JSON error response.
+
+**Files:** `diagnostic_engine.py`, `ops_views.py`, `wlj_claude_changelog.md`
+**Tests:** 112/112 pass.
+
+---
+
 ## 2026-03-15 — Fix: Signal Drought Evidence Causes Cloudflare 524 Timeout
 
 **Root Cause:** `_evidence_signal_drought()` called `compute_signal_health()` live — which runs N+1 queries across 4 models (Insight, Prediction, GuidanceItem, JournalSignal). Per model: 1 GROUP BY query + 3 queries per domain (vol_24h, vol_7d, types_7d) = ~120 queries on unbounded tables. This exceeded Cloudflare's timeout window.

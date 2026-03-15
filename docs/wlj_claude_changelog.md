@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Ops Wall: APScheduler Process Visibility
+
+**What:** Added APScheduler process health tile to the Ops Wall scheduler section, alongside existing ISE and SAME tiles. The tile shows running status, heartbeat drift, job count, and provides a safe Restart button with AdminIntervention audit logging.
+
+**Root Problem:** APScheduler process health was already computed by `scheduler_health.py` and returned in the polling response (`scheduler_health` key), but the UI only rendered ISE and SAME heartbeat tiles. If APScheduler died while Gunicorn stayed alive, there was no visual indicator on the Ops Wall — operators had to check logs or hit the dedicated `/ops/scheduler-health/` endpoint manually.
+
+**Changes:**
+1. **HTML** — Added APScheduler card with pulse indicator, status badge, running/drift/jobs metrics, and restart button (`templates/admin_console/operations_wall.html`)
+2. **CSS** — Updated scheduler grid from 2-column to 3-column; added dashed border style for APScheduler to differentiate from heartbeat-based tiles; added restart button styles with running animation; added status badges for APScheduler-specific states (STOPPED, NOT_STARTED, NO_HEARTBEAT, ERROR)
+3. **JS** — Added `renderAPSchedulerHealth()` function consuming existing `scheduler_health` polling data; added `restartAPScheduler()` function calling existing `POST /ops/scheduler-restart/` endpoint with toast feedback; updated hero tile logic to factor in APScheduler status (3/3 ALIVE = OK, 2/3 = DEGRADED, <2 = CRITICAL)
+4. **Tests** — Added 3 new tests: APScheduler tile presence in rendered HTML, scheduler health endpoint, restart endpoint method validation
+
+**Files Modified:**
+- `templates/admin_console/operations_wall.html` — HTML tile, CSS, JS rendering + restart
+- `apps/core/ai_observability/tests_diagnostic_engine.py` — 3 new tests (26 → 29 total)
+- `docs/wlj_claude_changelog.md` — This entry
+
+**Verification:** 29/29 diagnostic engine tests pass, 82/82 existing ops wall tests pass. No migrations needed.
+
+---
+
 ## 2026-03-15 — Ops Command Center: Diagnostic Investigation Flow
 
 **What:** Implemented the full diagnostic investigation flow for the Ops Command Center, transforming it from a telemetry display into an active diagnostic console. Anomaly and maturity metric clicks now open investigation panels with structured evidence, diagnostic scans, root cause hypotheses, and debug prompt generation.

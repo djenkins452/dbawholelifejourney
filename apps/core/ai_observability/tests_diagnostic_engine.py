@@ -250,6 +250,29 @@ class DiagnosticViewTests(TestCase):
         self.assertIn("investigatePanel", content)
         self.assertIn("investigateScanBtn", content)
 
+    def test_ops_wall_has_apscheduler_tile(self):
+        """Ops Wall includes APScheduler tile with restart button."""
+        resp = self.client.get("/admin-console/ops/")
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        self.assertIn("schedCardAPS", content)
+        self.assertIn("schedPulseAPS", content)
+        self.assertIn("apsRestartBtn", content)
+        self.assertIn("APScheduler", content)
+
+    def test_scheduler_health_endpoint(self):
+        """GET /admin-console/ops/scheduler-health/ returns JSON."""
+        resp = self.client.get("/admin-console/ops/scheduler-health/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("scheduler", data)
+        self.assertIn("status", data["scheduler"])
+
+    def test_scheduler_restart_requires_post(self):
+        """GET to restart endpoint returns 405."""
+        resp = self.client.get("/admin-console/ops/scheduler-restart/")
+        self.assertEqual(resp.status_code, 405)
+
     def test_all_scan_targets(self):
         """All registered scan targets return structured results via endpoint."""
         from apps.core.ai_observability.diagnostic_engine import DIAGNOSTIC_SCANS

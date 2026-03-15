@@ -1,0 +1,14 @@
+{# Ops Wall 2.0 — Reusable Card Component #}
+{# Usage: {% include "admin_console/components/ops_card.html" with card_id="myCard" card_title="My Title" %} #}
+{# Variables: card_id (required), card_title (required), card_class, card_status_id, card_investigate_id #}
+<div class="ops-cmd-card ops-glass {{ card_class|default:'' }}" id="{{ card_id }}">
+    <div class="ops-cmd-card-header">
+        <span class="ops-cmd-card-title">{{ card_title }}</span>
+        {% if card_status_id %}
+        <span class="ops-cmd-card-status" id="{{ card_status_id }}"></span>
+        {% endif %}
+        {% if card_investigate_id %}
+        <a class="ops-cmd-card-link" id="{{ card_investigate_id }}" href="#">Investigate</a>
+        {% endif %}
+    </div>
+    <div class="ops-cmd-card-body">

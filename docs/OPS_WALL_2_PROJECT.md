@@ -1,6 +1,6 @@
 # Ops Wall 2.0 — Project Document
 
-**Status:** Phase 4 complete. Phase 5 ready.
+**Status:** Phase 5 complete. Phase 6 ready.
 **Author:** Claude Code / Danny Jenkins
 **Created:** 2026-03-15
 **Last Updated:** 2026-03-15
@@ -440,21 +440,21 @@ Each card clicks through to a diagnostic panel that contains what currently live
 
 ---
 
-### Phase 5: UI Restructuring (The Big Change)
+### Phase 5: UI Restructuring (The Big Change) ✅
 
 **Goal:** Restructure `operations_wall.html` from flat 16-section layout to the 6-row hierarchy.
 
-**Tasks:**
-1. Create card component template (`ops_card.html`) with standard structure
-2. Reorganize existing sections into Row 1-3 cards
-3. Move detailed views (engine grid, maturity breakdown, SAME narrative) into Level 2 drill-down panels
-4. Add incident feed with panel linking
-5. Add trend strip with mini sparklines
-6. Preserve all existing functionality — nothing removed, only reorganized
+**Completed:**
+1. ✅ Created card component template (`ops_card.html`) with standard structure
+2. ✅ Added ~200 lines of new CSS for 6-row grid layout (3-col, 4-col, full-width rows + responsive breakpoints)
+3. ✅ Reorganized existing sections into 6-row grid: Executive Health, Core Systems, Support Systems, Incident Feed, Trend Strip, Recent Events
+4. ✅ Added 3 new live data cards: CoS Performance, Validator Gate, Signal Health — with JS render functions consuming existing polling data
+5. ✅ Added trend strip with 4 ECharts sparklines (Integrity, CoS Latency, Engines OK, Validator Rate)
+6. ✅ Briefing strip: Top Bar, Posture, Narration, Maturity, Domain Coverage, Proactive above the grid
+7. ✅ Mobile/API placeholder card in Row 3
+8. ✅ All existing functionality preserved — all element ids intact, all render functions work
 
-**Risk:** Medium. Large template change. Must preserve existing JS polling, chart rendering, and interactive features.
-
-**Estimated files changed:** 2-3 (template + view context adjustments)
+**Files changed:** `operations_wall.html`, `components/ops_card.html`
 
 ---
 

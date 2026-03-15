@@ -6,6 +6,39 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Ops Wall 2.0 Phase 5: UI Restructuring — Command Center Layout
+
+**Context:** Phase 5 of the Ops Wall 2.0 project restructures the flat 16-section vertical stack into
+a 6-row command center grid layout with card containers, new live data cards, and a trend strip.
+No backend changes — frontend-only reorganization.
+
+**Changes:**
+1. **6-row grid layout** — Replaced flat `.ops-section` stack with nested grid rows:
+   - Row 1 (Executive Health): System Integrity, CoS Performance (NEW), Validator Gate (NEW)
+   - Row 2 (Core Systems): Engine Health (scheduler + charts + engine cards), Signal Health (NEW), Data Integrity (COAS + Pipeline)
+   - Row 3 (Support Systems): Action Systems (AAFR), Observability (Learning + Health Intel), Mobile/API (placeholder)
+   - Row 4 (Incident Feed): Watchlist anomalies in full-width card
+   - Row 5 (Trend Strip): 4 sparkline mini-charts (Integrity, CoS Latency, Engines OK, Validator Rate)
+   - Row 6 (Recent Events): Live feed in full-width card
+2. **3 new live cards** — CoS Performance, Validator Gate, Signal Health with JS render functions
+   consuming existing polling data (`cos_performance`, `validator_health`, `signal_health`)
+3. **Trend strip** — 4 ECharts sparklines tracking integrity score, CoS P95 latency, engine OK count,
+   and validator block rate over time using rolling buffers
+4. **Briefing strip** — Top Bar, Posture Banner, Narration Bar, Maturity, Domain Coverage, Proactive
+   Intelligence moved above the grid as server-rendered context
+5. **Responsive** — 3-col → 2-col at 1024px → 1-col at 768px via CSS grid
+6. **Card component** — Reusable `ops_card.html` include template (used for reference, cards inline)
+7. **Removed duplicate sections** — Old flat Posture, Narration, Macro Charts, TopBar, Main Grid,
+   SOC Feed sections removed (content moved into new grid structure)
+
+**Files changed:**
+- `templates/admin_console/operations_wall.html` — Major restructure (CSS + HTML + JS)
+- `templates/admin_console/components/ops_card.html` — New reusable card component
+
+**Tests:** 303 observability tests pass. No backend changes, no new tests needed.
+
+---
+
 ## 2026-03-15 — Ops Wall 2.0 Phase 4: CoS Performance Diagnostics
 
 **Context:** Phase 4 of the Ops Wall 2.0 project promotes CoS (Context of Situation) performance

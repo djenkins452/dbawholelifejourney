@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix: Scheduler Grid Overflow in Ops Wall
+
+**What:** Fixed the 3-tile scheduler grid overflowing the Ops Wall hero container. The third APScheduler tile was clipped because the parent column was fixed at 280px and the grid used fixed `1fr 1fr 1fr` columns.
+
+**Changes:**
+1. Scheduler grid changed from `grid-template-columns: 1fr 1fr 1fr` to `repeat(auto-fit, minmax(200px, 1fr))` — tiles now wrap responsively instead of forcing 3 columns in tight spaces
+2. Hero column 4 widened from `280px` to `minmax(280px, 380px)` in both `.ops-health-hero` declarations
+3. Inside hero context, scheduler cards stack vertically via `.ops-hero-schedulers .ops-scheduler-heartbeat { grid-template-columns: 1fr }` override
+4. Added `min-width: 0; overflow: hidden` on `.ops-sched-card` to prevent flex children from forcing parent overflow
+
+**Files:** `templates/admin_console/operations_wall.html`, `docs/wlj_claude_changelog.md`
+**Verification:** 108/108 tests pass (26 diagnostic + 82 ops wall).
+
+---
+
 ## 2026-03-15 — Ops Wall: APScheduler Process Visibility
 
 **What:** Added APScheduler process health tile to the Ops Wall scheduler section, alongside existing ISE and SAME tiles. The tile shows running status, heartbeat drift, job count, and provides a safe Restart button with AdminIntervention audit logging.

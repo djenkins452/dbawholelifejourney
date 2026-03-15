@@ -834,7 +834,7 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     padding: 14px 20px;
     margin-bottom: 14px;
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 16px;
 }
 /* APScheduler tile — distinct styling to differentiate from ISE/SAME heartbeat cards */
@@ -891,6 +891,8 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     border-radius: var(--ops-radius-sm);
     border: 1px solid var(--ops-glass-border);
     transition: border-color 0.3s;
+    min-width: 0;
+    overflow: hidden;
 }
 .ops-sched-card.DELAYED { border-color: rgba(245, 158, 11, 0.3); }
 .ops-sched-card.OFFLINE { border-color: rgba(239, 68, 68, 0.3); }
@@ -2167,7 +2169,7 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 /* ZONE 1: Health Hero */
 .ops-health-hero {
     display: grid;
-    grid-template-columns: 200px 1fr 1fr 280px;
+    grid-template-columns: 200px 1fr 1fr minmax(280px, 380px);
     gap: 16px;
     padding: 12px 0;
     min-height: 160px;
@@ -2182,7 +2184,13 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     gap: 8px;
 }
 .ops-hero-trends .ops-trend-spark { min-height: 60px; }
-.ops-hero-schedulers { /* col 4 */ }
+.ops-hero-schedulers { /* col 4 */ overflow: hidden; }
+/* Inside the hero column, stack scheduler cards vertically */
+.ops-hero-schedulers .ops-scheduler-heartbeat {
+    grid-template-columns: 1fr;
+    padding: 0;
+    gap: 6px;
+}
 
 /* ZONE 2: Incidents Strip */
 .ops-incidents-zone { padding: 8px 0; }
@@ -2749,7 +2757,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
 /* Zone 1: Health Hero */
 .ops-health-hero {
     display: grid;
-    grid-template-columns: 200px 1fr 1fr 280px;
+    grid-template-columns: 200px 1fr 1fr minmax(280px, 380px);
     gap: 16px;
     padding: 16px;
     align-items: start;

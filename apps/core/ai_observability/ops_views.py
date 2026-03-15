@@ -70,11 +70,26 @@ class OperationsWallView(AdminRequiredMixin, TemplateView):
         # --- Proactive Intelligence (7-day, system-wide) ---
         context["proactive_stats"] = self._get_proactive_stats()
 
+        # --- Canonical Query Compliance (cached from management command) ---
+        context["canonical_compliance"] = self._get_canonical_compliance()
+
         return context
 
     # ------------------------------------------------------------------ #
     #  War Room data helpers (server-side, rendered once on page load)
     # ------------------------------------------------------------------ #
+
+    def _get_canonical_compliance(self):
+        """Read cached canonical query compliance from management command."""
+        try:
+            from django.core.cache import cache
+
+            data = cache.get("wlj:ops:canonical_compliance")
+            if data:
+                return data
+        except Exception:
+            pass
+        return {"score": None, "violations": 0, "scanned": 0, "last_run": None}
 
     def _get_maturity_data(self):
         """Compute system-wide maturity scores for the War Room header.

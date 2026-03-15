@@ -1,6 +1,6 @@
 # Ops Wall 2.0 — Project Document
 
-**Status:** Phase 6 complete. Phase 7 ready.
+**Status:** Phase 7 complete. Phase 8 ready.
 **Author:** Claude Code / Danny Jenkins
 **Created:** 2026-03-15
 **Last Updated:** 2026-03-15
@@ -473,18 +473,22 @@ Each card clicks through to a diagnostic panel that contains what currently live
 
 ---
 
-### Phase 7: CI Canonical Query Audit (OPTIONAL)
+### Phase 7: CI Canonical Query Audit ✅
 
 **Goal:** Detect rogue ORM queries at build time, not runtime.
 
-**Tasks:**
-1. Create management command `audit_canonical_queries` that statically analyzes imports
-2. Maintain allowlist of canonical service patterns per domain
-3. Add to CI pipeline
+**Status:** Complete. Deployed 2026-03-15.
+
+**Delivered:**
+- `apps/core/canonical_audit.py` — Audit engine with regex-based detection, EXCLUDED_PATHS, CANONICAL_RULES for 5 models (Task, Insight, Prediction, GuidanceItem, UserState)
+- `apps/core/management/commands/audit_canonical_queries.py` — Management command with `--domain`, `--json`, `--cache` flags; exit code 1 on violations (CI-friendly)
+- `apps/core/tests/test_canonical_audit.py` — 16 tests covering scan_file, run_audit, management command
+- Ops Wall integration — Query Compliance metric in Data Integrity card (server-rendered from cache)
+- Initial scan: 1,068 files, 100 violations, 90.6% compliance across 4 domains (life, intelligence, guidance, state)
 
 **Risk:** Low. CI-only change. No runtime impact.
 
-**Estimated files changed:** 1-2
+**Estimated files changed:** 1-2 → Actual: 5 new files, 2 modified
 
 ---
 

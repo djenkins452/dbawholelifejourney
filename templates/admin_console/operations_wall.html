@@ -2618,6 +2618,34 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                         </div>
                     </div>
                 </div>
+                <!-- Canonical Query Compliance -->
+                <div class="ops-canonical-compliance" id="canonicalComplianceTile" style="margin-top:12px">
+                    <div class="ops-coas-header">
+                        <span class="ops-coas-title">Query Compliance</span>
+                        {% if canonical_compliance.score is not None %}
+                        <span class="ops-coas-overall {% if canonical_compliance.score >= 95 %}HEALTHY{% elif canonical_compliance.score >= 80 %}WARNING{% else %}CRITICAL{% endif %}" id="canonicalComplianceScore">{{ canonical_compliance.score }}%</span>
+                        {% else %}
+                        <span class="ops-coas-overall" id="canonicalComplianceScore" style="color:#888">&mdash;</span>
+                        {% endif %}
+                    </div>
+                    <div class="ops-coas-grid">
+                        <div class="ops-coas-sub">
+                            <div class="ops-coas-sub-name">Violations</div>
+                            <div class="ops-coas-sub-score {% if canonical_compliance.violations == 0 %}HEALTHY{% elif canonical_compliance.violations <= 10 %}WARNING{% else %}CRITICAL{% endif %}">{{ canonical_compliance.violations|default:"—" }}</div>
+                        </div>
+                        <div class="ops-coas-sub">
+                            <div class="ops-coas-sub-name">Files Scanned</div>
+                            <div class="ops-coas-sub-score">{{ canonical_compliance.scanned|default:"—" }}</div>
+                        </div>
+                        <div class="ops-coas-sub">
+                            <div class="ops-coas-sub-name">Last Audit</div>
+                            <div class="ops-coas-sub-score" style="font-size:11px">{% if canonical_compliance.last_run %}{{ canonical_compliance.last_run|truncatechars:16 }}{% else %}&mdash;{% endif %}</div>
+                        </div>
+                    </div>
+                    <div style="font-size:10px; color:#888; margin-top:4px; text-align:right">
+                        Run: <code style="font-size:10px">manage.py audit_canonical_queries --cache</code>
+                    </div>
+                </div>
                 <!-- Pipeline Health -->
                 <div class="ops-pipeline-health" id="pipelineHealthTile" style="margin-top:12px">
                     <div class="ops-pipeline-header">

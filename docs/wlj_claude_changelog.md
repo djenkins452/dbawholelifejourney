@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Ops Wall 2.0 Phase 7: Canonical Query Audit (CI Protection)
+
+**What:** Added a management command and audit engine to detect direct ORM queries that bypass canonical domain services, with Ops Wall compliance metric.
+
+**Files added:**
+- `apps/core/canonical_audit.py` — Audit engine: CANONICAL_RULES (5 models), EXCLUDED_PATHS, scan_file(), run_audit(), Violation/AuditResult dataclasses
+- `apps/core/management/commands/audit_canonical_queries.py` — Management command with --domain, --json, --cache flags; exit code 1 on violations (CI-friendly)
+- `apps/core/tests/test_canonical_audit.py` — 16 tests for scan_file, run_audit, management command
+
+**Files modified:**
+- `apps/core/ai_observability/ops_views.py` — Added `_get_canonical_compliance()` helper and context data
+- `templates/admin_console/operations_wall.html` — Added Query Compliance metric to Data Integrity card
+- `docs/OPS_WALL_2_PROJECT.md` — Marked Phase 7 complete
+
+**Why:** Code can bypass canonical services (e.g., TaskQueries, ai_insights.services) with direct Model.objects.filter() calls, causing data integrity drift. This audit detects violations statically, enables CI gating, and surfaces compliance on the Ops Wall.
+
+**Results:** Initial scan: 1,068 files, 100 violations across 4 domains, 90.6% compliance.
+
+---
+
 ## 2026-03-15 — Ops Wall 2.0 Phase 6: Incident Investigation & Dependency Diagnostics
 
 **Context:** Phase 6 transforms the Ops Wall incident feed from a passive anomaly list into an

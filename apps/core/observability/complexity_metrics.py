@@ -559,7 +559,7 @@ def compute_complexity_score(base_path: Optional[str] = None) -> Dict:
         "total_dimensions": len(dimensions),
     }
 
-    logger.info(
+    logger.debug(
         "System Complexity Score: %.1f/10 (Grade: %s) — %d warnings",
         result["score"], result["grade"], len(all_warnings),
     )

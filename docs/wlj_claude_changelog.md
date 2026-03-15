@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Fix: Complexity Score Flooding Production Logs
+
+**What:** `compute_complexity_score()` logged at `INFO` level on every call. Since the Ops Wall polls every ~11 seconds and calls this function, it produced ~5,400 identical log lines per hour in production.
+
+**Fix:** Changed `logger.info()` to `logger.debug()` in `apps/core/observability/complexity_metrics.py`. Debug-level logs are invisible in production but still available locally.
+
+**Files:** `apps/core/observability/complexity_metrics.py`, `docs/wlj_claude_changelog.md`
+
+---
+
 ## 2026-03-15 — Fix: Debug Prompt Button Always Active + Generic Modal Title
 
 **What:** Two investigation panel UX fixes:

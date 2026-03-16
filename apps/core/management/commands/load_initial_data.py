@@ -977,6 +977,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for A/B/C interactive option bubbles (PK 164)
         self._reset_option_bubbles_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset module_definitions to add Notes module (PK 11)
+        self._reset_notes_module_definition_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -6090,3 +6093,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset option bubbles fixtures FAILED: {e}'))
+
+    def _reset_notes_module_definition_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload module_definitions fixture to add Notes module (PK 11).
+        """
+        reset_tracker_name = 'reset_notes_module_def_2026_03_16'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='module_definitions')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset module_definitions loader for Notes module')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset module_definitions for Notes module',
+                'command',
+                'One-time reset to reload module_definitions with PK 11 (Notes)'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset notes module definition fixtures FAILED: {e}'))

@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix: Restore Notes navigation menu item
+
+**Root cause:** Notes module (PK 11) was added via data migration (0069) but was never added to `module_definitions.json` fixture. Any fixture reload would wipe it, leaving Notes invisible in the sidebar.
+
+**Changes:**
+- `apps/users/fixtures/module_definitions.json` — Added Notes module entry (PK 11, slug="notes", route_name="notes:note_list", default_order=60, always visible with empty preference_field)
+- `apps/core/management/commands/load_initial_data.py` — Added one-time fixture reset `_reset_notes_module_definition_fixtures` to trigger reload of module_definitions in production
+
+---
+
 ## 2026-03-16 — Architecture: Phase 4 Signal Governance Alignment
 
 **Purpose:** Align signal taxonomy with Phase 3 Domain Registry, complete signal computer coverage, add expected_signal_types to DomainCapability, and establish signal production observability. Ensures deterministic governance across the pipeline: Raw Data → Signals → CoS.

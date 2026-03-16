@@ -35,7 +35,48 @@ Copyright:
     without explicit permission.
 """
 
+import logging
+
 from django.conf import settings
+from django.core.cache import cache as _default_cache
+
+logger = logging.getLogger(__name__)
+
+# Cache for module enablement defaults (anonymous users)
+_MODULE_DEFAULTS_CACHE_KEY = 'wlj:module_defaults'
+_MODULE_DEFAULTS_CACHE_TTL = 300  # 5 minutes
+
+
+def _get_module_enablement_defaults():
+    """
+    Get default module enablement from catalog for anonymous users.
+
+    Returns dict of {slug: bool} based on catalog defaults.
+    Cached for 5 minutes.
+    """
+    cached = _default_cache.get(_MODULE_DEFAULTS_CACHE_KEY)
+    if cached is not None:
+        return cached
+
+    defaults = {}
+    try:
+        from apps.users.models import ModuleDefinition
+        for m in ModuleDefinition.objects.filter(is_active=True):
+            if m.always_available:
+                defaults[m.slug] = True
+            elif m.status == 'coming_soon':
+                defaults[m.slug] = False
+            else:
+                defaults[m.slug] = m.default_enabled
+        _default_cache.set(_MODULE_DEFAULTS_CACHE_KEY, defaults, _MODULE_DEFAULTS_CACHE_TTL)
+    except Exception:
+        # Pre-migration or table doesn't exist yet — use sensible defaults
+        defaults = {
+            'journal': True, 'health': True, 'faith': False, 'life': True,
+            'purpose': True, 'finance': False, 'relationships': True,
+            'capture': True, 'documents': True, 'meals': True,
+        }
+    return defaults
 
 
 def site_context(request):
@@ -60,18 +101,23 @@ def theme_context(request):
     """
     Add theme, accent color, and module flags to template context.
     """
+    # Build module enablement defaults from catalog (deterministic source of truth)
+    _module_defaults = _get_module_enablement_defaults()
+
     context = {
         'current_theme': 'minimal',
         'accent_color': None,
-        # Module flags - defaults
-        'journal_enabled': True,
-        'faith_enabled': False,
-        'health_enabled': True,
-        'life_enabled': True,
-        'purpose_enabled': True,
-        'finance_enabled': False,
-        'relationships_enabled': True,
-        'capture_enabled': True,
+        # Module flags — defaults derived from catalog
+        'journal_enabled': _module_defaults.get('journal', True),
+        'faith_enabled': _module_defaults.get('faith', False),
+        'health_enabled': _module_defaults.get('health', True),
+        'life_enabled': _module_defaults.get('life', True),
+        'purpose_enabled': _module_defaults.get('purpose', True),
+        'finance_enabled': _module_defaults.get('finance', False),
+        'relationships_enabled': _module_defaults.get('relationships', True),
+        'capture_enabled': _module_defaults.get('capture', True),
+        'documents_enabled': _module_defaults.get('documents', True),
+        'meals_enabled': _module_defaults.get('meals', True),
         # AI flags - defaults
         'ai_enabled': False,
         'ai_data_consent': False,
@@ -105,15 +151,18 @@ def theme_context(request):
             # Navigation behavior
             context['hide_nav_on_scroll'] = prefs.hide_nav_on_scroll
             context['desktop_nav_collapsed'] = prefs.desktop_nav_collapsed
-            # Module toggles
-            context['journal_enabled'] = prefs.journal_enabled
-            context['faith_enabled'] = prefs.faith_enabled
-            context['health_enabled'] = prefs.health_enabled
-            context['life_enabled'] = prefs.life_enabled
-            context['purpose_enabled'] = prefs.purpose_enabled
-            context['finance_enabled'] = prefs.finances_enabled
-            context['relationships_enabled'] = prefs.relationships_enabled
-            context['capture_enabled'] = prefs.capture_enabled
+            # Module toggles — derived from canonical module catalog
+            from apps.core.module_catalog import is_module_enabled
+            context['journal_enabled'] = is_module_enabled(request.user, 'journal')
+            context['faith_enabled'] = is_module_enabled(request.user, 'faith')
+            context['health_enabled'] = is_module_enabled(request.user, 'health')
+            context['life_enabled'] = is_module_enabled(request.user, 'life')
+            context['purpose_enabled'] = is_module_enabled(request.user, 'purpose')
+            context['finance_enabled'] = is_module_enabled(request.user, 'finance')
+            context['relationships_enabled'] = is_module_enabled(request.user, 'relationships')
+            context['capture_enabled'] = is_module_enabled(request.user, 'capture')
+            context['documents_enabled'] = is_module_enabled(request.user, 'documents')
+            context['meals_enabled'] = is_module_enabled(request.user, 'meals')
             # AI toggles
             context['ai_enabled'] = prefs.ai_enabled
             context['ai_data_consent'] = prefs.ai_data_consent

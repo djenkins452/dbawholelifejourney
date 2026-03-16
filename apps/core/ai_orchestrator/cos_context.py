@@ -1624,18 +1624,24 @@ def build_cos_context(user, scoped_builders=None):
 
     prefs = user.preferences
 
-    # Module permissions (trivial, always inline)
-    context['module_permissions'] = {
-        'health': prefs.health_enabled,
-        'journal': prefs.journal_enabled,
-        'faith': prefs.faith_enabled,
-        'life': prefs.life_enabled,
-        'purpose': prefs.purpose_enabled,
-        'finance': prefs.finances_enabled,
-        'capture': prefs.capture_enabled,
-        'ai': prefs.ai_enabled,
-        'personal_assistant': prefs.personal_assistant_enabled,
-    }
+    # Module permissions — derived from canonical module catalog
+    try:
+        from apps.core.module_catalog import get_module_permissions
+        context['module_permissions'] = get_module_permissions(user)
+    except Exception:
+        # Fallback to legacy prefs if catalog not available
+        context['module_permissions'] = {
+            'health': prefs.health_enabled,
+            'journal': prefs.journal_enabled,
+            'faith': prefs.faith_enabled,
+            'life': prefs.life_enabled,
+            'purpose': prefs.purpose_enabled,
+            'finance': prefs.finances_enabled,
+            'capture': prefs.capture_enabled,
+        }
+    # AI flags remain separate — not module catalog entries
+    context['module_permissions']['ai'] = prefs.ai_enabled
+    context['module_permissions']['personal_assistant'] = prefs.personal_assistant_enabled
 
     # Select builders — domain scoping filters to relevant builders only
     if scoped_builders:

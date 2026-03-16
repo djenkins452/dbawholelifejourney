@@ -1732,62 +1732,146 @@ class AllowedInternationalEmail(models.Model):
 
 class ModuleDefinition(models.Model):
     """
-    System-defined module registry for mobile navigation.
+    Canonical Module Catalog — THE single source of truth for all WLJ modules
+    and system layers.
 
-    Each module represents a major life area in the app (Journal, Health, Faith, etc.).
-    This model stores the canonical list of modules with their metadata.
-    Users can enable/disable and reorder modules via UserModulePreference.
+    Drives: navigation, preferences, CoS domain participation, module enablement,
+    architecture dashboard, and future module expansion.
+
+    Architecture layers:
+        Layer 1 (Ingestion): Capture — system-wide input processing
+        Layer 2 (Knowledge): Documents — persistent cross-domain knowledge
+        Layer 3 (Domains): User-facing modules that own behavioral domains
+
+    catalog_type determines how the system treats this entry:
+        MODULE: User-toggleable life domain (Journal, Health, Goals, etc.)
+        SYSTEM: Always-on infrastructure users interact with but cannot disable
+        INTERNAL: Invisible to users (system telemetry, engine management)
     """
 
-    # Unique identifier for the module (matches existing *_enabled fields)
+    class Status(models.TextChoices):
+        ACTIVE = 'active', 'Active'
+        COMING_SOON = 'coming_soon', 'Coming Soon'
+        INTERNAL = 'internal', 'Internal Only'
+
+    class CatalogType(models.TextChoices):
+        MODULE = 'module', 'User Module'
+        SYSTEM = 'system', 'System'
+        INTERNAL = 'internal', 'Internal'
+
+    # ── Identity ──
     slug = models.CharField(
         max_length=50,
         unique=True,
         help_text="Unique identifier (e.g., 'journal', 'health', 'faith')",
     )
-
-    # Display name
     name = models.CharField(
         max_length=50,
         help_text="Display name shown in navigation (e.g., 'Journal', 'Health')",
     )
-
-    # Description for settings/help
+    display_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Full display name (e.g., 'Health & Vitals'). Falls back to name.",
+    )
     description = models.CharField(
         max_length=200,
         blank=True,
         help_text="Brief description of what this module does",
     )
-
-    # SVG icon path data (for inline SVG rendering)
     icon_svg = models.TextField(
         help_text="SVG path data for the module icon",
     )
 
-    # URL route name (Django URL name, e.g., 'journal:home')
+    # ── Classification ──
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+        help_text="Module lifecycle status",
+    )
+    catalog_type = models.CharField(
+        max_length=20,
+        choices=CatalogType.choices,
+        default=CatalogType.MODULE,
+        help_text="MODULE=user-toggleable, SYSTEM=always-on infrastructure, INTERNAL=invisible",
+    )
+    layer = models.PositiveSmallIntegerField(
+        default=3,
+        help_text="Architecture layer: 1=ingestion, 2=knowledge, 3=domain",
+    )
+
+    # ── Domain Mapping ──
+    mapped_domain_keys = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Domain registry keys this module owns (e.g., ["health", "medical"])',
+    )
+
+    # ── Navigation ──
     route_name = models.CharField(
         max_length=100,
         help_text="Django URL name for the module home (e.g., 'journal:home')",
     )
-
-    # Default sort order (used for new users)
+    url_namespace = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Primary URL namespace (e.g., 'health')",
+    )
+    app_names = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='App names for active-state matching in nav (e.g., ["health", "medical"])',
+    )
     default_order = models.PositiveIntegerField(
         default=0,
         help_text="Default display order for new users",
     )
 
-    # Whether this module is available (admin can disable globally)
+    # ── Enablement ──
     is_active = models.BooleanField(
         default=True,
-        help_text="Whether this module is available to users",
+        help_text="Global admin kill switch — False hides from everyone",
+    )
+    always_available = models.BooleanField(
+        default=False,
+        help_text="Cannot be disabled by users (system layers, Life module)",
+    )
+    default_enabled = models.BooleanField(
+        default=True,
+        help_text="Whether enabled by default for new users",
+    )
+    auto_enable_on_first_use = models.BooleanField(
+        default=False,
+        help_text="Auto-enable when user first interacts with this module",
     )
 
-    # Field name in UserPreferences for the *_enabled toggle
-    # e.g., 'journal_enabled', 'health_enabled'
+    # ── Visibility ──
+    show_in_navigation = models.BooleanField(
+        default=True,
+        help_text="Whether this module appears in navigation menus",
+    )
+    show_in_preferences = models.BooleanField(
+        default=True,
+        help_text="Whether this appears on the Preferences page",
+    )
+    cos_participation = models.BooleanField(
+        default=True,
+        help_text="Whether Beth (CoS) may reference this module in reasoning",
+    )
+
+    # ── Sub-features ──
+    sub_features = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Available sub-features: {"weight": {"label": "Weight", "default": true}, ...}',
+    )
+
+    # ── Legacy Bridge (temporary — for backward compat during migration) ──
     preference_field = models.CharField(
         max_length=50,
         blank=True,
-        help_text="UserPreferences field name for enable toggle (e.g., 'journal_enabled')",
+        help_text="Legacy UserPreferences field name (e.g., 'journal_enabled')",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1800,6 +1884,10 @@ class ModuleDefinition(models.Model):
 
     def __str__(self):
         return self.name
+
+    def get_display_name(self):
+        """Return display_name if set, otherwise name."""
+        return self.display_name or self.name
 
 
 class UserModulePreference(models.Model):

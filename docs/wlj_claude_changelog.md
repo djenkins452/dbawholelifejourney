@@ -6,6 +6,41 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Architecture: Phase 1 Canonical Module Catalog
+
+**Purpose:** Establish a single source of truth for all WLJ modules and system layers, replacing three independent systems (DomainCapability, ModuleDefinition, UserPreferences boolean fields) with one canonical catalog.
+
+**Architecture changes:**
+- Extended `ModuleDefinition` model with: `status`, `catalog_type`, `layer`, `mapped_domain_keys`, `always_available`, `cos_participation`, `show_in_navigation`, `show_in_preferences`, `default_enabled`, `sub_features`, `display_name`, `url_namespace`, `app_names`, `auto_enable_on_first_use`
+- 12 canonical catalog entries: capture (L1/system), documents (L2/system), journal, health, faith, life, purpose, meals, relationships (L3/module), finance, travel (coming_soon), system (internal)
+- Created `apps/core/module_catalog.py` — canonical `is_module_enabled()` function with deterministic logic: admin kill switch → always_available → coming_soon → user preference → default
+- Refactored `apps/core/context_processors.py` to derive module flags from catalog instead of hardcoded UserPreferences reads
+- Refactored `cos_context.py` module_permissions to use `get_module_permissions()` from catalog
+- Created `audit_modules` management command for CI validation
+- Fixed capture `capabilities.py` bug: `CaptureItem` → `CaptureEntry`
+- Removed orphan `notes` module from database
+
+**Key design decisions:**
+- Capture (Layer 1 ingestion) has `mapped_domain_keys=[]` — no domain ownership, emits ingestion events not domain signals
+- Documents (Layer 2 knowledge) has `mapped_domain_keys=["documents"]` — owns its own domain for deterministic signal attribution
+- Life (Organize) is `catalog_type=module` with `always_available=True` — cannot be disabled
+- `catalog_type` (MODULE/SYSTEM/INTERNAL) and `layer` (1/2/3) are independent dimensions
+
+**Files:**
+- `apps/users/models.py` — ModuleDefinition model extended
+- `apps/users/migrations/0076_module_catalog_phase1.py` — Schema migration
+- `apps/users/migrations/0077_populate_module_catalog.py` — Data migration
+- `apps/core/module_catalog.py` — NEW: Canonical enablement API
+- `apps/core/context_processors.py` — Refactored to use catalog
+- `apps/core/ai_orchestrator/cos_context.py` — module_permissions from catalog
+- `apps/core/management/commands/audit_modules.py` — NEW: Audit command
+- `apps/core/tests/test_module_catalog.py` — NEW: 22 tests
+- `apps/capture/capabilities.py` — Bug fix
+
+**Tests:** 255 tests pass (users + core module catalog). 22 new tests for catalog integrity, enablement logic, permissions, and domain mapping.
+
+---
+
 ## 2026-03-16 — Fix: Ops Wall JS syntax error — extra closing brace in renderAPSchedulerHealth
 
 **Root cause:** The rewritten `renderAPSchedulerHealth()` function (renamed for Celery Beat) had an extra `}` that prematurely closed the function. This caused `Uncaught SyntaxError: Unexpected token 'function'` which killed the entire Ops Wall script — `startPolling()` never ran, so the page stayed on "Initializing SAME..." despite valid data in Redis cache.

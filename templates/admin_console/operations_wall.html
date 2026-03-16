@@ -3393,6 +3393,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                             <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Last 7d</span><span class="ops-pipeline-sub-metric-value" id="pipeJnl7d">0</span></div>
                             <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Entries 7d</span><span class="ops-pipeline-sub-metric-value" id="pipeJnlEntries">0</span></div>
                             <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Extracted</span><span class="ops-pipeline-sub-metric-value" id="pipeJnlExtracted">0</span></div>
+                            <div class="ops-pipeline-sub-metric"><span class="ops-pipeline-sub-metric-label">Unprocessed</span><span class="ops-pipeline-sub-metric-value" id="pipeJnlUnprocessed">&mdash;</span></div>
                         </div>
                         <div class="ops-pipeline-sub" id="pipelineSubComp">
                             <div class="ops-pipeline-sub-name">Compensatory</div>
@@ -5443,6 +5444,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             _setVal('pipeJnl7d', jn.last_7d);
             _setVal('pipeJnlEntries', jn.entries_7d);
             _setVal('pipeJnlExtracted', jn.entries_with_signals_7d);
+            _setVal('pipeJnlUnprocessed', jn.entries_without_signals != null ? jn.entries_without_signals : '—');
         }
 
         // Compensatory
@@ -7361,7 +7363,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     if (btnBackfill) {
         btnBackfill.addEventListener('click', function() {
             btnBackfill.disabled = true;
-            btnBackfill.textContent = 'Running...';
+            btnBackfill.textContent = 'Extracting...';
             fetch('/admin-console/ops/trigger-journal-backfill/', {
                 method: 'POST',
                 headers: { 'X-CSRFToken': getCookie('csrftoken') },
@@ -7369,7 +7371,11 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) {
-                    showToast(data.message || 'Journal backfill dispatched', 'success');
+                    showToast(data.message || 'Journal backfill complete', 'success');
+                    /* Log detailed results to console for debugging */
+                    if (data.details) {
+                        console.log('[Journal Backfill] Details:', JSON.stringify(data.details, null, 2));
+                    }
                 } else {
                     showToast(data.message || 'Backfill failed', 'failure');
                 }

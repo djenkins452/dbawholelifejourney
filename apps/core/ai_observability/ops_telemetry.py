@@ -2140,6 +2140,11 @@ def _get_intelligence_pipeline_health(now):
             .values('entry').distinct().count()
         )
 
+        # Count entries without signals (backfill candidates)
+        entries_without_signals = JournalEntry.objects.exclude(
+            pk__in=JournalSignal.objects.values_list("entry_id", flat=True)
+        ).count()
+
         # Journal NLP is healthy if it has ever produced signals
         # (extraction is event-driven, so 0 in 24h is okay if no entries were created)
         is_healthy = total_journal_signals > 0
@@ -2154,6 +2159,7 @@ def _get_intelligence_pipeline_health(now):
             'latest_age': latest_s_age,
             'entries_7d': entries_7d,
             'entries_with_signals_7d': entries_with_signals,
+            'entries_without_signals': entries_without_signals,
         }
     except Exception as e:
         logger.debug("Pipeline health: journal NLP check failed: %s", e)

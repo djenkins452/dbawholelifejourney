@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix: Journal Backfill Runs Synchronously with Per-Entry Diagnostics
+
+**Issue:** Journal NLP tile shows Entries: 14, Signals: 0, Extracted: 0. The backfill task dispatched via Celery likely never executed (Redis unavailable during migration). Even the admin button's sync fallback still depended on Celery internally.
+
+**Root cause:** The admin endpoint and backfill task both ultimately depended on Celery for per-entry extraction (Celery-to-Celery chain). No fully synchronous path existed.
+
+**Fix:**
+1. Rewrote `TriggerJournalBackfillView` to run extraction fully synchronously inline — no Celery dependency
+2. Per-entry diagnostics returned in JSON: status, word count, signals created, signal types
+3. Pre-flight OpenAI client check with clear error if unavailable
+4. Added "Unprocessed" metric to Journal NLP tile
+5. Capped at 50 entries per request to avoid timeout
+
+**Files:** `apps/core/ai_observability/ops_views.py`, `apps/core/ai_observability/ops_telemetry.py`, `templates/admin_console/operations_wall.html`
+
+**Test results:** 33/33 passed
+
+---
+
 ## 2026-03-16 — Ops Wall: Admin Triggers, Layout Fix, Registry-Based Signal Health
 
 **Issue:** Three problems with the Ops Command Center:

@@ -1159,12 +1159,13 @@ class AllEnginesView(AdminRequiredMixin, TemplateView):
 
 class TriggerJournalBackfillView(View):
     """
-    Manual trigger for journal signal backfill.
+    Manual trigger for journal signal backfill — runs SYNCHRONOUSLY.
 
     POST /admin-console/ops/trigger-journal-backfill/
 
-    Dispatches backfill_journal_signals.delay() to re-extract signals
-    from journal entries that have no JournalSignal records.
+    Extracts signals from journal entries that have no JournalSignal records.
+    Runs inline (no Celery dependency) so results are returned immediately.
+    Returns per-entry diagnostics showing exactly what happened.
     """
 
     def post(self, request):
@@ -1176,64 +1177,129 @@ class TriggerJournalBackfillView(View):
         trace_id = str(uuid.uuid4())
 
         try:
-            from apps.journal.tasks import backfill_journal_signals
+            from apps.journal.models import JournalEntry, JournalSignal
+            from apps.journal.services.signal_extractor import (
+                JournalSignalExtractor,
+                MIN_WORDS_FOR_EXTRACTION,
+            )
 
-            result = backfill_journal_signals.delay()
+            # Find entries without signals
+            entries_without_signals = (
+                JournalEntry.objects.exclude(
+                    pk__in=JournalSignal.objects.values_list("entry_id", flat=True)
+                )
+                .order_by("created_at")
+            )
+
+            total_entries = entries_without_signals.count()
+            if total_entries == 0:
+                return JsonResponse({
+                    "success": True,
+                    "message": "All entries already have signals.",
+                    "total_entries": 0,
+                    "trace_id": trace_id,
+                })
+
+            # Check OpenAI client availability first
+            from apps.ai.services import get_openai_client
+            client = get_openai_client()
+            if not client:
+                return JsonResponse({
+                    "success": False,
+                    "error": "openai_unavailable",
+                    "message": (
+                        "OpenAI client not available. Check OPENAI_API_KEY env var. "
+                        f"Found {total_entries} entries without signals."
+                    ),
+                    "total_entries": total_entries,
+                    "trace_id": trace_id,
+                }, status=503)
+
+            # Process each entry synchronously with diagnostics
+            results = []
+            extracted_count = 0
+            skipped_short = 0
+            skipped_idempotent = 0
+            errors = 0
+
+            for entry in entries_without_signals[:50]:  # Cap at 50 to avoid timeout
+                entry_result = {"entry_id": entry.pk, "title": (entry.title or "")[:50]}
+
+                # Check word count
+                text_parts = []
+                if entry.title:
+                    text_parts.append(entry.title)
+                if entry.body:
+                    text_parts.append(entry.body)
+                text = ' '.join(text_parts).strip()
+                word_count = len(text.split()) if text else 0
+
+                if word_count < MIN_WORDS_FOR_EXTRACTION:
+                    entry_result["status"] = "skipped_short"
+                    entry_result["word_count"] = word_count
+                    entry_result["min_words"] = MIN_WORDS_FOR_EXTRACTION
+                    skipped_short += 1
+                    results.append(entry_result)
+                    continue
+
+                # Check idempotency
+                if JournalSignal.objects.filter(entry=entry).exists():
+                    entry_result["status"] = "skipped_has_signals"
+                    skipped_idempotent += 1
+                    results.append(entry_result)
+                    continue
+
+                # Run extraction
+                try:
+                    signals = JournalSignalExtractor.extract_signals(entry)
+                    entry_result["status"] = "extracted"
+                    entry_result["signals_created"] = len(signals)
+                    entry_result["signal_types"] = [s.signal_type for s in signals]
+                    extracted_count += len(signals)
+                except Exception as e:
+                    entry_result["status"] = "error"
+                    entry_result["error"] = str(e)[:200]
+                    errors += 1
+
+                results.append(entry_result)
+
+            summary = (
+                f"Processed {len(results)}/{total_entries} entries: "
+                f"{extracted_count} signals extracted, "
+                f"{skipped_short} skipped (too short), "
+                f"{skipped_idempotent} skipped (already has signals), "
+                f"{errors} errors"
+            )
 
             AdminIntervention.objects.create(
                 admin_user=request.user,
                 action_type="trigger_journal_backfill",
                 engine_name="JOURNAL_NLP",
                 trace_id=trace_id,
-                notes=(
-                    f"Manual journal signal backfill triggered "
-                    f"(celery_task_id={result.id})"
-                ),
+                notes=summary,
             )
 
             return JsonResponse({
                 "success": True,
-                "message": "Journal signal backfill dispatched via Celery.",
-                "celery_task_id": result.id,
+                "message": summary,
+                "total_entries": total_entries,
+                "extracted_count": extracted_count,
+                "skipped_short": skipped_short,
+                "skipped_idempotent": skipped_idempotent,
+                "errors": errors,
+                "details": results,
                 "trace_id": trace_id,
             })
-        except ImportError:
+
+        except Exception as e:
+            logger.error(
+                "Journal backfill failed: %s", e, exc_info=True,
+            )
             return JsonResponse({
                 "success": False,
-                "error": "celery_unavailable",
-                "message": "Celery not available. Running synchronous backfill.",
-            }, status=503)
-        except Exception as e:
-            # Celery broker down — try sync
-            logger.warning(
-                "Journal backfill Celery dispatch failed: %s — running synchronously", e,
-            )
-            try:
-                from apps.journal.tasks import backfill_journal_signals as bf_sync
-                result = bf_sync()
-
-                AdminIntervention.objects.create(
-                    admin_user=request.user,
-                    action_type="trigger_journal_backfill",
-                    engine_name="JOURNAL_NLP",
-                    trace_id=trace_id,
-                    notes=f"Manual journal backfill ran synchronously: {result}",
-                )
-
-                return JsonResponse({
-                    "success": True,
-                    "message": f"Journal backfill ran synchronously: {result}",
-                    "trace_id": trace_id,
-                })
-            except Exception as sync_err:
-                logger.error(
-                    "Journal backfill sync fallback failed: %s", sync_err, exc_info=True,
-                )
-                return JsonResponse({
-                    "success": False,
-                    "error": "backfill_failed",
-                    "message": str(sync_err),
-                }, status=500)
+                "error": "backfill_failed",
+                "message": str(e)[:500],
+            }, status=500)
 
 
 class RecomputeSignalHealthView(View):

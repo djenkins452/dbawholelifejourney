@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix: Backfill Order + Logging for Journal Signal Context Path
+
+**Issue:** After deploying the JournalSignal integration, Beth still returned keyword-based themes. The new `analyze_journal_for_cos()` code was correctly deployed, but the JournalSignal query returned 0 rows for recent entries.
+
+**Root cause:** The journal backfill endpoint processed entries ordered by `created_at` ASC (oldest first), capped at 50 entries per run. With 107 unprocessed entries, the recent entries within Beth's 14-day context window were at the end of the queue and never reached. The query `JournalSignal.objects.filter(entry_id__in=entry_ids)` returned empty for recent entries → keyword fallback always triggered.
+
+**Fix:**
+1. Changed backfill order from `order_by("created_at")` to `order_by("-created_at")` (newest first) so recent entries get signals first
+2. Added INFO-level logging to `analyze_journal_for_cos()` showing: user, entry count, signal count, which path (NLP vs KEYWORDS) executes
+
+**Files:** `apps/core/ai_observability/ops_views.py`, `apps/journal/services/content_intelligence.py`
+
+---
+
 ## 2026-03-16 — Fix: Beth Uses NLP-Extracted Journal Signals Instead of Keyword Themes
 
 **Issue:** Beth repeatedly answered with generic "faith and work" themes regardless of new journal entries or extracted signals. Ops Wall CoS Context tile showed STALE with builders=0.

@@ -1183,12 +1183,14 @@ class TriggerJournalBackfillView(View):
                 MIN_WORDS_FOR_EXTRACTION,
             )
 
-            # Find entries without signals
+            # Find entries without signals — newest first so that
+            # recent entries (used by Beth's 14-day context window)
+            # get signals before older historical entries
             entries_without_signals = (
                 JournalEntry.objects.exclude(
                     pk__in=JournalSignal.objects.values_list("entry_id", flat=True)
                 )
-                .order_by("created_at")
+                .order_by("-created_at")
             )
 
             total_entries = entries_without_signals.count()

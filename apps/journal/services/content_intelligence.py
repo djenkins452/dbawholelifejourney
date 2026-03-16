@@ -335,12 +335,16 @@ def analyze_journal_for_cos(user) -> dict:
     journal_signals = []
     try:
         from apps.journal.models import JournalSignal
-        entry_ids = recent_entries.values_list('pk', flat=True)
+        entry_ids = list(recent_entries.values_list('pk', flat=True))
         journal_signals = list(
             JournalSignal.objects.filter(
                 entry_id__in=entry_ids,
                 confidence__gte=0.5,
             ).select_related('entry').order_by('-created_at')[:20]
+        )
+        logger.info(
+            "analyze_journal_for_cos: user=%s entries_14d=%d signal_query=%d signals_found=%d",
+            user.id, len(entry_ids), len(entry_ids), len(journal_signals),
         )
     except Exception as e:
         logger.warning("JournalSignal query failed, falling back to keywords: %s", e)
@@ -348,6 +352,11 @@ def analyze_journal_for_cos(user) -> dict:
     if journal_signals:
         # Build themes from signal domains (richer than keyword matching)
         top_themes = _build_signal_based_themes(journal_signals)
+        logger.info(
+            "analyze_journal_for_cos: user=%s path=NLP signals=%d domains=%s",
+            user.id, len(journal_signals),
+            [s.domain for s in journal_signals[:5]],
+        )
 
         # Build structured signal list for Beth's prompt context
         signal_list = [
@@ -363,6 +372,10 @@ def analyze_journal_for_cos(user) -> dict:
         signal_source = 'nlp'
     else:
         # Fallback: keyword-based theme extraction (no JournalSignal records)
+        logger.info(
+            "analyze_journal_for_cos: user=%s path=KEYWORDS (no signals for %d recent entries)",
+            user.id, entry_count,
+        )
         theme_scores = Counter()
         for entry in recent_entries.values_list('body', flat=True):
             themes = extract_themes(entry or '')

@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix: Ops Wall JS syntax error — extra closing brace in renderAPSchedulerHealth
+
+**Root cause:** The rewritten `renderAPSchedulerHealth()` function (renamed for Celery Beat) had an extra `}` that prematurely closed the function. This caused `Uncaught SyntaxError: Unexpected token 'function'` which killed the entire Ops Wall script — `startPolling()` never ran, so the page stayed on "Initializing SAME..." despite valid data in Redis cache.
+
+**Changes:**
+- **templates/admin_console/operations_wall.html** — Removed extra closing brace in Beat status indicator block.
+
+**Files:** `templates/admin_console/operations_wall.html`
+
+---
+
 ## 2026-03-16 — Fix: Remove startCommand from railway.json to enable multi-service deploy
 
 **Root cause:** `railway.json` contained a `deploy.startCommand` that forced ALL Railway services (including future worker/beat) to run gunicorn. Railway config-as-code overrides dashboard custom start commands, so worker and beat services could never start their own processes.

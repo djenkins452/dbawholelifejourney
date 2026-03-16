@@ -4956,7 +4956,6 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             var okCount = (ise === 'ALIVE' ? 1 : 0) + (same === 'ALIVE' ? 1 : 0);
             jobsEl.textContent = okCount + '/2';
             jobsEl.className = 'ops-sched-metric-value ' + (okCount === 2 ? 'drift-ok' : okCount === 1 ? 'drift-warn' : 'drift-critical');
-            }
         }
     }
 

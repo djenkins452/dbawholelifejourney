@@ -837,7 +837,7 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 16px;
 }
-/* APScheduler tile — distinct styling to differentiate from ISE/SAME heartbeat cards */
+/* Celery Beat tile — distinct styling to differentiate from ISE/SAME heartbeat cards */
 .ops-sched-card.ops-sched-aps {
     border-style: dashed;
     position: relative;
@@ -877,7 +877,7 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     color: var(--ops-yellow);
     animation: schedPulseAmber 1.5s ease-in-out infinite;
 }
-/* Status badges for APScheduler-specific states */
+/* Status badges for Celery Beat-specific states */
 .ops-sched-status-label.STOPPED { color: var(--ops-red); background: var(--ops-red-dim); }
 .ops-sched-status-label.NOT_STARTED { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
 .ops-sched-status-label.NO_HEARTBEAT { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
@@ -3309,19 +3309,16 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                         </div>
                     </div>
                 </div>
-                <!-- APScheduler Process Card -->
+                <!-- Celery Beat Card -->
                 <div class="ops-sched-card ops-sched-aps OFFLINE" id="schedCardAPS">
                     <div class="ops-sched-pulse OFFLINE" id="schedPulseAPS"></div>
                     <div class="ops-sched-info">
-                        <div class="ops-sched-name">APScheduler</div>
+                        <div class="ops-sched-name">Celery Beat</div>
                         <span class="ops-sched-status-label OFFLINE" id="schedStatusAPS">OFFLINE</span>
                         <div class="ops-sched-metrics">
                             <div class="ops-sched-metric"><span class="ops-sched-metric-label">Status</span><span class="ops-sched-metric-value" id="schedRunningAPS">&mdash;</span></div>
-                            <div class="ops-sched-metric"><span class="ops-sched-metric-label">Drift</span><span class="ops-sched-metric-value" id="schedDriftAPS">&mdash;</span></div>
-                            <div class="ops-sched-metric"><span class="ops-sched-metric-label">Jobs</span><span class="ops-sched-metric-value" id="schedJobsAPS">&mdash;</span></div>
-                        </div>
-                        <div class="ops-sched-aps-actions">
-                            <button class="ops-sched-restart-btn" id="apsRestartBtn" type="button">&#x21BB; Restart</button>
+                            <div class="ops-sched-metric"><span class="ops-sched-metric-label">ISE Drift</span><span class="ops-sched-metric-value" id="schedDriftAPS">&mdash;</span></div>
+                            <div class="ops-sched-metric"><span class="ops-sched-metric-label">Beat</span><span class="ops-sched-metric-value" id="schedJobsAPS">&mdash;</span></div>
                         </div>
                     </div>
                 </div>
@@ -4892,7 +4889,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         });
     }
 
-    // APScheduler process health rendering
+    // Celery Beat health rendering (replaced APScheduler 2026-03-16)
     var previousAPSStatus = null;
 
     function renderAPSchedulerHealth(health) {
@@ -4901,18 +4898,16 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         var status = health.status || 'OFFLINE';
         var running = health.running || false;
         var drift = health.drift_seconds;
-        var jobs = health.job_count || 0;
-        var needsRestart = health.needs_restart || false;
 
         // State transition logging
         if (previousAPSStatus && previousAPSStatus !== status) {
-            console.log('[APScheduler] transition: ' + previousAPSStatus + ' → ' + status);
+            console.log('[CeleryBeat] transition: ' + previousAPSStatus + ' → ' + status);
         }
         previousAPSStatus = status;
 
-        // Map APScheduler statuses to CSS classes (reuse ISE/SAME visual language)
+        // Map statuses to CSS classes
         var cssStatus = (status === 'ALIVE') ? 'ALIVE'
-            : (status === 'DELAYED' || status === 'NO_HEARTBEAT' || status === 'NOT_STARTED') ? 'DELAYED'
+            : (status === 'DELAYED') ? 'DELAYED'
             : 'OFFLINE';
 
         // Update pulse
@@ -4937,7 +4932,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             runningEl.className = 'ops-sched-metric-value ' + (running ? 'drift-ok' : 'drift-critical');
         }
 
-        // Drift
+        // ISE Drift
         var driftEl = document.getElementById('schedDriftAPS');
         if (driftEl) {
             if (drift !== null && drift !== undefined) {
@@ -4953,21 +4948,14 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             }
         }
 
-        // Jobs count
+        // Beat status indicator (ISE + SAME)
         var jobsEl = document.getElementById('schedJobsAPS');
         if (jobsEl) {
-            jobsEl.textContent = jobs;
-        }
-
-        // Restart button visibility — show if needs_restart or status is bad
-        var restartBtn = document.getElementById('apsRestartBtn');
-        if (restartBtn) {
-            if (needsRestart || status === 'OFFLINE' || status === 'STOPPED' || status === 'ERROR') {
-                restartBtn.style.display = '';
-                restartBtn.classList.add('attention');
-            } else {
-                restartBtn.style.display = '';
-                restartBtn.classList.remove('attention');
+            var ise = health.ise_status || 'OFFLINE';
+            var same = health.same_status || 'OFFLINE';
+            var okCount = (ise === 'ALIVE' ? 1 : 0) + (same === 'ALIVE' ? 1 : 0);
+            jobsEl.textContent = okCount + '/2';
+            jobsEl.className = 'ops-sched-metric-value ' + (okCount === 2 ? 'drift-ok' : okCount === 1 ? 'drift-warn' : 'drift-critical');
             }
         }
     }
@@ -5225,12 +5213,12 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             setOpTile('opTileActions', 'opTileActionsStatus', aafrStatus === 'HEALTHY' ? 'OK' : aafrStatus);
         }
 
-        // Schedulers — factor in ISE, SAME heartbeats + APScheduler process
+        // Schedulers — ISE + SAME heartbeats + Celery Beat derived status
         var sched = data.scheduler_heartbeats || [];
         var alive = sched.filter(function(s) { return s.status === 'ALIVE'; }).length;
-        var apsHealth = data.scheduler_health || {};
-        var apsOk = (apsHealth.status === 'ALIVE') ? 1 : 0;
-        var totalOk = alive + apsOk;
+        var beatHealth = data.scheduler_health || {};
+        var beatOk = (beatHealth.status === 'ALIVE') ? 1 : 0;
+        var totalOk = alive + beatOk;
         var schedStatus = totalOk >= 3 ? 'OK' : totalOk >= 2 ? 'DEGRADED' : 'CRITICAL';
         setOpTile('opTileSchedulers', 'opTileSchedulersStatus', schedStatus);
     }
@@ -6671,50 +6659,8 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     }
 
     /* =====================================================================
-       APScheduler Restart
-       ===================================================================== */
-    function restartAPScheduler(btn) {
-        btn.disabled = true;
-        btn.classList.add('running');
-        btn.textContent = 'Restarting...';
-
-        fetch('/admin-console/ops/scheduler-restart/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken'),
-            },
-        })
-        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
-        .then(function(result) {
-            var success = result.data.success;
-            showToast(
-                success ? 'APScheduler restarted successfully' : 'APScheduler restart failed: ' + (result.data.message || 'Unknown error'),
-                success ? 'success' : 'failure'
-            );
-            btn.disabled = false;
-            btn.classList.remove('running');
-            btn.textContent = success ? '\u2713 Restarted' : '\u21BB Retry';
-            // Refresh data after short delay
-            setTimeout(function() {
-                poll();
-                btn.textContent = '\u21BB Restart';
-            }, 2000);
-        })
-        .catch(function(err) {
-            showToast('Restart failed: ' + err.message, 'failure');
-            btn.disabled = false;
-            btn.classList.remove('running');
-            btn.textContent = '\u21BB Retry';
-        });
-    }
-
-    /* =====================================================================
        Event Handlers
        ===================================================================== */
-    document.getElementById('apsRestartBtn').addEventListener('click', function() {
-        restartAPScheduler(this);
-    });
 
     document.getElementById('wallModeBtn').addEventListener('click', function() {
         toggleWallMode();

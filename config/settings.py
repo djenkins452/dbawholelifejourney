@@ -1070,49 +1070,95 @@ CELERY_ENABLE_UTC = True
 from celery.schedules import crontab  # noqa: E402
 
 CELERY_BEAT_SCHEDULE = {
+    # ── INTERVAL TASKS (high-frequency) ──────────────────────────────
     "run-same-cycle-every-60-seconds": {
         "task": "apps.core.tasks.run_same_cycle_task",
         "schedule": 60.0,
     },
     "run-ise-cycle-every-300-seconds": {
         "task": "apps.core.tasks.run_ise_cycle_task",
-        "schedule": 300.0,  # Every 5 minutes — redundant with APScheduler
+        "schedule": 300.0,  # Every 5 minutes — primary ISE trigger
     },
     "cos-keepalive-every-30-seconds": {
         "task": "apps.ai.tasks.cos_keepalive_task",
         "schedule": 30.0,  # Keep CoS context warm for active users
     },
+    "capture-process-stuck-entries-every-5-min": {
+        "task": "capture.process_pending_captures",
+        "schedule": 300.0,  # Catch entries stuck in 'transcribing'
+    },
+    "coas-health-check-every-5-min": {
+        "task": "core.check_system_health",
+        "schedule": 300.0,  # COAS health monitoring (was APScheduler)
+    },
+    "capture-pending-reminders-hourly": {
+        "task": "capture.send_pending_capture_reminders",
+        "schedule": 3600.0,  # Hourly (was APScheduler)
+    },
+    # ── NIGHTLY CRON TASKS (ordered by UTC time) ─────────────────────
+    "health-reminders-evening-midnight-utc": {
+        "task": "core.generate_health_reminders_evening",
+        "schedule": crontab(hour=0, minute=0),  # 00:00 UTC = 7:00 PM EST (was APScheduler)
+    },
     "health-nightly-summary-3am-utc": {
         "task": "health.build_nightly_health_summaries",
         "schedule": crontab(hour=3, minute=0),  # 3:00 AM UTC = 10:00 PM EST
     },
-    "capture-process-stuck-entries-every-5-min": {
-        "task": "capture.process_pending_captures",
-        "schedule": 300.0,  # Every 5 minutes — catch entries stuck in 'transcribing'
+    "soft-delete-cleanup-weekly-sun-3am-utc": {
+        "task": "core.cleanup_soft_deletes",
+        "schedule": crontab(hour=3, minute=0, day_of_week="sun"),  # Weekly Sunday (was APScheduler)
     },
-    "operating-profiles-nightly-7am-utc": {
-        "task": "apps.core.tasks.compute_operating_profiles_task",
-        "schedule": crontab(hour=7, minute=0),  # 7:00 AM UTC = 2:00 AM EST — after full day captured
+    "eae-nightly-signal-aggregation-430am-utc": {
+        "task": "core.compute_nightly_signals",
+        "schedule": crontab(hour=4, minute=30),  # 4:30 AM UTC = 11:30 PM EST
     },
-    "dashboard-v2-nightly-momentum-730am-utc": {
-        "task": "dashboard_v2.compute_nightly_momentum",
-        "schedule": crontab(hour=7, minute=30),  # 7:30 AM UTC = 2:30 AM EST — after SAE + PRIE
-    },
-    "dashboard-v2-detect-celebrations-8am-utc": {
-        "task": "dashboard_v2.detect_celebrations",
-        "schedule": crontab(hour=8, minute=0),  # 8:00 AM UTC = 3:00 AM EST — after momentum
-    },
-    "dashboard-v2-expire-celebrations-9am-utc": {
-        "task": "dashboard_v2.expire_celebrations",
-        "schedule": crontab(hour=9, minute=0),  # 9:00 AM UTC = 4:00 AM EST
+    "faith-reminders-daily-6am-utc": {
+        "task": "core.generate_faith_reminders",
+        "schedule": crontab(hour=6, minute=0),  # 6:00 AM UTC = 1:00 AM EST (was APScheduler)
     },
     "life-recalculate-task-priorities-6am-utc": {
         "task": "life.recalculate_task_priorities",
         "schedule": crontab(hour=6, minute=0),  # 6:00 AM UTC = 1:00 AM EST
     },
-    "eae-nightly-signal-aggregation-430am-utc": {
-        "task": "core.compute_nightly_signals",
-        "schedule": crontab(hour=4, minute=30),  # 4:30 AM UTC = 11:30 PM EST
+    "life-process-recurring-tasks-605am-utc": {
+        "task": "life.process_recurring_tasks",
+        "schedule": crontab(hour=6, minute=5),  # 6:05 AM UTC = 1:05 AM EST (was APScheduler)
+    },
+    "activity-patterns-daily-7am-utc": {
+        "task": "core.compute_activity_patterns",
+        "schedule": crontab(hour=7, minute=0),  # 7:00 AM UTC = 2:00 AM EST (was APScheduler)
+    },
+    "operating-profiles-nightly-7am-utc": {
+        "task": "apps.core.tasks.compute_operating_profiles_task",
+        "schedule": crontab(hour=7, minute=0),  # 7:00 AM UTC = 2:00 AM EST
+    },
+    "dashboard-v2-nightly-momentum-730am-utc": {
+        "task": "dashboard_v2.compute_nightly_momentum",
+        "schedule": crontab(hour=7, minute=30),  # 7:30 AM UTC = 2:30 AM EST
+    },
+    "capture-expiration-reminders-daily-8am-utc": {
+        "task": "capture.send_expiration_reminders",
+        "schedule": crontab(hour=8, minute=0),  # 8:00 AM UTC = 3:00 AM EST (was APScheduler)
+    },
+    "dashboard-v2-detect-celebrations-8am-utc": {
+        "task": "dashboard_v2.detect_celebrations",
+        "schedule": crontab(hour=8, minute=0),  # 8:00 AM UTC = 3:00 AM EST
+    },
+    "dashboard-v2-expire-celebrations-9am-utc": {
+        "task": "dashboard_v2.expire_celebrations",
+        "schedule": crontab(hour=9, minute=0),  # 9:00 AM UTC = 4:00 AM EST
+    },
+    "notification-digest-daily-945am-utc": {
+        "task": "core.send_notification_digest",
+        "schedule": crontab(hour=9, minute=45),  # 9:45 AM UTC = 4:45 AM EST (was APScheduler)
+    },
+    "health-reminders-morning-noon-utc": {
+        "task": "core.generate_health_reminders_morning",
+        "schedule": crontab(hour=12, minute=0),  # 12:00 UTC = 7:00 AM EST (was APScheduler)
+    },
+    "birthday-reminders-daily-noon-utc": {
+        "task": "core.generate_birthday_reminders",
+        "schedule": crontab(hour=12, minute=0),  # 12:00 UTC = 7:00 AM EST (was APScheduler)
     },
 }
 

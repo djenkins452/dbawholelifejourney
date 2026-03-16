@@ -9,23 +9,22 @@ Description:
     Celery tasks that wrap existing job functions. Tasks are thin wrappers —
     all business logic lives in the job functions or engine modules.
 
-    Currently handles:
+    Handles:
     - SAME (System Autonomous Monitoring Engine) cycle execution
-    - ISE (Intelligence Scheduler Engine) cycle execution (redundant trigger)
+    - ISE (Intelligence Scheduler Engine) cycle execution
     - ISE engine execution (dispatched from scheduler with EngineRun telemetry)
+    - Daily cron jobs: reminders, cleanup, digests, activity patterns
+    - COAS health monitoring
 
-Tasks:
-    - run_same_cycle_task: Triggers SAME monitoring cycle every 60 seconds
-    - run_ise_cycle_task: Triggers ISE scheduler cycle every 5 minutes
-      (redundant with APScheduler — ensures ISE survives scheduler thread death)
-    - run_ise_engine_task: Executes individual ISE engines with EngineRun telemetry
+    All scheduling is driven by Celery Beat (CELERY_BEAT_SCHEDULE in settings.py).
+    APScheduler was removed in 2026-03-16.
 
 Note:
     The DB lock in run_same_cycle() prevents duplicate execution even if
     multiple workers pick up the same task. Celery is only the trigger.
 
     ISE dedup is handled by ScheduledIntelligenceTask.next_run_at — tasks
-    that have already run (via APScheduler or Celery) won't re-execute.
+    that have already run won't re-execute.
 
 Copyright:
     (c) Whole Life Journey. All rights reserved.
@@ -175,15 +174,11 @@ def run_same_cycle_task(self):
 )
 def run_ise_cycle_task(self):
     """
-    Celery Beat redundant trigger for ISE scheduler cycle.
+    Celery Beat trigger for ISE scheduler cycle.
 
-    Provides resilience against APScheduler thread death. The ISE also runs
-    every 5 minutes via APScheduler in the Gunicorn web process (wsgi.py).
-    If APScheduler is alive, both triggers fire but tasks only execute once
-    (ScheduledIntelligenceTask.next_run_at prevents double-execution).
-
-    If the APScheduler thread dies (which caused ISE to go offline for 51+
-    minutes), this Celery Beat task keeps ISE alive independently.
+    Runs every 5 minutes via Celery Beat. Each cycle checks all registered
+    intelligence tasks (DBE, GLOE, PGE, WIRE, DNE, etc.) and dispatches
+    any that are due. Dedup via ScheduledIntelligenceTask.next_run_at.
     """
     task_id = self.request.id or "local"
     start = time.monotonic()
@@ -612,3 +607,116 @@ def compute_operating_profiles_task(self):
                 task_id,
             )
             return {"status": "max_retries_exceeded", "task_id": task_id}
+
+
+# =========================================================================
+# DAILY CRON JOBS (migrated from APScheduler 2026-03-16)
+# =========================================================================
+# These tasks were previously triggered by APScheduler in wsgi.py.
+# They are thin wrappers around existing job functions in apps/core/jobs.py.
+# All business logic remains in the job functions.
+# =========================================================================
+
+
+@shared_task(
+    name="core.cleanup_soft_deletes",
+    soft_time_limit=120,
+    time_limit=180,
+    acks_late=True,
+)
+def cleanup_soft_deletes_task():
+    """Weekly soft-delete cleanup. Permanently removes records past retention."""
+    from apps.core.jobs import cleanup_soft_deletes
+    cleanup_soft_deletes()
+    return {"status": "ok"}
+
+
+@shared_task(
+    name="core.generate_faith_reminders",
+    soft_time_limit=60,
+    time_limit=90,
+    acks_late=True,
+)
+def generate_faith_reminders_task():
+    """Daily faith reminders: prayer requests + reading plans."""
+    from apps.core.jobs import generate_faith_reminders
+    generate_faith_reminders()
+    return {"status": "ok"}
+
+
+@shared_task(
+    name="core.generate_health_reminders_morning",
+    soft_time_limit=60,
+    time_limit=90,
+    acks_late=True,
+)
+def generate_health_reminders_morning_task():
+    """Morning health reminders: medicine doses."""
+    from apps.core.jobs import generate_health_reminders_morning
+    generate_health_reminders_morning()
+    return {"status": "ok"}
+
+
+@shared_task(
+    name="core.generate_health_reminders_evening",
+    soft_time_limit=60,
+    time_limit=90,
+    acks_late=True,
+)
+def generate_health_reminders_evening_task():
+    """Evening health reminders: medicine, workout, journal."""
+    from apps.core.jobs import generate_health_reminders_evening
+    generate_health_reminders_evening()
+    return {"status": "ok"}
+
+
+@shared_task(
+    name="core.send_notification_digest",
+    soft_time_limit=120,
+    time_limit=180,
+    acks_late=True,
+)
+def send_notification_digest_task():
+    """Daily email digest of pending notifications."""
+    from apps.core.jobs import send_notification_digest
+    send_notification_digest()
+    return {"status": "ok"}
+
+
+@shared_task(
+    name="core.generate_birthday_reminders",
+    soft_time_limit=60,
+    time_limit=90,
+    acks_late=True,
+)
+def generate_birthday_reminders_task():
+    """Daily birthday/anniversary/memorial reminders."""
+    from apps.core.jobs import generate_birthday_reminders
+    generate_birthday_reminders()
+    return {"status": "ok"}
+
+
+@shared_task(
+    name="core.compute_activity_patterns",
+    soft_time_limit=120,
+    time_limit=180,
+    acks_late=True,
+)
+def compute_activity_patterns_task():
+    """Nightly activity pattern computation + 90-day cleanup."""
+    from apps.core.jobs import compute_activity_patterns
+    compute_activity_patterns()
+    return {"status": "ok"}
+
+
+@shared_task(
+    name="core.check_system_health",
+    soft_time_limit=30,
+    time_limit=60,
+    acks_late=True,
+)
+def check_system_health_task():
+    """COAS health monitoring: scheduler, engine, freshness scoring."""
+    from apps.core.jobs import check_system_health
+    check_system_health()
+    return {"status": "ok"}

@@ -233,35 +233,28 @@ class DBLockProtectionTest(TestCase):
         )
 
 
-class NoAPSchedulerSAMERemnantTest(TestCase):
-    """Verify APScheduler SAME job has been removed from wsgi.py."""
+class NoAPSchedulerInWSGITest(TestCase):
+    """Verify APScheduler has been fully removed from wsgi.py."""
 
-    def test_no_same_job_in_wsgi(self):
-        """wsgi.py should not register run_same_cycle as an APScheduler job."""
+    def test_no_apscheduler_in_wsgi(self):
+        """wsgi.py should have no APScheduler code — all scheduling via Celery Beat."""
         import inspect
 
         import config.wsgi
 
         source = inspect.getsource(config.wsgi)
 
-        # The job registration should be gone
-        self.assertNotIn("run_same_cycle", source.split("scheduler.start()")[0])
+        # APScheduler code should be completely gone
+        self.assertNotIn("scheduler.add_job", source)
+        self.assertNotIn("scheduler.start", source)
+        self.assertNotIn("BackgroundScheduler", source)
+        self.assertNotIn("run_same_cycle", source)
 
-    def test_wsgi_references_celery_migration(self):
-        """wsgi.py should note that SAME moved to Celery."""
+    def test_wsgi_references_celery_beat(self):
+        """wsgi.py should note that scheduling is handled by Celery Beat."""
         import inspect
 
         import config.wsgi
 
         source = inspect.getsource(config.wsgi)
         self.assertIn("Celery Beat", source)
-
-    def test_apscheduler_job_count_updated(self):
-        """wsgi.py should say 14 jobs, not 15."""
-        import inspect
-
-        import config.wsgi
-
-        source = inspect.getsource(config.wsgi)
-        self.assertIn("14 jobs", source)
-        self.assertNotIn("15 jobs", source)

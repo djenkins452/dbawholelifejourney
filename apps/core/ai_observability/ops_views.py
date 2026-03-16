@@ -804,12 +804,11 @@ class SchedulerHeartbeatView(View):
 
 class SchedulerHealthView(View):
     """
-    APScheduler health check endpoint.
+    Celery Beat scheduling health endpoint.
 
     GET /admin-console/ops/scheduler-health/
 
-    Returns scheduler running state, heartbeat drift, and whether
-    a restart is recommended.
+    Returns Celery Beat health derived from ISE/SAME heartbeats.
     """
 
     def get(self, request):
@@ -826,44 +825,27 @@ class SchedulerHealthView(View):
 
 class SchedulerRestartView(View):
     """
-    APScheduler restart endpoint.
+    Scheduler restart endpoint (deprecated).
 
     POST /admin-console/ops/scheduler-restart/
 
-    Shuts down the existing APScheduler instance and reinitializes it.
-    Staff-only. Creates an AdminIntervention audit record.
+    APScheduler was removed in 2026-03-16. All scheduling is via Celery Beat.
+    To restart scheduling, restart the Beat process on Railway.
+    This endpoint remains for backward compatibility but returns an info message.
     """
 
     def post(self, request):
         if not request.user.is_authenticated or not request.user.is_staff:
             return JsonResponse({"error": "forbidden"}, status=403)
 
-        from apps.core.scheduler_health import get_scheduler_status, restart_scheduler
-
-        # Pre-restart status for audit
-        pre_status = get_scheduler_status()
-
-        # Execute restart
-        result = restart_scheduler()
-
-        # Audit trail
-        try:
-            from apps.core.ai_observability.models import AdminIntervention
-            AdminIntervention.objects.create(
-                admin_user=request.user,
-                action_type='scheduler_restart',
-                engine_name='ISE',
-                details={
-                    'pre_status': pre_status,
-                    'post_status': result.get('status', {}),
-                    'success': result.get('success', False),
-                },
-            )
-        except Exception:
-            pass  # Audit must never block restart
-
-        status_code = 200 if result.get('success') else 500
-        return JsonResponse(result, status=status_code)
+        return JsonResponse({
+            "success": False,
+            "message": (
+                "APScheduler was removed. All scheduling is via Celery Beat. "
+                "Restart the Beat process on Railway to fix scheduling issues."
+            ),
+            "status": {},
+        })
 
 
 class TriggerGoalMomentumView(View):

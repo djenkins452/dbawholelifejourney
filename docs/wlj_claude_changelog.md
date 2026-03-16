@@ -6,6 +6,37 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Phase 1: Remove APScheduler, consolidate all scheduling under Celery Beat
+
+**Root cause:** APScheduler ran as a daemon thread inside Gunicorn's master process (`--preload`), but health checks ran in forked worker processes that couldn't see the master's thread state. `restart_scheduler()` was fundamentally broken — it called `shutdown()` on a forked copy while the master held the DB lock. When APScheduler died, 10 of 14 jobs silently stopped running with no Celery Beat fallback.
+
+**Changes:**
+- **config/wsgi.py** — Complete rewrite. Removed all APScheduler code (~290 lines): `start_scheduler()`, `_scheduler_instance`, `atexit` hook, all 14 `scheduler.add_job()` calls. Now just exposes WSGI application.
+- **config/settings.py** — Expanded CELERY_BEAT_SCHEDULE from 11 to 23 entries. Added 12 new entries for migrated APScheduler jobs.
+- **apps/core/tasks.py** — Added 8 new `@shared_task` thin wrappers calling existing job functions in `apps/core/jobs.py`.
+- **apps/capture/tasks.py** — Added 2 new tasks: `send_expiration_reminders_task`, `send_pending_capture_reminders_task`.
+- **apps/life/tasks.py** — Added 1 new task: `process_recurring_tasks_task`.
+- **apps/core/scheduler_health.py** — Complete rewrite. Removed `_get_scheduler()` (APScheduler instance check). New `get_scheduler_status()` derives Beat health from ISE+SAME heartbeats.
+- **apps/core/ai_observability/health_scoring.py** — Replaced `details["apscheduler"]` with `details["celery_beat"]` (derived from ISE+SAME status).
+- **apps/core/ai_observability/same_engine.py** — Removed APScheduler penalty (-8pt) from integrity snapshot. Updated posture gate messages.
+- **apps/core/ai_observability/operational_alerts.py** — Alert builder checks `celery_beat` instead of `apscheduler` key.
+- **apps/core/ai_observability/diagnostic_engine.py** — Diagnostic component label changed from "APScheduler" to "Celery Beat".
+- **apps/core/ai_observability/maturity_engine.py** — Recommendation text updated.
+- **apps/core/ai_observability/ops_telemetry.py** — Restart action returns deprecation info.
+- **apps/core/ai_observability/ops_views.py** — Restart endpoint returns deprecation message.
+- **templates/admin_console/operations_wall.html** — APScheduler card → Celery Beat card showing ISE/SAME status. Removed restart button.
+- **Procfile** — Updated comments reflecting APScheduler removal.
+
+**Tests updated:**
+- `apps/core/ai_observability/tests_coas.py` — Removed APScheduler mocks, added `setUp` to clear stale alerts (pre-existing --keepdb bug).
+- `apps/core/ai_observability/tests_diagnostic_engine.py` — Updated Ops Wall tile test for Celery Beat.
+- `apps/core/tests/test_scheduler_health.py` — Complete rewrite for heartbeat-based health check.
+- `apps/core/tests_celery.py` — Updated wsgi.py verification tests.
+
+**Verification:** 78 tests pass across all affected modules (COAS, diagnostic engine, scheduler health, celery tests, ops wall).
+
+---
+
 ## 2026-03-16 — Fix deploy startup: broken fixture resets + redundant command chain
 
 **Issue 1 — `_reset_task_skip_status_fixtures` was empty** (line 5722): Method body only had `reset_tracker_name = '...'` and nothing else. It fell through to `_reset_receipt_hardening_fixtures`.

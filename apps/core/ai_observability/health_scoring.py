@@ -54,7 +54,6 @@ def compute_scheduler_health():
 def _compute_scheduler_health_inner():
     from apps.core.ai_observability.models import SchedulerHeartbeat
     from apps.core.ai_scheduler.scheduler_models import ScheduledIntelligenceTask
-    from apps.core.scheduler_health import get_scheduler_status
 
     score = 100
     details = {}
@@ -89,17 +88,14 @@ def _compute_scheduler_health_inner():
         "drift_seconds": same_hb.drift_seconds if same_hb else None,
     }
 
-    # --- APScheduler process ---
-    try:
-        sched_status = get_scheduler_status()
-        aps_running = sched_status.get("running", False)
-    except Exception:
-        aps_running = False
-    aps_penalty = 0 if aps_running else 20
-    score -= aps_penalty
-    details["apscheduler"] = {
-        "running": aps_running,
-        "penalty": aps_penalty,
+    # --- Celery Beat health (derived from ISE + SAME) ---
+    # If both ISE and SAME are alive, Beat is dispatching. If both offline,
+    # Beat is likely dead. Penalty is already captured in ISE/SAME above,
+    # so we just report status for observability.
+    beat_running = ise_status in ("ALIVE", "DELAYED") or same_status in ("ALIVE", "DELAYED")
+    details["celery_beat"] = {
+        "running": beat_running,
+        "penalty": 0,  # No separate penalty — covered by ISE/SAME
     }
 
     # --- Failed ISE tasks ---

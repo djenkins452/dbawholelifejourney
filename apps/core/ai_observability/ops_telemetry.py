@@ -426,12 +426,12 @@ def _action_clear_suppression_cache(engine):
 
 
 def _action_restart_scheduler():
-    """Signal ISE scheduler restart (creates a marker for the scheduler to pick up)."""
+    """Scheduler restart info (APScheduler removed 2026-03-16)."""
     return {
-        "status": "success",
+        "status": "info",
         "detail": (
-            "Scheduler restart signaled. ISE will pick up on next cron cycle "
-            "(Railway runs every 5 minutes)."
+            "APScheduler was removed. All scheduling is via Celery Beat. "
+            "Restart the Beat process on Railway to fix scheduling issues."
         ),
     }
 
@@ -567,7 +567,7 @@ def _get_scheduler_heartbeats():
 
 
 def _get_scheduler_health():
-    """Get APScheduler health status for the Ops Wall stream."""
+    """Get Celery Beat scheduling health for the Ops Wall stream."""
     try:
         from apps.core.scheduler_health import get_scheduler_status
         return get_scheduler_status()

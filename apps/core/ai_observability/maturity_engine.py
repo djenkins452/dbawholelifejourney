@@ -567,7 +567,7 @@ def generate_recommendations(scores: Dict[str, dict]) -> list:
                 'category': 'infrastructure',
                 'priority': 'high',
                 'message': "Scheduler health is below 70. Check ISE/Celery worker status.",
-                'action': 'Verify Celery Beat is running and APScheduler heartbeats are current.',
+                'action': 'Verify Celery Beat is running and ISE/SAME heartbeats are current.',
             })
         if details.get('engine') is not None and details['engine'] < 70:
             recommendations.append({

@@ -230,3 +230,20 @@ def process_bulk_recipe_import(self, session_id):
         "errors": error_count,
         "duration_seconds": round(duration, 2),
     }
+
+
+# =========================================================================
+# SCHEDULED JOBS (migrated from APScheduler 2026-03-16)
+# =========================================================================
+
+
+@shared_task(
+    name="life.process_recurring_tasks",
+    soft_time_limit=60,
+    time_limit=90,
+    acks_late=True,
+)
+def process_recurring_tasks_task():
+    """Daily: process completed recurring tasks and create next occurrences."""
+    from apps.life.jobs import process_recurring_tasks
+    return process_recurring_tasks()

@@ -435,3 +435,32 @@ def get_processing_queue_status() -> dict:
     }
 
     return status
+
+
+# =========================================================================
+# SCHEDULED JOBS (migrated from APScheduler 2026-03-16)
+# =========================================================================
+
+
+@shared_task(
+    name="capture.send_expiration_reminders",
+    soft_time_limit=60,
+    time_limit=90,
+    acks_late=True,
+)
+def send_expiration_reminders_task():
+    """Daily: email reminders for capture entries expiring in 2 days."""
+    from apps.capture.jobs import send_expiration_reminders
+    return send_expiration_reminders()
+
+
+@shared_task(
+    name="capture.send_pending_capture_reminders",
+    soft_time_limit=60,
+    time_limit=90,
+    acks_late=True,
+)
+def send_pending_capture_reminders_task():
+    """Hourly: in-app notifications for pending captures not yet uploaded."""
+    from apps.capture.jobs import send_pending_capture_reminders
+    return send_pending_capture_reminders()

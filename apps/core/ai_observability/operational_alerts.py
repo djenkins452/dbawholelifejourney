@@ -229,7 +229,7 @@ def _build_alert_message(subsystem, score, severity, details):
     if subsystem == "scheduler":
         ise = details.get("ise", {})
         same = details.get("same", {})
-        aps = details.get("apscheduler", {})
+        beat = details.get("celery_beat", {})
         failed = details.get("failed_tasks", {})
         if ise.get("status") != "ALIVE":
             drift = ise.get("drift_seconds")
@@ -239,8 +239,8 @@ def _build_alert_message(subsystem, score, severity, details):
             drift = same.get("drift_seconds")
             drift_str = f" (drift: {drift}s)" if drift is not None else ""
             detail_lines.append(f"SAME status: {same.get('status', 'UNKNOWN')}{drift_str}")
-        if not aps.get("running"):
-            detail_lines.append("APScheduler process not running")
+        if not beat.get("running", True):
+            detail_lines.append("Celery Beat not dispatching tasks")
         if failed.get("count", 0) > 0:
             names = ", ".join(failed.get("names", []))
             detail_lines.append(f"{failed['count']} failed tasks: {names}")
@@ -314,7 +314,7 @@ def _build_diagnostic_prompt(subsystem, score, details):
     if subsystem == "scheduler":
         ise = details.get("ise", {})
         same = details.get("same", {})
-        aps = details.get("apscheduler", {})
+        beat = details.get("celery_beat", {})
         failed = details.get("failed_tasks", {})
 
         prompt_lines.append(
@@ -325,16 +325,16 @@ def _build_diagnostic_prompt(subsystem, score, details):
             f"- SAME heartbeat: {same.get('status', 'UNKNOWN')} "
             f"(drift: {same.get('drift_seconds')}s)"
         )
-        prompt_lines.append(f"- APScheduler running: {aps.get('running', False)}")
+        prompt_lines.append(f"- Celery Beat running: {beat.get('running', False)}")
         if failed.get("names"):
             prompt_lines.append(f"- Failed tasks: {', '.join(failed['names'])}")
         prompt_lines.extend([
             "",
             "### Suggested Investigation",
-            "1. Check `railway logs` for scheduler errors or OOM kills",
-            "2. Check APScheduler via `/admin-console/ops/scheduler-health/`",
+            "1. Check `railway logs` for Celery Beat/worker errors or OOM kills",
+            "2. Check scheduler health via `/admin-console/ops/scheduler-health/`",
             "3. Check SchedulerHeartbeat table for ISE/SAME last_tick_at",
-            "4. Consider scheduler restart via Ops Wall if APScheduler is dead",
+            "4. Restart the Celery Beat process on Railway if scheduling has stopped",
         ])
 
     elif subsystem == "engine":

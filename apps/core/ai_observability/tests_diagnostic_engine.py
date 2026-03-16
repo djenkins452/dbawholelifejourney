@@ -290,15 +290,13 @@ class DiagnosticViewTests(TestCase):
         self.assertIn("investigatePanel", content)
         self.assertIn("investigateScanBtn", content)
 
-    def test_ops_wall_has_apscheduler_tile(self):
-        """Ops Wall includes APScheduler tile with restart button."""
+    def test_ops_wall_has_celery_beat_tile(self):
+        """Ops Wall includes Celery Beat scheduler tile."""
         resp = self.client.get("/admin-console/ops/")
         self.assertEqual(resp.status_code, 200)
         content = resp.content.decode()
         self.assertIn("schedCardAPS", content)
-        self.assertIn("schedPulseAPS", content)
-        self.assertIn("apsRestartBtn", content)
-        self.assertIn("APScheduler", content)
+        self.assertIn("Celery Beat", content)
 
     def test_scheduler_health_endpoint(self):
         """GET /admin-console/ops/scheduler-health/ returns JSON."""

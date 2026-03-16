@@ -67,17 +67,13 @@ class SchedulerHealthTests(TestCase):
             },
         )
 
-    @patch("apps.core.scheduler_health.get_scheduler_status")
-    def test_all_healthy_baseline(self, mock_status):
-        """All heartbeats ALIVE, APScheduler running, no failed tasks = 100."""
-        mock_status.return_value = {"running": True}
+    def test_all_healthy_baseline(self):
+        """All heartbeats ALIVE, no failed tasks = 100."""
         result = compute_scheduler_health()
         self.assertEqual(result["score"], 100)
 
-    @patch("apps.core.scheduler_health.get_scheduler_status")
-    def test_ise_offline(self, mock_status):
+    def test_ise_offline(self):
         """ISE OFFLINE should drop score by 40."""
-        mock_status.return_value = {"running": True}
         # Make ISE heartbeat stale (offline = drift > 3x interval)
         SchedulerHeartbeat.objects.filter(scheduler_name="ISE").update(
             last_tick_at=timezone.now() - timedelta(seconds=1500),  # 5x 300s
@@ -87,10 +83,8 @@ class SchedulerHealthTests(TestCase):
         self.assertEqual(result["details"]["ise"]["penalty"], 40)
         self.assertLessEqual(result["score"], 60)
 
-    @patch("apps.core.scheduler_health.get_scheduler_status")
-    def test_ise_delayed(self, mock_status):
+    def test_ise_delayed(self):
         """ISE DELAYED should drop score by 15."""
-        mock_status.return_value = {"running": True}
         # Drift between 1.5x and 3x interval
         SchedulerHeartbeat.objects.filter(scheduler_name="ISE").update(
             last_tick_at=timezone.now() - timedelta(seconds=600),  # 2x 300s
@@ -99,18 +93,15 @@ class SchedulerHealthTests(TestCase):
         self.assertEqual(result["details"]["ise"]["status"], "DELAYED")
         self.assertEqual(result["details"]["ise"]["penalty"], 15)
 
-    @patch("apps.core.scheduler_health.get_scheduler_status")
-    def test_apscheduler_not_running(self, mock_status):
-        """APScheduler not running should drop score by 20."""
-        mock_status.return_value = {"running": False}
+    def test_celery_beat_health_reported(self):
+        """Celery Beat health is derived from ISE + SAME and reported in details."""
         result = compute_scheduler_health()
-        self.assertEqual(result["details"]["apscheduler"]["penalty"], 20)
-        self.assertEqual(result["score"], 80)
+        self.assertIn("celery_beat", result["details"])
+        self.assertTrue(result["details"]["celery_beat"]["running"])
+        self.assertEqual(result["details"]["celery_beat"]["penalty"], 0)
 
-    @patch("apps.core.scheduler_health.get_scheduler_status")
-    def test_failed_tasks(self, mock_status):
+    def test_failed_tasks(self):
         """Failed ISE tasks should drop score by 3 each, capped at 15."""
-        mock_status.return_value = {"running": True}
         for i in range(6):
             ScheduledIntelligenceTask.objects.create(
                 task_name=f"failed_task_{i}",
@@ -123,10 +114,8 @@ class SchedulerHealthTests(TestCase):
         self.assertEqual(result["details"]["failed_tasks"]["penalty"], 15)
         self.assertEqual(result["score"], 85)
 
-    @patch("apps.core.scheduler_health.get_scheduler_status")
-    def test_missing_heartbeat_data(self, mock_status):
+    def test_missing_heartbeat_data(self):
         """Missing heartbeats should not crash, treated as OFFLINE."""
-        mock_status.return_value = {"running": True}
         SchedulerHeartbeat.objects.all().delete()
         result = compute_scheduler_health()
         self.assertIsNotNone(result["score"])
@@ -401,6 +390,10 @@ class ClassifySeverityTests(TestCase):
 
 class StateChangeAlertTests(TestCase):
     """Tests for check_and_alert() state-change logic."""
+
+    def setUp(self):
+        """Clear any stale alerts from previous test runs (--keepdb)."""
+        OperationalAlert.objects.all().delete()
 
     def _make_scores(self, scheduler=100, engine=100, freshness=100, overall=None):
         """Helper to build a scores dict."""

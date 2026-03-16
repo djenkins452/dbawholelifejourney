@@ -1309,7 +1309,7 @@ def _compute_integrity_snapshot(heartbeats, now):
 
     # --- Component 1: Scheduler health (max 25 point penalty) ---
     # WHY: Schedulers sit below engines in the dependency chain:
-    #   Infrastructure → Schedulers → Workers → Engines → Signals → Insights
+    #   Infrastructure → Celery Beat → Workers → Engines → Signals → Insights
     # If schedulers fail, engines stop running, and the entire intelligence
     # pipeline degrades. The hero score MUST reflect scheduler state.
     #
@@ -1318,16 +1318,14 @@ def _compute_integrity_snapshot(heartbeats, now):
     #   ISE DELAYED  → -5    (running but drifting)
     #   SAME OFFLINE → -10   (monitoring + anomaly detection)
     #   SAME DELAYED → -4    (running but drifting)
-    #   APScheduler  → -8    (process-level scheduler, affects ISE dispatch)
     sched_penalty = 0.0
     sched_details = {}
     ise_offline = False
     same_offline = False
-    aps_down = False
+    aps_down = False  # kept for posture gate compat (now means Beat down)
 
     try:
         from apps.core.ai_observability.models import SchedulerHeartbeat
-        from apps.core.scheduler_health import get_scheduler_status
 
         # ISE heartbeat
         ise_hb = SchedulerHeartbeat.get_for_scheduler("ISE")
@@ -1361,19 +1359,13 @@ def _compute_integrity_snapshot(heartbeats, now):
             "drift_seconds": same_hb.drift_seconds if same_hb else None,
         }
 
-        # APScheduler process
-        try:
-            aps_status = get_scheduler_status()
-            aps_running = aps_status.get("running", False)
-        except Exception:
-            aps_running = False
-        if not aps_running:
+        # Celery Beat health (derived — if both ISE and SAME are offline, Beat is down)
+        beat_running = not (ise_offline and same_offline)
+        if not beat_running:
             aps_down = True
-        aps_pen = 0 if aps_running else 8
-        sched_penalty += aps_pen
-        sched_details["apscheduler"] = {
-            "running": aps_running,
-            "penalty": aps_pen,
+        sched_details["celery_beat"] = {
+            "running": beat_running,
+            "penalty": 0,  # Already penalized via ISE/SAME
         }
 
     except Exception as e:
@@ -1500,10 +1492,10 @@ def _compute_integrity_snapshot(heartbeats, now):
     # without them, engines will stop running within minutes.
     sched_gate_reason = None
     if ise_offline and same_offline:
-        sched_gate_reason = "ISE + SAME both offline"
+        sched_gate_reason = "ISE + SAME both offline — Celery Beat may be down"
     elif aps_down and (ise_offline or same_offline):
         sched_gate_reason = (
-            f"APScheduler down + {'ISE' if ise_offline else 'SAME'} offline"
+            f"Celery Beat degraded — {'ISE' if ise_offline else 'SAME'} offline"
         )
 
     if sched_gate_reason and posture in ("OPTIMAL", "NOMINAL"):

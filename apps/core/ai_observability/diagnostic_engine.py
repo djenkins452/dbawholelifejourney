@@ -305,8 +305,8 @@ def _evidence_infrastructure():
              "penalty": sd.get("ise", {}).get("penalty", 0)},
             {"label": "SAME Heartbeat", "value": sd.get("same", {}).get("status", "?"),
              "penalty": sd.get("same", {}).get("penalty", 0)},
-            {"label": "APScheduler", "value": "Running" if sd.get("apscheduler", {}).get("running") else "DOWN",
-             "penalty": sd.get("apscheduler", {}).get("penalty", 0)},
+            {"label": "Celery Beat", "value": "Running" if sd.get("celery_beat", {}).get("running") else "DOWN",
+             "penalty": sd.get("celery_beat", {}).get("penalty", 0)},
             {"label": "Failed Tasks", "value": str(sd.get("failed_tasks", {}).get("count", 0)),
              "penalty": sd.get("failed_tasks", {}).get("penalty", 0),
              "detail": ", ".join(sd.get("failed_tasks", {}).get("names", []))},
@@ -622,15 +622,15 @@ def _scan_infrastructure():
     if same_status == "OFFLINE":
         issues.append(f"SAME heartbeat is {same_status}")
 
-    # Check 2: APScheduler process
-    aps_running = sd.get("apscheduler", {}).get("running", False)
+    # Check 2: Celery Beat health
+    beat_running = sd.get("celery_beat", {}).get("running", False)
     checks.append(_check(
-        "APScheduler Process",
-        "OK" if aps_running else "FAIL",
-        "Running" if aps_running else "NOT RUNNING",
+        "Celery Beat",
+        "OK" if beat_running else "FAIL",
+        "Running" if beat_running else "NOT RUNNING",
     ))
-    if not aps_running:
-        issues.append("APScheduler process is not running")
+    if not beat_running:
+        issues.append("Celery Beat is not dispatching tasks")
 
     # Check 3: Failed tasks
     failed_count = sd.get("failed_tasks", {}).get("count", 0)
@@ -726,8 +726,8 @@ def _infra_recommendation(issues):
     if not issues:
         return "No action needed."
     issue_str = " ".join(issues).lower()
-    if "apscheduler" in issue_str or "not running" in issue_str:
-        return "Check Celery worker process. Try: POST /admin-console/ops/scheduler-restart/"
+    if "celery beat" in issue_str or "not dispatching" in issue_str:
+        return "Check Celery Beat process on Railway. Restart the Beat service if scheduling has stopped."
     if "heartbeat" in issue_str and "offline" in issue_str:
         return "Scheduler heartbeat offline. Check if Celery Beat process is running on Railway."
     if "failed" in issue_str and "task" in issue_str:
@@ -1102,20 +1102,20 @@ def _scan_engine_starvation():
         (f": {', '.join(starvation_anomalies[:5])}" if starvation_anomalies else ""),
     ))
 
-    # Check 4: Celery worker responsiveness
+    # Check 4: Celery Beat scheduling health
     try:
         from apps.core.scheduler_health import get_scheduler_status
         sched = get_scheduler_status()
         running = sched.get("running", False)
         checks.append(_check(
-            "APScheduler Worker",
+            "Celery Beat",
             "OK" if running else "FAIL",
-            "Running" if running else "NOT RUNNING",
+            "Running" if running else "NOT RUNNING — check Beat process on Railway",
         ))
         if not running:
-            issues.append("APScheduler is not running — no engines can be scheduled")
+            issues.append("Celery Beat is not dispatching tasks — engines will not be scheduled")
     except Exception as e:
-        checks.append(_check("APScheduler Worker", "ERROR", str(e)[:200]))
+        checks.append(_check("Celery Beat", "ERROR", str(e)[:200]))
 
     fail_count = sum(1 for c in checks if c["status"] == "FAIL")
     warn_count = sum(1 for c in checks if c["status"] == "WARN")
@@ -1141,7 +1141,7 @@ def _scan_engine_starvation():
         "root_cause_hypothesis": hypothesis,
         "recommended_next_step": (
             "Check ISE scheduler and Celery worker status."
-            if any("scheduler" in i.lower() or "apscheduler" in i.lower() for i in issues)
+            if any("scheduler" in i.lower() or "celery beat" in i.lower() for i in issues)
             else "Trigger manual engine runs for starved engines."
             if starved_engines
             else "No action needed."

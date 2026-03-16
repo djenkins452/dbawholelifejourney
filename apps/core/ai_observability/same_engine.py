@@ -439,16 +439,25 @@ def _detect_signal_drought(now, signal_health=None):
 
     Uses precomputed signal_health to avoid redundant queries.
 
-    Thresholds:
-      P2: domain silent 48h–96h (2–4 days)
-      P1: domain silent >96h (4+ days)
-    """
-    anomalies = []
+    Returns at most ONE aggregated anomaly (all drought domains combined)
+    to avoid reconciliation key collision on ("SIGNAL_DROUGHT", "").
 
+    Severity is based on BREADTH (number of drought domains), not individual
+    domain freshness — this prevents user inactivity in optional domains
+    (purpose, goals) from being classified as a critical system anomaly:
+
+      1-2 silent domains → P3 (informational — likely user inactivity)
+      3+  silent domains → P2 (possible pipeline failure)
+
+    SIGNAL_DROUGHT is exempt from time-based escalation (see
+    ESCALATION_EXEMPT_TYPES) because domain inactivity is a chronic
+    observational state, not a transient failure that gets worse over time.
+    """
     try:
         health = signal_health or _compute_signal_health_once()
         domains = health.get("domains", {})
 
+        drought_domains = []
         for domain, data in domains.items():
             freshness_hours = data.get("freshness_hours")
             volume_7d = data.get("volume_7d", 0)
@@ -458,32 +467,65 @@ def _detect_signal_drought(now, signal_health=None):
                 continue
 
             if freshness_hours is not None and freshness_hours > 48:
-                severity = "P1" if freshness_hours > 96 else "P2"
-                anomalies.append({
-                    "anomaly_type": "SIGNAL_DROUGHT",
-                    "severity": severity,
-                    "engine_name": "",  # cross-engine anomaly
-                    "summary": (
-                        f"Signal drought in '{domain}' — no signals for "
-                        f"{freshness_hours:.0f}h (threshold: 48h)"
-                    ),
-                    "evidence": {
-                        "domain": domain,
-                        "freshness_hours": freshness_hours,
-                        "volume_7d": volume_7d,
-                        "last_signal_at": data.get("last_signal_at"),
-                    },
-                    "suggested_actions": [
-                        {
-                            "action": "investigate_pipeline",
-                            "label": f"Check {domain} signal pipeline",
-                        },
-                    ],
+                drought_domains.append({
+                    "domain": domain,
+                    "freshness_hours": freshness_hours,
+                    "volume_7d": volume_7d,
+                    "last_signal_at": data.get("last_signal_at"),
                 })
+
+        if not drought_domains:
+            return []
+
+        # Severity based on breadth: how many domains are in drought
+        # 1-2 domains = likely user inactivity (P3 informational)
+        # 3+  domains = possible pipeline failure (P2 warning)
+        severity = "P2" if len(drought_domains) >= 3 else "P3"
+
+        # Build summary listing all affected domains
+        stalest = max(drought_domains, key=lambda d: d["freshness_hours"])
+        if len(drought_domains) == 1:
+            summary = (
+                f"Signal drought in '{stalest['domain']}' — no signals for "
+                f"{stalest['freshness_hours']:.0f}h (threshold: 48h)"
+            )
+        else:
+            domain_names = ", ".join(
+                d["domain"] for d in sorted(
+                    drought_domains, key=lambda d: -d["freshness_hours"]
+                )
+            )
+            summary = (
+                f"Signal drought in {len(drought_domains)} domains "
+                f"({domain_names}) — stalest: {stalest['domain']} "
+                f"at {stalest['freshness_hours']:.0f}h"
+            )
+
+        return [{
+            "anomaly_type": "SIGNAL_DROUGHT",
+            "severity": severity,
+            "engine_name": "",  # cross-engine anomaly
+            "summary": summary,
+            "evidence": {
+                "drought_domains": drought_domains,
+                "domain_count": len(drought_domains),
+                # Keep top-level fields for backward compat with existing UI
+                "domain": stalest["domain"],
+                "freshness_hours": stalest["freshness_hours"],
+                "volume_7d": stalest["volume_7d"],
+                "last_signal_at": stalest.get("last_signal_at"),
+            },
+            "suggested_actions": [
+                {
+                    "action": "investigate_pipeline",
+                    "label": "Check signal pipeline health",
+                },
+            ],
+        }]
     except Exception as e:
         logger.warning("SAME signal drought detection failed: %s", e, exc_info=True)
 
-    return anomalies
+    return []
 
 
 def _detect_signal_low_diversity(now, signal_health=None):
@@ -785,6 +827,12 @@ ESCALATION_RULES = [
 # Cooldown: minimum minutes between escalations of the same anomaly
 ESCALATION_COOLDOWN_MINUTES = 15
 
+# Anomaly types exempt from time-based escalation.
+# These represent chronic observational states (e.g., user hasn't used a
+# feature domain recently), NOT transient failures that worsen over time.
+# Their severity is set correctly at detection time based on breadth/volume.
+ESCALATION_EXEMPT_TYPES = {"SIGNAL_DROUGHT", "SIGNAL_LOW_DIVERSITY"}
+
 
 def _escalate_anomalies(now):
     """
@@ -796,6 +844,7 @@ def _escalate_anomalies(now):
     - Cooldown: no re-escalation within 15 minutes
     - Resolution resets escalation (new anomaly starts fresh)
     - P1 is terminal — no further escalation
+    - ESCALATION_EXEMPT_TYPES are skipped (chronic states, not failures)
 
     Returns:
         int — number of anomalies escalated this cycle.
@@ -808,6 +857,10 @@ def _escalate_anomalies(now):
     for anomaly in active:
         # P1 is terminal — skip
         if anomaly.severity == "P1":
+            continue
+
+        # Chronic observational states — severity set at detection, no escalation
+        if anomaly.anomaly_type in ESCALATION_EXEMPT_TYPES:
             continue
 
         for from_sev, minutes_threshold, to_sev in ESCALATION_RULES:

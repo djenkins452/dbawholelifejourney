@@ -212,7 +212,15 @@ class ComputeSignalHealthTests(SignalHealthTestMixin, TestCase):
 
 
 class DetectSignalDroughtTests(SignalHealthTestMixin, TestCase):
-    """Test _detect_signal_drought() SAME detector."""
+    """Test _detect_signal_drought() SAME detector.
+
+    Severity model (breadth-based, not per-domain freshness):
+      0   drought domains → no anomaly
+      1-2 drought domains → P3 (informational — likely user inactivity)
+      3+  drought domains → P2 (possible pipeline failure)
+
+    Detector returns at most ONE aggregated anomaly.
+    """
 
     def test_no_anomaly_for_recent_signals(self):
         """Domains with recent signals should not trigger drought."""
@@ -220,36 +228,56 @@ class DetectSignalDroughtTests(SignalHealthTestMixin, TestCase):
 
         self._create_insight("health", "test", hours_ago=2)
         anomalies = _detect_signal_drought(self.now)
-        drought_anomalies = [a for a in anomalies if a["anomaly_type"] == "SIGNAL_DROUGHT"]
-        # health domain should not appear (freshness < 48h)
-        health_droughts = [a for a in drought_anomalies if a["evidence"]["domain"] == "health"]
-        self.assertEqual(len(health_droughts), 0)
+        self.assertEqual(len(anomalies), 0)
 
-    def test_p2_for_48h_drought(self):
-        """Domain silent 48-96h should generate P2 anomaly."""
+    def test_p3_for_single_domain_drought(self):
+        """Single domain in drought → P3 (likely user inactivity)."""
         from apps.core.ai_observability.same_engine import _detect_signal_drought
 
         self._create_insight("health", "test", hours_ago=60)
         anomalies = _detect_signal_drought(self.now)
-        health_droughts = [
-            a for a in anomalies
-            if a["anomaly_type"] == "SIGNAL_DROUGHT" and a["evidence"]["domain"] == "health"
-        ]
-        self.assertEqual(len(health_droughts), 1)
-        self.assertEqual(health_droughts[0]["severity"], "P2")
+        self.assertEqual(len(anomalies), 1)
+        self.assertEqual(anomalies[0]["severity"], "P3")
+        self.assertEqual(anomalies[0]["evidence"]["domain"], "health")
+        self.assertIn("health", anomalies[0]["summary"])
 
-    def test_p1_for_96h_drought(self):
-        """Domain silent >96h should generate P1 anomaly."""
+    def test_p3_for_two_domain_drought(self):
+        """Two domains in drought → still P3 (likely user inactivity)."""
         from apps.core.ai_observability.same_engine import _detect_signal_drought
 
-        self._create_insight("health", "test", hours_ago=120)
+        self._create_insight("health", "test", hours_ago=60)
+        self._create_insight("purpose", "test", hours_ago=200)
         anomalies = _detect_signal_drought(self.now)
-        health_droughts = [
-            a for a in anomalies
-            if a["anomaly_type"] == "SIGNAL_DROUGHT" and a["evidence"]["domain"] == "health"
-        ]
-        self.assertEqual(len(health_droughts), 1)
-        self.assertEqual(health_droughts[0]["severity"], "P1")
+        self.assertEqual(len(anomalies), 1)
+        self.assertEqual(anomalies[0]["severity"], "P3")
+        # Aggregated anomaly includes all drought domains
+        self.assertEqual(anomalies[0]["evidence"]["domain_count"], 2)
+        self.assertIsInstance(anomalies[0]["evidence"]["drought_domains"], list)
+
+    def test_p2_for_broad_drought(self):
+        """3+ domains in drought → P2 (possible pipeline failure)."""
+        from apps.core.ai_observability.same_engine import _detect_signal_drought
+
+        self._create_insight("health", "test", hours_ago=60)
+        self._create_insight("purpose", "test", hours_ago=200)
+        self._create_insight("faith", "test", hours_ago=100)
+        anomalies = _detect_signal_drought(self.now)
+        self.assertEqual(len(anomalies), 1)
+        self.assertEqual(anomalies[0]["severity"], "P2")
+        self.assertEqual(anomalies[0]["evidence"]["domain_count"], 3)
+
+    def test_single_aggregated_anomaly(self):
+        """Multiple drought domains produce exactly ONE anomaly, not N."""
+        from apps.core.ai_observability.same_engine import _detect_signal_drought
+
+        self._create_insight("health", "test", hours_ago=60)
+        self._create_insight("purpose", "test", hours_ago=200)
+        self._create_insight("faith", "test", hours_ago=100)
+        self._create_insight("journal", "test", hours_ago=72)
+        anomalies = _detect_signal_drought(self.now)
+        self.assertEqual(len(anomalies), 1)
+        # Stalest domain is used for backward-compat top-level fields
+        self.assertEqual(anomalies[0]["evidence"]["domain"], "purpose")
 
     def test_no_anomaly_for_unused_domain(self):
         """Domains with zero signals ever should not trigger drought."""
@@ -258,6 +286,12 @@ class DetectSignalDroughtTests(SignalHealthTestMixin, TestCase):
         # No data at all — should return no anomalies
         anomalies = _detect_signal_drought(self.now)
         self.assertEqual(len(anomalies), 0)
+
+    def test_escalation_exempt(self):
+        """SIGNAL_DROUGHT should be exempt from time-based escalation."""
+        from apps.core.ai_observability.same_engine import ESCALATION_EXEMPT_TYPES
+
+        self.assertIn("SIGNAL_DROUGHT", ESCALATION_EXEMPT_TYPES)
 
 
 class DetectSignalLowDiversityTests(SignalHealthTestMixin, TestCase):

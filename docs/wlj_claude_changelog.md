@@ -6,6 +6,37 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix: SIGNAL_DROUGHT Severity Misclassification — Domain Inactivity Treated as P1 Critical
+
+**Issue:** Ops Command Center displayed a P1 CRITICAL alert for "Signal drought in 'purpose' — no signals for ~210h" even though the built-in diagnostic scan correctly classified the condition as DEGRADED (warnings only, 0 failures). Domain inactivity in optional modules (purpose, goals) was being escalated to a system-critical anomaly.
+
+**Root causes (3 proven):**
+
+1. **Severity misclassification** (`same_engine.py:461`): `_detect_signal_drought()` assigned P1 to ANY domain with `freshness_hours > 96`. No distinction between pipeline failure (multiple domains go silent) vs. user inactivity (one optional domain unused for days).
+
+2. **Escalation compounds the problem** (`same_engine.py:780-782`): Even if initial severity were P2, the escalation state machine auto-promoted P2→P1 after 60 minutes. SIGNAL_DROUGHT is a chronic observational state, not a transient failure — time-based escalation is counterproductive.
+
+3. **Reconciliation key collision** (`same_engine.py:728`): All SIGNAL_DROUGHT anomalies shared key `("SIGNAL_DROUGHT", "")` regardless of domain. Multiple per-domain droughts collapsed to a single OpsAnomaly record, with only the last domain's data surviving.
+
+**Fix:**
+
+1. **Aggregated single anomaly**: `_detect_signal_drought()` now returns AT MOST ONE anomaly containing all drought domains in `evidence.drought_domains`, with backward-compat top-level fields for the stalest domain. Eliminates key collision.
+
+2. **Breadth-based severity**: Severity based on NUMBER of drought domains, not individual freshness:
+   - 1-2 domains → P3 (informational — likely user inactivity)
+   - 3+ domains → P2 (possible pipeline failure)
+   - P1 is never assigned by the detector — reserved for confirmed pipeline failures
+
+3. **Escalation exemption**: Added `ESCALATION_EXEMPT_TYPES = {"SIGNAL_DROUGHT", "SIGNAL_LOW_DIVERSITY"}`. These chronic observational states are skipped by `_escalate_anomalies()`.
+
+4. **Updated tests**: 7 tests rewritten to verify new severity model (P3 for 1-2 domains, P2 for 3+, single aggregated anomaly, escalation exemption).
+
+**Files:** `apps/core/ai_observability/same_engine.py`, `apps/core/ai_observability/tests_signal_health.py`
+
+**Test results:** 54/54 passed (signal health + diagnostic engine)
+
+---
+
 ## 2026-03-16 — Fix: Ops CC Signal Health & Validator Health Panel Data Mismatches
 
 **Issue:** Two Ops Command Center panels were displaying incorrect or missing data due to backend/frontend schema mismatches:

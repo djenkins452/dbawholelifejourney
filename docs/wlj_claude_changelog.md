@@ -6,6 +6,39 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix: Signal Emitter Audit — Journal NLP Reliability + Goals Signal Architecture
+
+**Issue:** Two signal pipeline gaps causing domain signal drought:
+1. **Journal NLP**: 0 signals extracted from 11 entries. Celery task dispatch silently failed when broker unavailable — `logger.debug()` invisible in production, no sync fallback.
+2. **Goals/Purpose**: 0 signals for 622h. No completion-specific insight rule existed, GoalCompletionDateRule used `module="goals"` instead of `"purpose"` (splitting signals across two domains), and `PURPOSE_GOAL_COMPLETED` event was defined but never emitted.
+
+**Phase 1 — Journal NLP Reliability:**
+- Added sync fallback in `journal/signals.py::_dispatch_signal_extraction()`: tries Celery async first, falls back to synchronous `JournalSignalExtractor.extract_signals()` on failure
+- Replaced `logger.debug()` with `logger.warning()` for dispatch failures (visible in production)
+- Preserved async as primary path; sync only when Celery unavailable
+- Duplicate protection: `JournalSignalExtractor.extract_signals()` has idempotency gate — `JournalSignal.objects.filter(entry=entry).exists()` prevents duplicates if both paths run
+- Fixed: AI gate no longer blocks signal extraction when Person records are absent (people extraction gates are separate from signal extraction gates)
+
+**Phase 2 — Goals Signal Architecture:**
+- Standardized `GoalCompletionDateRule.module` from `"goals"` → `"purpose"` (consolidates all goal signals under one domain)
+- Added `PURPOSE_MILESTONE_COMPLETED` event type in `domain_events.py`
+- Emitted `PURPOSE_MILESTONE_COMPLETED` in `MilestoneToggleView` and `PURPOSE_GOAL_COMPLETED` + `fire_intelligence()` in `GoalToggleStatusView`
+- Added `GoalProgressRule` insight rule: triggers on `complete_milestone` / `complete_goal` actions, produces "positive" severity insights with progress data (milestones completed, percentage)
+- Rule uses `all_objects` for LifeGoal lookups (SoftDeleteManager filters completed goals from default queryset)
+
+**Files changed:**
+- `apps/journal/signals.py` — sync fallback, production logging, AI gate restructure
+- `apps/journal/tests/test_signal_extraction.py` — 9 new tests (NEW)
+- `apps/core/ai_predictions/prediction_rules_goals.py` — module "goals" → "purpose"
+- `apps/core/events/domain_events.py` — added PURPOSE_MILESTONE_COMPLETED
+- `apps/purpose/views.py` — emit domain events + fire_intelligence on goal completion
+- `apps/core/ai_insights/rules_goals.py` — added GoalProgressRule
+- `apps/core/ai_insights/tests.py` — 8 new tests for GoalProgressRule
+
+**Test results:** 118/118 passed (journal signal extraction + insights + signal health + predictions)
+
+---
+
 ## 2026-03-16 — Fix: SIGNAL_DROUGHT Severity Misclassification — Domain Inactivity Treated as P1 Critical
 
 **Issue:** Ops Command Center displayed a P1 CRITICAL alert for "Signal drought in 'purpose' — no signals for ~210h" even though the built-in diagnostic scan correctly classified the condition as DEGRADED (warnings only, 0 failures). Domain inactivity in optional modules (purpose, goals) was being escalated to a system-critical anomaly.

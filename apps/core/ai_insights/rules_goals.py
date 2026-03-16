@@ -1,5 +1,5 @@
 """
-Goals Insight Rules — Deadline risk and stagnation detection.
+Goals Insight Rules — Completion tracking, deadline risk, and stagnation detection.
 """
 
 from datetime import date, timedelta
@@ -9,6 +9,129 @@ from apps.core.ai_insights.models import build_dedupe_key
 from apps.core.ai_insights.pattern_utils import get_time_window
 from apps.core.ai_insights.rule_registry import register
 from apps.core.time.system_clock import get_current_time
+
+
+@register
+class GoalProgressRule(BaseInsightRule):
+    """
+    Produce an insight when a milestone or goal is completed.
+
+    Triggers on fire_intelligence() calls with action 'complete_milestone'
+    or 'complete_goal'. Produces a 'positive' insight with progress data
+    so the signal pipeline sees activity in the 'purpose' domain.
+    """
+
+    rule_name = "goal_progress"
+    module = "purpose"
+    insight_type = "goal_progress"
+    min_confidence_to_store = 0.5  # Always store completion insights
+
+    def applies(self, user, event):
+        if event.get("module") != "purpose":
+            return False
+        return event.get("action") in ("complete_milestone", "complete_goal")
+
+    def evaluate(self, user, event):
+        action = event.get("action")
+        record_id = event.get("record_id")
+        today = date.today()
+        window_start, window_end = get_time_window(days=1)
+
+        if action == "complete_milestone":
+            return self._evaluate_milestone(user, record_id, today, window_start, window_end)
+        elif action == "complete_goal":
+            return self._evaluate_goal(user, record_id, today, window_start, window_end)
+        return []
+
+    def _evaluate_milestone(self, user, milestone_id, today, window_start, window_end):
+        from apps.purpose.models import GoalMilestone
+
+        try:
+            milestone = GoalMilestone.objects.select_related("goal").get(
+                pk=milestone_id, goal__user=user,
+            )
+        except GoalMilestone.DoesNotExist:
+            return []
+
+        goal = milestone.goal
+        total = goal.milestones.count()
+        completed = goal.milestones.filter(completed=True).count()
+        progress_pct = round(completed / total * 100) if total > 0 else 0
+
+        return [
+            {
+                "severity": "positive",
+                "title": f'Milestone completed: "{milestone.title}"',
+                "message": (
+                    f'You completed milestone "{milestone.title}" on goal '
+                    f'"{goal.title}". Progress: {completed}/{total} '
+                    f"milestones ({progress_pct}%)."
+                ),
+                "confidence_score": 1.0,
+                "explain_why": (
+                    f"Rule: {self.rule_name}. User completed milestone "
+                    f"'{milestone.title}' (id={milestone.id}) on goal "
+                    f"'{goal.title}' (id={goal.id}). "
+                    f"{completed}/{total} milestones done ({progress_pct}%)."
+                ),
+                "evidence": {
+                    "rule_name": self.rule_name,
+                    "action": "complete_milestone",
+                    "milestone_id": milestone.id,
+                    "milestone_title": milestone.title,
+                    "goal_id": goal.id,
+                    "goal_title": goal.title,
+                    "milestones_total": total,
+                    "milestones_completed": completed,
+                    "progress_pct": progress_pct,
+                },
+                "dedupe_key": build_dedupe_key(
+                    user.id,
+                    self.insight_type,
+                    window_start.date(),
+                    window_end.date(),
+                    [milestone.id],
+                ),
+            }
+        ]
+
+    def _evaluate_goal(self, user, goal_id, today, window_start, window_end):
+        from apps.purpose.models import LifeGoal
+
+        try:
+            # Use all_objects: goal was just completed (status != "active")
+            goal = LifeGoal.all_objects.get(pk=goal_id, user=user)
+        except LifeGoal.DoesNotExist:
+            return []
+
+        return [
+            {
+                "severity": "positive",
+                "title": f'Goal completed: "{goal.title}"',
+                "message": (
+                    f'Congratulations! You completed your goal "{goal.title}". '
+                    f"This is a significant achievement."
+                ),
+                "confidence_score": 1.0,
+                "explain_why": (
+                    f"Rule: {self.rule_name}. User completed goal "
+                    f"'{goal.title}' (id={goal.id})."
+                ),
+                "evidence": {
+                    "rule_name": self.rule_name,
+                    "action": "complete_goal",
+                    "goal_id": goal.id,
+                    "goal_title": goal.title,
+                },
+                "dedupe_key": build_dedupe_key(
+                    user.id,
+                    self.insight_type,
+                    window_start.date(),
+                    window_end.date(),
+                    [goal.id],
+                ),
+            }
+        ]
 
 
 @register

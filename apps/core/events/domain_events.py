@@ -111,6 +111,7 @@ class EventTypes:
     # Purpose domain
     PURPOSE_GOAL_CREATED = "purpose.goal.created"
     PURPOSE_GOAL_COMPLETED = "purpose.goal.completed"
+    PURPOSE_MILESTONE_COMPLETED = "purpose.milestone.completed"
     PURPOSE_HABIT_LOGGED = "purpose.habit.logged"
     PURPOSE_HABIT_STREAK_BROKEN = "purpose.habit.streak_broken"
 

@@ -342,6 +342,102 @@ class GoalDeadlineRiskRuleTests(PIETestMixin, TestCase):
         self.assertEqual(len(insights), 0)
 
 
+# ─── Goal Progress Rule Tests ───
+
+
+class GoalProgressRuleTests(PIETestMixin, TestCase):
+    """Test GoalProgressRule — milestone and goal completion insights."""
+
+    def test_applies_on_complete_milestone(self):
+        from apps.core.ai_insights.rules_goals import GoalProgressRule
+
+        rule = GoalProgressRule()
+        self.assertTrue(rule.applies(self.user, {
+            "module": "purpose", "action": "complete_milestone",
+        }))
+
+    def test_applies_on_complete_goal(self):
+        from apps.core.ai_insights.rules_goals import GoalProgressRule
+
+        rule = GoalProgressRule()
+        self.assertTrue(rule.applies(self.user, {
+            "module": "purpose", "action": "complete_goal",
+        }))
+
+    def test_does_not_apply_on_other_actions(self):
+        from apps.core.ai_insights.rules_goals import GoalProgressRule
+
+        rule = GoalProgressRule()
+        self.assertFalse(rule.applies(self.user, {
+            "module": "purpose", "action": "record_created",
+        }))
+
+    def test_does_not_apply_on_wrong_module(self):
+        from apps.core.ai_insights.rules_goals import GoalProgressRule
+
+        rule = GoalProgressRule()
+        self.assertFalse(rule.applies(self.user, {
+            "module": "health", "action": "complete_milestone",
+        }))
+
+    def test_milestone_completion_produces_insight(self):
+        from apps.purpose.models import GoalMilestone, LifeGoal
+        from apps.core.ai_insights.rules_goals import GoalProgressRule
+
+        goal = LifeGoal.objects.create(
+            user=self.user, title="Test Goal", status="active",
+        )
+        m1 = GoalMilestone.objects.create(goal=goal, title="Step 1", completed=True)
+        GoalMilestone.objects.create(goal=goal, title="Step 2", completed=False)
+
+        rule = GoalProgressRule()
+        insights = rule.evaluate(self.user, {
+            "module": "purpose",
+            "action": "complete_milestone",
+            "record_id": m1.id,
+        })
+        self.assertEqual(len(insights), 1)
+        self.assertEqual(insights[0]["severity"], "positive")
+        self.assertIn("Step 1", insights[0]["title"])
+        self.assertEqual(insights[0]["evidence"]["progress_pct"], 50)
+
+    def test_goal_completion_produces_insight(self):
+        from apps.purpose.models import LifeGoal
+        from apps.core.ai_insights.rules_goals import GoalProgressRule
+
+        goal = LifeGoal.objects.create(
+            user=self.user, title="Completed Goal", status="completed",
+        )
+
+        rule = GoalProgressRule()
+        insights = rule.evaluate(self.user, {
+            "module": "purpose",
+            "action": "complete_goal",
+            "record_id": goal.id,
+        })
+        self.assertEqual(len(insights), 1)
+        self.assertEqual(insights[0]["severity"], "positive")
+        self.assertIn("Completed Goal", insights[0]["title"])
+
+    def test_milestone_not_found_returns_empty(self):
+        from apps.core.ai_insights.rules_goals import GoalProgressRule
+
+        rule = GoalProgressRule()
+        insights = rule.evaluate(self.user, {
+            "module": "purpose",
+            "action": "complete_milestone",
+            "record_id": 99999,
+        })
+        self.assertEqual(len(insights), 0)
+
+    def test_module_is_purpose(self):
+        """GoalProgressRule.module should be 'purpose' for signal pipeline."""
+        from apps.core.ai_insights.rules_goals import GoalProgressRule
+
+        rule = GoalProgressRule()
+        self.assertEqual(rule.module, "purpose")
+
+
 # ─── Notification Engine Tests ───
 
 

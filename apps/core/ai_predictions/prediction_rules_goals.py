@@ -24,7 +24,7 @@ class GoalCompletionDateRule(BasePredictionRule):
     """
 
     rule_name = "goal_completion_date"
-    module = "goals"
+    module = "purpose"  # Standardized: all goal signals use "purpose" domain
     prediction_type = "goal_completion_date"
     min_confidence_to_store = 0.25
 
@@ -126,7 +126,7 @@ class GoalCompletionDateRule(BasePredictionRule):
             predictions.append(
                 {
                     "prediction_type": pred_type,
-                    "module": "goals",
+                    "module": "purpose",
                     "predicted_value": days_to_completion,
                     "predicted_date": predicted_completion,
                     "confidence_score": confidence,

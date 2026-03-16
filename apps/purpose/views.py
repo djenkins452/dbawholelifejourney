@@ -409,6 +409,14 @@ class GoalToggleStatusView(PurposeAccessMixin, View):
             except Exception:
                 pass
             messages.success(request, f"Goal '{goal.title}' marked complete!")
+
+            # Fire intelligence chain + domain event
+            from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+            fire_intelligence(request.user, "purpose", goal.id, "complete_goal")
+            safe_emit_event(EventTypes.PURPOSE_GOAL_COMPLETED, request.user, {
+                "goal_id": goal.id,
+                "goal_title": goal.title,
+            })
         elif action == 'release':
             goal.mark_released()
             messages.success(request, f"Goal '{goal.title}' released.")
@@ -1354,6 +1362,14 @@ class MilestoneToggleView(PurposeAccessMixin, View):
             # Fire intelligence chain
             from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
             fire_intelligence(request.user, "purpose", milestone.id, "complete_milestone")
+
+            # Emit domain event for signal pipeline
+            safe_emit_event(EventTypes.PURPOSE_MILESTONE_COMPLETED, request.user, {
+                "milestone_id": milestone.id,
+                "milestone_title": milestone.title,
+                "goal_id": milestone.goal.id,
+                "goal_title": milestone.goal.title,
+            })
 
             # Check if all milestones are now complete
             if milestone.goal.all_milestones_complete:

@@ -122,8 +122,13 @@ def set_cached_cos_context(user, context, ttl=CONTEXT_CACHE_TTL):
         ttl: int — seconds until expiry (default 45).
     """
     try:
-        # Strip non-serializable internal refs
-        cacheable = {k: v for k, v in context.items() if not k.startswith("_")}
+        # Strip non-serializable internal refs (_user, _sae_cache)
+        # but preserve _builder_timings (serializable dict of floats,
+        # needed by latency tracer for COS_BUILDER_* stage recording)
+        cacheable = {
+            k: v for k, v in context.items()
+            if not k.startswith("_") or k == "_builder_timings"
+        }
         cache.set(_context_key(user), cacheable, ttl)
     except Exception:
         logger.debug("CoS readiness cache: set failed for user %s", user.id)
@@ -187,8 +192,8 @@ def set_layered_cos_context(user, context):
         stable = {}
         dynamic = {}
         for k, v in context.items():
-            if k.startswith("_"):
-                continue  # Skip internal refs (_user)
+            if k.startswith("_") and k != "_builder_timings":
+                continue  # Skip internal refs (_user, _sae_cache)
             if k in STABLE_CONTEXT_KEYS:
                 stable[k] = v
             else:

@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix: Beth Uses NLP-Extracted Journal Signals Instead of Keyword Themes
+
+**Issue:** Beth repeatedly answered with generic "faith and work" themes regardless of new journal entries or extracted signals. Ops Wall CoS Context tile showed STALE with builders=0.
+
+**Root cause (A):** `analyze_journal_for_cos()` in `content_intelligence.py` used keyword matching against a `THEME_KEYWORDS` dict (7 categories, ~150 keywords) to classify journal text into broad themes. It never read `JournalSignal` records (the NLP-extracted structured signals with specific signal types, domains, confidence scores, and extracted text evidence). Beth's prompt injection showed only "Life themes: faith (0.83), work (0.67)" — the LLM could only parrot these back.
+
+**Root cause (B):** `readiness_cache.py:126` stripped all underscore-prefixed keys from cached cos_context (intended for `_user` Django object), which also removed `_builder_timings`. The latency tracer in `personal_assistant.py:2869` then found no builder timings, so `ChatLatencySnapshot.stages` had no `COS_BUILDER_*` entries, making the CoS Context tile report builders=0 → STALE.
+
+**Fix (A):** Modified `analyze_journal_for_cos()` to check for `JournalSignal` records first. When NLP signals exist (confidence ≥ 0.5), themes are built from signal domains and structured signal data (type, domain, extracted text, confidence, date) is included. When no signals exist, falls back to keyword extraction. Updated `format_cos_system_injection()` to render the actual NLP signals with evidence text in Beth's prompt.
+
+**Fix (B):** Whitelisted `_builder_timings` in both `set_cached_cos_context()` and `set_layered_cos_context()` cache filters.
+
+**Files:**
+- `apps/journal/services/content_intelligence.py` — signal-first theme building
+- `apps/core/ai_orchestrator/cos_context.py` — prompt formatter for journal signals
+- `apps/ai/readiness_cache.py` — preserve _builder_timings through cache
+
+**Test results:** 9/9 journal signal tests passed, system check clean, no missing migrations
+
+---
+
 ## 2026-03-16 — Fix: Journal NLP Tile Stale Cache — Missing pipeline_health Invalidation
 
 **Issue:** Journal NLP tile shows Signals: 0, Extracted: 0 even after backfill creates JournalSignal records. Signal Health panel shows journal domain has signals (from Insight/Prediction records with module="journal"), contradicting the Journal NLP tile.

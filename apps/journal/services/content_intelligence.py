@@ -268,16 +268,47 @@ def get_sentiment_trajectory(user, days: int = 14) -> dict:
     }
 
 
+def _build_signal_based_themes(journal_signals) -> List[dict]:
+    """
+    Build theme list from JournalSignal records instead of keyword matching.
+
+    Groups signals by domain and computes strength from count + confidence.
+    Returns list compatible with the themes_14d format.
+    """
+    domain_scores = Counter()
+    domain_counts = Counter()
+    for sig in journal_signals:
+        domain_scores[sig.domain] += sig.confidence
+        domain_counts[sig.domain] += 1
+
+    themes = []
+    for domain in domain_scores:
+        avg_confidence = domain_scores[domain] / domain_counts[domain]
+        themes.append({
+            'theme': domain,
+            'strength': round(avg_confidence, 2),
+            'signal_count': domain_counts[domain],
+        })
+
+    return sorted(themes, key=lambda x: x['strength'], reverse=True)[:5]
+
+
 def analyze_journal_for_cos(user) -> dict:
     """
     Main entry point: analyze journal content for CoS context injection.
 
+    Prefers NLP-extracted JournalSignal records when available (richer,
+    structured data with extracted text). Falls back to keyword-based
+    theme extraction when no signals exist.
+
     Returns dict ready for cos_context integration:
     {
-        'themes_14d': [{'theme': 'work', 'confidence': 0.8}, ...],
+        'themes_14d': [{'theme': 'work', 'strength': 0.8}, ...],
         'concerns_14d': [{'term': 'stress', 'entries': 5}, ...],
         'sentiment_trajectory': {'direction': 'improving', ...},
         'entry_count_14d': int,
+        'journal_signals': [{'signal_type': ..., 'domain': ..., 'text': ..., ...}, ...],
+        'signal_source': 'nlp' | 'keywords',
     }
     """
     from apps.journal.models import JournalEntry
@@ -296,28 +327,65 @@ def analyze_journal_for_cos(user) -> dict:
             'concerns_14d': [],
             'sentiment_trajectory': {'direction': 'insufficient_data'},
             'entry_count_14d': 0,
+            'journal_signals': [],
+            'signal_source': 'none',
         }
 
-    # Aggregate themes across all recent entries
-    theme_scores = Counter()
-    for entry in recent_entries.values_list('body', flat=True):
-        themes = extract_themes(entry or '')
-        for t in themes:
-            theme_scores[t['theme']] += t['confidence']
+    # ── Try NLP-extracted signals first (canonical, structured) ──
+    journal_signals = []
+    try:
+        from apps.journal.models import JournalSignal
+        entry_ids = recent_entries.values_list('pk', flat=True)
+        journal_signals = list(
+            JournalSignal.objects.filter(
+                entry_id__in=entry_ids,
+                confidence__gte=0.5,
+            ).select_related('entry').order_by('-created_at')[:20]
+        )
+    except Exception as e:
+        logger.warning("JournalSignal query failed, falling back to keywords: %s", e)
 
-    # Normalize by entry count
-    top_themes = [
-        {'theme': theme, 'strength': round(score / entry_count, 2)}
-        for theme, score in theme_scores.most_common(5)
-        if score / entry_count >= 0.2  # Threshold: at least 20% average confidence
-    ]
+    if journal_signals:
+        # Build themes from signal domains (richer than keyword matching)
+        top_themes = _build_signal_based_themes(journal_signals)
 
+        # Build structured signal list for Beth's prompt context
+        signal_list = [
+            {
+                'signal_type': s.signal_type,
+                'domain': s.domain,
+                'text': s.extracted_text[:150],
+                'confidence': round(s.confidence, 2),
+                'entry_date': s.entry.entry_date.isoformat(),
+            }
+            for s in journal_signals[:10]  # Top 10 most recent
+        ]
+        signal_source = 'nlp'
+    else:
+        # Fallback: keyword-based theme extraction (no JournalSignal records)
+        theme_scores = Counter()
+        for entry in recent_entries.values_list('body', flat=True):
+            themes = extract_themes(entry or '')
+            for t in themes:
+                theme_scores[t['theme']] += t['confidence']
+
+        top_themes = [
+            {'theme': theme, 'strength': round(score / entry_count, 2)}
+            for theme, score in theme_scores.most_common(5)
+            if score / entry_count >= 0.2
+        ]
+        signal_list = []
+        signal_source = 'keywords'
+
+    # Concerns and trajectory always use text analysis (independent of signals)
     concerns = detect_recurring_concerns(user, days=14, min_occurrences=2)
     trajectory = get_sentiment_trajectory(user, days=14)
 
     return {
         'themes_14d': top_themes,
-        'concerns_14d': concerns[:5],  # Top 5 concerns
+        'concerns_14d': concerns[:5],
         'sentiment_trajectory': trajectory,
         'entry_count_14d': entry_count,
+        'journal_signals': signal_list,
+        'signal_source': signal_source,
     }

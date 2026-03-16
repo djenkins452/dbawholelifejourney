@@ -3598,13 +3598,27 @@ def format_cos_system_injection(context, user_message=None):
         themes = journal_intel.get('themes_14d', [])
         concerns = journal_intel.get('concerns_14d', [])
         trajectory = journal_intel.get('sentiment_trajectory', {})
+        j_signals = journal_intel.get('journal_signals', [])
+        signal_source = journal_intel.get('signal_source', 'keywords')
 
-        if themes or concerns or trajectory.get('direction') not in (None, 'insufficient_data'):
+        if themes or concerns or j_signals or trajectory.get('direction') not in (None, 'insufficient_data'):
             lines.append("")
             lines.append("JOURNAL INTELLIGENCE (14-day analysis — reference when discussing mood, patterns, or well-being):")
+
+            # NLP-extracted signals: show actual detected behaviors with evidence
+            if j_signals:
+                lines.append("  Recent journal signals (NLP-extracted from entries):")
+                for sig in j_signals[:8]:
+                    lines.append(
+                        f"    - [{sig['domain']}] {sig['signal_type']}: "
+                        f"\"{sig['text']}\" (confidence: {sig['confidence']}, "
+                        f"date: {sig['entry_date']})"
+                    )
+
             if themes:
+                source_label = "NLP signal domains" if signal_source == 'nlp' else "keyword themes"
                 theme_list = ', '.join(f"{t['theme']} ({t['strength']})" for t in themes[:4])
-                lines.append(f"  Life themes: {theme_list}")
+                lines.append(f"  Active life domains ({source_label}): {theme_list}")
             if concerns:
                 concern_list = ', '.join(f"{c['term']} ({c['entries']} entries)" for c in concerns[:3])
                 lines.append(f"  Recurring concerns: {concern_list}")

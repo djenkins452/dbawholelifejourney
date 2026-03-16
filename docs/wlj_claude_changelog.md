@@ -6,6 +6,34 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Architecture: Phase 3 Domain Registry Alignment
+
+**Purpose:** Establish clean governance model aligning three layers: Domain Registry (canonical domain identity), Module Catalog (module participation), and Builder Registry (CoS context assembly). Prevents drift where modules claim domains the registry doesn't recognize, builders reference unregistered domains, and ingestion systems are confused with behavioral life domains.
+
+**Architecture compliance:** Strengthens LLM-last (cleaner structured truth), raw data → signals → CoS (clarified domain/signal ownership), single source of truth (registry is canonical for domain identity, catalog for module participation), and observability (validation detects drift deterministically).
+
+**Changes:**
+- `apps/core/domain_registry/descriptors.py` — Added `DomainClass` constants (behavioral, influence, knowledge, context, system) and `domain_class` field to `DomainCapability` with derived properties (`is_user_life_domain`, `is_cross_domain_source`, `participates_in_cos`)
+- `apps/core/domain_registry/registry.py` — Added `is_registered()`, `get_by_class()`, `get_user_life_domains()`, `get_cos_participating()` methods; enriched `get_coverage_summary()` with domain_class metadata
+- `apps/core/domain_registry/validation.py` — **NEW** — Validation utilities: `validate_module_domain_mappings()`, `validate_builder_domain_keys()`, `validate_catalog_registry_alignment()`, `get_registry_health_summary()`
+- `apps/core/domain_registry/__init__.py` — Exported `DomainClass` and validation utilities
+- `apps/relationships/capabilities.py` — **NEW** — Registered relationships domain (was missing from DomainRegistry despite having builder and catalog entry)
+- `apps/capture/capabilities.py` — Reclassified from default behavioral to `DomainClass.INFLUENCE` (cross-domain ingestion system)
+- `apps/life/capabilities.py` — Added documents domain registration as `DomainClass.KNOWLEDGE` (truthful: knowledge storage, not behavioral domain)
+- `apps/core/management/commands/audit_domains.py` — Added Phase 3 governance alignment section to audit output
+- `apps/core/ai_observability/ops_views.py` — Added `registry_health` to Ops Wall context
+- `apps/core/tests/test_domain_registry_phase3.py` — **NEW** — 25 tests covering domain classification, catalog alignment, builder alignment, capture classification, full governance alignment, and validation utilities
+
+**Design decisions:**
+- Capture is `influence` class (not behavioral) — it's cross-domain ingestion, builder runs as system-level
+- Documents is `knowledge` class — file storage with metadata, not a behavioral domain that emits signals
+- Validation is audit-mode (warnings/diagnostics) rather than hard-crash to avoid breaking production
+- System-level builders legitimately serve domain context (e.g., `plan` builder serves life domain)
+
+**Tests:** 39 tests pass (25 new Phase 3 + 14 existing Phase 2 domain filtering).
+
+---
+
 ## 2026-03-16 — Architecture: Phase 2 Deterministic CoS Domain Filtering
 
 **Purpose:** Enforce module enablement at the builder execution layer, replacing the prompt-gate anti-pattern where disabled domain data reached the LLM and a prompt instruction told it to "ignore" the data.

@@ -1,5 +1,5 @@
 from apps.core.domain_registry import registry
-from apps.core.domain_registry.descriptors import DomainCapability
+from apps.core.domain_registry.descriptors import DomainCapability, DomainClass
 
 registry.register(DomainCapability(
     name='life',
@@ -17,5 +17,21 @@ registry.register(DomainCapability(
         'busy_day_upcoming', 'task_repeatedly_postponed',
     ],
     related_domains=['goals', 'health'],
+    url_namespace='life',
+))
+
+# Documents is a knowledge-layer domain — file/record storage with metadata.
+# It does NOT emit behavioral signals or support CoS intents today.
+# Registered truthfully as knowledge class to prevent fake architecture.
+registry.register(DomainCapability(
+    name='documents',
+    display_name='Documents',
+    description='Important document storage and organization (insurance, legal, medical records)',
+    domain_class=DomainClass.KNOWLEDGE,
+    intent_types=[],
+    primary_models=['Document'],
+    context_builders=[],
+    proactive_signals=['document_expiring'],
+    related_domains=['life', 'medical'],
     url_namespace='life',
 ))

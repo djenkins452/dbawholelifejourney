@@ -13,6 +13,31 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 
+class DomainClass:
+    """
+    Domain classification constants.
+
+    Controls how the domain participates in CoS, signal routing,
+    and module governance.
+    """
+    BEHAVIORAL = 'behavioral'     # First-class user life domain (Health, Faith, etc.)
+    INFLUENCE = 'influence'       # Cross-domain ingestion/influence system (Capture)
+    KNOWLEDGE = 'knowledge'       # Structured knowledge store (Documents)
+    CONTEXT = 'context'           # Contextual enrichment (Travel, future)
+    SYSTEM = 'system'             # Internal infrastructure (observability, etc.)
+
+    ALL = {BEHAVIORAL, INFLUENCE, KNOWLEDGE, CONTEXT, SYSTEM}
+
+    # Domains that represent a user's life area
+    USER_LIFE_DOMAINS = {BEHAVIORAL}
+
+    # Domains that can be a cross-domain signal source
+    CROSS_DOMAIN_SOURCES = {INFLUENCE}
+
+    # Domains that participate in CoS context assembly
+    COS_PARTICIPATING = {BEHAVIORAL, INFLUENCE, KNOWLEDGE}
+
+
 @dataclass
 class DomainCapability:
     """
@@ -25,6 +50,9 @@ class DomainCapability:
     name: str                                   # e.g., "health"
     display_name: str                           # e.g., "Health & Vitals"
     description: str                            # Human-readable purpose
+
+    # ── Phase 3: Domain governance metadata ──
+    domain_class: str = DomainClass.BEHAVIORAL  # Classification (behavioral, influence, etc.)
 
     # What actions can be performed via CoS
     intent_types: list = field(default_factory=list)  # e.g., ["log_weight", "log_heart_rate"]
@@ -49,6 +77,21 @@ class DomainCapability:
 
     # App label (auto-set during registration)
     app_label: Optional[str] = None
+
+    @property
+    def is_user_life_domain(self) -> bool:
+        """Whether this domain represents a user's life area."""
+        return self.domain_class in DomainClass.USER_LIFE_DOMAINS
+
+    @property
+    def is_cross_domain_source(self) -> bool:
+        """Whether this domain is a cross-domain ingestion/influence system."""
+        return self.domain_class in DomainClass.CROSS_DOMAIN_SOURCES
+
+    @property
+    def participates_in_cos(self) -> bool:
+        """Whether this domain participates in CoS context assembly."""
+        return self.domain_class in DomainClass.COS_PARTICIPATING
 
     def coverage_score(self) -> float:
         """

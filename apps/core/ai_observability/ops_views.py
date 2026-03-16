@@ -73,6 +73,9 @@ class OperationsWallView(AdminRequiredMixin, TemplateView):
         # --- Canonical Query Compliance (cached from management command) ---
         context["canonical_compliance"] = self._get_canonical_compliance()
 
+        # --- Phase 3: Domain Registry Health ---
+        context["registry_health"] = self._get_registry_health()
+
         return context
 
     # ------------------------------------------------------------------ #
@@ -203,6 +206,14 @@ class OperationsWallView(AdminRequiredMixin, TemplateView):
         except Exception as e:
             logger.debug("OPS: Life impact breakdown unavailable: %s", e)
         return factors
+
+    def _get_registry_health(self):
+        """Phase 3: Domain registry governance health summary."""
+        try:
+            from apps.core.domain_registry import get_registry_health_summary
+            return get_registry_health_summary()
+        except Exception:
+            return {'status': 'unavailable', 'issues': [], 'domain_count': 0, 'by_class': {}}
 
     def _get_domain_coverage(self):
         """Fetch domain coverage summary from the registry."""

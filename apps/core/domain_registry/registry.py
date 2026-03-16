@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Set
 
 from django.apps import apps
 
-from .descriptors import DomainCapability
+from .descriptors import DomainCapability, DomainClass
 
 logger = logging.getLogger(__name__)
 
@@ -89,19 +89,41 @@ class DomainRegistry:
         return result
 
     def get_coverage_summary(self) -> List[dict]:
-        """Get coverage summary for all domains (for Command Center)."""
+        """Get coverage summary for all domains (for Command Center / Ops Wall)."""
         return [
             {
                 'name': d.name,
                 'display_name': d.display_name,
+                'domain_class': d.domain_class,
                 'intent_count': len(d.intent_types),
                 'signal_count': len(d.proactive_signals),
                 'has_context_builder': bool(d.context_builders),
                 'model_count': len(d.primary_models),
                 'coverage_score': d.coverage_score(),
+                'is_user_life_domain': d.is_user_life_domain,
+                'participates_in_cos': d.participates_in_cos,
             }
             for d in sorted(self._domains.values(), key=lambda x: x.name)
         ]
+
+    def is_registered(self, name: str) -> bool:
+        """Check if a domain key is registered."""
+        return name in self._domains
+
+    def get_by_class(self, domain_class: str) -> List[DomainCapability]:
+        """Get all domains of a given class (behavioral, influence, etc.)."""
+        return [
+            d for d in self._domains.values()
+            if d.domain_class == domain_class
+        ]
+
+    def get_user_life_domains(self) -> List[DomainCapability]:
+        """Get all behavioral user-life domains."""
+        return [d for d in self._domains.values() if d.is_user_life_domain]
+
+    def get_cos_participating(self) -> List[DomainCapability]:
+        """Get all domains that participate in CoS context."""
+        return [d for d in self._domains.values() if d.participates_in_cos]
 
     @property
     def domain_count(self) -> int:

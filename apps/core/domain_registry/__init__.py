@@ -22,4 +22,13 @@ Usage:
     report = audit_domains()
 """
 
+from .descriptors import DomainClass  # noqa: F401
 from .registry import registry, autodiscover  # noqa: F401
+from .validation import (  # noqa: F401
+    is_registered_domain,
+    get_domain_definition,
+    validate_module_domain_mappings,
+    validate_builder_domain_keys,
+    validate_catalog_registry_alignment,
+    get_registry_health_summary,
+)

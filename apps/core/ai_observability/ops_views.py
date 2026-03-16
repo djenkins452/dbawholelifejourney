@@ -1279,6 +1279,12 @@ class TriggerJournalBackfillView(View):
                 notes=summary,
             )
 
+            # Invalidate telemetry caches so tile updates immediately
+            from django.core.cache import cache as django_cache
+            django_cache.delete("wlj:ops:pipeline_health")
+            django_cache.delete("wlj:ops:stream_payload")
+            django_cache.delete("wlj:ops:signal_health")
+
             return JsonResponse({
                 "success": True,
                 "message": summary,
@@ -1322,9 +1328,10 @@ class RecomputeSignalHealthView(View):
 
         trace_id = str(uuid.uuid4())
 
-        # Clear cached signal health and stream payload
+        # Clear all ops telemetry caches so next poll rebuilds from DB
         cache.delete("wlj:ops:signal_health")
         cache.delete("wlj:ops:stream_payload")
+        cache.delete("wlj:ops:pipeline_health")
 
         # Recompute signal health
         try:

@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix: Journal NLP Tile Stale Cache — Missing pipeline_health Invalidation
+
+**Issue:** Journal NLP tile shows Signals: 0, Extracted: 0 even after backfill creates JournalSignal records. Signal Health panel shows journal domain has signals (from Insight/Prediction records with module="journal"), contradicting the Journal NLP tile.
+
+**Root cause:** The Journal NLP tile reads from `_get_intelligence_pipeline_health()` which caches at key `wlj:ops:pipeline_health` (60s TTL). The Recompute button only cleared `wlj:ops:signal_health` and `wlj:ops:stream_payload`, but NOT `wlj:ops:pipeline_health`. So after backfill created JournalSignal records, the stale pipeline_health cache (containing total_signals=0) kept being re-embedded into each new stream payload.
+
+**Fix:** Added `cache.delete("wlj:ops:pipeline_health")` to both RecomputeSignalHealthView and TriggerJournalBackfillView, so all three telemetry caches are invalidated after admin actions.
+
+**Files:** `apps/core/ai_observability/ops_views.py`
+
+**Test results:** 33/33 passed
+
+---
+
 ## 2026-03-16 — Fix: Journal Backfill Runs Synchronously with Per-Entry Diagnostics
 
 **Issue:** Journal NLP tile shows Entries: 14, Signals: 0, Extracted: 0. The backfill task dispatched via Celery likely never executed (Redis unavailable during migration). Even the admin button's sync fallback still depended on Celery internally.

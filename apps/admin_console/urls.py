@@ -45,6 +45,8 @@ urlpatterns = [
     path("ops/dependency-graph/", ops_views.DependencyGraphView.as_view(), name="ops_dependency_graph"),
     path("ops/trigger-signals/", ops_views.TriggerSignalAggregationView.as_view(), name="ops_trigger_signals"),
     path("ops/trigger-goal-momentum/", ops_views.TriggerGoalMomentumView.as_view(), name="ops_trigger_goal_momentum"),
+    path("ops/trigger-journal-backfill/", ops_views.TriggerJournalBackfillView.as_view(), name="ops_trigger_journal_backfill"),
+    path("ops/recompute-signal-health/", ops_views.RecomputeSignalHealthView.as_view(), name="ops_recompute_signal_health"),
     # Command Center Investigation (Phase: Diagnostic Flow)
     path("ops/metric-evidence/", ops_views.MetricEvidenceView.as_view(), name="ops_metric_evidence"),
     path("ops/diagnose/", ops_views.DiagnosticScanView.as_view(), name="ops_diagnose"),

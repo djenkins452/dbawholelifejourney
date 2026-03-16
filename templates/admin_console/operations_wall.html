@@ -3053,7 +3053,20 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     gap: 8px;
 }
 
-/* Zone 4: Support 4-col */
+/* Zone 4: Support — Row 1 (3-col), Row 2 (2-col) */
+.ops-zone-support-row1 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 12px;
+}
+.ops-zone-support-row2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-top: 12px;
+}
+/* Legacy alias kept for reference */
 .ops-zone-support {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -3099,6 +3112,8 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     .ops-health-hero > :nth-child(4) { display: none; }
     .ops-zone-pipeline-engines { grid-template-columns: 1fr; }
     .ops-zone-support { grid-template-columns: repeat(2, 1fr); }
+    .ops-zone-support-row1 { grid-template-columns: repeat(2, 1fr); }
+    .ops-zone-support-row2 { grid-template-columns: repeat(2, 1fr); }
     .ops-diagnostics-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 768px) {
@@ -3107,6 +3122,8 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     .ops-health-hero > :nth-child(3),
     .ops-health-hero > :nth-child(4) { display: none; }
     .ops-zone-support { grid-template-columns: 1fr; }
+    .ops-zone-support-row1 { grid-template-columns: 1fr; }
+    .ops-zone-support-row2 { grid-template-columns: 1fr; }
     .ops-diagnostics-grid { grid-template-columns: 1fr; }
     .ops-engine-cat-expanded.visible { grid-template-columns: 1fr; }
 }
@@ -3415,9 +3432,9 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     </div><!-- /Zone 3 -->
 
     <!-- ============================================================
-         ZONE 4 — Support Systems (4-col grid)
+         ZONE 4 — Support Systems Row 1 (3-col: Data Integrity | Signal Health | Action Systems)
          ============================================================ -->
-    <div class="ops-zone ops-zone-support">
+    <div class="ops-zone ops-zone-support-row1">
 
         <!-- Col 1: Data Integrity -->
         <div class="ops-cmd-card ops-glass">
@@ -3494,6 +3511,10 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                     </div>
                 </div>
                 <div class="ops-signal-domain-grid" id="signalDomainsGrid"></div>
+                <div class="ops-signal-actions" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+                    <button class="ops-trigger-btn" id="btnRecomputeSignalHealth" type="button" style="font-size:0.65rem;padding:4px 8px;border:1px solid var(--ops-border);background:transparent;color:var(--ops-text-dim);border-radius:4px;cursor:pointer">&#x21bb; Recompute</button>
+                    <button class="ops-trigger-btn" id="btnJournalBackfill" type="button" style="font-size:0.65rem;padding:4px 8px;border:1px solid var(--ops-border);background:transparent;color:var(--ops-text-dim);border-radius:4px;cursor:pointer">&#x23F5; Journal Backfill</button>
+                </div>
             </div>
         </div>
 
@@ -3536,7 +3557,14 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             </div>
         </div>
 
-        <!-- Col 4: Celery Workers -->
+    </div><!-- /Zone 4 Row 1 -->
+
+    <!-- ============================================================
+         ZONE 4 — Support Systems Row 2 (2-col: Execution Layer | Mobile/API)
+         ============================================================ -->
+    <div class="ops-zone ops-zone-support-row2">
+
+        <!-- Col 1: Celery Workers -->
         <div class="ops-cmd-card ops-glass">
             <div class="ops-cmd-card-header">
                 <span class="ops-cmd-card-title">Execution Layer</span>
@@ -3633,7 +3661,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             </div>
         </div>
 
-    </div><!-- /Zone 4 -->
+    </div><!-- /Zone 4 Row 2 -->
 
     <!-- ============================================================
          ZONE 5 — Diagnostics (collapsed by default)
@@ -7298,6 +7326,63 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         e.stopPropagation();
         openInvestigationPanel(target, METRIC_LABELS[target] || labelText);
     });
+
+    /* =====================================================================
+       Signal Health Actions (Recompute + Journal Backfill)
+       ===================================================================== */
+    var btnRecompute = document.getElementById('btnRecomputeSignalHealth');
+    if (btnRecompute) {
+        btnRecompute.addEventListener('click', function() {
+            btnRecompute.disabled = true;
+            btnRecompute.textContent = 'Recomputing...';
+            fetch('/admin-console/ops/recompute-signal-health/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showToast('Signal health recomputed: ' + (data.domains || []).join(', '), 'success');
+                } else {
+                    showToast(data.message || 'Recompute failed', 'failure');
+                }
+                btnRecompute.disabled = false;
+                btnRecompute.textContent = '\u21bb Recompute';
+            })
+            .catch(function(err) {
+                showToast('Recompute failed: ' + err.message, 'failure');
+                btnRecompute.disabled = false;
+                btnRecompute.textContent = '\u21bb Recompute';
+            });
+        });
+    }
+
+    var btnBackfill = document.getElementById('btnJournalBackfill');
+    if (btnBackfill) {
+        btnBackfill.addEventListener('click', function() {
+            btnBackfill.disabled = true;
+            btnBackfill.textContent = 'Running...';
+            fetch('/admin-console/ops/trigger-journal-backfill/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showToast(data.message || 'Journal backfill dispatched', 'success');
+                } else {
+                    showToast(data.message || 'Backfill failed', 'failure');
+                }
+                btnBackfill.disabled = false;
+                btnBackfill.textContent = '\u23F5 Journal Backfill';
+            })
+            .catch(function(err) {
+                showToast('Backfill failed: ' + err.message, 'failure');
+                btnBackfill.disabled = false;
+                btnBackfill.textContent = '\u23F5 Journal Backfill';
+            });
+        });
+    }
 
     /* =====================================================================
        Init

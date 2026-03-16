@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Ops Wall: Admin Triggers, Layout Fix, Registry-Based Signal Health
+
+**Issue:** Three problems with the Ops Command Center:
+1. No way to manually trigger journal signal backfill or recompute signal health (Railway has no CLI access)
+2. Five support tiles crammed into one row, too compressed to read
+3. `compute_signal_health()` only returned domains with existing DB records, hiding truly silent domains
+
+**Fix:**
+1. **Admin endpoints**: Added `TriggerJournalBackfillView` (POST `/ops/trigger-journal-backfill/`) and `RecomputeSignalHealthView` (POST `/ops/recompute-signal-health/`) with audit trail via AdminIntervention. Both have sync fallbacks if Celery is down.
+2. **Ops Wall buttons**: Added "Recompute" and "Journal Backfill" buttons to Signal Health card with CSP-compliant JS event listeners.
+3. **Layout**: Split Zone 4 from 5-col single row into Row 1 (3-col: Data Integrity | Signal Health | Action Systems) + Row 2 (2-col: Execution Layer | Mobile/API). Responsive breakpoints updated.
+4. **Registry-based signal health**: `compute_signal_health()` now seeds from domain registry, ensuring all 10 registered domains always appear. Domains with zero signals show as SILENT. Legacy "goals" domain filtered out in `_merge_domain()`.
+
+**Files:** `apps/core/ai_observability/ops_views.py`, `apps/core/ai_observability/ops_telemetry.py`, `apps/core/ai_observability/tests_signal_health.py`, `apps/admin_console/urls.py`, `templates/admin_console/operations_wall.html`, `docs/wlj_claude_changelog.md`
+
+**Test results:** 272/272 passed
+
+---
+
 ## 2026-03-16 — Fix: Final Signal Backbone — Ghost Domain Elimination + Journal NLP Backfill
 
 **Issue:** Two remaining production failures after Phase 2 signal standardization:

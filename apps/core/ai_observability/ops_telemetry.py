@@ -1512,14 +1512,29 @@ def compute_signal_health():
     last_24h = now - timedelta(hours=24)
     last_7d = now - timedelta(days=7)
 
-    # Aggregate signals from all four intelligence models by domain/module
+    # Seed from domain registry so all registered domains always appear
     domain_data = {}  # domain -> {last_signal_at, volume_24h, volume_7d, types_7d}
+
+    try:
+        from apps.core.domain_registry.registry import registry as domain_registry
+        for domain_name in domain_registry.get_names():
+            domain_data[domain_name.lower()] = {
+                "last_signal_at": None,
+                "volume_24h": 0,
+                "volume_7d": 0,
+                "types_7d": set(),
+            }
+    except Exception as e:
+        logger.debug("Signal health: domain registry seed failed: %s", e)
 
     def _merge_domain(domain, last_at, count_24h, count_7d, types_7d):
         """Merge a model's aggregation into the domain_data dict."""
         if not domain:
             return
         domain = domain.lower()
+        # Skip legacy "goals" domain — standardized to "purpose"
+        if domain == "goals":
+            return
         if domain not in domain_data:
             domain_data[domain] = {
                 "last_signal_at": None,

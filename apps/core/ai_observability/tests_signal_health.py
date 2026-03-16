@@ -89,14 +89,19 @@ class SignalHealthTestMixin:
 class ComputeSignalHealthTests(SignalHealthTestMixin, TestCase):
     """Test compute_signal_health() aggregation."""
 
-    def test_empty_returns_no_domains(self):
-        """No intelligence data should return empty domains dict."""
+    def test_empty_returns_registry_domains_as_silent(self):
+        """No intelligence data should return all registry domains as silent."""
         from apps.core.ai_observability.ops_telemetry import compute_signal_health
+        from apps.core.domain_registry.registry import registry as domain_registry
 
         result = compute_signal_health()
+        registry_count = domain_registry.domain_count
         self.assertEqual(result["domains_active"], 0)
-        self.assertEqual(result["domains_silent"], 0)
-        self.assertEqual(result["domains"], {})
+        self.assertEqual(result["domains_silent"], registry_count)
+        # All registry domains should be present
+        for name in domain_registry.get_names():
+            self.assertIn(name, result["domains"])
+            self.assertEqual(result["domains"][name]["status"], "silent")
 
     def test_healthy_domain(self):
         """Domain with recent, diverse signals should be 'healthy'."""
@@ -138,7 +143,8 @@ class ComputeSignalHealthTests(SignalHealthTestMixin, TestCase):
         result = compute_signal_health()
         self.assertIn("finance", result["domains"])
         self.assertEqual(result["domains"]["finance"]["status"], "silent")
-        self.assertEqual(result["domains_silent"], 1)
+        # All domains without recent signals are silent (includes registry domains)
+        self.assertGreaterEqual(result["domains_silent"], 1)
 
     def test_stalest_domain_tracked(self):
         """stalest_domain should identify the domain with oldest signal."""
@@ -178,6 +184,7 @@ class ComputeSignalHealthTests(SignalHealthTestMixin, TestCase):
     def test_domains_active_count(self):
         """domains_active should count non-silent domains."""
         from apps.core.ai_observability.ops_telemetry import compute_signal_health
+        from apps.core.domain_registry.registry import registry as domain_registry
 
         # health: healthy (recent + diverse)
         self._create_insight("health", "weight", hours_ago=1)
@@ -187,7 +194,9 @@ class ComputeSignalHealthTests(SignalHealthTestMixin, TestCase):
 
         result = compute_signal_health()
         self.assertEqual(result["domains_active"], 1)  # health only
-        self.assertEqual(result["domains_silent"], 1)  # purpose
+        # All other registry domains (incl purpose) are silent
+        registry_count = domain_registry.domain_count
+        self.assertEqual(result["domains_silent"], registry_count - 1)
 
     def test_result_structure(self):
         """Return value should have all expected keys."""

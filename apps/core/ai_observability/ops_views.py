@@ -1157,6 +1157,147 @@ class AllEnginesView(AdminRequiredMixin, TemplateView):
 
 
 
+class TriggerJournalBackfillView(View):
+    """
+    Manual trigger for journal signal backfill.
+
+    POST /admin-console/ops/trigger-journal-backfill/
+
+    Dispatches backfill_journal_signals.delay() to re-extract signals
+    from journal entries that have no JournalSignal records.
+    """
+
+    def post(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        from apps.core.ai_observability.models import AdminIntervention
+
+        trace_id = str(uuid.uuid4())
+
+        try:
+            from apps.journal.tasks import backfill_journal_signals
+
+            result = backfill_journal_signals.delay()
+
+            AdminIntervention.objects.create(
+                admin_user=request.user,
+                action_type="trigger_journal_backfill",
+                engine_name="JOURNAL_NLP",
+                trace_id=trace_id,
+                notes=(
+                    f"Manual journal signal backfill triggered "
+                    f"(celery_task_id={result.id})"
+                ),
+            )
+
+            return JsonResponse({
+                "success": True,
+                "message": "Journal signal backfill dispatched via Celery.",
+                "celery_task_id": result.id,
+                "trace_id": trace_id,
+            })
+        except ImportError:
+            return JsonResponse({
+                "success": False,
+                "error": "celery_unavailable",
+                "message": "Celery not available. Running synchronous backfill.",
+            }, status=503)
+        except Exception as e:
+            # Celery broker down — try sync
+            logger.warning(
+                "Journal backfill Celery dispatch failed: %s — running synchronously", e,
+            )
+            try:
+                from apps.journal.tasks import backfill_journal_signals as bf_sync
+                result = bf_sync()
+
+                AdminIntervention.objects.create(
+                    admin_user=request.user,
+                    action_type="trigger_journal_backfill",
+                    engine_name="JOURNAL_NLP",
+                    trace_id=trace_id,
+                    notes=f"Manual journal backfill ran synchronously: {result}",
+                )
+
+                return JsonResponse({
+                    "success": True,
+                    "message": f"Journal backfill ran synchronously: {result}",
+                    "trace_id": trace_id,
+                })
+            except Exception as sync_err:
+                logger.error(
+                    "Journal backfill sync fallback failed: %s", sync_err, exc_info=True,
+                )
+                return JsonResponse({
+                    "success": False,
+                    "error": "backfill_failed",
+                    "message": str(sync_err),
+                }, status=500)
+
+
+class RecomputeSignalHealthView(View):
+    """
+    Force recompute of signal health and clear cached values.
+
+    POST /admin-console/ops/recompute-signal-health/
+
+    Clears signal_health and ops_stream_payload caches, then recomputes
+    signal health from current DB state.
+    """
+
+    def post(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        from django.core.cache import cache
+
+        from apps.core.ai_observability.models import AdminIntervention
+
+        trace_id = str(uuid.uuid4())
+
+        # Clear cached signal health and stream payload
+        cache.delete("wlj:ops:signal_health")
+        cache.delete("wlj:ops:stream_payload")
+
+        # Recompute signal health
+        try:
+            from apps.core.ai_observability.ops_telemetry import compute_signal_health
+
+            signal_health = compute_signal_health()
+
+            # Store back in cache
+            cache.set("wlj:ops:signal_health", signal_health, 120)
+
+            domain_count = len(signal_health.get("domains", {}))
+            domain_names = sorted(signal_health.get("domains", {}).keys())
+
+            AdminIntervention.objects.create(
+                admin_user=request.user,
+                action_type="recompute_signal_health",
+                engine_name="SAME",
+                trace_id=trace_id,
+                notes=(
+                    f"Manual signal health recompute: {domain_count} domains "
+                    f"({', '.join(domain_names)})"
+                ),
+            )
+
+            return JsonResponse({
+                "success": True,
+                "message": f"Signal health recomputed: {domain_count} domains.",
+                "domains": domain_names,
+                "trace_id": trace_id,
+            })
+        except Exception as e:
+            logger.error("Signal health recompute failed: %s", e, exc_info=True)
+            return JsonResponse({
+                "success": False,
+                "error": "recompute_failed",
+                "message": str(e),
+            }, status=500)
+
+
 # =========================================================================
 # HELPER FUNCTIONS — Extracted to ops_telemetry.py
 # =========================================================================

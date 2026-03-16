@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix: Remove startCommand from railway.json to enable multi-service deploy
+
+**Root cause:** `railway.json` contained a `deploy.startCommand` that forced ALL Railway services (including future worker/beat) to run gunicorn. Railway config-as-code overrides dashboard custom start commands, so worker and beat services could never start their own processes.
+
+**Changes:**
+- **railway.json** — Removed `startCommand` from `deploy` section. Each service now uses its dashboard Custom Start Command.
+- Web service must have its start command set in Railway dashboard (see setup instructions below).
+
+**Files:** `railway.json`
+
+---
+
 ## 2026-03-16 — Phase 1: Remove APScheduler, consolidate all scheduling under Celery Beat
 
 **Root cause:** APScheduler ran as a daemon thread inside Gunicorn's master process (`--preload`), but health checks ran in forked worker processes that couldn't see the master's thread state. `restart_scheduler()` was fundamentally broken — it called `shutdown()` on a forked copy while the master held the DB lock. When APScheduler died, 10 of 14 jobs silently stopped running with no Celery Beat fallback.

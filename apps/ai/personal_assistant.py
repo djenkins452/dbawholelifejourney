@@ -2867,11 +2867,6 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                         # Extract per-builder timings from context
                         try:
                             _bt = cos_context.get('_builder_timings', {}) if cos_context else {}
-                            logger.warning(
-                                "COS_BUILDER_DEBUG keys=%s _builder_timings=%s",
-                                list(cos_context.keys()) if cos_context else None,
-                                _bt or None,
-                            )
                             for _btag, _bdur in _bt.items():
                                 _ltrace.start(f'COS_BUILDER_{_btag}')
                                 _ltrace._stages[f'COS_BUILDER_{_btag}']['end'] = (

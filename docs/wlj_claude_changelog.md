@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Remove COS builder diagnostic logging (confirmed working)
+
+**Confirmed:** `LATENCY_SNAPSHOT_DEBUG` showed 20 `COS_BUILDER_*` stages written to `ChatLatencySnapshot` with full timing data. The `_builder_timings` stable cache fix works. Removed temporary `WARNING`-level diagnostic logs from `personal_assistant.py` and `latency_trace.py`.
+
+**Files:** `apps/ai/personal_assistant.py`, `apps/core/ai_observability/latency_trace.py`
+
+---
+
 ## 2026-03-16 — Fix: CoS Context Tile Shows STALE/Builders:0 — _builder_timings Lost on Dynamic Cache Expiry
 
 **Issue:** Ops Wall CoS Context tile permanently shows Status: STALE, Builders: 0 even though context builders execute successfully.

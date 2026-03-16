@@ -187,15 +187,6 @@ class LatencyTrace:
                 if dur is not None:
                     stages_dict[label] = round(dur, 1)
 
-            # Debug: log builder stages written to snapshot
-            _builder_keys = [k for k in stages_dict if k.startswith('COS_BUILDER_')]
-            logger.warning(
-                "LATENCY_SNAPSHOT_DEBUG user=%s stages_written=%s builder_stages=%s",
-                self.user_id,
-                list(stages_dict.keys()),
-                {k: stages_dict[k] for k in _builder_keys} or None,
-            )
-
             ChatLatencySnapshot.objects.create(
                 user_id=self.user_id,
                 path=self.path,

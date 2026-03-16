@@ -511,14 +511,28 @@ class SAMEErrorSpikeTest(TestCase):
 
 
 class OpsStreamViewTest(TestCase):
-    """Test /admin-console/ops/stream/ endpoint."""
+    """Test /admin-console/ops/stream/ endpoint.
+
+    The stream endpoint reads a pre-built payload from cache.
+    Tests must call build_ops_stream_payload() to populate the cache
+    before hitting the endpoint (mimicking the SAME background cycle).
+    """
 
     def setUp(self):
+        from django.core.cache import cache
         self.staff = _staff_user()
         self.user = _regular_user(email="regular@test.com")
+        # Clear cached payload to prevent leakage between tests
+        cache.delete("wlj:ops:stream_payload")
+
+    def _populate_cache(self):
+        """Build and cache the ops stream payload (mimics SAME cycle)."""
+        from apps.core.ai_observability.ops_telemetry import build_ops_stream_payload
+        return build_ops_stream_payload()
 
     def test_stream_returns_json(self):
         """Stream endpoint returns valid JSON with expected keys."""
+        self._populate_cache()
         _login_staff(self.client, self.staff)
         response = self.client.get("/admin-console/ops/stream/")
 
@@ -532,17 +546,14 @@ class OpsStreamViewTest(TestCase):
         self.assertIn("feed", data)
         self.assertIn("next_since", data)
 
-    def test_stream_incremental_cursor(self):
-        """Stream returns next_since for incremental polling."""
+    def test_stream_pending_when_no_cache(self):
+        """Stream returns pending status when payload not yet cached."""
         _login_staff(self.client, self.staff)
+        response = self.client.get("/admin-console/ops/stream/")
 
-        response1 = self.client.get("/admin-console/ops/stream/")
-        data1 = response1.json()
-        next_since = data1["next_since"]
-
-        # Second poll with cursor
-        response2 = self.client.get(f"/admin-console/ops/stream/?since={next_since}")
-        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], "pending")
 
     def test_stream_forbidden_for_non_staff(self):
         """Non-staff users get 403."""
@@ -553,6 +564,7 @@ class OpsStreamViewTest(TestCase):
     def test_stream_engine_cards_structure(self):
         """Engine cards have required fields."""
         _create_engine_run("UAL", minutes_ago=1)
+        self._populate_cache()
 
         _login_staff(self.client, self.staff)
         response = self.client.get("/admin-console/ops/stream/")
@@ -1204,7 +1216,18 @@ class IntegrityEndpointTest(TestCase):
 
     def test_stream_includes_integrity(self):
         """OpsStream endpoint includes integrity data."""
+        from django.core.cache import cache
+        # Clear all ops caches to prevent leakage
+        for key in [
+            "wlj:ops:stream_payload", "wlj:ops:engine_cards",
+            "wlj:ops:latest_narrative", "wlj:ops:latest_integrity",
+            "wlj:ops:active_anomalies", "wlj:ops:latest_heartbeats",
+        ]:
+            cache.delete(key)
+
         _create_engine_run("UAL", minutes_ago=1)
+        # run_same_cycle now also calls build_ops_stream_payload(),
+        # so the cached payload is populated automatically.
         from apps.core.jobs import run_same_cycle
         run_same_cycle()
 
@@ -1355,6 +1378,10 @@ class EscalationStateMachineTest(TestCase):
 
     def test_stream_includes_escalation_data(self):
         """OpsStream response includes escalation fields in anomalies."""
+        from django.core.cache import cache
+        cache.delete("wlj:ops:stream_payload")
+        cache.delete("wlj:ops:active_anomalies")
+
         anomaly = OpsAnomaly.objects.create(
             severity="P2", anomaly_type="ERROR_SPIKE",
             engine_name="PIE", summary="escalated spike",
@@ -1362,6 +1389,10 @@ class EscalationStateMachineTest(TestCase):
             escalation_count=1,
             last_escalated_at=timezone.now(),
         )
+
+        # Populate the cache with the anomaly present
+        from apps.core.ai_observability.ops_telemetry import build_ops_stream_payload
+        build_ops_stream_payload()
 
         staff = _staff_user(email="esc-staff@test.com")
         _login_staff(self.client, staff)

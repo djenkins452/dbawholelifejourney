@@ -296,6 +296,10 @@ class OpsStreamAAFRKeyTests(TestCase):
             user=user, terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0")
         )
 
+        # OpsStreamView now reads from cache — populate it first
+        from apps.core.ai_observability.ops_telemetry import build_ops_stream_payload
+        build_ops_stream_payload()
+
         factory = RequestFactory()
         request = factory.get("/admin-console/ops/stream/")
         request.user = user

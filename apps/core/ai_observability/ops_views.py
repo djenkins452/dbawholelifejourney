@@ -245,150 +245,32 @@ class OpsStreamView(View):
     """
     Polling endpoint for the Operations Wall v2.
 
-    GET /admin-console/ops/stream/?since=<iso-timestamp>&engine=<name>&filter=<type>
+    GET /admin-console/ops/stream/
 
-    Returns JSON with:
-      - engine cards (status, cadence, sparkline data, miss/error counters)
-      - SAME narrative snapshot
-      - active anomalies (watchlist)
-      - live feed events (incremental since cursor)
-      - system posture
+    Returns pre-computed telemetry payload built by the SAME engine cycle
+    (background worker, every 60s). The HTTP request path performs ZERO
+    telemetry computation — it reads a cached snapshot and returns it.
+
+    If the payload hasn't been built yet (cold start), returns a
+    {"status": "pending"} response so the frontend can retry gracefully.
     """
 
     def get(self, request):
         if not request.user.is_authenticated or not request.user.is_staff:
             return JsonResponse({"error": "forbidden"}, status=403)
 
-        since_str = request.GET.get("since", "")
-        engine_filter = request.GET.get("engine", "")
-        feed_filter = request.GET.get("filter", "")  # core/errors/decisions/anomalies
+        from django.core.cache import cache as _cache
 
-        try:
-            since = timezone.datetime.fromisoformat(since_str)
-            if timezone.is_naive(since):
-                since = timezone.make_aware(since)
-        except (ValueError, TypeError):
-            since = timezone.now() - timedelta(minutes=5)
+        from apps.core.ai_observability.ops_telemetry import OPS_STREAM_CACHE_KEY
 
-        from apps.core.ai_observability.heartbeat import (
-            get_cadence_config,
-            get_latest_heartbeats,
-        )
-        from apps.core.ai_observability.models import (
-            EngineRun,
-            OpsAnomaly,
-            OpsNarrativeSnapshot,
-            SystemIntegritySnapshot,
-        )
-        from apps.core.ai_observability.ops_aggregates import ALL_ENGINES
-        from apps.core.ai_observability.ops_feed import get_recent_feed
+        payload = _cache.get(OPS_STREAM_CACHE_KEY)
+        if payload is None:
+            return JsonResponse({
+                "status": "pending",
+                "message": "Telemetry payload is being computed. Will be available shortly.",
+            })
 
-        now = timezone.now()
-        cadence_config = get_cadence_config()
-        heartbeats = get_latest_heartbeats()
-
-        # Build engine cards
-        engine_cards = _build_engine_cards(ALL_ENGINES, cadence_config, heartbeats, now)
-
-        # Get SAME narrative (latest)
-        narrative = _get_latest_narrative()
-
-        # Get active anomalies (watchlist)
-        anomalies = _get_active_anomalies()
-
-        # Get feed events
-        feed = get_recent_feed(
-            since=since,
-            limit=50,
-            engine_filter=engine_filter or None,
-        )
-
-        # Apply feed filter
-        if feed_filter == "errors":
-            feed = [f for f in feed if f["severity"] == "error"]
-        elif feed_filter == "decisions":
-            feed = [f for f in feed if f["type"] == "decision"]
-
-        # System posture from narrative
-        posture = narrative.get("posture", "OK") if narrative else "OK"
-
-        # System Integrity Index (latest snapshot)
-        integrity = _get_latest_integrity()
-
-        # Scheduler heartbeats (ISE + SAME)
-        scheduler_heartbeats = _get_scheduler_heartbeats()
-
-        # EAE telemetry (Phase 8.8)
-        eae_telemetry = _get_eae_ops_telemetry(now)
-
-        # APScheduler health (auto-restart detection)
-        scheduler_health = _get_scheduler_health()
-
-        # Celery execution layer health
-        celery_health = _get_celery_health()
-
-        # Persistent learning health
-        learning_health = _get_learning_health(now)
-
-        # Health Intelligence Engine telemetry
-        health_intelligence = _get_health_intelligence_telemetry(now)
-
-        # COAS health scores (read stored snapshot, not live recompute)
-        coas_health = _get_coas_health()
-
-        # AI Action Failure Rate metrics
-        aafr = _get_aafr_metrics()
-
-        # System Complexity Score (recomputed each poll)
-        complexity = _get_complexity_score()
-
-        # Domain event bus telemetry
-        domain_events = _get_domain_event_telemetry()
-
-        # Chat latency telemetry
-        chat_latency = _get_chat_latency_telemetry(now)
-
-        # Intelligence Pipeline Health (signal snapshots, goal momentum, journal NLP, etc.)
-        pipeline_health = _get_intelligence_pipeline_health(now)
-
-        # Signal Health (cached by SAME cycle, read-only here)
-        signal_health = _get_signal_health()
-
-        # Validator Gate Health (cached by SAME cycle, read-only here)
-        validator_health = _get_validator_health()
-
-        # CoS Performance (cached by SAME cycle, read-only here)
-        cos_performance = _get_cos_performance()
-
-        # API Health (aggregated from APIRequestLog)
-        api_health = _get_api_health_telemetry(now)
-
-        return JsonResponse({
-            "server_time": now.isoformat(),
-            "posture": posture,
-            "engine_cards": engine_cards,
-            "narrative": narrative,
-            "anomalies": anomalies,
-            "feed": feed,
-            "integrity": integrity,
-            "scheduler_heartbeats": scheduler_heartbeats,
-            "scheduler_health": scheduler_health,
-            "celery_health": celery_health,
-            "eae_telemetry": eae_telemetry,
-            "learning_health": learning_health,
-            "health_intelligence": health_intelligence,
-            "coas_health": coas_health,
-            "aafr": aafr,
-            "complexity": complexity,
-            "domain_events": domain_events,
-            "chat_latency": chat_latency,
-            "pipeline_health": pipeline_health,
-            "signal_health": signal_health,
-            "validator_health": validator_health,
-            "cos_performance": cos_performance,
-            "api_health": api_health,
-            "next_since": now.isoformat(),
-        })
+        return JsonResponse(payload)
 
 
 class OpsActionView(View):

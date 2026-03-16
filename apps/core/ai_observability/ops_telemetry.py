@@ -2279,3 +2279,136 @@ def _get_api_health_telemetry(now):
             'endpoints': [],
             'status': 'IDLE',
         }
+
+
+# =========================================================================
+# OPS STREAM PAYLOAD BUILDER
+# =========================================================================
+# Called by the SAME engine cycle (background worker, every 60s).
+# Assembles the full telemetry payload and caches it for OpsStreamView.
+# The HTTP request path NEVER calls telemetry builders directly.
+# =========================================================================
+
+# Cache key and TTL for the pre-built ops stream payload
+OPS_STREAM_CACHE_KEY = "wlj:ops:stream_payload"
+OPS_STREAM_CACHE_TTL = 120  # seconds — SAME runs every 60s, 2x margin
+
+
+def build_ops_stream_payload():
+    """Build the complete Ops Stream telemetry payload.
+
+    Called by the SAME cycle (background worker). Gathers all telemetry
+    from individual helpers and caches the assembled payload.
+
+    Returns:
+        dict: The full payload dict (also cached for OpsStreamView).
+    """
+    from apps.core.ai_observability.heartbeat import (
+        get_cadence_config,
+        get_latest_heartbeats,
+    )
+    from apps.core.ai_observability.ops_aggregates import ALL_ENGINES
+    from apps.core.ai_observability.ops_feed import get_recent_feed
+
+    now = timezone.now()
+    cadence_config = get_cadence_config()
+    heartbeats = get_latest_heartbeats()
+
+    # Engine cards
+    engine_cards = _build_engine_cards(ALL_ENGINES, cadence_config, heartbeats, now)
+
+    # SAME narrative (latest)
+    narrative = _get_latest_narrative()
+
+    # Active anomalies (watchlist)
+    anomalies = _get_active_anomalies()
+
+    # Feed events — fixed 5-minute window (not request-specific)
+    feed = get_recent_feed(since=None, limit=50, engine_filter=None)
+
+    # System posture from narrative
+    posture = narrative.get("posture", "OK") if narrative else "OK"
+
+    # System Integrity Index (latest snapshot)
+    integrity = _get_latest_integrity()
+
+    # Scheduler heartbeats (ISE + SAME)
+    scheduler_heartbeats = _get_scheduler_heartbeats()
+
+    # EAE telemetry
+    eae_telemetry = _get_eae_ops_telemetry(now)
+
+    # APScheduler health
+    scheduler_health = _get_scheduler_health()
+
+    # Celery execution layer health
+    celery_health = _get_celery_health()
+
+    # Persistent learning health
+    learning_health = _get_learning_health(now)
+
+    # Health Intelligence Engine telemetry
+    health_intelligence = _get_health_intelligence_telemetry(now)
+
+    # COAS health scores
+    coas_health = _get_coas_health()
+
+    # AI Action Failure Rate metrics
+    aafr = _get_aafr_metrics()
+
+    # System Complexity Score
+    complexity = _get_complexity_score()
+
+    # Domain event bus telemetry
+    domain_events = _get_domain_event_telemetry()
+
+    # Chat latency telemetry
+    chat_latency = _get_chat_latency_telemetry(now)
+
+    # Intelligence Pipeline Health
+    pipeline_health = _get_intelligence_pipeline_health(now)
+
+    # Signal Health (cached by SAME cycle)
+    signal_health = _get_signal_health()
+
+    # Validator Gate Health (cached by SAME cycle)
+    validator_health = _get_validator_health()
+
+    # CoS Performance (cached by SAME cycle)
+    cos_performance = _get_cos_performance()
+
+    # API Health
+    api_health = _get_api_health_telemetry(now)
+
+    payload = {
+        "server_time": now.isoformat(),
+        "posture": posture,
+        "engine_cards": engine_cards,
+        "narrative": narrative,
+        "anomalies": anomalies,
+        "feed": feed,
+        "integrity": integrity,
+        "scheduler_heartbeats": scheduler_heartbeats,
+        "scheduler_health": scheduler_health,
+        "celery_health": celery_health,
+        "eae_telemetry": eae_telemetry,
+        "learning_health": learning_health,
+        "health_intelligence": health_intelligence,
+        "coas_health": coas_health,
+        "aafr": aafr,
+        "complexity": complexity,
+        "domain_events": domain_events,
+        "chat_latency": chat_latency,
+        "pipeline_health": pipeline_health,
+        "signal_health": signal_health,
+        "validator_health": validator_health,
+        "cos_performance": cos_performance,
+        "api_health": api_health,
+        "next_since": now.isoformat(),
+    }
+
+    # Cache payload for OpsStreamView to read
+    django_cache.set(OPS_STREAM_CACHE_KEY, payload, timeout=OPS_STREAM_CACHE_TTL)
+    logger.info("Ops stream payload built and cached (%d keys)", len(payload))
+
+    return payload

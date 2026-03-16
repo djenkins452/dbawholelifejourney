@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-15 — Architecture: Move Ops Stream Telemetry Off HTTP Request Path
+
+**Issue:** Even with per-function caching, the `/admin-console/ops/stream/` endpoint still computed telemetry on the request path when caches expired or on cold start. Combined with a 2-second browser polling interval, cache misses could exhaust all Gunicorn workers (2-4) simultaneously, causing site-wide 524 timeouts. This is an architectural problem — monitoring dashboards must never compute telemetry on the request path.
+
+**Fix:** Architectural refactor to move ALL telemetry computation off the HTTP request path:
+
+1. **Created `build_ops_stream_payload()`** in `ops_telemetry.py` — assembles the complete polling payload (engine cards, narrative, anomalies, feed, integrity, scheduler health, celery health, all 20+ telemetry sections) and caches it with 120s TTL.
+
+2. **Wired builder into SAME engine cycle** — `run_same()` in `same_engine.py` now calls `build_ops_stream_payload()` at the end of every 60-second cycle, after anomaly detection and integrity computation. The payload is always fresh in cache.
+
+3. **Simplified `OpsStreamView`** — reduced from ~150 lines of telemetry aggregation to a ~10-line cache reader. Reads `wlj:ops:stream_payload` from cache and returns it immediately. If cache is empty (cold start), returns `{"status": "pending"}` instead of computing live.
+
+4. **Frontend handles pending state** — `poll()` function in `operations_wall.html` detects `status: "pending"` and skips rendering until the SAME cycle populates the cache (typically <60s after deploy).
+
+5. **Increased polling interval from 2s to 10s** — since data is only updated every 60s by the SAME cycle, polling every 2s was wasteful. 10s provides responsive updates without unnecessary requests.
+
+**Result:** The HTTP request path now performs ZERO telemetry computation. OpsStreamView is a pure cache reader — safe regardless of polling frequency, number of admin sessions, or Redis state. Cold starts show "pending" for up to 60s instead of running 280 queries and blocking workers.
+
+**Files:** `apps/core/ai_observability/ops_telemetry.py`, `apps/core/ai_observability/ops_views.py`, `apps/core/ai_observability/same_engine.py`, `templates/admin_console/operations_wall.html`, `apps/core/ai_observability/tests_ops_wall_v2.py`, `apps/core/ai_observability/tests_aafr.py`, `apps/core/ai_observability/tests_celery_health.py`
+
+---
+
 ## 2026-03-15 — Fix: Ops Wall Polling Endpoint Running ~280 DB Queries Every 2 Seconds
 
 **Issue:** The `/admin-console/ops/stream/` polling endpoint was called every 2 seconds by the browser and ran ~280 DB queries per call — uncached. `_build_engine_cards()` alone ran ~180 queries (6 per engine × 30+ engines). Combined with `_get_learning_health()` (~20), `_get_intelligence_pipeline_health()` (~30), `_get_health_intelligence_telemetry()` (~20), `_get_eae_ops_telemetry()` (~10), `_get_aafr_metrics()` (~7), `_get_chat_latency_telemetry()` (~3), and `_get_api_health_telemetry()` (~4), this produced ~140 queries/second even with a single admin session. Clicking evidence/scan buttons added more queries on top, saturating Gunicorn workers and causing 524 timeouts site-wide.

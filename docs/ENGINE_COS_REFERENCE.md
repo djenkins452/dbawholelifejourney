@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-15 (Eliminated competing task-narration instructions across 5 prompt layers; all session modes, MANDATORY CONTEXT EVAL v8, reasoning_instruction, and Section 3 now signal-first)
+**Last updated:** 2026-03-15 (Moved Ops Stream telemetry off HTTP request path; SAME cycle now builds and caches full OpsStreamView payload)
 
 ---
 
@@ -87,7 +87,7 @@ Phase 1 (Interpretation)        Phase 2 (Execution)          Phase 3 (Post-Execu
 | **DNE** Delivery | `apps/core/ai_delivery/delivery_engine.py` | `deliver_due_notifications()` | ISE 10m | Every 10m | Notification queue | `DeliveredNotification` model |
 | **ISE** Scheduler | `apps/core/ai_scheduler/scheduler_engine.py` | `run_scheduler_cycle()` | APScheduler/Celery | Every 5m | `ScheduledIntelligenceTask` | Triggers other engines |
 | **IOCD** Observability | `apps/core/ai_observability/observability_engine.py` | `generate_daily_snapshot()` | ISE 24h | Daily | All engine metrics | `IntelligenceMetricsSnapshot` |
-| **SAME** Monitoring | `apps/core/ai_observability/same_engine.py` | `run_same()` | Celery Beat 60s | Every 60s | Engine heartbeats | `OpsAnomaly`, `OpsNarrativeSnapshot` |
+| **SAME** Monitoring | `apps/core/ai_observability/same_engine.py` | `run_same()` | Celery Beat 60s | Every 60s | Engine heartbeats | `OpsAnomaly`, `OpsNarrativeSnapshot`, `wlj:ops:stream_payload` cache |
 | **Maturity** Engine | `apps/core/ai_observability/maturity_engine.py` | `compute_all_maturity_scores()` | On-demand + daily snapshot | Daily | All engines + registry | `SystemMaturitySnapshot` |
 | **AAFR** Telemetry | `apps/core/ai_orchestrator/execution_engine.py` | `_record_aafr()` | Every `execute_action()` call | Real-time | AI mutation outcomes | `AIActionMetric` |
 | **PGS** Proactive Guidance | `apps/ai/proactive_checkins.py` | `run_proactive_guidance_scheduler()` | ISE 15m | Every 15m | Per-user time windows, feature flags | `AssistantMessage(is_proactive=True)` via DNE |

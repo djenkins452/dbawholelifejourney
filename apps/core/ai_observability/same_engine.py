@@ -81,6 +81,16 @@ def run_same():
     # Step 5: Compute System Integrity Index
     integrity = _compute_integrity_snapshot(heartbeats, now)
 
+    # Step 6: Build and cache the full Ops Stream payload
+    # This moves ALL telemetry computation off the HTTP request path.
+    # OpsStreamView now reads this cached payload and returns it immediately.
+    try:
+        from apps.core.ai_observability.ops_telemetry import build_ops_stream_payload
+
+        build_ops_stream_payload()
+    except Exception as e:
+        logger.warning("SAME: Failed to build ops stream payload: %s", e)
+
     return {
         "anomalies_created": stats["created"],
         "anomalies_resolved": stats["resolved"],

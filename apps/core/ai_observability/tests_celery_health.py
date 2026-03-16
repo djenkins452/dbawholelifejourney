@@ -155,9 +155,12 @@ class CeleryHealthViewTests(TestCase):
         self.assertIn("celeryQueueDepth", content)
         self.assertIn("Execution Layer", content)
 
-    @patch("apps.core.ai_observability.ops_views._get_celery_health")
+    @patch("apps.core.ai_observability.ops_telemetry._get_celery_health")
     def test_ops_stream_includes_celery_health(self, mock_celery):
         """OpsStreamView polling includes celery_health key."""
+        from django.core.cache import cache
+        cache.delete("wlj:ops:stream_payload")
+
         mock_celery.return_value = {
             "status": "HEALTHY",
             "worker_count": 2,
@@ -168,6 +171,10 @@ class CeleryHealthViewTests(TestCase):
             "failed_1h": 0,
             "broker_connected": True,
         }
+        # OpsStreamView reads from cache — populate it with mock active
+        from apps.core.ai_observability.ops_telemetry import build_ops_stream_payload
+        build_ops_stream_payload()
+
         resp = self.client.get("/admin-console/ops/stream/")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()

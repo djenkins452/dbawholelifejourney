@@ -4088,7 +4088,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
        Configuration & State
        ===================================================================== */
     var HAS_ECHARTS = typeof echarts !== 'undefined';
-    var POLL_INTERVAL_MS = 2000;
+    var POLL_INTERVAL_MS = 10000;  // 10s — payload is built by SAME every 60s
     var INTEGRITY_HISTORY_INTERVAL_MS = 30000;
 
     var pollInterval = null;
@@ -4630,13 +4630,17 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     }
 
     function poll() {
-        var url = '/admin-console/ops/stream/?since=' + encodeURIComponent(lastSince);
-        if (currentFilter) url += '&filter=' + currentFilter;
+        var url = '/admin-console/ops/stream/';
 
         fetch(url, { headers: { 'X-CSRFToken': getCookie('csrftoken') } })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (frozen) return;
+            // Handle pending state — payload not yet built by background worker
+            if (data.status === 'pending') {
+                console.log('Ops stream: payload pending, waiting for SAME cycle...');
+                return;
+            }
             lastSince = data.next_since || data.server_time;
             render(data);
         })

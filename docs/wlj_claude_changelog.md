@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix: CoS Context Tile Shows STALE/Builders:0 — _builder_timings Lost on Dynamic Cache Expiry
+
+**Issue:** Ops Wall CoS Context tile permanently shows Status: STALE, Builders: 0 even though context builders execute successfully.
+
+**Root cause:** `_builder_timings` (dict of builder durations from `build_cos_context()`) was stored in the **dynamic** cache layer (90s TTL). When the dynamic layer expired but the stable layer (300s TTL) survived, `get_layered_cos_context()` reassembled context WITHOUT `_builder_timings`. At `personal_assistant.py:2869`, `cos_context.get('_builder_timings', {})` returned `{}` → no `COS_BUILDER_*` stages recorded in `ChatLatencySnapshot` → telemetry reads `builders_present = []` → tile shows Builders: 0.
+
+Since most user chats happen >90s apart, the dynamic layer was almost always expired, making this a persistent issue.
+
+**Fix:** Added `_builder_timings` to `STABLE_CONTEXT_KEYS` in `readiness_cache.py`. Builder timings are a snapshot captured once during `build_cos_context()` and don't change between cache reads — they belong in the stable layer (300s). Now they survive dynamic expiry and are available for the latency tracer on every chat.
+
+**Files:** `apps/ai/readiness_cache.py`
+
+**Test results:** 19/19 readiness cache tests pass. 2 pre-existing disambiguation test failures (unrelated).
+
+---
+
 ## 2026-03-16 — Fix: Backfill Order + Logging for Journal Signal Context Path
 
 **Issue:** After deploying the JournalSignal integration, Beth still returned keyword-based themes. The new `analyze_journal_for_cos()` code was correctly deployed, but the JournalSignal query returned 0 rows for recent entries.

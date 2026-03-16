@@ -61,6 +61,11 @@ STABLE_CONTEXT_KEYS = frozenset({
     'governance_profile', 'module_permissions', 'navigable_pages',
     'learned_profile_prompt', 'governance_strategy_prompt',
     'feedback_profiles',
+    # _builder_timings is a snapshot of build durations from the last
+    # full context build. Stored in stable layer so it survives dynamic
+    # expiry — the latency tracer reads it to record COS_BUILDER_*
+    # stages in ChatLatencySnapshot, which feeds the Ops Wall CoS tile.
+    '_builder_timings',
 })
 
 # Valid readiness states

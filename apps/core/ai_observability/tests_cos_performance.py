@@ -297,8 +297,8 @@ class CacheCosPerformanceTests(TestCase):
         self.assertEqual(result["status"], "healthy")
         self.assertEqual(result["sample_count_24h"], 42)
 
-    def test_get_cos_performance_fallback_on_empty_cache(self):
-        """_get_cos_performance() should compute live when cache is empty."""
+    def test_get_cos_performance_returns_none_on_empty_cache(self):
+        """_get_cos_performance() returns None when cache is empty (no live fallback)."""
         from django.core.cache import cache
 
         from apps.core.ai_observability.ops_telemetry import _get_cos_performance
@@ -306,6 +306,6 @@ class CacheCosPerformanceTests(TestCase):
         cache.delete("wlj:ops:cos_performance")
         self._create_snapshot()
 
+        # No live fallback — returns None until SAME populates cache
         result = _get_cos_performance()
-        self.assertIsNotNone(result)
-        self.assertIn("status", result)
+        self.assertIsNone(result)

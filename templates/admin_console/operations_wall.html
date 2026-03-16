@@ -5970,7 +5970,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         var statusEl = document.getElementById('validatorStatus');
         if (statusEl) {
             var st = vh.status || 'no_data';
-            var labels = { healthy: 'HEALTHY', elevated: 'ELEVATED', critical: 'CRITICAL', no_data: 'NO DATA' };
+            var labels = { healthy: 'HEALTHY', degraded: 'DEGRADED', critical: 'CRITICAL', no_data: 'NO DATA' };
             statusEl.textContent = labels[st] || st.toUpperCase();
             statusEl.className = 'ops-cmd-card-status ' + st;
         }
@@ -5983,15 +5983,18 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         }
         setVal('validatorBlockRate1h', vh.block_rate_1h != null ? (vh.block_rate_1h * 100) : null, '%');
         setVal('validatorBlockRate24h', vh.block_rate_24h != null ? (vh.block_rate_24h * 100) : null, '%');
-        setVal('validatorCrashes', vh.crashes_24h, '');
+        setVal('validatorCrashes', vh.crash_count_24h, '');
         setVal('validatorTotal1h', vh.total_1h, '');
         setVal('validatorTotal24h', vh.total_24h, '');
-        setVal('validatorAvgMs', vh.avg_ms, 'ms');
+        setVal('validatorAvgMs', vh.avg_duration_ms, 'ms');
         var policyEl = document.getElementById('validatorByPolicy');
-        if (policyEl && vh.by_policy && vh.by_policy.length) {
-            policyEl.innerHTML = vh.by_policy.map(function(p) {
-                return '<span style="margin-right:8px">' + escapeHtml(p.policy) + ': ' +
-                    '<span style="color:var(--ops-red)">' + (p.blocked || 0) + '</span>/' + (p.total || 0) + '</span>';
+        // Backend sends by_policy_24h as dict {policy_name: count}
+        var policyData = vh.by_policy_24h || {};
+        var policyKeys = Object.keys(policyData);
+        if (policyEl && policyKeys.length) {
+            policyEl.innerHTML = policyKeys.map(function(policy) {
+                return '<span style="margin-right:8px">' + escapeHtml(policy) + ': ' +
+                    '<span style="color:var(--ops-red)">' + policyData[policy] + '</span></span>';
             }).join('');
         } else if (policyEl) {
             policyEl.innerHTML = '';
@@ -6018,9 +6021,24 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         setVal('signalDomainsSilent', sh.domains_silent);
         setVal('signalTotalVolume', sh.total_volume_7d);
         var gridEl = document.getElementById('signalDomainsGrid');
-        if (gridEl && sh.domains && sh.domains.length) {
-            gridEl.innerHTML = sh.domains.map(function(d) {
-                var cls = d.status === 'active' ? 'var(--ops-green)' : (d.status === 'stale' ? 'var(--ops-yellow)' : 'var(--ops-text-dim)');
+        // Backend returns domains as a dict keyed by domain name — convert to array
+        var domainsList = [];
+        if (sh.domains && typeof sh.domains === 'object' && !Array.isArray(sh.domains)) {
+            Object.keys(sh.domains).forEach(function(name) {
+                var d = sh.domains[name];
+                domainsList.push({
+                    name: name,
+                    status: d.status,
+                    count_7d: d.volume_7d || 0,
+                    latest_age: d.freshness_hours != null ? (d.freshness_hours < 1 ? '<1h' : Math.round(d.freshness_hours) + 'h ago') : ''
+                });
+            });
+        } else if (Array.isArray(sh.domains)) {
+            domainsList = sh.domains;
+        }
+        if (gridEl && domainsList.length) {
+            gridEl.innerHTML = domainsList.map(function(d) {
+                var cls = d.status === 'healthy' ? 'var(--ops-green)' : (d.status === 'stale' ? 'var(--ops-yellow)' : 'var(--ops-text-dim)');
                 return '<div class="ops-signal-domain-row">' +
                     '<span class="ops-signal-domain-name">' + escapeHtml(d.name) + '</span>' +
                     '<span style="color:' + cls + '">' + (d.count_7d || 0) + '</span>' +

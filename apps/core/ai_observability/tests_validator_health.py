@@ -427,8 +427,8 @@ class CacheValidatorHealthTests(TestCase):
         self.assertEqual(result["status"], "healthy")
         self.assertEqual(result["total_1h"], 42)
 
-    def test_get_validator_health_fallback_on_empty_cache(self):
-        """_get_validator_health() should compute live when cache is empty."""
+    def test_get_validator_health_returns_none_on_empty_cache(self):
+        """_get_validator_health() returns None when cache is empty (no live fallback)."""
         from django.core.cache import cache
 
         from apps.core.ai_observability.ops_telemetry import _get_validator_health
@@ -436,6 +436,6 @@ class CacheValidatorHealthTests(TestCase):
         cache.delete("wlj:ops:validator_health")
         self._create_metric("pass")
 
+        # No live fallback — returns None until SAME populates cache
         result = _get_validator_health()
-        self.assertIsNotNone(result)
-        self.assertIn("status", result)
+        self.assertIsNone(result)

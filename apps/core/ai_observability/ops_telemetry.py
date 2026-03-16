@@ -1648,11 +1648,27 @@ def compute_signal_health():
             "status": status,
         }
 
+    # Compute total volume (7d) across all domains
+    total_volume_7d = sum(d["volume_7d"] for d in domains_result.values())
+
+    # Determine top-level status for the frontend card
+    total_domains = len(domains_result)
+    if total_domains == 0:
+        overall_status = "no_data"
+    elif domains_silent == 0:
+        overall_status = "healthy"
+    elif domains_active > 0:
+        overall_status = "degraded"
+    else:
+        overall_status = "critical"
+
     return {
+        "status": overall_status,
         "domains_active": domains_active,
         "domains_silent": domains_silent,
         "stalest_domain": stalest_domain,
         "stalest_hours": round(stalest_hours, 1),
+        "total_volume_7d": total_volume_7d,
         "domains": domains_result,
     }
 

@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix: Ops CC Signal Health & Validator Health Panel Data Mismatches
+
+**Issue:** Two Ops Command Center panels were displaying incorrect or missing data due to backend/frontend schema mismatches:
+
+1. **Signal Health panel** — Backend `compute_signal_health()` returned `domains` as a dict keyed by domain name, but frontend `renderSignalHealth()` expected an array. Also missing top-level `status` and `total_volume_7d` fields. Result: panel showed "NO DATA" status and empty domain grid even when signal data existed.
+
+2. **Validator Health panel** — Frontend used wrong field names: `crashes_24h` (backend: `crash_count_24h`), `avg_ms` (backend: `avg_duration_ms`), `by_policy` as array (backend: `by_policy_24h` as dict). Also status label map had `elevated` but backend produces `degraded`. Result: crash count, avg latency, and policy breakdown always showed "—".
+
+**Root cause:** Frontend rendering code was written against an assumed schema that diverged from the actual backend data contract.
+
+**Fix:**
+1. Added `status` and `total_volume_7d` to `compute_signal_health()` return
+2. Fixed `renderSignalHealth()` to convert dict→array and use correct field names (`volume_7d`, `freshness_hours`)
+3. Fixed `renderValidatorGate()` to use correct backend field names (`crash_count_24h`, `avg_duration_ms`, `by_policy_24h`)
+4. Fixed validator status label map: `elevated` → `degraded` to match backend
+5. Updated two stale tests that expected live cache fallback (removed in 524-prevention architecture)
+
+**Files:** `apps/core/ai_observability/ops_telemetry.py`, `templates/admin_console/operations_wall.html`, `apps/core/ai_observability/tests_validator_health.py`, `apps/core/ai_observability/tests_cos_performance.py`
+
+---
+
 ## 2026-03-16 — Fix: SIGNAL_DROUGHT Diagnostic Scan — Wrong Model Name, Field, and Task Lookup
 
 **Issue:** The `_scan_signal_drought()` diagnostic scan reported false warnings for 3 checks:

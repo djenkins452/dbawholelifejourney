@@ -279,7 +279,7 @@ class BriefingLoggerTest(TestCase):
 
     def test_snapshots_serialized(self):
         guidance = [_make_guidance(1, "G1", "Msg", priority=2, source="sae_state", module="health")]
-        insights = [_make_insight(2, "I1", "Msg", severity="warning", module="goals")]
+        insights = [_make_insight(2, "I1", "Msg", severity="warning", module="purpose")]
         predictions = [_make_prediction(3, "weight_30d", "Explanation", confidence_score=0.85, module="health")]
 
         briefing = store_briefing(

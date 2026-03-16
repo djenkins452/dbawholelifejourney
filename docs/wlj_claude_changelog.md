@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix: Final Signal Backbone — Ghost Domain Elimination + Journal NLP Backfill
+
+**Issue:** Two remaining production failures after Phase 2 signal standardization:
+1. **Ghost "goals" domain** still appeared in Signal Health because GuidanceItem records and GoalRiskRule still used `module="goals"`, and `compute_signal_health()` aggregates GuidanceItem alongside Insight/Prediction.
+2. **Journal NLP 0/0**: `_call_openai()` logged OpenAI client unavailability at DEBUG level (invisible in production). Existing 14 journal entries created before fix were never reprocessed.
+
+**Root cause:**
+- Migration 0117 only renamed Insight and Prediction records but missed GuidanceItem
+- `GoalRiskRule` in guidance_rules.py had `module = "goals"` and queried `predictions.filter(module="goals")`
+- `_call_openai()` used `logger.debug()` for missing OpenAI client — production logging threshold is WARNING
+- No backfill mechanism existed for entries created before signal extraction was working
+
+**Fix:**
+1. **GoalRiskRule** (`guidance_rules.py`): Changed `module = "goals"` → `"purpose"` and `predictions.filter(module="goals")` → `"purpose"`
+2. **Migration 0117 updated**: Added GuidanceItem to the rename sweep (`module="goals"` → `"purpose"`)
+3. **signal_extractor.py**: Upgraded `_call_openai()` missing-client log from `logger.debug()` to `logger.warning()`
+4. **Backfill task** (`journal/tasks.py`): New `backfill_journal_signals` Celery task finds entries without signals, queues extraction
+5. **Migration 0008** (`journal/0008_backfill_journal_signals.py`): Dispatches backfill task on deploy via Celery
+6. **Test consistency**: Updated briefing test `module="goals"` → `"purpose"`
+
+**Files:** `apps/core/ai_guidance/guidance_rules.py`, `apps/core/migrations/0117_rename_goals_to_purpose.py`, `apps/journal/services/signal_extractor.py`, `apps/journal/tasks.py`, `apps/journal/migrations/0008_backfill_journal_signals.py` (NEW), `apps/core/ai_briefing/tests.py`
+
+**Test results:** 291/291 passed (journal signals, insights, signal health, briefing, guidance, EAE stress, predictions)
+
+---
+
 ## 2026-03-16 — Fix: Ghost "goals" Domain in Signal Health — Module Name Mismatch
 
 **Issue:** Ops Wall Signal Health showed "goals — 622h ago" drought even after Phase 2 standardized all goal signals to `module="purpose"`. A ghost "goals" domain persisted because `compute_signal_health()` aggregates by the `module` field in DB records, and historical Insight/Prediction records still had `module="goals"`.

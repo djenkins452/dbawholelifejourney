@@ -48,7 +48,7 @@ class GoalRiskRule(BaseGuidanceRule):
     """Surface guidance when a goal is at risk of missing its deadline."""
 
     rule_name = "goal_risk"
-    module = "goals"
+    module = "purpose"
 
     def evaluate(self, user, state, insights, predictions):
         results = []
@@ -75,7 +75,7 @@ class GoalRiskRule(BaseGuidanceRule):
 
         # Check PRIE predictions for goals behind schedule
         goal_predictions = predictions.filter(
-            module="goals", status="active"
+            module="purpose", status="active"
         )
         for pred in goal_predictions:
             evidence = pred.evidence or {}

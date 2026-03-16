@@ -153,7 +153,10 @@ class JournalSignalExtractor:
 
         client = get_openai_client()
         if not client:
-            logger.debug("OpenAI client not available — skipping extraction")
+            logger.warning(
+                "OpenAI client not available (OPENAI_API_KEY missing?) — "
+                "skipping journal signal extraction"
+            )
             return []
 
         model = getattr(settings, 'OPENAI_JOURNAL_EXTRACTION_MODEL', 'gpt-4o-mini')

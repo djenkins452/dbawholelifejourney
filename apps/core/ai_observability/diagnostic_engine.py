@@ -916,10 +916,10 @@ def _scan_signal_drought():
 
     # Check 3: Signal snapshot freshness
     try:
-        from apps.core.ai_eae.models import UserSignalSnapshot
-        latest = UserSignalSnapshot.objects.order_by("-computed_at").first()
+        from apps.core.ai_eae.models import SignalSnapshot
+        latest = SignalSnapshot.objects.order_by("-updated_at").first()
         if latest:
-            age_hours = (now - latest.computed_at).total_seconds() / 3600
+            age_hours = (now - latest.updated_at).total_seconds() / 3600
             checks.append(_check(
                 "Signal Snapshot Freshness",
                 "OK" if age_hours < 26 else "WARN" if age_hours < 48 else "FAIL",
@@ -931,30 +931,47 @@ def _scan_signal_drought():
             checks.append(_check("Signal Snapshot Freshness", "FAIL", "No snapshots found"))
             issues.append("No signal snapshots exist")
     except ImportError:
-        checks.append(_check("Signal Snapshot Freshness", "WARN", "UserSignalSnapshot model not available"))
+        checks.append(_check("Signal Snapshot Freshness", "WARN", "SignalSnapshot model not available"))
     except Exception as e:
         checks.append(_check("Signal Snapshot Freshness", "ERROR", str(e)[:200]))
 
-    # Check 4: Signal aggregation task
+    # Check 4: Signal aggregation task (Celery Beat, not ISE scheduler)
     try:
-        from apps.core.ai_scheduler.scheduler_models import ScheduledIntelligenceTask
-        task = ScheduledIntelligenceTask.objects.filter(
-            task_name="compute_nightly_signals",
-        ).first()
-        if task:
-            status_ok = task.last_status in ("success", None)
-            checks.append(_check(
-                "Signal Aggregation Task",
-                "OK" if status_ok and task.is_active else "FAIL",
-                f"Status: {task.last_status or 'never run'}, active: {task.is_active}",
-            ))
-            if not task.is_active:
-                issues.append("Signal aggregation task is disabled")
-            elif task.last_status == "failed":
-                issues.append("Signal aggregation task last run failed")
+        from django.conf import settings as django_settings
+        beat_schedule = getattr(django_settings, 'CELERY_BEAT_SCHEDULE', {})
+        # Find the entry with task "core.compute_nightly_signals"
+        beat_entry = None
+        beat_key = None
+        for key, entry in beat_schedule.items():
+            if entry.get("task") == "core.compute_nightly_signals":
+                beat_entry = entry
+                beat_key = key
+                break
+
+        if beat_entry:
+            # Verify the task module is importable
+            try:
+                from apps.core.ai_eae.tasks import compute_nightly_signals  # noqa: F401
+                task_importable = True
+            except ImportError:
+                task_importable = False
+
+            if task_importable:
+                checks.append(_check(
+                    "Signal Aggregation Task",
+                    "OK",
+                    f"Celery Beat entry '{beat_key}' registered and task importable",
+                ))
+            else:
+                checks.append(_check(
+                    "Signal Aggregation Task",
+                    "FAIL",
+                    f"Celery Beat entry '{beat_key}' exists but task import failed",
+                ))
+                issues.append("Signal aggregation task import failed")
         else:
-            checks.append(_check("Signal Aggregation Task", "WARN", "Task not registered"))
-            issues.append("Signal aggregation task not found in scheduler")
+            checks.append(_check("Signal Aggregation Task", "FAIL", "Task not in CELERY_BEAT_SCHEDULE"))
+            issues.append("compute_nightly_signals not registered in Celery Beat")
     except Exception as e:
         checks.append(_check("Signal Aggregation Task", "ERROR", str(e)[:200]))
 

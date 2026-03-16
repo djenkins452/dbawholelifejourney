@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix: SIGNAL_DROUGHT Diagnostic Scan — Wrong Model Name, Field, and Task Lookup
+
+**Issue:** The `_scan_signal_drought()` diagnostic scan reported false warnings for 3 checks:
+1. "Signal Snapshot Freshness — UserSignalSnapshot model not available" — imported `UserSignalSnapshot` but the actual model is `SignalSnapshot`
+2. Used field `computed_at` which doesn't exist on the model (has `created_at`/`updated_at`)
+3. "Signal Aggregation Task — Task not registered" — looked for the task in `ScheduledIntelligenceTask` (ISE scheduler) but `compute_nightly_signals` is a Celery Beat task in `CELERY_BEAT_SCHEDULE`
+
+**Root cause:** The diagnostic scan was written with incorrect assumptions about the model name, field names, and task registration mechanism.
+
+**Fix:**
+1. Changed import from `UserSignalSnapshot` to `SignalSnapshot`
+2. Changed field from `computed_at` to `updated_at`
+3. Replaced ISE `ScheduledIntelligenceTask` lookup with `CELERY_BEAT_SCHEDULE` entry check + task importability verification
+
+**Files:** `apps/core/ai_observability/diagnostic_engine.py`
+
+---
+
 ## 2026-03-16 — Performance: Ops Stream Engine Cards N+1 Query Elimination + Observability
 
 **Issue:** `_build_engine_cards()` ran ~6 individual queries per engine in a loop over 30+ engines = ~180 queries per SAME cycle. While this runs in the background (not on the HTTP path), it still creates unnecessary DB load every 60 seconds. Cache TTL of 120s was also misaligned (should be 1.5× the 60s SAME cycle, not 2×).

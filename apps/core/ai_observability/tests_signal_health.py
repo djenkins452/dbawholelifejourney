@@ -120,14 +120,14 @@ class ComputeSignalHealthTests(SignalHealthTestMixin, TestCase):
         """Domain with signals only >24h old should be 'stale'."""
         from apps.core.ai_observability.ops_telemetry import compute_signal_health
 
-        self._create_insight("goals", "goal_progress", hours_ago=30)
-        self._create_insight("goals", "goal_progress", hours_ago=36)
+        self._create_insight("purpose", "goal_progress", hours_ago=30)
+        self._create_insight("purpose", "goal_progress", hours_ago=36)
 
         result = compute_signal_health()
-        self.assertIn("goals", result["domains"])
-        goals = result["domains"]["goals"]
+        self.assertIn("purpose", result["domains"])
+        purpose = result["domains"]["purpose"]
         # stale: freshness > 24h or distinct_types < 2
-        self.assertIn(goals["status"], ["stale", "silent"])
+        self.assertIn(purpose["status"], ["stale", "silent"])
 
     def test_silent_domain(self):
         """Domain with signals >72h old should be 'silent'."""
@@ -145,10 +145,10 @@ class ComputeSignalHealthTests(SignalHealthTestMixin, TestCase):
         from apps.core.ai_observability.ops_telemetry import compute_signal_health
 
         self._create_insight("health", "weight_trend", hours_ago=2)
-        self._create_insight("goals", "goal_progress", hours_ago=100)
+        self._create_insight("purpose", "goal_progress", hours_ago=100)
 
         result = compute_signal_health()
-        self.assertEqual(result["stalest_domain"], "goals")
+        self.assertEqual(result["stalest_domain"], "purpose")
         self.assertGreater(result["stalest_hours"], 90)
 
     def test_multiple_models_merge(self):
@@ -182,12 +182,12 @@ class ComputeSignalHealthTests(SignalHealthTestMixin, TestCase):
         # health: healthy (recent + diverse)
         self._create_insight("health", "weight", hours_ago=1)
         self._create_insight("health", "sleep", hours_ago=2)
-        # goals: silent (freshness 100h > 72h threshold)
-        self._create_insight("goals", "progress", hours_ago=100)
+        # purpose: silent (freshness 100h > 72h threshold)
+        self._create_insight("purpose", "progress", hours_ago=100)
 
         result = compute_signal_health()
         self.assertEqual(result["domains_active"], 1)  # health only
-        self.assertEqual(result["domains_silent"], 1)  # goals
+        self.assertEqual(result["domains_silent"], 1)  # purpose
 
     def test_result_structure(self):
         """Return value should have all expected keys."""

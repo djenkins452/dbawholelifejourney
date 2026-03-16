@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix: Ghost "goals" Domain in Signal Health — Module Name Mismatch
+
+**Issue:** Ops Wall Signal Health showed "goals — 622h ago" drought even after Phase 2 standardized all goal signals to `module="purpose"`. A ghost "goals" domain persisted because `compute_signal_health()` aggregates by the `module` field in DB records, and historical Insight/Prediction records still had `module="goals"`.
+
+**Root cause:** `compute_signal_health()` (ops_telemetry.py:1577-1584) has no hardcoded domain list — it groups by whatever `module` values exist in the database. Old records created before Phase 2 still had `module="goals"`, creating two separate domains: "goals" (stale, 622h) and "purpose" (fresh). The drought detector correctly flagged "goals" as in drought since no new signals would ever be written to that name.
+
+**Fix:**
+1. **Data migration** (`core/0117_rename_goals_to_purpose.py`): `UPDATE Insight SET module='purpose' WHERE module='goals'` and same for Prediction. Runs automatically on deploy.
+2. **Test updates**: Changed all test assertions from `module="goals"` → `module="purpose"` in `tests_signal_health.py` and `test_stress.py`.
+
+**Files:** `apps/core/migrations/0117_rename_goals_to_purpose.py` (NEW), `apps/core/ai_observability/tests_signal_health.py`, `apps/core/ai_eae/tests/test_stress.py`
+
+**Test results:** 128/128 passed
+
+---
+
 ## 2026-03-16 — Fix: Signal Emitter Audit — Journal NLP Reliability + Goals Signal Architecture
 
 **Issue:** Two signal pipeline gaps causing domain signal drought:

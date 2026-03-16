@@ -89,7 +89,7 @@ class HighVolumeTests(TestCase):
 
     def test_100_signals_performance(self):
         """100 signals scored and bundled in reasonable time."""
-        signals = self._make_signals(100, module='goals')
+        signals = self._make_signals(100, module='purpose')
         start = time.monotonic()
         units = bundle_signals(signals)
         surfaced, suppressed, budget = apply_budget(

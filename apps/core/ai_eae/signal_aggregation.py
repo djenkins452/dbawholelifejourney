@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 SIGNAL_TYPE_DOMAIN = {
+    # Base signal types (Phase 4)
     'health_activity': 'health',
     'health_biometrics': 'health',
     'medication_adherence': 'health',
@@ -35,6 +36,12 @@ SIGNAL_TYPE_DOMAIN = {
     'productivity_progress': 'life',
     'financial_health': 'finance',
     'relational_engagement': 'relationships',
+    # Phase 5: Cross-domain pattern signal types (derived_pattern)
+    'recovery_risk': 'health',                # health_activity + health_biometrics
+    'holistic_momentum': 'purpose',           # 3+ signals across 2+ domains → life purpose
+    'domain_neglect': 'life',                 # domain-level decline → organize/life management
+    'compliance_drift': 'health',             # medication_adherence + health_biometrics
+    'wellbeing_convergence': 'journal',       # reflection + relational + faith → inner life
 }
 
 # Signal types intentionally stubbed (domain exists but data pipeline not yet mature)

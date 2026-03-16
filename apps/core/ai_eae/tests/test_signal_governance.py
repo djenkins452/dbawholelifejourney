@@ -68,7 +68,9 @@ class SignalComputerCoverageTest(TestCase):
     """Test that every taxonomy signal type has a computer or is stubbed."""
 
     def test_every_taxonomy_type_has_computer_or_stub(self):
-        """All 10 taxonomy signal types must have a computer method or stub."""
+        """All base taxonomy signal types must have a computer method or stub."""
+        from apps.core.ai_eae.pattern_taxonomy import PATTERN_TYPES
+
         computer_methods = {
             'health_activity': '_compute_health_activity',
             'health_biometrics': '_compute_health_biometrics',
@@ -83,6 +85,8 @@ class SignalComputerCoverageTest(TestCase):
         }
 
         for signal_type in SIGNAL_TYPE_DOMAIN:
+            if signal_type in PATTERN_TYPES:
+                continue  # Phase 5: patterns computed by PatternEngine
             method_name = computer_methods.get(signal_type)
             self.assertIsNotNone(
                 method_name,
@@ -144,16 +148,18 @@ class ExpectedSignalTypesTest(TestCase):
     def test_behavioral_cos_domains_have_expected_signals(self):
         """Behavioral CoS-participating domains should declare expected_signal_types."""
         from apps.core.domain_registry.registry import registry
+        from apps.core.ai_eae.pattern_taxonomy import PATTERN_TYPES
 
         for name, domain in registry.get_all().items():
             if domain.is_user_life_domain and domain.participates_in_cos:
                 expected = getattr(domain, 'expected_signal_types', [])
                 # Some behavioral domains may not have signals yet
                 # (e.g., purpose doesn't own taxonomy signals directly)
-                # Only check domains that SHOULD have signals based on taxonomy
+                # Only check BASE signal types — pattern types (Phase 5) are
+                # derived and don't belong in expected_signal_types
                 domain_signals = [
                     st for st, dm in SIGNAL_TYPE_DOMAIN.items()
-                    if dm == name
+                    if dm == name and st not in PATTERN_TYPES
                 ]
                 if domain_signals:
                     self.assertTrue(
@@ -320,16 +326,18 @@ class SignalValidationTest(TestCase):
         )
 
     def test_signal_computer_coverage_complete(self):
-        """All taxonomy types should be covered or stubbed."""
+        """All base taxonomy types should be covered or stubbed."""
+        from apps.core.ai_eae.pattern_taxonomy import PATTERN_TYPES
         from apps.core.domain_registry.validation import validate_signal_computer_coverage
         result = validate_signal_computer_coverage()
         self.assertEqual(
             len(result['missing']), 0,
             f"Missing signal computers: {result['missing']}"
         )
-        # Every type is either covered or stubbed
+        # Every base type is either covered or stubbed (patterns excluded)
         total = len(result['covered']) + len(result['stubbed'])
-        self.assertEqual(total, len(SIGNAL_TYPE_DOMAIN))
+        base_type_count = len(SIGNAL_TYPE_DOMAIN) - len(PATTERN_TYPES)
+        self.assertEqual(total, base_type_count)
 
     def test_cos_signal_coverage(self):
         """All behavioral CoS domains must have a CoS contribution path."""
@@ -353,7 +361,8 @@ class SignalValidationTest(TestCase):
             summary['status'], 'healthy',
             f"Signal health drift detected: {summary}"
         )
-        self.assertEqual(summary['taxonomy_types'], 10)
+        # 10 base signal types + 5 Phase 5 pattern types = 15
+        self.assertEqual(summary['taxonomy_types'], 15)
         self.assertEqual(summary['computers_missing'], 0)
 
     def test_registry_health_includes_signal_health(self):

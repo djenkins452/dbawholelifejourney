@@ -1112,6 +1112,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "core.compute_nightly_signals",
         "schedule": crontab(hour=4, minute=30),  # 4:30 AM UTC = 11:30 PM EST
     },
+    "eae-nightly-pattern-computation-445am-utc": {
+        "task": "core.compute_nightly_patterns",
+        "schedule": crontab(hour=4, minute=45),  # Phase 5: 15 min after signals
+    },
     "faith-reminders-daily-6am-utc": {
         "task": "core.generate_faith_reminders",
         "schedule": crontab(hour=6, minute=0),  # 6:00 AM UTC = 1:00 AM EST (was APScheduler)

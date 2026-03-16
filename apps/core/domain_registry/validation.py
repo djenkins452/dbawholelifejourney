@@ -307,12 +307,20 @@ def validate_signal_computer_coverage() -> Dict[str, List]:
         '_compute_financial_health': 'financial_health',
     }
 
+    # Phase 5: Pattern types are computed by PatternEngine, not individual computers
+    try:
+        from apps.core.ai_eae.pattern_taxonomy import PATTERN_TYPES
+    except ImportError:
+        PATTERN_TYPES = set()
+
     available_computers = set()
     for method_name, signal_type in computer_method_names.items():
         if hasattr(SignalAggregationService, method_name):
             available_computers.add(signal_type)
 
     for signal_type in SIGNAL_TYPE_DOMAIN:
+        if signal_type in PATTERN_TYPES:
+            continue  # Patterns are computed by PatternEngine, not signal computers
         if signal_type in STUBBED_SIGNAL_TYPES:
             result['stubbed'].append((signal_type, STUBBED_SIGNAL_TYPES[signal_type]))
         elif signal_type in available_computers:
@@ -416,6 +424,8 @@ def get_signal_health_summary() -> Dict:
 
     all_issues = domain_issues + expected_issues + cos_issues
 
+    pattern_health = get_pattern_health_summary()
+
     return {
         'status': 'healthy' if not all_issues else 'drift_detected',
         'taxonomy_types': taxonomy_count,
@@ -426,11 +436,107 @@ def get_signal_health_summary() -> Dict:
         'expected_type_issues': expected_issues,
         'cos_coverage_issues': cos_issues,
         'domains_without_signals': expected_types.get('domains_without_signals', []),
+        'pattern_health': pattern_health,
     }
 
 
 # =============================================================================
-# Combined Health Summary (Phase 3 + Phase 4)
+# Phase 5 — Pattern Taxonomy Validation
+# =============================================================================
+
+
+def validate_pattern_taxonomy() -> Dict[str, List]:
+    """
+    Validate pattern taxonomy: no collisions with base signal types,
+    names fit field constraints, and domains resolve to the Domain Registry.
+
+    Returns:
+        {
+            'valid': [pattern_type, ...],
+            'collisions': [(pattern_type, reason), ...],
+            'oversized': [(pattern_type, len), ...],
+            'unregistered_domains': [(pattern_type, domain, reason), ...],
+        }
+    """
+    from .registry import registry
+
+    result = {'valid': [], 'collisions': [], 'oversized': [], 'unregistered_domains': []}
+
+    try:
+        from apps.core.ai_eae.pattern_taxonomy import PATTERN_TYPES, BASE_SIGNAL_TYPES
+        from apps.core.ai_eae.signal_aggregation import SIGNAL_TYPE_DOMAIN
+    except ImportError:
+        logger.warning("Cannot import pattern/signal taxonomy for validation")
+        return result
+
+    for pt in PATTERN_TYPES:
+        has_issue = False
+
+        if pt in BASE_SIGNAL_TYPES:
+            result['collisions'].append((
+                pt, f"Pattern type '{pt}' collides with base signal type"
+            ))
+            has_issue = True
+
+        if len(pt) > 30:
+            result['oversized'].append((pt, len(pt)))
+            has_issue = True
+
+        # Verify domain resolves to registry
+        domain = SIGNAL_TYPE_DOMAIN.get(pt)
+        if domain and not registry.is_registered(domain):
+            result['unregistered_domains'].append((
+                pt, domain,
+                f"Pattern type '{pt}' maps to domain '{domain}' "
+                f"which is not registered in DomainRegistry"
+            ))
+            has_issue = True
+
+        if not has_issue:
+            result['valid'].append(pt)
+
+    return result
+
+
+def get_pattern_health_summary() -> Dict:
+    """
+    Pattern governance health summary for Ops Wall / diagnostics.
+
+    Returns:
+        {
+            'status': 'healthy' | 'drift_detected',
+            'catalog_types': int,
+            'valid_count': int,
+            'issues': [str, ...],
+        }
+    """
+    taxonomy = validate_pattern_taxonomy()
+
+    try:
+        from apps.core.ai_eae.pattern_taxonomy import PATTERN_TYPE_CATALOG
+        catalog_count = len(PATTERN_TYPE_CATALOG)
+    except ImportError:
+        catalog_count = 0
+
+    issues = [
+        reason for _, reason in taxonomy.get('collisions', [])
+    ] + [
+        f"Pattern type '{pt}' exceeds 30 char limit ({length})"
+        for pt, length in taxonomy.get('oversized', [])
+    ] + [
+        reason for _, _, reason in taxonomy.get('unregistered_domains', [])
+    ]
+
+    return {
+        'status': 'healthy' if not issues else 'drift_detected',
+        'catalog_types': catalog_count,
+        'valid_count': len(taxonomy.get('valid', [])),
+        'issues': issues,
+    }
+
+
+# =============================================================================
+# Combined Health Summary (Phase 3 + Phase 4 + Phase 5)
 # =============================================================================
 
 
@@ -477,7 +583,15 @@ def get_registry_health_summary() -> Dict:
     issues.extend(signal_health.get('expected_type_issues', []))
     issues.extend(signal_health.get('cos_coverage_issues', []))
 
-    is_aligned = alignment['is_aligned'] and signal_health['status'] == 'healthy'
+    # Include pattern issues
+    pattern_health = signal_health.get('pattern_health', {})
+    issues.extend(pattern_health.get('issues', []))
+
+    is_aligned = (
+        alignment['is_aligned']
+        and signal_health['status'] == 'healthy'
+        and pattern_health.get('status', 'healthy') == 'healthy'
+    )
 
     return {
         'status': 'healthy' if is_aligned else 'drift_detected',

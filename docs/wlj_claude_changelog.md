@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Architecture: Phase 5 Cross-Domain Pattern Engine
+
+**Purpose:** Introduce a pattern interpretation layer between Signals and CoS. Patterns are higher-order signals derived deterministically from relationships between base signals across domains or time. Stored as `SignalSnapshot` with `signal_class='derived_pattern'`, they flow into CoS context automatically through the existing query path.
+
+**Architecture compliance:** All pattern types registered in canonical `SIGNAL_TYPE_DOMAIN` taxonomy, domains resolve to real Domain Registry entries, persistence uses the single `_upsert_snapshot()` write path. No synthetic domains, no alternative persistence paths, no signal governance bypass.
+
+**Changes:**
+- `apps/core/ai_eae/signal_aggregation.py` — Added 5 pattern types to `SIGNAL_TYPE_DOMAIN`: recovery_risk→health, holistic_momentum→purpose, domain_neglect→life, compliance_drift→health, wellbeing_convergence→journal
+- `apps/core/ai_eae/pattern_taxonomy.py` — **NEW** — Pattern catalog metadata, confidence discount constant (0.85), PATTERN_TYPES set, BASE_SIGNAL_TYPES set for governance checks
+- `apps/core/ai_eae/pattern_engine.py` — **NEW** — PatternEngine service with 5 deterministic rules: recovery_risk (activity HIGH + biometrics LOW), holistic_momentum (3+ signals ≥0.7 across 2+ domains), domain_neglect (2+ signals declining in same domain), compliance_drift (med_adherence + biometrics both declining), wellbeing_convergence (reflection + relational + faith all ≥0.6)
+- `apps/core/ai_eae/tasks.py` — Added `compute_nightly_patterns()` Celery task with per-type production telemetry cached at `wlj:ops:pattern_production` (25h TTL)
+- `config/settings.py` — Added pattern computation to CELERY_BEAT_SCHEDULE at 4:45 AM UTC (15 min after signal aggregation)
+- `apps/core/domain_registry/validation.py` — Added `validate_pattern_taxonomy()`, `get_pattern_health_summary()`, included pattern health in signal and registry health summaries
+- `apps/core/ai_eae/tests/test_pattern_engine.py` — **NEW** — 31 tests: taxonomy governance, pattern firing/no-fire for each rule, no-data handling, CoS flow verification, signal_class correctness, trend helper
+- `apps/core/ai_eae/tests/test_signal_governance.py` — Updated 3 existing tests to exclude pattern types from base signal computer coverage checks
+
+---
+
 ## 2026-03-16 — Fix: Restore Notes navigation menu item
 
 **Root cause:** Notes module (PK 11) was added via data migration (0069) but was never added to `module_definitions.json` fixture. Any fixture reload would wipe it, leaving Notes invisible in the sidebar.

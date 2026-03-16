@@ -1,8 +1,8 @@
 # WLJ Signal Taxonomy — Canonical Reference
 
-**Date:** 2026-03-14
+**Date:** 2026-03-16 (Phase 4 domain alignment applied)
 **Status:** LOCKED — Canonical signal taxonomy for WLJ Architecture Evolution
-**Phase:** 3 (Signal Taxonomy Design)
+**Phase:** 3 (Signal Taxonomy Design), updated Phase 4 (Signal Governance Alignment)
 
 ---
 
@@ -161,7 +161,7 @@ higher of the two normalized scores. Both contribute but don't stack.
 
 | Property | Value |
 |----------|-------|
-| **Domain** | work (or life, based on task.module) |
+| **Domain** | life |
 | **Description** | Task and project execution progress |
 | **Sources** | Task completions, ProjectMilestone completions |
 | **Default signal_class** | `verified_action` |
@@ -284,16 +284,20 @@ Never impute missing data. Absence of data means absence of signal, not zero sig
 
 | Signal Type | Primary Domain | Cross-Domain Goals That May Consume |
 |-------------|---------------|-------------------------------------|
-| health_activity | health | mind (exercise supports mental health) |
+| health_activity | health | journal (exercise supports mental health) |
 | health_biometrics | health | — |
 | medication_adherence | health | — (non-compensable) |
 | nutrition_compliance | health | — |
-| faith_practice | faith | mind (spiritual practice supports reflection) |
-| mental_reflection | mind | faith (journaling supports spiritual growth) |
-| cognitive_fitness | mind | work (brain fitness supports productivity) |
-| productivity_progress | work/life | — |
+| faith_practice | faith | journal (spiritual practice supports reflection) |
+| mental_reflection | journal | faith (journaling supports spiritual growth) |
+| cognitive_fitness | brain_training | life (brain fitness supports productivity) |
+| productivity_progress | life | — |
 | financial_health | finance | — |
-| relational_engagement | relationships | mind (social connection supports mental health) |
+| relational_engagement | relationships | journal (social connection supports mental health) |
+
+> **Phase 4 Note:** Domain values are aligned with the Domain Registry (Phase 3).
+> `mind` was split into `journal` and `brain_training` to match canonical domain keys.
+> `work` was consolidated to `life`.
 
 ---
 

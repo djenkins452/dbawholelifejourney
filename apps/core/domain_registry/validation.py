@@ -1,18 +1,19 @@
 # ==============================================================================
 # File: apps/core/domain_registry/validation.py
-# Description: Phase 3 — Domain governance validation utilities
+# Description: Phase 3 + Phase 4 — Domain & Signal governance validation
 #
-# Validates alignment between three governance layers:
+# Validates alignment between governance layers:
 #   1. Domain Registry (DomainCapability) — canonical domain identity
 #   2. Module Catalog (ModuleDefinition) — module participation & enablement
 #   3. Builder Registry (_TAGGED_BUILDERS) — CoS context assembly
+#   4. Signal Taxonomy (SIGNAL_TYPE_DOMAIN) — signal governance (Phase 4)
 # ==============================================================================
 """
-Domain Registry Validation
+Domain Registry & Signal Taxonomy Validation
 
-Deterministic validation that all domain references across the system
+Deterministic validation that all domain references and signal types
 resolve to canonical governance entries. Detects drift between the
-registry, catalog, and builder layers.
+registry, catalog, builder, and signal layers.
 """
 
 import logging
@@ -185,9 +186,259 @@ def validate_catalog_registry_alignment() -> Dict[str, List]:
     return report
 
 
+# =============================================================================
+# Phase 4 — Signal Taxonomy Validation
+# =============================================================================
+
+
+def validate_signal_domain_mappings() -> Dict[str, List]:
+    """
+    Validate that every SIGNAL_TYPE_DOMAIN domain exists in the Domain Registry.
+
+    Returns:
+        {
+            'valid': [(signal_type, domain), ...],
+            'invalid': [(signal_type, domain, reason), ...],
+        }
+    """
+    from .registry import registry
+
+    result = {'valid': [], 'invalid': []}
+
+    try:
+        from apps.core.ai_eae.signal_aggregation import SIGNAL_TYPE_DOMAIN
+    except ImportError:
+        logger.warning("Cannot import SIGNAL_TYPE_DOMAIN for validation")
+        return result
+
+    for signal_type, domain in SIGNAL_TYPE_DOMAIN.items():
+        if registry.is_registered(domain):
+            result['valid'].append((signal_type, domain))
+        else:
+            result['invalid'].append((
+                signal_type, domain,
+                f"Signal type '{signal_type}' maps to domain '{domain}' "
+                f"which is not registered in DomainRegistry"
+            ))
+
+    return result
+
+
+def validate_expected_signal_types() -> Dict[str, List]:
+    """
+    Validate that every DomainCapability.expected_signal_types entry
+    exists in the signal taxonomy (SIGNAL_TYPE_DOMAIN).
+
+    Returns:
+        {
+            'valid': [(domain_name, signal_type), ...],
+            'invalid': [(domain_name, signal_type, reason), ...],
+            'domains_without_signals': [domain_name, ...],
+        }
+    """
+    from .registry import registry
+
+    result = {'valid': [], 'invalid': [], 'domains_without_signals': []}
+
+    try:
+        from apps.core.ai_eae.signal_aggregation import SIGNAL_TYPE_DOMAIN
+    except ImportError:
+        logger.warning("Cannot import SIGNAL_TYPE_DOMAIN for validation")
+        return result
+
+    taxonomy_types = set(SIGNAL_TYPE_DOMAIN.keys())
+
+    for name, domain in registry.get_all().items():
+        expected = getattr(domain, 'expected_signal_types', [])
+        if not expected:
+            # Only flag behavioral domains that participate in CoS
+            if domain.is_user_life_domain and domain.participates_in_cos:
+                result['domains_without_signals'].append(name)
+            continue
+
+        for st in expected:
+            if st in taxonomy_types:
+                result['valid'].append((name, st))
+            else:
+                result['invalid'].append((
+                    name, st,
+                    f"Domain '{name}' declares expected signal type '{st}' "
+                    f"which does not exist in SIGNAL_TYPE_DOMAIN"
+                ))
+
+    return result
+
+
+def validate_signal_computer_coverage() -> Dict[str, List]:
+    """
+    Validate that every taxonomy signal type has a registered computer
+    or is intentionally stubbed.
+
+    Returns:
+        {
+            'covered': [signal_type, ...],
+            'stubbed': [(signal_type, reason), ...],
+            'missing': [signal_type, ...],
+        }
+    """
+    result = {'covered': [], 'stubbed': [], 'missing': []}
+
+    try:
+        from apps.core.ai_eae.signal_aggregation import (
+            SIGNAL_TYPE_DOMAIN,
+            STUBBED_SIGNAL_TYPES,
+            SignalAggregationService,
+        )
+    except ImportError:
+        logger.warning("Cannot import signal aggregation for validation")
+        return result
+
+    # Map method names to signal types
+    computer_method_names = {
+        '_compute_health_activity': 'health_activity',
+        '_compute_health_biometrics': 'health_biometrics',
+        '_compute_medication_adherence': 'medication_adherence',
+        '_compute_nutrition_compliance': 'nutrition_compliance',
+        '_compute_faith_practice': 'faith_practice',
+        '_compute_mental_reflection': 'mental_reflection',
+        '_compute_cognitive_fitness': 'cognitive_fitness',
+        '_compute_productivity_progress': 'productivity_progress',
+        '_compute_relational_engagement': 'relational_engagement',
+        '_compute_financial_health': 'financial_health',
+    }
+
+    available_computers = set()
+    for method_name, signal_type in computer_method_names.items():
+        if hasattr(SignalAggregationService, method_name):
+            available_computers.add(signal_type)
+
+    for signal_type in SIGNAL_TYPE_DOMAIN:
+        if signal_type in STUBBED_SIGNAL_TYPES:
+            result['stubbed'].append((signal_type, STUBBED_SIGNAL_TYPES[signal_type]))
+        elif signal_type in available_computers:
+            result['covered'].append(signal_type)
+        else:
+            result['missing'].append(signal_type)
+
+    return result
+
+
+def validate_cos_signal_coverage() -> Dict[str, List]:
+    """
+    Validate that every behavioral CoS-participating domain contributes
+    to CoS through at least one of:
+      1. Direct signal taxonomy ownership (expected_signal_types)
+      2. Context builders that contribute state to CoS
+      3. Contribution through a related domain's signals
+
+    Domains that have neither signals NOR builders are flagged.
+
+    Returns:
+        {
+            'covered_by_signals': [(domain_name, [signal_types]), ...],
+            'covered_by_builders': [domain_name, ...],
+            'uncovered': [(domain_name, reason), ...],
+        }
+    """
+    from .registry import registry
+
+    result = {'covered_by_signals': [], 'covered_by_builders': [], 'uncovered': []}
+
+    try:
+        from apps.core.ai_eae.signal_aggregation import SIGNAL_TYPE_DOMAIN
+    except ImportError:
+        return result
+
+    # Invert: domain → signal types
+    domain_signals = {}
+    for st, domain in SIGNAL_TYPE_DOMAIN.items():
+        domain_signals.setdefault(domain, []).append(st)
+
+    for name, domain in registry.get_all().items():
+        if not domain.participates_in_cos:
+            continue
+        if not domain.is_user_life_domain:
+            continue  # Influence/knowledge domains don't require signals
+
+        signals = domain_signals.get(name, [])
+        if signals:
+            result['covered_by_signals'].append((name, signals))
+        elif domain.context_builders or domain.proactive_signals:
+            # Domain contributes via builders or proactive signals
+            # (e.g., purpose via builders, meals via proactive_signals
+            # and data that feeds health's nutrition_compliance signal).
+            # Architecturally valid — some domains participate in CoS
+            # through builders or related domain signals rather than
+            # direct taxonomy signal ownership.
+            result['covered_by_builders'].append(name)
+        else:
+            result['uncovered'].append((
+                name,
+                f"Behavioral CoS-participating domain '{name}' has neither "
+                f"signal types, context builders, nor proactive signals — "
+                f"no CoS contribution path"
+            ))
+
+    return result
+
+
+def get_signal_health_summary() -> Dict:
+    """
+    Signal governance health summary for Ops Wall / diagnostics.
+
+    Returns:
+        {
+            'status': 'healthy' | 'drift_detected',
+            'taxonomy_types': int,
+            'computers_covered': int,
+            'computers_stubbed': int,
+            'computers_missing': int,
+            'domain_mapping_issues': [str, ...],
+            'expected_type_issues': [str, ...],
+            'cos_coverage_issues': [str, ...],
+            'domains_without_signals': [str, ...],
+        }
+    """
+    domain_mappings = validate_signal_domain_mappings()
+    expected_types = validate_expected_signal_types()
+    computers = validate_signal_computer_coverage()
+    cos_coverage = validate_cos_signal_coverage()
+
+    domain_issues = [reason for _, _, reason in domain_mappings.get('invalid', [])]
+    expected_issues = [reason for _, _, reason in expected_types.get('invalid', [])]
+    cos_issues = [reason for _, reason in cos_coverage.get('uncovered', [])]
+
+    try:
+        from apps.core.ai_eae.signal_aggregation import SIGNAL_TYPE_DOMAIN
+        taxonomy_count = len(SIGNAL_TYPE_DOMAIN)
+    except ImportError:
+        taxonomy_count = 0
+
+    all_issues = domain_issues + expected_issues + cos_issues
+
+    return {
+        'status': 'healthy' if not all_issues else 'drift_detected',
+        'taxonomy_types': taxonomy_count,
+        'computers_covered': len(computers.get('covered', [])),
+        'computers_stubbed': len(computers.get('stubbed', [])),
+        'computers_missing': len(computers.get('missing', [])),
+        'domain_mapping_issues': domain_issues,
+        'expected_type_issues': expected_issues,
+        'cos_coverage_issues': cos_issues,
+        'domains_without_signals': expected_types.get('domains_without_signals', []),
+    }
+
+
+# =============================================================================
+# Combined Health Summary (Phase 3 + Phase 4)
+# =============================================================================
+
+
 def get_registry_health_summary() -> Dict:
     """
     Produce a concise health summary for the Ops Wall or diagnostics.
+
+    Combines Phase 3 (domain governance) and Phase 4 (signal governance).
 
     Returns:
         {
@@ -195,6 +446,7 @@ def get_registry_health_summary() -> Dict:
             'domain_count': int,
             'by_class': {class: count, ...},
             'issues': [str, ...],
+            'signal_health': {signal governance summary},
             'details': {full alignment report},
         }
     """
@@ -202,6 +454,7 @@ def get_registry_health_summary() -> Dict:
     from .descriptors import DomainClass
 
     alignment = validate_catalog_registry_alignment()
+    signal_health = get_signal_health_summary()
 
     # Count by class
     by_class = {}
@@ -219,10 +472,18 @@ def get_registry_health_summary() -> Dict:
     for name, cls, reason in alignment.get('cos_without_builder', []):
         issues.append(reason)
 
+    # Include signal issues
+    issues.extend(signal_health.get('domain_mapping_issues', []))
+    issues.extend(signal_health.get('expected_type_issues', []))
+    issues.extend(signal_health.get('cos_coverage_issues', []))
+
+    is_aligned = alignment['is_aligned'] and signal_health['status'] == 'healthy'
+
     return {
-        'status': 'healthy' if alignment['is_aligned'] else 'drift_detected',
+        'status': 'healthy' if is_aligned else 'drift_detected',
         'domain_count': registry.domain_count,
         'by_class': by_class,
         'issues': issues,
+        'signal_health': signal_health,
         'details': alignment,
     }

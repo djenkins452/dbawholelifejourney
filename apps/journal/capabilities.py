@@ -9,6 +9,7 @@ registry.register(DomainCapability(
     primary_models=['JournalEntry', 'GratitudeEntry'],
     context_builders=['_build_people_and_mood'],
     proactive_signals=['journal_gap', 'concern_recurring', 'mood_declining'],
+    expected_signal_types=['mental_reflection'],
     related_domains=['goals', 'faith', 'health'],
     feature_flag='features.journal.enabled',
     url_namespace='journal',

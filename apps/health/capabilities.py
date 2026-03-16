@@ -20,6 +20,10 @@ registry.register(DomainCapability(
         'vitals_anomaly', 'weight_trend_change', 'sleep_deficit',
         'hydration_low', 'glucose_spike',
     ],
+    expected_signal_types=[
+        'health_activity', 'health_biometrics', 'medication_adherence',
+        'nutrition_compliance',
+    ],
     related_domains=['fitness', 'meals', 'medical', 'goals'],
     feature_flag='features.health.enabled',
     url_namespace='health',

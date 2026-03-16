@@ -66,6 +66,12 @@ class DomainCapability:
     # What signals this domain can generate proactively
     proactive_signals: list = field(default_factory=list)  # e.g., ["medication_gap", "missed_workout"]
 
+    # Phase 4: Signal taxonomy types this domain is expected to produce
+    # Maps to SIGNAL_TYPE_DOMAIN keys in signal_aggregation.py
+    # Metadata only — used for audit, diagnostics, and coverage validation.
+    # Does NOT drive runtime signal routing.
+    expected_signal_types: list = field(default_factory=list)  # e.g., ["health_activity", "health_biometrics"]
+
     # Related domains for cross-domain reasoning
     related_domains: list = field(default_factory=list)  # e.g., ["fitness", "meals", "goals"]
 
@@ -98,19 +104,22 @@ class DomainCapability:
         Compute a 0-100 coverage score based on registration completeness.
 
         Scoring:
-        - Has intents: 30 points
+        - Has intents: 25 points
         - Has context builders: 20 points
-        - Has proactive signals: 25 points
+        - Has proactive signals: 20 points
+        - Has expected signal types: 10 points (Phase 4)
         - Has related domains: 10 points
         - Has primary models: 15 points
         """
         score = 0.0
         if self.intent_types:
-            score += 30.0
+            score += 25.0
         if self.context_builders:
             score += 20.0
         if self.proactive_signals:
-            score += 25.0
+            score += 20.0
+        if self.expected_signal_types:
+            score += 10.0
         if self.related_domains:
             score += 10.0
         if self.primary_models:

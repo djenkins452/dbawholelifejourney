@@ -16,6 +16,7 @@ registry.register(DomainCapability(
         'task_overdue', 'event_approaching', 'nn_skip_streak',
         'busy_day_upcoming', 'task_repeatedly_postponed',
     ],
+    expected_signal_types=['productivity_progress'],
     related_domains=['goals', 'health'],
     url_namespace='life',
 ))

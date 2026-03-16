@@ -9,6 +9,7 @@ registry.register(DomainCapability(
     primary_models=['Person', 'PersonGroup', 'RelationshipInteraction', 'Mention'],
     context_builders=['_build_people_and_mood'],
     proactive_signals=['relationship_gap', 'birthday_approaching'],
+    expected_signal_types=['relational_engagement'],
     related_domains=['journal', 'life'],
     feature_flag='features.relationships.enabled',
     url_namespace='relationships',

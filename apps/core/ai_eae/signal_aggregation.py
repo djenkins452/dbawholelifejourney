@@ -30,11 +30,16 @@ SIGNAL_TYPE_DOMAIN = {
     'medication_adherence': 'health',
     'nutrition_compliance': 'health',
     'faith_practice': 'faith',
-    'mental_reflection': 'mind',
-    'cognitive_fitness': 'mind',
+    'mental_reflection': 'journal',           # Phase 4: aligned with Domain Registry (was 'mind')
+    'cognitive_fitness': 'brain_training',     # Phase 4: aligned with Domain Registry (was 'mind')
     'productivity_progress': 'life',
     'financial_health': 'finance',
     'relational_engagement': 'relationships',
+}
+
+# Signal types intentionally stubbed (domain exists but data pipeline not yet mature)
+STUBBED_SIGNAL_TYPES = {
+    'financial_health': 'Finance module is coming_soon — no deterministic data source yet',
 }
 
 
@@ -63,10 +68,13 @@ class SignalAggregationService:
             SignalAggregationService._compute_health_activity,
             SignalAggregationService._compute_health_biometrics,
             SignalAggregationService._compute_medication_adherence,
+            SignalAggregationService._compute_nutrition_compliance,    # Phase 4
             SignalAggregationService._compute_faith_practice,
             SignalAggregationService._compute_mental_reflection,
             SignalAggregationService._compute_cognitive_fitness,
             SignalAggregationService._compute_productivity_progress,
+            SignalAggregationService._compute_relational_engagement,   # Phase 4
+            SignalAggregationService._compute_financial_health,        # Phase 4 (stub)
         ]
 
         for computer in signal_computers:
@@ -468,6 +476,159 @@ class SignalAggregationService:
                 'completed_today': completed_today,
             },
         )
+
+    # ──────────────────────────────────────────────────────────
+    # Phase 4 Signal Computers — Nutrition, Relationships, Finance
+    # ──────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _compute_nutrition_compliance(user, date):
+        """
+        Dietary adherence and tracking compliance.
+        Sources: FoodEntry, WaterEntry, FastingWindow.
+        Normalization: average of available sub-scores.
+        """
+        from apps.health.models import FoodEntry, WaterEntry, FastingWindow
+
+        sub_scores = []
+        source_data = {}
+
+        # Food logging sub-score — did the user log any food today?
+        food_entries = FoodEntry.objects.filter(
+            user=user, logged_date=date,
+        )
+        food_count = food_entries.count()
+        if food_count > 0:
+            # 1+ meals logged = base score; 3+ meals = full credit
+            if food_count >= 3:
+                sub_scores.append(1.0)
+            elif food_count >= 2:
+                sub_scores.append(0.7)
+            else:
+                sub_scores.append(0.5)
+            source_data['food_entries'] = food_count
+
+        # Water intake sub-score
+        water_entries = WaterEntry.objects.filter(
+            user=user, logged_date=date,
+        )
+        if water_entries.exists():
+            # Sum all entries, convert to oz for scoring
+            total_oz = 0
+            for entry in water_entries:
+                amount = float(entry.amount)
+                unit = entry.unit
+                if unit == 'oz':
+                    total_oz += amount
+                elif unit == 'ml':
+                    total_oz += amount / 29.5735
+                elif unit == 'cups':
+                    total_oz += amount * 8
+                elif unit == 'liters':
+                    total_oz += amount * 33.814
+                else:
+                    total_oz += amount  # Assume oz as fallback
+
+            if total_oz >= 64:
+                sub_scores.append(1.0)
+            elif total_oz >= 32:
+                sub_scores.append(0.5)
+            elif total_oz >= 16:
+                sub_scores.append(0.25)
+            else:
+                sub_scores.append(0.1)
+            source_data['water_oz'] = round(total_oz, 1)
+
+        # Fasting compliance sub-score
+        fasting_windows = FastingWindow.objects.filter(
+            user=user, started_at__date=date,
+        )
+        if fasting_windows.exists():
+            # Check if any fasting window met its target
+            completed = [
+                fw for fw in fasting_windows
+                if fw.ended_at and fw.target_hours
+                and fw.duration_hours and fw.duration_hours >= fw.target_hours
+            ]
+            if completed:
+                sub_scores.append(1.0)
+                source_data['fasting_met_target'] = True
+            else:
+                # Started but didn't complete — partial credit
+                sub_scores.append(0.5)
+                source_data['fasting_met_target'] = False
+
+        if not sub_scores:
+            return None  # No nutrition data today
+
+        score = sum(sub_scores) / len(sub_scores)
+
+        return SignalAggregationService._upsert_snapshot(
+            user, date, 'nutrition_compliance',
+            score=score,
+            confidence=1.0,
+            signal_class='verified_action',
+            source_signals=source_data,
+        )
+
+    @staticmethod
+    def _compute_relational_engagement(user, date):
+        """
+        Social and relationship activity.
+        Sources: RelationshipInteraction.
+        Normalization: count of distinct person interactions.
+        """
+        try:
+            from apps.relationships.models import RelationshipInteraction
+        except ImportError:
+            return None  # Relationships app not available
+
+        interactions = RelationshipInteraction.objects.filter(
+            user=user,
+            interaction_date=date,
+        )
+        interaction_count = interactions.count()
+        if interaction_count == 0:
+            return None  # No relational activity — sparse signal
+
+        # Distinct people interacted with
+        distinct_people = interactions.values('person').distinct().count()
+
+        # Normalize: 1 interaction = 0.5, 2+ distinct people = 1.0
+        if distinct_people >= 2:
+            score = 1.0
+        elif interaction_count >= 2:
+            score = 0.7
+        else:
+            score = 0.5
+
+        return SignalAggregationService._upsert_snapshot(
+            user, date, 'relational_engagement',
+            score=score,
+            confidence=1.0,
+            signal_class='verified_action',
+            source_signals={
+                'interaction_count': interaction_count,
+                'distinct_people': distinct_people,
+            },
+        )
+
+    @staticmethod
+    def _compute_financial_health(user, date):
+        """
+        Financial behavior signals — STUB.
+
+        Finance module is coming_soon. This computer returns None until
+        deterministic financial data sources exist. Per signal taxonomy rules,
+        missing data = no row, not zero.
+        """
+        # Phase 4: Intentional stub. Finance module is not yet mature enough
+        # to produce deterministic signals. When the finance data pipeline
+        # is implemented, this method should derive from:
+        # - Transaction logging
+        # - Budget adherence
+        # - FinancialGoal progress
+        return None
 
     # ──────────────────────────────────────────────────────────
     # Phase 7: Journal Signal Blending

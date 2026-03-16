@@ -9,6 +9,7 @@ registry.register(DomainCapability(
     primary_models=['Transaction', 'Budget', 'BudgetCategory'],
     context_builders=['_build_finance_context'],
     proactive_signals=['budget_threshold', 'savings_milestone', 'spending_pattern'],
+    expected_signal_types=['financial_health'],
     related_domains=['goals'],
     feature_flag='features.finance.enabled',
     url_namespace='finance',

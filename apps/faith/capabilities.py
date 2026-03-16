@@ -9,6 +9,7 @@ registry.register(DomainCapability(
     primary_models=['PrayerEntry', 'SavedVerse', 'FaithMilestone', 'ReadingPlan'],
     context_builders=['_build_faith_context'],
     proactive_signals=['reading_streak_break', 'prayer_rhythm_gap'],
+    expected_signal_types=['faith_practice'],
     related_domains=['journal', 'goals'],
     feature_flag='features.faith.enabled',
     url_namespace='faith',

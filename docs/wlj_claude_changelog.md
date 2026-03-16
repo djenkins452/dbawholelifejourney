@@ -6,6 +6,36 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Architecture: Phase 4 Signal Governance Alignment
+
+**Purpose:** Align signal taxonomy with Phase 3 Domain Registry, complete signal computer coverage, add expected_signal_types to DomainCapability, and establish signal production observability. Ensures deterministic governance across the pipeline: Raw Data → Signals → CoS.
+
+**Architecture compliance:** Signal domain mappings now resolve to canonical registry domains (no more unregistered 'mind' or 'work'). Every taxonomy signal type has a computer or documented stub. DomainCapability declares expected signal types for audit. Nightly signal production metrics are cached for Ops diagnostics.
+
+**Changes:**
+- `apps/core/ai_eae/signal_aggregation.py` — Aligned SIGNAL_TYPE_DOMAIN: mental_reflection→journal, cognitive_fitness→brain_training (was 'mind'). Added STUBBED_SIGNAL_TYPES dict. Implemented 3 missing signal computers: `_compute_nutrition_compliance` (from FoodEntry, WaterEntry, FastingWindow), `_compute_relational_engagement` (from RelationshipInteraction), `_compute_financial_health` (intentional stub — finance module coming_soon)
+- `apps/core/ai_eae/tasks.py` — Enhanced nightly signal task with per-type and per-domain production telemetry, cached at `wlj:ops:signal_production` (25h TTL)
+- `apps/core/ai_eae/migrations/0003_align_signal_domains.py` — Data migration updating historical SignalSnapshot domain values from 'mind' to 'journal'/'brain_training'
+- `apps/core/domain_registry/descriptors.py` — Added `expected_signal_types` field to DomainCapability (metadata only, not runtime). Updated coverage_score to include signal type coverage.
+- `apps/core/domain_registry/validation.py` — Added Phase 4 validation: `validate_signal_domain_mappings()`, `validate_expected_signal_types()`, `validate_signal_computer_coverage()`, `validate_cos_signal_coverage()`, `get_signal_health_summary()`. Combined health summary now includes signal governance.
+- `apps/health/capabilities.py` — Added expected_signal_types: health_activity, health_biometrics, medication_adherence, nutrition_compliance
+- `apps/journal/capabilities.py` — Added expected_signal_types: mental_reflection
+- `apps/brain_training/capabilities.py` — Added expected_signal_types: cognitive_fitness
+- `apps/faith/capabilities.py` — Added expected_signal_types: faith_practice
+- `apps/life/capabilities.py` — Added expected_signal_types: productivity_progress
+- `apps/relationships/capabilities.py` — Added expected_signal_types: relational_engagement
+- `apps/finance/capabilities.py` — Added expected_signal_types: financial_health
+- `apps/core/ai_eae/tests/test_signal_governance.py` — **NEW** — 26 tests: domain mapping alignment, computer coverage, expected_signal_types validation, nutrition/relational signal computers, signal health summary, snapshot domain correctness
+- `docs/SIGNAL_TAXONOMY.md` — Updated domain mapping table to reflect registry-aligned domain keys
+
+**Design decisions:**
+- `mind` split into `journal` (mental_reflection) and `brain_training` (cognitive_fitness) — aligns with actual app module domains
+- `financial_health` is a documented stub — no fake signals while finance module is coming_soon
+- CoS coverage validation accepts builder-only and proactive-signal-only domains (purpose, medical, meals) — not every behavioral domain needs direct taxonomy signal ownership
+- Signal production telemetry is additive (cached alongside existing ops metrics), not a new monitoring system
+
+---
+
 ## 2026-03-16 — Architecture: Phase 3 Domain Registry Alignment
 
 **Purpose:** Establish clean governance model aligning three layers: Domain Registry (canonical domain identity), Module Catalog (module participation), and Builder Registry (CoS context assembly). Prevents drift where modules claim domains the registry doesn't recognize, builders reference unregistered domains, and ingestion systems are confused with behavioral life domains.

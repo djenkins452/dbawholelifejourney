@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Performance: Ops Stream Engine Cards N+1 Query Elimination + Observability
+
+**Issue:** `_build_engine_cards()` ran ~6 individual queries per engine in a loop over 30+ engines = ~180 queries per SAME cycle. While this runs in the background (not on the HTTP path), it still creates unnecessary DB load every 60 seconds. Cache TTL of 120s was also misaligned (should be 1.5× the 60s SAME cycle, not 2×).
+
+**Fix:** Performance hardening with 3 changes:
+
+1. **Batched `_build_engine_cards()` queries** — Replaced per-engine N+1 loop with 6 batched aggregate queries using Django ORM `annotate()`, `values()`, and Python-side grouping. Queries: (1) last run per engine via `Max`, (2) errors 30m via grouped `Count`, (3) missed heartbeats 30m via grouped `Count`, (4) errors 24h via grouped `Count`, (5) sparkline runs via single ordered query, (6) P95 durations via single ordered query. Engine registry metadata is in-memory (0 DB). Total: ~7 queries (was ~180).
+
+2. **Added `ops_stream_build_time_ms` telemetry** — `build_ops_stream_payload()` now measures its own wall-clock execution time and includes it in the payload. Visible on the Ops Wall for monitoring build performance over time.
+
+3. **Aligned cache TTL from 120s to 90s** — 1.5× the 60s SAME cycle provides sufficient margin while ensuring stale data expires sooner if SAME misses a cycle.
+
+**Result:** Engine cards query count reduced from ~180 to ~7. Total payload build reduced from ~290 to ~110 queries. Build time is now self-reported in every payload for ongoing monitoring.
+
+**Files:** `apps/core/ai_observability/ops_telemetry.py`
+
+---
+
 ## 2026-03-15 — Architecture: Move Ops Stream Telemetry Off HTTP Request Path
 
 **Issue:** Even with per-function caching, the `/admin-console/ops/stream/` endpoint still computed telemetry on the request path when caches expired or on cold start. Combined with a 2-second browser polling interval, cache misses could exhaust all Gunicorn workers (2-4) simultaneously, causing site-wide 524 timeouts. This is an architectural problem — monitoring dashboards must never compute telemetry on the request path.

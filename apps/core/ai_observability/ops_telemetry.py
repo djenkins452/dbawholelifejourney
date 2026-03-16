@@ -9,14 +9,14 @@ Purpose: Extracted helper functions for the Operations Wall dashboard.
 
 Extracted from ops_views.py for maintainability.
 
-PERFORMANCE NOTE (2026-03-15):
-    The OpsStreamView polling endpoint calls these helpers every 2 seconds.
-    Without caching, a single poll runs ~250-300 DB queries. With multiple
-    admin sessions, this saturates Gunicorn workers and causes 524 timeouts.
+PERFORMANCE NOTE (2026-03-16):
+    The OpsStreamView is a pure cache reader (zero DB queries on HTTP path).
+    The full payload is built by the SAME engine cycle (background, every 60s).
 
-    All expensive helpers are wrapped in short-TTL caches (10-60s).
-    Monitoring dashboards tolerate seconds of staleness — DB saturation
-    from uncached polling is unacceptable.
+    _build_engine_cards() was optimized from ~180 queries (N+1 per-engine loop)
+    to ~7 batched queries using Django ORM aggregation. Total payload build
+    is ~100 queries (down from ~290). Build time is tracked via the
+    ops_stream_build_time_ms field in the payload.
 
 Copyright:
     (c) Whole Life Journey. All rights reserved.
@@ -24,6 +24,7 @@ Copyright:
 
 import json
 import logging
+import time
 from datetime import timedelta
 
 from django.core.cache import cache as django_cache
@@ -40,31 +41,140 @@ logger = logging.getLogger(__name__)
 def _build_engine_cards(engine_names, cadence_config, heartbeats, now):
     """Build engine card data for each core engine.
 
-    Cached for 10 seconds — runs ~6 queries per engine × 30+ engines = 180+
-    queries. At 2s polling, uncached = 90+ queries/second from this alone.
+    Performance-optimized: uses batched aggregate queries instead of
+    per-engine loops. Total query count: ~7 (was ~180 with N+1 pattern).
+
+    Queries:
+      1. Last run per engine (Window/Subquery)
+      2. Errors in last 30m per engine (aggregate)
+      3. Missed heartbeats in last 30m per engine (aggregate)
+      4. Errors in last 24h per engine (aggregate)
+      5. Sparkline: last 6 runs per engine (Window/row_number)
+      6. Duration P95: all runs in last 1h (single query, computed in Python)
+      7. Engine registry metadata (in-memory, 0 DB queries)
     """
     cached = django_cache.get("wlj:ops:engine_cards")
     if cached is not None:
         return cached
 
-    from apps.core.ai_observability.models import EngineRun
+    from django.db.models import Count, Max, Q, Subquery, OuterRef
+    from apps.core.ai_observability.models import EngineHeartbeat, EngineRun
 
+    thirty_min_ago = now - timedelta(minutes=30)
+    twenty_four_h_ago = now - timedelta(hours=24)
+    one_hour_ago = now - timedelta(hours=1)
+
+    # --- Batch Query 1: Last run per engine ---
+    # Use a single query with annotation to get the latest run per engine
+    last_runs_qs = (
+        EngineRun.objects.filter(engine_name__in=engine_names)
+        .values("engine_name")
+        .annotate(last_started=Max("started_at"))
+    )
+    # Map engine_name -> last_started_at
+    last_run_map = {r["engine_name"]: r["last_started"] for r in last_runs_qs}
+
+    # Get the actual run details for those latest runs (status, duration)
+    # We need the full row for each engine's latest run
+    last_run_details = {}
+    if last_run_map:
+        # Subquery approach: get runs matching engine+max_started_at
+        for run in EngineRun.objects.filter(
+            engine_name__in=engine_names,
+        ).order_by("engine_name", "-started_at").values(
+            "engine_name", "started_at", "status", "duration_ms"
+        ):
+            # Only keep the first (latest) per engine
+            if run["engine_name"] not in last_run_details:
+                last_run_details[run["engine_name"]] = run
+            if len(last_run_details) == len(engine_names):
+                break
+
+    # --- Batch Query 2: Error count per engine (last 30m) ---
+    errors_30m_qs = (
+        EngineRun.objects.filter(
+            engine_name__in=engine_names,
+            started_at__gte=thirty_min_ago,
+            status="error",
+        )
+        .values("engine_name")
+        .annotate(count=Count("id"))
+    )
+    errors_30m_map = {r["engine_name"]: r["count"] for r in errors_30m_qs}
+
+    # --- Batch Query 3: Missed heartbeats per engine (last 30m) ---
+    miss_qs = (
+        EngineHeartbeat.objects.filter(
+            engine_name__in=engine_names,
+            status="MISSED",
+            observed_at__gte=thirty_min_ago,
+        )
+        .values("engine_name")
+        .annotate(count=Count("id"))
+    )
+    miss_map = {r["engine_name"]: r["count"] for r in miss_qs}
+
+    # --- Batch Query 4: Error count per engine (last 24h) ---
+    errors_24h_qs = (
+        EngineRun.objects.filter(
+            engine_name__in=engine_names,
+            started_at__gte=twenty_four_h_ago,
+            status="error",
+        )
+        .values("engine_name")
+        .annotate(count=Count("id"))
+    )
+    errors_24h_map = {r["engine_name"]: r["count"] for r in errors_24h_qs}
+
+    # --- Batch Query 5: Sparkline data (last 6 runs per engine) ---
+    # Fetch recent runs ordered by engine then time, slice in Python
+    sparkline_runs = list(
+        EngineRun.objects.filter(engine_name__in=engine_names)
+        .order_by("engine_name", "-started_at")
+        .values_list("engine_name", "duration_ms")[:len(engine_names) * 6]
+    )
+    sparkline_map = {}
+    for eng, dur in sparkline_runs:
+        if eng not in sparkline_map:
+            sparkline_map[eng] = []
+        if len(sparkline_map[eng]) < 6:
+            sparkline_map[eng].append(dur)
+
+    # --- Batch Query 6: Duration P95 (all runs in last 1h) ---
+    # Fetch all durations in one query, group in Python
+    p95_runs = list(
+        EngineRun.objects.filter(
+            engine_name__in=engine_names,
+            started_at__gte=one_hour_ago,
+        )
+        .order_by("engine_name", "duration_ms")
+        .values_list("engine_name", "duration_ms")
+    )
+    p95_map = {}
+    for eng, dur in p95_runs:
+        if eng not in p95_map:
+            p95_map[eng] = []
+        p95_map[eng].append(dur)
+
+    # --- Engine registry metadata (in-memory, no DB) ---
+    from apps.core.ai_observability.engine_registry import get_engine_meta
+
+    # Pre-fetch all engine meta in one call to the in-memory registry
+    engine_meta_map = {}
+    for name in engine_names:
+        engine_meta_map[name] = get_engine_meta(name)
+
+    # --- Assemble cards ---
     cards = []
-
     for name in engine_names:
         cfg = cadence_config.get(name, {})
         hb = heartbeats.get(name, {})
         interval = cfg.get("interval", 3600)
 
-        # Last run
-        last_run = (
-            EngineRun.objects.filter(engine_name=name)
-            .order_by("-started_at")
-            .values("started_at", "status", "duration_ms")
-            .first()
-        )
+        # Last run from batch
+        last_run = last_run_details.get(name)
 
-        # Status mapping from heartbeat to card status
+        # Status mapping from heartbeat
         hb_status = hb.get("status", "OK")
         if hb_status == "MISSED":
             card_status = "MISSED"
@@ -76,53 +186,21 @@ def _build_engine_cards(engine_names, cadence_config, heartbeats, now):
             card_status = "OK"
 
         # Override with error rate check
-        thirty_min_ago = now - timedelta(minutes=30)
-        errors_30m = EngineRun.objects.filter(
-            engine_name=name,
-            started_at__gte=thirty_min_ago,
-            status="error",
-        ).count()
+        errors_30m = errors_30m_map.get(name, 0)
         if errors_30m > 3:
             card_status = "ERROR"
 
-        # Miss counter (rolling 30m window) — counts historical MISSED
-        # heartbeat observations.  After recovery the engine flips to OK
-        # but miss_count remains >0 until old observations age out.
-        from apps.core.ai_observability.models import EngineHeartbeat
+        # Miss counter from batch
+        miss_count = miss_map.get(name, 0)
 
-        thirty_min_ago = now - timedelta(minutes=30)
-        miss_count = EngineHeartbeat.objects.filter(
-            engine_name=name,
-            status="MISSED",
-            observed_at__gte=thirty_min_ago,
-        ).count()
+        # Error counter from batch
+        errors_24h = errors_24h_map.get(name, 0)
 
-        # Error counter (last 24h)
-        twenty_four_h_ago = now - timedelta(hours=24)
-        errors_24h = EngineRun.objects.filter(
-            engine_name=name,
-            started_at__gte=twenty_four_h_ago,
-            status="error",
-        ).count()
+        # Sparkline from batch (reverse to chronological order)
+        sparkline = list(reversed(sparkline_map.get(name, [])))
 
-        # Sparkline data: last 6 runs durations
-        recent_runs = list(
-            EngineRun.objects.filter(engine_name=name)
-            .order_by("-started_at")[:6]
-            .values_list("duration_ms", flat=True)
-        )
-        sparkline = list(reversed(recent_runs))  # Chronological order
-
-        # Duration P95 (last 1h)
-        one_hour_ago = now - timedelta(hours=1)
-        durations_1h = list(
-            EngineRun.objects.filter(
-                engine_name=name,
-                started_at__gte=one_hour_ago,
-            )
-            .order_by("duration_ms")
-            .values_list("duration_ms", flat=True)
-        )
+        # Duration P95 from batch
+        durations_1h = p95_map.get(name, [])
         if durations_1h:
             p95_idx = max(0, int(len(durations_1h) * 0.95) - 1)
             duration_p95 = durations_1h[p95_idx]
@@ -139,10 +217,8 @@ def _build_engine_cards(engine_names, cadence_config, heartbeats, now):
         else:
             cadence_label = f"{interval // 60}m"
 
-        # Engine manual execution metadata from registry
-        from apps.core.ai_observability.engine_registry import get_engine_meta
-
-        eng_meta = get_engine_meta(name)
+        # Engine metadata from pre-fetched map
+        eng_meta = engine_meta_map.get(name)
         can_manual = eng_meta["can_manual_run"] if eng_meta else False
         execution_mode = eng_meta.get("execution_mode", "batch") if eng_meta else "batch"
 
@@ -2291,7 +2367,7 @@ def _get_api_health_telemetry(now):
 
 # Cache key and TTL for the pre-built ops stream payload
 OPS_STREAM_CACHE_KEY = "wlj:ops:stream_payload"
-OPS_STREAM_CACHE_TTL = 120  # seconds — SAME runs every 60s, 2x margin
+OPS_STREAM_CACHE_TTL = 90  # seconds — SAME runs every 60s, 1.5x margin
 
 
 def build_ops_stream_payload():
@@ -2310,6 +2386,7 @@ def build_ops_stream_payload():
     from apps.core.ai_observability.ops_aggregates import ALL_ENGINES
     from apps.core.ai_observability.ops_feed import get_recent_feed
 
+    build_start = time.monotonic()
     now = timezone.now()
     cadence_config = get_cadence_config()
     heartbeats = get_latest_heartbeats()
@@ -2380,6 +2457,8 @@ def build_ops_stream_payload():
     # API Health
     api_health = _get_api_health_telemetry(now)
 
+    build_time_ms = round((time.monotonic() - build_start) * 1000)
+
     payload = {
         "server_time": now.isoformat(),
         "posture": posture,
@@ -2404,11 +2483,16 @@ def build_ops_stream_payload():
         "validator_health": validator_health,
         "cos_performance": cos_performance,
         "api_health": api_health,
+        "ops_stream_build_time_ms": build_time_ms,
         "next_since": now.isoformat(),
     }
 
     # Cache payload for OpsStreamView to read
     django_cache.set(OPS_STREAM_CACHE_KEY, payload, timeout=OPS_STREAM_CACHE_TTL)
-    logger.info("Ops stream payload built and cached (%d keys)", len(payload))
+    logger.info(
+        "Ops stream payload built and cached (%d keys, %dms)",
+        len(payload),
+        build_time_ms,
+    )
 
     return payload

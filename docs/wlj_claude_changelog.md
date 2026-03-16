@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Architecture: Phase 2 Deterministic CoS Domain Filtering
+
+**Purpose:** Enforce module enablement at the builder execution layer, replacing the prompt-gate anti-pattern where disabled domain data reached the LLM and a prompt instruction told it to "ignore" the data.
+
+**Architecture compliance:** Deterministic system truth (module enablement) now prevents disabled domain builders from executing. The LLM prompt instruction ("Disabled Modules: do not reference") remains as belt-and-suspenders but is no longer the primary enforcement.
+
+**Changes:**
+- `apps/core/ai_orchestrator/cos_context.py` — Extended builder registry to 3-tuple with domain_key, added filtering logic, intelligence builder output filtering, telemetry for skipped builders
+- `apps/ai/deterministic_router.py` — Aligned CORE_BUILDERS and DOMAIN_CONTEXT_BUILDERS with renamed tags
+- `apps/core/management/commands/audit_modules.py` — Added builder domain mapping validation
+- `apps/core/tests/test_cos_domain_filtering.py` — 18 new tests
+
+**Design decisions:** Builders map to domain keys (not module slugs). Cross-cutting builders always run but filter output. Fail-open on catalog errors. Capture is system-level (always runs).
+
+**Tests:** 135 tests pass (module catalog + domain filtering + deterministic router).
+
+---
+
 ## 2026-03-16 — Architecture: Phase 1 Canonical Module Catalog
 
 **Purpose:** Establish a single source of truth for all WLJ modules and system layers, replacing three independent systems (DomainCapability, ModuleDefinition, UserPreferences boolean fields) with one canonical catalog.

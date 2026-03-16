@@ -163,6 +163,39 @@ class Command(BaseCommand):
                         f"  {slug:15s} → {m.route_name:30s} ✗ UNRESOLVABLE"
                     ))
 
+        # ── Validate CoS builder domain associations (Phase 2) ──
+        self.stdout.write(self.style.SUCCESS(
+            f"\n{'=' * 60}"
+            f"\n  CoS Builder Domain Mapping Validation"
+            f"\n{'=' * 60}\n"
+        ))
+
+        try:
+            from apps.core.ai_orchestrator.cos_context import _TAGGED_BUILDERS
+            from apps.core.module_catalog import get_domain_to_module_map
+
+            domain_to_module = get_domain_to_module_map()
+            for tag, _fn, domain_key in _TAGGED_BUILDERS:
+                if domain_key is None:
+                    self.stdout.write(f"  {tag:20s} → system (always run) ✓")
+                elif domain_key in domain_to_module:
+                    module_slug = domain_to_module[domain_key]
+                    self.stdout.write(
+                        f"  {tag:20s} → domain:{domain_key:15s} "
+                        f"→ module:{module_slug} ✓"
+                    )
+                else:
+                    errors.append(
+                        f"Builder '{tag}': domain_key '{domain_key}' "
+                        f"has no module mapping in catalog"
+                    )
+                    self.stdout.write(self.style.ERROR(
+                        f"  {tag:20s} → domain:{domain_key:15s} "
+                        f"→ ✗ NO MODULE MAPPING"
+                    ))
+        except ImportError as e:
+            warnings.append(f"Could not validate builders: {e}")
+
         # ── Report ──
         self.stdout.write(f"\n{'=' * 60}")
 

@@ -595,9 +595,24 @@ def _build_calendar_events(user):
     return result
 
 
-def _build_intelligence_signals(user):
-    """Build insights, predictions, guidance, and correlations."""
+def _build_intelligence_signals(user, _module_permissions=None):
+    """
+    Build insights, predictions, guidance, and correlations.
+
+    Cross-cutting builder — always executes, but filters output to only include
+    items from enabled modules (Phase 2 domain filtering compliance).
+    """
     result = {}
+
+    # Resolve enabled modules for output filtering
+    _enabled_modules = None
+    try:
+        if _module_permissions is None:
+            from apps.core.module_catalog import get_module_permissions
+            _module_permissions = get_module_permissions(user)
+        _enabled_modules = {k for k, v in _module_permissions.items() if v}
+    except Exception:
+        pass  # Fail-open: no filtering if permissions unavailable
 
     # Track which intelligence sources loaded successfully
     _sources_loaded = []
@@ -629,6 +644,7 @@ def _build_intelligence_signals(user):
                 'confidence': round(i.confidence_score, 2),
             }
             for i in recent_insights
+            if _enabled_modules is None or not i.module or i.module in _enabled_modules
         ]
         _sources_loaded.append('PIE')
     except Exception as e:
@@ -653,6 +669,7 @@ def _build_intelligence_signals(user):
                 if p.predicted_date else None,
             }
             for p in active_predictions
+            if _enabled_modules is None or not p.module or p.module in _enabled_modules
         ]
         _sources_loaded.append('PRIE')
     except Exception as e:
@@ -681,6 +698,7 @@ def _build_intelligence_signals(user):
                 'source': g.source,
             }
             for g in active_guidance
+            if _enabled_modules is None or not g.module or g.module in _enabled_modules
         ]
         _sources_loaded.append('PGE')
     except Exception as e:
@@ -705,6 +723,10 @@ def _build_intelligence_signals(user):
                 'domains': [c.domain_a, c.domain_b],
             }
             for c in active_correlations
+            if _enabled_modules is None or (
+                (not c.domain_a or c.domain_a in _enabled_modules) and
+                (not c.domain_b or c.domain_b in _enabled_modules)
+            )
         ]
         _sources_loaded.append('CDCE')
     except Exception as e:
@@ -1299,40 +1321,43 @@ def _build_purpose_context(user):
 
 
 # Registry of parallel builder functions.
-# Each entry: (tag, builder_fn). Tags enable domain-scoped context loading.
-# Builder functions take (user, prefs) or (user,) and return a dict of context updates.
+# Each entry: (tag, builder_fn, domain_key_or_None).
+#   - tag: builder identifier for scoped-builder selection and telemetry
+#   - builder_fn: callable(user, prefs) → dict of context updates
+#   - domain_key: domain registry key, or None for system-level builders
+#
+# Domain-keyed builders are filtered by module enablement (Phase 2).
+# System-level builders (domain_key=None) always execute.
+# The domain_key maps through the catalog: domain → module → permission.
 _TAGGED_BUILDERS = [
-    ('blueprint', lambda user, prefs: _build_blueprint_and_governance(user, prefs)),
-    ('plan', lambda user, prefs: _build_plan_and_alignment(user)),
-    ('pressure', lambda user, prefs: _build_pressure_and_deadlines(user)),
-    ('health', lambda user, prefs: _build_health_and_vitals(user)),
-    ('calendar', lambda user, prefs: _build_calendar_events(user)),
-    ('intelligence', lambda user, prefs: _build_intelligence_signals(user)),
-    ('people', lambda user, prefs: _build_people_and_mood(user)),
-    ('loops', lambda user, prefs: _build_loops_and_events(user)),
-    ('strategy', lambda user, prefs: _build_strategy_and_signals(user)),
-    ('images', lambda user, prefs: _build_recent_image_analyses(user)),
-    ('meals', lambda user, prefs: _build_meals_context(user)),
-    ('faith', lambda user, prefs: _build_faith_context(user)),
-    # Phase 7.3: Additional domain context builders
-    ('finance', lambda user, prefs: _build_finance_context(user)),
-    ('brain_training', lambda user, prefs: _build_brain_training_context(user)),
-    ('capture', lambda user, prefs: _build_capture_context(user)),
-    ('medical', lambda user, prefs: _build_medical_context(user)),
-    ('purpose', lambda user, prefs: _build_purpose_context(user)),
-    # v8 SA builder temporarily disabled for production stability debugging.
-    # Re-enable after confirming 524 timeout root cause.
-    # ('situational', lambda user, prefs: _build_situational_awareness_context(user)),
-    # Phase 1: Personal Operating Context — reads pre-computed profile (single DB hit)
-    ('operating_profile', lambda user, prefs: _build_operating_profile(user)),
-    # Architecture Evolution Phase 6: Compensatory reasoning
-    ('compensatory', lambda user, prefs: _build_compensatory_context(user)),
-    # Architecture Evolution Phase 8: Signal-aware daily context
-    ('signals', lambda user, prefs: _build_signal_aware_context(user)),
+    # ── System-level builders (always run) ──
+    ('blueprint', lambda user, prefs: _build_blueprint_and_governance(user, prefs), None),
+    ('plan', lambda user, prefs: _build_plan_and_alignment(user), None),
+    ('pressure', lambda user, prefs: _build_pressure_and_deadlines(user), None),
+    ('calendar', lambda user, prefs: _build_calendar_events(user), None),
+    ('intelligence', lambda user, prefs: _build_intelligence_signals(user), None),
+    ('loops', lambda user, prefs: _build_loops_and_events(user), None),
+    ('strategy', lambda user, prefs: _build_strategy_and_signals(user), None),
+    ('images', lambda user, prefs: _build_recent_image_analyses(user), None),
+    ('operating_profile', lambda user, prefs: _build_operating_profile(user), None),
+    ('compensatory', lambda user, prefs: _build_compensatory_context(user), None),
+    ('signals', lambda user, prefs: _build_signal_aware_context(user), None),
+    # Capture is Layer 1 (ingestion) — always runs, NOT a domain
+    ('capture', lambda user, prefs: _build_capture_context(user), None),
+
+    # ── Domain builders (filtered by module enablement) ──
+    ('health', lambda user, prefs: _build_health_and_vitals(user), 'health'),
+    ('brain_training', lambda user, prefs: _build_brain_training_context(user), 'brain_training'),
+    ('medical', lambda user, prefs: _build_medical_context(user), 'medical'),
+    ('faith', lambda user, prefs: _build_faith_context(user), 'faith'),
+    ('meals', lambda user, prefs: _build_meals_context(user), 'meals'),
+    ('finance', lambda user, prefs: _build_finance_context(user), 'finance'),
+    ('purpose', lambda user, prefs: _build_purpose_context(user), 'purpose'),
+    ('relationships', lambda user, prefs: _build_people_and_mood(user), 'relationships'),
 ]
 
 # Backward-compatible flat list (used by telemetry and tests)
-_PARALLEL_BUILDERS = [fn for _, fn in _TAGGED_BUILDERS]
+_PARALLEL_BUILDERS = [fn for _, fn, _ in _TAGGED_BUILDERS]
 
 
 def _build_operating_profile(user):
@@ -1643,11 +1668,59 @@ def build_cos_context(user, scoped_builders=None):
     context['module_permissions']['ai'] = prefs.ai_enabled
     context['module_permissions']['personal_assistant'] = prefs.personal_assistant_enabled
 
-    # Select builders — domain scoping filters to relevant builders only
+    # ── Phase 2: Deterministic domain filtering ──
+    # Builders associated with disabled domains are skipped before execution.
+    # This is the primary enforcement mechanism — the LLM prompt instruction
+    # ("Disabled Modules: do not reference") is now belt-and-suspenders only.
+    _module_permissions = context.get('module_permissions', {})
+    _domain_filtering_active = True  # Flag for telemetry
+
+    try:
+        from apps.core.module_catalog import get_domain_to_module_map
+        _domain_to_module = get_domain_to_module_map()
+    except Exception:
+        # Fail-open: if catalog unavailable, run all builders
+        logger.warning("CoS context: domain_to_module_map unavailable, skipping filtering")
+        _domain_to_module = None
+        _domain_filtering_active = False
+
+    _skipped_builders = []
+
     if scoped_builders:
-        builders = [fn for tag, fn in _TAGGED_BUILDERS if tag in scoped_builders]
-    else:
+        # Intent-routed: only specific builders (Phase 2 filtering not applied
+        # on scoped path — permission validated at intent routing layer)
+        builders = [fn for tag, fn, _ in _TAGGED_BUILDERS if tag in scoped_builders]
+    elif _domain_to_module is None:
+        # Fail-open: catalog unavailable, run everything
         builders = _PARALLEL_BUILDERS
+    else:
+        # Full context: filter domain builders by module enablement
+        builders = []
+        for tag, fn, domain_key in _TAGGED_BUILDERS:
+            if domain_key is None:
+                # System-level builder: always runs
+                builders.append(fn)
+            else:
+                # Domain builder: check module enablement
+                module_slug = _domain_to_module.get(domain_key)
+                if module_slug and _module_permissions.get(module_slug, False):
+                    builders.append(fn)
+                elif module_slug is None:
+                    # Domain not mapped to any module — fail-open, run it
+                    logger.warning(
+                        "CoS context: domain '%s' (builder '%s') has no module mapping, "
+                        "running anyway (fail-open)", domain_key, tag,
+                    )
+                    builders.append(fn)
+                else:
+                    # Module disabled: skip
+                    _skipped_builders.append(tag)
+
+        if _skipped_builders:
+            logger.debug(
+                "CoS context: skipped %d builder(s) for disabled modules: %s",
+                len(_skipped_builders), ', '.join(_skipped_builders),
+            )
 
     # Run builders — parallel when possible, sequential on SQLite
     # (in-memory SQLite gives each thread a separate empty database)
@@ -1656,7 +1729,7 @@ def build_cos_context(user, scoped_builders=None):
     ).get('ENGINE', '')
 
     # Resolve builder tag for timing (tag → fn mapping for current builders)
-    _builder_tag_map = {fn: tag for tag, fn in _TAGGED_BUILDERS}
+    _builder_tag_map = {fn: tag for tag, fn, _ in _TAGGED_BUILDERS}
     _builder_timings = {}  # {tag: duration_ms}
 
     if _use_threading:
@@ -1717,8 +1790,14 @@ def build_cos_context(user, scoped_builders=None):
             finally:
                 _builder_timings[_tag] = (_time.monotonic() - _b_start) * 1000
 
+    # Record skipped builders in telemetry
+    for tag in _skipped_builders:
+        _builder_timings[tag] = 'skipped'
+
     # Store builder timings in context for latency tracer to pick up
     context['_builder_timings'] = _builder_timings
+    context['_domain_filtering_active'] = _domain_filtering_active
+    context['_skipped_builders'] = _skipped_builders
 
     # =====================================================================
     # POST-ASSEMBLY (depends on composed context — must be sequential)

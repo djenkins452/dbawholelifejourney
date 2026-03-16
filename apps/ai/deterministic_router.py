@@ -458,19 +458,24 @@ def _infer_domain(msg_lower):
 # Maps domain to the CoS context builder tags that are relevant.
 # Tags must match _TAGGED_BUILDERS keys in cos_context.py.
 DOMAIN_CONTEXT_BUILDERS = {
-    'health': {'health', 'meals', 'medical'},
+    'health': {'health', 'meals', 'medical', 'brain_training'},
     'faith': {'faith'},
     'journal': set(),  # No dedicated journal builder; relies on core context
     'goals': {'purpose', 'calendar'},
     'tasks': {'calendar'},
     'finance': {'finance'},
+    'relationships': {'relationships'},
+    'meals': {'meals'},
 }
 
-# Builder tags that always run regardless of domain (core situation awareness)
+# Builder tags that always run regardless of domain (core situation awareness).
+# These are system-level builders (domain_key=None in _TAGGED_BUILDERS).
+# Domain builders (health, faith, etc.) are NOT in this set — they are
+# included via DOMAIN_CONTEXT_BUILDERS when domain-scoped.
 CORE_BUILDERS = {
     'blueprint', 'plan', 'pressure', 'intelligence',
-    'people', 'loops', 'strategy', 'operating_profile',
-    'signals', 'compensatory',
+    'loops', 'strategy', 'operating_profile',
+    'signals', 'compensatory', 'capture',
 }
 
 

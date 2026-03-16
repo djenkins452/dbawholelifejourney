@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix deploy startup: broken fixture resets + redundant command chain
+
+**Issue 1 — `_reset_task_skip_status_fixtures` was empty** (line 5722): Method body only had `reset_tracker_name = '...'` and nothing else. It fell through to `_reset_receipt_hardening_fixtures`.
+
+**Issue 2 — `_reset_receipt_hardening_fixtures` had mangled `_mark_loader_complete` call** (line 5750): Two sets of arguments were merged into one call via Python string concatenation (no comma between adjacent strings), resulting in 8 args where 5-6 were expected. Both methods logged `FAILED` errors on every deploy.
+
+**Fix:** Separated the two methods into proper independent implementations, each with their own `_mark_loader_complete` call.
+
+**Issue 3 — `railway.json` startCommand was stale** (line 7): Had 7 management commands including `reload_help_content`, `load_danny_workout_templates`, `load_reading_plans`, `load_phase1_data`, `recalculate_task_priorities` — ALL of which are already called inside `load_initial_data`. This caused duplicate initialization, ~6 Redis circuit breaker warnings, and unnecessary startup time.
+
+**Fix:** Simplified to: `migrate → load_initial_data -v 0 → collectstatic → gunicorn`. Added `--workers 4 --timeout 300` to match Procfile and railway.toml intent.
+
+**Files:** `apps/core/management/commands/load_initial_data.py`, `railway.json`
+
+---
+
 ## 2026-03-16 — Remove COS builder diagnostic logging (confirmed working)
 
 **Confirmed:** `LATENCY_SNAPSHOT_DEBUG` showed 20 `COS_BUILDER_*` stages written to `ChatLatencySnapshot` with full timing data. The `_builder_timings` stable cache fix works. Removed temporary `WARNING`-level diagnostic logs from `personal_assistant.py` and `latency_trace.py`.

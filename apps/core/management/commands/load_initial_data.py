@@ -5724,6 +5724,31 @@ Tasks are sorted by priority (ascending) then creation date.""",
         One-time reset to reload release_notes for task skip status feature (PK 145).
         """
         reset_tracker_name = 'reset_task_skip_status_2026_03_08'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for loader_name in ['release_notes']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader_name} loader for task skip status')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for task skip status feature',
+                'command',
+                'One-time reset to reload release_notes PK 145',
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset task skip status fixtures FAILED: {e}'))
 
     def _reset_receipt_hardening_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """
@@ -5741,27 +5766,19 @@ Tasks are sorted by priority (ascending) then creation date.""",
                         config.is_loaded = False
                         config.save()
                         if verbosity >= 1:
-                            self.stdout.write(f'  Reset {loader_name} loader for task skip status')
-
                             self.stdout.write(f'  Reset {loader_name} loader for receipt hardening')
                 except DataLoadConfig.DoesNotExist:
                     pass
 
             self._mark_loader_complete(
                 DataLoadConfig, reset_tracker_name,
-                'Reset fixtures for task skip status feature',
-                'command',
-                'One-time reset to reload release_notes PK 145'
-
                 'Reset fixtures for receipt hardening improvements',
                 'command',
-                'One-time reset to reload release_notes PK 141'
+                'One-time reset to reload release_notes PK 141',
             )
 
         except Exception as e:
             if verbosity >= 1:
-                self.stdout.write(self.style.ERROR(f'Reset task skip status fixtures FAILED: {e}'))
-
                 self.stdout.write(self.style.ERROR(f'Reset receipt hardening fixtures FAILED: {e}'))
 
     def _reset_commitment_level_fixtures(self, DataLoadConfig, force, verbosity):

@@ -34,6 +34,7 @@ _INSIGHT_RULES = {
         'summary': 'A bill-related obligation appears to be coming due soon.',
         'priority_when_time_sensitive': 'high',
         'priority_default': 'medium',
+        'must_surface': True,
     },
     'recurring_financial_commitment': {
         'insight_code': 'recurring_obligation_detected',
@@ -41,6 +42,7 @@ _INSIGHT_RULES = {
         'summary': 'A recurring financial commitment has been identified.',
         'priority_when_time_sensitive': 'medium',
         'priority_default': 'medium',
+        'must_surface': False,
     },
     'upcoming_schedule_block': {
         'insight_code': 'schedule_commitment_detected',
@@ -48,6 +50,7 @@ _INSIGHT_RULES = {
         'summary': 'A scheduled commitment has been identified.',
         'priority_when_time_sensitive': 'high',
         'priority_default': 'medium',
+        'must_surface': True,
     },
 }
 
@@ -64,7 +67,8 @@ def generate_signal_insights(interpreted_signals):
     Returns:
         list of insight dicts, each with:
             insight_code, domain, priority, summary,
-            source_meaning_codes, source_refs, confidence
+            source_meaning_codes, source_refs, confidence,
+            must_surface (bool)
         Empty list if no insights generated.
     """
     if not interpreted_signals:
@@ -105,6 +109,9 @@ def generate_signal_insights(interpreted_signals):
             # Escalate priority if any contributor is higher
             if priority == 'high' and existing['priority'] != 'high':
                 existing['priority'] = priority
+            # Escalate must_surface if any contributor requires it
+            if rule.get('must_surface', False):
+                existing['must_surface'] = True
         else:
             dedup[dedup_key] = {
                 'insight_code': rule['insight_code'],
@@ -114,6 +121,7 @@ def generate_signal_insights(interpreted_signals):
                 'source_meaning_codes': [meaning_code],
                 'source_refs': list(signal.get('source_refs', [])),
                 'confidence': confidence,
+                'must_surface': rule.get('must_surface', False),
             }
 
     insights = list(dedup.values())

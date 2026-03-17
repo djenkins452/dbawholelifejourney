@@ -6,6 +6,30 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-17 — Phase 6E: Mandatory Insight Enforcement Layer
+
+**Summary:** Introduces pre-LLM enforcement ensuring critical insights cannot be ignored. Insights marked `must_surface=True` are extracted into a MANDATORY block positioned before all other intelligence in the CoS prompt. The LLM is explicitly instructed it MUST address every mandatory item.
+
+**Changes:**
+- **signal_insight_engine.py** — Added `must_surface` field to insight rules and output. `bill_due_detected` and `schedule_commitment_detected` are mandatory; `recurring_obligation_detected` is not. Escalation on dedup merge preserved.
+- **New module:** `apps/core/ai_orchestrator/mandatory_insight_enforcer.py` — Two pure functions:
+  - `extract_mandatory_insights()` — filters `must_surface=True`, orders by priority (high first) then alphabetically
+  - `format_mandatory_block()` — produces numbered `=== MANDATORY INSIGHTS (REQUIRED) ===` block with priority tags, domain, and source refs
+- **cos_context.py** — Enforcer called after PIE in `_build_signal_aware_context()`, adds `mandatory_insights` context key. LLM formatting inserts mandatory block BEFORE all other insight sections.
+- **Telemetry:** `mandatory=N` count in SIGNAL_AWARE_CTX log line
+
+**Architecture:** signals → interpreter → PIE → enforcer → CoS prompt → LLM. No DB, no side effects, no LLM involvement in enforcement decisions.
+
+**Files modified:**
+- `apps/core/ai_orchestrator/signal_insight_engine.py` (must_surface field)
+- `apps/core/ai_orchestrator/mandatory_insight_enforcer.py` (NEW)
+- `apps/core/ai_orchestrator/cos_context.py` (enforcer wiring + formatting)
+- `apps/life/tests/test_phase6b_email_pipeline.py` (13 new tests)
+
+**Tests:** 27/27 pass (14 PIE + 13 enforcement), no regressions
+
+---
+
 ## 2026-03-17 — Phase 6D: PIE Activation — Signal Insight Engine
 
 **Summary:** Activates PIE over interpreted signals. Pure deterministic function converts machine-readable `interpreted_signals` (from Phase 6C interpreter) into structured, human-meaningful insight objects for CoS consumption. No LLM, no DB queries, no actions/predictions — insight-only.

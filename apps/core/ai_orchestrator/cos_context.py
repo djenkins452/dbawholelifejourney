@@ -1562,6 +1562,14 @@ def _build_signal_aware_context(user):
         except Exception as e:
             logger.warning("Signal insight engine failed: %s", e, exc_info=True)
 
+        # Phase 6E: Mandatory insight enforcement — extract must-surface insights
+        mandatory_insights = []
+        try:
+            from apps.core.ai_orchestrator.mandatory_insight_enforcer import extract_mandatory_insights
+            mandatory_insights = extract_mandatory_insights(signal_insights)
+        except Exception as e:
+            logger.warning("Mandatory insight enforcer failed: %s", e, exc_info=True)
+
         result = {}
         if daily_signals:
             result['daily_signals'] = daily_signals
@@ -1571,12 +1579,15 @@ def _build_signal_aware_context(user):
             result['signal_interpretation'] = interpretation
         if signal_insights:
             result['signal_insights'] = signal_insights
+        if mandatory_insights:
+            result['mandatory_insights'] = mandatory_insights
 
         n_interp = len(interpretation.get('interpreted_signals', []))
         logger.info(
-            "SIGNAL_AWARE_CTX user=%s signals=%d momentum=%d interpreted=%d pie_insights=%d",
+            "SIGNAL_AWARE_CTX user=%s signals=%d momentum=%d interpreted=%d "
+            "pie_insights=%d mandatory=%d",
             user.id, len(daily_signals), len(goal_momentum), n_interp,
-            len(signal_insights),
+            len(signal_insights), len(mandatory_insights),
         )
         return result
 
@@ -3465,6 +3476,15 @@ def format_cos_system_injection(context, user_message=None):
     if _momentum_interp:
         lines.append("")
         lines.append(_momentum_interp)
+
+    # Phase 6E: Mandatory insight enforcement — BEFORE all other insights
+    _mandatory = context.get('mandatory_insights', [])
+    if _mandatory:
+        from apps.core.ai_orchestrator.mandatory_insight_enforcer import format_mandatory_block
+        _mandatory_block = format_mandatory_block(_mandatory)
+        if _mandatory_block:
+            lines.append("")
+            lines.append(_mandatory_block)
 
     # Active insights — pattern detections from PIE
     if insights:

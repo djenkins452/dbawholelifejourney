@@ -1512,12 +1512,30 @@ def compute_signal_health():
     last_24h = now - timedelta(hours=24)
     last_7d = now - timedelta(days=7)
 
-    # Seed from domain registry so all registered domains always appear
+    # Seed from domain registry — only signal-eligible domains.
+    # A domain is signal-eligible if:
+    #   1. domain_class is BEHAVIORAL (excludes INFLUENCE/KNOWLEDGE/CONTEXT/SYSTEM)
+    #   2. expected_signal_types is non-empty (excludes feeder domains like meals/medical)
+    #   3. At least one signal type is not stubbed (excludes coming_soon like finance)
     domain_data = {}  # domain -> {last_signal_at, volume_24h, volume_7d, types_7d}
 
     try:
         from apps.core.domain_registry.registry import registry as domain_registry
+        from apps.core.domain_registry.descriptors import DomainClass
+        from apps.core.ai_eae.signal_aggregation import STUBBED_SIGNAL_TYPES
+
         for domain_name in domain_registry.get_names():
+            cap = domain_registry.get(domain_name)
+            if not cap:
+                continue
+            if cap.domain_class != DomainClass.BEHAVIORAL:
+                continue
+            if not cap.expected_signal_types:
+                continue
+            active_types = [t for t in cap.expected_signal_types
+                           if t not in STUBBED_SIGNAL_TYPES]
+            if not active_types:
+                continue
             domain_data[domain_name.lower()] = {
                 "last_signal_at": None,
                 "volume_24h": 0,

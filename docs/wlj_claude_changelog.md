@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Fix: Signal Health card showing false degradation for non-signal domains
+
+**Root cause:** `compute_signal_health()` seeded ALL domains from the Domain Registry regardless of domain class or signal capability. This caused INFLUENCE domains (capture), KNOWLEDGE domains (documents), feeder domains with no own signal types (meals, medical), and stubbed domains (finance) to appear as "silent" — triggering a permanent DEGRADED status on the Ops Wall even though the signal pipeline was working correctly.
+
+**Fix:** Filter domain seeding to only include signal-eligible domains: BEHAVIORAL class + non-empty `expected_signal_types` + at least one non-stubbed type. Domains with actual intelligence data still appear via query merge even if not seeded.
+
+**Changes:**
+- `apps/core/ai_observability/ops_telemetry.py` — `compute_signal_health()` now filters registry domains by domain_class, expected_signal_types, and STUBBED_SIGNAL_TYPES before seeding
+- `apps/core/ai_observability/tests_signal_health.py` — Updated tests to use signal-eligible domain count instead of total registry count; added `test_non_signal_domains_excluded` to verify capture/documents/meals/medical/finance are excluded
+
+**Result:** Signal Health card now shows 6 eligible domains (brain_training, faith, health, journal, life, relationships). Silent count reflects true signal pipeline issues, not architectural design decisions.
+
 ## 2026-03-16 — Architecture: Phase 5 Cross-Domain Pattern Engine
 
 **Purpose:** Introduce a pattern interpretation layer between Signals and CoS. Patterns are higher-order signals derived deterministically from relationships between base signals across domains or time. Stored as `SignalSnapshot` with `signal_class='derived_pattern'`, they flow into CoS context automatically through the existing query path.

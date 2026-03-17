@@ -89,17 +89,33 @@ class SignalHealthTestMixin:
 class ComputeSignalHealthTests(SignalHealthTestMixin, TestCase):
     """Test compute_signal_health() aggregation."""
 
-    def test_empty_returns_registry_domains_as_silent(self):
-        """No intelligence data should return all registry domains as silent."""
-        from apps.core.ai_observability.ops_telemetry import compute_signal_health
+    def _get_signal_eligible_domains(self):
+        """Return set of domains eligible for signal health tracking."""
+        from apps.core.ai_eae.signal_aggregation import STUBBED_SIGNAL_TYPES
+        from apps.core.domain_registry.descriptors import DomainClass
         from apps.core.domain_registry.registry import registry as domain_registry
 
-        result = compute_signal_health()
-        registry_count = domain_registry.domain_count
-        self.assertEqual(result["domains_active"], 0)
-        self.assertEqual(result["domains_silent"], registry_count)
-        # All registry domains should be present
+        eligible = set()
         for name in domain_registry.get_names():
+            cap = domain_registry.get(name)
+            if not cap or cap.domain_class != DomainClass.BEHAVIORAL:
+                continue
+            if not cap.expected_signal_types:
+                continue
+            active = [t for t in cap.expected_signal_types if t not in STUBBED_SIGNAL_TYPES]
+            if active:
+                eligible.add(name)
+        return eligible
+
+    def test_empty_returns_eligible_domains_as_silent(self):
+        """No intelligence data should return signal-eligible domains as silent."""
+        from apps.core.ai_observability.ops_telemetry import compute_signal_health
+
+        eligible = self._get_signal_eligible_domains()
+        result = compute_signal_health()
+        self.assertEqual(result["domains_active"], 0)
+        self.assertEqual(result["domains_silent"], len(eligible))
+        for name in eligible:
             self.assertIn(name, result["domains"])
             self.assertEqual(result["domains"][name]["status"], "silent")
 
@@ -138,12 +154,12 @@ class ComputeSignalHealthTests(SignalHealthTestMixin, TestCase):
         """Domain with signals >72h old should be 'silent'."""
         from apps.core.ai_observability.ops_telemetry import compute_signal_health
 
-        self._create_insight("finance", "budget_alert", hours_ago=100)
+        # Use health (signal-eligible) with old data to test silent status
+        self._create_insight("health", "weight_trend", hours_ago=100)
 
         result = compute_signal_health()
-        self.assertIn("finance", result["domains"])
-        self.assertEqual(result["domains"]["finance"]["status"], "silent")
-        # All domains without recent signals are silent (includes registry domains)
+        self.assertIn("health", result["domains"])
+        self.assertEqual(result["domains"]["health"]["status"], "silent")
         self.assertGreaterEqual(result["domains_silent"], 1)
 
     def test_stalest_domain_tracked(self):
@@ -182,21 +198,30 @@ class ComputeSignalHealthTests(SignalHealthTestMixin, TestCase):
         self.assertAlmostEqual(health["freshness_hours"], 5.0, delta=0.5)
 
     def test_domains_active_count(self):
-        """domains_active should count non-silent domains."""
+        """domains_active should count non-silent signal-eligible domains."""
         from apps.core.ai_observability.ops_telemetry import compute_signal_health
-        from apps.core.domain_registry.registry import registry as domain_registry
+
+        eligible = self._get_signal_eligible_domains()
 
         # health: healthy (recent + diverse)
         self._create_insight("health", "weight", hours_ago=1)
         self._create_insight("health", "sleep", hours_ago=2)
-        # purpose: silent (freshness 100h > 72h threshold)
-        self._create_insight("purpose", "progress", hours_ago=100)
 
         result = compute_signal_health()
         self.assertEqual(result["domains_active"], 1)  # health only
-        # All other registry domains (incl purpose) are silent
-        registry_count = domain_registry.domain_count
-        self.assertEqual(result["domains_silent"], registry_count - 1)
+        # All other eligible domains are silent
+        self.assertEqual(result["domains_silent"], len(eligible) - 1)
+
+    def test_non_signal_domains_excluded(self):
+        """INFLUENCE, KNOWLEDGE, feeder, and stubbed domains should not appear."""
+        from apps.core.ai_observability.ops_telemetry import compute_signal_health
+
+        result = compute_signal_health()
+        # capture (INFLUENCE), documents (KNOWLEDGE), meals/medical (no expected_signal_types),
+        # finance (all types stubbed) should not be seeded
+        for excluded in ("capture", "documents", "meals", "medical", "finance"):
+            self.assertNotIn(excluded, result["domains"],
+                             f"{excluded} should not appear in signal health")
 
     def test_result_structure(self):
         """Return value should have all expected keys."""

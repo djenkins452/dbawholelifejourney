@@ -1852,3 +1852,353 @@ class SignalInterpreterIntegrationTests(TestCase):
         from apps.core.ai_orchestrator.cos_context import _build_signal_aware_context
         result = _build_signal_aware_context(self.user)
         self.assertNotIn('signal_interpretation', result)
+
+
+# ==============================================================================
+# Phase 6D — Signal Insight Engine (PIE Activation) Tests
+# ==============================================================================
+
+
+class SignalInsightEngineTests(TestCase):
+    """Unit tests for generate_signal_insights() — pure function, no DB."""
+
+    def test_bill_due_produces_high_priority_insight(self):
+        """bill_due + time_sensitive → high priority financial insight."""
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        interpreted = [{
+            'signal_type': 'financial_health',
+            'domain': 'finance',
+            'intent': 'bill_due',
+            'semantic_class': 'financial_obligation',
+            'meaning_code': 'upcoming_financial_obligation',
+            'priority_hint': 'time_sensitive',
+            'confidence': 0.7,
+            'source_refs': ['financial_health'],
+        }]
+        insights = generate_signal_insights(interpreted)
+
+        self.assertEqual(len(insights), 1)
+        insight = insights[0]
+        self.assertEqual(insight['insight_code'], 'bill_due_detected')
+        self.assertEqual(insight['domain'], 'finance')
+        self.assertEqual(insight['priority'], 'high')
+        self.assertEqual(insight['confidence'], 0.7)
+        self.assertIn('upcoming_financial_obligation', insight['source_meaning_codes'])
+        self.assertIn('financial_health', insight['source_refs'])
+        # Must not contain actions or predictions
+        self.assertNotIn('actions', insight)
+        self.assertNotIn('suggested_actions', insight)
+        self.assertNotIn('predictions', insight)
+
+    def test_recurring_obligation_produces_medium_priority(self):
+        """recurring_obligation → always medium priority."""
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        interpreted = [{
+            'signal_type': 'financial_health',
+            'domain': 'finance',
+            'intent': 'recurring_obligation',
+            'semantic_class': 'financial_obligation',
+            'meaning_code': 'recurring_financial_commitment',
+            'priority_hint': 'recurring',
+            'confidence': 0.6,
+            'source_refs': ['financial_health'],
+        }]
+        insights = generate_signal_insights(interpreted)
+
+        self.assertEqual(len(insights), 1)
+        self.assertEqual(insights[0]['insight_code'], 'recurring_obligation_detected')
+        self.assertEqual(insights[0]['priority'], 'medium')
+
+    def test_schedule_commitment_time_sensitive_is_high(self):
+        """schedule_commitment + time_sensitive → high priority."""
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        interpreted = [{
+            'signal_type': 'life_engagement',
+            'domain': 'life',
+            'intent': 'schedule_commitment',
+            'semantic_class': 'time_commitment',
+            'meaning_code': 'upcoming_schedule_block',
+            'priority_hint': 'time_sensitive',
+            'confidence': 0.8,
+            'source_refs': ['life_engagement'],
+        }]
+        insights = generate_signal_insights(interpreted)
+
+        self.assertEqual(len(insights), 1)
+        self.assertEqual(insights[0]['insight_code'], 'schedule_commitment_detected')
+        self.assertEqual(insights[0]['domain'], 'life')
+        self.assertEqual(insights[0]['priority'], 'high')
+
+    def test_schedule_commitment_no_hint_is_medium(self):
+        """schedule_commitment without time_sensitive → medium priority."""
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        interpreted = [{
+            'signal_type': 'life_engagement',
+            'domain': 'life',
+            'intent': 'schedule_commitment',
+            'semantic_class': 'time_commitment',
+            'meaning_code': 'upcoming_schedule_block',
+            'priority_hint': '',
+            'confidence': 0.5,
+            'source_refs': ['life_engagement'],
+        }]
+        insights = generate_signal_insights(interpreted)
+
+        self.assertEqual(len(insights), 1)
+        self.assertEqual(insights[0]['priority'], 'medium')
+
+    def test_dedup_same_code_and_domain_merges(self):
+        """Two signals with same insight_code+domain → merged, highest confidence kept."""
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        interpreted = [
+            {
+                'signal_type': 'financial_health',
+                'domain': 'finance',
+                'intent': 'bill_due',
+                'semantic_class': 'financial_obligation',
+                'meaning_code': 'upcoming_financial_obligation',
+                'priority_hint': 'time_sensitive',
+                'confidence': 0.6,
+                'source_refs': ['financial_health'],
+            },
+            {
+                'signal_type': 'financial_health',
+                'domain': 'finance',
+                'intent': 'bill_due_2',
+                'semantic_class': 'financial_obligation',
+                'meaning_code': 'upcoming_financial_obligation',
+                'priority_hint': 'time_sensitive',
+                'confidence': 0.9,
+                'source_refs': ['email_scan'],
+            },
+        ]
+        insights = generate_signal_insights(interpreted)
+
+        self.assertEqual(len(insights), 1)
+        self.assertEqual(insights[0]['confidence'], 0.9)
+        self.assertIn('financial_health', insights[0]['source_refs'])
+        self.assertIn('email_scan', insights[0]['source_refs'])
+
+    def test_different_domains_not_deduped(self):
+        """Same meaning_code but different domains → separate insights."""
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        interpreted = [
+            {
+                'signal_type': 'financial_health',
+                'domain': 'finance',
+                'intent': 'bill_due',
+                'semantic_class': 'financial_obligation',
+                'meaning_code': 'upcoming_financial_obligation',
+                'priority_hint': 'time_sensitive',
+                'confidence': 0.7,
+                'source_refs': ['financial_health'],
+            },
+            {
+                'signal_type': 'life_engagement',
+                'domain': 'life',
+                'intent': 'bill_due',
+                'semantic_class': 'financial_obligation',
+                'meaning_code': 'upcoming_financial_obligation',
+                'priority_hint': '',
+                'confidence': 0.5,
+                'source_refs': ['life_engagement'],
+            },
+        ]
+        insights = generate_signal_insights(interpreted)
+        self.assertEqual(len(insights), 2)
+
+    def test_empty_input_returns_empty(self):
+        """No interpreted signals → empty list."""
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        self.assertEqual(generate_signal_insights([]), [])
+        self.assertEqual(generate_signal_insights(None), [])
+
+    def test_unknown_meaning_code_ignored(self):
+        """Unrecognized meaning_code → no insight produced."""
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        interpreted = [{
+            'signal_type': 'custom_signal',
+            'domain': 'custom',
+            'intent': 'unknown_intent',
+            'semantic_class': 'unknown',
+            'meaning_code': 'totally_unknown_meaning',
+            'priority_hint': '',
+            'confidence': 0.5,
+            'source_refs': ['custom_signal'],
+        }]
+        insights = generate_signal_insights(interpreted)
+        self.assertEqual(len(insights), 0)
+
+    def test_multiple_intent_types_produce_distinct_insights(self):
+        """bill_due + recurring_obligation → two distinct insights."""
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        interpreted = [
+            {
+                'signal_type': 'financial_health',
+                'domain': 'finance',
+                'intent': 'bill_due',
+                'semantic_class': 'financial_obligation',
+                'meaning_code': 'upcoming_financial_obligation',
+                'priority_hint': 'time_sensitive',
+                'confidence': 0.7,
+                'source_refs': ['financial_health'],
+            },
+            {
+                'signal_type': 'financial_health',
+                'domain': 'finance',
+                'intent': 'recurring_obligation',
+                'semantic_class': 'financial_obligation',
+                'meaning_code': 'recurring_financial_commitment',
+                'priority_hint': 'recurring',
+                'confidence': 0.6,
+                'source_refs': ['financial_health'],
+            },
+        ]
+        insights = generate_signal_insights(interpreted)
+
+        self.assertEqual(len(insights), 2)
+        codes = {i['insight_code'] for i in insights}
+        self.assertEqual(codes, {'bill_due_detected', 'recurring_obligation_detected'})
+
+    def test_output_contract_no_action_or_prediction_fields(self):
+        """Insights must not contain action or prediction fields."""
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        interpreted = [{
+            'signal_type': 'financial_health',
+            'domain': 'finance',
+            'intent': 'bill_due',
+            'semantic_class': 'financial_obligation',
+            'meaning_code': 'upcoming_financial_obligation',
+            'priority_hint': 'time_sensitive',
+            'confidence': 0.7,
+            'source_refs': ['financial_health'],
+        }]
+        insights = generate_signal_insights(interpreted)
+
+        required_keys = {'insight_code', 'domain', 'priority', 'summary',
+                         'source_meaning_codes', 'source_refs', 'confidence'}
+        forbidden_keys = {'action', 'actions', 'suggested_actions',
+                          'prediction', 'predictions', 'type', 'label'}
+
+        for insight in insights:
+            self.assertTrue(required_keys.issubset(insight.keys()),
+                            f"Missing keys: {required_keys - insight.keys()}")
+            self.assertFalse(forbidden_keys & insight.keys(),
+                             f"Forbidden keys found: {forbidden_keys & insight.keys()}")
+
+    def test_priority_escalation_on_merge(self):
+        """When merging, if any contributor is high priority, result is high."""
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        interpreted = [
+            {
+                'signal_type': 'financial_health',
+                'domain': 'finance',
+                'intent': 'bill_due',
+                'semantic_class': 'financial_obligation',
+                'meaning_code': 'upcoming_financial_obligation',
+                'priority_hint': '',  # → medium
+                'confidence': 0.5,
+                'source_refs': ['src1'],
+            },
+            {
+                'signal_type': 'financial_health',
+                'domain': 'finance',
+                'intent': 'bill_due_urgent',
+                'semantic_class': 'financial_obligation',
+                'meaning_code': 'upcoming_financial_obligation',
+                'priority_hint': 'time_sensitive',  # → high
+                'confidence': 0.8,
+                'source_refs': ['src2'],
+            },
+        ]
+        insights = generate_signal_insights(interpreted)
+
+        self.assertEqual(len(insights), 1)
+        self.assertEqual(insights[0]['priority'], 'high')
+
+    def test_domain_falls_back_to_rule_default(self):
+        """If signal has no domain, use rule's default_domain."""
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        interpreted = [{
+            'signal_type': 'unknown',
+            'domain': '',
+            'intent': 'bill_due',
+            'semantic_class': 'financial_obligation',
+            'meaning_code': 'upcoming_financial_obligation',
+            'priority_hint': 'time_sensitive',
+            'confidence': 0.7,
+            'source_refs': ['unknown'],
+        }]
+        insights = generate_signal_insights(interpreted)
+
+        self.assertEqual(len(insights), 1)
+        self.assertEqual(insights[0]['domain'], 'finance')
+
+
+class SignalInsightIntegrationTests(TestCase):
+    """Integration: signal insights appear in CoS context."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='pie_test@example.com', password='test1234'
+        )
+
+    @patch('apps.core.ai_orchestrator.cos_context._compute_signal_trend')
+    def test_signal_insights_in_context(self, mock_trend):
+        """Interpreted signals with known intents → signal_insights in context."""
+        mock_trend.return_value = 'stable'
+        from apps.core.ai_eae.models import SignalSnapshot
+
+        SignalSnapshot.objects.create(
+            user=self.user,
+            signal_type='financial_health',
+            date=date.today(),
+            domain='finance',
+            score=0.7,
+            signal_class='moderate',
+            confidence=0.7,
+            source_signals={'facts': [{'intent_type': 'bill_due'}]},
+        )
+
+        from apps.core.ai_orchestrator.cos_context import _build_signal_aware_context
+        result = _build_signal_aware_context(self.user)
+
+        self.assertIn('signal_insights', result)
+        insights = result['signal_insights']
+        self.assertTrue(len(insights) >= 1)
+        self.assertEqual(insights[0]['insight_code'], 'bill_due_detected')
+        self.assertEqual(insights[0]['priority'], 'high')
+
+    @patch('apps.core.ai_orchestrator.cos_context._compute_signal_trend')
+    def test_no_insights_when_no_intents(self, mock_trend):
+        """Signal without intents → no signal_insights key."""
+        mock_trend.return_value = 'stable'
+        from apps.core.ai_eae.models import SignalSnapshot
+
+        SignalSnapshot.objects.create(
+            user=self.user,
+            signal_type='health_composite',
+            date=date.today(),
+            domain='health',
+            score=0.8,
+            signal_class='high',
+            confidence=0.9,
+            source_signals={},
+        )
+
+        from apps.core.ai_orchestrator.cos_context import _build_signal_aware_context
+        result = _build_signal_aware_context(self.user)
+
+        self.assertNotIn('signal_insights', result)

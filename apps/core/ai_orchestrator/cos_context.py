@@ -1997,6 +1997,16 @@ def _build_signal_aware_context(user):
         except Exception as e:
             logger.warning("Signal interpreter failed: %s", e, exc_info=True)
 
+        # Phase 6D: PIE activation — convert interpreted signals into insights
+        signal_insights = []
+        try:
+            from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+            signal_insights = generate_signal_insights(
+                interpretation.get('interpreted_signals', [])
+            )
+        except Exception as e:
+            logger.warning("Signal insight engine failed: %s", e, exc_info=True)
+
         result = {}
         if daily_signals:
             result['daily_signals'] = daily_signals
@@ -2004,11 +2014,14 @@ def _build_signal_aware_context(user):
             result['goal_momentum'] = goal_momentum
         if interpretation:
             result['signal_interpretation'] = interpretation
+        if signal_insights:
+            result['signal_insights'] = signal_insights
 
         n_interp = len(interpretation.get('interpreted_signals', []))
         logger.info(
-            "SIGNAL_AWARE_CTX user=%s signals=%d momentum=%d interpreted=%d",
+            "SIGNAL_AWARE_CTX user=%s signals=%d momentum=%d interpreted=%d pie_insights=%d",
             user.id, len(daily_signals), len(goal_momentum), n_interp,
+            len(signal_insights),
         )
         return result
 
@@ -4018,6 +4031,22 @@ def format_cos_system_injection(context, user_message=None):
             elif msg:
                 lines.append(f"  - {severity_prefix}{msg}")
 
+    # Signal-derived insights — Phase 6D PIE activation
+    _signal_insights = context.get('signal_insights', [])
+    if _signal_insights:
+        if not insights:
+            # No model-based insights, create the PIE header
+            lines.append("")
+            lines.append("DETECTED PATTERNS (PIE):")
+        for si in _signal_insights[:5]:
+            priority = (si.get('priority') or 'medium').upper()
+            summary = si.get('summary', '')
+            refs = ', '.join(si.get('source_refs', []))
+            if summary:
+                ref_note = f" (Signal: {refs})" if refs else ""
+                lines.append(f"  - [{priority}] {summary}{ref_note}")
+
+    # Active predictions — trajectory outlook from PRIE
     if predictions:
         lines.append("")
         lines.append("TRAJECTORY OUTLOOK (PRIE):")

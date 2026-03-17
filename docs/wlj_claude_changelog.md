@@ -6,6 +6,33 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-17 — Phase 6D: PIE Activation — Signal Insight Engine
+
+**Summary:** Activates PIE over interpreted signals. Pure deterministic function converts machine-readable `interpreted_signals` (from Phase 6C interpreter) into structured, human-meaningful insight objects for CoS consumption. No LLM, no DB queries, no actions/predictions — insight-only.
+
+**Changes:**
+- **New module:** `apps/core/ai_orchestrator/signal_insight_engine.py` — `generate_signal_insights()` maps meaning codes to structured insights with `insight_code`, `domain`, context-aware `priority`, `summary`, `source_meaning_codes`, `source_refs`, `confidence`
+- **CoS context wiring:** `_build_signal_aware_context()` calls PIE after interpreter, adds `signal_insights` as separate context key (distinct from `interpreted_signals` and `active_insights`)
+- **LLM formatting:** Signal insights appended to `DETECTED PATTERNS (PIE)` block with `[HIGH]`/`[MEDIUM]` priority prefixes and source refs
+- **Dedup:** Same `insight_code + domain` merges — highest confidence kept, source refs unioned, priority escalated
+- **Telemetry:** `pie_insights=N` count in SIGNAL_AWARE_CTX log line
+
+**Insight rules (initial — deterministic):**
+| meaning_code | insight_code | priority | summary |
+|---|---|---|---|
+| `upcoming_financial_obligation` | `bill_due_detected` | high (time_sensitive) / medium | Bill-related obligation coming due |
+| `recurring_financial_commitment` | `recurring_obligation_detected` | medium | Recurring financial commitment identified |
+| `upcoming_schedule_block` | `schedule_commitment_detected` | high (time_sensitive) / medium | Scheduled commitment identified |
+
+**Files modified:**
+- `apps/core/ai_orchestrator/signal_insight_engine.py` (NEW)
+- `apps/core/ai_orchestrator/cos_context.py` (PIE call + LLM formatting)
+- `apps/life/tests/test_phase6b_email_pipeline.py` (14 new tests: 12 unit + 2 integration)
+
+**Tests:** 24/24 pass (14 PIE + 10 interpreter), no regressions
+
+---
+
 ## 2026-03-17 — Signal Arbitration v1.0: Deterministic CoS Signal Selection
 
 **Purpose:** Replace LLM-driven signal selection with deterministic arbitration. The system now selects which signal to surface before the LLM sees the prompt — the LLM narrates, it does not choose.

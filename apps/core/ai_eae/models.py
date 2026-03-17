@@ -190,6 +190,22 @@ class ExtractedFact(models.Model):
         default='',
         help_text="Suggested domain for signal mapping",
     )
+
+    # Phase 6B: Intent signal hook
+    INTENT_TYPE_CHOICES = [
+        ('bill_due', 'Bill Due — financial urgency'),
+        ('schedule_commitment', 'Schedule Commitment — time block'),
+        ('recurring_obligation', 'Recurring Obligation — subscription/payment'),
+    ]
+
+    intent_type = models.CharField(
+        max_length=30,
+        blank=True,
+        default='',
+        choices=INTENT_TYPE_CHOICES,
+        help_text="Semantic intent for signal metadata enrichment",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

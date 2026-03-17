@@ -650,3 +650,434 @@ class IdempotencyTests(TestCase):
         # Should have been skipped entirely
         self.assertEqual(stats['emails_classified'], 0)
         self.assertEqual(stats['facts_created'], 0)
+
+
+# =========================================================================
+# 10. Learning Override Tests
+# =========================================================================
+
+class LearningOverrideTests(TestCase):
+    """Test EmailClassificationFeedback learning hook."""
+
+    def setUp(self):
+        self.user = _create_test_user('test-learning@example.com')
+
+    def test_learned_keep_sender_overrides_rules(self):
+        """A learned KEEP sender bypasses all rule checks."""
+        from apps.life.models import EmailClassificationFeedback
+        from apps.life.services.email_classifier import classify_email
+
+        # This sender would normally be SKIP (noreply pattern)
+        EmailClassificationFeedback.objects.create(
+            user=self.user,
+            sender='noreply@important-bank.com',
+            original_classification='skip',
+            corrected_classification='keep',
+        )
+
+        email = _make_email(sender='noreply@important-bank.com')
+        result = classify_email(email, user=self.user)
+        self.assertEqual(result['classification'], 'keep')
+        self.assertEqual(result['method'], 'learned')
+
+    def test_learned_skip_sender_overrides_rules(self):
+        """A learned SKIP sender bypasses KEEP patterns."""
+        from apps.life.models import EmailClassificationFeedback
+        from apps.life.services.email_classifier import classify_email
+
+        # This would normally be KEEP (financial pattern)
+        EmailClassificationFeedback.objects.create(
+            user=self.user,
+            sender='spam@company.com',
+            original_classification='keep',
+            corrected_classification='skip',
+        )
+
+        email = _make_email(
+            sender='spam@company.com',
+            body='Your payment of $99.99 is due.',
+        )
+        result = classify_email(email, user=self.user)
+        self.assertEqual(result['classification'], 'skip')
+        self.assertEqual(result['method'], 'learned')
+
+    def test_no_override_without_user(self):
+        """Classifier works without user (dry run mode)."""
+        from apps.life.services.email_classifier import classify_email
+        email = _make_email(sender='noreply@company.com')
+        result = classify_email(email, user=None)
+        self.assertEqual(result['classification'], 'skip')
+        self.assertEqual(result['method'], 'rule')
+
+    def test_sender_normalized_to_lowercase(self):
+        """Sender is normalized to lowercase for matching."""
+        from apps.life.models import EmailClassificationFeedback
+        fb = EmailClassificationFeedback.objects.create(
+            user=self.user,
+            sender='Test@EXAMPLE.COM',
+            corrected_classification='keep',
+        )
+        fb.refresh_from_db()
+        self.assertEqual(fb.sender, 'test@example.com')
+
+    def test_feedback_model_unique_constraint(self):
+        """Same user + sender can't have duplicate feedback."""
+        from apps.life.models import EmailClassificationFeedback
+        from django.db import IntegrityError
+        EmailClassificationFeedback.objects.create(
+            user=self.user,
+            sender='test@example.com',
+            corrected_classification='keep',
+        )
+        with self.assertRaises(IntegrityError):
+            EmailClassificationFeedback.objects.create(
+                user=self.user,
+                sender='test@example.com',
+                corrected_classification='skip',
+            )
+
+
+# =========================================================================
+# 11. Transaction Fingerprint Tests
+# =========================================================================
+
+class TransactionFingerprintTests(TestCase):
+    """Test fingerprint-based transaction dedup."""
+
+    def setUp(self):
+        self.user = _create_test_user('test-fp@example.com')
+        from apps.finance.models import FinancialAccount
+        self.account = FinancialAccount.objects.create(
+            user=self.user,
+            name='Checking',
+            account_type='checking',
+        )
+
+    def test_compute_fingerprint_deterministic(self):
+        from apps.life.services.email_fact_service import _compute_fingerprint
+        fp1 = _compute_fingerprint('Netflix', 15.99, date(2026, 3, 17))
+        fp2 = _compute_fingerprint('Netflix', 15.99, date(2026, 3, 17))
+        self.assertEqual(fp1, fp2)
+
+    def test_fingerprint_normalized(self):
+        """Different casing/punctuation produces same fingerprint."""
+        from apps.life.services.email_fact_service import _compute_fingerprint
+        fp1 = _compute_fingerprint('Netflix Inc.', 15.99, date(2026, 3, 17))
+        fp2 = _compute_fingerprint('netflix inc', 15.99, date(2026, 3, 17))
+        self.assertEqual(fp1, fp2)
+
+    def test_fingerprint_different_amount_differs(self):
+        from apps.life.services.email_fact_service import _compute_fingerprint
+        fp1 = _compute_fingerprint('Netflix', 15.99, date(2026, 3, 17))
+        fp2 = _compute_fingerprint('Netflix', 25.99, date(2026, 3, 17))
+        self.assertNotEqual(fp1, fp2)
+
+    def test_fingerprint_blocks_duplicate_tx(self):
+        """Transaction with same fingerprint is not created."""
+        from apps.finance.models import Transaction
+        from apps.life.services.email_fact_service import (
+            _compute_fingerprint,
+            _create_email_transactions,
+        )
+        from apps.core.ai_eae.models import ExtractedFact
+        from apps.life.models import ProcessedEmail
+
+        fp = _compute_fingerprint('Netflix', 15.99, date.today())
+
+        # Pre-existing transaction with same fingerprint
+        Transaction.objects.create(
+            user=self.user,
+            account=self.account,
+            date=date.today(),
+            amount=Decimal('-15.99'),
+            description='Netflix',
+            source_type='import',
+            fingerprint=fp,
+        )
+
+        # Create fact for email transaction
+        pe = ProcessedEmail.objects.create(
+            user=self.user, gmail_message_id='fp_test_001',
+        )
+        ct = ContentType.objects.get_for_model(pe)
+
+        fact = ExtractedFact.objects.create(
+            user=self.user,
+            source_content_type=ct,
+            source_object_id=pe.pk,
+            source_type='email',
+            fact_type='amount',
+            structured_value={'value': 15.99, 'merchant': 'Netflix'},
+            confidence=0.7,
+            extracted_text='$15.99 Netflix',
+            effective_date=date.today(),
+        )
+
+        count = _create_email_transactions(self.user, [fact])
+        self.assertEqual(count, 0)
+
+
+# =========================================================================
+# 12. Receipt → Document Tests
+# =========================================================================
+
+class ReceiptDocumentTests(TestCase):
+    """Test receipt email → Document creation."""
+
+    def setUp(self):
+        self.user = _create_test_user('test-receipt@example.com')
+        from apps.finance.models import FinancialAccount
+        self.account = FinancialAccount.objects.create(
+            user=self.user,
+            name='Checking',
+            account_type='checking',
+        )
+
+    def test_receipt_detection(self):
+        from apps.life.services.email_fact_service import _is_receipt_email
+        from apps.core.ai_eae.models import ExtractedFact
+        from apps.life.models import ProcessedEmail
+
+        pe = ProcessedEmail.objects.create(
+            user=self.user, gmail_message_id='receipt_det_001',
+        )
+        ct = ContentType.objects.get_for_model(pe)
+
+        fact = ExtractedFact.objects.create(
+            user=self.user,
+            source_content_type=ct,
+            source_object_id=pe.pk,
+            source_type='email',
+            fact_type='amount',
+            structured_value={'value': 45.99},
+            confidence=0.7,
+            extracted_text='$45.99',
+        )
+
+        email = _make_email(subject='Your receipt from Amazon')
+        self.assertTrue(_is_receipt_email(email, [fact]))
+
+    def test_non_receipt_not_detected(self):
+        from apps.life.services.email_fact_service import _is_receipt_email
+        from apps.core.ai_eae.models import ExtractedFact
+        from apps.life.models import ProcessedEmail
+
+        pe = ProcessedEmail.objects.create(
+            user=self.user, gmail_message_id='no_receipt_001',
+        )
+        ct = ContentType.objects.get_for_model(pe)
+
+        fact = ExtractedFact.objects.create(
+            user=self.user,
+            source_content_type=ct,
+            source_object_id=pe.pk,
+            source_type='email',
+            fact_type='amount',
+            structured_value={'value': 45.99},
+            confidence=0.7,
+            extracted_text='$45.99',
+        )
+
+        email = _make_email(subject='Hey how are you?')
+        self.assertFalse(_is_receipt_email(email, [fact]))
+
+    def test_receipt_creates_document(self):
+        from apps.life.models import Document, ProcessedEmail
+        from apps.life.services.email_fact_service import (
+            _create_receipt_documents,
+        )
+        from apps.core.ai_eae.models import ExtractedFact
+
+        pe = ProcessedEmail.objects.create(
+            user=self.user,
+            gmail_message_id='doc_test_001',
+            received_date=timezone.now(),
+        )
+        ct = ContentType.objects.get_for_model(pe)
+
+        fact = ExtractedFact.objects.create(
+            user=self.user,
+            source_content_type=ct,
+            source_object_id=pe.pk,
+            source_type='email',
+            fact_type='amount',
+            structured_value={'value': 99.50},
+            confidence=0.7,
+            extracted_text='$99.50',
+        )
+
+        email = _make_email(
+            gmail_id='doc_test_001',
+            subject='Your receipt from Best Buy',
+            body='Thank you for your purchase of $99.50.',
+        )
+
+        count = _create_receipt_documents(
+            self.user, [(email, pe, [fact])],
+        )
+        self.assertEqual(count, 1)
+
+        doc = Document.objects.get(
+            user=self.user, source='email', source_id='doc_test_001',
+        )
+        self.assertEqual(doc.category, 'financial')
+        self.assertEqual(doc.subcategory, 'receipt')
+        self.assertEqual(doc.source, 'email')
+        self.assertIn('$99.50', doc.raw_text)
+
+    def test_no_duplicate_receipt_document(self):
+        from apps.life.models import Document, ProcessedEmail
+        from apps.life.services.email_fact_service import (
+            _create_receipt_documents,
+        )
+        from apps.core.ai_eae.models import ExtractedFact
+
+        pe = ProcessedEmail.objects.create(
+            user=self.user,
+            gmail_message_id='dup_doc_001',
+            received_date=timezone.now(),
+        )
+        ct = ContentType.objects.get_for_model(pe)
+
+        fact = ExtractedFact.objects.create(
+            user=self.user,
+            source_content_type=ct,
+            source_object_id=pe.pk,
+            source_type='email',
+            fact_type='amount',
+            structured_value={'value': 50.00},
+            confidence=0.7,
+            extracted_text='$50.00',
+        )
+
+        email = _make_email(
+            gmail_id='dup_doc_001',
+            subject='Receipt for order',
+            body='$50.00 payment.',
+        )
+
+        # First call creates
+        _create_receipt_documents(self.user, [(email, pe, [fact])])
+        # Second call skips
+        count = _create_receipt_documents(
+            self.user, [(email, pe, [fact])],
+        )
+        self.assertEqual(count, 0)
+        self.assertEqual(
+            Document.objects.filter(
+                user=self.user, source='email', source_id='dup_doc_001',
+            ).count(),
+            1,
+        )
+
+
+# =========================================================================
+# 13. Intent Type Tests
+# =========================================================================
+
+class IntentTypeTests(TestCase):
+    """Test intent_type assignment on ExtractedFact."""
+
+    def setUp(self):
+        self.user = _create_test_user('test-intent@example.com')
+
+    def test_obligation_gets_bill_due(self):
+        from apps.life.services.email_fact_service import _assign_intent_types
+        from apps.core.ai_eae.models import ExtractedFact
+        from apps.life.models import ProcessedEmail
+
+        pe = ProcessedEmail.objects.create(
+            user=self.user, gmail_message_id='intent_001',
+        )
+        ct = ContentType.objects.get_for_model(pe)
+
+        fact = ExtractedFact.objects.create(
+            user=self.user,
+            source_content_type=ct,
+            source_object_id=pe.pk,
+            source_type='email',
+            fact_type='obligation',
+            structured_value={'amount': 100, 'description': 'Electric bill'},
+            confidence=0.7,
+            extracted_text='bill of $100',
+        )
+
+        _assign_intent_types([fact])
+        fact.refresh_from_db()
+        self.assertEqual(fact.intent_type, 'bill_due')
+
+    def test_appointment_gets_schedule_commitment(self):
+        from apps.life.services.email_fact_service import _assign_intent_types
+        from apps.core.ai_eae.models import ExtractedFact
+        from apps.life.models import ProcessedEmail
+
+        pe = ProcessedEmail.objects.create(
+            user=self.user, gmail_message_id='intent_002',
+        )
+        ct = ContentType.objects.get_for_model(pe)
+
+        fact = ExtractedFact.objects.create(
+            user=self.user,
+            source_content_type=ct,
+            source_object_id=pe.pk,
+            source_type='email',
+            fact_type='appointment',
+            structured_value={'provider': 'Dr. Smith', 'datetime': '2026-03-20'},
+            confidence=0.8,
+            extracted_text='appointment on March 20',
+        )
+
+        _assign_intent_types([fact])
+        fact.refresh_from_db()
+        self.assertEqual(fact.intent_type, 'schedule_commitment')
+
+    def test_subscription_gets_recurring_obligation(self):
+        from apps.life.services.email_fact_service import _assign_intent_types
+        from apps.core.ai_eae.models import ExtractedFact
+        from apps.life.models import ProcessedEmail
+
+        pe = ProcessedEmail.objects.create(
+            user=self.user, gmail_message_id='intent_003',
+        )
+        ct = ContentType.objects.get_for_model(pe)
+
+        fact = ExtractedFact.objects.create(
+            user=self.user,
+            source_content_type=ct,
+            source_object_id=pe.pk,
+            source_type='email',
+            fact_type='subscription',
+            structured_value={'service': 'Netflix', 'amount': 15.99},
+            confidence=0.75,
+            extracted_text='Netflix subscription $15.99',
+        )
+
+        _assign_intent_types([fact])
+        fact.refresh_from_db()
+        self.assertEqual(fact.intent_type, 'recurring_obligation')
+
+    def test_amount_has_no_intent(self):
+        """Plain amount facts don't get intent_type."""
+        from apps.life.services.email_fact_service import _assign_intent_types
+        from apps.core.ai_eae.models import ExtractedFact
+        from apps.life.models import ProcessedEmail
+
+        pe = ProcessedEmail.objects.create(
+            user=self.user, gmail_message_id='intent_004',
+        )
+        ct = ContentType.objects.get_for_model(pe)
+
+        fact = ExtractedFact.objects.create(
+            user=self.user,
+            source_content_type=ct,
+            source_object_id=pe.pk,
+            source_type='email',
+            fact_type='amount',
+            structured_value={'value': 42.00},
+            confidence=0.7,
+            extracted_text='$42.00',
+        )
+
+        _assign_intent_types([fact])
+        fact.refresh_from_db()
+        self.assertEqual(fact.intent_type, '')

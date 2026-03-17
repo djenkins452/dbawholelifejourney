@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-17 — Phase 6B Completion: Learning Hook, Fingerprint Dedup, Receipt Documents, Intent Signals
+
+**Purpose:** Complete Phase 6B with missing production features: learning overrides, transaction fingerprinting, receipt-to-document creation, and intent signal hooks.
+
+**New features:**
+- **EmailClassificationFeedback model** — Per-user sender → classification overrides. Learned senders checked before rules in classifier. Normalized to lowercase.
+- **Transaction fingerprint dedup** — `Transaction.fingerprint` field (indexed, SHA-256 of normalized merchant + rounded amount + 3-day date bucket). Blocks duplicate transactions across sources.
+- **Receipt → Document creation** — Receipt emails auto-create Document records (category=financial, subcategory=receipt, source=email). Email body stored in raw_text. Transaction linked via `receipt_document` FK.
+- **Intent signal hook** — `ExtractedFact.intent_type` field: obligation→bill_due, appointment→schedule_commitment, subscription→recurring_obligation. Enriches signal metadata.
+- **Document source tracking** — New fields: `source` (upload/email/scan), `source_id`, `subcategory` on Document model.
+
+**Files changed:**
+- `apps/life/models.py` — EmailClassificationFeedback model + Document source/subcategory fields
+- `apps/life/services/email_classifier.py` — Learning override integration (_check_learned_sender), classify_email now accepts user param
+- `apps/life/services/email_fact_service.py` — Full rewrite: fingerprint dedup, receipt→Document, intent_type assignment, receipt detection
+- `apps/core/ai_eae/models.py` — ExtractedFact.intent_type field (3 choices)
+- `apps/finance/models.py` — Transaction.fingerprint + Transaction.receipt_document FK
+- `apps/life/migrations/0029_phase6b_completion.py` — EmailClassificationFeedback + Document fields
+- `apps/finance/migrations/0017_phase6b_tx_fingerprint.py` — Transaction fingerprint + receipt_document
+- `apps/core/ai_eae/migrations/0005_phase6b_intent_type.py` — ExtractedFact.intent_type
+- `apps/life/tests/test_phase6b_email_pipeline.py` — 17 new tests (51 total): learning overrides, fingerprint dedup, receipt documents, intent types
+
+**Tests:** 51 Phase 6B tests pass, 33 Phase 6A regression tests pass.
+
+---
+
 ## 2026-03-17 — Phase 6B: Email Intelligence Pipeline
 
 **Purpose:** Extend the Knowledge Intelligence Pipeline to emails: Email → Classification → ExtractedFacts → Signals → Patterns → CoS. Runs parallel to existing task extraction pipeline. Email bodies are never stored.

@@ -6,6 +6,35 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Phase 5.5: Capture & Document Signal Extraction Layer
+
+**Purpose:** Convert Capture transcripts and Document metadata into behavioral signals using the existing signal taxonomy. Signals flow into SignalSnapshots via targeted recompute (same-cycle, ~60s) rather than waiting for nightly aggregation.
+
+**Architecture:**
+- **LLM role constraint:** LLM is ONLY a "structured candidate extractor" — it NEVER assigns signals, scores, or writes to the signal pipeline. All trust decisions are deterministic.
+- **Capture extraction:** LLM extracts candidates from transcripts → deterministic validation (signal_type, confidence threshold ≥0.6, domain mapping) → CaptureSignal records → targeted recompute → SignalSnapshot (inferred_behavior, discount=0.6)
+- **Document extraction:** Hybrid Tier 1 (category rules + keyword regex) + Tier 2 (conditional LLM for descriptions ≥100 chars) → DocumentSignal records → targeted recompute → SignalSnapshot (inferred_behavior, LLM discount=0.5, rule discount=0.4)
+- **Negative behavior detection:** "I skipped my workout" → health_activity direction=negative, score inverted (1.0 - discounted_confidence)
+- **Confidence hierarchy:** verified (1.0) > journal (0.7) > capture (0.6) > document_llm (0.5) > document_rule (0.4). Lower-confidence sources never override higher.
+- **Source attribution:** SignalSnapshot.metadata stores extraction source for audit trail.
+
+**New files:**
+- `apps/capture/services/signal_extractor.py` — CaptureSignalExtractor (LLM + deterministic validation)
+- `apps/life/services/document_signal_extractor.py` — DocumentSignalExtractor (hybrid rule + LLM)
+- `apps/core/ai_eae/targeted_recompute.py` — TargetedSignalRecomputeService + telemetry
+- `apps/core/ai_eae/tests/test_extraction_layer.py` — 26 tests across 5 test classes
+- `apps/capture/migrations/0005_phase55_extraction_signals.py` — CaptureSignal model
+- `apps/life/migrations/0026_phase55_extraction_signals.py` — DocumentSignal model
+
+**Modified files:**
+- `apps/capture/models.py` — Added CaptureSignal model (entry FK, signal_type, domain, confidence, direction, extractor_type)
+- `apps/life/models.py` — Added DocumentSignal model (document FK, same fields)
+- `apps/core/ai_eae/signal_aggregation.py` — Added `_blend_extraction_signals()` for nightly aggregation path
+- `apps/capture/tasks.py` — Added extraction dispatch after capture processing + Celery task
+- `apps/life/signals.py` — Added post_save handler for Document → synchronous extraction + recompute
+
+**Tests:** 26 tests passing — CaptureValidationTests (8), DocumentExtractionTests (6), TargetedRecomputeTests (8), NightlyBlendTests (1), ConfidenceHierarchyTests (3)
+
 ## 2026-03-16 — UX: Expand chat input to multi-line textarea
 
 **Change:** Replaced single-line `<input type="text">` with `<textarea rows="3">` for both desktop and mobile chat inputs. Users can now see 3-4 lines of text while composing messages. Shift+Enter inserts newlines; Enter sends.

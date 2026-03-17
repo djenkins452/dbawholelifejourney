@@ -1300,6 +1300,63 @@ class Document(UserOwnedModel):
 
 
 # =============================================================================
+# Phase 5.5: Document Signal Extraction
+# =============================================================================
+
+class DocumentSignal(models.Model):
+    """
+    Extraction candidate from document metadata.
+
+    Created by DocumentSignalExtractor (hybrid rule-based + conditional LLM).
+    Blended into SignalSnapshots by _blend_document_signals().
+    Lowest confidence tier in the hierarchy.
+    """
+
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name='extraction_signals',
+    )
+    signal_type = models.CharField(
+        max_length=30,
+        help_text='Signal taxonomy type (e.g., health_activity, cognitive_fitness)',
+    )
+    domain = models.CharField(
+        max_length=20,
+        help_text='LifeDomain slug (e.g., health, brain_training)',
+    )
+    confidence = models.FloatField(
+        help_text='Extraction confidence 0.0-1.0',
+    )
+    extracted_text = models.TextField(
+        help_text='The text or category that indicates this signal',
+    )
+    direction = models.CharField(
+        max_length=10,
+        choices=[('positive', 'Positive'), ('negative', 'Negative')],
+        default='positive',
+        help_text='Signal direction',
+    )
+    extractor_type = models.CharField(
+        max_length=30,
+        help_text='Which extractor produced this (category_rule, keyword_rule, llm)',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['document', 'signal_type']),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return (
+            f"DocumentSignal({self.signal_type}, {self.confidence:.2f}) "
+            f"for document {self.document_id}"
+        )
+
+
+# =============================================================================
 # Google Calendar Integration
 # =============================================================================
 

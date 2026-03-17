@@ -466,3 +466,64 @@ class PendingCapture(TimeStampedModel):
         from django.utils import timezone
         self.last_heartbeat_at = timezone.now()
         self.save(update_fields=['last_heartbeat_at'])
+
+
+# =============================================================================
+# Phase 5.5: Capture Signal Extraction
+# =============================================================================
+
+class CaptureSignal(models.Model):
+    """
+    NLP-extracted behavioral signal candidate from a capture transcript.
+
+    Created by CaptureSignalExtractor: LLM proposes candidates, deterministic
+    validation layer filters/maps them. These records are blended into
+    SignalSnapshots by _blend_capture_signals() during signal aggregation.
+
+    The LLM never writes signals directly — this model stores validated
+    intermediate extraction results only.
+    """
+
+    entry = models.ForeignKey(
+        CaptureEntry,
+        on_delete=models.CASCADE,
+        related_name='extraction_signals',
+    )
+    signal_type = models.CharField(
+        max_length=30,
+        help_text='Signal taxonomy type (e.g., health_activity, faith_practice)',
+    )
+    domain = models.CharField(
+        max_length=20,
+        help_text='LifeDomain slug (e.g., health, faith)',
+    )
+    confidence = models.FloatField(
+        help_text='Validated extraction confidence 0.0-1.0',
+    )
+    extracted_text = models.TextField(
+        help_text='The phrase from the transcript indicating this behavior',
+    )
+    direction = models.CharField(
+        max_length=10,
+        choices=[('positive', 'Positive'), ('negative', 'Negative')],
+        default='positive',
+        help_text='Positive = behavior occurred, Negative = skipped/missed',
+    )
+    extractor_type = models.CharField(
+        max_length=30,
+        help_text='Which extractor produced this (emotional_tone, health_behavior, etc.)',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['entry', 'signal_type']),
+            models.Index(fields=['entry', 'created_at']),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return (
+            f"CaptureSignal({self.signal_type}, {self.confidence:.2f}, "
+            f"{self.direction}) for entry {self.entry_id}"
+        )

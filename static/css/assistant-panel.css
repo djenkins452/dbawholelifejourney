@@ -2094,7 +2094,7 @@ body.has-desktop-nav .desktop-main-area {
     resize: none;
     line-height: 1.4;
     font-family: inherit;
-    min-height: 60px;
+    min-height: 76px;
 }
 
 /* iOS zoom prevention */
@@ -2110,6 +2110,16 @@ body.has-desktop-nav .desktop-main-area {
 
 .ap-chat-input:focus {
     border-color: var(--color-accent, #b8860b);
+}
+
+/* Vertical stack for voice + send buttons beside textarea */
+.ap-action-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
 }
 
 .ap-send-btn {

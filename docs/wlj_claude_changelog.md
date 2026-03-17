@@ -6,79 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-## 2026-03-17 — Phase 6A: Document Intelligence + Extracted Fact Layer
+## 2026-03-16 — UX: Stack voice/send buttons vertically beside chat textarea
 
-**Purpose:** Upgrade documents from metadata-only signals to full content extraction pipeline: Document → raw content → extracted facts → signals → patterns → CoS. This is the foundation of the Knowledge Intelligence Pipeline.
+**Change:** Wrapped the microphone and send buttons in a vertical `.ap-action-stack` container (mic on top, send below). This frees horizontal space so the textarea can stretch wider. Also bumped textarea to `rows="4"` and `min-height: 76px`.
 
-**Architecture (Raw Content → Facts → Signals → Patterns → CoS):**
-- **Content extraction:** Async Celery task downloads file from storage, runs PDFTextExtractor (pdfplumber) or OCR (pytesseract), stores `raw_text` on Document. Hash-based dedup prevents re-extraction.
-- **Fact extraction:** LLM extracts structured candidates → deterministic validation (type, confidence ≥0.6, structured_value schema) → ExtractedFact records. 6 initial fact types: amount, appointment, person, medication, obligation, subscription.
-- **Confidence model:** `final_confidence = LLM_confidence × source_weight (0.7)`. Facts are lower trust than verified data.
-- **Fact → Signal mapping:** Deterministic rules — amount/obligation/subscription→financial_health, appointment→health_activity, medication→medication_adherence. Blends into SignalSnapshots via targeted recompute.
-- **Transaction creation:** Financial facts from financial/tax/insurance documents create Transaction records (with source_type='document').
-- **Observability:** Two telemetry streams — content extraction (by method: text/ocr) and fact extraction (facts/signals/transactions created).
-
-**New models:**
-- `ExtractedFact` (apps/core/ai_eae/models.py) — Structured fact with GenericForeignKey to source, JSONField structured_value, 6 fact types
-- `Document` extensions — raw_text, extraction_status, extraction_quality, extracted_at, content_hash
-- `Transaction` extensions — source_type, source_id fields
-
-**New files:**
-- `apps/core/extraction/__init__.py` + `content_extractor.py` — Shared content extraction (reuses medical PDF/OCR extractors)
-- `apps/life/services/document_fact_extractor.py` — LLM fact extraction + deterministic validation
-- `apps/core/ai_eae/fact_signal_mapper.py` — Deterministic fact→signal mapping + Transaction creation
-- `apps/life/tasks/document_extraction.py` — Async Celery tasks for content + fact pipeline
-- `apps/core/ai_eae/tests/test_phase6a_pipeline.py` — 33 tests across 8 test classes
-
-**Modified files:**
-- `apps/life/models.py` — Document model: 5 new content extraction fields
-- `apps/core/ai_eae/models.py` — Added ExtractedFact model
-- `apps/finance/models.py` — Transaction: source_type + source_id fields
-- `apps/life/signals.py` — Added Phase 6A content extraction dispatch on Document post_save
-
-**Tests:** 33 tests passing — ContentExtractorTests (5), ExtractedFactModelTests (2), FactExtractionTests (7), FactSignalMappingTests (6), RecomputeIntegrationTests (2), TransactionCreationTests (3), DocumentPipelineTests (3), IdempotencyTests (2), DocumentModelTests (3)
-## 2026-03-17 — Fix Beth/CoS data mismatch: stale weight from HealthKit, wrong task ordering
-
-**Root cause (weight):** Apple Health / mobile HealthKit sync created WeightEntry records but never called `fire_intelligence()` to update the SAE state snapshot. Beth read stale weight from `UserState.state_data` while the UI read live from the database. Example: Beth said 305.1 lbs while the Weight page showed 301.2 lb.
-
-**Root cause (tasks):** CoS context builder queried active task titles with `order_by('-due_date')[:15]`. PostgreSQL DESC puts NULLs first, so Someday tasks (no due_date) dominated the list. Now/Soon tasks were pushed to the end and excluded by the limit of 15. The "AUTHORITATIVE" injection label then told the LLM these were the ONLY tasks, suppressing mention of urgent items.
-
-**Fix A — Mobile SAE update:**
-- `apps/mobile/views.py` — Added `fire_intelligence(user, "health")` after HealthKit metrics are processed. Triggers SAE state rebuild so Beth reads fresh weight/health data after every Apple Health sync.
-
-**Fix B — Task title ordering:**
-- `apps/core/ai_orchestrator/cos_context.py` — Changed task title query from `order_by('-due_date')[:15]` to priority-first ordering (`now=0, soon=1, someday=2`) matching the UI's Task page sort. Increased limit from 15 to 25 to cover more of the active task list.
+**Files:**
+- `templates/components/assistant_panel.html` — Wrap buttons in `.ap-action-stack` div (desktop + mobile)
+- `static/css/assistant-panel.css` — Add `.ap-action-stack` flex-column layout; increase textarea min-height
 
 ---
-
-## 2026-03-16 — Phase 5.5: Capture & Document Signal Extraction Layer
-
-**Purpose:** Convert Capture transcripts and Document metadata into behavioral signals using the existing signal taxonomy. Signals flow into SignalSnapshots via targeted recompute (same-cycle, ~60s) rather than waiting for nightly aggregation.
-
-**Architecture:**
-- **LLM role constraint:** LLM is ONLY a "structured candidate extractor" — it NEVER assigns signals, scores, or writes to the signal pipeline. All trust decisions are deterministic.
-- **Capture extraction:** LLM extracts candidates from transcripts → deterministic validation (signal_type, confidence threshold ≥0.6, domain mapping) → CaptureSignal records → targeted recompute → SignalSnapshot (inferred_behavior, discount=0.6)
-- **Document extraction:** Hybrid Tier 1 (category rules + keyword regex) + Tier 2 (conditional LLM for descriptions ≥100 chars) → DocumentSignal records → targeted recompute → SignalSnapshot (inferred_behavior, LLM discount=0.5, rule discount=0.4)
-- **Negative behavior detection:** "I skipped my workout" → health_activity direction=negative, score inverted (1.0 - discounted_confidence)
-- **Confidence hierarchy:** verified (1.0) > journal (0.7) > capture (0.6) > document_llm (0.5) > document_rule (0.4). Lower-confidence sources never override higher.
-- **Source attribution:** SignalSnapshot.metadata stores extraction source for audit trail.
-
-**New files:**
-- `apps/capture/services/signal_extractor.py` — CaptureSignalExtractor (LLM + deterministic validation)
-- `apps/life/services/document_signal_extractor.py` — DocumentSignalExtractor (hybrid rule + LLM)
-- `apps/core/ai_eae/targeted_recompute.py` — TargetedSignalRecomputeService + telemetry
-- `apps/core/ai_eae/tests/test_extraction_layer.py` — 26 tests across 5 test classes
-- `apps/capture/migrations/0005_phase55_extraction_signals.py` — CaptureSignal model
-- `apps/life/migrations/0026_phase55_extraction_signals.py` — DocumentSignal model
-
-**Modified files:**
-- `apps/capture/models.py` — Added CaptureSignal model (entry FK, signal_type, domain, confidence, direction, extractor_type)
-- `apps/life/models.py` — Added DocumentSignal model (document FK, same fields)
-- `apps/core/ai_eae/signal_aggregation.py` — Added `_blend_extraction_signals()` for nightly aggregation path
-- `apps/capture/tasks.py` — Added extraction dispatch after capture processing + Celery task
-- `apps/life/signals.py` — Added post_save handler for Document → synchronous extraction + recompute
-
-**Tests:** 26 tests passing — CaptureValidationTests (8), DocumentExtractionTests (6), TargetedRecomputeTests (8), NightlyBlendTests (1), ConfidenceHierarchyTests (3)
 
 ## 2026-03-16 — Ops Wall: Fix CoS Context STALE, 0% cache hit, and false Signal Health DEGRADED
 

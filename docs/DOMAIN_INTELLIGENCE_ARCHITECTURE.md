@@ -439,6 +439,49 @@ No direct UAIO intents — workout data logged via existing fitness handlers.
 
 ---
 
+## Domain 13: Tasks
+
+**App:** `apps/life/`
+**Key Model:** `Task` — title, priority (now/soon/someday), due_date, scheduled_date, completion_status, completed_at
+**Service:** `apps/life/services/task_queries.py` — TaskQueries (pending, overdue, due_within, completed_since)
+
+### PIE Rules
+
+| Rule | Type | Trigger |
+|------|------|---------|
+| `TaskOverduePatternRule` | warning | 2+ overdue tasks (due_date < today, pending) |
+| `TaskStallRule` | info | No completions in 5+ days with pending tasks |
+| `TaskDueTodayRule` | info | Tasks due today (by due_date or scheduled_date), top 5 by priority |
+
+**File:** `apps/core/ai_insights/rules_tasks.py`
+**Trigger:** `event_type == "scheduled_check"` (batch via ISE)
+**Evidence:** All rules include `task_id` and `task_title` for entity tracing.
+
+### PRIE Predictions
+
+| Rule | Type | Trigger |
+|------|------|---------|
+| `TaskOverdueRiskRule` | task_overdue_risk | Tasks with due_date in next 3 days |
+
+**File:** `apps/core/ai_predictions/prediction_rules_tasks.py`
+**Model:** Velocity-based — 14-day completion rate predicts miss probability. Adjusted by days remaining (due today = 1.5x multiplier).
+**Trigger:** `event_type == "scheduled_check"` (batch via ISE)
+
+### SAE State
+
+No dedicated SAE state builder yet. Tasks are queried live in CoS context via `task_queries.py`.
+
+### PGE Guidance
+
+No guidance rules yet. Candidate: task prioritization coaching when >5 now-priority tasks.
+
+### Known Limitations
+
+- **Event-driven triggers:** `Task.mark_complete()` fires `fire_intelligence()` with `self.module` (e.g., "health", not "life"), so event-driven PIE/PRIE rules would miss most tasks. Current rules are scheduled-only. See Phase 2.5 in plan for fix.
+- **CoS task context:** Task IDs are TEMPORARILY included in CoS authoritative task list for entity resolution. Will be removed once signal-driven insights fully replace raw task injection.
+
+---
+
 ## Domain Integration Summary
 
 | Domain | SAE State | PIE Rules | PRIE Rules | PGE Rules | UAIO Intents | SLCME Context |
@@ -454,8 +497,9 @@ No direct UAIO intents — workout data logged via existing fitness handlers.
 | Fasting | `fasting` | 1 | 0 | `fasting_optimization` | — | — |
 | Fitness | `fitness` | 2 | 1 (2 horizons) | `workout_frequency` | — | — |
 | Transformation | `transformation` | 1 | 1 | `transformation_coaching` | `log_transformation_protocol` | — |
+| **Tasks** | — | **3** | **1** | — | `create_task`, `complete_task`, `mutate_task` | — |
 | Cross-module | — | — | — | `positive_reinforcement` | — | — |
-| **Total** | **9 modules** | **20** | **9** | **9** | — | — |
+| **Total** | **9 modules** | **23** | **10** | **9** | — | — |
 
 ---
 
@@ -477,4 +521,4 @@ When adding a new domain module to WLJ:
 
 ---
 
-*Last updated: 2026-02-17 — Added Nutrition, Fasting, Fitness, Transformation domains (4 SAE builders, 7 PIE rules, 3 PRIE rules, 4 PGE rules)*
+*Last updated: 2026-03-17 — Added Tasks domain (3 PIE rules, 1 PRIE rule) + PendingAction bridge for proactive check-ins*

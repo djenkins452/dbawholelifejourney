@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-15 (Moved Ops Stream telemetry off HTTP request path; SAME cycle now builds and caches full OpsStreamView payload)
+**Last updated:** 2026-03-17 (Signal Pipeline: Task intelligence rules + PendingAction bridge for proactive check-ins)
 
 ---
 
@@ -752,7 +752,7 @@ When the user asks a health intelligence question with a brevity keyword ("keep 
 | `apps/core/ai_orchestrator/crud_confirmation.py` | CRUD Confirmation Gate (A/B/C structured options + legacy text parsing) | ~340 |
 | `apps/core/ai_orchestrator/action_policy.py` | Centralized ACTION_POLICY (50+ intents, risk/category/authority enums, rate limiter) | ~375 |
 | `apps/core/ai_orchestrator/decision_memory.py` | Decision memory (confidence tracking, decay, suggestion reordering) | ~120 |
-| `apps/core/ai_governance/models.py` | PendingAction + UserDecisionPreference models | ~630 |
+| `apps/core/ai_governance/models.py` | PendingAction (incl. `proactive_checkin` type) + UserDecisionPreference models | ~630 |
 | `apps/core/ai_orchestrator/commitment_contract.py` | ECC commitment tracking | ~1,678 |
 | `apps/ai/personal_assistant.py` | Main assistant, send_message() | ~6,500 |
 | `apps/ai/deterministic_router.py` | LLM-last shared routing layer (8 data routes, domain scoping, memory gating, feature flags) | ~470 |
@@ -775,6 +775,8 @@ When the user asks a health intelligence question with a brevity keyword ("keep 
 | `apps/core/ai_insights/health/sleep_analysis.py` | PIE — deterministic sleep analysis + PIE rule |
 | `apps/core/ai_insights/health/user_context.py` | PIE — health user context for analysis personalization |
 | `apps/core/ai_insights/health/reference_ranges.py` | PIE — clinical reference ranges (sleep, vitals) |
+| `apps/core/ai_insights/rules_tasks.py` | PIE — task insight rules (overdue, stall, due-today) |
+| `apps/core/ai_predictions/prediction_rules_tasks.py` | PRIE — task prediction rules (deadline miss risk) |
 | `apps/core/ai_predictions/prediction_engine.py` | PRIE — predictions |
 | `apps/core/ai_guidance/guidance_engine.py` | PGE — guidance |
 | `apps/core/ai_scheduler/scheduler_engine.py` | ISE — scheduler (dispatches to Celery) |

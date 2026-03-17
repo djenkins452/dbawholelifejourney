@@ -1127,6 +1127,10 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                 logger.warning("Affirmation detection failed", exc_info=True)
 
             # First, check for proactive check-in responses (e.g., "yes" to "Did you take your medicine?")
+            # Also captures entity context (task_id, etc.) from PendingAction
+            # when the response isn't a simple yes/no so intent recognition
+            # can skip fragile title text-matching.
+            _proactive_entity_context = None
             if not response:
                 proactive_result = handle_proactive_confirmation(self.user, message)
             else:
@@ -1140,6 +1144,10 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                         'success': True,
                         'created': action_result.get('data'),
                     })
+            elif proactive_result and not proactive_result.get('handled'):
+                # Not a simple yes/no, but entity context is available from
+                # PendingAction. Store it so intent recognition can use it.
+                _proactive_entity_context = proactive_result.get('pending_context')
             # During active calibration, skip action intent recognition.
             # The AI should only listen and ask questions, not log data.
             # Exception: calibration intents (pause/complete) still work.
@@ -1406,6 +1414,28 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
 
                     # Filter out no_action results
                     actionable_intents = [ir for ir in intent_results if ir.intent_type != 'no_action']
+
+                    # ── Inject proactive entity context into intent parameters ──
+                    # When the user responds to a proactive check-in with a complex
+                    # request (e.g., "B, 8:30am today"), the PendingAction holds the
+                    # entity_id. Inject it into matching intent parameters so the
+                    # action handler can resolve by ID instead of title matching.
+                    if _proactive_entity_context and actionable_intents:
+                        _entity_task_id = _proactive_entity_context.get('task_id')
+                        if _entity_task_id:
+                            for ir in actionable_intents:
+                                if ir.intent_type in (
+                                    'complete_task', 'skip_task', 'mutate_task',
+                                ):
+                                    # Inject as _resolved_id — the existing pattern
+                                    # that action handlers use to skip text matching
+                                    if not ir.parameters.get('_resolved_id'):
+                                        ir.parameters['_resolved_id'] = _entity_task_id
+                                        ir.parameters['_from_proactive_context'] = True
+                                        logger.info(
+                                            "PROACTIVE_ENTITY_INJECT user=%s task_id=%s intent=%s",
+                                            self.user.id, _entity_task_id, ir.intent_type,
+                                        )
 
                     # Domain mismatch telemetry (non-blocking)
                     self._log_intent_domain_mismatch(

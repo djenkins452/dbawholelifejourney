@@ -1005,11 +1005,125 @@ class ProactiveCheckInService:
 
         logger.debug(f"Created proactive check-in for user {self.user.id}: {message_type}")
 
+        # ── Create PendingAction for entity-bearing check-ins ──
+        # This bridges proactive check-ins to the confirmation pipeline so
+        # natural language responses (not just button clicks) can resolve
+        # back to the correct entity (task, medication, etc.).
+        self._create_pending_action_for_checkin(message, metadata, quick_replies)
+
         # ── Route through DNE for push/SMS/email delivery ──
         check_in_type = (metadata or {}).get('check_in_type', '')
         self._route_through_dne(message, check_in_type, content)
 
         return message
+
+    # ── Entity reference keys that indicate a check-in targets a specific record ──
+    _ENTITY_KEYS = ('task_id', 'medication_id', 'med_id', 'goal_id', 'habit_id')
+
+    # Map check_in_type → default intent_type for PendingAction
+    _CHECKIN_INTENT_MAP = {
+        'task_overdue': 'complete_task',
+        'nn_skip_streak': 'complete_task',
+        'medicine_reminder': 'log_medicine',
+        'medicine_missed': 'log_medicine',
+        'goal_deadline': 'update_goal',
+    }
+
+    def _create_pending_action_for_checkin(self, message, metadata, quick_replies):
+        """
+        Create a PendingAction when a proactive check-in references a specific entity.
+
+        This bridges the proactive check-in flow to the confirmation pipeline so
+        natural language responses (e.g., "B, 8:30am today") can resolve the entity
+        via PendingAction instead of fragile title text-matching.
+
+        Selection rule for multiple check-ins: latest pending wins (same strategy
+        as the CRUD PendingAction pattern).
+        """
+        if not metadata:
+            return
+
+        # Detect entity reference in metadata
+        entity_key = None
+        entity_id = None
+        for key in self._ENTITY_KEYS:
+            if key in metadata and metadata[key]:
+                entity_key = key
+                entity_id = metadata[key]
+                break
+
+        if not entity_id:
+            return  # No entity reference — nothing to bind
+
+        check_in_type = metadata.get('check_in_type', '')
+        intent_type = self._CHECKIN_INTENT_MAP.get(check_in_type, 'complete_task')
+
+        try:
+            import uuid as _uuid
+            from datetime import timedelta as _td
+            from django.core.cache import cache
+            from apps.core.ai_governance.models import PendingAction
+
+            action_id = str(_uuid.uuid4())
+            expires_at = timezone.now() + _td(hours=4)
+
+            # Build parameters with entity reference
+            parameters = {
+                entity_key: entity_id,
+                'check_in_type': check_in_type,
+                'proactive_message_id': message.id,
+            }
+            # Add task_title if available for display purposes
+            if 'task_id' in metadata:
+                parameters['task_title'] = metadata.get('task_title', '')
+
+            # Map quick_replies to PendingAction options
+            options = []
+            for reply in (quick_replies or []):
+                options.append({
+                    'key': reply.get('id', ''),
+                    'label': reply.get('label', ''),
+                    'action': reply.get('action', ''),
+                    'params': reply.get('params', {}),
+                })
+
+            # Dual-write: cache (fast lookup) + DB (durability)
+            cache_key = f"pending_proactive_{self.user.id}"
+            cache_data = {
+                'action_id': action_id,
+                'intent_type': intent_type,
+                'parameters': parameters,
+                'options': options,
+                'check_in_type': check_in_type,
+            }
+            cache.set(cache_key, cache_data, timeout=4 * 3600)  # 4 hours
+
+            PendingAction.objects.create(
+                id=action_id,
+                user=self.user,
+                action_type='proactive_checkin',
+                intent_type=intent_type,
+                parameters=parameters,
+                options=options,
+                confirmation_message=message.content[:500],
+                expires_at=expires_at,
+            )
+
+            # Store reference back in message metadata
+            message.metadata['pending_action_id'] = action_id
+            message.save(update_fields=['metadata'])
+
+            logger.debug(
+                "PROACTIVE_PENDING_ACTION user=%s action_id=%s entity=%s:%s type=%s",
+                self.user.id, action_id, entity_key, entity_id, check_in_type,
+            )
+
+        except Exception as e:
+            # PendingAction creation must never break proactive check-ins
+            logger.error(
+                "Failed to create PendingAction for proactive check-in "
+                "user=%s: %s", self.user.id, e, exc_info=True,
+            )
 
     def _route_through_dne(self, message, check_in_type, content):
         """

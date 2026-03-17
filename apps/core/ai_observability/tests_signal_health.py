@@ -107,17 +107,18 @@ class ComputeSignalHealthTests(SignalHealthTestMixin, TestCase):
                 eligible.add(name)
         return eligible
 
-    def test_empty_returns_eligible_domains_as_silent(self):
-        """No intelligence data should return signal-eligible domains as silent."""
+    def test_empty_returns_eligible_domains_as_never_active(self):
+        """No intelligence data should return signal-eligible domains as never_active."""
         from apps.core.ai_observability.ops_telemetry import compute_signal_health
 
         eligible = self._get_signal_eligible_domains()
         result = compute_signal_health()
         self.assertEqual(result["domains_active"], 0)
-        self.assertEqual(result["domains_silent"], len(eligible))
+        # Domains with no historical data are "never_active", not "silent"
+        self.assertEqual(result["domains_silent"], 0)
         for name in eligible:
             self.assertIn(name, result["domains"])
-            self.assertEqual(result["domains"][name]["status"], "silent")
+            self.assertEqual(result["domains"][name]["status"], "never_active")
 
     def test_healthy_domain(self):
         """Domain with recent, diverse signals should be 'healthy'."""
@@ -209,8 +210,16 @@ class ComputeSignalHealthTests(SignalHealthTestMixin, TestCase):
 
         result = compute_signal_health()
         self.assertEqual(result["domains_active"], 1)  # health only
-        # All other eligible domains are silent
-        self.assertEqual(result["domains_silent"], len(eligible) - 1)
+        # Domains that have NEVER produced signals are "never_active" (not silent).
+        # Only domains that were active and stopped are "silent".
+        # With only health having data, the rest are never_active, not silent.
+        self.assertEqual(result["domains_silent"], 0)
+        # Verify never_active domains exist
+        never_active = [
+            d for d, info in result["domains"].items()
+            if info["status"] == "never_active"
+        ]
+        self.assertEqual(len(never_active), len(eligible) - 1)
 
     def test_non_signal_domains_excluded(self):
         """INFLUENCE, KNOWLEDGE, feeder, and stubbed domains should not appear."""

@@ -6055,11 +6055,13 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         }
         if (gridEl && domainsList.length) {
             gridEl.innerHTML = domainsList.map(function(d) {
-                var cls = d.status === 'healthy' ? 'var(--ops-green)' : (d.status === 'stale' ? 'var(--ops-yellow)' : 'var(--ops-text-dim)');
+                var cls = d.status === 'healthy' ? 'var(--ops-green)' : (d.status === 'stale' ? 'var(--ops-yellow)' : (d.status === 'never_active' ? 'var(--ops-text-dim)' : 'var(--ops-text-dim)'));
+                var countLabel = d.status === 'never_active' ? '—' : (d.count_7d || 0);
+                var ageLabel = d.status === 'never_active' ? 'no data' : escapeHtml(d.latest_age || '');
                 return '<div class="ops-signal-domain-row">' +
                     '<span class="ops-signal-domain-name">' + escapeHtml(d.name) + '</span>' +
-                    '<span style="color:' + cls + '">' + (d.count_7d || 0) + '</span>' +
-                    '<span style="font-size:0.65rem;color:var(--ops-text-dim)">' + escapeHtml(d.latest_age || '') + '</span>' +
+                    '<span style="color:' + cls + '">' + countLabel + '</span>' +
+                    '<span style="font-size:0.65rem;color:var(--ops-text-dim)">' + ageLabel + '</span>' +
                     '</div>';
             }).join('');
         } else if (gridEl) {

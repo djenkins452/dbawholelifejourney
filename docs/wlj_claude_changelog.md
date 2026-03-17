@@ -6,6 +6,23 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-17 — Phase 6B.6A: Critical Gap Fixes (Footer Data Loss + Intent CoS Wiring)
+
+**Summary:** Two proven gaps from Phase 6B.5 validation audit fixed with minimal, targeted changes.
+
+**Changes:**
+- **Footer Stripping Data Loss Fix:** Replaced `_FOOTER_PATTERNS` (re.DOTALL) with `_FOOTER_LINE_RE` (re.MULTILINE) in `email_body_cleaner.py`. Previous regex used `re.DOTALL` causing `.*` to consume across newlines — a mid-body copyright line like `© 2026 Amazon Inc.` would truncate all subsequent content (order totals, confirmation numbers). New regex matches individual lines only, removing footer noise line-by-line without cross-line bleed.
+- **Intent Type → CoS Context:** Modified `_build_signal_aware_context()` in `cos_context.py` to extract `intent_type` values from `SignalSnapshot.source_signals['facts']` and include as `intents: [sorted, deduplicated list]` in `daily_signals`. Previously intent_type was stored in SignalSnapshot but never exposed to CoS — now it's a true reasoning input. Uses signal-layer data only (no direct ExtractedFact access). Field is optional (omitted when no intents present).
+
+**Files modified:**
+- `apps/life/services/email_body_cleaner.py` (regex fix: DOTALL → MULTILINE, line-by-line matching)
+- `apps/core/ai_orchestrator/cos_context.py` (intent extraction into daily_signals)
+- `apps/life/tests/test_phase6b_email_pipeline.py` (8 new tests: 4 footer fix, 4 intent CoS)
+
+**Tests:** 18/18 affected tests pass (8 original + 4 footer fix + 4 intent CoS + 2 intent propagation). No regressions.
+
+---
+
 ## 2026-03-17 — Phase 6B.5 Hardening: Body Cleaning, Merchant Normalization, Intent Propagation, Dedup Constraint, Telemetry Visibility
 
 **Summary:** Targeted hardening pass based on Phase 6B audit findings. Five focused fixes, no architecture changes.

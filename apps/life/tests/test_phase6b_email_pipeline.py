@@ -1461,3 +1461,199 @@ class TelemetryVisibilityTests(TestCase):
         payload = build_ops_stream_payload()
         self.assertIn('email_intelligence', payload)
         self.assertIn('scans', payload['email_intelligence'])
+
+
+# =========================================================================
+# 19. Phase 6B.6A — Body Cleaner Footer Fix Tests
+# =========================================================================
+
+class BodyCleanerFooterFixTests(TestCase):
+    """Validate that footer stripping no longer truncates mid-body content."""
+
+    def test_mid_body_copyright_preserves_subsequent_content(self):
+        """Receipt with copyright line mid-body must keep content after it."""
+        from apps.life.services.email_body_cleaner import clean_email_body
+
+        body = (
+            'Order Confirmation #12345\n'
+            'Item: Widget - $29.99\n'
+            '© 2026 Amazon Inc.\n'
+            'Order Total: $32.39\n'
+            'Confirmation Number: ABC-789\n'
+        )
+        result = clean_email_body(body)
+        # Copyright LINE should be removed
+        self.assertNotIn('© 2026', result)
+        # Content AFTER copyright must survive
+        self.assertIn('Order Total: $32.39', result)
+        self.assertIn('Confirmation Number: ABC-789', result)
+        # Content BEFORE copyright must survive
+        self.assertIn('Order Confirmation #12345', result)
+        self.assertIn('$29.99', result)
+
+    def test_all_rights_reserved_mid_body_preserves_content(self):
+        """'All rights reserved' mid-body must not eat subsequent lines."""
+        from apps.life.services.email_body_cleaner import clean_email_body
+
+        body = (
+            'Payment Received\n'
+            'All rights reserved.\n'
+            'Amount: $100.00\n'
+            'Reference: XYZ-456\n'
+        )
+        result = clean_email_body(body)
+        self.assertIn('Amount: $100.00', result)
+        self.assertIn('Reference: XYZ-456', result)
+
+    def test_true_footer_block_still_removed(self):
+        """Traditional footer at end-of-email is still cleaned."""
+        from apps.life.services.email_body_cleaner import clean_email_body
+
+        body = (
+            'Your payment of $50.00 was received.\n'
+            '---\n'
+            'Unsubscribe from these notifications\n'
+            'Privacy Policy | Terms of Service\n'
+            '© 2026 Example Corp. All rights reserved.'
+        )
+        result = clean_email_body(body)
+        self.assertIn('$50.00', result)
+        self.assertNotIn('Unsubscribe', result)
+        self.assertNotIn('Privacy Policy', result)
+
+    def test_separator_line_does_not_eat_subsequent_content(self):
+        """A --- separator mid-body must only remove that line."""
+        from apps.life.services.email_body_cleaner import clean_email_body
+
+        body = (
+            'Section 1: Items\n'
+            '---\n'
+            'Section 2: Totals\n'
+            'Grand Total: $200.00\n'
+        )
+        result = clean_email_body(body)
+        self.assertIn('Section 1: Items', result)
+        # Separator line removed but content after preserved
+        self.assertIn('Section 2: Totals', result)
+        self.assertIn('Grand Total: $200.00', result)
+
+
+# =========================================================================
+# 20. Phase 6B.6A — Intent Type in CoS Context Tests
+# =========================================================================
+
+class IntentInCosContextTests(TestCase):
+    """Validate that intent_type reaches CoS context as a list."""
+
+    def setUp(self):
+        self.user = _create_test_user('test-intent-cos@example.com')
+
+    def test_single_intent_in_daily_signals(self):
+        """Signal with one intent fact should produce intents list."""
+        from apps.core.ai_eae.models import SignalSnapshot
+        from apps.core.utils import get_user_today
+
+        today = get_user_today(self.user)
+        SignalSnapshot.objects.create(
+            user=self.user,
+            date=today,
+            signal_type='financial_health',
+            domain='finance',
+            score=0.4,
+            signal_class='medium',
+            confidence=0.7,
+            source_signals={
+                'source': 'fact_extraction',
+                'facts': [
+                    {'intent_type': 'bill_due', 'confidence': 0.7, 'fact_type': 'obligation'},
+                ],
+            },
+        )
+
+        from apps.core.ai_orchestrator.cos_context import _build_signal_aware_context
+        result = _build_signal_aware_context(self.user)
+        signals = result.get('daily_signals', [])
+        self.assertEqual(len(signals), 1)
+        self.assertEqual(signals[0]['intents'], ['bill_due'])
+
+    def test_multiple_intents_deduplicated_and_sorted(self):
+        """Multiple facts with different intents produce sorted unique list."""
+        from apps.core.ai_eae.models import SignalSnapshot
+        from apps.core.utils import get_user_today
+
+        today = get_user_today(self.user)
+        SignalSnapshot.objects.create(
+            user=self.user,
+            date=today,
+            signal_type='financial_health',
+            domain='finance',
+            score=0.5,
+            signal_class='medium',
+            confidence=0.8,
+            source_signals={
+                'source': 'fact_extraction',
+                'facts': [
+                    {'intent_type': 'bill_due', 'confidence': 0.7, 'fact_type': 'obligation'},
+                    {'intent_type': 'recurring_obligation', 'confidence': 0.6, 'fact_type': 'subscription'},
+                    {'intent_type': 'bill_due', 'confidence': 0.5, 'fact_type': 'obligation'},  # duplicate
+                ],
+            },
+        )
+
+        from apps.core.ai_orchestrator.cos_context import _build_signal_aware_context
+        result = _build_signal_aware_context(self.user)
+        signals = result.get('daily_signals', [])
+        self.assertEqual(len(signals), 1)
+        # Deduplicated and sorted
+        self.assertEqual(signals[0]['intents'], ['bill_due', 'recurring_obligation'])
+
+    def test_no_intents_key_when_no_intent_types(self):
+        """Signal without intent facts should NOT have 'intents' key."""
+        from apps.core.ai_eae.models import SignalSnapshot
+        from apps.core.utils import get_user_today
+
+        today = get_user_today(self.user)
+        SignalSnapshot.objects.create(
+            user=self.user,
+            date=today,
+            signal_type='journal_consistency',
+            domain='journal',
+            score=0.8,
+            signal_class='high',
+            confidence=0.9,
+            source_signals={
+                'source': 'journal_engine',
+                'facts': [
+                    {'confidence': 0.9, 'fact_type': 'entry'},
+                ],
+            },
+        )
+
+        from apps.core.ai_orchestrator.cos_context import _build_signal_aware_context
+        result = _build_signal_aware_context(self.user)
+        signals = result.get('daily_signals', [])
+        self.assertEqual(len(signals), 1)
+        self.assertNotIn('intents', signals[0])
+
+    def test_empty_source_signals_no_crash(self):
+        """Signal with empty/null source_signals should not crash."""
+        from apps.core.ai_eae.models import SignalSnapshot
+        from apps.core.utils import get_user_today
+
+        today = get_user_today(self.user)
+        SignalSnapshot.objects.create(
+            user=self.user,
+            date=today,
+            signal_type='sleep_quality',
+            domain='health',
+            score=0.6,
+            signal_class='medium',
+            confidence=0.7,
+            source_signals={},
+        )
+
+        from apps.core.ai_orchestrator.cos_context import _build_signal_aware_context
+        result = _build_signal_aware_context(self.user)
+        signals = result.get('daily_signals', [])
+        self.assertEqual(len(signals), 1)
+        self.assertNotIn('intents', signals[0])

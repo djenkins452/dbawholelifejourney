@@ -1466,14 +1466,27 @@ def _build_signal_aware_context(user):
         for s in snapshots:
             # Compute 7-day trend
             trend = _compute_signal_trend(user, s.signal_type, today, days=7)
-            daily_signals.append({
+            signal_entry = {
                 'signal_type': s.signal_type,
                 'domain': s.domain,
                 'score': round(s.score, 2),
                 'signal_class': s.signal_class,
                 'confidence': round(s.confidence, 2),
                 'trend_7d': trend,
+            }
+
+            # Extract intent_type list from source_signals (signal-layer only).
+            # Multiple facts may contribute different intents to a single signal.
+            source = s.source_signals or {}
+            facts = source.get('facts') or []
+            intents = sorted({
+                f['intent_type'] for f in facts
+                if isinstance(f, dict) and f.get('intent_type')
             })
+            if intents:
+                signal_entry['intents'] = intents
+
+            daily_signals.append(signal_entry)
 
         # Goal momentum data — queried independently of daily signals.
         # Momentum snapshots are computed nightly and may exist even when

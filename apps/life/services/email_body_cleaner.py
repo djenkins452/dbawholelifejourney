@@ -26,23 +26,25 @@ _COMMENT_RE = re.compile(r'<!--.*?-->', re.DOTALL)
 # All HTML tags
 _TAG_RE = re.compile(r'<[^>]+>')
 
-# Common email footer/signature/disclaimer patterns
-_FOOTER_PATTERNS = re.compile(
-    r'(?:^|\n)(?:'
+# Footer line pattern — matches individual lines that are footer noise.
+# Uses re.MULTILINE so ^ and $ anchor to line boundaries, NOT re.DOTALL
+# which would cause .* to consume across lines and eat receipt content.
+_FOOTER_LINE_RE = re.compile(
+    r'^(?:'
     r'[-_=]{3,}'                              # separator lines
-    r'|unsubscribe'                           # unsubscribe links
-    r'|manage\s+(?:your\s+)?(?:preferences|subscriptions|notifications)'
-    r'|view\s+(?:this\s+)?(?:email\s+)?in\s+(?:your\s+)?browser'
-    r'|this\s+(?:email|message)\s+was\s+sent\s+(?:to|by)'
-    r'|you\s+(?:are\s+)?receiv(?:ed|ing)\s+this'
-    r'|if\s+you\s+(?:no\s+longer|don\'t)\s+(?:wish|want)'
-    r'|(?:do\s+not\s+reply|no-?reply)'
-    r'|©\s*\d{4}'                             # copyright lines
-    r'|all\s+rights\s+reserved'
-    r'|privacy\s+policy'
-    r'|terms\s+(?:of\s+)?(?:service|use)'
-    r').*',
-    re.IGNORECASE | re.DOTALL,
+    r'|.*unsubscribe.*'                       # unsubscribe links
+    r'|.*manage\s+(?:your\s+)?(?:preferences|subscriptions|notifications).*'
+    r'|.*view\s+(?:this\s+)?(?:email\s+)?in\s+(?:your\s+)?browser.*'
+    r'|.*this\s+(?:email|message)\s+was\s+sent\s+(?:to|by).*'
+    r'|.*you\s+(?:are\s+)?receiv(?:ed|ing)\s+this.*'
+    r'|.*if\s+you\s+(?:no\s+longer|don\'t)\s+(?:wish|want).*'
+    r'|.*(?:do\s+not\s+reply|no-?reply).*'
+    r'|.*©\s*\d{4}.*'                         # copyright lines
+    r'|.*all\s+rights\s+reserved.*'
+    r'|.*privacy\s+policy.*'
+    r'|.*terms\s+(?:of\s+)?(?:service|use).*'
+    r')$',
+    re.IGNORECASE | re.MULTILINE,
 )
 
 # Excessive whitespace
@@ -95,8 +97,8 @@ def clean_email_body(raw_body, max_length=2000):
     # 5. Remove URL-only lines (tracking pixels, unsubscribe links)
     text = _URL_LINE_RE.sub('', text)
 
-    # 6. Trim footer/signature noise
-    text = _FOOTER_PATTERNS.sub('', text)
+    # 6. Trim footer/signature noise (line-by-line, never cross-line)
+    text = _FOOTER_LINE_RE.sub('', text)
 
     # 7. Normalize whitespace
     text = _MULTI_SPACE_RE.sub(' ', text)

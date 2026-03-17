@@ -132,7 +132,7 @@ class GmailSyncService:
                 'tasks_created': 0
             }
 
-        # Process emails with AI
+        # Process emails with AI (task extraction — existing pipeline)
         processor = EmailProcessingService(user)
         total_tasks = 0
         errors = []
@@ -149,17 +149,24 @@ class GmailSyncService:
                 logger.error(f"Error processing email {email.get('id')}: {e}")
                 errors.append(f"{email.get('subject', 'Unknown')[:50]}: {str(e)[:50]}")
 
+        # Phase 6B: Fact extraction pipeline (parallel to task extraction)
+        fact_stats = self._run_fact_extraction(user, emails)
+
         # Record scan result
         self._record_scan_success(credential, len(emails), total_tasks, errors)
 
         logger.info(
             f"Gmail scan complete for user {user_log_id(user)}: "
-            f"scanned={len(emails)}, tasks={total_tasks}, errors={len(errors)}"
+            f"scanned={len(emails)}, tasks={total_tasks}, "
+            f"facts={fact_stats.get('facts_created', 0)}, errors={len(errors)}"
         )
 
         return {
             'emails_scanned': len(emails),
             'tasks_created': total_tasks,
+            'facts_created': fact_stats.get('facts_created', 0),
+            'signals_affected': fact_stats.get('signals_affected', 0),
+            'transactions_created': fact_stats.get('transactions_created', 0),
             'errors': errors if errors else None,
         }
 
@@ -209,6 +216,31 @@ class GmailSyncService:
             'tasks_created': total_tasks,
             'errors': errors if errors else None,
         }
+
+    def _run_fact_extraction(self, user, emails):
+        """
+        Phase 6B: Run email fact extraction pipeline.
+
+        Runs parallel to task extraction. Failures are logged but never
+        block the existing task pipeline.
+        """
+        try:
+            from apps.life.services.email_fact_service import (
+                EmailFactExtractionService,
+            )
+
+            service = EmailFactExtractionService(user)
+            return service.process_emails(emails)
+
+        except ImportError:
+            logger.debug("Email fact extraction service not available")
+            return {}
+        except Exception as e:
+            logger.warning(
+                "Email fact extraction failed for user %s: %s",
+                user_log_id(user), e, exc_info=True,
+            )
+            return {}
 
     def _record_scan_success(self, credential, scanned: int, created: int, errors=None):
         """Record successful scan result."""

@@ -2064,8 +2064,15 @@ class ProcessedEmail(models.Model):
     Track which emails have been processed to prevent duplicates.
 
     Each processed email is recorded with its Gmail message ID so we
-    don't re-process the same email multiple times.
+    don't re-process the same email multiple times. Tracks both task
+    extraction (existing) and fact extraction (Phase 6B).
     """
+
+    CLASSIFICATION_CHOICES = [
+        ('keep', 'Keep — extract facts'),
+        ('skip', 'Skip — no useful facts'),
+        ('uncertain', 'Uncertain — LLM classified'),
+    ]
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -2075,13 +2082,49 @@ class ProcessedEmail(models.Model):
     gmail_message_id = models.CharField(max_length=255, db_index=True)
     processed_at = models.DateTimeField(auto_now_add=True)
 
-    # Result tracking
+    # Task extraction tracking (existing)
     action_items_found = models.PositiveIntegerField(default=0)
     tasks_created = models.PositiveIntegerField(default=0)
     skipped_reason = models.CharField(
         max_length=100,
         blank=True,
         help_text="e.g., 'no_action_items', 'ai_error'"
+    )
+
+    # Phase 6B: Email metadata (stored for traceability, NOT full body)
+    subject = models.CharField(max_length=500, blank=True, default='')
+    sender = models.CharField(max_length=255, blank=True, default='')
+    snippet = models.CharField(
+        max_length=500, blank=True, default='',
+        help_text="First ~500 chars for review context",
+    )
+    received_date = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the email was received",
+    )
+
+    # Phase 6B: Classification tracking
+    classification = models.CharField(
+        max_length=20, blank=True, default='',
+        choices=CLASSIFICATION_CHOICES,
+    )
+    classification_reason = models.CharField(
+        max_length=200, blank=True, default='',
+        help_text="Rule or LLM reason for classification",
+    )
+    classification_confidence = models.FloatField(
+        default=0.0,
+        help_text="Classification confidence score",
+    )
+
+    # Phase 6B: Fact extraction tracking
+    facts_extracted = models.BooleanField(
+        default=False,
+        help_text="Whether fact extraction has been run",
+    )
+    facts_created_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of ExtractedFact records created",
     )
 
     class Meta:

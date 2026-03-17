@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — UX: Expand chat input to multi-line textarea
+
+**Change:** Replaced single-line `<input type="text">` with `<textarea rows="3">` for both desktop and mobile chat inputs. Users can now see 3-4 lines of text while composing messages. Shift+Enter inserts newlines; Enter sends.
+
+**Files:**
+- `templates/components/assistant_panel.html` — input→textarea for desktop and mobile
+- `static/css/assistant-panel.css` — textarea styling (resize:none, min-height, align buttons to bottom)
+
+---
+
 ## 2026-03-16 — Fix: Signal Health card showing false degradation for non-signal domains
 
 **Root cause:** `compute_signal_health()` seeded ALL domains from the Domain Registry regardless of domain class or signal capability. This caused INFLUENCE domains (capture), KNOWLEDGE domains (documents), feeder domains with no own signal types (meals, medical), and stubbed domains (finance) to appear as "silent" — triggering a permanent DEGRADED status on the Ops Wall even though the signal pipeline was working correctly.

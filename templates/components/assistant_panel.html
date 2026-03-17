@@ -74,9 +74,9 @@
                         </svg>
                     </button>
 
-                    <input type="text" id="ap-chat-input" class="ap-chat-input" data-testid="cos-chat-input"
+                    <textarea id="ap-chat-input" class="ap-chat-input" data-testid="cos-chat-input"
                            placeholder="Message {% if not cos_has_custom_name %}your {% endif %}{{ cos_display_name|default:'Chief of Staff' }}..."
-                           autocomplete="off" maxlength="2000">
+                           autocomplete="off" maxlength="2000" rows="3"></textarea>
 
                     <button type="button" id="ap-voice-btn" class="ap-voice-btn" title="Voice input" style="display:none;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -190,8 +190,8 @@
         <div class="ap-chat-input-area">
             <form id="mobile-chat-form" class="ap-chat-form">
                 {% csrf_token %}
-                <input type="text" id="mobile-chat-input" class="ap-chat-input"
-                       placeholder="Message..." autocomplete="off" maxlength="2000">
+                <textarea id="mobile-chat-input" class="ap-chat-input"
+                       placeholder="Message..." autocomplete="off" maxlength="2000" rows="3"></textarea>
                 <button type="submit" id="mobile-send-btn" class="ap-send-btn" disabled>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="22" y1="2" x2="11" y2="13"></line>

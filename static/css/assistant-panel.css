@@ -2078,19 +2078,23 @@ body.has-desktop-nav .desktop-main-area {
 .ap-chat-form {
     display: flex;
     gap: 6px;
-    align-items: center;
+    align-items: flex-end;
 }
 
 .ap-chat-input {
     flex: 1;
     padding: 8px 12px;
     border: 1px solid var(--color-border, #e5e7eb);
-    border-radius: 18px;
+    border-radius: 16px;
     font-size: 13px;
     outline: none;
     background: var(--color-surface, #f3f4f6);
     color: var(--color-text, #1f2937);
     min-width: 0; /* Allow shrink in flex */
+    resize: none;
+    line-height: 1.4;
+    font-family: inherit;
+    min-height: 60px;
 }
 
 /* iOS zoom prevention */

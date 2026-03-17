@@ -1653,19 +1653,25 @@ def compute_signal_health():
         distinct_types = len(data["types_7d"])
 
         # Determine status
-        if volume_7d == 0 or freshness_hours is None:
+        # Distinguish "never_active" (domain has NEVER produced signals) from
+        # "silent" (domain WAS active and stopped).  never_active domains
+        # don't count against overall health — they just haven't been used yet.
+        if freshness_hours is None and volume_7d == 0:
+            status = "never_active"
+        elif volume_7d == 0:
             status = "silent"
-        elif freshness_hours > 72:
+        elif freshness_hours is not None and freshness_hours > 72:
             status = "silent"
-        elif freshness_hours > 24 or distinct_types < 2:
+        elif freshness_hours is not None and freshness_hours > 24 or distinct_types < 2:
             status = "stale"
         else:
             status = "healthy"
 
         if status == "silent":
             domains_silent += 1
-        else:
+        elif status != "never_active":
             domains_active += 1
+        # never_active domains excluded from both counts
 
         # Track stalest domain
         if freshness_hours is not None and freshness_hours > stalest_hours:

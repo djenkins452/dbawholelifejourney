@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — Ops Wall: Fix CoS Context STALE, 0% cache hit, and false Signal Health DEGRADED
+
+**Root causes and fixes:**
+
+1. **CoS Context STALE (builder timing TypeError):** `_builder_timings` dict contained `'skipped'` strings for disabled builders. The injection code did `_bdur / 1000` which raised TypeError, silently swallowed by `except Exception: pass`. No `COS_BUILDER_*` stages were persisted → ops_telemetry found 0 builders → STALE. **Fix:** Filter out non-numeric values before injecting builder timings into LatencyTrace.
+
+2. **COS Performance 0% cache hit:** Fresh context builds in the chat pipeline never wrote back to the readiness cache. Only `prewarm_cos_context()` populated it (90s TTL), so by the time the next message arrived, the cache was cold. **Fix:** Write-back freshly built CoS context to both flat and layered readiness caches after cache-miss builds (in both ECC and main response paths).
+
+3. **Signal Health false DEGRADED:** Domains that have NEVER produced signals (brain_training with 0 GameSessions) were classified as "silent" — same as domains that WERE active and stopped. This triggered DEGRADED even though the silence is expected. **Fix:** Introduced `never_active` status for domains with `last_signal_at is None` AND `volume_7d == 0`. These don't count toward `domains_silent`, so the overall status stays HEALTHY when all producing domains are healthy.
+
+**Files:**
+- `apps/ai/personal_assistant.py` — Filter non-numeric builder timings; add cache write-back on miss
+- `apps/core/ai_observability/ops_telemetry.py` — Add `never_active` signal health status
+- `apps/core/ai_observability/same_engine.py` — Skip `never_active` domains in low-diversity detector
+- `templates/admin_console/operations_wall.html` — Render `never_active` domains with "—" and "no data"
+- `apps/core/ai_observability/tests_signal_health.py` — Updated tests for new `never_active` semantics
+
+---
+
 ## 2026-03-16 — UX: Expand chat input to multi-line textarea
 
 **Change:** Replaced single-line `<input type="text">` with `<textarea rows="3">` for both desktop and mobile chat inputs. Users can now see 3-4 lines of text while composing messages. Shift+Enter inserts newlines; Enter sends.

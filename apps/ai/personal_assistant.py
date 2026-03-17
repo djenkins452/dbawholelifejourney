@@ -969,6 +969,17 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                 _ecc_cos = _rc_cached if _rc_cached else _ecc_build_cos(self.user)
                 _cos_context_cache = _ecc_cos
                 logger.warning("COS CONTEXT build took %.1f ms", (_t.monotonic() - _t_ctx_start) * 1000)
+                # Write-back on cache miss so the main response path gets a hit
+                if not _rc_cached:
+                    try:
+                        from apps.ai.readiness_cache import (
+                            set_cached_cos_context as _rc_set_ctx,
+                            set_layered_cos_context as _rc_set_layered,
+                        )
+                        _rc_set_ctx(self.user, _ecc_cos)
+                        _rc_set_layered(self.user, _ecc_cos)
+                    except Exception:
+                        pass  # Cache write-back — non-critical
                 _ecc_traj = _ecc_cos.get(
                     'trajectory_signals',
                     _ecc_build_traj(self.user),
@@ -2732,6 +2743,17 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                                 log_full_path(self.user.id)
                             except Exception:
                                 pass  # Telemetry — non-critical
+                            # Write-back: populate readiness cache so subsequent
+                            # messages within the TTL window get a cache hit.
+                            try:
+                                from apps.ai.readiness_cache import (
+                                    set_cached_cos_context as _rc_set_ctx,
+                                    set_layered_cos_context as _rc_set_layered,
+                                )
+                                _rc_set_ctx(self.user, cos_context)
+                                _rc_set_layered(self.user, cos_context)
+                            except Exception:
+                                pass  # Cache write-back — non-critical
                         # Phase 3 Tiered Activation: compute activation
                         # state from trajectory signals + user input.
                         traj_signals = cos_context.get(
@@ -2868,6 +2890,8 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                         try:
                             _bt = cos_context.get('_builder_timings', {}) if cos_context else {}
                             for _btag, _bdur in _bt.items():
+                                if not isinstance(_bdur, (int, float)):
+                                    continue  # skip non-numeric (e.g. 'skipped')
                                 _ltrace.start(f'COS_BUILDER_{_btag}')
                                 _ltrace._stages[f'COS_BUILDER_{_btag}']['end'] = (
                                     _ltrace._stages[f'COS_BUILDER_{_btag}']['start'] + _bdur / 1000

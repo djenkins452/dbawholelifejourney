@@ -547,6 +547,11 @@ def _detect_signal_low_diversity(now, signal_health=None):
         for domain, data in domains.items():
             distinct = data.get("distinct_types_7d", 0)
             volume_7d = data.get("volume_7d", 0)
+            status = data.get("status", "")
+
+            # Skip domains that have never produced signals
+            if status == "never_active":
+                continue
 
             # Only flag domains with meaningful volume but low diversity
             if distinct == 1 and volume_7d >= 10:

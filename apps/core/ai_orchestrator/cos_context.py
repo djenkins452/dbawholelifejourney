@@ -595,6 +595,430 @@ def _build_calendar_events(user):
     return result
 
 
+# ── Signal Arbitration v1.0 ──
+# Deterministic signal ranking — selects top signal for CoS to surface.
+# Tier-first comparison (absolute, no cross-tier override).
+# Intra-tier scoring: confidence + urgency + recency bonuses.
+# See docs/SIGNAL_ARBITRATION.md for full design.
+
+_TIER_LABELS = {
+    1: 'critical_health',
+    2: 'high_drift',
+    3: 'cross_domain',
+    4: 'high_confidence_prediction',
+    5: 'warning_insight',
+    6: 'guidance_info',
+}
+
+_CONFIDENCE_FLOORS = {1: 0.0, 2: 0.0, 3: 0.50, 4: 0.60, 5: 0.40, 6: 0.50}
+
+_DELIVERY_MODES = {1: 'interrupt', 2: 'lead', 3: 'lead', 4: 'lead', 5: 'support', 6: 'support'}
+
+
+def _compute_urgency_bonus(signal):
+    """0-100 bonus based on time proximity of predicted_date."""
+    pd = signal.get('_predicted_date_raw')
+    if not pd:
+        return 0
+    try:
+        from django.utils import timezone as _tz
+        now = _tz.now()
+        if hasattr(pd, 'date'):
+            days_away = (pd.date() - now.date()).days
+        else:
+            days_away = (pd - now.date()).days
+        if days_away <= 0:
+            return 100
+        elif days_away <= 1:
+            return 75
+        elif days_away <= 3:
+            return 33
+        elif days_away <= 7:
+            return 10
+        return 0
+    except Exception:
+        return 0
+
+
+def _compute_recency_bonus(signal):
+    """0-100 bonus based on how recently the signal was created."""
+    created = signal.get('_created_at')
+    if not created:
+        return 50  # default mid-range if unknown
+    try:
+        from django.utils import timezone as _tz
+        age_hours = (_tz.now() - created).total_seconds() / 3600
+        if age_hours <= 1:
+            return 100
+        elif age_hours <= 6:
+            return 75
+        elif age_hours <= 24:
+            return 50
+        elif age_hours <= 48:
+            return 25
+        return 10
+    except Exception:
+        return 50
+
+
+def _classify_signal(signal):
+    """Assign a signal to a tier (1-6) based on type + severity/strength.
+    Returns tier number or None if signal should be excluded."""
+    src = signal.get('source_type')
+
+    if src == 'insight':
+        sev = signal.get('severity', '')
+        if sev == 'critical':
+            return 1
+        elif sev == 'warning':
+            return 5
+        elif sev == 'info':
+            conf = signal.get('confidence', 0)
+            if conf >= 0.5:
+                return 6
+            return None  # exclude low-confidence info
+        elif sev == 'positive':
+            return None  # positive insights excluded from ranking
+        return None
+
+    elif src == 'drift':
+        return 2
+
+    elif src == 'correlation':
+        strength = signal.get('_strength_label', '')
+        if strength == 'strong':
+            return 3
+        elif strength == 'moderate':
+            return 3  # moderate correlations allowed but scored lower
+        return None  # weak correlations excluded
+
+    elif src == 'prediction':
+        conf = signal.get('confidence', 0)
+        if conf >= 0.6:
+            return 4
+        return None  # low-confidence predictions excluded
+
+    elif src == 'guidance':
+        priority = signal.get('_priority_num', 5)
+        conf = signal.get('confidence', 0) or 0
+        if priority <= 2 and conf >= 0.50:
+            return 6
+        elif priority <= 2 and signal.get('_source_type') == 'composite':
+            return 6  # composite guidance trusted without confidence
+        elif priority == 3 and conf >= 0.50:
+            return 6
+        return None  # low-priority / low-confidence guidance excluded
+
+    return None
+
+
+def _compute_delivery_mode(tier, signal):
+    """Deterministic delivery mode based on tier + override conditions."""
+    if tier == 1:
+        return 'interrupt'
+    elif tier == 2:
+        drift_score = signal.get('confidence', 0) * 100
+        return 'interrupt' if drift_score >= 70 else 'lead'
+    elif tier == 3:
+        score = signal.get('confidence', 0)
+        return 'lead' if score >= 0.80 else 'support'
+    elif tier == 4:
+        urgency = signal.get('urgency')
+        return 'lead' if urgency in ('immediate', 'today') else 'support'
+    elif tier == 5:
+        conf = signal.get('confidence', 0)
+        urgency = signal.get('urgency')
+        return 'lead' if conf >= 0.80 and urgency == 'today' else 'support'
+    elif tier == 6:
+        conf = signal.get('confidence', 0) or 0
+        return 'silent' if conf < 0.60 else 'support'
+    return 'support'
+
+
+def _urgency_label(signal):
+    """Compute urgency label from predicted_date proximity."""
+    pd = signal.get('_predicted_date_raw')
+    if not pd:
+        return None
+    try:
+        from django.utils import timezone as _tz
+        now = _tz.now()
+        if hasattr(pd, 'date'):
+            days_away = (pd.date() - now.date()).days
+        else:
+            days_away = (pd - now.date()).days
+        if days_away <= 0:
+            return 'immediate'
+        elif days_away <= 1:
+            return 'today'
+        elif days_away <= 7:
+            return 'this_week'
+        return None
+    except Exception:
+        return None
+
+
+def _rank_top_signals(intelligence_result, cos_context):
+    """
+    Deterministic signal arbitration — selects the top signal for CoS.
+
+    Tier-first comparison (absolute priority, no cross-tier override).
+    Intra-tier scoring: confidence_bonus + urgency_bonus + recency_bonus.
+
+    Returns dict with top_signal, supporting_signals, metadata.
+    Returns None on failure (caller falls back to flat-list behavior).
+    """
+    try:
+        from django.utils import timezone as _tz
+
+        # ── Step 1: COLLECT — normalize all signals into comparable entries ──
+        candidates = []
+
+        for i in intelligence_result.get('active_insights', []):
+            candidates.append({
+                'source_type': 'insight',
+                'source_id': i.get('_id'),
+                'module': i.get('module', ''),
+                'title': i.get('title', ''),
+                'message': i.get('message', ''),
+                'severity': i.get('severity', ''),
+                'confidence': i.get('confidence', 0),
+                '_created_at': i.get('_created_at'),
+                '_predicted_date_raw': None,
+                '_status': i.get('_status', 'new'),
+                '_dedupe_key': i.get('_dedupe_key', ''),
+                '_strength_label': None,
+                '_priority_num': None,
+                '_source_type': None,
+            })
+
+        for p in intelligence_result.get('active_predictions', []):
+            candidates.append({
+                'source_type': 'prediction',
+                'source_id': p.get('_id'),
+                'module': p.get('module', ''),
+                'title': p.get('type', ''),
+                'message': p.get('explanation', ''),
+                'severity': None,
+                'confidence': p.get('confidence', 0),
+                '_created_at': p.get('_created_at'),
+                '_predicted_date_raw': p.get('_predicted_date_raw'),
+                '_status': None,
+                '_dedupe_key': p.get('_dedupe_key', ''),
+                '_strength_label': None,
+                '_priority_num': None,
+                '_source_type': None,
+            })
+
+        for g in intelligence_result.get('active_guidance', []):
+            candidates.append({
+                'source_type': 'guidance',
+                'source_id': g.get('_id'),
+                'module': g.get('module', ''),
+                'title': g.get('title', ''),
+                'message': g.get('message', ''),
+                'severity': None,
+                'confidence': g.get('_confidence_score') or 0,
+                '_created_at': g.get('_created_at'),
+                '_predicted_date_raw': None,
+                '_status': None,
+                '_dedupe_key': g.get('_dedupe_key', ''),
+                '_strength_label': None,
+                '_priority_num': g.get('priority', 5),
+                '_source_type': g.get('source', ''),
+            })
+
+        for c in intelligence_result.get('cross_domain_correlations', []):
+            candidates.append({
+                'source_type': 'correlation',
+                'source_id': c.get('_id'),
+                'module': ','.join(c.get('domains', [])),
+                'title': c.get('type', ''),
+                'message': c.get('narrative', ''),
+                'severity': None,
+                'confidence': c.get('score', 0),
+                '_created_at': c.get('_created_at'),
+                '_predicted_date_raw': None,
+                '_status': None,
+                '_dedupe_key': c.get('_dedupe_key', ''),
+                '_strength_label': c.get('strength', ''),
+                '_priority_num': None,
+                '_source_type': None,
+            })
+
+        # Synthetic drift signal — only if drift_score >= 40 AND no drift insight
+        drift_score = cos_context.get('drift_score', 0) or 0
+        if drift_score >= 40:
+            has_drift_insight = any(
+                c.get('source_type') == 'insight' and 'drift' in (c.get('title', '') + c.get('message', '')).lower()
+                for c in candidates
+            )
+            if not has_drift_insight:
+                drift_prob = cos_context.get('drift_probability', {})
+                candidates.append({
+                    'source_type': 'drift',
+                    'source_id': None,
+                    'module': 'drift',
+                    'title': 'Behavioral drift elevated',
+                    'message': f"Drift score {drift_score}/100 over the past 7 days",
+                    'severity': None,
+                    'confidence': min(drift_score / 100.0, 1.0),
+                    '_created_at': _tz.now(),
+                    '_predicted_date_raw': None,
+                    '_status': None,
+                    '_dedupe_key': f"drift_{drift_score}",
+                    '_strength_label': None,
+                    '_priority_num': None,
+                    '_source_type': None,
+                })
+
+        # ── Step 2: CLASSIFY — assign tiers ──
+        classified = []
+        for c in candidates:
+            tier = _classify_signal(c)
+            if tier is not None:
+                c['tier'] = tier
+                c['tier_label'] = _TIER_LABELS[tier]
+                classified.append(c)
+
+        evaluated_count = len(classified)
+        if not classified:
+            return {
+                'top_signal': None,
+                'supporting_signals': [],
+                'suppressed_count': 0,
+                'selection_reason': 'No qualifying signals',
+                'suppression_reason': 'No signals above minimum thresholds',
+                'evaluated_count': len(candidates),
+            }
+
+        # ── Step 3: SCORE — intra-tier scoring ──
+        for c in classified:
+            conf_bonus = int(c.get('confidence', 0) * 200)
+            urg_bonus = _compute_urgency_bonus(c)
+            rec_bonus = _compute_recency_bonus(c)
+            c['_intra_score'] = conf_bonus + urg_bonus + rec_bonus
+            c['urgency'] = _urgency_label(c)
+
+        # ── Step 4: RANK — tier-first, then score ──
+        classified.sort(key=lambda x: (x['tier'], -x['_intra_score']))
+        top_candidate = classified[0]
+
+        # ── Step 5: GATE — surfacing suppression checks ──
+        suppression_reason = None
+
+        # Gate 1: Confidence floor
+        floor = _CONFIDENCE_FLOORS.get(top_candidate['tier'], 0)
+        if top_candidate.get('confidence', 0) < floor:
+            suppression_reason = (
+                f"Below confidence floor for tier {top_candidate['tier']} "
+                f"({top_candidate.get('confidence', 0)} < {floor})"
+            )
+
+        # Gate 2: Already-acknowledged (read insight > 24h old)
+        if not suppression_reason and top_candidate.get('_status') == 'read':
+            created = top_candidate.get('_created_at')
+            if created:
+                age_hours = (_tz.now() - created).total_seconds() / 3600
+                if age_hours > 24:
+                    suppression_reason = "Signal already acknowledged (read > 24h ago)"
+
+        # Gate 3: Session repeat (acknowledged in CoSSituationState)
+        if not suppression_reason:
+            try:
+                acknowledged = cos_context.get('_acknowledged_signals', [])
+                src_id = top_candidate.get('source_id')
+                if src_id and str(src_id) in [str(x) for x in acknowledged]:
+                    suppression_reason = "Signal already surfaced and acknowledged in current session"
+            except Exception:
+                pass
+
+        # Gate 4: All-quiet (Tier 5-6 with low intra-tier score)
+        if not suppression_reason and top_candidate['tier'] >= 5:
+            if top_candidate['_intra_score'] < 150:
+                suppression_reason = (
+                    f"No signals above surfacing threshold "
+                    f"(best score: {top_candidate['_intra_score']}/400 in tier {top_candidate['tier']})"
+                )
+
+        if suppression_reason:
+            return {
+                'top_signal': None,
+                'supporting_signals': [],
+                'suppressed_count': evaluated_count,
+                'selection_reason': suppression_reason,
+                'suppression_reason': suppression_reason,
+                'evaluated_count': evaluated_count,
+            }
+
+        # ── Step 6: DELIVER — assign delivery mode + select supporting ──
+        def _build_output(sig):
+            return {
+                'source_type': sig['source_type'],
+                'source_id': sig.get('source_id'),
+                'tier': sig['tier'],
+                'tier_label': sig['tier_label'],
+                'arbitration_score': sig['_intra_score'],
+                'module': sig.get('module', ''),
+                'title': sig.get('title', ''),
+                'message': sig.get('message', ''),
+                'confidence': sig.get('confidence', 0),
+                'urgency': sig.get('urgency'),
+                'delivery_mode': _compute_delivery_mode(sig['tier'], sig),
+            }
+
+        top_output = _build_output(top_candidate)
+        top_module = top_candidate.get('module', '')
+
+        # Supporting signals: slot 1 = different module, slot 2 = any (or attached guidance)
+        supporting = []
+        remaining = [s for s in classified[1:] if s is not top_candidate]
+
+        # Slot 1: different module
+        for s in remaining:
+            if s.get('module', '') != top_module:
+                out = _build_output(s)
+                out['attached_guidance'] = False
+                supporting.append(out)
+                remaining.remove(s)
+                break
+
+        # Slot 2: attached guidance (same module as top) or next best
+        attached = None
+        for s in remaining:
+            if (s.get('source_type') == 'guidance'
+                    and s.get('module', '') == top_module):
+                attached = s
+                break
+
+        if attached:
+            out = _build_output(attached)
+            out['attached_guidance'] = True
+            supporting.append(out)
+        elif remaining:
+            out = _build_output(remaining[0])
+            out['attached_guidance'] = False
+            supporting.append(out)
+
+        suppressed_count = evaluated_count - 1 - len(supporting)
+
+        return {
+            'top_signal': top_output,
+            'supporting_signals': supporting,
+            'suppressed_count': max(suppressed_count, 0),
+            'selection_reason': (
+                f"Tier {top_candidate['tier']} ({top_output['tier_label']}) — "
+                f"score {top_output['arbitration_score']}/400"
+            ),
+            'suppression_reason': None,
+            'evaluated_count': evaluated_count,
+        }
+
+    except Exception as e:
+        logger.warning("Signal arbitration failed: %s", e, exc_info=True)
+        return None
+
+
 def _build_intelligence_signals(user, _module_permissions=None):
     """
     Build insights, predictions, guidance, and correlations.
@@ -642,6 +1066,11 @@ def _build_intelligence_signals(user, _module_permissions=None):
                 'explain_why': i.explain_why,
                 'module': i.module,
                 'confidence': round(i.confidence_score, 2),
+                # Ranking-relevant fields (prefixed _ to avoid prompt leakage)
+                '_id': i.id,
+                '_status': i.status,
+                '_created_at': i.created_at,
+                '_dedupe_key': i.dedupe_key or '',
             }
             for i in recent_insights
             if _enabled_modules is None or not i.module or i.module in _enabled_modules
@@ -667,6 +1096,11 @@ def _build_intelligence_signals(user, _module_permissions=None):
                 'explanation': p.explanation,
                 'predicted_date': p.predicted_date.strftime('%b %d')
                 if p.predicted_date else None,
+                # Ranking-relevant fields
+                '_id': p.id,
+                '_created_at': p.created_at,
+                '_predicted_date_raw': p.predicted_date,
+                '_dedupe_key': p.dedupe_key or '',
             }
             for p in active_predictions
             if _enabled_modules is None or not p.module or p.module in _enabled_modules
@@ -696,6 +1130,11 @@ def _build_intelligence_signals(user, _module_permissions=None):
                 'module': g.module,
                 'guidance_type': g.guidance_type,
                 'source': g.source,
+                # Ranking-relevant fields
+                '_id': g.id,
+                '_created_at': g.created_at,
+                '_confidence_score': g.confidence_score,
+                '_dedupe_key': g.dedupe_key or '',
             }
             for g in active_guidance
             if _enabled_modules is None or not g.module or g.module in _enabled_modules
@@ -721,6 +1160,10 @@ def _build_intelligence_signals(user, _module_permissions=None):
                 'narrative': c.narrative,
                 'evidence': c.evidence_summary,
                 'domains': [c.domain_a, c.domain_b],
+                # Ranking-relevant fields
+                '_id': c.id,
+                '_created_at': c.created_at,
+                '_dedupe_key': c.dedupe_key or '',
             }
             for c in active_correlations
             if _enabled_modules is None or (
@@ -763,6 +1206,8 @@ def _build_intelligence_signals(user, _module_permissions=None):
         result['domain_coverage'] = []
 
     return result
+
+
 
 
 def _build_people_and_mood(user):
@@ -1842,6 +2287,20 @@ def build_cos_context(user, scoped_builders=None):
     except Exception as e:
         logger.debug("CoS context: escalation state unavailable: %s", e)
         context['trajectory_activation_state'] = ACTIVATION_CLEAN
+
+    # Signal Arbitration — deterministic ranking of intelligence signals
+    # Must run after all builders so drift_score is available.
+    _ranking_context = dict(context)
+    try:
+        from apps.core.ai_state.models import CoSSituationState
+        _sit = CoSSituationState.objects.filter(user=user).only(
+            'user_acknowledged_signals'
+        ).first()
+        if _sit and _sit.user_acknowledged_signals:
+            _ranking_context['_acknowledged_signals'] = _sit.user_acknowledged_signals
+    except Exception:
+        pass
+    context['ranked_signals'] = _rank_top_signals(context, _ranking_context)
 
     elapsed_ms = (_time.monotonic() - start) * 1000
     try:
@@ -3404,7 +3863,10 @@ def format_cos_system_injection(context, user_message=None):
             "Other intelligence sources are active."
         )
 
-    # Collect all signals for priority-ranked synthesis
+    # ── SIGNAL ARBITRATION — deterministic signal selection ──
+    # If ranked_signals is available, use it for the proactive directive.
+    # If None (arbitration failed), fall back to flat-list behavior.
+    ranked = context.get('ranked_signals')
     insights = context.get('active_insights', [])
     predictions = context.get('active_predictions', [])
     guidance = context.get('active_guidance', [])
@@ -3415,7 +3877,89 @@ def format_cos_system_injection(context, user_message=None):
         insights or predictions or guidance or correlations or drift >= 30
     )
 
-    if has_any_intelligence:
+    if ranked and ranked.get('top_signal'):
+        # ── RANKED MODE: deterministic signal selection ──
+        top = ranked['top_signal']
+        supporting = ranked.get('supporting_signals', [])
+        suppressed_count = ranked.get('suppressed_count', 0)
+        delivery = top.get('delivery_mode', 'support')
+
+        lines.append("")
+        if delivery == 'interrupt':
+            lines.append(
+                "=== PROACTIVE INTELLIGENCE (INTERRUPT — surface immediately) ===\n"
+                "A critical signal requires immediate attention. Before addressing "
+                "the user's message, state this signal clearly. Do not bury it."
+            )
+        elif delivery == 'lead':
+            lines.append(
+                "=== PROACTIVE INTELLIGENCE (LEAD — open with this signal) ===\n"
+                "An important signal should lead your response. Mention it first, "
+                "then transition to the user's message."
+            )
+        elif delivery == 'support':
+            lines.append(
+                "=== PROACTIVE INTELLIGENCE (SUPPORT — weave in naturally) ===\n"
+                "A relevant signal exists. Address the user's message first. "
+                "Mention this signal only if naturally relevant to the conversation."
+            )
+        else:  # silent
+            lines.append(
+                "=== PROACTIVE INTELLIGENCE (AVAILABLE — do not surface proactively) ===\n"
+                "Intelligence signals exist but are not urgent enough to surface. "
+                "Only reference if the user asks about patterns or trends."
+            )
+
+        # Top signal
+        lines.append("")
+        _conf_label = "high" if top['confidence'] >= 0.7 else "moderate" if top['confidence'] >= 0.4 else "low"
+        lines.append(
+            f"TOP SIGNAL [{top['tier_label'].upper()}]: "
+            f"{top['title'] or top['message']}"
+        )
+        if top['message'] and top['title'] and top['message'] != top['title']:
+            lines.append(f"  Detail: {top['message']}")
+        lines.append(
+            f"  Module: {top['module']} | Confidence: {_conf_label} | "
+            f"Score: {top['arbitration_score']}/400"
+        )
+
+        # Supporting signals
+        if supporting:
+            lines.append("")
+            lines.append(
+                "SUPPORTING CONTEXT (reference only — do NOT lead with these):"
+            )
+            for s in supporting:
+                _s_conf = "high" if s['confidence'] >= 0.7 else "moderate" if s['confidence'] >= 0.4 else "low"
+                label = s.get('title') or s.get('message', '')
+                attached = " [attached guidance]" if s.get('attached_guidance') else ""
+                lines.append(f"  - {label} ({s['module']}) [{_s_conf}]{attached}")
+
+        if suppressed_count > 0:
+            lines.append(f"\n({suppressed_count} additional signals suppressed — below surfacing threshold)")
+
+        lines.append("")
+        lines.append(
+            "HOW TO SURFACE: Frame as a pattern, not a command. "
+            "'I'm noticing...' not 'You need to...'. "
+            "Keep it brief — one or two sentences, then move to the user's topic.\n"
+            "=== END PROACTIVE INTELLIGENCE ==="
+        )
+
+    elif has_any_intelligence and ranked and not ranked.get('top_signal'):
+        # ── SUPPRESSED MODE: signals exist but none warrant surfacing ──
+        lines.append("")
+        lines.append(
+            "=== PROACTIVE INTELLIGENCE (NONE — no signals warrant mention) ===\n"
+            "Intelligence signals were evaluated but none are urgent enough to "
+            "surface proactively. Respond normally to the user's message.\n"
+            f"Reason: {ranked.get('suppression_reason', 'Below surfacing threshold')}\n"
+            "=== END PROACTIVE INTELLIGENCE ==="
+        )
+
+    elif has_any_intelligence:
+        # ── FALLBACK MODE: arbitration failed, use flat lists ──
         lines.append("")
         lines.append(
             "=== PROACTIVE INTELLIGENCE (surface the most important signal) ===\n"
@@ -3433,23 +3977,16 @@ def format_cos_system_injection(context, user_message=None):
             "\n"
             "HOW TO SURFACE intelligence:\n"
             "  - Lead with ONE synthesized insight, not a list of signals\n"
-            "  - Connect related signals into a narrative (e.g., sleep decline "
-            "+ missed workouts + mood drop = one story, not three bullet points)\n"
-            "  - Keep it brief — one or two sentences, then move to the user's topic\n"
-            "  - Frame observations as patterns, not commands: "
-            "'I'm noticing...' not 'You need to...'\n"
-            "  - If the user's message is urgent or emotional, address THEIR "
-            "concern first, then weave in the intelligence naturally\n"
+            "  - Keep it brief — one or two sentences\n"
+            "  - Frame observations as patterns, not commands\n"
             "\n"
             "WHEN TO HOLD BACK:\n"
-            "  - Only positive/info-level signals with no warnings → skip proactive mention\n"
-            "  - User is in the middle of a focused task or deep conversation → "
-            "don't interrupt with unrelated patterns\n"
+            "  - Only positive/info-level signals with no warnings → skip\n"
             "  - Intelligence is 'degraded' → don't speculate\n"
             "=== END PROACTIVE INTELLIGENCE DIRECTIVE ==="
         )
 
-    # Phase 7.5: Signal Interpretation Summary
+    # Phase 7.5: Signal Interpretation Summary (always included regardless of ranking)
     _signal_summary = _format_signal_interpretation_summary(context)
     if _signal_summary:
         lines.append("")
@@ -3461,7 +3998,8 @@ def format_cos_system_injection(context, user_message=None):
         lines.append("")
         lines.append(_momentum_interp)
 
-    # Active insights — pattern detections from PIE
+    # ── Flat signal lists (reference material — always included for context) ──
+    # When ranked mode is active, these are reference. When fallback, these are primary.
     if insights:
         lines.append("")
         lines.append("DETECTED PATTERNS (PIE):")
@@ -3480,7 +4018,6 @@ def format_cos_system_injection(context, user_message=None):
             elif msg:
                 lines.append(f"  - {severity_prefix}{msg}")
 
-    # Active predictions — trajectory outlook from PRIE
     if predictions:
         lines.append("")
         lines.append("TRAJECTORY OUTLOOK (PRIE):")
@@ -3495,7 +4032,6 @@ def format_cos_system_injection(context, user_message=None):
             else:
                 lines.append(f"  - {p['type']}: {p['value']}")
 
-    # Active guidance — recommended actions from PGE
     if guidance:
         lines.append("")
         lines.append("RECOMMENDED ACTIONS (PGE):")
@@ -3504,7 +4040,6 @@ def format_cos_system_injection(context, user_message=None):
             if msg:
                 lines.append(f"  - {msg}")
 
-    # Cross-domain correlations — discovered patterns from CDCE
     if correlations:
         lines.append("")
         lines.append("CROSS-DOMAIN PATTERNS (CDCE):")

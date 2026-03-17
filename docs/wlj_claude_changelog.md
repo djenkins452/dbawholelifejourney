@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-17 — Signal Arbitration v1.0: Deterministic CoS Signal Selection
+
+**Purpose:** Replace LLM-driven signal selection with deterministic arbitration. The system now selects which signal to surface before the LLM sees the prompt — the LLM narrates, it does not choose.
+
+**Architecture:**
+- 6 priority tiers (critical_health → guidance_info), tier-first comparison (absolute, no cross-tier override)
+- Intra-tier scoring: confidence_bonus (0-200) + urgency_bonus (0-100) + recency_bonus (0-100)
+- Surfacing gate: confidence floors, acknowledged suppression, session repeat prevention, all-quiet threshold
+- Delivery modes: interrupt / lead / support / silent — controls how strongly CoS surfaces the signal
+- Graceful fallback: if arbitration fails, reverts to prior flat-list behavior
+
+**Changes:**
+- `apps/core/ai_orchestrator/cos_context.py` — Added `_rank_top_signals()` (~250 lines) plus helper functions (`_classify_signal`, `_compute_delivery_mode`, `_compute_urgency_bonus`, `_compute_recency_bonus`, `_urgency_label`). Runs in POST-ASSEMBLY phase after all builders complete. Output stored as `context['ranked_signals']`.
+- `apps/core/ai_orchestrator/cos_context.py` — Enriched signal dicts with ranking-relevant fields (`_id`, `_created_at`, `_status`, `_dedupe_key`, `_predicted_date_raw`, `_confidence_score`) — prefixed with `_` to prevent prompt leakage.
+- `apps/core/ai_orchestrator/cos_context.py` — Updated `format_cos_system_injection()` PROACTIVE INTELLIGENCE directive: ranked mode (TOP SIGNAL + SUPPORTING CONTEXT with delivery mode), suppressed mode (no signals warrant mention), fallback mode (flat lists with 6-level priority order).
+- Flat signal lists (DETECTED PATTERNS, TRAJECTORY OUTLOOK, RECOMMENDED ACTIONS, CROSS-DOMAIN PATTERNS) remain as reference material in all modes.
+
+**Output contract:** `{ top_signal: {source_type, tier, delivery_mode, ...}, supporting_signals: [...], suppressed_count, selection_reason, suppression_reason }`
+
+---
+
 ## 2026-03-17 — Signal Pipeline: Execution Repair + Task Intelligence + Framework
 
 ### Phase 1: Execution Repair — PendingAction bridge for proactive check-ins

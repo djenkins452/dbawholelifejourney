@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-16 — UX: Stack voice/send buttons vertically beside chat textarea
+
+**Change:** Wrapped the microphone and send buttons in a vertical `.ap-action-stack` container (mic on top, send below). This frees horizontal space so the textarea can stretch wider. Also bumped textarea to `rows="4"` and `min-height: 76px`.
+
+**Files:**
+- `templates/components/assistant_panel.html` — Wrap buttons in `.ap-action-stack` div (desktop + mobile)
+- `static/css/assistant-panel.css` — Add `.ap-action-stack` flex-column layout; increase textarea min-height
+
+---
+
 ## 2026-03-16 — Ops Wall: Fix CoS Context STALE, 0% cache hit, and false Signal Health DEGRADED
 
 **Root causes and fixes:**

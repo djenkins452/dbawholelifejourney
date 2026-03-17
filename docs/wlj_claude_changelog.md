@@ -6,6 +6,56 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-17 — Phase 6B Completion: Learning Hook, Fingerprint Dedup, Receipt Documents, Intent Signals
+
+**Purpose:** Complete Phase 6B with missing production features: learning overrides, transaction fingerprinting, receipt-to-document creation, and intent signal hooks.
+
+**New features:**
+- **EmailClassificationFeedback model** — Per-user sender → classification overrides. Learned senders checked before rules in classifier. Normalized to lowercase.
+- **Transaction fingerprint dedup** — `Transaction.fingerprint` field (indexed, SHA-256 of normalized merchant + rounded amount + 3-day date bucket). Blocks duplicate transactions across sources.
+- **Receipt → Document creation** — Receipt emails auto-create Document records (category=financial, subcategory=receipt, source=email). Email body stored in raw_text. Transaction linked via `receipt_document` FK.
+- **Intent signal hook** — `ExtractedFact.intent_type` field: obligation→bill_due, appointment→schedule_commitment, subscription→recurring_obligation. Enriches signal metadata.
+- **Document source tracking** — New fields: `source` (upload/email/scan), `source_id`, `subcategory` on Document model.
+
+**Files changed:**
+- `apps/life/models.py` — EmailClassificationFeedback model + Document source/subcategory fields
+- `apps/life/services/email_classifier.py` — Learning override integration (_check_learned_sender), classify_email now accepts user param
+- `apps/life/services/email_fact_service.py` — Full rewrite: fingerprint dedup, receipt→Document, intent_type assignment, receipt detection
+- `apps/core/ai_eae/models.py` — ExtractedFact.intent_type field (3 choices)
+- `apps/finance/models.py` — Transaction.fingerprint + Transaction.receipt_document FK
+- `apps/life/migrations/0029_phase6b_completion.py` — EmailClassificationFeedback + Document fields
+- `apps/finance/migrations/0017_phase6b_tx_fingerprint.py` — Transaction fingerprint + receipt_document
+- `apps/core/ai_eae/migrations/0005_phase6b_intent_type.py` — ExtractedFact.intent_type
+- `apps/life/tests/test_phase6b_email_pipeline.py` — 17 new tests (51 total): learning overrides, fingerprint dedup, receipt documents, intent types
+
+**Tests:** 51 Phase 6B tests pass, 33 Phase 6A regression tests pass.
+
+---
+
+## 2026-03-17 — Phase 6B: Email Intelligence Pipeline
+
+**Purpose:** Extend the Knowledge Intelligence Pipeline to emails: Email → Classification → ExtractedFacts → Signals → Patterns → CoS. Runs parallel to existing task extraction pipeline. Email bodies are never stored.
+
+**Architecture:**
+- **Email Classification:** Rules-first engine (sender patterns, financial/health/subscription keywords). LLM fallback only for uncertain emails (~10% of inbox). Dry run mode for reviewing classifications before enabling fact creation.
+- **WLJ Flagging:** `[WLJ]` in subject = auto-KEEP with confidence 1.0, highest source weight (0.9).
+- **Fact Extraction:** Rule-based extraction for dollar amounts, appointments, medications, obligations, subscriptions. LLM extraction (reuses Phase 6A prompt) for complex emails where rules find nothing.
+- **Signal Mapping:** Full reuse of FactSignalMapper (Phase 6A). Batch signal mapping — single targeted recompute per scan, not per email.
+- **Transaction Integration:** Email receipts create Transaction records (source_type='email'). Cross-source dedup: +/-2 days, +/-$0.50 absolute amount match prevents duplicates from email + bank import.
+- **Data Handling:** Only metadata stored (subject, sender, snippet). Full email bodies used transiently during extraction, then discarded. No raw content in DB.
+- **Observability:** Telemetry cache key `wlj:ops:email_fact_extraction` tracks scans, classifications, facts, signals, transactions.
+
+**Files created/modified:**
+- `apps/life/models.py` — ProcessedEmail: 9 new fields
+- `apps/life/services/email_classifier.py` — NEW: Rule engine + LLM classification + dry run
+- `apps/life/services/email_fact_extractor.py` — NEW: Rule + LLM fact extraction from emails
+- `apps/life/services/email_fact_service.py` — NEW: Orchestrator
+- `apps/life/services/gmail_sync.py` — Extended: parallel fact extraction pipeline
+- `apps/life/migrations/0028_phase6b_email_intelligence.py` — ProcessedEmail new fields
+- `apps/life/tests/test_phase6b_email_pipeline.py` — NEW: 34 tests across 9 classes
+
+---
+
 ## 2026-03-17 — Nav: Add Notes and System links to left sidebar
 
 **Change:** Added "Notes" link (between Capture and Journal) pointing to `/notes/` and "System" link (before Capture, staff-only) pointing to Ops Wall at `/admin-console/ops/`.

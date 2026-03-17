@@ -1230,6 +1230,32 @@ class Document(UserOwnedModel):
         help_text="Link to pet (e.g., vaccination records)"
     )
     
+    # Phase 6B: Source tracking for auto-created documents
+    SOURCE_CHOICES = [
+        ('upload', 'User Upload'),
+        ('email', 'Email Attachment'),
+        ('scan', 'Receipt Scan'),
+    ]
+
+    subcategory = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        help_text="Sub-category (e.g., 'receipt', 'statement', 'bill')",
+    )
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default='upload',
+        help_text="How this document was created",
+    )
+    source_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="Source record ID (e.g., Gmail message ID)",
+    )
+
     # Notes
     notes = models.TextField(blank=True)
 
@@ -2135,6 +2161,68 @@ class ProcessedEmail(models.Model):
 
     def __str__(self):
         return f"Email {self.gmail_message_id} for {self.user}"
+
+
+# =============================================================================
+# Phase 6B: Email Classification Feedback (Learning Hook)
+# =============================================================================
+
+class EmailClassificationFeedback(models.Model):
+    """
+    Learned sender → classification overrides for email intelligence.
+
+    When a user corrects a classification, the sender is remembered so future
+    emails from that sender are automatically classified correctly.
+
+    No UI required — populated programmatically via API or admin.
+    """
+
+    CLASSIFICATION_CHOICES = [
+        ('keep', 'Always Keep'),
+        ('skip', 'Always Skip'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='email_classification_feedback',
+    )
+    sender = models.CharField(
+        max_length=255,
+        help_text="Email sender address (normalized to lowercase)",
+    )
+    original_classification = models.CharField(
+        max_length=20,
+        blank=True,
+        default='',
+        help_text="What the system originally classified this as",
+    )
+    corrected_classification = models.CharField(
+        max_length=20,
+        choices=CLASSIFICATION_CHOICES,
+        help_text="What the user wants emails from this sender classified as",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['user', 'sender']
+        verbose_name = "Email Classification Feedback"
+        verbose_name_plural = "Email Classification Feedback"
+        indexes = [
+            models.Index(
+                fields=['user', 'corrected_classification'],
+                name='idx_email_feedback_user_class',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.sender} → {self.corrected_classification} (user {self.user_id})"
+
+    def save(self, *args, **kwargs):
+        # Normalize sender to lowercase
+        self.sender = self.sender.lower().strip()
+        super().save(*args, **kwargs)
 
 
 # =============================================================================

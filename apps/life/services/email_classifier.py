@@ -122,12 +122,54 @@ Return ONLY valid JSON:
 {"classification": "KEEP" or "SKIP", "reason": "brief reason", "confidence": 0.0-1.0}"""
 
 
-def classify_email(email):
+def _check_learned_sender(user, sender):
+    """
+    Check if this sender has a learned classification override.
+
+    Args:
+        user: User instance (or None for anonymous/dry-run)
+        sender: email sender string
+
+    Returns:
+        dict with classification result, or None if no override
+    """
+    if not user or not sender:
+        return None
+
+    try:
+        from apps.life.models import EmailClassificationFeedback
+
+        normalized = sender.lower().strip()
+        # Extract email address from "Name <email>" format
+        if '<' in normalized and '>' in normalized:
+            normalized = normalized.split('<')[1].split('>')[0]
+
+        feedback = EmailClassificationFeedback.objects.filter(
+            user=user,
+            sender=normalized,
+        ).first()
+
+        if feedback:
+            return {
+                'classification': feedback.corrected_classification,
+                'confidence': 0.95,
+                'reason': f'learned:{feedback.corrected_classification}_sender',
+                'method': 'learned',
+                'wlj_flagged': False,
+            }
+    except Exception as e:
+        logger.debug("Learning override check failed: %s", e)
+
+    return None
+
+
+def classify_email(email, user=None):
     """
     Classify a single email as KEEP, SKIP, or UNCERTAIN.
 
     Args:
         email: dict with keys: id, subject, sender, body, snippet, date
+        user: optional User instance for learning overrides
 
     Returns:
         dict with: classification, confidence, reason, method
@@ -136,6 +178,11 @@ def classify_email(email):
     sender = email.get('sender', '') or ''
     body = email.get('body', '') or ''
     text = f"{subject} {body[:1000]}"
+
+    # 0. Learning overrides — check before rules
+    learned = _check_learned_sender(user, sender)
+    if learned:
+        return learned
 
     # 1. WLJ flag — highest priority, always KEEP
     if _WLJ_FLAG_RE.search(subject):
@@ -356,7 +403,7 @@ def classify_emails_dry_run(user):
     rule_only = 0
 
     for email in emails:
-        result = classify_email(email)
+        result = classify_email(email, user=user)
 
         if result['classification'] == 'keep':
             rule_only += 1

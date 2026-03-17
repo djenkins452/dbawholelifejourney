@@ -512,6 +512,25 @@ class Transaction(UserOwnedModel):
         help_text="Source record ID (document ID, email message ID, etc.)",
     )
 
+    # Phase 6B: Transaction fingerprint for cross-source dedup
+    fingerprint = models.CharField(
+        max_length=64,
+        blank=True,
+        default='',
+        db_index=True,
+        help_text="Hash of normalized merchant+amount+date for dedup",
+    )
+
+    # Phase 6B: Receipt document link
+    receipt_document = models.ForeignKey(
+        'life.Document',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='receipt_transactions',
+        help_text="Linked receipt document (from email attachment)",
+    )
+
     # Plaid integration
     plaid_transaction_id = models.CharField(
         max_length=100,

@@ -6,6 +6,60 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-17 — Phase 6A: Document Intelligence + Extracted Fact Layer
+
+**Purpose:** Upgrade documents from metadata-only signals to full content extraction pipeline: Document → raw content → extracted facts → signals → patterns → CoS. This is the foundation of the Knowledge Intelligence Pipeline.
+
+**Architecture (Raw Content → Facts → Signals → Patterns → CoS):**
+- **Content extraction:** Async Celery task downloads file from storage, runs PDFTextExtractor (pdfplumber) or OCR (pytesseract), stores `raw_text` on Document. Hash-based dedup prevents re-extraction.
+- **Fact extraction:** LLM extracts structured candidates → deterministic validation (type, confidence ≥0.6, structured_value schema) → ExtractedFact records. 6 initial fact types: amount, appointment, person, medication, obligation, subscription.
+- **Confidence model:** `final_confidence = LLM_confidence × source_weight (0.7)`. Facts are lower trust than verified data.
+- **Fact → Signal mapping:** Deterministic rules — amount/obligation/subscription→financial_health, appointment→health_activity, medication→medication_adherence. Blends into SignalSnapshots via targeted recompute.
+- **Transaction creation:** Financial facts from financial/tax/insurance documents create Transaction records (with source_type='document').
+- **Observability:** Two telemetry streams — content extraction (by method: text/ocr) and fact extraction (facts/signals/transactions created).
+
+**New models:**
+- `ExtractedFact` (apps/core/ai_eae/models.py) — Structured fact with GenericForeignKey to source, JSONField structured_value, 6 fact types
+- `Document` extensions — raw_text, extraction_status, extraction_quality, extracted_at, content_hash
+- `Transaction` extensions — source_type, source_id fields
+
+**New files:**
+- `apps/core/extraction/__init__.py` + `content_extractor.py` — Shared content extraction (reuses medical PDF/OCR extractors)
+- `apps/life/services/document_fact_extractor.py` — LLM fact extraction + deterministic validation
+- `apps/core/ai_eae/fact_signal_mapper.py` — Deterministic fact→signal mapping + Transaction creation
+- `apps/life/tasks/document_extraction.py` — Async Celery tasks for content + fact pipeline
+- `apps/core/ai_eae/tests/test_phase6a_pipeline.py` — 33 tests across 8 test classes
+
+**Modified files:**
+- `apps/life/models.py` — Document model: 5 new content extraction fields
+- `apps/core/ai_eae/models.py` — Added ExtractedFact model
+- `apps/finance/models.py` — Transaction: source_type + source_id fields
+- `apps/life/signals.py` — Added Phase 6A content extraction dispatch on Document post_save
+
+**Tests:** 33 tests passing — ContentExtractorTests (5), ExtractedFactModelTests (2), FactExtractionTests (7), FactSignalMappingTests (6), RecomputeIntegrationTests (2), TransactionCreationTests (3), DocumentPipelineTests (3), IdempotencyTests (2), DocumentModelTests (3)
+
+## 2026-03-17 — Fix Beth/CoS data mismatch: stale weight from HealthKit, wrong task ordering
+
+**Root cause (weight):** Apple Health / mobile HealthKit sync created WeightEntry records but never called `fire_intelligence()` to update the SAE state snapshot. Beth read stale weight from `UserState.state_data` while the UI read live from the database.
+
+**Root cause (tasks):** CoS context builder queried active task titles with `order_by('-due_date')[:15]`. PostgreSQL DESC puts NULLs first, so Someday tasks (no due_date) dominated the list.
+
+**Fix A — Mobile SAE update:** `apps/mobile/views.py` — Added `fire_intelligence(user, "health")` after HealthKit metrics are processed.
+
+**Fix B — Task title ordering:** `apps/core/ai_orchestrator/cos_context.py` — Changed to priority-first ordering, increased limit from 15 to 25.
+
+---
+
+## 2026-03-16 — Phase 5.5: Capture & Document Signal Extraction Layer
+
+**Purpose:** Convert Capture transcripts and Document metadata into behavioral signals using the existing signal taxonomy.
+
+**New files:** `apps/capture/services/signal_extractor.py`, `apps/life/services/document_signal_extractor.py`, `apps/core/ai_eae/targeted_recompute.py`, `apps/core/ai_eae/tests/test_extraction_layer.py`
+
+**Tests:** 26 tests passing
+
+---
+
 ## 2026-03-16 — UX: Stack voice/send buttons vertically beside chat textarea
 
 **Change:** Wrapped the microphone and send buttons in a vertical `.ap-action-stack` container (mic on top, send below). This frees horizontal space so the textarea can stretch wider. Also bumped textarea to `rows="4"` and `min-height: 76px`.

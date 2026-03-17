@@ -1232,11 +1232,48 @@ class Document(UserOwnedModel):
     
     # Notes
     notes = models.TextField(blank=True)
-    
+
     # Archive
     is_archived = models.BooleanField(
         default=False,
         help_text="Archived documents are hidden from default view"
+    )
+
+    # Phase 6A: Content extraction fields
+    EXTRACTION_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('not_applicable', 'Not Applicable'),
+    ]
+
+    raw_text = models.TextField(
+        blank=True,
+        default='',
+        help_text="Extracted text content from file (PDF text or OCR)",
+    )
+    extraction_status = models.CharField(
+        max_length=20,
+        choices=EXTRACTION_STATUS_CHOICES,
+        default='pending',
+        help_text="Content extraction pipeline status",
+    )
+    extraction_quality = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Extraction quality estimate 0.0-1.0",
+    )
+    extracted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When content extraction completed",
+    )
+    content_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        default='',
+        help_text="SHA-256 hash of file content for dedup/change detection",
     )
     
     class Meta:
@@ -1267,6 +1304,11 @@ class Document(UserOwnedModel):
                 self.file_type = 'excel'
             else:
                 self.file_type = 'other'
+
+            # Set extraction_status for extractable types only
+            extractable = ('pdf', 'image/jpeg', 'image/png')
+            if self.file_type not in extractable and not self.pk:
+                self.extraction_status = 'not_applicable'
         super().save(*args, **kwargs)
     
     @property

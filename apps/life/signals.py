@@ -190,3 +190,20 @@ def handle_document_saved_for_extraction(sender, instance, created, **kwargs):
             "Document signal extraction failed for %s: %s",
             instance.pk, e, exc_info=True,
         )
+
+    # Phase 6A: Dispatch async content extraction (PDF/OCR → raw_text → facts)
+    # This runs AFTER the Phase 5.5 metadata extraction (which is synchronous).
+    # Content extraction is async because PDF/OCR can be slow.
+    extractable_types = ('pdf', 'image/jpeg', 'image/png')
+    file_type = getattr(instance, 'file_type', '') or ''
+    if file_type in extractable_types:
+        try:
+            from apps.life.tasks.document_extraction import (
+                extract_document_content_task,
+            )
+            extract_document_content_task.delay(instance.pk)
+        except Exception as e:
+            logger.warning(
+                "Celery dispatch for content extraction failed for %s: %s",
+                instance.pk, e,
+            )

@@ -6,6 +6,38 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-17 — Phase 6A: Document Intelligence + Extracted Fact Layer
+
+**Purpose:** Upgrade documents from metadata-only signals to full content extraction pipeline: Document → raw content → extracted facts → signals → patterns → CoS. This is the foundation of the Knowledge Intelligence Pipeline.
+
+**Architecture (Raw Content → Facts → Signals → Patterns → CoS):**
+- **Content extraction:** Async Celery task downloads file from storage, runs PDFTextExtractor (pdfplumber) or OCR (pytesseract), stores `raw_text` on Document. Hash-based dedup prevents re-extraction.
+- **Fact extraction:** LLM extracts structured candidates → deterministic validation (type, confidence ≥0.6, structured_value schema) → ExtractedFact records. 6 initial fact types: amount, appointment, person, medication, obligation, subscription.
+- **Confidence model:** `final_confidence = LLM_confidence × source_weight (0.7)`. Facts are lower trust than verified data.
+- **Fact → Signal mapping:** Deterministic rules — amount/obligation/subscription→financial_health, appointment→health_activity, medication→medication_adherence. Blends into SignalSnapshots via targeted recompute.
+- **Transaction creation:** Financial facts from financial/tax/insurance documents create Transaction records (with source_type='document').
+- **Observability:** Two telemetry streams — content extraction (by method: text/ocr) and fact extraction (facts/signals/transactions created).
+
+**New models:**
+- `ExtractedFact` (apps/core/ai_eae/models.py) — Structured fact with GenericForeignKey to source, JSONField structured_value, 6 fact types
+- `Document` extensions — raw_text, extraction_status, extraction_quality, extracted_at, content_hash
+- `Transaction` extensions — source_type, source_id fields
+
+**New files:**
+- `apps/core/extraction/__init__.py` + `content_extractor.py` — Shared content extraction (reuses medical PDF/OCR extractors)
+- `apps/life/services/document_fact_extractor.py` — LLM fact extraction + deterministic validation
+- `apps/core/ai_eae/fact_signal_mapper.py` — Deterministic fact→signal mapping + Transaction creation
+- `apps/life/tasks/document_extraction.py` — Async Celery tasks for content + fact pipeline
+- `apps/core/ai_eae/tests/test_phase6a_pipeline.py` — 33 tests across 8 test classes
+
+**Modified files:**
+- `apps/life/models.py` — Document model: 5 new content extraction fields
+- `apps/core/ai_eae/models.py` — Added ExtractedFact model
+- `apps/finance/models.py` — Transaction: source_type + source_id fields
+- `apps/life/signals.py` — Added Phase 6A content extraction dispatch on Document post_save
+
+**Tests:** 33 tests passing — ContentExtractorTests (5), ExtractedFactModelTests (2), FactExtractionTests (7), FactSignalMappingTests (6), RecomputeIntegrationTests (2), TransactionCreationTests (3), DocumentPipelineTests (3), IdempotencyTests (2), DocumentModelTests (3)
+
 ## 2026-03-16 — Phase 5.5: Capture & Document Signal Extraction Layer
 
 **Purpose:** Convert Capture transcripts and Document metadata into behavioral signals using the existing signal taxonomy. Signals flow into SignalSnapshots via targeted recompute (same-cycle, ~60s) rather than waiting for nightly aggregation.

@@ -2,6 +2,8 @@
 EAE — Executive Arbitration Engine Models.
 
 Models:
+- SignalSnapshot: Persisted daily signal value
+- ExtractedFact: Structured fact extracted from content (Phase 6A)
 - EAEState: Per-user arbitration state (escalation, focus, budget)
 - EAEDecisionLog: Append-only audit of every arbitration decision
 - EAEOverride: Per-user signal override/suppression state
@@ -11,6 +13,8 @@ import logging
 import uuid
 
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils import timezone
 
@@ -105,6 +109,112 @@ class SignalSnapshot(models.Model):
         return (
             f"{self.signal_type} for user {self.user_id} on {self.date}: "
             f"{self.score:.2f} ({self.signal_class})"
+        )
+
+
+# =============================================================================
+# EXTRACTED FACT (Phase 6A — Knowledge Intelligence Pipeline)
+# =============================================================================
+
+
+class ExtractedFact(models.Model):
+    """
+    Structured fact extracted from content (documents, captures, emails).
+
+    Part of the Knowledge Intelligence Pipeline:
+    Raw Content → Extracted Facts → Signals → Patterns → CoS
+
+    Facts are the structured, validated output of content extraction.
+    LLM proposes candidates; deterministic validation creates facts.
+    Facts are then mapped to signals via deterministic rules.
+    """
+
+    FACT_TYPE_CHOICES = [
+        ('amount', 'Amount / Payment'),
+        ('appointment', 'Appointment'),
+        ('person', 'Person / Provider'),
+        ('medication', 'Medication'),
+        ('obligation', 'Obligation (Bill / Due / Renewal)'),
+        ('subscription', 'Subscription'),
+    ]
+
+    SOURCE_TYPE_CHOICES = [
+        ('document', 'Document'),
+        ('capture', 'Capture'),
+        ('email', 'Email'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='extracted_facts',
+    )
+
+    # Polymorphic source reference (Document, CaptureEntry, etc.)
+    source_content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+    )
+    source_object_id = models.PositiveIntegerField()
+    source = GenericForeignKey('source_content_type', 'source_object_id')
+
+    source_type = models.CharField(
+        max_length=10,
+        choices=SOURCE_TYPE_CHOICES,
+        help_text="Source content type for quick filtering",
+    )
+
+    fact_type = models.CharField(
+        max_length=20,
+        choices=FACT_TYPE_CHOICES,
+        help_text="Type of fact extracted",
+    )
+    structured_value = models.JSONField(
+        default=dict,
+        help_text="Typed structured data per fact_type",
+    )
+    confidence = models.FloatField(
+        help_text="Final confidence (LLM_confidence × source_weight)",
+    )
+    extracted_text = models.TextField(
+        help_text="Source text snippet that produced this fact",
+    )
+    effective_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date the fact applies to (e.g., appointment date, due date)",
+    )
+    domain_hint = models.CharField(
+        max_length=20,
+        blank=True,
+        default='',
+        help_text="Suggested domain for signal mapping",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Extracted Fact"
+        verbose_name_plural = "Extracted Facts"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(
+                fields=['user', 'fact_type', 'effective_date'],
+                name='idx_fact_user_type_date',
+            ),
+            models.Index(
+                fields=['user', 'created_at'],
+                name='idx_fact_user_created',
+            ),
+            models.Index(
+                fields=['source_content_type', 'source_object_id'],
+                name='idx_fact_source',
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"ExtractedFact({self.fact_type}, conf={self.confidence:.2f}) "
+            f"for user {self.user_id}"
         )
 
 

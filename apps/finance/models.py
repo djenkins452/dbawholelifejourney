@@ -489,6 +489,29 @@ class Transaction(UserOwnedModel):
         help_text="Import record if this transaction was imported from a file"
     )
 
+    # Source tracking (Phase 6A)
+    SOURCE_TYPE_CHOICES = [
+        ('manual', 'Manual Entry'),
+        ('import', 'File Import'),
+        ('email', 'Email Extraction'),
+        ('document', 'Document Extraction'),
+        ('receipt_scan', 'Receipt Scan'),
+        ('plaid', 'Plaid Sync'),
+    ]
+
+    source_type = models.CharField(
+        max_length=20,
+        choices=SOURCE_TYPE_CHOICES,
+        default='manual',
+        help_text="How this transaction was created",
+    )
+    source_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="Source record ID (document ID, email message ID, etc.)",
+    )
+
     # Plaid integration
     plaid_transaction_id = models.CharField(
         max_length=100,

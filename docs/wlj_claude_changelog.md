@@ -37,6 +37,19 @@
 - `apps/life/signals.py` — Added Phase 6A content extraction dispatch on Document post_save
 
 **Tests:** 33 tests passing — ContentExtractorTests (5), ExtractedFactModelTests (2), FactExtractionTests (7), FactSignalMappingTests (6), RecomputeIntegrationTests (2), TransactionCreationTests (3), DocumentPipelineTests (3), IdempotencyTests (2), DocumentModelTests (3)
+## 2026-03-17 — Fix Beth/CoS data mismatch: stale weight from HealthKit, wrong task ordering
+
+**Root cause (weight):** Apple Health / mobile HealthKit sync created WeightEntry records but never called `fire_intelligence()` to update the SAE state snapshot. Beth read stale weight from `UserState.state_data` while the UI read live from the database. Example: Beth said 305.1 lbs while the Weight page showed 301.2 lb.
+
+**Root cause (tasks):** CoS context builder queried active task titles with `order_by('-due_date')[:15]`. PostgreSQL DESC puts NULLs first, so Someday tasks (no due_date) dominated the list. Now/Soon tasks were pushed to the end and excluded by the limit of 15. The "AUTHORITATIVE" injection label then told the LLM these were the ONLY tasks, suppressing mention of urgent items.
+
+**Fix A — Mobile SAE update:**
+- `apps/mobile/views.py` — Added `fire_intelligence(user, "health")` after HealthKit metrics are processed. Triggers SAE state rebuild so Beth reads fresh weight/health data after every Apple Health sync.
+
+**Fix B — Task title ordering:**
+- `apps/core/ai_orchestrator/cos_context.py` — Changed task title query from `order_by('-due_date')[:15]` to priority-first ordering (`now=0, soon=1, someday=2`) matching the UI's Task page sort. Increased limit from 15 to 25 to cover more of the active task list.
+
+---
 
 ## 2026-03-16 — Phase 5.5: Capture & Document Signal Extraction Layer
 

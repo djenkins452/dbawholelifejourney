@@ -2297,8 +2297,18 @@ def _build_data_state_snapshot(user) -> str:
         _completed_titles = list(
             _completed_today_qs.values_list('title', flat=True)[:10]
         )
+        from django.db.models import Case, When, Value, F
         _active_task_titles = list(
-            _pending_qs.order_by('-due_date').values_list('title', flat=True)[:15]
+            _pending_qs.order_by(
+                Case(
+                    When(priority='now', then=Value(0)),
+                    When(priority='soon', then=Value(1)),
+                    When(priority='someday', then=Value(2)),
+                    default=Value(3),
+                ),
+                F('due_date').asc(nulls_last=True),
+                '-created_at',
+            ).values_list('title', flat=True)[:25]
         )
         _overdue_qs = TaskQueries.overdue(user, today)
         counts['overdue_tasks'] = _overdue_qs.count()

@@ -541,6 +541,17 @@ def health_ingest(request):
         except Exception:
             pass  # Never block HealthKit response
 
+    # Update SAE state so Beth reads fresh health data (weight, body comp, etc.)
+    # Without this, Apple Health syncs create WeightEntry records but the SAE
+    # snapshot (UserState.state_data) stays stale — causing Beth to report
+    # outdated weight values while the UI shows the correct latest entry.
+    if changed_types:
+        try:
+            from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+            fire_intelligence(user, "health")
+        except Exception:
+            logger.error("Mobile ingest: SAE health update failed", exc_info=True)
+
     return JsonResponse({
         "success": True,
         "ingestion_id": ingestion_run.id,

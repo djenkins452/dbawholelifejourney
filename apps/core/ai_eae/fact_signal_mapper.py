@@ -105,13 +105,18 @@ def _map_facts_to_signals(facts):
         # Use effective_date if available, otherwise creation date
         date = fact.effective_date or fact.created_at.date()
 
-        result[date][signal_type].append({
+        fact_info = {
             'confidence': fact.confidence,
             'direction': direction,
             'fact_type': fact.fact_type,
             'fact_id': fact.pk,
             'text': fact.extracted_text[:100],
-        })
+        }
+        # Propagate intent_type if set (Phase 6B.5)
+        if getattr(fact, 'intent_type', ''):
+            fact_info['intent_type'] = fact.intent_type
+
+        result[date][signal_type].append(fact_info)
 
     return dict(result)
 

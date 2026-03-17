@@ -1306,6 +1306,13 @@ class Document(UserOwnedModel):
         ordering = ['-created_at']
         verbose_name = "Document"
         verbose_name_plural = "Documents"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'source', 'source_id'],
+                condition=models.Q(source='email'),
+                name='unique_email_source_document',
+            ),
+        ]
     
     def __str__(self):
         return self.title

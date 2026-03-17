@@ -23,6 +23,7 @@ import re
 from datetime import timedelta
 from decimal import Decimal
 
+from django.db import IntegrityError
 from django.db.models import Q
 from django.utils import timezone
 
@@ -297,8 +298,9 @@ def _compute_fingerprint(merchant, amount, date):
     fingerprint = SHA-256(normalized_merchant + rounded_amount + date_bucket)
     date_bucket = date rounded to nearest 3 days
     """
-    # Normalize merchant: lowercase, strip whitespace, remove punctuation
-    norm_merchant = re.sub(r'[^a-z0-9]', '', (merchant or '').lower())
+    # Normalize merchant via shared utility (alias resolution + noise removal)
+    from apps.life.services.merchant_normalizer import normalize_merchant_for_fingerprint
+    norm_merchant = normalize_merchant_for_fingerprint(merchant)
 
     # Round amount to nearest dollar
     rounded = round(abs(float(amount)))
@@ -362,13 +364,17 @@ def _create_email_transactions(user, financial_facts, receipt_emails=None):
                 continue
 
             tx_date = fact.effective_date or timezone.now().date()
-            description = (
+            raw_description = (
                 sv.get('merchant')
                 or sv.get('service')
                 or sv.get('description', '')
             )
-            if not description:
-                description = "Email transaction"
+            if not raw_description:
+                raw_description = "Email transaction"
+
+            # Normalize merchant for fingerprint + display
+            from apps.life.services.merchant_normalizer import normalize_merchant
+            description = normalize_merchant(raw_description) or raw_description
 
             # Fingerprint dedup
             fp = _compute_fingerprint(description, amount, tx_date)
@@ -461,7 +467,11 @@ def _create_receipt_documents(user, receipt_emails):
                 continue
 
             subject = (email.get('subject', '') or '')[:200]
-            body = (email.get('body', '') or '')[:2000]
+            raw_body = (email.get('body', '') or '')[:4000]
+
+            # Clean body before storing (strip HTML, entities, footer noise)
+            from apps.life.services.email_body_cleaner import clean_email_body
+            body = clean_email_body(raw_body, max_length=2000)
 
             doc = Document.objects.create(
                 user=user,
@@ -492,6 +502,12 @@ def _create_receipt_documents(user, receipt_emails):
                 doc.pk, gmail_id,
             )
 
+        except IntegrityError:
+            # DB-level dedup caught a race condition — safe to skip
+            logger.debug(
+                "Duplicate receipt document prevented by DB constraint: %s",
+                email.get('id', 'unknown'),
+            )
         except Exception as e:
             logger.warning(
                 "Failed to create receipt document from email %s: %s",

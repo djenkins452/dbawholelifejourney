@@ -6,6 +6,31 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-17 — Phase 6B.5 Hardening: Body Cleaning, Merchant Normalization, Intent Propagation, Dedup Constraint, Telemetry Visibility
+
+**Summary:** Targeted hardening pass based on Phase 6B audit findings. Five focused fixes, no architecture changes.
+
+**Changes:**
+- **Receipt Body Cleaning:** New `email_body_cleaner.py` — strips HTML tags, decodes entities, removes script/style blocks, trims footer/signature noise, normalizes whitespace before storing in `Document.raw_text`
+- **Merchant Normalization:** New `merchant_normalizer.py` — deterministic alias resolution (AMZN→amazon, etc.), noise token removal, used by fingerprint computation and transaction description
+- **Intent Propagation:** `fact_signal_mapper.py` now includes `intent_type` in fact_info dict passed to SignalSnapshot.source_signals — previously written to DB but never propagated downstream
+- **DB-Level Dedup:** Added `UniqueConstraint(fields=['user', 'source', 'source_id'], condition=Q(source='email'))` on Document model, plus `IntegrityError` handling in `_create_receipt_documents()`
+- **Telemetry Visibility:** Added `_get_email_intelligence_telemetry()` to ops_telemetry.py, wired into `build_ops_stream_payload()` — exposes email scan metrics (scans, classified, kept, skipped, facts, signals, transactions, documents) in the ops stream
+
+**Files modified:**
+- `apps/life/services/email_body_cleaner.py` (NEW)
+- `apps/life/services/merchant_normalizer.py` (NEW)
+- `apps/life/services/email_fact_service.py` (body cleaning, merchant normalization, IntegrityError handling)
+- `apps/core/ai_eae/fact_signal_mapper.py` (intent_type propagation)
+- `apps/life/models.py` (Document UniqueConstraint)
+- `apps/core/ai_observability/ops_telemetry.py` (email intelligence telemetry getter + stream payload)
+- `apps/life/migrations/0030_document_unique_email_source_document.py` (NEW)
+- `apps/life/tests/test_phase6b_email_pipeline.py` (21 new tests → 76 total)
+
+**Tests:** 76/76 Phase 6B tests pass, 253 EAE tests pass, 28 finance tests pass, 4 ops stream tests pass.
+
+---
+
 ## 2026-03-17 — Phase 6B Completion: Learning Hook, Fingerprint Dedup, Receipt Documents, Intent Signals
 
 **Purpose:** Complete Phase 6B with missing production features: learning overrides, transaction fingerprinting, receipt-to-document creation, and intent signal hooks.

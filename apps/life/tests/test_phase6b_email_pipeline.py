@@ -2202,3 +2202,231 @@ class SignalInsightIntegrationTests(TestCase):
         result = _build_signal_aware_context(self.user)
 
         self.assertNotIn('signal_insights', result)
+
+
+# ==============================================================================
+# Phase 6E — Mandatory Insight Enforcement Tests
+# ==============================================================================
+
+
+class MandatoryInsightEnforcerTests(TestCase):
+    """Unit tests for extract_mandatory_insights() and format_mandatory_block()."""
+
+    def test_extracts_must_surface_insights(self):
+        """Only insights with must_surface=True are returned."""
+        from apps.core.ai_orchestrator.mandatory_insight_enforcer import extract_mandatory_insights
+
+        insights = [
+            {'insight_code': 'bill_due_detected', 'priority': 'high',
+             'must_surface': True, 'summary': 'Bill due', 'domain': 'finance',
+             'source_refs': ['financial_health'], 'confidence': 0.7},
+            {'insight_code': 'recurring_obligation_detected', 'priority': 'medium',
+             'must_surface': False, 'summary': 'Recurring', 'domain': 'finance',
+             'source_refs': ['financial_health'], 'confidence': 0.6},
+        ]
+        mandatory = extract_mandatory_insights(insights)
+
+        self.assertEqual(len(mandatory), 1)
+        self.assertEqual(mandatory[0]['insight_code'], 'bill_due_detected')
+
+    def test_empty_input_returns_empty(self):
+        from apps.core.ai_orchestrator.mandatory_insight_enforcer import extract_mandatory_insights
+
+        self.assertEqual(extract_mandatory_insights([]), [])
+        self.assertEqual(extract_mandatory_insights(None), [])
+
+    def test_no_mandatory_returns_empty(self):
+        from apps.core.ai_orchestrator.mandatory_insight_enforcer import extract_mandatory_insights
+
+        insights = [
+            {'insight_code': 'recurring', 'must_surface': False, 'priority': 'medium'},
+        ]
+        self.assertEqual(extract_mandatory_insights(insights), [])
+
+    def test_ordering_high_priority_first(self):
+        """High priority mandatory insights come before medium."""
+        from apps.core.ai_orchestrator.mandatory_insight_enforcer import extract_mandatory_insights
+
+        insights = [
+            {'insight_code': 'schedule_commitment_detected', 'priority': 'medium',
+             'must_surface': True, 'summary': 'Schedule', 'domain': 'life'},
+            {'insight_code': 'bill_due_detected', 'priority': 'high',
+             'must_surface': True, 'summary': 'Bill due', 'domain': 'finance'},
+        ]
+        mandatory = extract_mandatory_insights(insights)
+
+        self.assertEqual(len(mandatory), 2)
+        self.assertEqual(mandatory[0]['insight_code'], 'bill_due_detected')
+        self.assertEqual(mandatory[1]['insight_code'], 'schedule_commitment_detected')
+
+    def test_deterministic_ordering_same_priority(self):
+        """Same-priority insights sorted alphabetically by insight_code."""
+        from apps.core.ai_orchestrator.mandatory_insight_enforcer import extract_mandatory_insights
+
+        insights = [
+            {'insight_code': 'z_insight', 'priority': 'high', 'must_surface': True},
+            {'insight_code': 'a_insight', 'priority': 'high', 'must_surface': True},
+        ]
+        mandatory = extract_mandatory_insights(insights)
+
+        self.assertEqual(mandatory[0]['insight_code'], 'a_insight')
+        self.assertEqual(mandatory[1]['insight_code'], 'z_insight')
+
+    def test_format_mandatory_block_output(self):
+        """Format produces structured block with numbered items."""
+        from apps.core.ai_orchestrator.mandatory_insight_enforcer import format_mandatory_block
+
+        mandatory = [
+            {'insight_code': 'bill_due_detected', 'priority': 'high',
+             'summary': 'A bill is coming due.', 'domain': 'finance',
+             'source_refs': ['financial_health'], 'confidence': 0.7},
+        ]
+        block = format_mandatory_block(mandatory)
+
+        self.assertIn('MANDATORY INSIGHTS', block)
+        self.assertIn('REQUIRED', block)
+        self.assertIn('[HIGH]', block)
+        self.assertIn('[finance]', block)
+        self.assertIn('A bill is coming due.', block)
+        self.assertIn('1.', block)
+
+    def test_format_empty_returns_empty(self):
+        from apps.core.ai_orchestrator.mandatory_insight_enforcer import format_mandatory_block
+
+        self.assertEqual(format_mandatory_block([]), '')
+        self.assertEqual(format_mandatory_block(None), '')
+
+
+class MandatoryInsightInSignalEngineTests(TestCase):
+    """Verify must_surface is set correctly by generate_signal_insights()."""
+
+    def test_bill_due_has_must_surface_true(self):
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        interpreted = [{
+            'signal_type': 'financial_health', 'domain': 'finance',
+            'intent': 'bill_due', 'semantic_class': 'financial_obligation',
+            'meaning_code': 'upcoming_financial_obligation',
+            'priority_hint': 'time_sensitive', 'confidence': 0.7,
+            'source_refs': ['financial_health'],
+        }]
+        insights = generate_signal_insights(interpreted)
+
+        self.assertEqual(len(insights), 1)
+        self.assertTrue(insights[0]['must_surface'])
+
+    def test_recurring_obligation_has_must_surface_false(self):
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        interpreted = [{
+            'signal_type': 'financial_health', 'domain': 'finance',
+            'intent': 'recurring_obligation',
+            'semantic_class': 'financial_obligation',
+            'meaning_code': 'recurring_financial_commitment',
+            'priority_hint': 'recurring', 'confidence': 0.6,
+            'source_refs': ['financial_health'],
+        }]
+        insights = generate_signal_insights(interpreted)
+
+        self.assertEqual(len(insights), 1)
+        self.assertFalse(insights[0]['must_surface'])
+
+    def test_schedule_commitment_has_must_surface_true(self):
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        interpreted = [{
+            'signal_type': 'life_engagement', 'domain': 'life',
+            'intent': 'schedule_commitment',
+            'semantic_class': 'time_commitment',
+            'meaning_code': 'upcoming_schedule_block',
+            'priority_hint': 'time_sensitive', 'confidence': 0.8,
+            'source_refs': ['life_engagement'],
+        }]
+        insights = generate_signal_insights(interpreted)
+
+        self.assertEqual(len(insights), 1)
+        self.assertTrue(insights[0]['must_surface'])
+
+    def test_must_surface_escalation_on_dedup(self):
+        """If any merged signal has must_surface, result has must_surface."""
+        from apps.core.ai_orchestrator.signal_insight_engine import generate_signal_insights
+
+        # Two signals that dedup into one — first doesn't have must_surface
+        # from rule, second does. Both map to same insight_code.
+        interpreted = [
+            {
+                'signal_type': 'financial_health', 'domain': 'finance',
+                'intent': 'bill_due', 'semantic_class': 'financial_obligation',
+                'meaning_code': 'upcoming_financial_obligation',
+                'priority_hint': '', 'confidence': 0.5,
+                'source_refs': ['src1'],
+            },
+            {
+                'signal_type': 'financial_health', 'domain': 'finance',
+                'intent': 'bill_due_2', 'semantic_class': 'financial_obligation',
+                'meaning_code': 'upcoming_financial_obligation',
+                'priority_hint': 'time_sensitive', 'confidence': 0.9,
+                'source_refs': ['src2'],
+            },
+        ]
+        insights = generate_signal_insights(interpreted)
+
+        self.assertEqual(len(insights), 1)
+        self.assertTrue(insights[0]['must_surface'])
+
+
+class MandatoryInsightIntegrationTests(TestCase):
+    """Integration: mandatory insights flow through to CoS context."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='mandatory_test@example.com', password='test1234'
+        )
+
+    @patch('apps.core.ai_orchestrator.cos_context._compute_signal_trend')
+    def test_mandatory_insights_in_context(self, mock_trend):
+        """bill_due signal → mandatory_insights key present in context."""
+        mock_trend.return_value = 'stable'
+        from apps.core.ai_eae.models import SignalSnapshot
+
+        SignalSnapshot.objects.create(
+            user=self.user,
+            signal_type='financial_health',
+            date=date.today(),
+            domain='finance',
+            score=0.7,
+            signal_class='moderate',
+            confidence=0.7,
+            source_signals={'facts': [{'intent_type': 'bill_due'}]},
+        )
+
+        from apps.core.ai_orchestrator.cos_context import _build_signal_aware_context
+        result = _build_signal_aware_context(self.user)
+
+        self.assertIn('mandatory_insights', result)
+        mandatory = result['mandatory_insights']
+        self.assertEqual(len(mandatory), 1)
+        self.assertEqual(mandatory[0]['insight_code'], 'bill_due_detected')
+        self.assertTrue(mandatory[0]['must_surface'])
+
+    @patch('apps.core.ai_orchestrator.cos_context._compute_signal_trend')
+    def test_no_mandatory_when_only_recurring(self, mock_trend):
+        """recurring_obligation (must_surface=False) → no mandatory_insights key."""
+        mock_trend.return_value = 'stable'
+        from apps.core.ai_eae.models import SignalSnapshot
+
+        SignalSnapshot.objects.create(
+            user=self.user,
+            signal_type='financial_health',
+            date=date.today(),
+            domain='finance',
+            score=0.6,
+            signal_class='moderate',
+            confidence=0.6,
+            source_signals={'facts': [{'intent_type': 'recurring_obligation'}]},
+        )
+
+        from apps.core.ai_orchestrator.cos_context import _build_signal_aware_context
+        result = _build_signal_aware_context(self.user)
+
+        self.assertNotIn('mandatory_insights', result)

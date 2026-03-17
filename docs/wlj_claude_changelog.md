@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-17 — Phase 6B: Email Intelligence Pipeline
+
+**Purpose:** Extend the Knowledge Intelligence Pipeline to emails: Email → Classification → ExtractedFacts → Signals → Patterns → CoS. Runs parallel to existing task extraction pipeline. Email bodies are never stored.
+
+**Architecture:**
+- **Email Classification:** Rules-first engine (sender patterns, financial/health/subscription keywords). LLM fallback only for uncertain emails (~10% of inbox). Dry run mode for reviewing classifications before enabling fact creation.
+- **WLJ Flagging:** `[WLJ]` in subject = auto-KEEP with confidence 1.0, highest source weight (0.9).
+- **Fact Extraction:** Rule-based extraction for dollar amounts, appointments, medications, obligations, subscriptions. LLM extraction (reuses Phase 6A prompt) for complex emails where rules find nothing.
+- **Signal Mapping:** Full reuse of FactSignalMapper (Phase 6A). Batch signal mapping — single targeted recompute per scan, not per email.
+- **Transaction Integration:** Email receipts create Transaction records (source_type='email'). Cross-source dedup: ±2 days, ±$0.50 absolute amount match prevents duplicates from email + bank import.
+- **Data Handling:** Only metadata stored (subject, sender, snippet). Full email bodies used transiently during extraction, then discarded. No raw content in DB.
+- **Observability:** Telemetry cache key `wlj:ops:email_fact_extraction` tracks scans, classifications, facts, signals, transactions.
+
+**Files changed:**
+- `apps/life/models.py` — ProcessedEmail: 9 new fields (subject, sender, snippet, received_date, classification, classification_reason, classification_confidence, facts_extracted, facts_created_count)
+- `apps/life/services/email_classifier.py` — NEW: Rule engine + LLM classification + dry run
+- `apps/life/services/email_fact_extractor.py` — NEW: Rule + LLM fact extraction from emails
+- `apps/life/services/email_fact_service.py` — NEW: Orchestrator (classify → extract → map → transactions → telemetry)
+- `apps/life/services/gmail_sync.py` — Extended: parallel fact extraction pipeline in scan loop
+- `apps/life/migrations/0028_phase6b_email_intelligence.py` — ProcessedEmail new fields
+- `apps/life/tests/test_phase6b_email_pipeline.py` — NEW: 34 tests across 9 classes
+
+**Test results:** 34/34 Phase 6B tests pass. 253/253 ai_eae regression tests pass. No missing migrations.
+
+---
+
 ## 2026-03-17 — Phase 6A: Document Intelligence + Extracted Fact Layer
 
 **Purpose:** Upgrade documents from metadata-only signals to full content extraction pipeline: Document → raw content → extracted facts → signals → patterns → CoS. This is the foundation of the Knowledge Intelligence Pipeline.

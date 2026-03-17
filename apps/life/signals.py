@@ -132,3 +132,61 @@ def handle_pet_deleted(sender, instance, **kwargs):
             logger.debug(f"Deleted birthday event for pet {instance.name}")
     except Exception as e:
         logger.warning(f"Failed to delete birthday event for pet {instance.id}: {e}")
+
+
+# =========================================================================
+# Phase 5.5: Document Signal Extraction
+# =========================================================================
+
+@receiver(post_save, sender='life.Document')
+def handle_document_saved_for_extraction(sender, instance, created, **kwargs):
+    """
+    Extract signals from Document metadata on creation.
+
+    Document extraction is synchronous (rule-based, fast) with conditional
+    LLM for documents with long description/notes text.
+    Only runs on creation — not on updates (to avoid re-processing).
+    """
+    if not created:
+        return
+
+    # Gate: user must have AI enabled
+    try:
+        user = instance.user
+        prefs = user.preferences
+        if not getattr(prefs, 'ai_enabled', False):
+            return
+        if not getattr(prefs, 'personal_assistant_enabled', False):
+            return
+    except Exception as e:
+        logger.warning("Document signal gate check failed: %s", e)
+        return
+
+    try:
+        from apps.life.services.document_signal_extractor import DocumentSignalExtractor
+        signals = DocumentSignalExtractor.extract_signals(instance)
+
+        if signals:
+            from apps.core.ai_eae.targeted_recompute import (
+                TargetedSignalRecomputeService,
+                update_extraction_telemetry,
+            )
+            date = instance.created_at.date()
+            TargetedSignalRecomputeService.recompute_for_document(
+                user, date, signals,
+            )
+            avg_conf = sum(s.confidence for s in signals) / len(signals)
+            update_extraction_telemetry(
+                'document', processed=1, success=1,
+                signals_extracted=len(signals),
+                avg_confidence=round(avg_conf, 2),
+            )
+            logger.info(
+                "Document %s: extracted %d signals, recomputed",
+                instance.pk, len(signals),
+            )
+    except Exception as e:
+        logger.warning(
+            "Document signal extraction failed for %s: %s",
+            instance.pk, e, exc_info=True,
+        )

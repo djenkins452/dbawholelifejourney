@@ -105,6 +105,18 @@ class SignalAggregationService:
                 user.pk, date, e,
             )
 
+        # Phase 5.5: Blend capture/document extraction signals
+        # During nightly aggregation, blend any CaptureSignal/DocumentSignal
+        # records that were created since last run. Uses the same targeted
+        # recompute logic but called within the nightly pipeline.
+        try:
+            SignalAggregationService._blend_extraction_signals(user, date, results)
+        except Exception as e:
+            logger.warning(
+                "Extraction signal blending failed for user %s on %s: %s",
+                user.pk, date, e,
+            )
+
         return results
 
     @staticmethod
@@ -722,3 +734,47 @@ class SignalAggregationService:
                     },
                 )
                 existing_results.append(snapshot)
+
+    # ──────────────────────────────────────────────────────────
+    # Phase 5.5: Capture/Document Extraction Signal Blending
+    # ──────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _blend_extraction_signals(user, date, existing_results):
+        """
+        Blend capture and document extraction signals during nightly aggregation.
+
+        Delegates to the TargetedSignalRecomputeService blend functions.
+        This ensures that extraction signals created between nightly runs
+        are picked up even if the targeted recompute didn't fire.
+        """
+        from apps.core.ai_eae.targeted_recompute import (
+            _blend_capture_signals,
+            _blend_document_signals,
+        )
+
+        # Blend capture signals
+        try:
+            from apps.capture.models import CaptureSignal
+            capture_signals = CaptureSignal.objects.filter(
+                entry__user=user,
+                entry__created_at__date=date,
+                confidence__gte=0.6,
+            ).select_related('entry')
+            if capture_signals.exists():
+                _blend_capture_signals(user, date, list(capture_signals))
+        except ImportError:
+            pass
+
+        # Blend document signals
+        try:
+            from apps.life.models import DocumentSignal
+            document_signals = DocumentSignal.objects.filter(
+                document__user=user,
+                document__created_at__date=date,
+                confidence__gte=0.4,
+            ).select_related('document')
+            if document_signals.exists():
+                _blend_document_signals(user, date, list(document_signals))
+        except ImportError:
+            pass

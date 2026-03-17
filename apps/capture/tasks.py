@@ -165,6 +165,9 @@ def process_capture_entry(
         # Update any associated PendingCapture record
         _complete_pending_capture(entry)
 
+        # Phase 5.5: Dispatch signal extraction (async)
+        _dispatch_capture_signal_extraction(entry)
+
         return {
             'success': True,
             'message': 'Processing complete',
@@ -464,3 +467,106 @@ def send_pending_capture_reminders_task():
     """Hourly: in-app notifications for pending captures not yet uploaded."""
     from apps.capture.jobs import send_pending_capture_reminders
     return send_pending_capture_reminders()
+
+
+# =========================================================================
+# Phase 5.5: SIGNAL EXTRACTION
+# =========================================================================
+
+def _dispatch_capture_signal_extraction(entry):
+    """
+    Dispatch signal extraction for a completed capture entry.
+
+    Primary: async Celery task. Fallback: synchronous extraction.
+    Same pattern as journal signal dispatch (apps/journal/signals.py:76-121).
+    """
+    try:
+        extract_capture_signals.delay(str(entry.pk))
+        return
+    except Exception as e:
+        logger.warning(
+            "Celery dispatch failed for capture extraction %s: %s — "
+            "falling back to sync", entry.pk, e,
+        )
+
+    # Synchronous fallback
+    try:
+        from apps.capture.services.signal_extractor import CaptureSignalExtractor
+        signals = CaptureSignalExtractor.extract_signals(entry)
+        if signals:
+            _run_targeted_recompute(entry, signals)
+    except Exception as e:
+        logger.error(
+            "Capture signal extraction failed (sync) for %s: %s",
+            entry.pk, e, exc_info=True,
+        )
+
+
+def _run_targeted_recompute(entry, capture_signals):
+    """Run targeted recompute after extraction + update telemetry."""
+    from apps.core.ai_eae.targeted_recompute import (
+        TargetedSignalRecomputeService,
+        update_extraction_telemetry,
+    )
+    user = entry.user
+    date = entry.created_at.date()
+    affected = TargetedSignalRecomputeService.recompute_for_capture(
+        user, date, capture_signals,
+    )
+    avg_conf = (
+        sum(s.confidence for s in capture_signals) / len(capture_signals)
+        if capture_signals else 0.0
+    )
+    update_extraction_telemetry(
+        'capture', processed=1, success=1,
+        signals_extracted=len(capture_signals),
+        avg_confidence=round(avg_conf, 2),
+    )
+    return affected
+
+
+@shared_task(
+    name="capture.extract_capture_signals",
+    soft_time_limit=60,
+    time_limit=90,
+    acks_late=True,
+)
+def extract_capture_signals(entry_id):
+    """
+    Phase 5.5: Extract behavioral signals from a capture transcript.
+
+    Called after transcription + summarization complete (status=ready).
+    Pipeline: LLM extraction → validation → CaptureSignal → targeted recompute.
+    """
+    from apps.capture.models import CaptureEntry
+    from apps.capture.services.signal_extractor import CaptureSignalExtractor
+    from apps.core.ai_eae.targeted_recompute import update_extraction_telemetry
+
+    try:
+        entry = CaptureEntry.objects.get(pk=entry_id)
+    except CaptureEntry.DoesNotExist:
+        logger.warning("Capture entry %s not found for extraction", entry_id)
+        return {'success': False, 'error': 'Entry not found'}
+
+    if entry.status != CaptureEntry.STATUS_READY:
+        return {'success': False, 'error': f'Entry status is {entry.status}'}
+
+    try:
+        signals = CaptureSignalExtractor.extract_signals(entry)
+    except Exception as e:
+        logger.error(
+            "Capture extraction failed for %s: %s", entry_id, e, exc_info=True,
+        )
+        update_extraction_telemetry('capture', processed=1, failure=1)
+        return {'success': False, 'error': str(e)}
+
+    if signals:
+        _run_targeted_recompute(entry, signals)
+    else:
+        update_extraction_telemetry('capture', processed=1, success=1)
+
+    return {
+        'success': True,
+        'signals_extracted': len(signals),
+        'entry_id': entry_id,
+    }

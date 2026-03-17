@@ -180,6 +180,48 @@ def get_most_recent_proactive_message(user) -> Optional[dict]:
     }
 
 
+def _get_proactive_pending_context(user) -> Optional[dict]:
+    """
+    Look up the active proactive PendingAction for this user.
+
+    Returns entity context dict (task_id, intent_type, etc.) or None.
+    Uses cache first (fast), falls back to DB (durable).
+    """
+    try:
+        from django.core.cache import cache
+        from django.utils import timezone
+
+        # Fast path: cache lookup
+        cache_key = f"pending_proactive_{user.id}"
+        cached = cache.get(cache_key)
+        if cached:
+            return {
+                'pending_action_id': cached.get('action_id'),
+                'intent_type': cached.get('intent_type', ''),
+                **cached.get('parameters', {}),
+            }
+
+        # Slow path: DB fallback (cache eviction recovery)
+        from apps.core.ai_governance.models import PendingAction
+        pa = PendingAction.objects.filter(
+            user=user,
+            action_type='proactive_checkin',
+            status=PendingAction.STATUS_PENDING,
+            expires_at__gt=timezone.now(),
+        ).order_by('-created_at').first()
+
+        if pa:
+            return {
+                'pending_action_id': str(pa.id),
+                'intent_type': pa.intent_type,
+                **pa.parameters,
+            }
+    except Exception as e:
+        logger.warning("Failed to look up proactive PendingAction: %s", e)
+
+    return None
+
+
 def handle_proactive_confirmation(user, message: str) -> Optional[dict]:
     """
     Handle a natural language response to a proactive check-in.
@@ -207,7 +249,16 @@ def handle_proactive_confirmation(user, message: str) -> Optional[dict]:
     response_type, confidence = detect_confirmation(message)
 
     if not response_type or confidence < 0.6:
-        return None  # Not a clear confirmation, let normal processing handle it
+        # Not a clear confirmation — but if there's a PendingAction with entity
+        # context, pass it through so the intent pipeline can use the entity_id
+        # instead of falling back to fragile title text-matching.
+        pending_context = _get_proactive_pending_context(user)
+        if pending_context:
+            return {
+                'handled': False,
+                'pending_context': pending_context,
+            }
+        return None
 
     quick_replies = pending['quick_replies']
     if not quick_replies:

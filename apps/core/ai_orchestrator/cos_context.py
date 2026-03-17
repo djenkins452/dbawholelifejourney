@@ -2298,7 +2298,9 @@ def _build_data_state_snapshot(user) -> str:
             _completed_today_qs.values_list('title', flat=True)[:10]
         )
         from django.db.models import Case, When, Value, F
-        _active_task_titles = list(
+        # TEMPORARY: include task IDs for entity grounding — remove when
+        # Phase 2 signal-driven insights replace raw task injection.
+        _active_task_rows = list(
             _pending_qs.order_by(
                 Case(
                     When(priority='now', then=Value(0)),
@@ -2308,13 +2310,19 @@ def _build_data_state_snapshot(user) -> str:
                 ),
                 F('due_date').asc(nulls_last=True),
                 '-created_at',
-            ).values_list('title', flat=True)[:25]
+            ).values_list('id', 'title')[:25]
         )
+        _active_task_titles = [
+            f"(id:{tid}) {title}" for tid, title in _active_task_rows
+        ]
         _overdue_qs = TaskQueries.overdue(user, today)
         counts['overdue_tasks'] = _overdue_qs.count()
-        _overdue_task_titles = list(
-            _overdue_qs.order_by('due_date').values_list('title', flat=True)[:10]
+        _overdue_task_rows = list(
+            _overdue_qs.order_by('due_date').values_list('id', 'title')[:10]
         )
+        _overdue_task_titles = [
+            f"(id:{tid}) {title}" for tid, title in _overdue_task_rows
+        ]
         counts['non_negotiable_skip_streaks'] = (
             TaskQueries.non_negotiable_at_risk(user).count()
         )

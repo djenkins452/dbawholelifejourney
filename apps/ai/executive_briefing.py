@@ -1026,15 +1026,18 @@ def _build_day_overview_section(user, user_now, today) -> str:
         now_count = pending_base.filter(priority='now').count()
         soon_count = pending_base.filter(priority='soon').count()
 
-        # Up to 3 example titles for Beth's narrative
-        now_examples = list(
-            pending_base.filter(priority='now')
-            .values_list('title', flat=True)[:3]
-        )
-        soon_examples = list(
-            pending_base.filter(priority='soon')
-            .values_list('title', flat=True)[:3]
-        )
+        # TEMPORARY: include task IDs for entity grounding — remove when
+        # Phase 2 signal-driven insights replace raw task injection.
+        now_examples = [
+            f"(id:{tid}) {title}"
+            for tid, title in pending_base.filter(priority='now')
+            .values_list('id', 'title')[:3]
+        ]
+        soon_examples = [
+            f"(id:{tid}) {title}"
+            for tid, title in pending_base.filter(priority='soon')
+            .values_list('id', 'title')[:3]
+        ]
 
         # Completed today
         completed_count = Task.objects.filter(

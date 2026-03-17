@@ -6,6 +6,44 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-17 — Signal Pipeline: Execution Repair + Task Intelligence + Framework
+
+### Phase 1: Execution Repair — PendingAction bridge for proactive check-ins
+
+**Root cause:** Beth recommends a task → user responds with natural language ("B, 8:30am today") → execution fails. Proactive check-ins stored `task_id` in message metadata but never created `PendingAction` records. When user typed natural language (not button click), `confirmation_detector` returned `None`, falling through to intent recognition with zero entity context.
+
+**Fix:**
+- `apps/core/ai_governance/models.py` — Added `proactive_checkin` to PendingAction `ACTION_TYPE_CHOICES` + migration
+- `apps/ai/proactive_checkins.py` — Added `_create_pending_action_for_checkin()` that creates PendingAction for entity-bearing check-ins (task_id, medication_id, goal_id, habit_id). Dual-writes to cache (`pending_proactive_{user_id}`) + DB. 4-hour TTL.
+- `apps/ai/confirmation_detector.py` — Added `_get_proactive_pending_context()` that looks up active proactive PendingAction on fallthrough. Returns entity context dict instead of bare `None`.
+- `apps/ai/personal_assistant.py` — Threads entity context from proactive PendingAction into intent pipeline. Injects `_resolved_id` into task intents, bypassing text-based title matching.
+- `apps/core/ai_orchestrator/cos_context.py` — TEMPORARY: task IDs in authoritative task list (`(id:42) Task Title`). Marked for removal when signal-driven insights replace raw injection.
+- `apps/ai/executive_briefing.py` — Same TEMPORARY task ID format.
+
+### Phase 2: Minimal Task Intelligence — 3 PIE rules + 1 PRIE rule
+
+**Problem:** Tasks had zero signal coverage (0 PIE, 0 PRIE, 0 PGE) while Health had 15/4/2.
+
+**New files:**
+- `apps/core/ai_insights/rules_tasks.py` — 3 PIE rules:
+  - `TaskOverduePatternRule` (warning): 2+ overdue tasks
+  - `TaskStallRule` (info): no completions in 5+ days with pending tasks
+  - `TaskDueTodayRule` (info): tasks due today with IDs and priorities (max 5)
+- `apps/core/ai_predictions/prediction_rules_tasks.py` — 1 PRIE rule:
+  - `TaskOverdueRiskRule`: velocity-based deadline miss probability for tasks due in 3 days
+
+**Registration:** Added imports to intelligence_hook.py, execution_engine.py, run_daily_insights.py, run_prediction_engine.py
+
+**Trigger strategy:** Scheduled-only (`event_type == "scheduled_check"`). Event-driven deferred to Phase 2.5 due to `fire_intelligence()` module routing bug.
+
+### Phase 3: Framework Documentation
+
+- `docs/DOMAIN_SIGNAL_CHECKLIST.md` — NEW: step-by-step guide for adding PIE/PRIE/PGE to any domain
+- `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md` — Added Tasks domain section, updated summary table (20→23 PIE, 9→10 PRIE)
+- `docs/ENGINE_COS_REFERENCE.md` — Updated key file paths, PendingAction entry, last-updated date
+
+---
+
 ## 2026-03-17 — Fix Beth/CoS data mismatch: stale weight from HealthKit, wrong task ordering
 
 **Root cause (weight):** Apple Health / mobile HealthKit sync created WeightEntry records but never called `fire_intelligence()` to update the SAE state snapshot. Beth read stale weight from `UserState.state_data` while the UI read live from the database. Example: Beth said 305.1 lbs while the Weight page showed 301.2 lb.

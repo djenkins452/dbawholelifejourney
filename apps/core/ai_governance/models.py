@@ -430,6 +430,7 @@ class PendingAction(models.Model):
         ('crud', 'CRUD Confirmation'),
         ('disambiguation', 'Disambiguation'),
         ('clarification', 'Entity Clarification'),
+        ('proactive_checkin', 'Proactive Check-In'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

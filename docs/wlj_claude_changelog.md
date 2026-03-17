@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-17 — Nav: Add Notes and System links to left sidebar
+
+**Change:** Added "Notes" link (between Capture and Journal) pointing to `/notes/` and "System" link (before Capture, staff-only) pointing to Ops Wall at `/admin-console/ops/`.
+
+**Files:**
+- `templates/components/navigation.html` — Added Notes nav item and System nav item (is_staff gated)
+
+---
+
 ## 2026-03-16 — UX: Stack voice/send buttons vertically beside chat textarea
 
 **Change:** Wrapped the microphone and send buttons in a vertical `.ap-action-stack` container (mic on top, send below). This frees horizontal space so the textarea can stretch wider. Also bumped textarea to `rows="4"` and `min-height: 76px`.

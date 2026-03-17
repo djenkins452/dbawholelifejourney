@@ -2412,6 +2412,32 @@ def _get_api_health_telemetry(now):
         }
 
 
+def _get_email_intelligence_telemetry():
+    """
+    Email Intelligence Pipeline telemetry (Phase 6B.5).
+
+    Pure cache reader — reads from wlj:ops:email_fact_extraction
+    (written by EmailFactExtractionService._update_email_telemetry).
+    Zero DB queries.
+    """
+    cached = django_cache.get("wlj:ops:email_fact_extraction")
+    if cached is not None:
+        return cached
+
+    # No data yet — return empty structure
+    return {
+        'scans': 0,
+        'emails_classified': 0,
+        'emails_kept': 0,
+        'emails_skipped': 0,
+        'facts_created': 0,
+        'signals_affected': 0,
+        'transactions_created': 0,
+        'documents_created': 0,
+        'last_run': None,
+    }
+
+
 # =========================================================================
 # OPS STREAM PAYLOAD BUILDER
 # =========================================================================
@@ -2512,6 +2538,9 @@ def build_ops_stream_payload():
     # API Health
     api_health = _get_api_health_telemetry(now)
 
+    # Email Intelligence Pipeline telemetry (Phase 6B.5)
+    email_intelligence = _get_email_intelligence_telemetry()
+
     build_time_ms = round((time.monotonic() - build_start) * 1000)
 
     payload = {
@@ -2538,6 +2567,7 @@ def build_ops_stream_payload():
         "validator_health": validator_health,
         "cos_performance": cos_performance,
         "api_health": api_health,
+        "email_intelligence": email_intelligence,
         "ops_stream_build_time_ms": build_time_ms,
         "next_since": now.isoformat(),
     }

@@ -1081,3 +1081,383 @@ class IntentTypeTests(TestCase):
         _assign_intent_types([fact])
         fact.refresh_from_db()
         self.assertEqual(fact.intent_type, '')
+
+
+# =========================================================================
+# 14. Email Body Cleaner Tests (Phase 6B.5)
+# =========================================================================
+
+class EmailBodyCleanerTests(TestCase):
+    """Test clean_email_body() deterministic cleaning."""
+
+    def test_strips_html_tags(self):
+        from apps.life.services.email_body_cleaner import clean_email_body
+
+        html_body = '<p>Your receipt for <b>$42.00</b> from Amazon</p>'
+        result = clean_email_body(html_body)
+        self.assertNotIn('<p>', result)
+        self.assertNotIn('<b>', result)
+        self.assertIn('$42.00', result)
+        self.assertIn('Amazon', result)
+
+    def test_decodes_html_entities(self):
+        from apps.life.services.email_body_cleaner import clean_email_body
+
+        body = 'Total: $42.00 &amp; tax &lt;included&gt;'
+        result = clean_email_body(body)
+        self.assertIn('& tax', result)
+        self.assertIn('<included>', result)
+
+    def test_removes_script_style_blocks(self):
+        from apps.life.services.email_body_cleaner import clean_email_body
+
+        body = (
+            '<style>.hidden { display: none; }</style>'
+            '<p>Receipt: $100</p>'
+            '<script>trackEvent("open");</script>'
+        )
+        result = clean_email_body(body)
+        self.assertNotIn('hidden', result)
+        self.assertNotIn('trackEvent', result)
+        self.assertIn('Receipt: $100', result)
+
+    def test_removes_footer_noise(self):
+        from apps.life.services.email_body_cleaner import clean_email_body
+
+        body = (
+            'Your payment of $50.00 was received.\n'
+            '---\n'
+            'Unsubscribe from these notifications\n'
+            'Privacy Policy | Terms of Service\n'
+            '© 2026 Example Corp. All rights reserved.'
+        )
+        result = clean_email_body(body)
+        self.assertIn('$50.00', result)
+        self.assertNotIn('Unsubscribe', result)
+
+    def test_normalizes_whitespace(self):
+        from apps.life.services.email_body_cleaner import clean_email_body
+
+        body = 'Line one   \n\n\n\n\n  Line two    \n\n\n   Line three'
+        result = clean_email_body(body)
+        # Should not have 3+ consecutive newlines
+        self.assertNotIn('\n\n\n', result)
+        self.assertIn('Line one', result)
+        self.assertIn('Line two', result)
+
+    def test_truncates_to_max_length(self):
+        from apps.life.services.email_body_cleaner import clean_email_body
+
+        body = 'x' * 5000
+        result = clean_email_body(body, max_length=100)
+        self.assertLessEqual(len(result), 100)
+
+    def test_empty_body_returns_empty(self):
+        from apps.life.services.email_body_cleaner import clean_email_body
+
+        self.assertEqual(clean_email_body(''), '')
+        self.assertEqual(clean_email_body(None), '')
+
+    def test_preserves_receipt_content(self):
+        from apps.life.services.email_body_cleaner import clean_email_body
+
+        body = (
+            '<html><body>'
+            '<h1>Order Confirmation</h1>'
+            '<p>Order #12345</p>'
+            '<p>Item: Widget - $29.99</p>'
+            '<p>Tax: $2.40</p>'
+            '<p>Total: $32.39</p>'
+            '</body></html>'
+        )
+        result = clean_email_body(body)
+        self.assertIn('Order Confirmation', result)
+        self.assertIn('Order #12345', result)
+        self.assertIn('$29.99', result)
+        self.assertIn('$32.39', result)
+
+
+# =========================================================================
+# 15. Merchant Normalizer Tests (Phase 6B.5)
+# =========================================================================
+
+class MerchantNormalizerTests(TestCase):
+    """Test normalize_merchant() deterministic normalization."""
+
+    def test_basic_lowercase_cleanup(self):
+        from apps.life.services.merchant_normalizer import normalize_merchant
+
+        self.assertEqual(normalize_merchant('  Netflix  '), 'netflix')
+
+    def test_alias_resolution_amzn(self):
+        from apps.life.services.merchant_normalizer import normalize_merchant
+
+        self.assertEqual(normalize_merchant('AMZN'), 'amazon')
+        self.assertEqual(normalize_merchant('AMZN MKTPLACE'), 'amazon')
+        self.assertEqual(normalize_merchant('Amazon.com'), 'amazon')
+
+    def test_alias_resolution_apple(self):
+        from apps.life.services.merchant_normalizer import normalize_merchant
+
+        self.assertEqual(normalize_merchant('APPLE.COM/STORE/BILL'), 'apple')
+        self.assertEqual(normalize_merchant('iTunes'), 'apple')
+
+    def test_noise_token_removal(self):
+        from apps.life.services.merchant_normalizer import normalize_merchant
+
+        result = normalize_merchant('Acme Corp Inc')
+        self.assertEqual(result, 'acme')
+
+    def test_punctuation_stripped(self):
+        from apps.life.services.merchant_normalizer import normalize_merchant
+
+        result = normalize_merchant('Joe\'s Pizza & Grill')
+        self.assertNotIn("'", result)
+        self.assertNotIn('&', result)
+
+    def test_empty_returns_empty(self):
+        from apps.life.services.merchant_normalizer import normalize_merchant
+
+        self.assertEqual(normalize_merchant(''), '')
+        self.assertEqual(normalize_merchant(None), '')
+
+    def test_deterministic(self):
+        from apps.life.services.merchant_normalizer import normalize_merchant
+
+        a = normalize_merchant('AMZN Digital')
+        b = normalize_merchant('AMZN Digital')
+        self.assertEqual(a, b)
+
+    def test_fingerprint_uses_normalized(self):
+        """Fingerprints for AMZN and Amazon should match."""
+        from apps.life.services.email_fact_service import _compute_fingerprint
+
+        fp1 = _compute_fingerprint('AMZN', 42.00, date(2026, 3, 17))
+        fp2 = _compute_fingerprint('Amazon.com', 42.00, date(2026, 3, 17))
+        self.assertEqual(fp1, fp2)
+
+
+# =========================================================================
+# 16. Intent Propagation Tests (Phase 6B.5)
+# =========================================================================
+
+class IntentPropagationTests(TestCase):
+    """Test intent_type propagation into SignalSnapshot metadata."""
+
+    def setUp(self):
+        self.user = _create_test_user('test-intent-prop@example.com')
+
+    def test_intent_type_in_fact_info(self):
+        """intent_type should appear in fact_info dict from _map_facts_to_signals."""
+        from apps.core.ai_eae.fact_signal_mapper import _map_facts_to_signals
+        from apps.core.ai_eae.models import ExtractedFact
+        from apps.life.models import ProcessedEmail
+
+        pe = ProcessedEmail.objects.create(
+            user=self.user, gmail_message_id='intent_prop_001',
+        )
+        ct = ContentType.objects.get_for_model(pe)
+
+        fact = ExtractedFact.objects.create(
+            user=self.user,
+            source_content_type=ct,
+            source_object_id=pe.pk,
+            source_type='email',
+            fact_type='obligation',
+            structured_value={'amount': 100, 'description': 'Electric bill'},
+            confidence=0.7,
+            extracted_text='bill of $100',
+            intent_type='bill_due',
+        )
+
+        signal_map = _map_facts_to_signals([fact])
+        # Should have one date with financial_health signal
+        for date_key, by_type in signal_map.items():
+            for signal_type, fact_infos in by_type.items():
+                self.assertEqual(fact_infos[0]['intent_type'], 'bill_due')
+
+    def test_no_intent_type_when_empty(self):
+        """Facts without intent_type should not include the key."""
+        from apps.core.ai_eae.fact_signal_mapper import _map_facts_to_signals
+        from apps.core.ai_eae.models import ExtractedFact
+        from apps.life.models import ProcessedEmail
+
+        pe = ProcessedEmail.objects.create(
+            user=self.user, gmail_message_id='intent_prop_002',
+        )
+        ct = ContentType.objects.get_for_model(pe)
+
+        fact = ExtractedFact.objects.create(
+            user=self.user,
+            source_content_type=ct,
+            source_object_id=pe.pk,
+            source_type='email',
+            fact_type='amount',
+            structured_value={'value': 42.00},
+            confidence=0.7,
+            extracted_text='$42.00',
+        )
+
+        signal_map = _map_facts_to_signals([fact])
+        for date_key, by_type in signal_map.items():
+            for signal_type, fact_infos in by_type.items():
+                self.assertNotIn('intent_type', fact_infos[0])
+
+
+# =========================================================================
+# 17. Document Dedup Constraint Tests (Phase 6B.5)
+# =========================================================================
+
+class DocumentDedupConstraintTests(TestCase):
+    """Test DB-level unique constraint for email-sourced Documents."""
+
+    def setUp(self):
+        self.user = _create_test_user('test-doc-dedup@example.com')
+
+    def test_db_prevents_duplicate_email_document(self):
+        """Creating two Documents with same user+source+source_id raises IntegrityError."""
+        from django.db import IntegrityError
+        from apps.life.models import Document
+
+        Document.objects.create(
+            user=self.user,
+            title='Receipt 1',
+            source='email',
+            source_id='msg_dup_001',
+            category='financial',
+        )
+
+        with self.assertRaises(IntegrityError):
+            Document.objects.create(
+                user=self.user,
+                title='Receipt 1 duplicate',
+                source='email',
+                source_id='msg_dup_001',
+                category='financial',
+            )
+
+    def test_different_source_id_allowed(self):
+        """Different source_ids should work fine."""
+        from apps.life.models import Document
+
+        Document.objects.create(
+            user=self.user,
+            title='Receipt 1',
+            source='email',
+            source_id='msg_001',
+            category='financial',
+        )
+        doc2 = Document.objects.create(
+            user=self.user,
+            title='Receipt 2',
+            source='email',
+            source_id='msg_002',
+            category='financial',
+        )
+        self.assertIsNotNone(doc2.pk)
+
+    def test_upload_source_not_constrained(self):
+        """Upload-sourced documents don't trigger the email constraint."""
+        from apps.life.models import Document
+
+        Document.objects.create(
+            user=self.user,
+            title='Upload 1',
+            source='upload',
+            source_id='',
+            category='financial',
+        )
+        doc2 = Document.objects.create(
+            user=self.user,
+            title='Upload 2',
+            source='upload',
+            source_id='',
+            category='financial',
+        )
+        self.assertIsNotNone(doc2.pk)
+
+    def test_service_handles_integrity_error(self):
+        """_create_receipt_documents handles IntegrityError gracefully."""
+        from apps.life.models import Document, ProcessedEmail
+        from apps.life.services.email_fact_service import _create_receipt_documents
+
+        # Pre-create a document for the email
+        Document.objects.create(
+            user=self.user,
+            title='Existing Receipt',
+            source='email',
+            source_id='msg_integrity_001',
+            category='financial',
+        )
+
+        pe = ProcessedEmail.objects.create(
+            user=self.user,
+            gmail_message_id='msg_integrity_001',
+            received_date=timezone.now(),
+        )
+
+        email = _make_email(
+            gmail_id='msg_integrity_001',
+            subject='Receipt for $50',
+            body='Payment confirmed',
+        )
+
+        # Should not raise — handles gracefully
+        count = _create_receipt_documents(
+            self.user, [(email, pe, [])],
+        )
+        self.assertEqual(count, 0)
+
+
+# =========================================================================
+# 18. Telemetry Visibility Tests (Phase 6B.5)
+# =========================================================================
+
+class TelemetryVisibilityTests(TestCase):
+    """Test email intelligence telemetry is exposed in ops stream."""
+
+    def test_telemetry_getter_returns_empty_when_no_cache(self):
+        from apps.core.ai_observability.ops_telemetry import (
+            _get_email_intelligence_telemetry,
+        )
+        from django.core.cache import cache
+
+        cache.delete('wlj:ops:email_fact_extraction')
+        result = _get_email_intelligence_telemetry()
+        self.assertEqual(result['scans'], 0)
+        self.assertIsNone(result['last_run'])
+
+    def test_telemetry_getter_reads_cached_data(self):
+        from apps.core.ai_observability.ops_telemetry import (
+            _get_email_intelligence_telemetry,
+        )
+        from django.core.cache import cache
+
+        data = {
+            'scans': 5,
+            'emails_classified': 50,
+            'emails_kept': 20,
+            'emails_skipped': 25,
+            'facts_created': 15,
+            'signals_affected': 3,
+            'transactions_created': 2,
+            'documents_created': 1,
+            'last_run': '2026-03-17T10:00:00',
+        }
+        cache.set('wlj:ops:email_fact_extraction', data, timeout=60)
+
+        result = _get_email_intelligence_telemetry()
+        self.assertEqual(result['scans'], 5)
+        self.assertEqual(result['emails_kept'], 20)
+        self.assertEqual(result['documents_created'], 1)
+        self.assertEqual(result['last_run'], '2026-03-17T10:00:00')
+
+        cache.delete('wlj:ops:email_fact_extraction')
+
+    def test_telemetry_in_stream_payload(self):
+        """email_intelligence key should appear in the ops stream payload."""
+        from apps.core.ai_observability.ops_telemetry import build_ops_stream_payload
+
+        payload = build_ops_stream_payload()
+        self.assertIn('email_intelligence', payload)
+        self.assertIn('scans', payload['email_intelligence'])

@@ -1543,15 +1543,27 @@ def _build_signal_aware_context(user):
         except Exception as e:
             logger.debug("Goal momentum data unavailable: %s", e)
 
+        # Semantic normalization of signal intents (Phase 6C).
+        # Produces machine-readable enrichment for PIE/PRIE/PGE consumption.
+        interpretation = {}
+        try:
+            from apps.core.ai_orchestrator.signal_interpreter import interpret_signals
+            interpretation = interpret_signals(daily_signals)
+        except Exception as e:
+            logger.warning("Signal interpreter failed: %s", e, exc_info=True)
+
         result = {}
         if daily_signals:
             result['daily_signals'] = daily_signals
         if goal_momentum:
             result['goal_momentum'] = goal_momentum
+        if interpretation:
+            result['signal_interpretation'] = interpretation
 
+        n_interp = len(interpretation.get('interpreted_signals', []))
         logger.info(
-            "SIGNAL_AWARE_CTX user=%s signals=%d momentum=%d",
-            user.id, len(daily_signals), len(goal_momentum),
+            "SIGNAL_AWARE_CTX user=%s signals=%d momentum=%d interpreted=%d",
+            user.id, len(daily_signals), len(goal_momentum), n_interp,
         )
         return result
 

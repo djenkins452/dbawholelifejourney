@@ -1657,3 +1657,198 @@ class IntentInCosContextTests(TestCase):
         signals = result.get('daily_signals', [])
         self.assertEqual(len(signals), 1)
         self.assertNotIn('intents', signals[0])
+
+
+# =========================================================================
+# 21. Phase 6C — Signal Interpreter Tests
+# =========================================================================
+
+class SignalInterpreterTests(TestCase):
+    """Test interpret_signals() deterministic semantic normalization."""
+
+    def test_bill_due_produces_semantic_entry(self):
+        """bill_due intent produces correct meaning_code and semantic_class."""
+        from apps.core.ai_orchestrator.signal_interpreter import interpret_signals
+
+        signals = [{
+            'signal_type': 'financial_health',
+            'domain': 'finance',
+            'score': 0.4,
+            'confidence': 0.7,
+            'intents': ['bill_due'],
+        }]
+        result = interpret_signals(signals)
+        self.assertIn('interpreted_signals', result)
+        self.assertEqual(len(result['interpreted_signals']), 1)
+
+        entry = result['interpreted_signals'][0]
+        self.assertEqual(entry['intent'], 'bill_due')
+        self.assertEqual(entry['semantic_class'], 'financial_obligation')
+        self.assertEqual(entry['meaning_code'], 'upcoming_financial_obligation')
+        self.assertEqual(entry['priority_hint'], 'time_sensitive')
+        self.assertEqual(entry['domain'], 'finance')
+        self.assertEqual(entry['confidence'], 0.7)
+        self.assertEqual(entry['source_refs'], ['financial_health'])
+
+    def test_multiple_intents_across_signals(self):
+        """Multiple signals with different intents produce all entries."""
+        from apps.core.ai_orchestrator.signal_interpreter import interpret_signals
+
+        signals = [
+            {
+                'signal_type': 'financial_health',
+                'domain': 'finance',
+                'score': 0.4,
+                'confidence': 0.7,
+                'intents': ['bill_due'],
+            },
+            {
+                'signal_type': 'schedule_load',
+                'domain': 'life',
+                'score': 0.6,
+                'confidence': 0.8,
+                'intents': ['schedule_commitment'],
+            },
+        ]
+        result = interpret_signals(signals)
+        entries = result['interpreted_signals']
+        self.assertEqual(len(entries), 2)
+        meaning_codes = {e['meaning_code'] for e in entries}
+        self.assertEqual(meaning_codes, {
+            'upcoming_financial_obligation',
+            'upcoming_schedule_block',
+        })
+
+    def test_no_intents_returns_empty(self):
+        """Signals without intents produce empty dict."""
+        from apps.core.ai_orchestrator.signal_interpreter import interpret_signals
+
+        signals = [
+            {'signal_type': 'sleep_quality', 'domain': 'health', 'score': 0.8, 'confidence': 0.9},
+        ]
+        result = interpret_signals(signals)
+        self.assertEqual(result, {})
+
+    def test_empty_signals_returns_empty(self):
+        """Empty input returns empty dict."""
+        from apps.core.ai_orchestrator.signal_interpreter import interpret_signals
+
+        self.assertEqual(interpret_signals([]), {})
+        self.assertEqual(interpret_signals(None), {})
+
+    def test_duplicate_intents_deduplicated(self):
+        """Same intent in multiple signals produces only one entry."""
+        from apps.core.ai_orchestrator.signal_interpreter import interpret_signals
+
+        signals = [
+            {'signal_type': 'financial_health', 'domain': 'finance', 'confidence': 0.7, 'intents': ['bill_due']},
+            {'signal_type': 'financial_stress', 'domain': 'finance', 'confidence': 0.6, 'intents': ['bill_due']},
+        ]
+        result = interpret_signals(signals)
+        self.assertEqual(len(result['interpreted_signals']), 1)
+
+    def test_unknown_intent_ignored(self):
+        """Unrecognized intent values are silently skipped."""
+        from apps.core.ai_orchestrator.signal_interpreter import interpret_signals
+
+        signals = [
+            {'signal_type': 'financial_health', 'domain': 'finance', 'confidence': 0.7, 'intents': ['unknown_type']},
+        ]
+        result = interpret_signals(signals)
+        self.assertEqual(result, {})
+
+    def test_no_natural_language_in_output(self):
+        """Output must contain only machine-readable codes, no sentences."""
+        from apps.core.ai_orchestrator.signal_interpreter import interpret_signals
+
+        signals = [
+            {'signal_type': 'financial_health', 'domain': 'finance', 'confidence': 0.7, 'intents': ['bill_due']},
+        ]
+        result = interpret_signals(signals)
+        entry = result['interpreted_signals'][0]
+        # No freeform text fields — only structured codes
+        for key in ('semantic_class', 'meaning_code', 'priority_hint'):
+            value = entry[key]
+            self.assertFalse(
+                value != value.replace(' ', '').replace('_', ' ').replace(' ', '_'),
+                f"{key} contains unexpected spaces: {value}",
+            )
+        # No 'text', 'insight', 'label', or 'description' keys
+        for forbidden_key in ('text', 'insight', 'label', 'description', 'message'):
+            self.assertNotIn(forbidden_key, entry)
+
+    def test_output_contract_structure(self):
+        """Verify exact output contract fields per the spec."""
+        from apps.core.ai_orchestrator.signal_interpreter import interpret_signals
+
+        signals = [{
+            'signal_type': 'financial_health',
+            'domain': 'finance',
+            'score': 0.4,
+            'confidence': 0.7,
+            'intents': ['recurring_obligation'],
+        }]
+        result = interpret_signals(signals)
+        entry = result['interpreted_signals'][0]
+        required_keys = {
+            'signal_type', 'domain', 'intent', 'semantic_class',
+            'meaning_code', 'priority_hint', 'confidence', 'source_refs',
+        }
+        self.assertEqual(set(entry.keys()), required_keys)
+
+
+class SignalInterpreterIntegrationTests(TestCase):
+    """Test interpreter wired into _build_signal_aware_context."""
+
+    def setUp(self):
+        self.user = _create_test_user('test-interp-integration@example.com')
+
+    def test_interpretation_in_context(self):
+        """Signal with intent produces signal_interpretation in context."""
+        from apps.core.ai_eae.models import SignalSnapshot
+        from apps.core.utils import get_user_today
+
+        today = get_user_today(self.user)
+        SignalSnapshot.objects.create(
+            user=self.user,
+            date=today,
+            signal_type='financial_health',
+            domain='finance',
+            score=0.4,
+            signal_class='medium',
+            confidence=0.7,
+            source_signals={
+                'source': 'fact_extraction',
+                'facts': [
+                    {'intent_type': 'bill_due', 'confidence': 0.7, 'fact_type': 'obligation'},
+                ],
+            },
+        )
+
+        from apps.core.ai_orchestrator.cos_context import _build_signal_aware_context
+        result = _build_signal_aware_context(self.user)
+        self.assertIn('signal_interpretation', result)
+        interp = result['signal_interpretation']
+        self.assertEqual(len(interp['interpreted_signals']), 1)
+        self.assertEqual(interp['interpreted_signals'][0]['meaning_code'], 'upcoming_financial_obligation')
+
+    def test_no_interpretation_when_no_intents(self):
+        """Context without intents should not include signal_interpretation."""
+        from apps.core.ai_eae.models import SignalSnapshot
+        from apps.core.utils import get_user_today
+
+        today = get_user_today(self.user)
+        SignalSnapshot.objects.create(
+            user=self.user,
+            date=today,
+            signal_type='sleep_quality',
+            domain='health',
+            score=0.8,
+            signal_class='high',
+            confidence=0.9,
+            source_signals={},
+        )
+
+        from apps.core.ai_orchestrator.cos_context import _build_signal_aware_context
+        result = _build_signal_aware_context(self.user)
+        self.assertNotIn('signal_interpretation', result)

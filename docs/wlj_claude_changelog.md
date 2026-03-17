@@ -6,6 +6,38 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-17 — Phase 6C: Signal Interpreter — Deterministic Semantic Normalization Layer
+
+**Summary:** Introduces `signal_interpreter.py` — a pure, deterministic semantic normalization layer between signals and intelligence engines. Reads intent labels from daily_signals, produces machine-readable enrichment (meaning codes, semantic classes, priority hints). No natural language, no insights, no guidance — those remain in PIE/PRIE/PGE.
+
+**Changes:**
+- **New module:** `apps/core/ai_orchestrator/signal_interpreter.py` — pure function `interpret_signals(daily_signals)` maps 3 intent types to structured semantic entries with `meaning_code`, `semantic_class`, `priority_hint`, `confidence`, `source_refs`
+- **CoS context wiring:** `_build_signal_aware_context()` in `cos_context.py` now calls `interpret_signals()` and adds `signal_interpretation` dict to context when interpretable intents exist
+- **Telemetry:** Logger output includes `interpreted=N` count for operational visibility
+
+**Output contract (machine-oriented only):**
+```
+interpreted_signals: [{signal_type, domain, intent, semantic_class, meaning_code, priority_hint, confidence, source_refs}]
+```
+
+**Intent → Semantic mapping:**
+| Intent | meaning_code | semantic_class | priority_hint |
+|--------|-------------|----------------|---------------|
+| `bill_due` | `upcoming_financial_obligation` | `financial_obligation` | `time_sensitive` |
+| `recurring_obligation` | `recurring_financial_commitment` | `financial_obligation` | `recurring` |
+| `schedule_commitment` | `upcoming_schedule_block` | `time_commitment` | `time_sensitive` |
+
+**Files modified:**
+- `apps/core/ai_orchestrator/signal_interpreter.py` (NEW)
+- `apps/core/ai_orchestrator/cos_context.py` (interpreter wiring + telemetry)
+- `apps/life/tests/test_phase6b_email_pipeline.py` (10 new tests: 8 unit + 2 integration)
+
+**Tests:** 26/26 affected tests pass. No regressions.
+
+**Architecture compliance:** Pure function, signal-layer only, no DB/LLM, no duplicate logic with PIE/PRIE/PGE. Pipeline: signals → interpreter → engines → CoS → LLM.
+
+---
+
 ## 2026-03-17 — Phase 6B.6A: Critical Gap Fixes (Footer Data Loss + Intent CoS Wiring)
 
 **Summary:** Two proven gaps from Phase 6B.5 validation audit fixed with minimal, targeted changes.

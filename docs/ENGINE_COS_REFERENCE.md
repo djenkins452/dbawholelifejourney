@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-17 (Signal Pipeline: Task intelligence rules + PendingAction bridge for proactive check-ins)
+**Last updated:** 2026-03-17 (Signal Arbitration v1.0: deterministic CoS signal selection + delivery modes)
 
 ---
 
@@ -243,6 +243,7 @@ Uses `ThreadPoolExecutor(max_workers=6)`.
 | Health & Vitals | `_build_health_and_vitals()` | **SAE health/fitness**, FastingSession, medicine_utils | weight, trend, vitals, workouts, fasting, medication, **exercise_progress** (per-exercise e1RM trends & plateau status) |
 | Calendar Events | `_build_calendar_events()` | CalendarEvent (live) | events with time_status markers |
 | Intelligence Signals | `_build_intelligence_signals()` | Insight, Prediction, Guidance (engine output) | active insights/predictions/guidance, **intelligence_status** (full/partial/degraded), intelligence_sources_failed |
+| **Signal Arbitration** (v1.0) | `_rank_top_signals()` (POST-ASSEMBLY) | All intelligence signals + drift_score + CoSSituationState | **ranked_signals**: top_signal (tier, delivery_mode, arbitration_score), supporting_signals (0-2), suppression_reason. 6 tiers, tier-first comparison, surfacing gate. Falls back to flat lists on failure. |
 | People & Mood | `_build_people_and_mood()` | JournalEntry, Relationships | mood_trends, relationship_signals |
 | Loops & Events | `_build_loops_and_events()` | **SAE goals/intervention/feedback/life_events** | open_loops, friction_gates |
 | Strategy & Signals | `_build_strategy_and_signals()` | Strategic goals | strategy_snapshot |

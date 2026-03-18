@@ -2214,7 +2214,7 @@ def build_routine_state(user):
         Future migration: Task.is_routine tasks should be migrated to
         RoutineSchedule entries. Until then, they remain in task state.
 
-    Uses shared helper from apps.life.services.routine_helpers for
+    Uses internal helper from apps.life.services._routine_internal for
     canonical window grouping and item collection (single source of truth).
 
     Returns:
@@ -2224,9 +2224,9 @@ def build_routine_state(user):
     state = {}
 
     try:
-        from apps.life.services.routine_helpers import _get_todays_routine_items
+        from apps.life.services._routine_internal import get_todays_routine_items
 
-        result = _get_todays_routine_items(user)
+        result = get_todays_routine_items(user)
 
         state['total_routines'] = result['total_routines']
         if state['total_routines'] == 0:

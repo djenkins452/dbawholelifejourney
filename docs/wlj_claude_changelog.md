@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Final Hardening: Physical Helper Isolation + Time Window Lock
+
+**Purpose:** Enforce hard architectural boundaries for routine domain, lock primitives.
+
+- Created `apps/life/services/_routine_internal.py` — all internal computation isolated here
+- `apps/life/services/routine_helpers.py` rewritten as public-only interface (toggle/skip only)
+- state_builder imports from `_routine_internal`; views import from `routine_helpers`
+- Access path enforced: UI → state_builder → _routine_internal (never UI → internal)
+- Audited all window logic — no duplicates; `apps/core/time_windows.py` confirmed canonical
+- All routine views verified clean: no business logic in views
+
+**Files:** `_routine_internal.py` (new), `routine_helpers.py` (rewritten), `state_builder.py`
+
+---
+
 ## 2026-03-18 — Architecture Hardening: Post-Deploy Stabilization
 
 **Purpose:** Lock routine domain behavior, prevent state/helper drift, standardize time windows, fix module catalog ownership, fix Brain Training access.

@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Health Severity Scoring: Data-Driven Constraint Selection
+
+**Purpose:** Replace hardcoded domain priority with computed severity scores so the coaching layer selects the MOST SEVERE issue, not the one highest on a static list.
+
+**Before:** Static priority list (sleep always beats protein, protein always beats activity — regardless of actual severity).
+**After:** Each domain scored 0-100 from actual rolling_7d values. Highest score wins. If all < 25 → reinforcement mode.
+
+**Changes to `apps/health/services/trend_analyzer.py`:**
+- 8 severity scorers (`_score_sleep` through `_score_nutrition`) — each returns `(severity, reason, params)` from rolling_7d + risk_flags
+- `_DOMAIN_SCORERS` registry replaces `_CONSTRAINT_PRIORITY` static list
+- `_actions_for_domain()` parameterizes actions with real values (e.g., "Add ~72g more protein" not "Add a high-protein snack")
+- `_build_coaching()` scores all domains, highest severity wins
+- `_debug` dict: `{mode, selected_severity, domain_severities, all_reasons}`
+
+**Tests:** 39 tests (was 17). 125 health tests pass. No new files beyond test rewrite.
+
 ## 2026-03-18 — Context Signal Final Lock: Timezone + Future Guard + Cross-Signal Suppression
 
 **Purpose:** Final safeguards for deterministic correctness.

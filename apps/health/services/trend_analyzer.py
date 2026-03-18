@@ -60,6 +60,7 @@ class HealthTrendAnalyzer:
                     "secondary_action": None,
                     "reinforcement": None,
                     "supporting_signals": [],
+                    "_debug": {"mode": "insufficient_data", "domain_severities": {}},
                 },
                 "rolling_7d": {},
                 "rolling_28d": {},
@@ -574,70 +575,151 @@ class HealthTrendAnalyzer:
                         f"Protein intake declining ({change_pct:.0f}% over 2 weeks)"
                     )
 
-    # ── Constraint priority order (highest impact first) ──────────────
-    # Each entry: (domain, applies_to_severity)
-    # The first matching risk_flag or weakness wins.
-    _CONSTRAINT_PRIORITY = [
-        # Tier 1 — recovery limiters
-        ("sleep", "warning"),
-        ("medication", "warning"),
-        # Tier 2 — metabolic
-        ("glucose", "warning"),
-        ("protein", "warning"),
-        # Tier 3 — body composition
-        ("weight", "warning"),
-        # Tier 4 — activity / training
-        ("workout", "warning"),
-        ("activity", "warning"),
-        ("nutrition", "warning"),
-        # Lower-severity versions of the same domains
-        ("sleep", "info"),
-        ("medication", "info"),
-        ("glucose", "info"),
-        ("protein", "info"),
-        ("weight", "info"),
-        ("workout", "info"),
-        ("activity", "info"),
-        ("nutrition", "info"),
-    ]
+    # ── Severity Scorers ───────────────────────────────────────────
+    # Each scorer returns (severity: int 0-100, reason: str, params: dict).
+    # severity 0 = no issue, 100 = critical.  Threshold for constraint: ≥ 25.
+    # params dict feeds parameterized actions with actual values.
+    # Scorers use rolling_7d averages and risk_flags — NO new data sources.
 
-    # ── Deterministic action map ────────────────────────────────────
-    # domain → (primary_action, secondary_action | None)
-    # Actions are specific, realistic, and require no LLM reasoning.
-    _COACHING_ACTIONS = {
-        "sleep": (
-            "Aim for 30-60 more minutes of sleep tonight — start your wind-down earlier",
-            "Reduce screen time 30 minutes before bed",
-        ),
-        "medication": (
-            "Set a consistent daily alarm for your medication",
+    @staticmethod
+    def _score_sleep(rolling_7d, risk_flags):
+        avg = rolling_7d.get("sleep_hours")
+        if avg is None:
+            return 0, "", {}
+        gap_min = round((7.0 - avg) * 60) if avg < 7.0 else 0
+        has_warning = any(
+            f.get("domain") == "sleep" and f.get("severity") == "warning"
+            for f in risk_flags
+        )
+        if avg < 5.5:
+            return 90, f"Averaging {avg:.1f}h sleep — severe deficit", {"gap_min": gap_min, "avg": avg}
+        if avg < 6.0:
+            return 75, f"Averaging {avg:.1f}h sleep — significant deficit", {"gap_min": gap_min, "avg": avg}
+        if avg < 6.5:
+            return 60, f"Averaging {avg:.1f}h sleep — moderate deficit", {"gap_min": gap_min, "avg": avg}
+        if has_warning or avg < 7.0:
+            return 40, f"Averaging {avg:.1f}h sleep — slightly below target", {"gap_min": gap_min, "avg": avg}
+        return 0, "", {}
+
+    @staticmethod
+    def _score_medication(rolling_7d, risk_flags):
+        has_warning = any(
+            f.get("domain") == "medication" and f.get("severity") == "warning"
+            for f in risk_flags
+        )
+        if not has_warning:
+            return 0, "", {}
+        # Extract adherence % from the flag message if available
+        flag = next(
+            (f for f in risk_flags if f.get("domain") == "medication"),
             None,
-        ),
-        "glucose": (
-            "Add a 10-minute walk after your largest meal today",
-            "Front-load protein and fat before carbs at meals",
-        ),
-        "protein": (
-            "Add a high-protein snack (Greek yogurt, protein shake, or eggs) today",
-            "Prioritize protein at your first meal of the day",
-        ),
-        "weight": (
-            "Review your nutrition logging — consistency reveals what to adjust",
-            "Focus on protein target adherence before cutting calories further",
-        ),
-        "workout": (
-            "Schedule your next workout now — even a 20-minute session counts",
-            "If energy is low, do a lighter session rather than skipping entirely",
-        ),
-        "activity": (
-            "Add a 10-minute walk after lunch or dinner today",
-            "Take movement breaks every 90 minutes during desk work",
-        ),
-        "nutrition": (
-            "Log your meals today — tracking alone improves choices",
-            None,
-        ),
-    }
+        )
+        msg = flag.get("message", "") if flag else ""
+        return 70, msg or "Low medication adherence", {}
+
+    @staticmethod
+    def _score_glucose(rolling_7d, risk_flags):
+        avg = rolling_7d.get("glucose_avg")
+        if avg is None:
+            return 0, "", {}
+        has_warning = any(
+            f.get("domain") == "glucose" and f.get("severity") == "warning"
+            for f in risk_flags
+        )
+        if avg > 140:
+            return 80, f"Average glucose {avg:.0f} mg/dL — elevated", {"avg": avg}
+        if avg > 120 or has_warning:
+            return 55, f"Average glucose {avg:.0f} mg/dL — above optimal", {"avg": avg}
+        return 0, "", {}
+
+    @staticmethod
+    def _score_protein(rolling_7d, risk_flags):
+        ratio = rolling_7d.get("protein_ratio")
+        target = rolling_7d.get("protein_target_g")
+        actual = rolling_7d.get("protein_consumed_g") or rolling_7d.get("protein_g")
+        if ratio is None or target is None or actual is None:
+            return 0, "", {}
+        gap_g = round(target - actual) if actual < target else 0
+        if ratio < 0.5:
+            return 75, f"Protein at {ratio:.0%} of target ({actual:.0f}g of {target:.0f}g)", {"gap_g": gap_g, "ratio": ratio, "actual": actual, "target": target}
+        if ratio < 0.7:
+            return 50, f"Protein at {ratio:.0%} of target ({actual:.0f}g of {target:.0f}g)", {"gap_g": gap_g, "ratio": ratio, "actual": actual, "target": target}
+        if ratio < 0.85:
+            return 30, f"Protein slightly below target ({ratio:.0%})", {"gap_g": gap_g, "ratio": ratio, "actual": actual, "target": target}
+        return 0, "", {}
+
+    @staticmethod
+    def _score_weight(rolling_7d, risk_flags):
+        has_warning = any(
+            f.get("domain") == "weight" and f.get("severity") == "warning"
+            for f in risk_flags
+        )
+        has_info = any(
+            f.get("domain") == "weight" and f.get("severity") == "info"
+            for f in risk_flags
+        )
+        if has_warning:
+            flag = next(f for f in risk_flags if f.get("domain") == "weight" and f.get("severity") == "warning")
+            return 65, flag.get("message", "Weight risk detected"), {}
+        if has_info:
+            flag = next(f for f in risk_flags if f.get("domain") == "weight" and f.get("severity") == "info")
+            return 35, flag.get("message", "Weight plateau detected"), {}
+        return 0, "", {}
+
+    @staticmethod
+    def _score_workout(rolling_7d, risk_flags):
+        workout_days = rolling_7d.get("workout_days")
+        total_days = rolling_7d.get("total_days")
+        if workout_days is None or total_days is None or total_days == 0:
+            return 0, "", {}
+        has_flag = any(f.get("domain") == "workout" for f in risk_flags)
+        if workout_days == 0:
+            return 70, "No workouts logged this week", {"workout_days": 0, "total_days": total_days}
+        if workout_days <= 1 or has_flag:
+            return 45, f"Only {workout_days} workout(s) in {total_days} days", {"workout_days": workout_days, "total_days": total_days}
+        return 0, "", {}
+
+    @staticmethod
+    def _score_activity(rolling_7d, risk_flags):
+        steps = rolling_7d.get("steps")
+        if steps is None:
+            return 0, "", {}
+        has_flag = any(f.get("domain") == "activity" for f in risk_flags)
+        step_gap = round(7500 - steps) if steps < 7500 else 0
+        if steps < 3000:
+            return 70, f"Averaging {steps:,.0f} steps/day — very low", {"steps": steps, "step_gap": step_gap}
+        if steps < 5000:
+            return 50, f"Averaging {steps:,.0f} steps/day — low", {"steps": steps, "step_gap": step_gap}
+        if steps < 7500 and has_flag:
+            return 30, f"Averaging {steps:,.0f} steps/day — below moderate", {"steps": steps, "step_gap": step_gap}
+        return 0, "", {}
+
+    @staticmethod
+    def _score_nutrition(rolling_7d, risk_flags):
+        logged = rolling_7d.get("nutrition_logged_days")
+        total = rolling_7d.get("total_days")
+        if logged is None or total is None or total == 0:
+            return 0, "", {}
+        pct = (logged / total) * 100
+        has_flag = any(f.get("domain") == "nutrition" for f in risk_flags)
+        if pct < 30:
+            return 55, f"Nutrition logged {logged}/{total} days ({pct:.0f}%)", {"logged": logged, "total": total, "pct": pct}
+        if pct < 50 or has_flag:
+            return 35, f"Nutrition logged {logged}/{total} days ({pct:.0f}%)", {"logged": logged, "total": total, "pct": pct}
+        return 0, "", {}
+
+    # All scorers in evaluation order (order doesn't affect selection —
+    # highest score wins regardless of position)
+    _DOMAIN_SCORERS = [
+        ("sleep", _score_sleep.__func__),
+        ("medication", _score_medication.__func__),
+        ("glucose", _score_glucose.__func__),
+        ("protein", _score_protein.__func__),
+        ("weight", _score_weight.__func__),
+        ("workout", _score_workout.__func__),
+        ("activity", _score_activity.__func__),
+        ("nutrition", _score_nutrition.__func__),
+    ]
 
     # ── Insight templates per domain ────────────────────────────────
     _CONSTRAINT_INSIGHTS = {
@@ -651,65 +733,103 @@ class HealthTrendAnalyzer:
         "nutrition": "Nutrition tracking has dropped off — without data, coaching is flying blind.",
     }
 
+    # ── Parameterized action templates ──────────────────────────────
+    # Each returns (primary_action, secondary_action | None) given params dict.
+
+    @staticmethod
+    def _actions_for_domain(domain, params):
+        """Return (primary_action, secondary_action) parameterized with actual values."""
+        if domain == "sleep":
+            gap = params.get("gap_min", 45)
+            return (
+                f"Increase sleep by ~{gap} minutes tonight — start your wind-down earlier",
+                "Reduce screen time 30 minutes before bed",
+            )
+        if domain == "medication":
+            return ("Set a consistent daily alarm for your medication", None)
+        if domain == "glucose":
+            avg = params.get("avg")
+            primary = "Add a 10-minute walk after your largest meal today"
+            if avg and avg > 130:
+                primary = "Add a 15-minute walk after meals — glucose is elevated"
+            return (primary, "Front-load protein and fat before carbs at meals")
+        if domain == "protein":
+            gap = params.get("gap_g", 0)
+            if gap > 0:
+                return (
+                    f"Add ~{gap}g more protein today (Greek yogurt, shake, or eggs)",
+                    "Prioritize protein at your first meal of the day",
+                )
+            return (
+                "Add a high-protein snack (Greek yogurt, protein shake, or eggs) today",
+                "Prioritize protein at your first meal of the day",
+            )
+        if domain == "weight":
+            return (
+                "Review your nutrition logging — consistency reveals what to adjust",
+                "Focus on protein target adherence before cutting calories further",
+            )
+        if domain == "workout":
+            days = params.get("workout_days", 0)
+            if days == 0:
+                return ("Schedule a workout today — even 20 minutes counts", None)
+            return (
+                "Schedule your next workout now — even a 20-minute session counts",
+                "If energy is low, do a lighter session rather than skipping entirely",
+            )
+        if domain == "activity":
+            gap = params.get("step_gap", 0)
+            if gap > 0:
+                return (
+                    f"Add ~{gap:,} more steps today — a 10-minute walk after meals helps",
+                    "Take movement breaks every 90 minutes during desk work",
+                )
+            return (
+                "Add a 10-minute walk after lunch or dinner today",
+                "Take movement breaks every 90 minutes during desk work",
+            )
+        if domain == "nutrition":
+            return ("Log your meals today — tracking alone improves choices", None)
+        return (None, None)
+
+    # ── Coaching threshold ──────────────────────────────────────────
+    _REINFORCEMENT_THRESHOLD = 25  # below this → no constraint, reinforcement mode
+
     @staticmethod
     def _build_coaching(risk_flags, weaknesses, strengths, trends, rolling_7d):
         """
-        Select ONE primary constraint and produce deterministic coaching output.
+        Score every health domain, select the highest-severity constraint,
+        and produce deterministic coaching output.
 
-        Priority order: warning risk_flags > info risk_flags > weaknesses.
-        Within each severity, domain priority determines which constraint wins.
-        If no constraints exist, produce reinforcement from strengths.
+        Replaces static domain priority with computed severity scores.
+        Highest score wins. If all scores < 25, enters reinforcement mode.
 
         Returns:
             dict with keys: primary_constraint, insight, primary_action,
-            secondary_action (optional), reinforcement (optional),
-            supporting_signals (list of contributing domains).
+            secondary_action, reinforcement, supporting_signals, _debug.
         """
-        # Build lookup: domain → highest-severity risk_flag for that domain
-        domain_flags = {}
-        for flag in risk_flags:
-            domain = flag.get("domain")
-            if domain and domain not in domain_flags:
-                domain_flags[domain] = flag
-
-        # Walk priority list — first match wins
-        selected_domain = None
-        selected_flag = None
-
-        for domain, severity in HealthTrendAnalyzer._CONSTRAINT_PRIORITY:
-            flag = domain_flags.get(domain)
-            if flag and flag.get("severity") == severity:
-                selected_domain = domain
-                selected_flag = flag
-                break
-
-        # If no risk_flag matched, check weaknesses for domain keywords
-        if not selected_domain and weaknesses:
-            # Weaknesses are plain strings — match by domain keyword
-            domain_keywords = {
-                "sleep": ["sleep"],
-                "protein": ["protein"],
-                "weight": ["weight"],
-                "workout": ["workout", "training volume"],
-                "activity": ["steps", "activity"],
-                "nutrition": ["nutrition", "tracking"],
-                "glucose": ["glucose"],
-                "medication": ["medication", "adherence"],
+        # Score every domain
+        scored = {}
+        for domain, scorer in HealthTrendAnalyzer._DOMAIN_SCORERS:
+            severity, reason, params = scorer(rolling_7d, risk_flags)
+            scored[domain] = {
+                "severity": severity,
+                "reason": reason,
+                "params": params,
             }
-            for domain, _ in HealthTrendAnalyzer._CONSTRAINT_PRIORITY:
-                keywords = domain_keywords.get(domain, [])
-                for w in weaknesses:
-                    if any(kw in w.lower() for kw in keywords):
-                        selected_domain = domain
-                        break
-                if selected_domain:
-                    break
 
-        # No constraint found — reinforcement mode
-        if not selected_domain:
-            reinforcement = None
-            if strengths:
-                reinforcement = strengths[0]
+        # Select highest-severity domain
+        ranked = sorted(
+            scored.items(),
+            key=lambda item: item[1]["severity"],
+            reverse=True,
+        )
+
+        # Check if top score meets threshold
+        top_domain, top_data = ranked[0]
+        reinforcement = strengths[0] if strengths else None
+
+        if top_data["severity"] < HealthTrendAnalyzer._REINFORCEMENT_THRESHOLD:
             return {
                 "primary_constraint": None,
                 "insight": reinforcement or "Tracking consistently — keep logging to build trend data",
@@ -717,30 +837,38 @@ class HealthTrendAnalyzer:
                 "secondary_action": None,
                 "reinforcement": reinforcement,
                 "supporting_signals": [],
+                "_debug": {
+                    "mode": "reinforcement",
+                    "domain_severities": {d: s["severity"] for d, s in scored.items() if s["severity"] > 0},
+                    "reason": "all severities below threshold",
+                },
             }
 
-        # Build coaching output
-        actions = HealthTrendAnalyzer._COACHING_ACTIONS.get(selected_domain, (None, None))
-        insight = HealthTrendAnalyzer._CONSTRAINT_INSIGHTS.get(selected_domain, "")
+        # Build coaching output from winning domain
+        insight_template = HealthTrendAnalyzer._CONSTRAINT_INSIGHTS.get(top_domain, "")
+        reason = top_data["reason"]
+        insight = f"{reason}. {insight_template}" if reason else insight_template
 
-        # If the risk_flag has a specific message, use it as context instead of generic
-        if selected_flag:
-            insight = f"{selected_flag['message']}. {insight}"
+        actions = HealthTrendAnalyzer._actions_for_domain(top_domain, top_data["params"])
 
-        # Gather supporting signals: other domains that also have issues
+        # Supporting signals: other domains with severity ≥ 25
         supporting = [
-            f.get("domain") for f in risk_flags
-            if f.get("domain") != selected_domain
+            d for d, s in ranked[1:]
+            if s["severity"] >= HealthTrendAnalyzer._REINFORCEMENT_THRESHOLD
         ]
 
-        # Add reinforcement from strengths if available
-        reinforcement = strengths[0] if strengths else None
-
         return {
-            "primary_constraint": selected_domain,
+            "primary_constraint": top_domain,
             "insight": insight,
             "primary_action": actions[0],
             "secondary_action": actions[1],
             "reinforcement": reinforcement,
             "supporting_signals": supporting[:3],
+            "_debug": {
+                "mode": "constraint",
+                "selected": top_domain,
+                "selected_severity": top_data["severity"],
+                "domain_severities": {d: s["severity"] for d, s in scored.items() if s["severity"] > 0},
+                "all_reasons": {d: s["reason"] for d, s in scored.items() if s["reason"]},
+            },
         }

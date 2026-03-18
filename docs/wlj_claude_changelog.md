@@ -6,36 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Context Signal Final Lock: Timezone + Future Guard + Cross-Signal Suppression
+
+**Purpose:** Final safeguards for deterministic correctness.
+
+**Changes to `apps/core/ai_insights/rules_context.py`:**
+- **Timezone normalization:** All comparisons use `get_user_now(user)` via `_get_user_now()` helper.
+- **Future date guard:** Evidence with `created_at > now` excluded.
+- **Cross-signal suppression:** `_has_active_illness_signal()` — fatigue suppressed when illness active.
+- **Fatigue recovery fix:** Journal recovery clears journal evidence; sleep deficit continues alone.
+
+---
+
 ## 2026-03-18 — Health Coaching Layer: Deterministic Constraint-Based Coaching in CoS
 
-**Purpose:** Convert Beth from a health reporter into a signal-driven coach. When the user asks about health, Beth now leads with the single highest-impact constraint and specific actions — determined by the system, not the LLM.
+**Purpose:** Convert Beth from health reporter to signal-driven coach. ONE constraint + specific actions.
 
-**Architecture:** Enhanced existing `HealthTrendAnalyzer` instead of adding a new engine. No new pipeline stages, no new data formats, no LLM calls.
+**Changes:** `trend_analyzer.py` `_build_coaching()`, `cos_health_context.py`, `cos_context.py`. 17 tests, 103 health tests pass.
 
-**Changes:**
-- `apps/health/services/trend_analyzer.py` — Replaced `_determine_top_recommendation()` with `_build_coaching()`:
-  - Deterministic constraint priority: sleep > medication > glucose > protein > weight > workout > activity > nutrition (warning-severity first, then info)
-  - Selects ONE primary constraint from risk_flags, falls back to weaknesses
-  - Produces structured output: `{primary_constraint, insight, primary_action, secondary_action, reinforcement, supporting_signals}`
-  - Action map: 8 domains × 2 actions each (specific, realistic, no LLM reasoning)
-  - Insight templates: domain-specific constraint explanations
-  - Reinforcement mode: when no constraints exist, surfaces positive momentum
-  - Backward-compatible: `top_recommendation` still populated from coaching insight
-- `apps/health/services/cos_health_context.py` — Thread `coaching` dict through health intelligence pipeline
-- `apps/core/ai_orchestrator/cos_context.py` — Two changes:
-  1. Added `COACHING RULE` instruction in health intelligence preamble: tells LLM to lead with primary constraint, deliver actions, focus on ONE thing
-  2. Replaced plain `Focus:` line with structured `HEALTH COACHING` section in LOCKED VALUES block: shows constraint, insight, actions, reinforcement, and supporting signals
-
-**Before:** Beth says "Sleep: 6.2h avg. Steps: 7,400. Workouts: 4 this week. Protein: 140g. Weight: trending down."
-**After:** Beth says "Your biggest limiter right now is sleep — 4 of your last 7 nights were under 7 hours. Aim for 30-60 more minutes tonight by starting your wind-down earlier. Your weight is still trending down, which shows your training is working."
-
-**Tests:** 17 new tests in `apps/health/tests/test_health_coaching.py`:
-- Constraint priority selection (7 tests)
-- Weakness-only fallback (3 tests)
-- Output structure validation (5 tests)
-- Integration with analyze() (2 tests)
-
-**Validation:** 103 health tests pass. No regressions. Pure function — no DB writes, no LLM calls, no new models.
+---
 
 ## 2026-03-18 — Context Signal Final Hardening: Time Decay + Conflict Resolution + Freshness
 

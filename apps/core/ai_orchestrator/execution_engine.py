@@ -232,6 +232,7 @@ def _run_intelligence_chain(user, enriched_action, action_result):
         import apps.core.ai_insights.rules_journal  # noqa: F401
         import apps.core.ai_insights.rules_tasks  # noqa: F401
         import apps.core.ai_insights.rules_behavior  # noqa: F401
+        import apps.core.ai_insights.rules_context  # noqa: F401
         import apps.core.ai_insights.rules_transformation  # noqa: F401
 
         from apps.core.ai_insights.insight_engine import run_insights

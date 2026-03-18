@@ -61,6 +61,7 @@ def fire_intelligence(user, module, record_id=None, action="record_created"):
             import apps.core.ai_insights.rules_first_entry  # noqa: F401
             import apps.core.ai_insights.rules_tasks  # noqa: F401
             import apps.core.ai_insights.rules_behavior  # noqa: F401
+            import apps.core.ai_insights.rules_context  # noqa: F401
             import apps.core.ai_insights.health.sleep_analysis  # noqa: F401
 
             from apps.core.ai_insights.insight_engine import run_insights

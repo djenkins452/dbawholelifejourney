@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Cross-Domain Time Alignment: Canonical Time Windows
+
+**Purpose:** Unify time-based reasoning across domains using canonical time_windows.py.
+
+**Audit results (14 locations):** 8 use same concept (should migrate), 4 different concept (leave), 2 domain-specific heuristics (leave).
+
+**Changes:**
+- **time_windows.py** — Added `get_visibility_hours()`, `is_window_visible()`, `build_domain_time_context()` for shared cross-domain time context
+- **MedicineSchedule.save()** — Replaced inline hour→window logic with `get_window_for_hour()` (canonical alignment; evening now 17-21, nightly 21-24)
+- **RoutineMigrationView** — Replaced inline hour→window logic with `get_window_for_hour()`
+- **dashboard_service.py** — Removed hardcoded `MEDICINE_TIME_WINDOWS` dict with overlapping buffers; now uses `is_window_visible(window_key, hour, buffer_hours=1)` from canonical module
+
+**Boundary note:** Proactive check-ins, tone service, auto-shift, signal collector, personal assistant, and dashboard_ai use different-granularity time logic for different purposes (CoS scheduling, tone adaptation, activity constraints). These are intentionally NOT migrated — they are separate abstractions, not the same concept as domain time-of-day windows.
+
+**Files:** `apps/core/time_windows.py`, `apps/health/models.py`, `apps/life/views.py`, `apps/dashboard_v2/services/dashboard_service.py`
+
+---
+
 ## 2026-03-18 — Final Hardening: Physical Helper Isolation + Time Window Lock
 
 **Purpose:** Enforce hard architectural boundaries for routine domain, lock primitives.

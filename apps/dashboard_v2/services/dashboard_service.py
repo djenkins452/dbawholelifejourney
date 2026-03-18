@@ -15,6 +15,7 @@ import pytz
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.core.time_windows import is_window_visible
 from apps.core.utils import get_user_today
 
 from ..cache import DashboardV2CacheService
@@ -42,17 +43,8 @@ MODULE_DOMAIN_MAP = {
     "life": "family",
 }
 
-# Medicine time-of-day visibility windows (hour ranges with 1h buffer)
-# Based on MedicineSchedule.save() auto-assign logic
-MEDICINE_TIME_WINDOWS = {
-    "morning": (0, 10),
-    "mid_morning": (9, 12),
-    "lunch": (11, 14),
-    "afternoon": (13, 17),
-    "evening": (16, 20),
-    "nightly": (19, 24),
-    "unscheduled": (0, 24),  # always show
-}
+# Medicine visibility uses canonical time windows with 1-hour buffer.
+# Derived from apps.core.time_windows — do NOT redefine window boundaries here.
 
 # Engagement strength activity keywords for matching routines
 ENGAGEMENT_ACTIVITY_MAP = {
@@ -257,15 +249,13 @@ class DashboardV2Service:
             context["medicine_groups"] = medicine_groups
             context["medicine_items"] = medicine_items
 
-            # Filter by time windows — only show relevant stacks
+            # Filter by canonical time windows — only show relevant stacks
             current_hour = self._get_user_now().hour
             visible_groups = []
             future_groups = []
             for g in medicine_groups:
-                window = MEDICINE_TIME_WINDOWS.get(
-                    g["time_of_day"], (0, 24)
-                )
-                if g["all_taken"] or window[0] <= current_hour < window[1]:
+                tod = g["time_of_day"]
+                if g["all_taken"] or is_window_visible(tod, current_hour, buffer_hours=1):
                     visible_groups.append(g)
                 else:
                     future_groups.append(g)

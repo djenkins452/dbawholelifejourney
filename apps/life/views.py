@@ -3503,22 +3503,13 @@ class RoutineMigrationView(HelpContextMixin, LifeAccessMixin, TemplateView):
                 skipped += 1
                 continue
 
-            # Determine time_of_day from scheduled_time
+            # Determine time_of_day from scheduled_time using canonical windows
             time_of_day = 'morning'
             if task.scheduled_time:
-                hour = task.scheduled_time.hour
-                if hour < 10:
-                    time_of_day = 'morning'
-                elif hour < 12:
-                    time_of_day = 'mid_morning'
-                elif hour < 14:
-                    time_of_day = 'lunch'
-                elif hour < 17:
-                    time_of_day = 'afternoon'
-                elif hour < 21:
-                    time_of_day = 'evening'
-                else:
-                    time_of_day = 'nightly'
+                from apps.core.time_windows import get_window_for_hour
+                window = get_window_for_hour(task.scheduled_time.hour)
+                if window != 'other':
+                    time_of_day = window
 
             # Create Routine
             routine = Routine.objects.create(

@@ -2363,21 +2363,14 @@ class MedicineSchedule(models.Model):
         return 99
 
     def save(self, *args, **kwargs):
-        """Auto-assign time_of_day based on scheduled_time if not set."""
+        """Auto-assign time_of_day based on scheduled_time if not set.
+
+        Uses canonical time windows from apps.core.time_windows to ensure
+        consistent window assignment across all domains.
+        """
         if not self.time_of_day and self.scheduled_time:
-            hour = self.scheduled_time.hour
-            if hour < 10:
-                self.time_of_day = self.TIME_MORNING
-            elif hour < 12:
-                self.time_of_day = self.TIME_MID_MORNING
-            elif hour < 14:
-                self.time_of_day = self.TIME_LUNCH
-            elif hour < 17:
-                self.time_of_day = self.TIME_AFTERNOON
-            elif hour < 20:
-                self.time_of_day = self.TIME_EVENING
-            else:
-                self.time_of_day = self.TIME_NIGHTLY
+            from apps.core.time_windows import get_window_for_hour
+            self.time_of_day = get_window_for_hour(self.scheduled_time.hour)
         super().save(*args, **kwargs)
 
 

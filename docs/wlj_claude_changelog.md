@@ -6,6 +6,42 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Behavior System: Shared Adherence Engine + Routine Domain + Score
+
+**Purpose:** Standardize behavioral adherence tracking across medication, workouts, and routines. Produce deterministic behavior scores that feed into the signal pipeline and CoS.
+
+**Architecture:**
+- Shared status engine (`compute_occurrence_status`) — all domains use ONE function for status
+- Strict accountability model: completed=1.0, completed_late=0.7, skipped=0.0, missed=0.0
+- Per-domain adapters producing standardized contract: `{domain, adherence, on_time_rate, expected, completed, late, skipped, missed}`
+- Composite score: weighted average across active domains (medication=1.5x, workout=1.0x, routine=1.0x)
+
+**New files:**
+- `apps/core/behavior/__init__.py` — behavior package
+- `apps/core/behavior/status_engine.py` — shared status + adherence math
+- `apps/core/behavior/behavior_score_engine.py` — composite behavior score
+- `apps/core/behavior/domain_medication.py` — medication adapter (no model changes, reads existing MedicineLog)
+- `apps/core/behavior/domain_workout.py` — workout adapter (reads WorkoutScheduleLog)
+- `apps/core/behavior/domain_routine.py` — routine adapter (reads RoutineLog)
+- `apps/core/ai_insights/rules_behavior.py` — 3 PIE rules (BehaviorScoreDropRule, BehaviorDomainWeaknessRule, BehaviorMultiDomainDeclineRule)
+- `apps/core/behavior/tests.py` — 16 tests
+
+**New models:**
+- `WorkoutScheduleLog` (health) — tracks schedule outcome (completed/completed_late/skipped) with FK to WorkoutSession and WorkoutSchedule
+- `WorkoutSchedule.grace_period_minutes` — new field (default 60)
+- `WorkoutSchedule.applies_to_day()` — new method
+- `Routine` (life) — named routine collection (Morning, Evening, etc.)
+- `RoutineSchedule` (life) — individual items with time, grace period, day-of-week
+- `RoutineLog` (life) — completion log with status (completed/completed_late/skipped)
+
+**SAE integration:** `build_behavior_state()` added to MODULE_BUILDERS, produces per-domain adherence breakdowns + composite score.
+
+**Signal integration:** 3 behavior PIE rules registered in intelligence_hook, execution_engine, and run_daily_insights.
+
+**Migrations:** `health.0063_behavior_system`, `life.0027_behavior_system`
+
+---
+
 ## 2026-03-17 — Phase 6E: Mandatory Insight Enforcement Layer
 
 **Summary:** Introduces pre-LLM enforcement ensuring critical insights cannot be ignored. Insights marked `must_surface=True` are extracted into a MANDATORY block positioned before all other intelligence in the CoS prompt. The LLM is explicitly instructed it MUST address every mandatory item.

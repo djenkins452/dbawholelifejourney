@@ -26,6 +26,7 @@ class Command(BaseCommand):
         import apps.core.ai_insights.rules_journal  # noqa: F401
         import apps.core.ai_insights.rules_meals  # noqa: F401
         import apps.core.ai_insights.rules_tasks  # noqa: F401
+        import apps.core.ai_insights.rules_behavior  # noqa: F401
 
         total = run_daily_insights_all_users()
         self.stdout.write(

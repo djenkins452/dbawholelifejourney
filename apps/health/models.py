@@ -4685,6 +4685,10 @@ class WorkoutSchedule(models.Model):
         default=False,
         help_text="Mark as rest day (template ignored if True)",
     )
+    grace_period_minutes = models.PositiveIntegerField(
+        default=60,
+        help_text="Minutes after preferred_time before marking late",
+    )
 
     class Meta:
         ordering = ["day_of_week"]
@@ -4697,6 +4701,68 @@ class WorkoutSchedule(models.Model):
         if self.is_rest_day:
             return f"{day_name}: Rest"
         return f"{day_name}: {self.template.name}"
+
+    def applies_to_day(self, day_of_week):
+        """Check if this schedule entry applies to a given day (0=Mon, 6=Sun)."""
+        return self.day_of_week == day_of_week and not self.is_rest_day
+
+
+class WorkoutScheduleLog(UserOwnedModel):
+    """
+    Tracks schedule adherence for a workout obligation.
+
+    Represents the OUTCOME of a scheduled workout slot:
+    - completed / completed_late must link to a WorkoutSession
+    - skipped must NOT create a fake WorkoutSession
+
+    This model is separate from WorkoutSession to preserve domain integrity:
+    WorkoutSession = actual workout data. WorkoutScheduleLog = schedule outcome.
+    """
+
+    STATUS_COMPLETED = "completed"
+    STATUS_COMPLETED_LATE = "completed_late"
+    STATUS_SKIPPED = "skipped"
+
+    STATUS_CHOICES = [
+        (STATUS_COMPLETED, "Completed"),
+        (STATUS_COMPLETED_LATE, "Completed Late"),
+        (STATUS_SKIPPED, "Skipped"),
+    ]
+
+    schedule = models.ForeignKey(
+        WorkoutSchedule,
+        on_delete=models.CASCADE,
+        related_name="logs",
+    )
+    scheduled_date = models.DateField(
+        help_text="The date this schedule entry was for",
+    )
+    log_status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+    )
+    session = models.ForeignKey(
+        "WorkoutSession",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="schedule_logs",
+        help_text="The actual workout session (null for skipped)",
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the workout was completed",
+    )
+
+    class Meta:
+        ordering = ["-scheduled_date"]
+        unique_together = ["schedule", "scheduled_date"]
+        verbose_name = "workout schedule log"
+        verbose_name_plural = "workout schedule logs"
+
+    def __str__(self):
+        return f"{self.schedule} on {self.scheduled_date}: {self.log_status}"
 
 
 # =============================================================================

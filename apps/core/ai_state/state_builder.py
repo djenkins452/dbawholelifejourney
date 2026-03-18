@@ -1748,6 +1748,38 @@ def build_medicine_state(user):
 
 # Maps module names to their builder functions.
 # New modules can be registered by adding to this dict.
+def build_behavior_state(user):
+    """
+    Build behavior score state from cross-domain adherence outputs.
+
+    Returns composite score + per-domain breakdown for CoS consumption.
+    """
+    state = {}
+    try:
+        from apps.core.behavior.behavior_score_engine import compute_behavior_score_7d
+        result = compute_behavior_score_7d(user)
+        state['behavior_score'] = result.get('score')
+        state['behavior_strongest'] = result.get('strongest_domain')
+        state['behavior_weakest'] = result.get('weakest_domain')
+        state['behavior_domains_missing'] = result.get('domains_missing', [])
+        # Per-domain adherence summaries
+        for d in result.get('domains', []):
+            key = f"behavior_{d['domain']}"
+            state[key] = {
+                'adherence': d['adherence'],
+                'on_time_rate': d['on_time_rate'],
+                'expected': d['expected'],
+                'completed': d['completed'],
+                'late': d['late'],
+                'skipped': d['skipped'],
+                'missed': d['missed'],
+            }
+    except Exception as e:
+        logger.warning("build_behavior_state failed: %s", e, exc_info=True)
+        state['behavior_score'] = None
+    return state
+
+
 MODULE_BUILDERS = {
     "health": build_health_state,
     "goals": build_goal_state,
@@ -1767,6 +1799,7 @@ MODULE_BUILDERS = {
     "governance": build_governance_state,
     "tasks": build_task_state,
     "medicine": build_medicine_state,
+    "behavior": build_behavior_state,
 }
 
 

@@ -2440,3 +2440,144 @@ class RecipeBulkImportPhoto(UserOwnedModel):
 
     def __str__(self):
         return f"Photo #{self.pk} ({self.photo_status}) - {self.original_filename}"
+
+
+# =============================================================================
+# Routine System — Structured recurring behaviors (separate from tasks)
+# =============================================================================
+
+TIME_OF_DAY_CHOICES = [
+    ("morning", "Morning"),
+    ("mid_morning", "Mid-Morning"),
+    ("lunch", "Lunch"),
+    ("afternoon", "Afternoon"),
+    ("evening", "Evening"),
+    ("nightly", "Nightly"),
+]
+
+
+class Routine(UserOwnedModel):
+    """
+    A named collection of routine items (e.g., 'Morning Routine', 'Evening Routine').
+
+    Routines are NOT tasks. They represent recurring behavioral patterns that
+    should be tracked for consistency, not as one-off work items.
+    """
+
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    time_of_day = models.CharField(
+        max_length=20,
+        choices=TIME_OF_DAY_CHOICES,
+        help_text="Default grouping for this routine",
+    )
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_time_of_day_display()})"
+
+
+class RoutineSchedule(models.Model):
+    """
+    A single item within a routine, with scheduling information.
+
+    Example: 'Prayer time' in 'Morning Routine' at 6:30 AM, Mon-Sat.
+    """
+
+    routine = models.ForeignKey(
+        Routine,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    name = models.CharField(
+        max_length=200,
+        help_text="Name of this routine item (e.g., 'Prayer time', 'Shower')",
+    )
+    scheduled_time = models.TimeField(
+        help_text="When this item should be done",
+    )
+    grace_period_minutes = models.PositiveIntegerField(
+        default=30,
+        help_text="Minutes after scheduled_time before marking late",
+    )
+    days_of_week = models.CharField(
+        max_length=20,
+        default="0,1,2,3,4,5,6",
+        help_text="Comma-separated day numbers (0=Mon, 6=Sun)",
+    )
+    specific_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="If set, this item only applies to this specific date",
+    )
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "scheduled_time"]
+
+    def __str__(self):
+        return f"{self.name} @ {self.scheduled_time}"
+
+    @property
+    def days_list(self):
+        """Return list of day integers this schedule applies to."""
+        if not self.days_of_week:
+            return []
+        return [int(d.strip()) for d in self.days_of_week.split(",") if d.strip().isdigit()]
+
+    def applies_to_day(self, day_of_week):
+        """Check if this schedule applies to a given day (0=Mon, 6=Sun)."""
+        if self.specific_date:
+            return False  # specific_date items don't use day_of_week
+        return day_of_week in self.days_list
+
+
+class RoutineLog(UserOwnedModel):
+    """
+    Tracks completion of a routine schedule item on a specific date.
+
+    Status: completed, completed_late, skipped.
+    Missed is NOT stored — it is computed as absence of log.
+    """
+
+    STATUS_COMPLETED = "completed"
+    STATUS_COMPLETED_LATE = "completed_late"
+    STATUS_SKIPPED = "skipped"
+
+    STATUS_CHOICES = [
+        (STATUS_COMPLETED, "Completed"),
+        (STATUS_COMPLETED_LATE, "Completed Late"),
+        (STATUS_SKIPPED, "Skipped"),
+    ]
+
+    schedule = models.ForeignKey(
+        RoutineSchedule,
+        on_delete=models.CASCADE,
+        related_name="logs",
+    )
+    scheduled_date = models.DateField(
+        help_text="The date this routine item was scheduled for",
+    )
+    log_status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the item was completed (null for skipped)",
+    )
+
+    class Meta:
+        ordering = ["-scheduled_date"]
+        unique_together = ["schedule", "scheduled_date"]
+        verbose_name = "routine log"
+        verbose_name_plural = "routine logs"
+
+    def __str__(self):
+        return f"{self.schedule.name} on {self.scheduled_date}: {self.log_status}"

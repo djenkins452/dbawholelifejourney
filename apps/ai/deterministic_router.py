@@ -785,40 +785,51 @@ def _get_medicine_adherence(user, start_date, end_date):
 
 
 def _handle_medication_query(user):
-    """Build a deterministic medication response."""
-    from datetime import date, timedelta
+    """Build a deterministic medication response from SAE state.
 
-    today = date.today()
-    week_ago = today - timedelta(days=7)
-
+    CoS purity: reads from SAE medicine state instead of live
+    calculate_medicine_adherence() computation.
+    """
     try:
-        adh = _get_medicine_adherence(user, week_ago, today)
+        from apps.core.ai_state.state_engine import get_module_state
+        med_state = get_module_state(user, 'medicine') or {}
     except Exception as e:
-        logger.warning("Medication adherence calc failed: %s", e, exc_info=True)
+        logger.warning("Medication SAE state read failed: %s", e, exc_info=True)
         return None
 
-    expected = adh.get('expected_doses', 0)
-    if expected == 0:
+    active_count = med_state.get('active_count', 0)
+    if active_count == 0:
         return "No active medication schedules found."
 
-    taken = adh.get('taken_doses', 0)
-    rate = adh.get('adherence_rate')
+    adherence_7d = med_state.get('adherence_7d')
+    today_taken = med_state.get('today_taken', 0)
+    today_missed = med_state.get('today_missed', 0)
+    today_pending = med_state.get('today_pending', 0)
+    expected_today = med_state.get('expected_today', 0)
 
-    if rate is not None:
-        response = (
-            f"Your medication adherence this week is **{rate:.0f}%** "
-            f"({taken} of {expected} scheduled doses taken)."
+    parts = []
+
+    # 7-day adherence rate
+    if adherence_7d is not None:
+        rate_pct = adherence_7d * 100  # SAE stores 0-1
+        parts.append(
+            f"Your medication adherence this week is **{rate_pct:.0f}%**."
         )
-        if rate >= 90:
-            response += " Great consistency."
-        elif rate >= 70:
-            response += " Room for improvement — a few missed doses."
+        if rate_pct >= 90:
+            parts.append("Great consistency.")
+        elif rate_pct >= 70:
+            parts.append("Room for improvement — a few missed doses.")
         else:
-            response += " Several doses were missed this week."
-    else:
-        response = f"You've taken {taken} of {expected} scheduled doses this week."
+            parts.append("Several doses were missed this week.")
 
-    return response
+    # Today's status
+    if expected_today > 0:
+        parts.append(
+            f"Today: {today_taken} taken, {today_missed} missed, "
+            f"{today_pending} pending out of {expected_today} scheduled."
+        )
+
+    return " ".join(parts) if parts else f"You have {active_count} active medications."
 
 
 def _match_steps_query(msg_lower):

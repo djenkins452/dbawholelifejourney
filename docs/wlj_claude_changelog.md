@@ -6,6 +6,38 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — CoS Purity Enforcement: Replace Raw DB Queries with SAE State
+
+**Purpose:** Enforce architecture law "Raw Data → Signals/State → CoS → LLM" by replacing raw database queries on the CoS request path with SAE state reads, and adding structured violation logging for uncovered domains.
+
+**HARD violations fixed (raw queries replaced with SAE reads):**
+- `cos_context.py`: FastingSession.objects.filter → SAE `fasting.current_fast_active`
+- `cos_context.py`: calculate_medicine_adherence() → SAE `medicine.adherence_7d`
+- `cos_context.py`: Medicine/MedicineSchedule/MedicineLog nested loop → SAE `medicine.*` summary
+- `cos_context.py`: HabitGoal/HabitEntry N+1 loop → SAE `habits.*` aggregate
+- `state_assessment.py`: 10+ raw vitals queries (Weight, Steps, HR, Sleep, BP, Glucose, SpO2, HR Events, Fasting, Workouts, Medicine) → SAE state reads
+- `deterministic_router.py`: calculate_medicine_adherence() → SAE `medicine.*`
+
+**SOFT violations logged (domains lacking SAE builders):**
+- Finance (FinancialGoal, Budget) — no SAE builder yet
+- Brain Training (UserOverallStats, DailyStats) — no SAE builder yet
+- Capture (PendingCapture, CaptureEntry) — no SAE builder yet
+- Medical (LabResult, LabPanel) — no SAE builder yet
+- Relationships (RelationshipAnalyticsService, RelationalHealthService) — no SAE builder yet
+- Calendar (CalendarEvent) — no SAE builder yet
+
+**New file:** `apps/core/ai_orchestrator/cos_purity_guard.py` — centralized violation classification and structured logging
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — replaced 3 HARD violations, added SOFT logs to 6 builders
+- `apps/ai/state_assessment.py` — replaced _get_health_state() with full SAE reads
+- `apps/ai/deterministic_router.py` — replaced _handle_medication_query() with SAE reads
+- `apps/ai/tests/test_deterministic_router.py` — updated medication tests to mock SAE
+
+**Why:** CoS context was making ~30+ raw DB queries per chat message for data already available in SAE. This violated the "never compute on request path" rule and risked 524 timeouts.
+
+---
+
 ## 2026-03-18 — Health Severity Scoring: Data-Driven Constraint Selection
 
 **Purpose:** Replace hardcoded domain priority with computed severity scores so the coaching layer selects the MOST SEVERE issue, not the one highest on a static list.

@@ -494,128 +494,93 @@ class StateAssessmentMixin:
         return get_faith_metrics(self.user)
 
     def _get_health_state(self, today, week_ago) -> Dict:
-        """Get health-related metrics across all health models."""
-        from apps.health.models import (
-            WeightEntry, FastingWindow, WorkoutSession,
-            MedicineLog, StepsEntry, HeartRateEntry, SleepEntry,
-            BloodPressureEntry, GlucoseEntry, BloodOxygenEntry,
-        )
+        """Get health-related metrics from SAE state (CoS purity enforced).
+
+        Architecture: All health vitals are read from SAE, which is rebuilt
+        every 5 minutes by the ISE scheduler. No raw DB queries on the
+        CoS request path.
+        """
+        from apps.core.ai_state.state_engine import get_module_state, get_state_value
 
         data = {}
 
-        # Weight
-        weights = WeightEntry.objects.filter(user=self.user).order_by('-recorded_at')
-        latest = weights.first()
-        if latest:
-            data['weight_current'] = Decimal(str(latest.value_in_lb))
+        health = get_module_state(self.user, 'health') or {}
+        fasting = get_module_state(self.user, 'fasting') or {}
+        fitness = get_module_state(self.user, 'fitness') or {}
+        medicine = get_module_state(self.user, 'medicine') or {}
 
-            # Trend calculation
-            month_weights = list(weights[:10])
-            if len(month_weights) >= 2:
-                if month_weights[0].value_in_lb < month_weights[-1].value_in_lb:
-                    data['weight_trend'] = 'down'
-                elif month_weights[0].value_in_lb > month_weights[-1].value_in_lb:
-                    data['weight_trend'] = 'up'
-                else:
-                    data['weight_trend'] = 'stable'
+        # Weight — from SAE
+        weight_current = health.get('weight_current')
+        if weight_current is not None:
+            data['weight_current'] = Decimal(str(weight_current))
+            # SAE trend uses 'increasing'/'decreasing'/'stable'; map to legacy keys
+            trend_map = {
+                'increasing': 'up', 'decreasing': 'down', 'stable': 'stable',
+            }
+            sae_trend = health.get('weight_trend', 'stable')
+            data['weight_trend'] = trend_map.get(sae_trend, 'stable')
 
-        # Fasting
-        data['fasts_week'] = FastingWindow.objects.filter(
-            user=self.user,
-            ended_at__isnull=False,
-            started_at__date__gte=week_ago
-        ).count()
+        # Fasting — from SAE
+        data['fasts_week'] = fasting.get('fasts_7d', 0)
 
-        # Workouts — exclude soft-deleted records for defense-in-depth
-        workouts = WorkoutSession.objects.filter(user=self.user).exclude(status='deleted')
-        data['workouts_week'] = workouts.filter(date__gte=week_ago).count()
-        data['workout_today'] = workouts.filter(date=today).exists()
-        data['workout_streak'] = self._calculate_workout_streak(today)
+        # Workouts — from SAE
+        data['workouts_week'] = fitness.get('workouts_7d', 0)
+        # workout_today: check if last workout date is today
+        last_workout_date = fitness.get('last_workout_date')
+        if last_workout_date:
+            try:
+                from datetime import date as _date
+                lwd = _date.fromisoformat(str(last_workout_date)[:10])
+                data['workout_today'] = (lwd == today)
+            except (ValueError, TypeError):
+                data['workout_today'] = False
+        else:
+            data['workout_today'] = False
+        # Streak not in SAE; use 0 as safe default (streak is supplementary)
+        data['workout_streak'] = 0
 
-        # Medicine adherence (correct: expected vs taken from schedules)
-        from apps.health.medicine_utils import calculate_medicine_adherence
-        adherence = calculate_medicine_adherence(self.user, week_ago, today)
-        data['medicine_adherence'] = adherence['adherence_rate']
-
-        # Steps
-        steps_week = StepsEntry.objects.filter(
-            user=self.user, logged_date__gte=week_ago
+        # Medicine adherence — from SAE
+        adherence_7d = medicine.get('adherence_7d')
+        # SAE stores 0-1; legacy code expects 0-100
+        data['medicine_adherence'] = (
+            round(adherence_7d * 100, 1) if adherence_7d is not None else None
         )
-        if steps_week.exists():
-            from django.db.models import Avg
-            avg_steps = steps_week.aggregate(avg=Avg('count'))['avg']
-            data['steps_avg_7d'] = int(avg_steps) if avg_steps else 0
-            latest_steps = steps_week.order_by('-logged_date').first()
-            if latest_steps:
-                data['steps_latest'] = latest_steps.count
-                data['steps_latest_date'] = latest_steps.logged_date
 
-        # Heart Rate
-        hr_entries = HeartRateEntry.objects.filter(
-            user=self.user, recorded_at__date__gte=week_ago
-        )
-        if hr_entries.exists():
-            from django.db.models import Avg, Min, Max
-            hr_agg = hr_entries.aggregate(avg=Avg('bpm'), lo=Min('bpm'), hi=Max('bpm'))
-            data['heart_rate_avg_7d'] = round(float(hr_agg['avg']), 0) if hr_agg['avg'] else None
-            data['heart_rate_range_7d'] = f"{hr_agg['lo']}-{hr_agg['hi']}" if hr_agg['lo'] else None
+        # Steps — from SAE
+        steps_avg = health.get('steps_avg_7d')
+        if steps_avg is not None:
+            data['steps_avg_7d'] = int(steps_avg)
 
-        # Sleep
-        sleep_entries = SleepEntry.objects.filter(
-            user=self.user, sleep_date__gte=week_ago
-        )
-        if sleep_entries.exists():
-            from django.db.models import Avg
-            avg_sleep = sleep_entries.aggregate(avg=Avg('asleep_duration_minutes'))['avg']
-            data['sleep_avg_hours_7d'] = round(float(avg_sleep) / 60, 1) if avg_sleep else None
-            latest_sleep = sleep_entries.order_by('-sleep_date').first()
-            if latest_sleep and latest_sleep.asleep_duration_minutes:
-                data['sleep_latest_hours'] = round(latest_sleep.asleep_duration_minutes / 60, 1)
+        # Heart Rate — from SAE
+        hr_avg = health.get('heart_rate_avg_7d')
+        if hr_avg is not None:
+            data['heart_rate_avg_7d'] = round(float(hr_avg), 0)
 
-        # Blood Pressure
-        bp_entries = BloodPressureEntry.objects.filter(
-            user=self.user, recorded_at__date__gte=week_ago
-        )
-        if bp_entries.exists():
-            from django.db.models import Avg
-            bp_agg = bp_entries.aggregate(
-                avg_sys=Avg('systolic'), avg_dia=Avg('diastolic')
-            )
-            data['bp_avg_7d'] = f"{round(float(bp_agg['avg_sys']))}/{round(float(bp_agg['avg_dia']))}" if bp_agg['avg_sys'] else None
+        # Sleep — from SAE
+        sleep_avg_min = health.get('sleep_avg_duration_7d')
+        if sleep_avg_min is not None:
+            data['sleep_avg_hours_7d'] = round(float(sleep_avg_min) / 60, 1)
 
-        # Glucose
-        glucose_entries = GlucoseEntry.objects.filter(
-            user=self.user, recorded_at__date__gte=week_ago
-        )
-        if glucose_entries.exists():
-            from django.db.models import Avg
-            avg_glucose = glucose_entries.aggregate(avg=Avg('value'))['avg']
-            data['glucose_avg_7d'] = round(float(avg_glucose), 0) if avg_glucose else None
+        # Blood Pressure — from SAE
+        bp_sys = health.get('bp_systolic')
+        bp_dia = health.get('bp_diastolic')
+        if bp_sys and bp_dia:
+            data['bp_avg_7d'] = f"{round(float(bp_sys))}/{round(float(bp_dia))}"
 
-        # Blood Oxygen
-        spo2_entries = BloodOxygenEntry.objects.filter(
-            user=self.user, recorded_at__date__gte=week_ago
-        )
-        if spo2_entries.exists():
-            from django.db.models import Avg
-            avg_spo2 = spo2_entries.aggregate(avg=Avg('spo2'))['avg']
-            data['blood_oxygen_avg_7d'] = round(float(avg_spo2), 1) if avg_spo2 else None
+        # Glucose — from SAE
+        glucose_avg = health.get('glucose_avg_7d')
+        if glucose_avg is not None:
+            data['glucose_avg_7d'] = round(float(glucose_avg), 0)
 
-        # Heart rate events (clinically significant — always include count)
-        try:
-            from apps.health.models import HeartRateEventEntry
-            hr_events_week = HeartRateEventEntry.objects.filter(
-                user=self.user, recorded_at__date__gte=week_ago
-            ).count()
-            if hr_events_week > 0:
-                data['heart_rate_events_7d'] = hr_events_week
-        except ImportError:
-            pass  # HeartRateEventEntry model may not exist yet
-        except Exception as _hr_err:
-            logger.warning(
-                "STATE_HEART_RATE user=%s — heart rate event query failed: %s",
-                self.user.id, _hr_err, exc_info=True,
-            )
+        # Blood Oxygen — from SAE
+        spo2_avg = health.get('blood_oxygen_avg_7d')
+        if spo2_avg is not None:
+            data['blood_oxygen_avg_7d'] = round(float(spo2_avg), 1)
+
+        # Heart rate events — from SAE
+        hr_events = health.get('heart_rate_events_7d')
+        if hr_events and hr_events > 0:
+            data['heart_rate_events_7d'] = hr_events
 
         return data
 

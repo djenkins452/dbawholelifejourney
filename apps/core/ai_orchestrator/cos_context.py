@@ -285,84 +285,61 @@ def _build_health_and_vitals(user):
     except Exception:
         pass
 
-    # Active fast status
+    # Active fast status — from SAE (CoS purity: no raw DB)
     try:
-        from apps.health.models import FastingSession
-        active_fast = FastingSession.objects.filter(
-            user=user, is_active=True,
-        ).first()
-        if active_fast:
+        from apps.core.ai_state.state_engine import get_module_state
+        fasting_state = get_module_state(user, 'fasting') or {}
+        if fasting_state.get('current_fast_active'):
             result['active_fast_status'] = {
                 'active': True,
-                'started_at': active_fast.start_time.isoformat() if active_fast.start_time else '',
-                'target_hours': getattr(active_fast, 'target_hours', 0),
+                'started_at': fasting_state.get('current_fast_started', ''),
+                'target_hours': fasting_state.get('current_fast_target_hours', 0),
+                'elapsed_hours': fasting_state.get('current_fast_hours', 0),
             }
     except Exception:
         pass
 
-    # Medication adherence (schedule-based, not just today's logs)
+    # Medication adherence — from SAE (CoS purity: no live computation)
     try:
-        from apps.health.medicine_utils import calculate_medicine_adherence
-        today = timezone.localdate()
-        week_ago = today - timezone.timedelta(days=7)
-        adh = calculate_medicine_adherence(user, week_ago, today)
-        if adh["expected_doses"] > 0:
+        from apps.core.ai_state.state_engine import get_module_state
+        med_state = get_module_state(user, 'medicine') or {}
+        if med_state.get('active_count', 0) > 0:
+            adherence_7d = med_state.get('adherence_7d')
             result['medication_adherence_state'] = {
-                'total_scheduled': adh["expected_doses"],
-                'taken_today': adh["taken_doses"],
-                'adherence_pct': adh["adherence_rate"] or 0,
+                'total_scheduled': med_state.get('expected_today', 0),
+                'taken_today': med_state.get('today_taken', 0),
+                'adherence_pct': round(adherence_7d * 100, 1) if adherence_7d is not None else None,
             }
     except Exception:
         logger.error("CoS context: medication adherence failed", exc_info=True)
 
-    # Pending medication details (names, times, status)
+    # Pending medication summary — from SAE (CoS purity: no raw DB)
+    # NOTE: SAE provides aggregate counts (taken/missed/pending) and medicine
+    # names, but NOT per-schedule detail with exact times. Per-schedule detail
+    # is a SOFT gap — the SAE medicine builder should be extended to include it.
     try:
-        from apps.health.models import Medicine, MedicineLog
-        from apps.core.utils import get_user_now
-        user_now = get_user_now(user)
-        med_today = user_now.date()
-        current_time = user_now.time()
-        day_of_week = str(med_today.weekday())  # 0=Monday, 6=Sunday
-
-        active_meds = Medicine.objects.filter(
-            user=user, medicine_status=Medicine.STATUS_ACTIVE,
-        ).exclude(status='deleted').prefetch_related('schedules')
-
-        pending_meds = []
-        for med in active_meds:
-            for sched in med.schedules.filter(is_active=True):
-                # Check if this schedule applies to today
-                if sched.days_of_week and day_of_week not in sched.days_of_week.split(','):
-                    continue
-
-                taken = MedicineLog.objects.filter(
-                    medicine=med,
-                    schedule=sched,
-                    scheduled_date=med_today,
-                    log_status__in=['taken', 'late'],
-                ).exists()
-
-                if taken:
-                    med_status = 'taken'
-                elif sched.scheduled_time and sched.scheduled_time > current_time:
-                    med_status = 'upcoming'
-                else:
-                    med_status = 'overdue'
-
-                time_str = ''
-                if sched.scheduled_time:
-                    time_str = sched.scheduled_time.strftime('%I:%M %p').lstrip('0')
-
-                pending_meds.append({
-                    'name': med.name,
-                    'dose': med.dose or '',
-                    'scheduled_time': time_str,
-                    'time_of_day': sched.time_of_day or '',
-                    'status': med_status,
-                })
-
-        if pending_meds:
-            result['pending_medications'] = pending_meds
+        from apps.core.ai_state.state_engine import get_module_state
+        from apps.core.ai_orchestrator.cos_purity_guard import log_cos_purity_violation
+        med_state = get_module_state(user, 'medicine') or {}
+        active_names = med_state.get('active_medicines', [])
+        if active_names:
+            result['pending_medications_summary'] = {
+                'active_medicine_names': active_names,
+                'today_taken': med_state.get('today_taken', 0),
+                'today_missed': med_state.get('today_missed', 0),
+                'today_pending': med_state.get('today_pending', 0),
+                'expected_today': med_state.get('expected_today', 0),
+                'needs_refill': med_state.get('needs_refill', []),
+            }
+            # Log that per-schedule detail is not yet in SAE
+            if med_state.get('today_pending', 0) > 0 or med_state.get('today_missed', 0) > 0:
+                log_cos_purity_violation(
+                    domain='medicine',
+                    file=__file__,
+                    operation='pending_medications per-schedule detail',
+                    operation_type='query',
+                    detail='SAE lacks per-schedule times; extend build_medicine_state',
+                )
     except Exception:
         logger.error("CoS context: pending medication details failed", exc_info=True)
 
@@ -539,7 +516,17 @@ def _build_health_and_vitals(user):
 
 
 def _build_calendar_events(user):
-    """Build calendar events for today."""
+    """Build calendar events for today.
+
+    CoS purity: SOFT violation — calendar has no SAE state builder yet.
+    """
+    from apps.core.ai_orchestrator.cos_purity_guard import log_cos_purity_violation
+    log_cos_purity_violation(
+        domain='calendar', file=__file__,
+        operation='CalendarEvent.objects.filter()',
+        operation_type='query',
+        detail='No SAE calendar builder; raw DB temporarily allowed',
+    )
     result = {}
     try:
         from apps.calendar_engine.models import CalendarEvent
@@ -1212,8 +1199,20 @@ def _build_intelligence_signals(user, _module_permissions=None):
 
 
 def _build_people_and_mood(user):
-    """Build relationship signals and mood status."""
+    """Build relationship signals and mood status.
+
+    CoS purity: SOFT violation — relationships has no SAE state builder yet.
+    Mood status reads from SAE (clean). Relationship data is raw DB.
+    """
     result = {}
+
+    from apps.core.ai_orchestrator.cos_purity_guard import log_cos_purity_violation
+    log_cos_purity_violation(
+        domain='relationships', file=__file__,
+        operation='RelationshipAnalyticsService + RelationalHealthService',
+        operation_type='query',
+        detail='No SAE relationships builder; raw DB temporarily allowed',
+    )
 
     try:
         # Phase R1: Use new canonical Person model for relationship signals
@@ -1503,7 +1502,18 @@ def _build_faith_context(user):
 
 
 def _build_finance_context(user):
-    """Build finance module context — budgets, goals, recent activity."""
+    """Build finance module context — budgets, goals, recent activity.
+
+    CoS purity: SOFT violation — finance has no SAE state builder yet.
+    All queries here are temporary until build_finance_state() is added.
+    """
+    from apps.core.ai_orchestrator.cos_purity_guard import log_cos_purity_violation
+    log_cos_purity_violation(
+        domain='finance', file=__file__,
+        operation='FinancialGoal + Budget queries',
+        operation_type='query',
+        detail='No SAE finance builder; raw DB temporarily allowed',
+    )
     try:
         from datetime import timedelta as td
         now = timezone.now()
@@ -1570,7 +1580,17 @@ def _build_finance_context(user):
 
 
 def _build_brain_training_context(user):
-    """Build brain training context — recent sessions, streaks."""
+    """Build brain training context — recent sessions, streaks.
+
+    CoS purity: SOFT violation — brain_training has no SAE state builder yet.
+    """
+    from apps.core.ai_orchestrator.cos_purity_guard import log_cos_purity_violation
+    log_cos_purity_violation(
+        domain='brain_training', file=__file__,
+        operation='UserOverallStats + DailyStats queries',
+        operation_type='query',
+        detail='No SAE brain_training builder; raw DB temporarily allowed',
+    )
     try:
         try:
             from apps.brain_training.models import UserOverallStats, DailyStats
@@ -1616,7 +1636,18 @@ def _build_brain_training_context(user):
 
 
 def _build_capture_context(user):
-    """Build capture context — unprocessed captures, recent entries."""
+    """Build capture context — unprocessed captures, recent entries.
+
+    CoS purity: SOFT violation — capture has no SAE state builder for
+    pending/ready entries (only scan/image analysis is covered).
+    """
+    from apps.core.ai_orchestrator.cos_purity_guard import log_cos_purity_violation
+    log_cos_purity_violation(
+        domain='capture', file=__file__,
+        operation='PendingCapture + CaptureEntry queries',
+        operation_type='query',
+        detail='No SAE capture builder; raw DB temporarily allowed',
+    )
     try:
         try:
             from apps.capture.models import CaptureEntry, PendingCapture
@@ -1658,7 +1689,17 @@ def _build_capture_context(user):
 
 
 def _build_medical_context(user):
-    """Build medical context — recent labs, abnormal results."""
+    """Build medical context — recent labs, abnormal results.
+
+    CoS purity: SOFT violation — medical has no SAE state builder yet.
+    """
+    from apps.core.ai_orchestrator.cos_purity_guard import log_cos_purity_violation
+    log_cos_purity_violation(
+        domain='medical', file=__file__,
+        operation='LabResult + LabPanel queries',
+        operation_type='query',
+        detail='No SAE medical builder; raw DB temporarily allowed',
+    )
     try:
         try:
             from apps.medical.models import LabResult, LabPanel
@@ -1709,18 +1750,25 @@ def _build_medical_context(user):
 
 
 def _build_purpose_context(user):
-    """Build purpose context — life goals, habit progress, streaks."""
+    """Build purpose context — life goals, habit progress, streaks.
+
+    CoS purity: goals/habits are covered by SAE for aggregates.
+    Goal names + habit names require raw DB (SAE doesn't store names yet).
+    The N+1 HabitEntry loop is replaced with SAE aggregate data.
+    """
     try:
         try:
-            from apps.purpose.models import LifeGoal, HabitGoal, HabitEntry
+            from apps.purpose.models import LifeGoal
         except ImportError:
             return {}
 
+        from apps.core.ai_state.state_engine import get_module_state
+
         result = {}
-        from datetime import timedelta as td
         today = timezone.now().date()
 
-        # Active life goals
+        # Active life goals — names require raw DB (SAE only has counts)
+        # This is a lightweight single query, not an N+1 pattern.
         life_goals = LifeGoal.objects.filter(
             user=user, status='active',
         ).order_by('target_date')[:5]
@@ -1737,27 +1785,17 @@ def _build_purpose_context(user):
                 for g in life_goals
             ]
 
-        # Active habits with completion rates (last 7 days)
-        habits = HabitGoal.objects.filter(
-            user=user, status='active',
-        )[:10]
-
-        if habits:
-            week_ago = today - td(days=7)
-            habit_data = []
-            for h in habits:
-                entries_7d = HabitEntry.objects.filter(
-                    goal=h, date__gte=week_ago, completed=True,
-                ).count()
-                target_7d = h.sessions_per_week if h.sessions_per_week else 7
-                rate = round(entries_7d / target_7d * 100, 0) if target_7d > 0 else 0
-                habit_data.append({
-                    'name': h.name,
-                    'completion_rate_7d': min(rate, 100),
-                    'entries_7d': entries_7d,
-                    'target_weekly': target_7d,
-                })
-            result['habit_progress'] = habit_data
+        # Habit progress — from SAE (eliminates N+1 HabitEntry queries)
+        habits_state = get_module_state(user, 'habits') or {}
+        if habits_state.get('active_habit_count', 0) > 0:
+            result['habit_progress_summary'] = {
+                'active_count': habits_state.get('active_habit_count', 0),
+                'avg_completion_rate_pct': round(
+                    habits_state.get('avg_completion_rate', 0) * 100
+                ),
+                'longest_streak': habits_state.get('longest_streak', 0),
+                'last_activity': habits_state.get('last_activity'),
+            }
 
         return result
 

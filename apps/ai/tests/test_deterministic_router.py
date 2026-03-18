@@ -330,29 +330,25 @@ class MedicationQueryMatcherTests(TestCase):
 
 class MedicationQueryHandlerTests(TestCase):
 
-    @patch('apps.ai.deterministic_router._get_medicine_adherence')
-    def test_returns_adherence(self, mock_calc):
-        mock_calc.return_value = {
-            'expected_doses': 14,
-            'taken_doses': 13,
-            'missed_doses': 1,
-            'unlogged_doses': 0,
-            'adherence_rate': 92.9,
+    @patch('apps.core.ai_state.state_engine.get_module_state')
+    def test_returns_adherence(self, mock_gms):
+        mock_gms.return_value = {
+            'active_count': 3,
+            'adherence_7d': 0.929,
+            'today_taken': 2,
+            'today_missed': 0,
+            'today_pending': 1,
+            'expected_today': 3,
         }
         user = MagicMock()
         result = classify_and_route("did i take my meds?", user)
         self.assertEqual(result.category, RouteCategory.DETERMINISTIC_DATA)
         self.assertIn('93%', result.response)
-        self.assertIn('13 of 14', result.response)
 
-    @patch('apps.ai.deterministic_router._get_medicine_adherence')
-    def test_no_schedules(self, mock_calc):
-        mock_calc.return_value = {
-            'expected_doses': 0,
-            'taken_doses': 0,
-            'missed_doses': 0,
-            'unlogged_doses': 0,
-            'adherence_rate': None,
+    @patch('apps.core.ai_state.state_engine.get_module_state')
+    def test_no_schedules(self, mock_gms):
+        mock_gms.return_value = {
+            'active_count': 0,
         }
         user = MagicMock()
         result = classify_and_route("did i take my meds?", user)

@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Phase 1.75B: Discipline Layer (Validator + Inventory + Mapping)
+
+**Purpose:** Lock the foundation before Phase 2 expansion. Add enforcement, visibility, and migration roadmap for the state contract overlay.
+
+**New files:**
+- `apps/core/ai_state/state_validator.py` — validates `_contract` shape and `_meta` for all Phase 1 domains. Schema-driven, catches drift early.
+- `docs/SAE_STATE_CONTRACT.md` — canonical mapping table (flat key → contract path), consumer inventory (which files read which keys), migration roadmap, known issues.
+
+**Builder docstrings updated:** All 4 Phase 1 builders now reference docs/SAE_STATE_CONTRACT.md and note "prefer reading _contract for new consumers."
+
+**Known issues documented:**
+- `deterministic_health_summary.py` uses domain key `'medication'` instead of `'medicine'` (silent empty return)
+- `cos_context.py` reads medicine state twice in separate try-blocks (redundant cache lookup)
+- `state_assessment.py` has dual read paths for same domains
+
+**Files:** state_validator.py (new), SAE_STATE_CONTRACT.md (new), state_builder.py (docstrings), wlj_claude_changelog.md
+
+---
+
 ## 2026-03-18 — Phase 1.75: State Contract Hardening + Routine Canon
 
 **Purpose:** Standardize the SAE state contract across all Phase 1 domains (tasks, calendar, medicine, routines) and resolve the routine system duplication.

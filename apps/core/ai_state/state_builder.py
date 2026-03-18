@@ -1554,10 +1554,11 @@ def build_task_state(user):
     """
     Build task commitment state from actual database records.
 
-    Returns:
-        dict with task_commitment_summary (totals, 7d counts, consistency_score),
-        nn_skip_streaks (top 5 NN tasks with active streaks),
-        active_tasks_by_level, and overdue_nn_count.
+    Returns dict with flat keys (operational interface) + _contract overlay.
+    See docs/SAE_STATE_CONTRACT.md for mapping table and migration plan.
+
+    Contract sections: summary, today, upcoming, alerts
+    For new consumers, prefer reading _contract over flat keys.
     """
     from apps.life.models import Task
     from django.db.models import Count, Q
@@ -1885,15 +1886,11 @@ def build_medicine_state(user):
     """
     Build medicine state from actual database records.
 
-    Returns:
-        dict with active_medicines, today's adherence, 7-day adherence,
-        per-schedule status detail, and refill alerts.
+    Returns dict with flat keys (operational interface) + _contract overlay.
+    See docs/SAE_STATE_CONTRACT.md for mapping table and migration plan.
 
-    State contract:
-        summary: active_count, active_medicines, adherence_7d
-        today: today_taken, today_missed, today_pending, expected_today,
-               schedule_status_today (per-schedule operational detail)
-        alerts: needs_refill
+    Contract sections: summary, today, upcoming, alerts
+    For new consumers, prefer reading _contract over flat keys.
     """
     state = {}
 
@@ -2039,15 +2036,11 @@ def build_calendar_state(user):
     """
     Build calendar state from CalendarEvent records.
 
-    Returns:
-        dict with today's events, next event, schedule density,
-        and upcoming events.
+    Returns dict with flat keys (operational interface) + _contract overlay.
+    See docs/SAE_STATE_CONTRACT.md for mapping table and migration plan.
 
-    State contract:
-        summary: today_event_count, schedule_density
-        today: today_events (time-ordered), current_event, next_event
-        upcoming: upcoming_events (next 3 days beyond today)
-        alerts: overdue_events, conflicts
+    Contract sections: summary, today, upcoming, alerts
+    For new consumers, prefer reading _contract over flat keys.
     """
     import datetime as _dt
 

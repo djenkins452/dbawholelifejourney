@@ -1,17 +1,17 @@
 """
-Tests for the deterministic health coaching layer.
+Tests for the deterministic health coaching layer with severity scoring.
 
 The coaching engine is a pure function inside HealthTrendAnalyzer._build_coaching.
-It selects ONE primary constraint, produces deterministic actions, and optionally
-includes reinforcement from strengths. No LLM calls. No DB writes.
+It scores every health domain (0-100), selects the highest-severity constraint,
+and produces parameterized actions using actual values. No LLM calls. No DB writes.
 
 Covers:
-1. Sleep deficit → sleep as primary constraint
-2. Good sleep, low movement → activity as constraint
-3. Positive signals only → reinforcement, no constraint
-4. Multiple signals → highest-priority domain wins
-5. Weakness-only detection (no risk_flags)
-6. Coaching output structure validation
+1. Per-domain severity scoring correctness
+2. Severity-based constraint selection (highest wins)
+3. Reinforcement mode when all scores below threshold
+4. Parameterized actions with real values
+5. Debug structure
+6. Edge cases (ties, missing data)
 7. Integration: coaching flows through to CoS context
 """
 from django.test import TestCase
@@ -19,58 +19,246 @@ from django.test import TestCase
 from apps.health.services.trend_analyzer import HealthTrendAnalyzer
 
 
-class TestCoachingConstraintSelection(TestCase):
-    """_build_coaching selects the correct primary constraint."""
+# ── Severity Scoring Correctness ────────────────────────────────────
 
-    def test_sleep_deficit_wins_over_lower_priority(self):
-        """Sleep warning beats workout and activity warnings."""
-        risk_flags = [
-            {"domain": "workout", "severity": "warning", "message": "Workout freq dropped"},
-            {"domain": "sleep", "severity": "warning", "message": "Sleep debt: 4/7 nights below 7h"},
-            {"domain": "activity", "severity": "info", "message": "Steps declining"},
-        ]
-        coaching = HealthTrendAnalyzer._build_coaching(
-            risk_flags=risk_flags,
-            weaknesses=[],
-            strengths=["Strong protein intake"],
-            trends={},
-            rolling_7d={},
+
+class TestSleepScoring(TestCase):
+    """Sleep severity scoring based on rolling_7d.sleep_hours."""
+
+    def test_severe_deficit(self):
+        sev, reason, params = HealthTrendAnalyzer._score_sleep(
+            {"sleep_hours": 5.2}, [],
         )
-        self.assertEqual(coaching["primary_constraint"], "sleep")
-        self.assertIn("sleep", coaching["insight"].lower())
-        self.assertIsNotNone(coaching["primary_action"])
-        self.assertEqual(coaching["reinforcement"], "Strong protein intake")
+        self.assertGreaterEqual(sev, 80)
+        self.assertIn("5.2", reason)
+        self.assertGreater(params["gap_min"], 0)
 
-    def test_good_sleep_low_movement(self):
-        """With sleep fine, activity warning becomes primary."""
-        risk_flags = [
-            {"domain": "activity", "severity": "warning", "message": "Low daily steps"},
-        ]
-        coaching = HealthTrendAnalyzer._build_coaching(
-            risk_flags=risk_flags,
-            weaknesses=[],
-            strengths=["Good sleep average (7.2h)"],
-            trends={},
-            rolling_7d={},
+    def test_moderate_deficit(self):
+        sev, reason, params = HealthTrendAnalyzer._score_sleep(
+            {"sleep_hours": 6.3}, [],
         )
-        self.assertEqual(coaching["primary_constraint"], "activity")
-        self.assertIn("movement", coaching["insight"].lower())
+        self.assertGreaterEqual(sev, 40)
+        self.assertLess(sev, 80)
 
-    def test_positive_signals_only_reinforcement(self):
-        """No risk_flags or weaknesses → reinforcement mode, no constraint."""
+    def test_adequate_sleep(self):
+        sev, _, _ = HealthTrendAnalyzer._score_sleep(
+            {"sleep_hours": 7.5}, [],
+        )
+        self.assertEqual(sev, 0)
+
+    def test_no_sleep_data(self):
+        sev, _, _ = HealthTrendAnalyzer._score_sleep({}, [])
+        self.assertEqual(sev, 0)
+
+    def test_gap_minutes_calculated(self):
+        _, _, params = HealthTrendAnalyzer._score_sleep(
+            {"sleep_hours": 6.0}, [],
+        )
+        self.assertEqual(params["gap_min"], 60)
+
+
+class TestProteinScoring(TestCase):
+    """Protein severity scoring based on rolling_7d protein ratio."""
+
+    def test_critically_low_protein(self):
+        sev, reason, params = HealthTrendAnalyzer._score_protein(
+            {"protein_ratio": 0.4, "protein_target_g": 180, "protein_consumed_g": 72},
+            [],
+        )
+        self.assertGreaterEqual(sev, 70)
+        self.assertGreater(params["gap_g"], 0)
+
+    def test_moderate_protein_gap(self):
+        sev, _, params = HealthTrendAnalyzer._score_protein(
+            {"protein_ratio": 0.65, "protein_target_g": 180, "protein_consumed_g": 117},
+            [],
+        )
+        self.assertGreaterEqual(sev, 30)
+        self.assertLess(sev, 75)
+
+    def test_adequate_protein(self):
+        sev, _, _ = HealthTrendAnalyzer._score_protein(
+            {"protein_ratio": 0.92, "protein_target_g": 180, "protein_consumed_g": 166},
+            [],
+        )
+        self.assertEqual(sev, 0)
+
+
+class TestActivityScoring(TestCase):
+    """Activity severity scoring based on rolling_7d.steps."""
+
+    def test_very_low_steps(self):
+        sev, reason, params = HealthTrendAnalyzer._score_activity(
+            {"steps": 2500}, [],
+        )
+        self.assertGreaterEqual(sev, 60)
+        self.assertGreater(params["step_gap"], 0)
+
+    def test_low_steps(self):
+        sev, _, _ = HealthTrendAnalyzer._score_activity(
+            {"steps": 4000}, [],
+        )
+        self.assertGreaterEqual(sev, 40)
+
+    def test_adequate_steps(self):
+        sev, _, _ = HealthTrendAnalyzer._score_activity(
+            {"steps": 9000}, [],
+        )
+        self.assertEqual(sev, 0)
+
+
+class TestGlucoseScoring(TestCase):
+    """Glucose severity scoring."""
+
+    def test_elevated_glucose(self):
+        sev, _, _ = HealthTrendAnalyzer._score_glucose(
+            {"glucose_avg": 150}, [],
+        )
+        self.assertGreaterEqual(sev, 70)
+
+    def test_above_optimal(self):
+        sev, _, _ = HealthTrendAnalyzer._score_glucose(
+            {"glucose_avg": 125},
+            [{"domain": "glucose", "severity": "warning", "message": "rising"}],
+        )
+        self.assertGreaterEqual(sev, 40)
+
+    def test_normal_glucose(self):
+        sev, _, _ = HealthTrendAnalyzer._score_glucose(
+            {"glucose_avg": 95}, [],
+        )
+        self.assertEqual(sev, 0)
+
+
+class TestWorkoutScoring(TestCase):
+    """Workout severity scoring."""
+
+    def test_no_workouts(self):
+        sev, _, _ = HealthTrendAnalyzer._score_workout(
+            {"workout_days": 0, "total_days": 7}, [],
+        )
+        self.assertGreaterEqual(sev, 60)
+
+    def test_low_workouts(self):
+        sev, _, _ = HealthTrendAnalyzer._score_workout(
+            {"workout_days": 1, "total_days": 7}, [],
+        )
+        self.assertGreaterEqual(sev, 30)
+
+    def test_adequate_workouts(self):
+        sev, _, _ = HealthTrendAnalyzer._score_workout(
+            {"workout_days": 4, "total_days": 7}, [],
+        )
+        self.assertEqual(sev, 0)
+
+
+class TestNutritionScoring(TestCase):
+    """Nutrition tracking severity scoring."""
+
+    def test_very_low_tracking(self):
+        sev, _, _ = HealthTrendAnalyzer._score_nutrition(
+            {"nutrition_logged_days": 1, "total_days": 7}, [],
+        )
+        self.assertGreaterEqual(sev, 40)
+
+    def test_adequate_tracking(self):
+        sev, _, _ = HealthTrendAnalyzer._score_nutrition(
+            {"nutrition_logged_days": 6, "total_days": 7}, [],
+        )
+        self.assertEqual(sev, 0)
+
+
+class TestMedicationScoring(TestCase):
+    """Medication severity scoring (flag-based)."""
+
+    def test_medication_warning_scores_high(self):
+        sev, _, _ = HealthTrendAnalyzer._score_medication(
+            {},
+            [{"domain": "medication", "severity": "warning", "message": "Low adherence 60%"}],
+        )
+        self.assertGreaterEqual(sev, 60)
+
+    def test_no_medication_flag(self):
+        sev, _, _ = HealthTrendAnalyzer._score_medication({}, [])
+        self.assertEqual(sev, 0)
+
+
+# ── Constraint Selection (Severity-Based) ───────────────────────────
+
+
+class TestSeverityBasedSelection(TestCase):
+    """Highest severity wins, regardless of domain order."""
+
+    def test_sleep_deficit_beats_low_steps_by_severity(self):
+        """Sleep at 5.5h (severity ~90) beats steps at 4000 (severity ~50)."""
         coaching = HealthTrendAnalyzer._build_coaching(
             risk_flags=[],
             weaknesses=[],
-            strengths=["Healthy weight loss pace (1.2 lbs/week)", "Strong protein intake"],
+            strengths=[],
             trends={},
-            rolling_7d={},
+            rolling_7d={"sleep_hours": 5.5, "steps": 4000},
+        )
+        self.assertEqual(coaching["primary_constraint"], "sleep")
+
+    def test_worse_protein_beats_mild_sleep(self):
+        """Protein at 40% (severity ~75) beats sleep at 6.8h (severity ~40)."""
+        coaching = HealthTrendAnalyzer._build_coaching(
+            risk_flags=[],
+            weaknesses=[],
+            strengths=[],
+            trends={},
+            rolling_7d={
+                "sleep_hours": 6.8,
+                "protein_ratio": 0.4,
+                "protein_target_g": 180,
+                "protein_consumed_g": 72,
+            },
+        )
+        self.assertEqual(coaching["primary_constraint"], "protein")
+
+    def test_glucose_beats_sleep_when_more_severe(self):
+        """Glucose at 150 (severity ~80) beats sleep at 6.5h (severity ~60)."""
+        coaching = HealthTrendAnalyzer._build_coaching(
+            risk_flags=[],
+            weaknesses=[],
+            strengths=[],
+            trends={},
+            rolling_7d={"sleep_hours": 6.5, "glucose_avg": 150},
+        )
+        self.assertEqual(coaching["primary_constraint"], "glucose")
+
+    def test_medication_warning_beats_moderate_sleep(self):
+        """Medication warning (severity 70) beats mild sleep deficit (severity 40)."""
+        coaching = HealthTrendAnalyzer._build_coaching(
+            risk_flags=[
+                {"domain": "medication", "severity": "warning", "message": "Low adherence"},
+            ],
+            weaknesses=[],
+            strengths=[],
+            trends={},
+            rolling_7d={"sleep_hours": 6.8},
+        )
+        self.assertEqual(coaching["primary_constraint"], "medication")
+
+
+class TestReinforcementMode(TestCase):
+    """When all severities < 25, coaching enters reinforcement mode."""
+
+    def test_all_good_reinforcement(self):
+        """Good sleep, good steps, no flags → reinforcement."""
+        coaching = HealthTrendAnalyzer._build_coaching(
+            risk_flags=[],
+            weaknesses=[],
+            strengths=["Healthy weight loss pace (1.2 lbs/week)"],
+            trends={},
+            rolling_7d={"sleep_hours": 7.5, "steps": 10000},
         )
         self.assertIsNone(coaching["primary_constraint"])
         self.assertIsNone(coaching["primary_action"])
         self.assertEqual(coaching["reinforcement"], "Healthy weight loss pace (1.2 lbs/week)")
 
-    def test_no_data_at_all(self):
-        """No signals at all → basic tracking message."""
+    def test_no_data_reinforcement(self):
+        """No data at all → reinforcement mode with tracking message."""
         coaching = HealthTrendAnalyzer._build_coaching(
             risk_flags=[],
             weaknesses=[],
@@ -79,169 +267,159 @@ class TestCoachingConstraintSelection(TestCase):
             rolling_7d={},
         )
         self.assertIsNone(coaching["primary_constraint"])
-        self.assertIsNone(coaching["primary_action"])
-        self.assertIsNone(coaching["reinforcement"])
         self.assertIn("tracking", coaching["insight"].lower())
 
-    def test_medication_warning_beats_info_flags(self):
-        """Warning-severity medication flag beats info-severity sleep flag."""
-        risk_flags = [
-            {"domain": "sleep", "severity": "info", "message": "Slightly inconsistent"},
-            {"domain": "medication", "severity": "warning", "message": "Low adherence 60%"},
-        ]
-        coaching = HealthTrendAnalyzer._build_coaching(
-            risk_flags=risk_flags,
-            weaknesses=[],
-            strengths=[],
-            trends={},
-            rolling_7d={},
-        )
-        self.assertEqual(coaching["primary_constraint"], "medication")
-
-    def test_multiple_warnings_highest_priority_wins(self):
-        """With multiple warning-level flags, domain priority order decides."""
-        risk_flags = [
-            {"domain": "protein", "severity": "warning", "message": "Low protein"},
-            {"domain": "glucose", "severity": "warning", "message": "Glucose rising"},
-            {"domain": "sleep", "severity": "warning", "message": "Sleep debt"},
-        ]
-        coaching = HealthTrendAnalyzer._build_coaching(
-            risk_flags=risk_flags,
-            weaknesses=[],
-            strengths=[],
-            trends={},
-            rolling_7d={},
-        )
-        # Sleep is tier 1, glucose is tier 2, protein is tier 2
-        self.assertEqual(coaching["primary_constraint"], "sleep")
-
-    def test_glucose_beats_protein_at_same_severity(self):
-        """At warning severity, glucose comes before protein in priority."""
-        risk_flags = [
-            {"domain": "protein", "severity": "warning", "message": "Low protein"},
-            {"domain": "glucose", "severity": "warning", "message": "Glucose rising"},
-        ]
-        coaching = HealthTrendAnalyzer._build_coaching(
-            risk_flags=risk_flags,
-            weaknesses=[],
-            strengths=[],
-            trends={},
-            rolling_7d={},
-        )
-        self.assertEqual(coaching["primary_constraint"], "glucose")
-
-
-class TestCoachingFromWeaknesses(TestCase):
-    """Constraint selection falls back to weaknesses when no risk_flags match."""
-
-    def test_weakness_only_sleep(self):
-        """Sleep weakness detected from weakness string (no risk_flag)."""
-        coaching = HealthTrendAnalyzer._build_coaching(
-            risk_flags=[],
-            weaknesses=["Averaging 6.2h sleep (target: 7-8h)"],
-            strengths=[],
-            trends={},
-            rolling_7d={},
-        )
-        self.assertEqual(coaching["primary_constraint"], "sleep")
-
-    def test_weakness_only_protein(self):
-        """Protein weakness detected from weakness string."""
-        coaching = HealthTrendAnalyzer._build_coaching(
-            risk_flags=[],
-            weaknesses=["Below protein target (120g/day, 65% of 185g)"],
-            strengths=[],
-            trends={},
-            rolling_7d={},
-        )
-        self.assertEqual(coaching["primary_constraint"], "protein")
-
-    def test_weakness_only_workout(self):
-        """Workout weakness detected from string containing 'training volume'."""
-        coaching = HealthTrendAnalyzer._build_coaching(
-            risk_flags=[],
-            weaknesses=["Training volume declining (-20%)"],
-            strengths=[],
-            trends={},
-            rolling_7d={},
-        )
-        self.assertEqual(coaching["primary_constraint"], "workout")
-
-
-class TestCoachingOutputStructure(TestCase):
-    """Coaching output has all required fields and correct types."""
-
-    def test_constraint_output_has_all_fields(self):
-        """When a constraint exists, all fields are populated."""
-        risk_flags = [
-            {"domain": "sleep", "severity": "warning", "message": "Sleep debt pattern"},
-        ]
-        coaching = HealthTrendAnalyzer._build_coaching(
-            risk_flags=risk_flags,
-            weaknesses=[],
-            strengths=["Strong workout frequency"],
-            trends={},
-            rolling_7d={},
-        )
-        self.assertIn("primary_constraint", coaching)
-        self.assertIn("insight", coaching)
-        self.assertIn("primary_action", coaching)
-        self.assertIn("secondary_action", coaching)
-        self.assertIn("reinforcement", coaching)
-        self.assertIn("supporting_signals", coaching)
-
-        self.assertIsInstance(coaching["primary_constraint"], str)
-        self.assertIsInstance(coaching["insight"], str)
-        self.assertIsInstance(coaching["primary_action"], str)
-        self.assertIsInstance(coaching["supporting_signals"], list)
-
-    def test_reinforcement_output_has_null_actions(self):
-        """In reinforcement mode, actions are None."""
+    def test_debug_shows_reinforcement_mode(self):
         coaching = HealthTrendAnalyzer._build_coaching(
             risk_flags=[],
             weaknesses=[],
             strengths=["Good sleep"],
             trends={},
-            rolling_7d={},
+            rolling_7d={"sleep_hours": 7.5},
         )
-        self.assertIsNone(coaching["primary_constraint"])
-        self.assertIsNone(coaching["primary_action"])
-        self.assertIsNone(coaching["secondary_action"])
+        self.assertEqual(coaching["_debug"]["mode"], "reinforcement")
 
-    def test_supporting_signals_excludes_primary(self):
-        """Supporting signals list does not include the primary constraint."""
-        risk_flags = [
-            {"domain": "sleep", "severity": "warning", "message": "Sleep debt"},
-            {"domain": "protein", "severity": "warning", "message": "Low protein"},
-            {"domain": "activity", "severity": "info", "message": "Steps down"},
-        ]
+
+# ── Parameterized Actions ───────────────────────────────────────────
+
+
+class TestParameterizedActions(TestCase):
+    """Actions use actual values from rolling_7d."""
+
+    def test_sleep_action_includes_gap(self):
         coaching = HealthTrendAnalyzer._build_coaching(
-            risk_flags=risk_flags,
+            risk_flags=[],
+            weaknesses=[],
+            strengths=[],
+            trends={},
+            rolling_7d={"sleep_hours": 6.0},
+        )
+        self.assertEqual(coaching["primary_constraint"], "sleep")
+        # Gap is 60 minutes (7.0 - 6.0 = 1h = 60min)
+        self.assertIn("60", coaching["primary_action"])
+
+    def test_protein_action_includes_gap_grams(self):
+        coaching = HealthTrendAnalyzer._build_coaching(
+            risk_flags=[],
+            weaknesses=[],
+            strengths=[],
+            trends={},
+            rolling_7d={
+                "protein_ratio": 0.6,
+                "protein_target_g": 180,
+                "protein_consumed_g": 108,
+            },
+        )
+        self.assertEqual(coaching["primary_constraint"], "protein")
+        # Gap is 180-108 = 72g
+        self.assertIn("72", coaching["primary_action"])
+
+    def test_activity_action_includes_step_gap(self):
+        coaching = HealthTrendAnalyzer._build_coaching(
+            risk_flags=[],
+            weaknesses=[],
+            strengths=[],
+            trends={},
+            rolling_7d={"steps": 4000},
+        )
+        self.assertEqual(coaching["primary_constraint"], "activity")
+        # Gap is 7500-4000 = 3500
+        self.assertIn("3,500", coaching["primary_action"])
+
+
+# ── Debug Structure ─────────────────────────────────────────────────
+
+
+class TestDebugStructure(TestCase):
+    """Coaching output includes _debug dict for diagnostics."""
+
+    def test_constraint_debug_has_all_fields(self):
+        coaching = HealthTrendAnalyzer._build_coaching(
+            risk_flags=[],
+            weaknesses=[],
+            strengths=[],
+            trends={},
+            rolling_7d={"sleep_hours": 5.5, "steps": 4000},
+        )
+        debug = coaching["_debug"]
+        self.assertEqual(debug["mode"], "constraint")
+        self.assertIn("selected", debug)
+        self.assertIn("selected_severity", debug)
+        self.assertIn("domain_severities", debug)
+        self.assertIn("all_reasons", debug)
+        self.assertIsInstance(debug["domain_severities"], dict)
+        # Both sleep and activity should show in severities
+        self.assertIn("sleep", debug["domain_severities"])
+        self.assertIn("activity", debug["domain_severities"])
+
+    def test_reinforcement_debug(self):
+        coaching = HealthTrendAnalyzer._build_coaching(
+            risk_flags=[],
             weaknesses=[],
             strengths=[],
             trends={},
             rolling_7d={},
         )
+        debug = coaching["_debug"]
+        self.assertEqual(debug["mode"], "reinforcement")
+
+
+# ── Output Structure ────────────────────────────────────────────────
+
+
+class TestOutputStructure(TestCase):
+    """Coaching output has all required fields and correct types."""
+
+    def test_constraint_output_has_all_fields(self):
+        coaching = HealthTrendAnalyzer._build_coaching(
+            risk_flags=[],
+            weaknesses=[],
+            strengths=["Strong workout frequency"],
+            trends={},
+            rolling_7d={"sleep_hours": 5.5},
+        )
+        for key in ["primary_constraint", "insight", "primary_action",
+                     "secondary_action", "reinforcement", "supporting_signals", "_debug"]:
+            self.assertIn(key, coaching, f"Missing key: {key}")
+
+        self.assertIsInstance(coaching["primary_constraint"], str)
+        self.assertIsInstance(coaching["insight"], str)
+        self.assertIsInstance(coaching["primary_action"], str)
+        self.assertIsInstance(coaching["supporting_signals"], list)
+        self.assertIsInstance(coaching["_debug"], dict)
+
+    def test_supporting_signals_excludes_primary(self):
+        coaching = HealthTrendAnalyzer._build_coaching(
+            risk_flags=[],
+            weaknesses=[],
+            strengths=[],
+            trends={},
+            rolling_7d={
+                "sleep_hours": 5.5,  # severity ~75
+                "steps": 2500,       # severity ~70
+            },
+        )
         self.assertEqual(coaching["primary_constraint"], "sleep")
         self.assertNotIn("sleep", coaching["supporting_signals"])
-        self.assertIn("protein", coaching["supporting_signals"])
-
-    def test_max_two_actions(self):
-        """Every domain produces at most 2 actions."""
-        for domain in HealthTrendAnalyzer._COACHING_ACTIONS:
-            actions = HealthTrendAnalyzer._COACHING_ACTIONS[domain]
-            self.assertIsInstance(actions, tuple)
-            self.assertEqual(len(actions), 2)
-            self.assertIsInstance(actions[0], str)  # primary always present
-            # secondary may be None
+        self.assertIn("activity", coaching["supporting_signals"])
 
     def test_every_domain_has_insight_template(self):
-        """Every domain in the action map also has an insight template."""
-        for domain in HealthTrendAnalyzer._COACHING_ACTIONS:
+        for domain, _ in HealthTrendAnalyzer._DOMAIN_SCORERS:
             self.assertIn(
                 domain, HealthTrendAnalyzer._CONSTRAINT_INSIGHTS,
-                f"Domain '{domain}' has actions but no insight template",
+                f"Domain '{domain}' has a scorer but no insight template",
             )
+
+    def test_every_domain_produces_actions(self):
+        """_actions_for_domain returns a tuple for every known domain."""
+        for domain, _ in HealthTrendAnalyzer._DOMAIN_SCORERS:
+            actions = HealthTrendAnalyzer._actions_for_domain(domain, {})
+            self.assertIsInstance(actions, tuple)
+            self.assertEqual(len(actions), 2)
+            self.assertIsInstance(actions[0], str)
+
+
+# ── Integration ─────────────────────────────────────────────────────
 
 
 class TestCoachingIntegration(TestCase):
@@ -263,19 +441,16 @@ class TestCoachingIntegration(TestCase):
         self.user.preferences.has_completed_onboarding = True
         self.user.preferences.save()
 
-    def test_analyze_returns_coaching_dict(self):
-        """HealthTrendAnalyzer.analyze() includes a coaching dict in results."""
+    def test_analyze_returns_coaching_with_debug(self):
         from django.utils import timezone
 
         result = HealthTrendAnalyzer.analyze(self.user, timezone.localdate())
         self.assertIn("coaching", result)
         coaching = result["coaching"]
         self.assertIn("primary_constraint", coaching)
-        self.assertIn("insight", coaching)
-        self.assertIn("primary_action", coaching)
+        self.assertIn("_debug", coaching)
 
     def test_top_recommendation_matches_coaching_insight(self):
-        """top_recommendation is populated from coaching.insight for backward compat."""
         from django.utils import timezone
 
         result = HealthTrendAnalyzer.analyze(self.user, timezone.localdate())

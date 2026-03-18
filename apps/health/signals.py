@@ -85,3 +85,92 @@ def handle_workout_schedule_deleted(sender, instance, **kwargs):
             "Failed to clean up calendar events for workout schedule %s: %s",
             instance.pk, e,
         )
+
+
+@receiver(post_save, sender='health.WorkoutSession')
+def handle_workout_session_completed(sender, instance, **kwargs):
+    """
+    When a WorkoutSession is completed (completed_at set), create a
+    WorkoutScheduleLog linking the session to its scheduled slot.
+
+    Uses the shared status engine to determine completed vs completed_late.
+    Idempotent — skips if a log already exists for this schedule+date.
+    """
+    if not instance.completed_at:
+        return  # Not completed yet
+
+    if not instance.from_template:
+        return  # Ad-hoc workout, no schedule to match
+
+    try:
+        from apps.health.models import WorkoutPlan, WorkoutSchedule, WorkoutScheduleLog
+        from apps.core.behavior.status_engine import compute_occurrence_status
+        from datetime import datetime, timedelta
+
+        user = instance.user
+        workout_date = instance.date
+        day_of_week = workout_date.weekday()
+
+        # Find the active plan's schedule for this day + template
+        active_plan = WorkoutPlan.objects.filter(
+            user=user, is_active=True, status='active',
+        ).first()
+        if not active_plan:
+            return
+
+        matching_schedules = WorkoutSchedule.objects.filter(
+            plan=active_plan,
+            day_of_week=day_of_week,
+            template=instance.from_template,
+            is_rest_day=False,
+        )
+
+        if matching_schedules.count() == 0:
+            return  # No matching schedule for this day/template
+        elif matching_schedules.count() > 1:
+            logger.warning(
+                "WORKOUT_SCHEDULE_AMBIGUOUS user=%s date=%s template=%s matches=%d — skipping",
+                user.id, workout_date, instance.from_template_id, matching_schedules.count(),
+            )
+            return
+
+        schedule = matching_schedules.first()
+
+        # Idempotency: skip if log already exists
+        if WorkoutScheduleLog.objects.filter(
+            schedule=schedule, scheduled_date=workout_date,
+        ).exists():
+            return
+
+        # Compute status using shared engine
+        from django.utils import timezone as _tz
+        if schedule.preferred_time:
+            scheduled_dt = _tz.make_aware(
+                datetime.combine(workout_date, schedule.preferred_time),
+                _tz.get_current_timezone(),
+            )
+        else:
+            # No preferred time — treat as on-time by default
+            scheduled_dt = instance.completed_at
+
+        status = compute_occurrence_status(
+            now=instance.completed_at,
+            scheduled_datetime=scheduled_dt,
+            grace_minutes=schedule.grace_period_minutes,
+            log={'completed_at': instance.completed_at},
+        )
+
+        WorkoutScheduleLog.objects.create(
+            user=user,
+            schedule=schedule,
+            scheduled_date=workout_date,
+            log_status=status,  # 'completed' or 'completed_late'
+            session=instance,
+            completed_at=instance.completed_at,
+        )
+
+    except Exception as e:
+        logger.warning(
+            "Failed to create WorkoutScheduleLog for session %s: %s",
+            instance.pk, e, exc_info=True,
+        )

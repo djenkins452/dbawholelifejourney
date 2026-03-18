@@ -5638,3 +5638,57 @@ class RestoreDeletedTasksAPIView(APIRateLimitMixin, View):
             'restored': len(restored),
             'tasks': restored,
         })
+
+
+class BehaviorScoreDebugView(AdminRequiredMixin, View):
+    """
+    Debug endpoint for behavior score verification.
+
+    Returns exact internal calculations for all behavioral domains.
+    Admin-only — used to verify the behavior system produces correct outputs.
+    """
+
+    def get(self, request, *args, **kwargs):
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.core.utils import get_user_today
+
+        user = request.user
+        today = get_user_today(user)
+        start = today - timedelta(days=7)
+
+        try:
+            from apps.core.behavior.behavior_score_engine import compute_behavior_score
+            result = compute_behavior_score(user, start, today)
+
+            # Format domains as keyed dict for readability
+            domains_dict = {}
+            for d in result.get('domains', []):
+                domains_dict[d['domain']] = {
+                    'expected': d['expected'],
+                    'completed': d['completed'],
+                    'late': d['late'],
+                    'skipped': d['skipped'],
+                    'missed': d['missed'],
+                    'adherence': d['adherence'],
+                    'on_time_rate': d['on_time_rate'],
+                }
+
+            return JsonResponse({
+                'score': result.get('score'),
+                'domains': domains_dict,
+                'domains_missing': result.get('domains_missing', []),
+                'strongest_domain': result.get('strongest_domain'),
+                'weakest_domain': result.get('weakest_domain'),
+                'window': {
+                    'start': str(start),
+                    'end': str(today),
+                    'days': 7,
+                },
+                'computed_at': timezone.now().isoformat(),
+            })
+        except Exception as e:
+            return JsonResponse({
+                'error': str(e),
+                'computed_at': timezone.now().isoformat(),
+            }, status=500)

@@ -240,4 +240,7 @@ urlpatterns = [
     # Test Plan API Endpoints
     path("test-plans/api/item/<int:pk>/update/", views.TestItemUpdateAPIView.as_view(), name="api_test_item_update"),
     path("test-plans/api/bulk-update/", views.TestItemBulkUpdateAPIView.as_view(), name="api_test_item_bulk_update"),
+
+    # Behavior Score Debug
+    path("api/debug/behavior-score/", views.BehaviorScoreDebugView.as_view(), name="api_behavior_score_debug"),
 ]

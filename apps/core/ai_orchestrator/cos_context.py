@@ -506,6 +506,7 @@ def _build_health_and_vitals(user):
                 r.get('message', '') for r in intel.get('risk_flags', [])[:3]
             ],
             'top_recommendation': intel.get('top_recommendation', ''),
+            'coaching': intel.get('coaching', {}),
             # Strip raw protein fields from trends_7d so the LLM cannot
             # compute its own protein math from individual-day averages.
             # The pre-calculated protein_avg_7d in the 'protein' block is
@@ -2364,6 +2365,14 @@ def _format_health_intelligence_block(health_intel, context):
         "If a value is missing below, say 'I don't have that data right now.'"
     )
     lines.append("")
+    lines.append(
+        "COACHING RULE: When the user asks about their health, progress, or what "
+        "to focus on, you MUST lead with the HEALTH COACHING section below. "
+        "Name the primary constraint first, deliver the insight, then the action(s). "
+        "Acknowledge positive momentum briefly. Do NOT list every metric — "
+        "focus on the ONE thing that matters most right now."
+    )
+    lines.append("")
 
     # ── HEALTH INTELLIGENCE STATUS (top-level enum snapshot) ──
     # These are the AUTHORITATIVE enum values from DailyHealthSummary.
@@ -2556,10 +2565,32 @@ def _format_health_intelligence_block(health_intel, context):
         ]
         lines.append(f"  Risk flags: {'; '.join(flags[:3])}")
 
-    # Top recommendation
-    rec = health_intel.get('top_recommendation', '')
-    if rec:
-        lines.append(f"  Focus: {rec}")
+    # Health Coaching (deterministic constraint + actions)
+    coaching = health_intel.get('coaching', {})
+    constraint = coaching.get('primary_constraint')
+    if constraint:
+        lines.append("")
+        lines.append("  HEALTH COACHING (system-selected — lead with this):")
+        lines.append(f"    Primary constraint: {constraint}")
+        lines.append(f"    Insight: {coaching.get('insight', '')}")
+        if coaching.get('primary_action'):
+            lines.append(f"    Action 1: {coaching['primary_action']}")
+        if coaching.get('secondary_action'):
+            lines.append(f"    Action 2: {coaching['secondary_action']}")
+        if coaching.get('reinforcement'):
+            lines.append(f"    Positive momentum: {coaching['reinforcement']}")
+        supporting = coaching.get('supporting_signals', [])
+        if supporting:
+            lines.append(f"    Also watch: {', '.join(supporting)}")
+    elif coaching.get('reinforcement'):
+        lines.append("")
+        lines.append("  HEALTH COACHING (reinforcement — no active constraints):")
+        lines.append(f"    Status: All signals stable")
+        lines.append(f"    Positive momentum: {coaching['reinforcement']}")
+    else:
+        rec = health_intel.get('top_recommendation', '')
+        if rec:
+            lines.append(f"  Focus: {rec}")
 
     # Correlations
     correlations = health_intel.get('correlations', [])

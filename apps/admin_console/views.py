@@ -5692,3 +5692,88 @@ class BehaviorScoreDebugView(AdminRequiredMixin, View):
                 'error': str(e),
                 'computed_at': timezone.now().isoformat(),
             }, status=500)
+
+
+class BehaviorScheduledItemsView(AdminRequiredMixin, View):
+    """
+    Returns all scheduled behavioral items for a given date.
+
+    GET ?date=YYYY-MM-DD (defaults to today)
+    """
+
+    def get(self, request, *args, **kwargs):
+        from datetime import date as _date
+        from apps.core.behavior.correction_service import get_scheduled_items_for_date
+
+        date_str = request.GET.get('date')
+        if date_str:
+            try:
+                target_date = _date.fromisoformat(date_str)
+            except ValueError:
+                return JsonResponse({'error': 'Invalid date format'}, status=400)
+        else:
+            from apps.core.utils import get_user_today
+            target_date = get_user_today(request.user)
+
+        items = get_scheduled_items_for_date(request.user, target_date)
+        return JsonResponse({
+            'date': str(target_date),
+            'items': items,
+            'count': len(items),
+        })
+
+
+class BehaviorCorrectLogView(AdminRequiredMixin, View):
+    """
+    Create or update a behavioral log for a past date.
+
+    POST {domain, schedule_id, scheduled_date, new_status, entity_id?, session_id?}
+    """
+
+    def post(self, request, *args, **kwargs):
+        import json
+        from datetime import date as _date
+        from apps.core.behavior.correction_service import (
+            correct_medication_log,
+            correct_workout_log,
+            correct_routine_log,
+        )
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        domain = data.get('domain')
+        schedule_id = data.get('schedule_id')
+        date_str = data.get('scheduled_date')
+        new_status = data.get('new_status')
+
+        if not all([domain, schedule_id, date_str, new_status]):
+            return JsonResponse({
+                'error': 'Required: domain, schedule_id, scheduled_date, new_status'
+            }, status=400)
+
+        try:
+            scheduled_date = _date.fromisoformat(date_str)
+        except ValueError:
+            return JsonResponse({'error': 'Invalid date format'}, status=400)
+
+        user = request.user
+
+        if domain == 'medication':
+            entity_id = data.get('entity_id')
+            if not entity_id:
+                return JsonResponse({'error': 'entity_id required for medication'}, status=400)
+            result = correct_medication_log(user, entity_id, schedule_id, scheduled_date, new_status)
+        elif domain == 'workout':
+            session_id = data.get('session_id')
+            result = correct_workout_log(user, schedule_id, scheduled_date, new_status, session_id)
+        elif domain == 'routine':
+            result = correct_routine_log(user, schedule_id, scheduled_date, new_status)
+        else:
+            return JsonResponse({'error': f'Unknown domain: {domain}'}, status=400)
+
+        if result.get('success'):
+            return JsonResponse(result)
+        return JsonResponse(result, status=400)

@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Editable History + Post-Day Correction Support
+
+**Purpose:** Allow users to edit past scheduled items after the fact. Behavior score recomputes from scratch — no permanent locking of daily data.
+
+**Core rule:** Logs are the single source of truth. Missed is NEVER stored. User-selected status is final truth — no re-evaluation on correction.
+
+**Changes:**
+- `apps/health/models.py` — Added `is_user_corrected` BooleanField to MedicineLog and WorkoutScheduleLog
+- `apps/life/models.py` — Added `is_user_corrected` BooleanField to RoutineLog
+- `apps/core/behavior/correction_service.py` — NEW: shared correction service with:
+  - `correct_medication_log()`, `correct_workout_log()`, `correct_routine_log()` — create/update log with user-selected status, sets `is_user_corrected=True`
+  - `get_scheduled_items_for_date()` — returns all scheduled items for a date with current status (completed/late/skipped/missed/pending)
+- `apps/admin_console/views.py` — Added `BehaviorScheduledItemsView` (GET) and `BehaviorCorrectLogView` (POST)
+- `apps/admin_console/urls.py` — Registered at `/admin-console/api/behavior/scheduled-items/` and `/admin-console/api/behavior/correct/`
+
+**Migrations:** `health.0064_user_corrected_field`, `life.0028_user_corrected_field`
+
+---
+
 ## 2026-03-18 — Foundational Pattern Break Detection (Context-Aware Coaching Signal)
 
 **Purpose:** Detect repeated misses of foundational commitments and surface a coaching signal enriched with whatever contextual signals already exist — without violating architecture (no CoS-level data scanning).

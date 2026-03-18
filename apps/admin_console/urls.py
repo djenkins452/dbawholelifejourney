@@ -243,4 +243,8 @@ urlpatterns = [
 
     # Behavior Score Debug
     path("api/debug/behavior-score/", views.BehaviorScoreDebugView.as_view(), name="api_behavior_score_debug"),
+
+    # Behavior Correction API
+    path("api/behavior/scheduled-items/", views.BehaviorScheduledItemsView.as_view(), name="api_behavior_scheduled_items"),
+    path("api/behavior/correct/", views.BehaviorCorrectLogView.as_view(), name="api_behavior_correct"),
 ]

@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — CoS Full Domain Input Alignment
+
+**Purpose:** Expand CoS prioritizer inputs to include ALL domains (routines, medicine, binary) from SAE state, matching dashboard domain coverage.
+
+**Architecture decision:** A shared input builder was considered but rejected — dashboard needs live ORM for instant feedback, CoS needs SAE snapshots for performance. The correct approach: both normalize their own data sources into the shared prioritizer. The divergence is in DATA FRESHNESS (correct), not in LOGIC or DOMAIN COVERAGE (the bug we fixed).
+
+**CoS context now provides:**
+- Tasks: overdue + today (from SAE task_state) — already existed
+- Routines: pending items (from SAE routine_state) — **NEW**
+- Medicine: untaken groups by window (from SAE medicine_state) — **NEW**
+- Binary actions: journal/faith/workout done status (from SAE) — **NEW**
+
+**All 4 domains** now flow through `build_action_priorities()` in both dashboard and CoS.
+
+**Files:** `cos_context.py`
+
+---
+
 ## 2026-03-18 — Shared Decision Engine: Action Prioritizer
 
 **Purpose:** Extract action center prioritization into shared module used by both dashboard and CoS.

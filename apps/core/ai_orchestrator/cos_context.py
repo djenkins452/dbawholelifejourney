@@ -2883,14 +2883,16 @@ def _build_data_state_snapshot(user) -> str:
     # ── Unified Action Priorities (shared decision engine) ──
     # Same prioritizer as the dashboard Action Center — ensures Beth
     # recommends the SAME items the user sees on the dashboard.
+    # Inputs normalized from SAE state (not fresh ORM — CoS reads snapshots).
     try:
         from apps.core.decision_engine.action_prioritizer import build_action_priorities
+        from apps.core.ai_state.state_engine import get_module_state
         from apps.core.utils import get_user_now
 
         user_now = get_user_now(user)
         current_time = user_now.time()
 
-        # Build schedule items from SAE task state
+        # ── Tasks from SAE (overdue + today) ──
         _schedule_items = []
         for t in _overdue:
             _schedule_items.append({
@@ -2923,8 +2925,79 @@ def _build_data_state_snapshot(user) -> str:
                 "time_display": "",
             })
 
+        # ── Routines from SAE ──
+        _pending_routines = []
+        routine_state = get_module_state(user, 'routine') or {}
+        _routine_items = routine_state.get('routine_items_today', {})
+        for _window_items in _routine_items.values():
+            for item in _window_items:
+                if item.get('status') == 'pending':
+                    _pending_routines.append({
+                        "pk": item.get("schedule_id"),
+                        "title": item.get("item_name", ""),
+                        "is_foundational": item.get("is_foundational", False),
+                        "commitment_level": "",
+                        "goal_name": item.get("routine_name", ""),
+                        "source_url": "",
+                    })
+
+        # ── Medicine from SAE ──
+        _medicine_groups = []
+        med_state = get_module_state(user, 'medicine') or {}
+        _med_schedules = med_state.get('schedule_status_today', [])
+        # Group by window_label (same as dashboard groups by time_of_day)
+        _med_by_window = {}
+        for s in _med_schedules:
+            w = s.get('window_label', 'unscheduled')
+            if w not in _med_by_window:
+                _med_by_window[w] = {"total": 0, "taken": 0}
+            _med_by_window[w]["total"] += 1
+            if s.get("status") == "taken":
+                _med_by_window[w]["taken"] += 1
+        for window_label, counts in _med_by_window.items():
+            _medicine_groups.append({
+                "title": f"{window_label.replace('_', ' ').title()} Stack",
+                "time_of_day": window_label,
+                "is_foundational": False,
+                "goal_name": "",
+                "all_taken": counts["taken"] >= counts["total"],
+            })
+
+        # ── Binary daily actions (journal, faith, workout) from SAE ──
+        _binary_actions = []
+        journal_state = get_module_state(user, 'journal') or {}
+        faith_state = get_module_state(user, 'faith') or {}
+        fitness_state = get_module_state(user, 'fitness') or {}
+
+        # Journal: check days_since_entry (0 = today)
+        _journal_done = journal_state.get('days_since_entry', 99) == 0
+        _binary_actions.append({
+            "source": "journal", "title": "Write in journal",
+            "source_url": "", "is_foundational": False,
+            "goal_name": "", "is_done": _journal_done,
+        })
+
+        # Faith: check days_since_reading (0 = today)
+        _faith_done = faith_state.get('days_since_reading', 99) == 0
+        _binary_actions.append({
+            "source": "faith", "title": "Bible reading",
+            "source_url": "", "is_foundational": False,
+            "goal_name": "", "is_done": _faith_done,
+        })
+
+        # Workout: check workouts_7d recent or today
+        _workout_done = fitness_state.get('workouts_7d', 0) > 0 and fitness_state.get('most_recent_type')
+        _binary_actions.append({
+            "source": "workout", "title": "Log a workout",
+            "source_url": "", "is_foundational": False,
+            "goal_name": "", "is_done": bool(_workout_done),
+        })
+
         action_priorities = build_action_priorities(
             schedule_items=_schedule_items,
+            pending_routines=_pending_routines,
+            medicine_groups=_medicine_groups,
+            binary_actions=_binary_actions,
             current_time=current_time,
         )
 
@@ -2932,14 +3005,19 @@ def _build_data_state_snapshot(user) -> str:
             lines.append("")
             lines.append("ACTION PRIORITIES (same as dashboard Action Center):")
             lines.append("Use this ordering when recommending what to do next.")
-            for i, action in enumerate(action_priorities[:5], 1):
+            lines.append("Your primary recommendation MUST match item #1.")
+            for i, action in enumerate(action_priorities[:7], 1):
                 _f_tag = " [FOUNDATIONAL]" if action["is_foundational"] else ""
                 _u_tag = action["urgency"].upper()
+                _src = action["source"]
                 lines.append(
-                    f"  {i}. [{_u_tag}]{_f_tag} {action['title']}"
+                    f"  {i}. [{_u_tag}]{_f_tag} {action['title']} ({_src})"
                 )
+        else:
+            lines.append("")
+            lines.append("ACTION PRIORITIES: All clear — no pending actions.")
     except Exception:
-        logger.debug("Action prioritizer unavailable for CoS context")
+        logger.debug("Action prioritizer unavailable for CoS context", exc_info=True)
 
     lines.append("========== END DATA STATE ==========")
     return "\n".join(lines)

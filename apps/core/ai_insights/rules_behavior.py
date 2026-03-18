@@ -225,6 +225,11 @@ _CONTEXT_SIGNAL_TYPES = {
     'compliance_risk',
     'financial_anxiety_cluster',
     'overextension_risk',
+    # Context signals (rules_context.py)
+    'injury_detected',
+    'illness_detected',
+    'fatigue_detected',
+    'travel_active',
 }
 
 

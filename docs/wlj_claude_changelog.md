@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Context Signals: Injury, Illness, Fatigue, Travel Detection
+
+**Purpose:** Fill the "why" gap in behavioral pattern breaks. These signals explain disruptions without violating architecture — all detection runs at the signal layer, not CoS.
+
+**New file:** `apps/core/ai_insights/rules_context.py` — 4 PIE rules:
+- `InjuryDetectedRule` — journal keyword scan (high: injured/broken/sprain; medium: pain/hurt/sore)
+- `IllnessDetectedRule` — journal keywords + SleepEntry.factors `illness` field
+- `FatigueDetectedRule` — SAE sleep_avg < 6.5h OR journal fatigue keywords; HIGH confidence when both
+- `TravelActiveRule` — journal keywords + CalendarEvent titles + SleepEntry.factors `travel`
+
+**Guardrails:** 2-day cooldown per signal type (won't re-fire within 48h). Max one per type per day via dedupe_key. Multi-source confirmation raises confidence.
+
+**Integration:** Added all 4 types to `_CONTEXT_SIGNAL_TYPES` in rules_behavior.py → `FoundationalPatternBreakRule._gather_related_signals()` automatically picks them up.
+
+**Registered in:** intelligence_hook.py, execution_engine.py, run_daily_insights.py
+
+---
+
 ## 2026-03-18 — Editable History + Post-Day Correction Support
 
 **Purpose:** Allow users to edit past scheduled items after the fact. Behavior score recomputes from scratch — no permanent locking of daily data.

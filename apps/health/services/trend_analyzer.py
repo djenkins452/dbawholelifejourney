@@ -53,6 +53,14 @@ class HealthTrendAnalyzer:
                 "weaknesses": [],
                 "risk_flags": [],
                 "top_recommendation": "Keep tracking — more data needed for trend analysis",
+                "coaching": {
+                    "primary_constraint": None,
+                    "insight": "Keep tracking — more data needed for trend analysis",
+                    "primary_action": None,
+                    "secondary_action": None,
+                    "reinforcement": None,
+                    "supporting_signals": [],
+                },
                 "rolling_7d": {},
                 "rolling_28d": {},
                 "trends": {},
@@ -100,16 +108,17 @@ class HealthTrendAnalyzer:
             recent_7, recent_28, user, target_date, strengths, weaknesses, risk_flags, trends
         )
 
-        # Top recommendation: highest-impact risk flag or biggest weakness
-        top_rec = HealthTrendAnalyzer._determine_top_recommendation(
-            risk_flags, weaknesses, strengths
+        # Coaching: select ONE primary constraint + actionable recommendations
+        coaching = HealthTrendAnalyzer._build_coaching(
+            risk_flags, weaknesses, strengths, trends, rolling_7d,
         )
 
         return {
             "strengths": strengths,
             "weaknesses": weaknesses,
             "risk_flags": risk_flags,
-            "top_recommendation": top_rec,
+            "top_recommendation": coaching.get("insight", ""),
+            "coaching": coaching,
             "rolling_7d": rolling_7d,
             "rolling_28d": rolling_28d,
             "trends": trends,
@@ -565,22 +574,173 @@ class HealthTrendAnalyzer:
                         f"Protein intake declining ({change_pct:.0f}% over 2 weeks)"
                     )
 
+    # ── Constraint priority order (highest impact first) ──────────────
+    # Each entry: (domain, applies_to_severity)
+    # The first matching risk_flag or weakness wins.
+    _CONSTRAINT_PRIORITY = [
+        # Tier 1 — recovery limiters
+        ("sleep", "warning"),
+        ("medication", "warning"),
+        # Tier 2 — metabolic
+        ("glucose", "warning"),
+        ("protein", "warning"),
+        # Tier 3 — body composition
+        ("weight", "warning"),
+        # Tier 4 — activity / training
+        ("workout", "warning"),
+        ("activity", "warning"),
+        ("nutrition", "warning"),
+        # Lower-severity versions of the same domains
+        ("sleep", "info"),
+        ("medication", "info"),
+        ("glucose", "info"),
+        ("protein", "info"),
+        ("weight", "info"),
+        ("workout", "info"),
+        ("activity", "info"),
+        ("nutrition", "info"),
+    ]
+
+    # ── Deterministic action map ────────────────────────────────────
+    # domain → (primary_action, secondary_action | None)
+    # Actions are specific, realistic, and require no LLM reasoning.
+    _COACHING_ACTIONS = {
+        "sleep": (
+            "Aim for 30-60 more minutes of sleep tonight — start your wind-down earlier",
+            "Reduce screen time 30 minutes before bed",
+        ),
+        "medication": (
+            "Set a consistent daily alarm for your medication",
+            None,
+        ),
+        "glucose": (
+            "Add a 10-minute walk after your largest meal today",
+            "Front-load protein and fat before carbs at meals",
+        ),
+        "protein": (
+            "Add a high-protein snack (Greek yogurt, protein shake, or eggs) today",
+            "Prioritize protein at your first meal of the day",
+        ),
+        "weight": (
+            "Review your nutrition logging — consistency reveals what to adjust",
+            "Focus on protein target adherence before cutting calories further",
+        ),
+        "workout": (
+            "Schedule your next workout now — even a 20-minute session counts",
+            "If energy is low, do a lighter session rather than skipping entirely",
+        ),
+        "activity": (
+            "Add a 10-minute walk after lunch or dinner today",
+            "Take movement breaks every 90 minutes during desk work",
+        ),
+        "nutrition": (
+            "Log your meals today — tracking alone improves choices",
+            None,
+        ),
+    }
+
+    # ── Insight templates per domain ────────────────────────────────
+    _CONSTRAINT_INSIGHTS = {
+        "sleep": "Sleep is your primary limiter right now — it affects recovery, energy, and fat loss.",
+        "medication": "Medication consistency is critical — missed doses reduce effectiveness.",
+        "glucose": "Glucose stability is off — this affects energy, cravings, and metabolic health.",
+        "protein": "Protein intake is limiting your recovery and body composition progress.",
+        "weight": "Weight trend needs attention — the current trajectory works against your goal.",
+        "workout": "Training consistency has dropped — this slows progress across all health goals.",
+        "activity": "Daily movement is low — this limits calorie burn and metabolic health independent of workouts.",
+        "nutrition": "Nutrition tracking has dropped off — without data, coaching is flying blind.",
+    }
+
     @staticmethod
-    def _determine_top_recommendation(risk_flags, weaknesses, strengths):
-        """Pick the single most impactful recommendation."""
-        # Priority: warning risk flags > info risk flags > weaknesses
-        warnings = [r for r in risk_flags if r.get("severity") == "warning"]
-        if warnings:
-            return warnings[0]["message"]
+    def _build_coaching(risk_flags, weaknesses, strengths, trends, rolling_7d):
+        """
+        Select ONE primary constraint and produce deterministic coaching output.
 
-        infos = [r for r in risk_flags if r.get("severity") == "info"]
-        if infos:
-            return infos[0]["message"]
+        Priority order: warning risk_flags > info risk_flags > weaknesses.
+        Within each severity, domain priority determines which constraint wins.
+        If no constraints exist, produce reinforcement from strengths.
 
-        if weaknesses:
-            return weaknesses[0]
+        Returns:
+            dict with keys: primary_constraint, insight, primary_action,
+            secondary_action (optional), reinforcement (optional),
+            supporting_signals (list of contributing domains).
+        """
+        # Build lookup: domain → highest-severity risk_flag for that domain
+        domain_flags = {}
+        for flag in risk_flags:
+            domain = flag.get("domain")
+            if domain and domain not in domain_flags:
+                domain_flags[domain] = flag
 
-        if strengths:
-            return f"Keep it up — {strengths[0].lower()}"
+        # Walk priority list — first match wins
+        selected_domain = None
+        selected_flag = None
 
-        return "Tracking consistently — keep logging to build trend data"
+        for domain, severity in HealthTrendAnalyzer._CONSTRAINT_PRIORITY:
+            flag = domain_flags.get(domain)
+            if flag and flag.get("severity") == severity:
+                selected_domain = domain
+                selected_flag = flag
+                break
+
+        # If no risk_flag matched, check weaknesses for domain keywords
+        if not selected_domain and weaknesses:
+            # Weaknesses are plain strings — match by domain keyword
+            domain_keywords = {
+                "sleep": ["sleep"],
+                "protein": ["protein"],
+                "weight": ["weight"],
+                "workout": ["workout", "training volume"],
+                "activity": ["steps", "activity"],
+                "nutrition": ["nutrition", "tracking"],
+                "glucose": ["glucose"],
+                "medication": ["medication", "adherence"],
+            }
+            for domain, _ in HealthTrendAnalyzer._CONSTRAINT_PRIORITY:
+                keywords = domain_keywords.get(domain, [])
+                for w in weaknesses:
+                    if any(kw in w.lower() for kw in keywords):
+                        selected_domain = domain
+                        break
+                if selected_domain:
+                    break
+
+        # No constraint found — reinforcement mode
+        if not selected_domain:
+            reinforcement = None
+            if strengths:
+                reinforcement = strengths[0]
+            return {
+                "primary_constraint": None,
+                "insight": reinforcement or "Tracking consistently — keep logging to build trend data",
+                "primary_action": None,
+                "secondary_action": None,
+                "reinforcement": reinforcement,
+                "supporting_signals": [],
+            }
+
+        # Build coaching output
+        actions = HealthTrendAnalyzer._COACHING_ACTIONS.get(selected_domain, (None, None))
+        insight = HealthTrendAnalyzer._CONSTRAINT_INSIGHTS.get(selected_domain, "")
+
+        # If the risk_flag has a specific message, use it as context instead of generic
+        if selected_flag:
+            insight = f"{selected_flag['message']}. {insight}"
+
+        # Gather supporting signals: other domains that also have issues
+        supporting = [
+            f.get("domain") for f in risk_flags
+            if f.get("domain") != selected_domain
+        ]
+
+        # Add reinforcement from strengths if available
+        reinforcement = strengths[0] if strengths else None
+
+        return {
+            "primary_constraint": selected_domain,
+            "insight": insight,
+            "primary_action": actions[0],
+            "secondary_action": actions[1],
+            "reinforcement": reinforcement,
+            "supporting_signals": supporting[:3],
+        }

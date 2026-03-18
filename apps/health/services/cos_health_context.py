@@ -96,6 +96,7 @@ def build_cos_health_intelligence(user):
         result["risk_flags"] = analysis.get("risk_flags", [])
         result["top_recommendation"] = analysis.get("top_recommendation", "")
         result["trends"] = analysis.get("trends", {})
+        result["coaching"] = analysis.get("coaching", {})
     except Exception:
         logger.error("Failed to compute health trends for CoS", exc_info=True)
 

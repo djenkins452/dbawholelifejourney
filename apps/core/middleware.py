@@ -453,7 +453,20 @@ class APIRequestLoggingMiddleware:
 
         ip = get_client_ip(request)
 
+        # Known polling endpoints — expected background traffic from the
+        # frontend (notifications badge, intervention checks).  These fire on
+        # a timer for every authenticated session and should never count
+        # toward burst detection.
+        POLLING_ENDPOINTS = {
+            '/api/notifications/count/',
+            '/api/blueprint/interventions/check/',
+        }
+
         # --- Burst detection via cache counter (no DB query) ---
+        # Skip counting for known polling endpoints
+        if request.path in POLLING_ENDPOINTS:
+            return
+
         burst_key = f"api_burst:{ip}"
         try:
             burst_count = cache.get(burst_key, 0) or 0
@@ -469,10 +482,10 @@ class APIRequestLoggingMiddleware:
         except Exception:
             burst_count = 0  # Cache unavailable — skip check
 
-        if burst_count > 50:
+        if burst_count > 150:
             log_entry.is_anomaly = True
             log_entry.anomaly_reason = f"Burst detected: {burst_count} requests in 5 minutes"
-            log_entry.anomaly_score = min(1.0, burst_count / 100)
+            log_entry.anomaly_score = min(1.0, burst_count / 300)
             log_entry.save()
 
             log_security_event(

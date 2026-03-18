@@ -2572,6 +2572,10 @@ class RoutineLog(UserOwnedModel):
         blank=True,
         help_text="When the item was completed (null for skipped)",
     )
+    is_user_corrected = models.BooleanField(
+        default=False,
+        help_text="True when user has manually edited a past log",
+    )
 
     class Meta:
         ordering = ["-scheduled_date"]

@@ -383,6 +383,10 @@ class TaskListView(HelpContextMixin, LifeAccessMixin, ListView):
         # Time-horizon grouping for active tasks (pending only)
         show = self.request.GET.get('show', 'active')
         if show == 'active':
+            from apps.core.utils import get_user_now
+            user_now = get_user_now(user)
+            current_time = user_now.time()
+
             tasks = list(context.get('tasks', self.get_queryset()))
             overdue = []
             today_tasks = []
@@ -398,7 +402,11 @@ class TaskListView(HelpContextMixin, LifeAccessMixin, ListView):
                 elif t.due_date < user_today:
                     overdue.append(t)
                 elif t.due_date == user_today:
-                    today_tasks.append(t)
+                    # Time-aware: if scheduled_time has passed, it's overdue
+                    if t.scheduled_time and t.scheduled_time < current_time:
+                        overdue.append(t)
+                    else:
+                        today_tasks.append(t)
                 elif t.due_date == tomorrow:
                     tomorrow_tasks.append(t)
                 else:
@@ -412,8 +420,18 @@ class TaskListView(HelpContextMixin, LifeAccessMixin, ListView):
                 ('No Due Date', 'no-date', no_date_tasks),
             ]
             context['use_time_horizon'] = True
+
+            # Next-up task ID from SAE for visual highlight
+            try:
+                from apps.core.ai_state.state_engine import get_module_state
+                task_state = get_module_state(user, 'tasks') or {}
+                next_up = task_state.get('next_up_task')
+                context['next_up_task_id'] = next_up.get('id') if next_up else None
+            except Exception:
+                context['next_up_task_id'] = None
         else:
             context['use_time_horizon'] = False
+            context['next_up_task_id'] = None
 
         return context
 

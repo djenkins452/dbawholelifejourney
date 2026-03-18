@@ -1,4 +1,4 @@
-<li class="task-item {% if task.is_completed %}completed{% elif task.is_skipped %}skipped{% endif %}" data-bulk-item data-item-id="{{ task.pk }}" data-task-id="{{ task.pk }}">
+<li class="task-item {% if task.is_completed %}completed{% elif task.is_skipped %}skipped{% endif %}{% if next_up_task_id == task.pk %} next-up{% endif %}" data-bulk-item data-item-id="{{ task.pk }}" data-task-id="{{ task.pk }}">
     <input type="checkbox" data-item-checkbox class="bulk-checkbox item-checkbox">
     <!-- Circle button: toggle completion via AJAX -->
     <button type="button" class="task-checkbox {% if task.is_completed %}checked{% elif task.is_skipped %}skipped{% endif %}"
@@ -27,6 +27,10 @@
         </div>
 
         <div class="task-meta">
+            {% if next_up_task_id == task.pk %}
+            <span class="task-next-up-badge">Next Up</span>
+            {% endif %}
+
             {% if task.commitment_level == 'non_negotiable' %}
             <span class="task-commitment-badge task-commitment-nn">NN</span>
             {% endif %}

@@ -340,6 +340,24 @@
     color: var(--color-text-muted);
 }
 
+/* Next Up task highlight */
+.task-item.next-up {
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+    border-left: 3px solid var(--color-accent);
+    padding-left: calc(var(--space-3) - 3px);
+}
+
+.task-next-up-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    background: var(--color-accent);
+    color: white;
+}
+
 .task-count {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);

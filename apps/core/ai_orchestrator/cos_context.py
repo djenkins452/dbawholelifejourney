@@ -2938,27 +2938,53 @@ def _build_data_state_snapshot(user) -> str:
             "but NEVER imply data exists when it does not."
         )
 
-    # v9: Time-horizon task grounding from SAE state
-    # CoS daily check-in scope: ONLY overdue + today.
-    # Tomorrow/future only if user explicitly asks.
+    # v10: Next-up task anchor + time-horizon task grounding from SAE state
+    _next_up = task_state.get('next_up_task')
+    if _next_up:
+        _reason_labels = {
+            'past_due_date': 'overdue — past due date',
+            'missed_scheduled_time': 'overdue — missed scheduled time today',
+            'next_scheduled': 'next scheduled task today',
+            'highest_commitment': 'highest-commitment task today',
+            'fallback': 'next available task',
+            'overdue': 'overdue',
+        }
+        _reason_text = _reason_labels.get(
+            _next_up.get('reason', ''), _next_up.get('reason', '')
+        )
+        lines.append("")
+        lines.append(
+            f"NEXT UP: (id:{_next_up['id']}) {_next_up['title']}"
+        )
+        if _next_up.get('scheduled_time'):
+            lines.append(f"  Scheduled: {_next_up['scheduled_time']}")
+        lines.append(f"  Why: {_reason_text}")
+        lines.append(
+            "  When the user asks 'what should I do next?' or 'what's up?', "
+            "lead with this task."
+        )
+
+    # Overdue tasks (past due date + missed scheduled time)
     overdue_count = counts.get('overdue_tasks', 0)
     if overdue_count > 0 and _overdue_task_titles:
         lines.append("")
-        lines.append("OVERDUE TASKS (past due date — address these first):")
+        lines.append(f"OVERDUE TASKS ({overdue_count} — address these first):")
         for title in _overdue_task_titles:
             lines.append(f"  - {title}")
 
+    # Today's remaining tasks
     if _today_task_titles:
         lines.append("")
-        lines.append("TODAY'S TASKS (AUTHORITATIVE — due today):")
+        lines.append("TODAY'S TASKS (AUTHORITATIVE — due today, not yet overdue):")
         for title in _today_task_titles:
             lines.append(f"  - {title}")
 
+    # All active tasks for entity grounding
     active_count = counts.get('active_tasks', 0)
     if active_count > 0 and _active_task_titles:
         lines.append("")
         lines.append(
-            "ALL ACTIVE TASKS (AUTHORITATIVE — full pending list for entity grounding):"
+            "ALL ACTIVE TASKS (AUTHORITATIVE — for entity grounding only):"
         )
         for title in _active_task_titles:
             lines.append(f"  - {title}")
@@ -2968,21 +2994,29 @@ def _build_data_state_snapshot(user) -> str:
     lines.append("")
     lines.append(
         "TASK TIME-HORIZON RULES:\n"
-        "  • For daily check-ins and status updates: reference ONLY overdue + today tasks.\n"
+        "  • For daily check-ins: lead with NEXT UP task, then overdue, then today.\n"
         "  • Do NOT proactively mention tomorrow or future tasks unless the user asks.\n"
         "  • When the user asks about planning or 'what's coming up', you MAY include tomorrow/future.\n"
         "  • NEVER infer or reconstruct task names from conversation history."
     )
 
-    # Completed-today titles from SAE
-    completed_count = counts.get('completed_tasks_today', 0)
-    if completed_count > 0 and _completed_titles:
+    # Completed-today with momentum signal
+    _completed_detail = task_state.get('completed_today_detail', {})
+    completed_count = _completed_detail.get('count', 0)
+    _completed_titles_list = _completed_detail.get('titles', _completed_titles)
+    _momentum = _completed_detail.get('momentum_signal', 'low')
+    if completed_count > 0 and _completed_titles_list:
         lines.append("")
-        lines.append("COMPLETED TASKS TODAY (AUTHORITATIVE):")
-        for title in _completed_titles:
+        _momentum_labels = {
+            'high': f"COMPLETED TODAY ({completed_count} — strong momentum!)",
+            'medium': f"COMPLETED TODAY ({completed_count} — good progress)",
+            'low': f"COMPLETED TODAY ({completed_count})",
+        }
+        lines.append(_momentum_labels.get(_momentum, f"COMPLETED TODAY ({completed_count})") + ":")
+        for title in _completed_titles_list:
             lines.append(f"  - {title}")
-        if completed_count > len(_completed_titles):
-            lines.append(f"  (+ {completed_count - len(_completed_titles)} more)")
+        if completed_count > len(_completed_titles_list):
+            lines.append(f"  (+ {completed_count - len(_completed_titles_list)} more)")
 
     # Add non-negotiable skip streak awareness
     nn_streak_count = counts.get('non_negotiable_skip_streaks', 0)

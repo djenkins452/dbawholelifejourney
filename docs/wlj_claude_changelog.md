@@ -6,6 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Phase 1.5: Time Intelligence + Next Best Action
+
+**Purpose:** Upgrade task/time system from correct grouping to intelligent prioritization with next-best-action selection.
+
+**SAE enhancements:**
+- Time-aware overdue: tasks due today with missed scheduled_time now classified as overdue (not just date-based)
+- Intelligent today ordering: scheduled_time ASC → commitment_level → priority → created_at
+- `next_up_task`: single most actionable task with deterministic reason (overdue/missed_scheduled_time/next_scheduled/highest_commitment/fallback)
+- `completed_today_detail`: structured with count, titles, momentum_signal (high/medium/low)
+
+**CoS context:**
+- NEXT UP task surfaced as primary anchor in data state
+- Momentum signal included in completed-today grounding
+- Rule: "lead with NEXT UP task, then overdue, then today"
+
+**UI:**
+- "Next Up" badge on the most actionable task (accent-colored left border + badge)
+- Time-overdue tasks (missed scheduled_time today) now appear in Overdue section
+
+**Files:** state_builder.py, cos_context.py, views.py, _task_row.html, task_list.html
+
+---
+
 ## 2026-03-18 — Rich State Expansion Phase 1: Calendar, Medicine, Routines
 
 **Purpose:** Establish rich SAE state coverage for calendar, medicine per-schedule detail, and routines. Eliminates remaining raw DB queries from CoS for these domains.

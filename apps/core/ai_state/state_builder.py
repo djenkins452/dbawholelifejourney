@@ -1654,30 +1654,42 @@ def build_task_state(user):
             due_date=tomorrow,
         ).count()
 
-        # Completed today (count + titles for CoS grounding)
+        # ── Completed today (structured with momentum signal) ──
         _completed_qs = Task.objects.filter(
             user=user, completion_status='completed',
             completed_at__date=user_today,
         )
-        state['completed_today'] = _completed_qs.count()
-        state['completed_today_titles'] = list(
+        _completed_count = _completed_qs.count()
+        _completed_titles = list(
             _completed_qs.values_list('title', flat=True)[:10]
         )
+        # Momentum signal: high(>=5), medium(2-4), low(0-1)
+        if _completed_count >= 5:
+            _momentum = 'high'
+        elif _completed_count >= 2:
+            _momentum = 'medium'
+        else:
+            _momentum = 'low'
+        state['completed_today'] = _completed_count
+        state['completed_today_titles'] = _completed_titles
+        state['completed_today_detail'] = {
+            'count': _completed_count,
+            'titles': _completed_titles,
+            'momentum_signal': _momentum,
+        }
 
-        # Tasks due today (titles for Beth context, max 10)
-        due_today_tasks = pending_qs.filter(
-            due_date=user_today,
-        ).order_by('commitment_level').values_list('title', flat=True)[:10]
-        state['tasks_due_today'] = list(due_today_tasks)
+        # ── Time-aware classification helpers ──
+        from apps.core.utils import get_user_now
+        user_now = get_user_now(user)
+        current_time = user_now.time()
 
-        # ── Time-horizon bucketed task lists (for CoS + UI) ──
-        # Each bucket includes id, title, due_date, scheduled_time, priority,
-        # commitment_level. Computed here so CoS and UI share one source of truth.
-        _TIME_ORDER = ['scheduled_time', 'due_date', '-created_at']
+        # Commitment level ordering: non_negotiable=0, important=1, optional=2
+        _COMMIT_ORDER = {'non_negotiable': 0, 'important': 1, 'optional': 2}
+        _PRIORITY_ORDER = {'now': 0, 'soon': 1, 'someday': 2}
 
-        def _serialize_task(t):
+        def _serialize_task(t, overdue_reason=None):
             """Serialize a Task into a JSON-safe dict for SAE state."""
-            return {
+            entry = {
                 'id': t.id,
                 'title': t.title,
                 'due_date': t.due_date.isoformat() if t.due_date else None,
@@ -1688,41 +1700,117 @@ def build_task_state(user):
                 'priority': t.priority,
                 'commitment_level': t.commitment_level,
             }
+            if overdue_reason:
+                entry['overdue_reason'] = overdue_reason
+            return entry
 
-        # Overdue: due_date < today AND pending
-        state['overdue_tasks'] = [
-            _serialize_task(t) for t in pending_qs.filter(
-                due_date__isnull=False, due_date__lt=user_today,
-            ).order_by('due_date', *_TIME_ORDER)[:25]
+        # ── OVERDUE: date-overdue OR time-overdue within today ──
+        # Date-overdue: due_date < today
+        date_overdue = list(pending_qs.filter(
+            due_date__isnull=False, due_date__lt=user_today,
+        ).order_by('due_date', 'scheduled_time', '-created_at')[:25])
+
+        # Time-overdue: due_date == today AND scheduled_time < now AND not completed
+        time_overdue_today = list(pending_qs.filter(
+            due_date=user_today,
+            scheduled_time__isnull=False,
+            scheduled_time__lt=current_time,
+        ).order_by('scheduled_time', '-created_at')[:25])
+
+        all_overdue = [
+            _serialize_task(t, overdue_reason='past_due_date') for t in date_overdue
+        ] + [
+            _serialize_task(t, overdue_reason='missed_scheduled_time') for t in time_overdue_today
         ]
+        state['overdue_tasks'] = all_overdue
+        state['overdue_count'] = len(all_overdue)
 
-        # Today: due_date == today
+        # ── TODAY: due today, NOT yet overdue by time ──
+        # Intelligent ordering: time-overdue first, then by scheduled_time,
+        # then commitment_level, then priority, then created_at
+        _time_overdue_ids = {t.id for t in time_overdue_today}
+        today_remaining = list(pending_qs.filter(
+            due_date=user_today,
+        ).exclude(id__in=_time_overdue_ids).order_by(
+            'scheduled_time', '-created_at',
+        )[:25])
+
+        # Sort today's tasks with intelligent ordering
+        def _today_sort_key(t):
+            return (
+                # 1. Tasks with scheduled_time first (ascending), nulls last
+                (0 if t.scheduled_time else 1),
+                t.scheduled_time or '',
+                # 2. Higher commitment first
+                _COMMIT_ORDER.get(t.commitment_level, 2),
+                # 3. Higher priority first
+                _PRIORITY_ORDER.get(t.priority, 2),
+            )
+
+        today_remaining.sort(key=_today_sort_key)
         state['due_today_tasks_detail'] = [
-            _serialize_task(t) for t in pending_qs.filter(
-                due_date=user_today,
-            ).order_by(*_TIME_ORDER)[:25]
+            _serialize_task(t) for t in today_remaining
         ]
 
-        # Tomorrow: due_date == tomorrow
+        # Legacy key (title list) — maintained for backward compat
+        state['tasks_due_today'] = [t.title for t in today_remaining][:10]
+
+        # ── TOMORROW / FUTURE / NO DATE ──
         state['due_tomorrow_tasks'] = [
             _serialize_task(t) for t in pending_qs.filter(
                 due_date=tomorrow,
-            ).order_by(*_TIME_ORDER)[:25]
+            ).order_by('scheduled_time', '-created_at')[:25]
         ]
 
-        # Future: due_date > tomorrow
         state['future_tasks'] = [
             _serialize_task(t) for t in pending_qs.filter(
                 due_date__isnull=False, due_date__gt=tomorrow,
-            ).order_by('due_date', *_TIME_ORDER)[:25]
+            ).order_by('due_date', 'scheduled_time', '-created_at')[:25]
         ]
 
-        # No due date
         state['no_due_date_tasks'] = [
             _serialize_task(t) for t in pending_qs.filter(
                 due_date__isnull=True,
             ).order_by('-created_at')[:25]
         ]
+
+        # ── NEXT UP TASK (single most actionable task) ──
+        # Selection rules:
+        # 1. Highest-urgency overdue task
+        # 2. Earliest upcoming scheduled task today
+        # 3. Highest commitment/priority task today
+        # 4. Fallback: any pending task
+        next_up = None
+
+        if all_overdue:
+            # Pick the most urgent overdue: NN > important > optional,
+            # then earliest due_date, then earliest scheduled_time
+            best_overdue = min(all_overdue, key=lambda t: (
+                _COMMIT_ORDER.get(t.get('commitment_level', 'optional'), 2),
+                t.get('due_date') or '9999',
+                t.get('scheduled_time') or '99:99',
+            ))
+            reason = best_overdue.get('overdue_reason', 'overdue')
+            next_up = {**best_overdue, 'reason': reason}
+        elif today_remaining:
+            # Earliest scheduled or highest commitment today
+            best_today = today_remaining[0]  # already sorted by _today_sort_key
+            if best_today.scheduled_time:
+                reason = 'next_scheduled'
+            else:
+                reason = 'highest_commitment'
+            next_up = {**_serialize_task(best_today), 'reason': reason}
+        else:
+            # Fallback: pick from tomorrow or no-date
+            for fallback_bucket in [
+                state.get('due_tomorrow_tasks', []),
+                state.get('no_due_date_tasks', []),
+            ]:
+                if fallback_bucket:
+                    next_up = {**fallback_bucket[0], 'reason': 'fallback'}
+                    break
+
+        state['next_up_task'] = next_up
 
     except Exception:
         logger.warning("Task commitment state build failed", exc_info=True)

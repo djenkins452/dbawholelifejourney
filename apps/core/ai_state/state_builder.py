@@ -18,6 +18,24 @@ from apps.core.time.system_clock import get_current_time
 logger = logging.getLogger(__name__)
 
 
+def _build_state_meta(completeness='full', confidence='high'):
+    """Build standardized meta block for SAE state contract.
+
+    Every domain builder should include this in its return dict under
+    the '_meta' key. This enables Beth to reason about state reliability.
+
+    Args:
+        completeness: 'full' | 'partial' | 'limited'
+        confidence: 'high' | 'medium' | 'low'
+    """
+    return {
+        'last_updated': get_current_time().isoformat(),
+        'source': 'SAE',
+        'completeness': completeness,
+        'confidence': confidence,
+    }
+
+
 def build_health_state(user):
     """
     Build health state from actual database records.
@@ -1815,6 +1833,48 @@ def build_task_state(user):
     except Exception:
         logger.warning("Task commitment state build failed", exc_info=True)
 
+    # ── Rich State Contract ──
+    state['_contract'] = {
+        'summary': {
+            'total_pending': (
+                state.get('tasks_now', 0)
+                + state.get('tasks_soon', 0)
+                + state.get('tasks_someday', 0)
+            ),
+            'by_priority': {
+                'now': state.get('tasks_now', 0),
+                'soon': state.get('tasks_soon', 0),
+                'someday': state.get('tasks_someday', 0),
+            },
+            'by_level': state.get('active_tasks_by_level', {}),
+            'completed_today': state.get('completed_today', 0),
+            'momentum_signal': state.get('completed_today_detail', {}).get(
+                'momentum_signal', 'low'
+            ),
+            'nn_consistency_score': state.get(
+                'task_commitment_summary', {}
+            ).get('consistency_score', 0),
+        },
+        'today': {
+            'items': state.get('due_today_tasks_detail', []),
+            'next_up': state.get('next_up_task'),
+            'completed': state.get('completed_today_detail', {}),
+        },
+        'upcoming': {
+            'tomorrow': state.get('due_tomorrow_tasks', []),
+            'future': state.get('future_tasks', []),
+            'no_due_date': state.get('no_due_date_tasks', []),
+        },
+        'alerts': {
+            'overdue': state.get('overdue_tasks', []),
+            'overdue_count': state.get('overdue_count', 0),
+            'nn_skip_streaks': state.get('nn_skip_streaks', []),
+        },
+    }
+    state['_meta'] = _build_state_meta(
+        completeness='full',
+        confidence='high',
+    )
     return state
 
 
@@ -1936,6 +1996,40 @@ def build_medicine_state(user):
     except Exception:
         logger.warning("Medicine state build failed", exc_info=True)
 
+    # ── Rich State Contract ──
+    _overdue_meds = [
+        s for s in state.get('schedule_status_today', [])
+        if s.get('status') == 'overdue'
+    ]
+    _missed_meds = [
+        s for s in state.get('schedule_status_today', [])
+        if s.get('status') == 'missed'
+    ]
+    state['_contract'] = {
+        'summary': {
+            'active_count': state.get('active_count', 0),
+            'active_medicines': state.get('active_medicines', []),
+            'adherence_7d': state.get('adherence_7d'),
+            'expected_today': state.get('expected_today', 0),
+            'today_taken': state.get('today_taken', 0),
+        },
+        'today': {
+            'schedule_status': state.get('schedule_status_today', []),
+            'taken': state.get('today_taken', 0),
+            'missed': state.get('today_missed', 0),
+            'pending': state.get('today_pending', 0),
+        },
+        'upcoming': {},  # medicine has no future-looking data yet
+        'alerts': {
+            'overdue': _overdue_meds,
+            'missed': _missed_meds,
+            'needs_refill': state.get('needs_refill', []),
+        },
+    }
+    state['_meta'] = _build_state_meta(
+        completeness='full',
+        confidence='high',
+    )
     return state
 
 
@@ -2083,6 +2177,29 @@ def build_calendar_state(user):
     except Exception:
         logger.warning("Calendar state build failed", exc_info=True)
 
+    # ── Rich State Contract ──
+    state['_contract'] = {
+        'summary': {
+            'today_count': state.get('today_event_count', 0),
+            'schedule_density': state.get('schedule_density', 0),
+        },
+        'today': {
+            'items': state.get('today_events', []),
+            'current_event': state.get('current_event'),
+            'next_event': state.get('next_event'),
+        },
+        'upcoming': {
+            'events': state.get('upcoming_events', []),
+        },
+        'alerts': {
+            'overdue': state.get('overdue_events', []),
+            'conflicts': state.get('schedule_conflicts', []),
+        },
+    }
+    state['_meta'] = _build_state_meta(
+        completeness='full' if state.get('today_event_count', 0) > 0 or state.get('upcoming_events') else 'limited',
+        confidence='high',
+    )
     return state
 
 
@@ -2092,14 +2209,21 @@ def build_routine_state(user):
     """
     Build routine state from Routine, RoutineSchedule, RoutineLog models.
 
+    CANON DECISION (2026-03-18):
+        Routines are a FIRST-CLASS domain. The canonical source is the
+        dedicated Routine/RoutineSchedule/RoutineLog model hierarchy in
+        apps.life.models, NOT the Task.is_routine flag.
+
+        Task.is_routine is a LEGACY compatibility layer for tasks that
+        behave like daily routines. It is NOT the primary routine system
+        and must NOT be mixed into this state builder.
+
+        Future migration: Task.is_routine tasks should be migrated to
+        RoutineSchedule entries. Until then, they remain in task state.
+
     Returns:
         dict with today's routine items grouped by time window,
         completion status, and next pending item.
-
-    State contract:
-        summary: total_routines, today_item_count, today_completed, today_missed
-        today: routine_items_today (grouped by time_of_day window)
-        current: current_window, next_pending_item
     """
     state = {}
 
@@ -2217,6 +2341,33 @@ def build_routine_state(user):
     except Exception:
         logger.warning("Routine state build failed", exc_info=True)
 
+    # ── Rich State Contract ──
+    _missed_items = []
+    for window_items in state.get('routine_items_today', {}).values():
+        _missed_items.extend(
+            [i for i in window_items if i.get('status') == 'missed']
+        )
+    state['_contract'] = {
+        'summary': {
+            'total_routines': state.get('total_routines', 0),
+            'today_count': state.get('today_item_count', 0),
+            'today_completed': state.get('today_completed', 0),
+            'today_missed': state.get('today_missed', 0),
+        },
+        'today': {
+            'items_by_window': state.get('routine_items_today', {}),
+            'current_window': state.get('current_window'),
+            'next_up': state.get('next_pending_item'),
+        },
+        'upcoming': {},  # routines are daily — no future items
+        'alerts': {
+            'missed': _missed_items,
+        },
+    }
+    state['_meta'] = _build_state_meta(
+        completeness='full' if state.get('total_routines', 0) > 0 else 'limited',
+        confidence='high',
+    )
     return state
 
 

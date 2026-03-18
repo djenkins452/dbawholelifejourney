@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Phase 1.75: State Contract Hardening + Routine Canon
+
+**Purpose:** Standardize the SAE state contract across all Phase 1 domains (tasks, calendar, medicine, routines) and resolve the routine system duplication.
+
+**Rich State Contract applied:** Each domain now includes `_contract` (standardized structure with summary/today/upcoming/alerts) and `_meta` (last_updated, source, completeness, confidence). Flat keys preserved for backward compatibility.
+
+**Routine canon resolution:** RoutineSchedule/RoutineLog hierarchy is the canonical routine system. Task.is_routine documented as legacy compatibility layer — NOT mixed into routine state.
+
+**Contract helper:** `_build_state_meta()` added for consistent meta generation across all builders.
+
+**Files:** state_builder.py, wlj_claude_changelog.md
+
+---
+
 ## 2026-03-18 — Phase 1.5: Time Intelligence + Next Best Action
 
 **Purpose:** Upgrade task/time system from correct grouping to intelligent prioritization with next-best-action selection.

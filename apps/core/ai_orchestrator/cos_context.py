@@ -3965,35 +3965,30 @@ def format_cos_system_injection(context, user_message=None):
         lines.append("")
         lines.append(_signal_summary)
 
-    # Cross-Domain Signals — multi-domain pressure/imbalance detection
+    # Cross-Domain Signals — prioritized situation assessment
+    # Replaces raw signal list with a focused decision frame:
+    # one primary, one secondary, suppressed noise eliminated.
     xd_signals = context.get('cross_domain_signals', [])
-    xd_summary = context.get('cross_domain_summary', {})
     if xd_signals:
-        lines.append("")
-        high_count = xd_summary.get('high_severity_count', 0)
-        if high_count > 0:
-            lines.append(
-                f"=== CROSS-DOMAIN PRESSURE ({len(xd_signals)} signal(s), "
-                f"{high_count} high-severity) ==="
+        try:
+            from apps.core.ai_signals.signal_prioritization import (
+                prioritize_signals,
+                format_signal_narrative,
             )
-        else:
-            lines.append(
-                f"=== CROSS-DOMAIN AWARENESS ({len(xd_signals)} signal(s)) ==="
-            )
-        for sig in xd_signals[:5]:  # Cap at 5 to limit token usage
-            sev = sig.get('severity', 'low').upper()
-            code = sig.get('signal_code', '')
-            summary_text = sig.get('summary', '')
-            action = sig.get('recommended_action', '')
-            domains = ', '.join(sig.get('domains', []))
-            lines.append(f"  [{sev}] {code} ({domains}): {summary_text}")
-            if action:
-                lines.append(f"    → Action: {action}")
-        lines.append(
-            "Cross-domain signals show patterns ACROSS life domains. "
-            "Surface the most actionable one if relevant to the conversation."
-        )
-        lines.append("=== END CROSS-DOMAIN SIGNALS ===")
+            frame = prioritize_signals(xd_signals)
+            context['signal_frame'] = frame  # For downstream consumption
+            narrative = format_signal_narrative(frame)
+            if narrative:
+                lines.append("")
+                lines.append(narrative)
+        except Exception:
+            # Fallback: inject raw top signal if prioritization fails
+            top = xd_signals[0] if xd_signals else None
+            if top:
+                lines.append("")
+                lines.append(
+                    f"=== CROSS-DOMAIN SIGNAL: {top.get('summary', '')} ==="
+                )
 
     # Momentum Interpretation — trajectory narrative from GoalMomentumSnapshot
     _momentum_interp = _format_momentum_interpretation(context)

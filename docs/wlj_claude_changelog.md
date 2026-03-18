@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Phase 2.6: Signal Prioritization & Narrative Layer
+
+**Purpose:** Reduce signal noise and give Beth a focused decision frame — one primary situation, one secondary, redundant signals suppressed.
+
+**New module:** `apps/core/ai_signals/signal_prioritization.py`
+- Subsumption: system_overload absorbs execution_overload, routine_breakdown, etc.
+- Scoring: severity × confidence + domain impact + breadth bonus
+- Pressure levels: none → low → moderate → elevated → critical
+- Narrative: deterministic templated text, not LLM-generated
+
+**Result (8 raw signals → 2 active):**
+- PRIMARY: system_overload (5 domains)
+- SECONDARY: health_attention_required (medicine + medical)
+- 6 signals suppressed as redundant noise
+
+**CoS integration:** Raw signal list replaced with SITUATION ASSESSMENT block containing primary/secondary + response guidance directive.
+
+**Files:** signal_prioritization.py (new), cos_context.py (integration)
+
+---
+
 ## 2026-03-18 — Phase 2.5: Cross-Domain Signal Intelligence
 
 **Purpose:** Enable Beth to reason ACROSS domains — detecting pressure, imbalance, and cause-effect patterns using deterministic signals derived purely from SAE _contract state.

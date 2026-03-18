@@ -10,12 +10,13 @@ Rules:
   3. FatigueDetectedRule — sleep deficit OR journal fatigue keywords
   4. TravelActiveRule — journal or calendar mentions travel keywords
 
-All rules:
-  - Run on scheduled_check (not real-time)
-  - Max one signal per type per day (via dedupe_key)
-  - 2-day cooldown (via created_at check on existing insights)
-  - Negation-aware: "not sick", "no pain" suppresses detection
-  - Architecture-compliant: read journal.body at signal layer, not CoS
+Hardening layers:
+  - Negation-aware keyword matching (3-word window)
+  - Recovery phrase suppression (newer recovery overrides older evidence)
+  - Time decay (per-type expiration windows)
+  - Freshness tagging (recent vs aging)
+  - Cooldown (48h per type)
+  - Architecture-compliant: reads journal.body at signal layer, not CoS
 """
 
 import logging
@@ -28,32 +29,47 @@ from apps.core.ai_insights.utils import build_dedupe_key
 
 logger = logging.getLogger(__name__)
 
-# ── Keyword sets (hardened — Step 2) ──
+# ── Keyword sets ──
 _INJURY_HIGH = {'injured', 'injury', 'broken', 'fracture', 'sprain', 'sprained', 'twisted', 'tore', 'torn'}
-_INJURY_MED = {'hurt', 'pain'}  # Removed: sore, ache, fell, fall, pulled (too ambiguous)
+_INJURY_MED = {'hurt', 'pain'}
 
 _ILLNESS_HIGH = {'fever', 'flu', 'covid', 'infection', 'vomiting', 'hospitalized'}
-_ILLNESS_MED = {'sick', 'unwell', 'headache', 'nausea', 'congestion', 'cough'}  # Removed: cold (too ambiguous)
+_ILLNESS_MED = {'sick', 'unwell', 'headache', 'nausea', 'congestion', 'cough'}
 
-_FATIGUE_KEYWORDS = {'tired', 'exhausted', 'drained', 'fatigued', 'burnout'}  # Removed: worn, burned (ambiguous)
+_FATIGUE_KEYWORDS = {'tired', 'exhausted', 'drained', 'fatigued', 'burnout'}
 
 _TRAVEL_KEYWORDS_JOURNAL = {'traveling', 'travelling', 'flight', 'airport', 'hotel', 'vacation'}
-# Calendar requires STRONG keywords only (Step 4)
 _TRAVEL_KEYWORDS_CALENDAR_STRONG = {'flight', 'airport', 'hotel', 'boarding'}
 
-# Negation patterns (Step 1) — suppress keyword within 3-word window
+# Negation
 _NEGATION_WORDS = {'not', 'no', "don't", "didn't", "isn't", "wasn't", "aren't", "won't"}
-_RECOVERY_PHRASES = {'feeling better', 'recovered', 'no longer', 'getting better', 'much better'}
+# Recovery phrases — if found in a NEWER entry than the evidence, suppress signal
+_RECOVERY_PHRASES = {'feeling better', 'recovered', 'no longer', 'getting better', 'much better',
+                     'back to normal', 'feeling good', 'feeling great'}
 
-# How many days back to scan journal entries
+# Time decay windows (hours from last evidence before signal expires)
+_DECAY_HOURS = {
+    'injury_detected': 72,
+    'illness_detected': 72,
+    'fatigue_detected': 48,
+    'travel_active': 48,
+}
+
+# Freshness boundary (hours) — evidence newer than this = "recent", older = "aging"
+_FRESHNESS_BOUNDARY_HOURS = 24
+
 _JOURNAL_LOOKBACK_DAYS = 3
-
-# Cooldown: don't re-fire same signal if one was created within this window
 _COOLDOWN_HOURS = 48
 
 
-def _get_recent_journal_texts(user, days):
-    """Get list of lowercase journal body texts from recent entries."""
+# ── Shared helpers ──
+
+def _get_recent_journal_entries(user, days):
+    """
+    Get recent journal entries with timestamps for evidence tracking.
+
+    Returns list of (body_lower, created_at) tuples, ordered newest first.
+    """
     try:
         from apps.journal.models import JournalEntry
         from django.utils import timezone as _tz
@@ -63,47 +79,87 @@ def _get_recent_journal_texts(user, days):
             user=user,
             status='active',
             created_at__gte=cutoff,
-        ).values_list('body', flat=True)
+        ).order_by('-created_at').values_list('body', 'created_at')
 
-        return [body.lower() for body in entries if body]
+        return [(body.lower(), created_at) for body, created_at in entries if body]
     except Exception:
         return []
 
 
-def _keyword_matches_with_negation(texts, keywords):
+def _keyword_matches_with_evidence(entries, keywords):
     """
-    Find keyword matches in journal texts, filtering out negated occurrences.
+    Find keyword matches across journal entries with evidence timestamps.
 
-    Returns set of confirmed (non-negated) keyword matches.
-
-    Negation check: if any negation word appears within 3 words BEFORE the
-    keyword, or if a recovery phrase appears in the same sentence, suppress.
+    Returns (matched_keywords: set, last_evidence_at: datetime or None).
+    Negation-aware. Recovery-phrase entries are skipped.
     """
     confirmed = set()
+    last_evidence_at = None
 
-    for text in texts:
-        # Check recovery phrases first — suppress entire text
+    for text, created_at in entries:
+        # Recovery phrases suppress this entry entirely
         if any(phrase in text for phrase in _RECOVERY_PHRASES):
             continue
 
         words = text.split()
+        entry_has_match = False
         for i, word in enumerate(words):
-            # Strip punctuation for matching
             clean = re.sub(r'[^\w]', '', word)
             if clean not in keywords:
                 continue
 
-            # Check 3-word window before for negation
+            # Negation check — 3-word window before
             window_start = max(0, i - 3)
             preceding = words[window_start:i]
             preceding_clean = {re.sub(r'[^\w\']', '', w) for w in preceding}
 
             if preceding_clean & _NEGATION_WORDS:
-                continue  # Negated — skip this match
+                continue
 
             confirmed.add(clean)
+            entry_has_match = True
 
-    return confirmed
+        if entry_has_match:
+            # Track newest evidence timestamp
+            if last_evidence_at is None or created_at > last_evidence_at:
+                last_evidence_at = created_at
+
+    return confirmed, last_evidence_at
+
+
+def _has_newer_recovery(entries, evidence_at):
+    """
+    Check if any journal entry NEWER than the evidence contains recovery language.
+
+    If recovery is more recent than the signal evidence, the signal is stale.
+    """
+    if not evidence_at:
+        return False
+
+    for text, created_at in entries:
+        if created_at <= evidence_at:
+            continue  # Older than evidence — skip
+        if any(phrase in text for phrase in _RECOVERY_PHRASES):
+            return True
+    return False
+
+
+def _compute_freshness(last_evidence_at):
+    """Compute freshness tag based on evidence age."""
+    if not last_evidence_at:
+        return 'aging'
+    from django.utils import timezone as _tz
+    age_hours = (_tz.now() - last_evidence_at).total_seconds() / 3600
+    return 'recent' if age_hours <= _FRESHNESS_BOUNDARY_HOURS else 'aging'
+
+
+def _within_decay_window(last_evidence_at, signal_type):
+    """Check if evidence is within the decay window for this signal type."""
+    if not last_evidence_at:
+        return False
+    from django.utils import timezone as _tz
+    decay_hours = _DECAY_HOURS.get(signal_type, 72)
+    return (_tz.now() - last_evidence_at).total_seconds() / 3600 <= decay_hours
 
 
 def _has_recent_insight(user, insight_type, hours=_COOLDOWN_HOURS):
@@ -122,9 +178,28 @@ def _has_recent_insight(user, insight_type, hours=_COOLDOWN_HOURS):
         return False
 
 
+def _suppression_gate(entries, last_evidence_at, signal_type):
+    """
+    Unified pre-emission suppression check.
+
+    Returns (suppressed: bool, reason: str or None).
+    """
+    # 1. Within decay window?
+    if not _within_decay_window(last_evidence_at, signal_type):
+        return True, 'outside_decay_window'
+
+    # 2. Recovery language in newer entries?
+    if _has_newer_recovery(entries, last_evidence_at):
+        return True, 'recovery_override'
+
+    return False, None
+
+
+# ── Rules ──
+
 @register
 class InjuryDetectedRule(BaseInsightRule):
-    """Detect injury mentions in recent journal entries (negation-aware)."""
+    """Detect injury mentions in recent journal entries."""
 
     rule_name = "injury_detected"
     module = "health"
@@ -138,17 +213,23 @@ class InjuryDetectedRule(BaseInsightRule):
         if _has_recent_insight(user, self.insight_type):
             return []
 
-        texts = _get_recent_journal_texts(user, _JOURNAL_LOOKBACK_DAYS)
-        if not texts:
+        entries = _get_recent_journal_entries(user, _JOURNAL_LOOKBACK_DAYS)
+        if not entries:
             return []
 
-        high_matches = _keyword_matches_with_negation(texts, _INJURY_HIGH)
-        med_matches = _keyword_matches_with_negation(texts, _INJURY_MED)
+        high_matches, high_evidence = _keyword_matches_with_evidence(entries, _INJURY_HIGH)
+        med_matches, med_evidence = _keyword_matches_with_evidence(entries, _INJURY_MED)
 
         if not high_matches and not med_matches:
             return []
 
+        last_evidence_at = high_evidence or med_evidence
+        suppressed, reason = _suppression_gate(entries, last_evidence_at, self.insight_type)
+        if suppressed:
+            return []
+
         sources = ['journal']
+        freshness = _compute_freshness(last_evidence_at)
 
         if high_matches:
             confidence = 0.80
@@ -173,6 +254,8 @@ class InjuryDetectedRule(BaseInsightRule):
                 'high_keywords': sorted(high_matches),
                 'med_keywords': sorted(med_matches),
                 'sources': sources,
+                'last_evidence_at': last_evidence_at.isoformat() if last_evidence_at else None,
+                'freshness': freshness,
             },
             'dedupe_key': build_dedupe_key(user.id, self.insight_type, today_str),
         }]
@@ -180,7 +263,7 @@ class InjuryDetectedRule(BaseInsightRule):
 
 @register
 class IllnessDetectedRule(BaseInsightRule):
-    """Detect illness mentions in journal entries or sleep logs (negation-aware)."""
+    """Detect illness mentions in journal entries or sleep logs."""
 
     rule_name = "illness_detected"
     module = "health"
@@ -194,27 +277,39 @@ class IllnessDetectedRule(BaseInsightRule):
         if _has_recent_insight(user, self.insight_type):
             return []
 
-        texts = _get_recent_journal_texts(user, _JOURNAL_LOOKBACK_DAYS)
+        entries = _get_recent_journal_entries(user, _JOURNAL_LOOKBACK_DAYS)
 
         # SleepEntry structured illness factor
         has_sleep_illness = False
+        sleep_evidence_at = None
         try:
             from apps.health.models import SleepEntry
             from django.utils import timezone as _tz
             cutoff = _tz.now() - timedelta(days=_JOURNAL_LOOKBACK_DAYS)
-            has_sleep_illness = SleepEntry.objects.filter(
+            sleep_entry = SleepEntry.objects.filter(
                 user=user,
                 status='active',
                 created_at__gte=cutoff,
                 factors__contains=['illness'],
-            ).exists()
+            ).order_by('-created_at').first()
+            if sleep_entry:
+                has_sleep_illness = True
+                sleep_evidence_at = sleep_entry.created_at
         except Exception:
             pass
 
-        high_matches = _keyword_matches_with_negation(texts, _ILLNESS_HIGH) if texts else set()
-        med_matches = _keyword_matches_with_negation(texts, _ILLNESS_MED) if texts else set()
+        high_matches, high_ev = _keyword_matches_with_evidence(entries, _ILLNESS_HIGH) if entries else (set(), None)
+        med_matches, med_ev = _keyword_matches_with_evidence(entries, _ILLNESS_MED) if entries else (set(), None)
 
         if not high_matches and not med_matches and not has_sleep_illness:
+            return []
+
+        # Determine last evidence across all sources
+        candidates = [t for t in [high_ev, med_ev, sleep_evidence_at] if t]
+        last_evidence_at = max(candidates) if candidates else None
+
+        suppressed, reason = _suppression_gate(entries, last_evidence_at, self.insight_type)
+        if suppressed:
             return []
 
         sources = []
@@ -222,6 +317,8 @@ class IllnessDetectedRule(BaseInsightRule):
             sources.append('journal')
         if has_sleep_illness:
             sources.append('sleep')
+
+        freshness = _compute_freshness(last_evidence_at)
 
         if high_matches or has_sleep_illness:
             confidence = 0.80
@@ -252,6 +349,8 @@ class IllnessDetectedRule(BaseInsightRule):
                 'med_keywords': sorted(med_matches),
                 'sleep_illness_factor': has_sleep_illness,
                 'sources': sources,
+                'last_evidence_at': last_evidence_at.isoformat() if last_evidence_at else None,
+                'freshness': freshness,
             },
             'dedupe_key': build_dedupe_key(user.id, self.insight_type, today_str),
         }]
@@ -273,33 +372,54 @@ class FatigueDetectedRule(BaseInsightRule):
         if _has_recent_insight(user, self.insight_type):
             return []
 
-        # Source 1: SAE sleep state
+        # Source 1: SAE sleep state (always "recent" — computed from 7d rolling)
         sleep_deficit = False
         sleep_avg = None
+        sleep_evidence_at = None
         try:
             from apps.core.ai_state import get_module_state
+            from django.utils import timezone as _tz
             health_state = get_module_state(user, 'health')
             if health_state:
                 sleep_avg = health_state.get('sleep_avg_duration_7d')
-                if sleep_avg and sleep_avg < 390:  # < 6.5 hours
+                if sleep_avg and sleep_avg < 390:
                     sleep_deficit = True
+                    sleep_evidence_at = _tz.now()  # SAE state is current
         except Exception:
             pass
 
-        # Source 2: Journal fatigue keywords (negation-aware)
-        texts = _get_recent_journal_texts(user, _JOURNAL_LOOKBACK_DAYS)
-        fatigue_words = sorted(_keyword_matches_with_negation(texts, _FATIGUE_KEYWORDS)) if texts else []
+        # Source 2: Journal fatigue keywords
+        entries = _get_recent_journal_entries(user, _JOURNAL_LOOKBACK_DAYS)
+        fatigue_words, journal_evidence_at = _keyword_matches_with_evidence(
+            entries, _FATIGUE_KEYWORDS
+        ) if entries else (set(), None)
+        fatigue_words = sorted(fatigue_words)
         journal_fatigue = bool(fatigue_words)
 
         if not sleep_deficit and not journal_fatigue:
             return []
 
-        # Single signal with appropriate confidence (Step 3)
+        # Last evidence across sources
+        candidates = [t for t in [sleep_evidence_at, journal_evidence_at] if t]
+        last_evidence_at = max(candidates) if candidates else None
+
+        # Suppression: journal recovery overrides journal fatigue (but not sleep deficit)
+        if journal_fatigue and not sleep_deficit:
+            suppressed, reason = _suppression_gate(entries, journal_evidence_at, self.insight_type)
+            if suppressed:
+                return []
+        elif journal_fatigue and sleep_deficit:
+            # Both sources — only suppress if recovery AND sleep has recovered
+            if _has_newer_recovery(entries, journal_evidence_at) and not sleep_deficit:
+                return []
+
         sources = []
         if sleep_deficit:
             sources.append('sleep')
         if journal_fatigue:
             sources.append('journal')
+
+        freshness = _compute_freshness(last_evidence_at)
 
         if sleep_deficit and journal_fatigue:
             confidence = 0.85
@@ -333,6 +453,8 @@ class FatigueDetectedRule(BaseInsightRule):
                 'journal_fatigue': journal_fatigue,
                 'fatigue_words': fatigue_words,
                 'sources': sources,
+                'last_evidence_at': last_evidence_at.isoformat() if last_evidence_at else None,
+                'freshness': freshness,
             },
             'dedupe_key': build_dedupe_key(user.id, self.insight_type, today_str),
         }]
@@ -354,13 +476,18 @@ class TravelActiveRule(BaseInsightRule):
         if _has_recent_insight(user, self.insight_type):
             return []
 
-        # Source 1: Journal travel keywords (negation-aware)
-        texts = _get_recent_journal_texts(user, _JOURNAL_LOOKBACK_DAYS)
-        travel_words = sorted(_keyword_matches_with_negation(texts, _TRAVEL_KEYWORDS_JOURNAL)) if texts else []
+        entries = _get_recent_journal_entries(user, _JOURNAL_LOOKBACK_DAYS)
+
+        # Source 1: Journal travel keywords
+        travel_words, journal_evidence_at = _keyword_matches_with_evidence(
+            entries, _TRAVEL_KEYWORDS_JOURNAL
+        ) if entries else (set(), None)
+        travel_words = sorted(travel_words)
         journal_travel = bool(travel_words)
 
-        # Source 2: Calendar event titles — STRONG keywords only (Step 4)
+        # Source 2: Calendar event titles — STRONG keywords only
         calendar_travel = False
+        calendar_evidence_at = None
         try:
             from apps.calendar_engine.models import CalendarEvent
             from django.utils import timezone as _tz
@@ -368,37 +495,50 @@ class TravelActiveRule(BaseInsightRule):
             events = CalendarEvent.objects.filter(
                 user=user,
                 start_dt__gte=cutoff,
-            ).values_list('title', flat=True)[:50]
+            ).order_by('-start_dt').values_list('title', 'start_dt')[:50]
 
-            for title in events:
+            for title, start_dt in events:
                 if title:
                     title_words = set(re.sub(r'[^\w\s]', '', title.lower()).split())
                     if title_words & _TRAVEL_KEYWORDS_CALENDAR_STRONG:
                         calendar_travel = True
+                        calendar_evidence_at = start_dt
                         break
         except Exception:
             pass
 
         # Source 3: SleepEntry travel factor
         sleep_travel = False
+        sleep_evidence_at = None
         try:
             from apps.health.models import SleepEntry
             from django.utils import timezone as _tz
             cutoff = _tz.now() - timedelta(days=_JOURNAL_LOOKBACK_DAYS)
-            sleep_travel = SleepEntry.objects.filter(
+            sleep_entry = SleepEntry.objects.filter(
                 user=user,
                 status='active',
                 created_at__gte=cutoff,
                 factors__contains=['travel'],
-            ).exists()
+            ).order_by('-created_at').first()
+            if sleep_entry:
+                sleep_travel = True
+                sleep_evidence_at = sleep_entry.created_at
         except Exception:
             pass
 
-        # Calendar-only is NOT sufficient (Step 4) — need journal or sleep confirmation
+        # Calendar-only is NOT sufficient — need journal or sleep
         if calendar_travel and not journal_travel and not sleep_travel:
-            return []  # Calendar alone is too noisy
+            return []
 
         if not journal_travel and not calendar_travel and not sleep_travel:
+            return []
+
+        # Last evidence across sources
+        candidates = [t for t in [journal_evidence_at, calendar_evidence_at, sleep_evidence_at] if t]
+        last_evidence_at = max(candidates) if candidates else None
+
+        # Decay check
+        if not _within_decay_window(last_evidence_at, self.insight_type):
             return []
 
         sources = []
@@ -409,7 +549,9 @@ class TravelActiveRule(BaseInsightRule):
         if sleep_travel:
             sources.append('sleep')
 
+        freshness = _compute_freshness(last_evidence_at)
         confidence = 0.80 if len(sources) >= 2 else 0.55
+
         parts = []
         if journal_travel:
             parts.append(f"journal: {', '.join(travel_words[:3])}")
@@ -437,6 +579,8 @@ class TravelActiveRule(BaseInsightRule):
                 'sleep_travel': sleep_travel,
                 'travel_words': travel_words,
                 'sources': sources,
+                'last_evidence_at': last_evidence_at.isoformat() if last_evidence_at else None,
+                'freshness': freshness,
             },
             'dedupe_key': build_dedupe_key(user.id, self.insight_type, today_str),
         }]

@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Context Signal Final Hardening: Time Decay + Conflict Resolution + Freshness
+
+**Purpose:** Ensure context signals expire when stale and are suppressed when newer recovery evidence exists.
+
+**Changes to `apps/core/ai_insights/rules_context.py`:**
+- **Time decay:** Per-signal-type expiration: injury/illness=72h, fatigue/travel=48h from last evidence. Signal suppressed if outside window.
+- **Last evidence tracking:** `_get_recent_journal_entries()` now returns `(body, created_at)` tuples. `_keyword_matches_with_evidence()` tracks newest evidence timestamp across all matching entries.
+- **Conflict resolution:** `_has_newer_recovery()` checks if journal entries NEWER than evidence contain recovery phrases ("feeling better", "recovered", "back to normal"). If yes → signal suppressed.
+- **Freshness field:** All signals include `freshness: "recent" | "aging"` (boundary: 24h from evidence).
+- **Unified suppression gate:** `_suppression_gate()` — checks decay window + recovery override before any signal emission.
+- **Evidence enrichment:** All signals include `last_evidence_at` ISO timestamp + `freshness` tag in evidence dict.
+- Sleep/calendar sources now track individual evidence timestamps for accurate decay.
+
+---
+
 ## 2026-03-18 — Context Signals Hardened: Negation + Precision + False Positive Prevention
 
 **Purpose:** Tighten context signals to minimize false positives while maintaining detection accuracy.

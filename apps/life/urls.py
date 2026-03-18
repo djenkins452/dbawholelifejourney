@@ -20,6 +20,14 @@ from .views import (
     TaskDeleteView,
     TaskToggleView,
     TaskSkipView,
+    # Routines
+    RoutineListView,
+    RoutineCreateView,
+    RoutineUpdateView,
+    RoutineDeleteView,
+    RoutineToggleView,
+    RoutineSkipView,
+    RoutineMigrationView,
     # Calendar & Events
     CalendarView,
     EventCreateView,
@@ -128,7 +136,16 @@ urlpatterns = [
     path("tasks/<int:pk>/toggle/", TaskToggleView.as_view(), name="task_toggle"),
     path("tasks/<int:pk>/skip/", TaskSkipView.as_view(), name="task_skip"),
     path("tasks/bulk/delete/", BulkDeleteTasksView.as_view(), name="task_bulk_delete"),
-    
+
+    # Routines
+    path("routines/", RoutineListView.as_view(), name="routine_list"),
+    path("routines/new/", RoutineCreateView.as_view(), name="routine_create"),
+    path("routines/<int:pk>/edit/", RoutineUpdateView.as_view(), name="routine_update"),
+    path("routines/<int:pk>/delete/", RoutineDeleteView.as_view(), name="routine_delete"),
+    path("routines/toggle/", RoutineToggleView.as_view(), name="routine_toggle"),
+    path("routines/skip/", RoutineSkipView.as_view(), name="routine_skip"),
+    path("routines/migrate/", RoutineMigrationView.as_view(), name="routine_migration"),
+
     # Calendar & Events
     path("calendar/", CalendarView.as_view(), name="calendar"),
     path("events/new/", EventCreateView.as_view(), name="event_create"),

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Migrate Routine Tasks - Organize{% endblock %}
+
+{% block content %}
+<div class="content-container" data-testid="routine-migration">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Organize</a>
+        <span>/</span>
+        <a href="{% url 'life:routine_list' %}">Routines</a>
+        <span>/</span>
+        <span>Migrate</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Migrate Routine Tasks</h1>
+        <p class="page-subtitle">Convert legacy routine-flagged tasks to the canonical Routines system.</p>
+    </div>
+
+    <div class="card mb-4" style="border-left: 3px solid var(--color-info); padding: var(--space-4);">
+        <p style="margin: 0;" class="text-sm">
+            <strong>What happens:</strong> Selected tasks will be converted to Routines with a single schedule item.
+            The original task will be marked as completed. A routine with the same name won't be created if one already exists.
+        </p>
+    </div>
+
+    {% if routine_tasks %}
+    <form method="post">
+        {% csrf_token %}
+        <div class="card">
+            <div class="card-header" style="display: flex; align-items: center; justify-content: space-between;">
+                <h2 style="margin: 0; font-size: var(--font-size-base);">Tasks marked as routines ({{ routine_tasks|length }})</h2>
+                <label style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer; min-height: 44px;">
+                    <input type="checkbox" id="select-all"> Select All
+                </label>
+            </div>
+            <div style="padding: 0;">
+                {% for task in routine_tasks %}
+                <div style="display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border);">
+                    <label style="display: flex; align-items: center; width: 44px; height: 44px; justify-content: center; flex-shrink: 0; cursor: pointer;">
+                        <input type="checkbox" name="task_ids" value="{{ task.pk }}" class="task-checkbox"
+                               style="width: 18px; height: 18px;">
+                    </label>
+                    <div style="flex: 1; min-width: 0;">
+                        <span style="font-weight: 500;">{{ task.title }}</span>
+                        {% if task.scheduled_time %}
+                        <span class="text-muted text-sm" style="display: block;">
+                            Scheduled: {{ task.scheduled_time|time:"g:i A" }}
+                            {% if task.scheduled_end_time %} - {{ task.scheduled_end_time|time:"g:i A" }}{% endif %}
+                        </span>
+                        {% endif %}
+                        {% if task.notes %}
+                        <span class="text-muted text-sm" style="display: block;">{{ task.notes|truncatewords:15 }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div style="margin-top: var(--space-4); display: flex; gap: var(--space-3);">
+            <button type="submit" class="btn btn-primary">Convert Selected to Routines</button>
+            <a href="{% url 'life:routine_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+    {% else %}
+    <div class="empty-state" style="padding: var(--space-8) 0; text-align: center;">
+        <h3 class="empty-state-title">No routine tasks to migrate</h3>
+        <p class="text-muted">All task-based routines have already been migrated or there are none.</p>
+        <a href="{% url 'life:routine_list' %}" class="btn btn-secondary mt-4">Back to Routines</a>
+    </div>
+    {% endif %}
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var selectAll = document.getElementById('select-all');
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            document.querySelectorAll('.task-checkbox').forEach(function(cb) {
+                cb.checked = selectAll.checked;
+            });
+        });
+    }
+})();
+</script>
+{% endblock %}

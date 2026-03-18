@@ -1,0 +1,28 @@
+{# Reusable time-window section for routines #}
+{# Usage: {% include "components/time_window_section.html" with window_name="Morning" window_key="morning" is_current=True items=window_items %} #}
+
+<div class="card mb-4{% if is_current %} time-window-active{% endif %}"
+     style="{% if is_current %}border-left: 3px solid var(--color-accent);{% endif %}">
+    <div class="card-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <h3 style="margin: 0; font-size: var(--font-size-base); font-weight: 600;">
+            {{ window_name }}
+            {% if is_current %}
+            <span style="font-size: var(--font-size-xs); color: var(--color-accent); font-weight: 500; margin-left: var(--space-2);">Now</span>
+            {% endif %}
+        </h3>
+        {% if items %}
+        <span class="text-muted text-sm">{{ completed_count }}/{{ items|length }}</span>
+        {% endif %}
+    </div>
+    {% if items %}
+    <div class="card-body" style="padding: 0;">
+        {% for item in items %}
+        {% include "components/checkbox_item.html" with item_id=item.schedule_id label=item.item_name sublabel=item.routine_name checked=item.is_completed status=item.status time_display=item.scheduled_time %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card-body">
+        <p class="text-muted text-sm" style="margin: 0;">No routines scheduled.</p>
+    </div>
+    {% endif %}
+</div>

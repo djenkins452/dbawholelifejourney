@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Routines - Organize{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="routine-list">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Organize</a>
+        <span>/</span>
+        <span>Routines</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Routines</h1>
+            <p class="page-subtitle">Daily recurring habits and practices</p>
+        </div>
+        <a href="{% url 'life:routine_create' %}" class="btn btn-primary" data-testid="add-routine-btn">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Add Routine
+        </a>
+    </div>
+
+    {% if total_routines > 0 %}
+    <!-- Summary Bar -->
+    <div class="card mb-4" style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4);">
+        <div style="flex: 1;">
+            <span style="font-size: var(--font-size-lg); font-weight: 600;">{{ today_completed }}/{{ today_count }}</span>
+            <span class="text-muted text-sm" style="margin-left: var(--space-2);">completed today</span>
+        </div>
+        {% if today_missed > 0 %}
+        <span style="font-size: var(--font-size-sm); color: var(--color-error);">{{ today_missed }} missed</span>
+        {% endif %}
+        <a href="#" class="btn btn-sm btn-ghost" id="manage-routines-toggle" data-testid="manage-routines-btn">Manage</a>
+    </div>
+
+    <!-- Manage Routines Panel (hidden by default) -->
+    <div id="manage-routines-panel" class="card mb-4" style="display: none;">
+        <div class="card-header">
+            <h3 style="margin: 0; font-size: var(--font-size-base);">All Routines</h3>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            {% for routine in all_routines %}
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border);">
+                <div>
+                    <span style="font-weight: 500;">{{ routine.name }}</span>
+                    <span class="text-muted text-sm" style="margin-left: var(--space-2);">{{ routine.get_time_of_day_display }}</span>
+                </div>
+                <div style="display: flex; gap: var(--space-2);">
+                    <a href="{% url 'life:routine_update' routine.pk %}" class="btn btn-sm btn-ghost">Edit</a>
+                    <form method="post" action="{% url 'life:routine_delete' routine.pk %}" class="inline-form" data-routine-delete>
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-ghost" style="color: var(--color-error);">Delete</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Time Window Sections -->
+    {% for window in windows %}
+    {% if window.items %}
+    {% include "components/time_window_section.html" with window_name=window.name window_key=window.key is_current=window.is_current items=window.items completed_count=window.completed_count %}
+    {% endif %}
+    {% endfor %}
+
+    <!-- Show empty windows that have no items only if all windows are empty -->
+    {% if today_count == 0 %}
+    <div class="empty-state" style="padding: var(--space-8) 0; text-align: center;">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--color-text-muted)" stroke-width="1.5" style="margin-bottom: var(--space-4);">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <h3 class="empty-state-title">No routines scheduled for today</h3>
+        <p class="text-muted">Your routines will appear here based on the days you've set.</p>
+    </div>
+    {% endif %}
+
+    {% if legacy_routine_count > 0 %}
+    <!-- Migration prompt -->
+    <div class="card mt-4" style="border-left: 3px solid var(--color-warning); padding: var(--space-4);">
+        <p style="margin: 0;">
+            <strong>{{ legacy_routine_count }} task{{ legacy_routine_count|pluralize }} marked as routine{{ legacy_routine_count|pluralize }}</strong> can be migrated to the new Routines system.
+            <a href="{% url 'life:routine_migration' %}" class="btn btn-sm btn-secondary" style="margin-left: var(--space-2);">Migrate</a>
+        </p>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- No routines at all -->
+    <div class="empty-state" style="padding: var(--space-8) 0; text-align: center;">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--color-text-muted)" stroke-width="1.5" style="margin-bottom: var(--space-4);">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <h3 class="empty-state-title">No routines yet</h3>
+        <p class="text-muted">Create your first routine to start tracking daily habits.</p>
+        <a href="{% url 'life:routine_create' %}" class="btn btn-primary mt-4">Create Routine</a>
+
+        {% if legacy_routine_count > 0 %}
+        <p class="text-muted mt-4">
+            Or <a href="{% url 'life:routine_migration' %}">migrate {{ legacy_routine_count }} existing routine task{{ legacy_routine_count|pluralize }}</a>.
+        </p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.container {
+    max-width: var(--content-max-width, 800px);
+    margin: 0 auto;
+    padding: 0 var(--space-4);
+}
+.inline-form {
+    display: inline;
+}
+@media (max-width: 480px) {
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-3);
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    // Manage routines toggle
+    var toggleBtn = document.getElementById('manage-routines-toggle');
+    var panel = document.getElementById('manage-routines-panel');
+    if (toggleBtn && panel) {
+        toggleBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            var isHidden = panel.style.display === 'none';
+            panel.style.display = isHidden ? 'block' : 'none';
+            toggleBtn.textContent = isHidden ? 'Close' : 'Manage';
+        });
+    }
+
+    // Delete confirmation
+    document.querySelectorAll('[data-routine-delete]').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            if (!confirm('Delete this routine? This cannot be undone.')) {
+                e.preventDefault();
+            }
+        });
+    });
+
+    // Routine checkbox toggle via fetch
+    document.addEventListener('change', function(e) {
+        if (!e.target.classList.contains('routine-checkbox')) return;
+
+        var checkbox = e.target;
+        var scheduleId = checkbox.dataset.scheduleId;
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (!csrfToken) {
+            // Get CSRF from cookie
+            var cookies = document.cookie.split(';');
+            for (var i = 0; i < cookies.length; i++) {
+                var c = cookies[i].trim();
+                if (c.indexOf('csrftoken=') === 0) {
+                    csrfToken = decodeURIComponent(c.substring(10));
+                    break;
+                }
+            }
+        } else {
+            csrfToken = csrfToken.value;
+        }
+
+        var formData = new FormData();
+        formData.append('schedule_id', scheduleId);
+
+        fetch('{% url "life:routine_toggle" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: formData,
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.success) {
+                var item = checkbox.closest('.checkbox-item');
+                var label = item ? item.querySelector('span[style*="font-weight"]') : null;
+                if (label) {
+                    if (data.is_completed) {
+                        label.style.textDecoration = 'line-through';
+                        label.style.color = 'var(--color-text-muted)';
+                    } else {
+                        label.style.textDecoration = 'none';
+                        label.style.color = '';
+                    }
+                }
+                // Update status badge
+                var statusBadge = item ? item.querySelector('span:last-child') : null;
+                if (statusBadge && statusBadge.textContent.trim()) {
+                    if (data.is_completed) {
+                        statusBadge.textContent = 'Done';
+                        statusBadge.style.color = 'var(--color-success)';
+                    } else {
+                        statusBadge.textContent = '';
+                    }
+                }
+            }
+        })
+        .catch(function(err) {
+            // Revert checkbox on failure
+            checkbox.checked = !checkbox.checked;
+        });
+    });
+})();
+</script>
+{% endblock %}

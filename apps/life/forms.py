@@ -11,8 +11,9 @@ Life Forms - Forms for life module models.
 """
 
 from django import forms
+from django.forms import inlineformset_factory
 
-from .models import SignificantEvent
+from .models import Routine, RoutineSchedule, SignificantEvent
 
 
 # Reminder days options for checkbox selection
@@ -128,3 +129,118 @@ class SignificantEventForm(forms.ModelForm):
             instance.save()
 
         return instance
+
+
+# =============================================================================
+# Routine Forms
+# =============================================================================
+
+DAYS_OF_WEEK_CHOICES = [
+    ('0', 'Mon'),
+    ('1', 'Tue'),
+    ('2', 'Wed'),
+    ('3', 'Thu'),
+    ('4', 'Fri'),
+    ('5', 'Sat'),
+    ('6', 'Sun'),
+]
+
+
+class RoutineForm(forms.ModelForm):
+    """Form for creating and editing routines."""
+
+    class Meta:
+        model = Routine
+        fields = ['name', 'description', 'time_of_day', 'is_active', 'sort_order']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'e.g., Morning Routine',
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'form-textarea',
+                'rows': 2,
+                'placeholder': 'Optional description',
+            }),
+            'time_of_day': forms.Select(attrs={'class': 'form-select'}),
+            'sort_order': forms.NumberInput(attrs={
+                'class': 'form-input',
+                'min': 0,
+                'style': 'width: 80px;',
+            }),
+        }
+        labels = {
+            'time_of_day': 'Time Window',
+            'sort_order': 'Order',
+            'is_active': 'Active',
+        }
+
+
+class RoutineScheduleForm(forms.ModelForm):
+    """Form for a single routine schedule item."""
+
+    active_days = forms.MultipleChoiceField(
+        choices=DAYS_OF_WEEK_CHOICES,
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'day-checkbox'}),
+        required=False,
+        label='Days',
+    )
+
+    class Meta:
+        model = RoutineSchedule
+        fields = ['name', 'scheduled_time', 'grace_period_minutes', 'is_active', 'sort_order']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'e.g., Prayer time',
+            }),
+            'scheduled_time': forms.TimeInput(attrs={
+                'class': 'form-input',
+                'type': 'time',
+            }),
+            'grace_period_minutes': forms.NumberInput(attrs={
+                'class': 'form-input',
+                'min': 0,
+                'style': 'width: 80px;',
+            }),
+            'sort_order': forms.NumberInput(attrs={
+                'class': 'form-input',
+                'min': 0,
+                'style': 'width: 80px;',
+            }),
+        }
+        labels = {
+            'grace_period_minutes': 'Grace (min)',
+            'sort_order': 'Order',
+            'is_active': 'Active',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Pre-populate active_days from days_of_week field
+        if self.instance and self.instance.pk and self.instance.days_of_week:
+            self.initial['active_days'] = [
+                d.strip() for d in self.instance.days_of_week.split(',') if d.strip()
+            ]
+        elif not self.instance.pk:
+            # Default: all days selected for new items
+            self.initial['active_days'] = ['0', '1', '2', '3', '4', '5', '6']
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        active_days = self.cleaned_data.get('active_days', [])
+        instance.days_of_week = ','.join(sorted(active_days))
+        if commit:
+            instance.save()
+        return instance
+
+
+RoutineScheduleFormSet = inlineformset_factory(
+    Routine,
+    RoutineSchedule,
+    form=RoutineScheduleForm,
+    extra=1,
+    can_delete=True,
+    min_num=0,
+    validate_min=False,
+)

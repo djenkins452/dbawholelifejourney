@@ -980,6 +980,9 @@ class Command(BaseCommand):
         # One-time: Reset module_definitions to add Notes module (PK 11)
         self._reset_notes_module_definition_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for UI Alignment Phase (Routines, nav expansion)
+        self._reset_ui_alignment_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -6123,3 +6126,35 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset notes module definition fixtures FAILED: {e}'))
+
+    def _reset_ui_alignment_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes, help_topics, teaching_destinations,
+        and module_definitions for UI Alignment Phase (Routines UI + nav expansion).
+        """
+        reset_tracker_name = 'reset_ui_alignment_2026_03_18'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            for loader_name in ['release_notes', 'help_topics', 'teaching_destinations']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader_name} loader for UI Alignment Phase')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for UI Alignment Phase',
+                'command',
+                'One-time reset: release_notes PKs 165-166, help_topics PK 147, teaching_destinations PK 178'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset UI alignment fixtures FAILED: {e}'))

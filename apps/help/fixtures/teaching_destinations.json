@@ -1,6 +1,23 @@
 [
   {
     "model": "help.teachingdestination",
+    "pk": 178,
+    "fields": {
+      "destination_id": "life-routines",
+      "name": "Routines",
+      "path_description": "Organize - Routines",
+      "explanation": "Track daily recurring habits grouped by time of day. Create routines with schedule items, check them off throughout the day, and monitor your consistency.",
+      "url": "/life/routines/",
+      "keywords": "routines,habits,daily,morning,evening,recurring,schedule,consistency,track",
+      "module": "life",
+      "sort_order": 180,
+      "is_active": true,
+      "created_at": "2026-03-18T12:00:00Z",
+      "updated_at": "2026-03-18T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
     "pk": 176,
     "fields": {
       "destination_id": "health-intelligence",

@@ -367,6 +367,11 @@
                                 <a href="{% url 'health:provider_list' %}" class="nav-dropdown-item">Medical Providers</a>
                             </div>
                             {% endif %}
+                            <!-- Brain Training -->
+                            <div class="nav-mega-column">
+                                <div class="nav-mega-heading">Cognitive</div>
+                                <a href="{% url 'brain_training:hub' %}" class="nav-dropdown-item">Brain Training</a>
+                            </div>
                         </div>
                     </div>
                 </li>
@@ -424,6 +429,14 @@
                                         <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
                                     </svg>
                                     Tasks
+                                </a>
+                                {% endif %}
+                                {% if features.organize.routines %}
+                                <a href="{% url 'life:routine_list' %}" class="nav-dropdown-item">
+                                    <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    Routines
                                 </a>
                                 {% endif %}
                             </div>
@@ -680,6 +693,34 @@
                     </div>
                 </li>
                 {% endif %}
+
+                <!-- Relationships -->
+                {% if relationships_enabled %}
+                <li>
+                    <a href="{% url 'relationships:person_list' %}" class="nav-link {% if request.resolver_match.app_name == 'relationships' %}active{% endif %}">
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                        <span>People</span>
+                    </a>
+                </li>
+                {% endif %}
+
+                <!-- Notes -->
+                <li>
+                    <a href="{% url 'notes:note_list' %}" class="nav-link {% if request.resolver_match.app_name == 'notes' %}active{% endif %}">
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                        </svg>
+                        <span>Notes</span>
+                    </a>
+                </li>
 
             </ul>
 

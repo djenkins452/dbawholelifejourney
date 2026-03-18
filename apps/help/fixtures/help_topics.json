@@ -1,6 +1,22 @@
 [
   {
     "model": "help.helptopic",
+    "pk": 147,
+    "fields": {
+      "context_id": "ROUTINE_LIST",
+      "help_id": "routine-list",
+      "title": "Routines",
+      "description": "Track daily recurring habits grouped by time of day.",
+      "content": "## Routines\n\nRoutines are recurring daily habits \u2014 things you do consistently at specific times of day, like morning prayer, exercise, or evening journaling.\n\n### How Routines Work\n\n1. **Create a Routine** \u2014 Give it a name, choose a time window (Morning, Afternoon, Evening, etc.), then add schedule items with specific times and which days they apply.\n\n2. **Track Daily** \u2014 The Routines page shows today's items grouped by time window. The current window is highlighted. Check off items as you complete them.\n\n3. **Status Types:**\n   - **Pending** \u2014 Not yet completed, still within the time window\n   - **Completed** \u2014 Checked off\n   - **Missed** \u2014 Past the grace period without completion\n   - **Skipped** \u2014 Manually marked as skipped\n\n### Tips\n\n- Start with a few items and build up over time\n- Grace periods give you buffer time after the scheduled time\n- You can check/uncheck items to correct mistakes\n- Use the Manage panel to edit or delete routines\n\n### Migration\n\nIf you previously used tasks marked as routines, use the Migration tool (link at the bottom of the Routines page) to convert them to the new system.",
+      "app_name": "life",
+      "order": 200,
+      "is_active": true,
+      "created_at": "2026-03-18T12:00:00Z",
+      "updated_at": "2026-03-18T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
     "pk": 146,
     "fields": {
       "context_id": "HEALTH_INTELLIGENCE",

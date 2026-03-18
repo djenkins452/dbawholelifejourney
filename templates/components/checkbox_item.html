@@ -1,0 +1,27 @@
+{# Reusable checkbox item row — 44px touch target, CSP-safe #}
+{# Usage: {% include "components/checkbox_item.html" with item_id=id label="Name" sublabel="6:30 AM" checked=True status="completed" %} #}
+
+<div class="checkbox-item" style="display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); min-height: 44px; border-bottom: 1px solid var(--color-border);" data-item-id="{{ item_id }}">
+    <label style="display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex-shrink: 0; cursor: pointer;">
+        <input type="checkbox" {% if checked %}checked{% endif %}
+               class="routine-checkbox"
+               data-schedule-id="{{ item_id }}"
+               style="width: 20px; height: 20px; accent-color: var(--color-accent);">
+    </label>
+    <div style="flex: 1; min-width: 0;">
+        <span style="font-weight: 500;{% if checked %} text-decoration: line-through; color: var(--color-text-muted);{% endif %}">{{ label }}</span>
+        {% if sublabel %}
+        <span class="text-muted text-sm" style="display: block;">{{ sublabel }}</span>
+        {% endif %}
+    </div>
+    {% if status == "missed" %}
+    <span style="font-size: var(--font-size-xs); color: var(--color-error); font-weight: 500;">Missed</span>
+    {% elif status == "skipped" %}
+    <span style="font-size: var(--font-size-xs); color: var(--color-text-muted);">Skipped</span>
+    {% elif status == "completed" %}
+    <span style="font-size: var(--font-size-xs); color: var(--color-success);">Done</span>
+    {% endif %}
+    {% if time_display %}
+    <span class="text-muted text-sm" style="flex-shrink: 0;">{{ time_display }}</span>
+    {% endif %}
+</div>

@@ -1,0 +1,29 @@
+{# Reusable simple list component #}
+{# Usage: {% include "components/simple_list.html" with items=list_items empty_message="No items yet." %} #}
+{# items: list of dicts with 'label', optional 'sublabel', 'url', 'action_url', 'action_label' #}
+
+{% if items %}
+<ul class="simple-list" style="list-style: none; padding: 0; margin: 0;">
+    {% for item in items %}
+    <li style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border);">
+        <div>
+            {% if item.url %}
+            <a href="{{ item.url }}" style="font-weight: 500; color: var(--color-text);">{{ item.label }}</a>
+            {% else %}
+            <span style="font-weight: 500;">{{ item.label }}</span>
+            {% endif %}
+            {% if item.sublabel %}
+            <span class="text-muted text-sm" style="display: block;">{{ item.sublabel }}</span>
+            {% endif %}
+        </div>
+        {% if item.action_url %}
+        <a href="{{ item.action_url }}" class="btn btn-sm btn-ghost">{{ item.action_label|default:"View" }}</a>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<div class="empty-state" style="padding: var(--space-6) 0; text-align: center;">
+    <p class="text-muted">{{ empty_message|default:"No items." }}</p>
+</div>
+{% endif %}

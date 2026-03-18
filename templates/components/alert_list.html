@@ -1,0 +1,21 @@
+{# Reusable alert list component #}
+{# Usage: {% include "components/alert_list.html" with alerts=alert_items alert_type="warning" %} #}
+{# alerts: list of dicts with 'message' and optional 'url', 'icon' keys #}
+
+{% if alerts %}
+<div class="alert-list mt-4">
+    {% for alert in alerts %}
+    <div class="message message-{{ alert_type|default:'warning' }} mb-2">
+        {% if alert.icon %}
+        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px; flex-shrink: 0;">
+            {{ alert.icon|safe }}
+        </svg>
+        {% endif %}
+        <span>{{ alert.message }}</span>
+        {% if alert.url %}
+        <a href="{{ alert.url }}" class="btn btn-sm btn-ghost" style="margin-left: auto;">View</a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

@@ -6,6 +6,37 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — UI Alignment Phase: Routines UI + Navigation Expansion
+
+**Purpose:** Make WLJ usable day-to-day by exposing all domains via navigation and building a first-class Routines UI.
+
+**Routines UI (new):**
+- `apps/life/views.py` — 7 new views: RoutineListView, RoutineCreateView, RoutineUpdateView, RoutineDeleteView, RoutineToggleView, RoutineSkipView, RoutineMigrationView
+- `apps/life/forms.py` — RoutineForm, RoutineScheduleForm, RoutineScheduleFormSet
+- `apps/life/urls.py` — 7 new URL patterns under `/life/routines/`
+- `apps/life/services/routine_helpers.py` — Shared helper extracted from build_routine_state() (single source of truth for window grouping)
+- `apps/core/ai_state/state_builder.py` — Refactored build_routine_state() to use shared helper
+- Templates: `routine_list.html`, `routine_form.html`, `routine_confirm_delete.html`, `routine_migration.html`
+- Feature flag: `routines` added to `ORGANIZE_FEATURES` in UserPreferences
+
+**Navigation updates:**
+- `templates/components/navigation.html` — Added Routines (under Organize), People/Relationships, Notes, Brain Training (under Health)
+- `templates/components/desktop_left_rail.html` — Added fallback static items for People and Notes
+
+**Reusable components (new):**
+- `templates/components/domain_page.html`, `section_card.html`, `alert_list.html`, `simple_list.html`, `checkbox_item.html`, `time_window_section.html`
+
+**Module catalog:**
+- `apps/users/fixtures/module_definitions.json` — Added brain_training module definition
+
+**Task→Routine Migration Tool:**
+- Legacy `Task.is_routine` tasks can be migrated to canonical `Routine` + `RoutineSchedule` objects
+- Idempotent (won't create duplicates), marks legacy tasks as completed
+
+**Tests:** 17 new tests in `apps/life/tests/test_routines.py` — all passing
+
+---
+
 ## 2026-03-18 — Phase 2.6: Signal Prioritization & Narrative Layer
 
 **Purpose:** Reduce signal noise and give Beth a focused decision frame — one primary situation, one secondary, redundant signals suppressed.

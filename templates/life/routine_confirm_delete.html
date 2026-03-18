@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Routine - Organize{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Organize</a>
+        <span>/</span>
+        <a href="{% url 'life:routine_list' %}">Routines</a>
+        <span>/</span>
+        <span>Delete</span>
+    </nav>
+
+    <div class="card" style="max-width: 500px; margin: var(--space-8) auto;">
+        <h2 style="margin-bottom: var(--space-4);">Delete Routine</h2>
+        <p>Are you sure you want to delete <strong>{{ object.name }}</strong>?</p>
+        <p class="text-muted text-sm">This will archive the routine and all its scheduled items. Completion history will be preserved.</p>
+
+        <form method="post" style="display: flex; gap: var(--space-3); margin-top: var(--space-6);">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Delete</button>
+            <a href="{% url 'life:routine_list' %}" class="btn btn-ghost">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

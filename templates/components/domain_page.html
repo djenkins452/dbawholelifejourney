@@ -1,0 +1,28 @@
+{# Reusable domain page wrapper: breadcrumb + page-header + actions #}
+{# Usage: {% include "components/domain_page.html" with breadcrumbs=breadcrumbs title="Page Title" subtitle="Optional subtitle" %} #}
+{# breadcrumbs: list of dicts with 'label' and optional 'url' keys #}
+
+{% if breadcrumbs %}
+<nav class="breadcrumb mb-4" aria-label="Breadcrumb">
+    {% for crumb in breadcrumbs %}
+        {% if crumb.url %}
+            <a href="{{ crumb.url }}">{{ crumb.label }}</a>
+        {% else %}
+            <span>{{ crumb.label }}</span>
+        {% endif %}
+        {% if not forloop.last %}<span>/</span>{% endif %}
+    {% endfor %}
+</nav>
+{% endif %}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">{{ title }}</h1>
+        {% if subtitle %}<p class="page-subtitle">{{ subtitle }}</p>{% endif %}
+    </div>
+    {% if action_url %}
+    <div class="page-actions">
+        <a href="{{ action_url }}" class="btn btn-primary">{{ action_label|default:"Add" }}</a>
+    </div>
+    {% endif %}
+</div>

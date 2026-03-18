@@ -2214,6 +2214,9 @@ def build_routine_state(user):
         Future migration: Task.is_routine tasks should be migrated to
         RoutineSchedule entries. Until then, they remain in task state.
 
+    Uses shared helper from apps.life.services.routine_helpers for
+    canonical window grouping and item collection (single source of truth).
+
     Returns:
         dict with today's routine items grouped by time window,
         completion status, and next pending item.
@@ -2221,113 +2224,30 @@ def build_routine_state(user):
     state = {}
 
     try:
-        from apps.core.utils import get_user_now, get_user_today
-        from apps.life.models import Routine, RoutineLog, RoutineSchedule
+        from apps.life.services.routine_helpers import get_todays_routine_items
 
-        user_today = get_user_today(user)
-        user_now = get_user_now(user)
-        current_time = user_now.time()
-        weekday = user_today.weekday()  # 0=Monday
+        result = get_todays_routine_items(user)
 
-        # Active routines
-        active_routines = Routine.objects.filter(
-            user=user, is_active=True,
-        ).prefetch_related('items')
-        state['total_routines'] = active_routines.count()
-
+        state['total_routines'] = result['total_routines']
         if state['total_routines'] == 0:
             return state
 
-        # Collect today's schedule items across all routines
-        today_items = []
-        for routine in active_routines:
-            for item in routine.items.filter(is_active=True):
-                if item.specific_date:
-                    if item.specific_date != user_today:
-                        continue
-                elif not item.applies_to_day(weekday):
-                    continue
-                today_items.append((routine, item))
+        state['today_item_count'] = result['today_count']
+        state['today_completed'] = result['today_completed']
+        state['today_missed'] = result['today_missed']
+        state['routine_items_today'] = result['items_by_window']
+        state['current_window'] = result['current_window']
 
-        # Batch-fetch today's logs
-        schedule_ids = [item.id for _, item in today_items]
-        logs = RoutineLog.objects.filter(
-            schedule_id__in=schedule_ids,
-            scheduled_date=user_today,
-        )
-        log_by_schedule = {log.schedule_id: log for log in logs}
-
-        # Build structured items
-        items_by_window = {}
-        total_completed = 0
-        total_missed = 0
+        # Find next pending item for CoS
         next_pending = None
-
-        for routine, item in today_items:
-            log = log_by_schedule.get(item.id)
-            if log:
-                if log.log_status in ('completed', 'completed_late'):
-                    status = 'completed'
-                    total_completed += 1
-                elif log.log_status == 'skipped':
-                    status = 'skipped'
-                else:
-                    status = 'pending'
-            else:
-                # No log = pending or missed (based on time + grace)
-                from datetime import time as _time_cls
-                cutoff = item.scheduled_time
-                if cutoff and item.grace_period_minutes:
-                    from datetime import datetime as _dt_cls, timedelta as _td
-                    cutoff_dt = _dt_cls.combine(user_today, cutoff) + _td(
-                        minutes=item.grace_period_minutes
-                    )
-                    cutoff = cutoff_dt.time()
-
-                if cutoff and current_time > cutoff:
-                    status = 'missed'
-                    total_missed += 1
-                else:
-                    status = 'pending'
-
-            entry = {
-                'routine_name': routine.name,
-                'item_name': item.name,
-                'scheduled_time': (
-                    item.scheduled_time.strftime('%I:%M %p').lstrip('0')
-                    if item.scheduled_time else None
-                ),
-                'time_of_day': routine.time_of_day,
-                'status': status,
-            }
-
-            window = routine.time_of_day or 'other'
-            items_by_window.setdefault(window, []).append(entry)
-
-            if status == 'pending' and next_pending is None:
-                next_pending = entry
-
-        state['today_item_count'] = len(today_items)
-        state['today_completed'] = total_completed
-        state['today_missed'] = total_missed
-        state['routine_items_today'] = items_by_window
-        state['next_pending_item'] = next_pending
-
-        # Determine current time window
-        _WINDOW_HOURS = {
-            'morning': (5, 10),
-            'mid_morning': (10, 12),
-            'lunch': (12, 14),
-            'afternoon': (14, 17),
-            'evening': (17, 23),
-        }
-        current_window = 'other'
-        hour = current_time.hour
-        for window_name, (start_h, end_h) in _WINDOW_HOURS.items():
-            if start_h <= hour < end_h:
-                current_window = window_name
+        for window_items in result['items_by_window'].values():
+            for item in window_items:
+                if item.get('status') == 'pending' and next_pending is None:
+                    next_pending = item
+                    break
+            if next_pending:
                 break
-        state['current_window'] = current_window
+        state['next_pending_item'] = next_pending
 
     except ImportError:
         pass  # Routine models may not exist

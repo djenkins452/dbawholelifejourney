@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_edit %}Edit{% else %}New{% endif %} Routine - Organize{% endblock %}
+
+{% block content %}
+<div class="content-container" data-testid="routine-form">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Organize</a>
+        <span>/</span>
+        <a href="{% url 'life:routine_list' %}">Routines</a>
+        <span>/</span>
+        <span>{% if is_edit %}Edit{% else %}New{% endif %}</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">{% if is_edit %}Edit Routine{% else %}New Routine{% endif %}</h1>
+    </div>
+
+    <form method="post" class="card" id="routine-form">
+        {% csrf_token %}
+
+        <!-- Routine fields -->
+        <div class="form-group">
+            <label for="id_name" class="form-label">Name</label>
+            {{ form.name }}
+            {% if form.name.errors %}<p class="form-error">{{ form.name.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div class="form-group">
+            <label for="id_description" class="form-label">Description (optional)</label>
+            {{ form.description }}
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_time_of_day" class="form-label">Time Window</label>
+                {{ form.time_of_day }}
+                <p class="form-help">When this routine typically happens.</p>
+            </div>
+            <div class="form-group">
+                <label for="id_sort_order" class="form-label">Order</label>
+                {{ form.sort_order }}
+            </div>
+        </div>
+
+        {% if is_edit %}
+        <div class="form-group">
+            <label class="form-label">
+                {{ form.is_active }}
+                Active
+            </label>
+        </div>
+        {% endif %}
+
+        <!-- Schedule Items (Formset) -->
+        <div id="schedule-items">
+            <h2 style="font-size: var(--font-size-lg); margin: var(--space-6) 0 var(--space-4);">Schedule Items</h2>
+
+            {{ formset.management_form }}
+
+            <div id="formset-container">
+            {% for sform in formset %}
+                <div class="schedule-item card mb-4" style="padding: var(--space-4);">
+                    {% if sform.instance.pk %}
+                    <input type="hidden" name="{{ sform.prefix }}-id" value="{{ sform.instance.pk }}">
+                    {% endif %}
+                    {{ sform.id }}
+
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 2;">
+                            <label class="form-label">Item Name</label>
+                            {{ sform.name }}
+                            {% if sform.name.errors %}<p class="form-error">{{ sform.name.errors.0 }}</p>{% endif %}
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">Time</label>
+                            {{ sform.scheduled_time }}
+                        </div>
+                        <div class="form-group" style="flex: 0 0 80px;">
+                            <label class="form-label">Grace</label>
+                            {{ sform.grace_period_minutes }}
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Days</label>
+                        <div class="days-selector">
+                            {% for value, label in sform.active_days.field.choices %}
+                            <label class="day-pill">
+                                <input type="checkbox" name="{{ sform.prefix }}-active_days"
+                                       value="{{ value }}"
+                                       {% if value in sform.initial.active_days or value|stringformat:"s" in sform.initial.active_days %}checked{% endif %}>
+                                <span>{{ label }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: var(--space-4);">
+                        {% if sform.instance.pk %}
+                        <div class="form-group" style="margin: 0;">
+                            <label>
+                                {{ sform.is_active }} Active
+                            </label>
+                        </div>
+                        {% endif %}
+                        <div class="form-group" style="margin: 0;">
+                            <label style="color: var(--color-error);">
+                                {{ sform.DELETE }} Remove
+                            </label>
+                        </div>
+                        <div class="form-group" style="margin: 0; flex: 0 0 80px;">
+                            <label class="form-label text-sm">Order</label>
+                            {{ sform.sort_order }}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+            </div>
+
+            <button type="button" class="btn btn-secondary mb-4" id="add-item-btn">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Add Item
+            </button>
+        </div>
+
+        {% include "components/form_actions.html" with cancel_url=cancel_url|default:"/life/routines/" %}
+    </form>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.form-row {
+    display: flex;
+    gap: var(--space-4);
+}
+.days-selector {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+.day-pill {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+}
+.day-pill input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.day-pill span {
+    display: inline-block;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    font-size: var(--font-size-sm);
+    min-width: 44px;
+    min-height: 44px;
+    text-align: center;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-fast);
+    user-select: none;
+}
+.day-pill input:checked + span {
+    background: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent);
+}
+@media (max-width: 640px) {
+    .form-row {
+        flex-direction: column;
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var totalForms = document.getElementById('id_items-TOTAL_FORMS');
+    var container = document.getElementById('formset-container');
+    var addBtn = document.getElementById('add-item-btn');
+
+    if (addBtn && container && totalForms) {
+        addBtn.addEventListener('click', function() {
+            var count = parseInt(totalForms.value);
+            var items = container.querySelectorAll('.schedule-item');
+            if (items.length === 0) return;
+
+            var template = items[items.length - 1];
+            var newItem = template.cloneNode(true);
+
+            // Update all name/id attributes with new index
+            newItem.querySelectorAll('input, select, textarea').forEach(function(el) {
+                if (el.name) {
+                    el.name = el.name.replace(/-\d+-/, '-' + count + '-');
+                }
+                if (el.id) {
+                    el.id = el.id.replace(/-\d+-/, '-' + count + '-');
+                }
+                // Clear values for new item
+                if (el.type === 'text' || el.type === 'time' || el.type === 'number') {
+                    el.value = '';
+                }
+                if (el.type === 'checkbox') {
+                    // Default: all days checked for new item, uncheck DELETE
+                    if (el.name.indexOf('active_days') > -1) {
+                        el.checked = true;
+                    } else if (el.name.indexOf('DELETE') > -1) {
+                        el.checked = false;
+                    } else if (el.name.indexOf('is_active') > -1) {
+                        el.checked = true;
+                    }
+                }
+                if (el.type === 'hidden' && el.name.indexOf('-id') > -1) {
+                    el.value = '';
+                }
+            });
+            newItem.querySelectorAll('label').forEach(function(lbl) {
+                if (lbl.htmlFor) {
+                    lbl.htmlFor = lbl.htmlFor.replace(/-\d+-/, '-' + count + '-');
+                }
+            });
+
+            // Set default values
+            var graceInput = newItem.querySelector('[name$="-grace_period_minutes"]');
+            if (graceInput) graceInput.value = '30';
+            var orderInput = newItem.querySelector('[name$="-sort_order"]');
+            if (orderInput) orderInput.value = '0';
+
+            container.appendChild(newItem);
+            totalForms.value = count + 1;
+
+            // Focus the name field
+            var nameInput = newItem.querySelector('[name$="-name"]');
+            if (nameInput) nameInput.focus();
+        });
+    }
+})();
+</script>
+{% endblock %}

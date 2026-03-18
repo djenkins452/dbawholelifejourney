@@ -57,9 +57,12 @@ from .models import (
     RecipeBulkImportSession,
     RecipeBulkImportPhoto,
     Document,
+    Routine,
+    RoutineLog,
+    RoutineSchedule,
     SignificantEvent,
 )
-from .forms import SignificantEventForm
+from .forms import RoutineForm, RoutineScheduleFormSet, SignificantEventForm
 
 
 class LifeAccessMixin(LoginRequiredMixin):
@@ -3241,3 +3244,333 @@ class BulkDeleteSignificantEventsView(LoginRequiredMixin, View):
             'message': f'{count} event{"" if count == 1 else "s"} deleted',
             'count': count
         })
+
+
+# =============================================================================
+# Routines — First-class domain views
+# =============================================================================
+
+class RoutineListView(HelpContextMixin, LifeAccessMixin, TemplateView):
+    """
+    Today's routines grouped by time window.
+
+    Uses canonical routine state from routine_helpers (shared with
+    build_routine_state) — single source of truth for window grouping.
+    """
+    template_name = "life/routine_list.html"
+    help_context_id = "ROUTINE_LIST"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from .services.routine_helpers import (
+            get_todays_routine_items,
+            WINDOW_DISPLAY_NAMES,
+            WINDOW_ORDER,
+        )
+
+        result = get_todays_routine_items(self.request.user)
+
+        # Build ordered list of windows for template iteration
+        windows = []
+        for window_key in WINDOW_ORDER:
+            items = result['items_by_window'].get(window_key, [])
+            completed_count = sum(1 for i in items if i.get('is_completed'))
+            windows.append({
+                'key': window_key,
+                'name': WINDOW_DISPLAY_NAMES.get(window_key, window_key.title()),
+                'items': items,
+                'completed_count': completed_count,
+                'is_current': window_key == result['current_window'],
+            })
+
+        context['windows'] = windows
+        context['today_count'] = result['today_count']
+        context['today_completed'] = result['today_completed']
+        context['today_missed'] = result['today_missed']
+        context['current_window'] = result['current_window']
+        context['total_routines'] = result['total_routines']
+        context['all_routines'] = result['routines']
+
+        # Check for legacy routine tasks for migration prompt
+        legacy_count = Task.objects.filter(
+            user=self.request.user, is_routine=True,
+            completion_status='pending',
+        ).count()
+        context['legacy_routine_count'] = legacy_count
+
+        return context
+
+
+class RoutineCreateView(HelpContextMixin, LifeAccessMixin, CreateView):
+    """Create a new routine with schedule items."""
+    model = Routine
+    form_class = RoutineForm
+    template_name = "life/routine_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if self.request.POST:
+            context['formset'] = RoutineScheduleFormSet(
+                self.request.POST, instance=self.object
+            )
+        else:
+            context['formset'] = RoutineScheduleFormSet(instance=self.object)
+        context['is_edit'] = False
+        return context
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        self.object = form.save()
+
+        formset = RoutineScheduleFormSet(self.request.POST, instance=self.object)
+        if formset.is_valid():
+            formset.save()
+            messages.success(self.request, f"Routine '{self.object.name}' created.")
+            return redirect('life:routine_list')
+        else:
+            return self.form_invalid(form)
+
+    def get_success_url(self):
+        return reverse('life:routine_list')
+
+
+class RoutineUpdateView(HelpContextMixin, LifeAccessMixin, UpdateView):
+    """Edit an existing routine and its schedule items."""
+    model = Routine
+    form_class = RoutineForm
+    template_name = "life/routine_form.html"
+
+    def get_queryset(self):
+        return Routine.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if self.request.POST:
+            context['formset'] = RoutineScheduleFormSet(
+                self.request.POST, instance=self.object
+            )
+        else:
+            context['formset'] = RoutineScheduleFormSet(instance=self.object)
+        context['is_edit'] = True
+        return context
+
+    def form_valid(self, form):
+        self.object = form.save()
+
+        formset = RoutineScheduleFormSet(self.request.POST, instance=self.object)
+        if formset.is_valid():
+            formset.save()
+            messages.success(self.request, f"Routine '{self.object.name}' updated.")
+            return redirect('life:routine_list')
+        else:
+            return self.form_invalid(form)
+
+    def get_success_url(self):
+        return reverse('life:routine_list')
+
+
+class RoutineDeleteView(LifeAccessMixin, View):
+    """Soft-delete a routine (POST only)."""
+
+    def post(self, request, pk):
+        routine = get_object_or_404(
+            Routine.objects.filter(user=request.user), pk=pk
+        )
+        routine.soft_delete()
+        messages.success(request, f"Routine '{routine.name}' deleted.")
+        return redirect('life:routine_list')
+
+
+class RoutineToggleView(LifeAccessMixin, View):
+    """Toggle routine schedule completion for a given date."""
+
+    def post(self, request, *args, **kwargs):
+        schedule_id = request.POST.get('schedule_id')
+        date_str = request.POST.get('date')
+
+        if not schedule_id:
+            return JsonResponse({'success': False, 'error': 'Missing schedule_id'}, status=400)
+
+        from apps.core.utils import get_user_today
+        if date_str:
+            from datetime import date as _date_cls
+            try:
+                target_date = _date_cls.fromisoformat(date_str)
+            except ValueError:
+                return JsonResponse({'success': False, 'error': 'Invalid date'}, status=400)
+        else:
+            target_date = get_user_today(request.user)
+
+        # Verify the schedule belongs to a routine owned by this user
+        schedule = get_object_or_404(
+            RoutineSchedule.objects.select_related('routine'),
+            pk=schedule_id,
+            routine__user=request.user,
+        )
+
+        # Toggle logic
+        existing_log = RoutineLog.objects.filter(
+            schedule=schedule, scheduled_date=target_date,
+        ).first()
+
+        if existing_log:
+            if existing_log.log_status in ('completed', 'completed_late'):
+                # Un-complete: delete the log
+                existing_log.delete()
+                new_status = 'pending'
+            elif existing_log.log_status == 'skipped':
+                # Convert skip to completed
+                existing_log.log_status = 'completed'
+                existing_log.completed_at = timezone.now()
+                existing_log.save(update_fields=['log_status', 'completed_at', 'updated_at'])
+                new_status = 'completed'
+            else:
+                new_status = existing_log.log_status
+        else:
+            # No log — create completed
+            RoutineLog.objects.create(
+                user=request.user,
+                schedule=schedule,
+                scheduled_date=target_date,
+                log_status='completed',
+                completed_at=timezone.now(),
+            )
+            new_status = 'completed'
+
+        return JsonResponse({
+            'success': True,
+            'schedule_id': int(schedule_id),
+            'status': new_status,
+            'is_completed': new_status == 'completed',
+        })
+
+
+class RoutineSkipView(LifeAccessMixin, View):
+    """Mark a routine schedule as skipped for a given date."""
+
+    def post(self, request, *args, **kwargs):
+        schedule_id = request.POST.get('schedule_id')
+        date_str = request.POST.get('date')
+
+        if not schedule_id:
+            return JsonResponse({'success': False, 'error': 'Missing schedule_id'}, status=400)
+
+        from apps.core.utils import get_user_today
+        if date_str:
+            from datetime import date as _date_cls
+            try:
+                target_date = _date_cls.fromisoformat(date_str)
+            except ValueError:
+                return JsonResponse({'success': False, 'error': 'Invalid date'}, status=400)
+        else:
+            target_date = get_user_today(request.user)
+
+        schedule = get_object_or_404(
+            RoutineSchedule.objects.select_related('routine'),
+            pk=schedule_id,
+            routine__user=request.user,
+        )
+
+        log, created = RoutineLog.objects.update_or_create(
+            schedule=schedule,
+            scheduled_date=target_date,
+            defaults={
+                'user': request.user,
+                'log_status': 'skipped',
+                'completed_at': None,
+            },
+        )
+
+        return JsonResponse({
+            'success': True,
+            'schedule_id': int(schedule_id),
+            'status': 'skipped',
+        })
+
+
+class RoutineMigrationView(HelpContextMixin, LifeAccessMixin, TemplateView):
+    """
+    Legacy migration tool: convert Task.is_routine tasks to canonical Routine objects.
+
+    This is a one-way migration utility, not an ongoing dual-entry workflow.
+    """
+    template_name = "life/routine_migration.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['routine_tasks'] = Task.objects.filter(
+            user=self.request.user,
+            is_routine=True,
+            completion_status='pending',
+        ).order_by('scheduled_time', 'title')
+        return context
+
+    def post(self, request, *args, **kwargs):
+        task_ids = request.POST.getlist('task_ids')
+        if not task_ids:
+            messages.warning(request, "No tasks selected for migration.")
+            return redirect('life:routine_migration')
+
+        tasks = Task.objects.filter(
+            pk__in=task_ids,
+            user=request.user,
+            is_routine=True,
+        )
+
+        migrated = 0
+        skipped = 0
+        for task in tasks:
+            # Idempotency check: skip if a routine with this exact name already exists
+            if Routine.objects.filter(user=request.user, name=task.title).exists():
+                skipped += 1
+                continue
+
+            # Determine time_of_day from scheduled_time
+            time_of_day = 'morning'
+            if task.scheduled_time:
+                hour = task.scheduled_time.hour
+                if hour < 10:
+                    time_of_day = 'morning'
+                elif hour < 12:
+                    time_of_day = 'mid_morning'
+                elif hour < 14:
+                    time_of_day = 'lunch'
+                elif hour < 17:
+                    time_of_day = 'afternoon'
+                elif hour < 21:
+                    time_of_day = 'evening'
+                else:
+                    time_of_day = 'nightly'
+
+            # Create Routine
+            routine = Routine.objects.create(
+                user=request.user,
+                name=task.title,
+                description=task.notes or '',
+                time_of_day=time_of_day,
+                is_active=True,
+            )
+
+            # Create a single RoutineSchedule item
+            RoutineSchedule.objects.create(
+                routine=routine,
+                name=task.title,
+                scheduled_time=task.scheduled_time or timezone.now().time(),
+                grace_period_minutes=30,
+                days_of_week='0,1,2,3,4,5,6',  # Default: every day
+                is_active=True,
+            )
+
+            # Mark legacy task as completed
+            task.is_routine = False
+            task.completion_status = 'completed'
+            task.completed_at = timezone.now()
+            task.save(update_fields=['is_routine', 'completion_status', 'completed_at', 'updated_at'])
+
+            migrated += 1
+
+        msg = f"Migrated {migrated} task(s) to routines."
+        if skipped:
+            msg += f" Skipped {skipped} (routine with same name already exists)."
+        messages.success(request, msg)
+        return redirect('life:routine_list')

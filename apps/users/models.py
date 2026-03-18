@@ -451,6 +451,7 @@ class UserPreferences(models.Model):
         'maintenance': {'label': 'Home Maintenance', 'default': True, 'icon': '🔧'},
         'documents': {'label': 'Documents', 'default': True, 'icon': '📄'},
         'significant_events': {'label': 'Significant Events', 'default': True, 'icon': '🎂'},
+        'routines': {'label': 'Routines', 'default': True, 'icon': '🔄'},
     }
 
     GOALS_FEATURES = {

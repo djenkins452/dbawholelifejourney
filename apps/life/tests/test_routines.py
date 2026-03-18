@@ -1,0 +1,314 @@
+"""
+Tests for Routine views — first-class routine domain.
+
+Tests cover: list, create, update, delete, toggle, skip, and migration.
+"""
+
+from datetime import time, date
+
+from django.conf import settings
+from django.test import TestCase, Client
+from django.urls import reverse
+from django.utils import timezone
+
+from apps.life.models import Routine, RoutineLog, RoutineSchedule, Task
+from apps.users.models import User, TermsAcceptance
+
+
+class RoutineTestMixin:
+    """Shared setup for routine tests."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            email='routine@test.com', password='testpass123'
+        )
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0'),
+        )
+        self.user.preferences.has_completed_onboarding = True
+        self.user.preferences.save()
+        self.client.login(email='routine@test.com', password='testpass123')
+
+    def _create_routine(self, name='Morning Routine', time_of_day='morning'):
+        return Routine.objects.create(
+            user=self.user, name=name, time_of_day=time_of_day, is_active=True,
+        )
+
+    def _create_schedule(self, routine, name='Prayer', hour=6, minute=30):
+        return RoutineSchedule.objects.create(
+            routine=routine, name=name,
+            scheduled_time=time(hour, minute),
+            grace_period_minutes=30,
+            days_of_week='0,1,2,3,4,5,6',
+            is_active=True,
+        )
+
+
+class RoutineListViewTests(RoutineTestMixin, TestCase):
+
+    def test_requires_auth(self):
+        self.client.logout()
+        response = self.client.get(reverse('life:routine_list'))
+        self.assertEqual(response.status_code, 302)
+
+    def test_renders_empty(self):
+        response = self.client.get(reverse('life:routine_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'No routines yet')
+
+    def test_renders_with_routines(self):
+        routine = self._create_routine()
+        self._create_schedule(routine)
+        response = self.client.get(reverse('life:routine_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Morning Routine')
+        self.assertContains(response, 'Prayer')
+
+    def test_groups_by_window(self):
+        morning = self._create_routine('AM', 'morning')
+        evening = self._create_routine('PM', 'evening')
+        self._create_schedule(morning, 'Wake up', 6, 0)
+        self._create_schedule(evening, 'Journal', 20, 0)
+        response = self.client.get(reverse('life:routine_list'))
+        self.assertEqual(response.status_code, 200)
+        context = response.context
+        windows = context['windows']
+        morning_window = next(w for w in windows if w['key'] == 'morning')
+        evening_window = next(w for w in windows if w['key'] == 'evening')
+        self.assertEqual(len(morning_window['items']), 1)
+        self.assertEqual(len(evening_window['items']), 1)
+
+    def test_shows_today_logs(self):
+        routine = self._create_routine()
+        schedule = self._create_schedule(routine)
+        from apps.core.utils import get_user_today
+        today = get_user_today(self.user)
+        RoutineLog.objects.create(
+            user=self.user, schedule=schedule,
+            scheduled_date=today, log_status='completed',
+            completed_at=timezone.now(),
+        )
+        response = self.client.get(reverse('life:routine_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '1/1')  # completed count in summary
+
+
+class RoutineCreateViewTests(RoutineTestMixin, TestCase):
+
+    def test_get_form(self):
+        response = self.client.get(reverse('life:routine_create'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'New Routine')
+
+    def test_create_routine_with_items(self):
+        data = {
+            'name': 'Test Routine',
+            'description': 'A test',
+            'time_of_day': 'morning',
+            'is_active': 'on',
+            'sort_order': '0',
+            # Formset management
+            'items-TOTAL_FORMS': '1',
+            'items-INITIAL_FORMS': '0',
+            'items-MIN_NUM_FORMS': '0',
+            'items-MAX_NUM_FORMS': '1000',
+            # First item
+            'items-0-name': 'Exercise',
+            'items-0-scheduled_time': '07:00',
+            'items-0-grace_period_minutes': '30',
+            'items-0-active_days': ['0', '1', '2', '3', '4'],
+            'items-0-sort_order': '0',
+        }
+        response = self.client.post(reverse('life:routine_create'), data)
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Routine.objects.filter(name='Test Routine').exists())
+        routine = Routine.objects.get(name='Test Routine')
+        self.assertEqual(routine.items.count(), 1)
+        item = routine.items.first()
+        self.assertEqual(item.name, 'Exercise')
+        self.assertEqual(item.days_of_week, '0,1,2,3,4')
+
+
+class RoutineUpdateViewTests(RoutineTestMixin, TestCase):
+
+    def test_update_routine(self):
+        routine = self._create_routine()
+        schedule = self._create_schedule(routine)
+        data = {
+            'name': 'Updated Routine',
+            'description': '',
+            'time_of_day': 'evening',
+            'is_active': 'on',
+            'sort_order': '0',
+            'items-TOTAL_FORMS': '1',
+            'items-INITIAL_FORMS': '1',
+            'items-MIN_NUM_FORMS': '0',
+            'items-MAX_NUM_FORMS': '1000',
+            'items-0-id': str(schedule.pk),
+            'items-0-name': 'Updated Item',
+            'items-0-scheduled_time': '20:00',
+            'items-0-grace_period_minutes': '15',
+            'items-0-active_days': ['0', '1', '2', '3', '4', '5', '6'],
+            'items-0-sort_order': '0',
+        }
+        response = self.client.post(
+            reverse('life:routine_update', args=[routine.pk]), data
+        )
+        self.assertEqual(response.status_code, 302)
+        routine.refresh_from_db()
+        self.assertEqual(routine.name, 'Updated Routine')
+        self.assertEqual(routine.time_of_day, 'evening')
+
+
+class RoutineDeleteViewTests(RoutineTestMixin, TestCase):
+
+    def test_soft_delete(self):
+        routine = self._create_routine()
+        response = self.client.post(
+            reverse('life:routine_delete', args=[routine.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        routine.refresh_from_db()
+        self.assertEqual(routine.status, 'deleted')
+
+    def test_cannot_delete_other_users_routine(self):
+        other_user = User.objects.create_user(
+            email='other@test.com', password='testpass123'
+        )
+        routine = Routine.objects.create(
+            user=other_user, name='Other', time_of_day='morning',
+        )
+        response = self.client.post(
+            reverse('life:routine_delete', args=[routine.pk])
+        )
+        self.assertEqual(response.status_code, 404)
+
+
+class RoutineToggleViewTests(RoutineTestMixin, TestCase):
+
+    def test_create_completed_log(self):
+        routine = self._create_routine()
+        schedule = self._create_schedule(routine)
+        response = self.client.post(
+            reverse('life:routine_toggle'),
+            {'schedule_id': schedule.pk},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertTrue(data['is_completed'])
+        self.assertTrue(RoutineLog.objects.filter(
+            schedule=schedule, log_status='completed',
+        ).exists())
+
+    def test_un_complete_log(self):
+        routine = self._create_routine()
+        schedule = self._create_schedule(routine)
+        from apps.core.utils import get_user_today
+        today = get_user_today(self.user)
+        RoutineLog.objects.create(
+            user=self.user, schedule=schedule,
+            scheduled_date=today, log_status='completed',
+            completed_at=timezone.now(),
+        )
+        response = self.client.post(
+            reverse('life:routine_toggle'),
+            {'schedule_id': schedule.pk},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertFalse(data['is_completed'])
+        self.assertFalse(RoutineLog.objects.filter(
+            schedule=schedule, scheduled_date=today,
+        ).exists())
+
+    def test_convert_skipped_to_completed(self):
+        routine = self._create_routine()
+        schedule = self._create_schedule(routine)
+        from apps.core.utils import get_user_today
+        today = get_user_today(self.user)
+        RoutineLog.objects.create(
+            user=self.user, schedule=schedule,
+            scheduled_date=today, log_status='skipped',
+        )
+        response = self.client.post(
+            reverse('life:routine_toggle'),
+            {'schedule_id': schedule.pk},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertTrue(data['is_completed'])
+        log = RoutineLog.objects.get(schedule=schedule, scheduled_date=today)
+        self.assertEqual(log.log_status, 'completed')
+
+
+class RoutineSkipViewTests(RoutineTestMixin, TestCase):
+
+    def test_skip_creates_log(self):
+        routine = self._create_routine()
+        schedule = self._create_schedule(routine)
+        response = self.client.post(
+            reverse('life:routine_skip'),
+            {'schedule_id': schedule.pk},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['status'], 'skipped')
+
+
+class RoutineMigrationViewTests(RoutineTestMixin, TestCase):
+
+    def test_get_shows_routine_tasks(self):
+        Task.objects.create(
+            user=self.user, title='Legacy Routine',
+            is_routine=True, scheduled_time=time(7, 0),
+        )
+        response = self.client.get(reverse('life:routine_migration'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Legacy Routine')
+
+    def test_migrate_creates_routine(self):
+        task = Task.objects.create(
+            user=self.user, title='Migrate Me',
+            is_routine=True, scheduled_time=time(7, 0),
+        )
+        response = self.client.post(
+            reverse('life:routine_migration'),
+            {'task_ids': [str(task.pk)]},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Routine.objects.filter(name='Migrate Me').exists())
+        task.refresh_from_db()
+        self.assertEqual(task.completion_status, 'completed')
+        self.assertFalse(task.is_routine)
+
+    def test_idempotent_migration(self):
+        """Migrating same task twice should not create duplicate routines."""
+        task = Task.objects.create(
+            user=self.user, title='Already Migrated',
+            is_routine=True, scheduled_time=time(7, 0),
+        )
+        # First migration
+        self.client.post(
+            reverse('life:routine_migration'),
+            {'task_ids': [str(task.pk)]},
+        )
+        # Create another task with same name
+        task2 = Task.objects.create(
+            user=self.user, title='Already Migrated',
+            is_routine=True, scheduled_time=time(8, 0),
+        )
+        # Second migration should skip
+        self.client.post(
+            reverse('life:routine_migration'),
+            {'task_ids': [str(task2.pk)]},
+        )
+        self.assertEqual(
+            Routine.objects.filter(name='Already Migrated').count(), 1
+        )

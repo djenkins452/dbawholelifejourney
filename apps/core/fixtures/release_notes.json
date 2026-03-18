@@ -1,6 +1,38 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 165,
+    "fields": {
+      "title": "Routines: Track Your Daily Habits",
+      "description": "A brand new Routines section lets you define and track daily recurring habits like morning prayer, exercise, or evening journaling. Routines are grouped by time of day (Morning, Afternoon, Evening, Nightly) with the current window highlighted. Check off items as you complete them throughout the day. If you had tasks marked as routines, use the migration tool to convert them to the new system.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-18",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-03-18T12:00:00Z",
+      "updated_at": "2026-03-18T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 166,
+    "fields": {
+      "title": "Navigation: All Domains Now Accessible",
+      "description": "People, Notes, and Brain Training are now accessible from the main navigation. People appears as a top-level item for managing contacts and relationships. Notes lets you capture and organize thoughts. Brain Training is available under Health for cognitive exercises.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-18",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-18T12:00:00Z",
+      "updated_at": "2026-03-18T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 164,
     "fields": {
       "title": "Interactive A/B/C Option Buttons in Chat",

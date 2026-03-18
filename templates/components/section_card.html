@@ -1,0 +1,18 @@
+{# Reusable section card with title, optional subtitle, and body slot #}
+{# Usage: {% include "components/section_card.html" with card_title="Title" card_subtitle="Subtitle" card_class="extra-class" %} #}
+{# Body content should be passed via a wrapping pattern or used with card_body variable #}
+
+<div class="card{% if card_class %} {{ card_class }}{% endif %}">
+    {% if card_title %}
+    <div class="card-header">
+        <h2 class="card-title">{{ card_title }}</h2>
+        {% if card_subtitle %}<p class="card-subtitle text-muted text-sm">{{ card_subtitle }}</p>{% endif %}
+        {% if card_action_url %}
+        <a href="{{ card_action_url }}" class="btn btn-sm btn-ghost">{{ card_action_label|default:"View" }}</a>
+        {% endif %}
+    </div>
+    {% endif %}
+    <div class="card-body">
+        {{ card_body }}
+    </div>
+</div>

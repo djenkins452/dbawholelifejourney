@@ -106,7 +106,9 @@ class WorkoutDashboardExcelView(LoginRequiredMixin, View):
         month_ago = today - timedelta(days=30)
         workouts_this_week = workouts.filter(date__gte=week_ago).count()
         workouts_this_month = workouts.filter(date__gte=month_ago).count()
-        total_duration = workouts.aggregate(s=Sum("duration_minutes"))["s"] or 0
+        total_duration = workouts.filter(
+            completed_at__isnull=False,
+        ).aggregate(s=Sum("duration_minutes"))["s"] or 0
         total_calories = workouts.aggregate(s=Sum("calories_burned"))["s"] or 0
         total_sets_count = all_sets.count()
 

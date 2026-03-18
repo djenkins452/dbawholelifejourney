@@ -155,7 +155,9 @@ class SignalAggregationService:
         """
         from apps.health.models import WorkoutSession
 
-        sessions = WorkoutSession.objects.filter(user=user, date=date)
+        sessions = WorkoutSession.objects.filter(
+            user=user, date=date, completed_at__isnull=False,
+        )
         total_minutes = sum(s.duration_minutes or 0 for s in sessions)
         session_count = sessions.count()
 

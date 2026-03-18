@@ -1745,6 +1745,40 @@ def process_workout_metric(user, metric_date, source, sync_id, data):
                 return "updated"
             return "skipped"
 
+    # Check for overlapping manual entries on the same date.
+    # Only merge when time overlap is provable (both sessions have timestamps).
+    # This prevents HealthKit from creating a duplicate WorkoutSession when the
+    # user already manually logged the same physical workout.
+    if started_at and completed_at:
+        manual_overlap = (
+            WorkoutSession.objects.filter(
+                user=user,
+                date=metric_date,
+                source="manual",
+            )
+            .filter(
+                # Manual entry must have timestamps to prove overlap
+                started_at__isnull=False,
+                completed_at__isnull=False,
+                # Time windows overlap: manual.start < hk.end AND manual.end > hk.start
+                started_at__lt=completed_at,
+                completed_at__gt=started_at,
+            )
+            .first()
+        )
+        if manual_overlap:
+            # Enrich the existing manual entry with HealthKit data
+            manual_overlap.sync_id = sync_id
+            manual_overlap.source = "manual"  # preserve manual ownership
+            if workout_calories and not manual_overlap.calories_burned:
+                manual_overlap.calories_burned = workout_calories
+            if workout_avg_heart_rate and not manual_overlap.avg_heart_rate:
+                manual_overlap.avg_heart_rate = workout_avg_heart_rate
+            if workout_distance and not manual_overlap.distance_miles:
+                manual_overlap.distance_miles = workout_distance
+            manual_overlap.save()
+            return "merged"
+
     # Create new WorkoutSession, handle race condition gracefully
     try:
         WorkoutSession.objects.create(

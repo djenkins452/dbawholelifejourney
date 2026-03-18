@@ -259,6 +259,18 @@
         <p class="brain-subtitle">Focus &bull; Logic &bull; Memory &bull; Reasoning &bull; Language</p>
     </header>
 
+    {% if not has_access %}
+    <div class="card" style="text-align: center; padding: var(--space-8); margin-bottom: var(--space-6);">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--color-text-muted)" stroke-width="1.5" style="margin-bottom: var(--space-4);">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <h2 style="margin-bottom: var(--space-2);">Subscription Required</h2>
+        <p class="text-muted" style="margin-bottom: var(--space-4);">Brain Training exercises are available with an active subscription. Upgrade your plan to unlock cognitive training games.</p>
+        <a href="{% url 'billing:select_plan' %}" class="btn btn-primary">View Plans</a>
+    </div>
+    {% else %}
+
     {% if overall %}
     <div class="overall-stats">
         <div class="stat-item">
@@ -334,6 +346,7 @@
             View detailed stats &amp; progress
         </a>
     </div>
+    {% endif %}{# has_access #}
 </div>
 {% endblock %}
 

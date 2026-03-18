@@ -332,8 +332,9 @@ def populate_module_catalog(apps, schema_editor):
             defaults=module_data,
         )
 
-    # Remove 'notes' module — not in canonical catalog
-    ModuleDefinition.objects.filter(slug='notes').delete()
+    # NOTE: Previously deleted 'notes' module here, but Notes is now
+    # part of the canonical catalog (added in fixture + UI Alignment Phase).
+    # Deletion removed to prevent fixture/migration conflict.
 
 
 def reverse_migration(apps, schema_editor):

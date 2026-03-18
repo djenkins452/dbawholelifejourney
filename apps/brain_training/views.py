@@ -42,9 +42,14 @@ def check_subscription(user):
 def hub(request):
     """
     Brain Training hub page showing all available exercises.
+    Shows locked state if user doesn't have an active subscription.
     """
     if not check_subscription(request.user):
-        return redirect('billing:select_plan')
+        context = {
+            'has_access': False,
+            'help_context_id': 'HEALTH_COGNITIVE_HUB',
+        }
+        return render(request, 'brain_training/hub.html', context)
 
     exercises = Game.objects.filter(is_active=True).order_by('sort_order')
 
@@ -68,6 +73,7 @@ def hub(request):
         overall = None
 
     context = {
+        'has_access': True,
         'exercises': exercises,
         'exercise_stats': exercise_stats,
         'overall': overall,

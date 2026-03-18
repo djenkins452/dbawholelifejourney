@@ -2224,9 +2224,9 @@ def build_routine_state(user):
     state = {}
 
     try:
-        from apps.life.services.routine_helpers import get_todays_routine_items
+        from apps.life.services.routine_helpers import _get_todays_routine_items
 
-        result = get_todays_routine_items(user)
+        result = _get_todays_routine_items(user)
 
         state['total_routines'] = result['total_routines']
         if state['total_routines'] == 0:

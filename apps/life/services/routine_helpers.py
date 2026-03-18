@@ -1,64 +1,44 @@
 """
-Canonical routine helpers — shared logic for routine state computation.
+Canonical routine domain logic — INTERNAL to state_builder.
 
-Extracted from apps.core.ai_state.state_builder.build_routine_state() to
-provide a single source of truth for window grouping, current window
-detection, and today's routine item collection.
+This module is the single source of truth for routine state computation
+and status transitions. It is called ONLY by:
+- apps.core.ai_state.state_builder.build_routine_state()
 
-Used by:
-- RoutineListView (UI layer)
-- build_routine_state (intelligence layer)
+The UI (RoutineListView) accesses routine state via build_routine_state(),
+NOT by calling these functions directly.
+
+Status transition rules (strict execution model):
+- One RoutineLog per schedule per day (enforced by unique_together)
+- none → completed  (toggle: first check)
+- completed → none  (toggle: un-check, deletes log)
+- skipped → completed  (toggle: re-check a skipped item)
+- none → skipped  (explicit skip action)
+- Missed is COMPUTED, not stored (absence of log + time past grace)
+- No auto-complete — completion is explicit only
 """
 
 import logging
 from datetime import datetime as _dt_cls, timedelta as _td
 
+from django.utils import timezone
+
+from apps.core.time_windows import (
+    WINDOW_DISPLAY_NAMES,
+    WINDOW_HOURS,
+    WINDOW_ORDER,
+    get_current_window,
+)
 from apps.core.utils import get_user_now, get_user_today
 
 logger = logging.getLogger(__name__)
 
-# Canonical time window boundaries (hour ranges, inclusive start, exclusive end)
-WINDOW_HOURS = {
-    'morning': (5, 10),
-    'mid_morning': (10, 12),
-    'lunch': (12, 14),
-    'afternoon': (14, 17),
-    'evening': (17, 21),
-    'nightly': (21, 24),
-}
 
-# Display-friendly window names
-WINDOW_DISPLAY_NAMES = {
-    'morning': 'Morning',
-    'mid_morning': 'Mid-Morning',
-    'lunch': 'Lunch',
-    'afternoon': 'Afternoon',
-    'evening': 'Evening',
-    'nightly': 'Nightly',
-}
-
-# Canonical window ordering for consistent UI display
-WINDOW_ORDER = ['morning', 'mid_morning', 'lunch', 'afternoon', 'evening', 'nightly']
-
-
-def get_current_window(user):
-    """
-    Determine the current time window based on the user's local time.
-
-    Returns:
-        str: Window key (e.g., 'morning', 'afternoon') or 'other' if outside all windows.
-    """
-    user_now = get_user_now(user)
-    hour = user_now.time().hour
-    for window_name, (start_h, end_h) in WINDOW_HOURS.items():
-        if start_h <= hour < end_h:
-            return window_name
-    return 'other'
-
-
-def get_todays_routine_items(user):
+def _get_todays_routine_items(user):
     """
     Collect today's routine schedule items for a user, grouped by time window.
+
+    INTERNAL — called by build_routine_state() only.
 
     Returns:
         dict with keys:
@@ -68,8 +48,10 @@ def get_todays_routine_items(user):
             today_missed: int
             current_window: str
             logs_by_schedule: {schedule_id: RoutineLog}
+            total_routines: int
+            routines: list of Routine objects
     """
-    from apps.life.models import Routine, RoutineLog, RoutineSchedule
+    from apps.life.models import Routine, RoutineLog
 
     user_today = get_user_today(user)
     user_now = get_user_now(user)
@@ -170,3 +152,85 @@ def get_todays_routine_items(user):
         'total_routines': total_routines,
         'routines': list(active_routines),
     }
+
+
+# ── Status Transition Service Functions ────────────────────────────
+# These are the ONLY way to mutate RoutineLog state. Views call these,
+# not raw ORM operations.
+
+
+def toggle_routine_completion(user, schedule, target_date):
+    """
+    Toggle a routine schedule item's completion for a date.
+
+    Transition rules:
+        no log → completed (create)
+        completed/completed_late → pending (delete log)
+        skipped → completed (update)
+
+    Args:
+        user: User instance
+        schedule: RoutineSchedule instance (must belong to user)
+        target_date: date
+
+    Returns:
+        dict: {status: str, is_completed: bool}
+    """
+    from apps.life.models import RoutineLog
+
+    existing_log = RoutineLog.objects.filter(
+        schedule=schedule, scheduled_date=target_date,
+    ).first()
+
+    if existing_log:
+        if existing_log.log_status in ('completed', 'completed_late'):
+            # Un-complete: remove the log entirely
+            existing_log.delete()
+            return {'status': 'pending', 'is_completed': False}
+        elif existing_log.log_status == 'skipped':
+            # Convert skip → completed
+            existing_log.log_status = 'completed'
+            existing_log.completed_at = timezone.now()
+            existing_log.save(update_fields=['log_status', 'completed_at', 'updated_at'])
+            return {'status': 'completed', 'is_completed': True}
+        else:
+            return {'status': existing_log.log_status, 'is_completed': False}
+    else:
+        # No log → create completed
+        RoutineLog.objects.create(
+            user=user,
+            schedule=schedule,
+            scheduled_date=target_date,
+            log_status='completed',
+            completed_at=timezone.now(),
+        )
+        return {'status': 'completed', 'is_completed': True}
+
+
+def skip_routine(user, schedule, target_date):
+    """
+    Mark a routine schedule item as skipped for a date.
+
+    Uses update_or_create to prevent duplicates (defense-in-depth
+    alongside unique_together DB constraint).
+
+    Args:
+        user: User instance
+        schedule: RoutineSchedule instance (must belong to user)
+        target_date: date
+
+    Returns:
+        dict: {status: 'skipped'}
+    """
+    from apps.life.models import RoutineLog
+
+    RoutineLog.objects.update_or_create(
+        schedule=schedule,
+        scheduled_date=target_date,
+        defaults={
+            'user': user,
+            'log_status': 'skipped',
+            'completed_at': None,
+        },
+    )
+    return {'status': 'skipped'}

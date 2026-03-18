@@ -6,6 +6,38 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Architecture Hardening: Post-Deploy Stabilization
+
+**Purpose:** Lock routine domain behavior, prevent state/helper drift, standardize time windows, fix module catalog ownership, fix Brain Training access.
+
+**Objective 1 — Lock routine domain behavior:**
+- Extracted toggle/skip logic from views into `routine_helpers.toggle_routine_completion()` and `skip_routine()` — single source of truth for status transitions
+- Views now delegate to service functions, no inline ORM mutations
+- `unique_together` on RoutineLog already enforces one-log-per-day at DB level
+
+**Objective 2 — Prevent state/helper drift:**
+- Renamed `get_todays_routine_items()` → `_get_todays_routine_items()` (private)
+- RoutineListView now reads state via `build_routine_state()` (canonical contract), not helpers directly
+- Architecture: UI → state_builder → helper (never UI → helper)
+
+**Objective 3 — Standardize time window engine:**
+- Created `apps/core/time_windows.py` — shared WINDOW_HOURS, WINDOW_DISPLAY_NAMES, WINDOW_ORDER, get_current_window(), get_window_for_hour()
+- routine_helpers now imports from time_windows (no longer owns the definitions)
+- Foundation ready for medicine, meals, and future scheduling systems
+
+**Objective 4 — Fix ModuleDefinition ownership:**
+- Neutralized `apps/users/migrations/0077_populate_module_catalog.py` line 336 — no longer deletes notes module
+- Fixtures are now the source of truth for module catalog (relationships, notes, brain_training)
+
+**Objective 5 — Fix Brain Training access:**
+- Hub view no longer hard-redirects to billing on no subscription
+- Shows locked-state page with explanation and "View Plans" link instead
+- Context includes `has_access` flag for template conditional
+
+**Files changed:** `apps/core/time_windows.py` (new), `apps/life/services/routine_helpers.py`, `apps/core/ai_state/state_builder.py`, `apps/life/views.py`, `apps/brain_training/views.py`, `apps/brain_training/templates/brain_training/hub.html`, `apps/users/migrations/0077_populate_module_catalog.py`, `docs/wlj_claude_changelog.md`
+
+---
+
 ## 2026-03-18 — UI Alignment Phase: Routines UI + Navigation Expansion
 
 **Purpose:** Make WLJ usable day-to-day by exposing all domains via navigation and building a first-class Routines UI.

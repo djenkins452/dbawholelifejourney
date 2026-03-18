@@ -58,7 +58,6 @@ from .models import (
     RecipeBulkImportPhoto,
     Document,
     Routine,
-    RoutineLog,
     RoutineSchedule,
     SignificantEvent,
 )
@@ -3254,42 +3253,47 @@ class RoutineListView(HelpContextMixin, LifeAccessMixin, TemplateView):
     """
     Today's routines grouped by time window.
 
-    Uses canonical routine state from routine_helpers (shared with
-    build_routine_state) — single source of truth for window grouping.
+    Reads canonical state via build_routine_state() — the ONLY public
+    interface for routine state. UI never calls helpers directly.
     """
     template_name = "life/routine_list.html"
     help_context_id = "ROUTINE_LIST"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        from .services.routine_helpers import (
-            get_todays_routine_items,
-            WINDOW_DISPLAY_NAMES,
-            WINDOW_ORDER,
-        )
+        from apps.core.ai_state.state_builder import build_routine_state
+        from apps.core.time_windows import WINDOW_DISPLAY_NAMES, WINDOW_ORDER
+        from apps.life.models import Routine
 
-        result = get_todays_routine_items(self.request.user)
+        state = build_routine_state(self.request.user)
+        contract = state.get('_contract', {})
+        summary = contract.get('summary', {})
+        today = contract.get('today', {})
+        items_by_window = today.get('items_by_window', {})
 
         # Build ordered list of windows for template iteration
         windows = []
         for window_key in WINDOW_ORDER:
-            items = result['items_by_window'].get(window_key, [])
-            completed_count = sum(1 for i in items if i.get('is_completed'))
+            items = items_by_window.get(window_key, [])
+            completed_count = sum(1 for i in items if i.get('status') == 'completed')
             windows.append({
                 'key': window_key,
                 'name': WINDOW_DISPLAY_NAMES.get(window_key, window_key.title()),
                 'items': items,
                 'completed_count': completed_count,
-                'is_current': window_key == result['current_window'],
+                'is_current': window_key == today.get('current_window'),
             })
 
         context['windows'] = windows
-        context['today_count'] = result['today_count']
-        context['today_completed'] = result['today_completed']
-        context['today_missed'] = result['today_missed']
-        context['current_window'] = result['current_window']
-        context['total_routines'] = result['total_routines']
-        context['all_routines'] = result['routines']
+        context['today_count'] = summary.get('today_count', 0)
+        context['today_completed'] = summary.get('today_completed', 0)
+        context['today_missed'] = summary.get('today_missed', 0)
+        context['current_window'] = today.get('current_window')
+        context['total_routines'] = summary.get('total_routines', 0)
+        # All routines for manage panel (lightweight query)
+        context['all_routines'] = Routine.objects.filter(
+            user=self.request.user, is_active=True,
+        ).order_by('sort_order', 'name')
 
         # Check for legacy routine tasks for migration prompt
         legacy_count = Task.objects.filter(
@@ -3382,7 +3386,11 @@ class RoutineDeleteView(LifeAccessMixin, View):
 
 
 class RoutineToggleView(LifeAccessMixin, View):
-    """Toggle routine schedule completion for a given date."""
+    """Toggle routine schedule completion for a given date.
+
+    Delegates to routine_helpers.toggle_routine_completion() —
+    the single source of truth for status transitions.
+    """
 
     def post(self, request, *args, **kwargs):
         schedule_id = request.POST.get('schedule_id')
@@ -3401,52 +3409,29 @@ class RoutineToggleView(LifeAccessMixin, View):
         else:
             target_date = get_user_today(request.user)
 
-        # Verify the schedule belongs to a routine owned by this user
         schedule = get_object_or_404(
             RoutineSchedule.objects.select_related('routine'),
             pk=schedule_id,
             routine__user=request.user,
         )
 
-        # Toggle logic
-        existing_log = RoutineLog.objects.filter(
-            schedule=schedule, scheduled_date=target_date,
-        ).first()
-
-        if existing_log:
-            if existing_log.log_status in ('completed', 'completed_late'):
-                # Un-complete: delete the log
-                existing_log.delete()
-                new_status = 'pending'
-            elif existing_log.log_status == 'skipped':
-                # Convert skip to completed
-                existing_log.log_status = 'completed'
-                existing_log.completed_at = timezone.now()
-                existing_log.save(update_fields=['log_status', 'completed_at', 'updated_at'])
-                new_status = 'completed'
-            else:
-                new_status = existing_log.log_status
-        else:
-            # No log — create completed
-            RoutineLog.objects.create(
-                user=request.user,
-                schedule=schedule,
-                scheduled_date=target_date,
-                log_status='completed',
-                completed_at=timezone.now(),
-            )
-            new_status = 'completed'
+        from .services.routine_helpers import toggle_routine_completion
+        result = toggle_routine_completion(request.user, schedule, target_date)
 
         return JsonResponse({
             'success': True,
             'schedule_id': int(schedule_id),
-            'status': new_status,
-            'is_completed': new_status == 'completed',
+            'status': result['status'],
+            'is_completed': result['is_completed'],
         })
 
 
 class RoutineSkipView(LifeAccessMixin, View):
-    """Mark a routine schedule as skipped for a given date."""
+    """Mark a routine schedule as skipped for a given date.
+
+    Delegates to routine_helpers.skip_routine() —
+    the single source of truth for status transitions.
+    """
 
     def post(self, request, *args, **kwargs):
         schedule_id = request.POST.get('schedule_id')
@@ -3471,15 +3456,8 @@ class RoutineSkipView(LifeAccessMixin, View):
             routine__user=request.user,
         )
 
-        log, created = RoutineLog.objects.update_or_create(
-            schedule=schedule,
-            scheduled_date=target_date,
-            defaults={
-                'user': request.user,
-                'log_status': 'skipped',
-                'completed_at': None,
-            },
-        )
+        from .services.routine_helpers import skip_routine
+        result = skip_routine(request.user, schedule, target_date)
 
         return JsonResponse({
             'success': True,

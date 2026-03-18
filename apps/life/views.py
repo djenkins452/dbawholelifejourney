@@ -348,19 +348,9 @@ class TaskListView(HelpContextMixin, LifeAccessMixin, ListView):
         if project_id:
             queryset = queryset.filter(project_id=project_id)
 
-        # Custom ordering for priority: now=1, soon=2, someday=3
-        # (alphabetically it would be now < someday < soon, which is wrong)
-        priority_order = Case(
-            When(priority='now', then=Value(1)),
-            When(priority='soon', then=Value(2)),
-            When(priority='someday', then=Value(3)),
-            default=Value(4),
-        )
         from django.db.models import F
-        return queryset.select_related('project').annotate(
-            priority_order=priority_order
-        ).order_by(
-            'completion_status', 'priority_order',
+        return queryset.select_related('project').order_by(
+            'completion_status',
             F('due_date').asc(nulls_last=True),
             F('scheduled_time').asc(nulls_last=True),
             '-created_at',
@@ -369,19 +359,62 @@ class TaskListView(HelpContextMixin, LifeAccessMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         from apps.core.utils import get_user_today
+        from datetime import timedelta
+
+        user = self.request.user
+        user_today = get_user_today(user)
+        tomorrow = user_today + timedelta(days=1)
+
         context['current_show'] = self.request.GET.get('show', 'active')
         context['current_priority'] = self.request.GET.get('priority', '')
         context['search_query'] = self.request.GET.get('q', '')
-        context['user_today'] = get_user_today(self.request.user)
+        context['user_today'] = user_today
         context['projects'] = Project.objects.filter(
-            user=self.request.user, status='active'
+            user=user, status='active'
         )
+
         # Total task counts for display
-        all_tasks = Task.objects.filter(user=self.request.user)
+        all_tasks = Task.objects.filter(user=user)
         context['total_active_count'] = all_tasks.filter(completion_status='pending').count()
         context['total_completed_count'] = all_tasks.filter(completion_status='completed').count()
         context['total_skipped_count'] = all_tasks.filter(completion_status='skipped').count()
         context['total_all_count'] = all_tasks.count()
+
+        # Time-horizon grouping for active tasks (pending only)
+        show = self.request.GET.get('show', 'active')
+        if show == 'active':
+            tasks = list(context.get('tasks', self.get_queryset()))
+            overdue = []
+            today_tasks = []
+            tomorrow_tasks = []
+            future_tasks = []
+            no_date_tasks = []
+
+            for t in tasks:
+                if t.completion_status != 'pending':
+                    continue
+                if t.due_date is None:
+                    no_date_tasks.append(t)
+                elif t.due_date < user_today:
+                    overdue.append(t)
+                elif t.due_date == user_today:
+                    today_tasks.append(t)
+                elif t.due_date == tomorrow:
+                    tomorrow_tasks.append(t)
+                else:
+                    future_tasks.append(t)
+
+            context['time_horizon_groups'] = [
+                ('Overdue', 'overdue', overdue),
+                ('Today', 'today', today_tasks),
+                ('Tomorrow', 'tomorrow', tomorrow_tasks),
+                ('Future', 'future', future_tasks),
+                ('No Due Date', 'no-date', no_date_tasks),
+            ]
+            context['use_time_horizon'] = True
+        else:
+            context['use_time_horizon'] = False
+
         return context
 
 

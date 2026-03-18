@@ -2842,7 +2842,7 @@ def _build_data_state_snapshot(user) -> str:
     the CoS evaluation.
     """
     counts = {}
-    _completed_titles = []  # v6: populated below if tasks were completed today
+    _completed_titles = []  # v9: populated from SAE task state
     try:
         from apps.health.models import (
             WeightEntry, SleepEntry, MedicineLog, Medicine,
@@ -2863,46 +2863,43 @@ def _build_data_state_snapshot(user) -> str:
         counts['workout_sessions'] = WorkoutSession.objects.filter(user=user).count()
         counts['goals_defined'] = LifeGoal.objects.filter(user=user).count()
         counts['journal_entries'] = JournalEntry.objects.filter(user=user).count()
-        # v8: All task queries via canonical TaskQueries service.
-        # Matches Organize page, dashboard, and signal engine exactly.
-        from apps.life.services.task_queries import TaskQueries
+        # v9: Task data from SAE state (CoS purity — no raw task queries).
+        # SAE build_task_state() computes time-horizon buckets every 5 min.
+        from apps.core.ai_state.state_engine import get_module_state
+        task_state = get_module_state(user, 'tasks') or {}
 
-        _pending_qs = TaskQueries.pending(user)
-        counts['active_tasks'] = _pending_qs.count()
-        _completed_today_qs = TaskQueries.completed_on(user, today)
-        counts['completed_tasks_today'] = _completed_today_qs.count()
-        _completed_titles = list(
-            _completed_today_qs.values_list('title', flat=True)[:10]
+        _overdue = task_state.get('overdue_tasks', [])
+        _today = task_state.get('due_today_tasks_detail', [])
+        _tomorrow = task_state.get('due_tomorrow_tasks', [])
+        _future = task_state.get('future_tasks', [])
+        _no_date = task_state.get('no_due_date_tasks', [])
+
+        counts['active_tasks'] = (
+            task_state.get('tasks_now', 0)
+            + task_state.get('tasks_soon', 0)
+            + task_state.get('tasks_someday', 0)
         )
-        from django.db.models import Case, When, Value, F
-        # TEMPORARY: include task IDs for entity grounding — remove when
-        # Phase 2 signal-driven insights replace raw task injection.
-        _active_task_rows = list(
-            _pending_qs.order_by(
-                Case(
-                    When(priority='now', then=Value(0)),
-                    When(priority='soon', then=Value(1)),
-                    When(priority='someday', then=Value(2)),
-                    default=Value(3),
-                ),
-                F('due_date').asc(nulls_last=True),
-                '-created_at',
-            ).values_list('id', 'title')[:25]
+        counts['completed_tasks_today'] = task_state.get('completed_today', 0)
+        counts['overdue_tasks'] = task_state.get('overdue_count', 0)
+        counts['non_negotiable_skip_streaks'] = len(
+            task_state.get('nn_skip_streaks', [])
         )
+
+        _completed_titles = task_state.get('completed_today_titles', [])
+
+        # Build title lists from SAE buckets for grounding
         _active_task_titles = [
-            f"(id:{tid}) {title}" for tid, title in _active_task_rows
-        ]
-        _overdue_qs = TaskQueries.overdue(user, today)
-        counts['overdue_tasks'] = _overdue_qs.count()
-        _overdue_task_rows = list(
-            _overdue_qs.order_by('due_date').values_list('id', 'title')[:10]
-        )
+            f"(id:{t['id']}) {t['title']}"
+            for bucket in [_overdue, _today, _tomorrow, _future, _no_date]
+            for t in bucket
+        ][:25]
         _overdue_task_titles = [
-            f"(id:{tid}) {title}" for tid, title in _overdue_task_rows
-        ]
-        counts['non_negotiable_skip_streaks'] = (
-            TaskQueries.non_negotiable_at_risk(user).count()
-        )
+            f"(id:{t['id']}) {t['title']}" for t in _overdue
+        ][:10]
+        # Today tasks for grounding (CoS daily check-in scope)
+        _today_task_titles = [
+            f"(id:{t['id']}) {t['title']}" for t in _today
+        ][:10]
     except Exception as e:
         logger.warning("Failed to build data state snapshot: %s", e)
         return ""
@@ -2946,46 +2943,51 @@ def _build_data_state_snapshot(user) -> str:
             "but NEVER imply data exists when it does not."
         )
 
-    # v6: Completed-today task titles — deterministic grounding for task names
-    completed_count = counts.get('completed_tasks_today', 0)
-    if completed_count > 0 and _completed_titles:
+    # v9: Time-horizon task grounding from SAE state
+    # CoS daily check-in scope: ONLY overdue + today.
+    # Tomorrow/future only if user explicitly asks.
+    overdue_count = counts.get('overdue_tasks', 0)
+    if overdue_count > 0 and _overdue_task_titles:
         lines.append("")
-        lines.append("COMPLETED TASKS TODAY (AUTHORITATIVE — these are the ONLY tasks completed today):")
-        for title in _completed_titles:
+        lines.append("OVERDUE TASKS (past due date — address these first):")
+        for title in _overdue_task_titles:
             lines.append(f"  - {title}")
-        if completed_count > len(_completed_titles):
-            lines.append(f"  (+ {completed_count - len(_completed_titles)} more)")
-        lines.append(
-            "TASK NAME GROUNDING RULE: When referencing completed tasks, you MUST use "
-            "ONLY the names listed above. NEVER infer, recall, or reconstruct task names "
-            "from conversation history, semantic memory, or prior assistant responses. "
-            "If a task name is not in this list, it was NOT completed today."
-        )
 
-    # v7: Active task titles — authoritative list prevents hallucination
+    if _today_task_titles:
+        lines.append("")
+        lines.append("TODAY'S TASKS (AUTHORITATIVE — due today):")
+        for title in _today_task_titles:
+            lines.append(f"  - {title}")
+
     active_count = counts.get('active_tasks', 0)
     if active_count > 0 and _active_task_titles:
         lines.append("")
         lines.append(
-            "ACTIVE TASKS (AUTHORITATIVE — these are the ONLY pending tasks):"
+            "ALL ACTIVE TASKS (AUTHORITATIVE — full pending list for entity grounding):"
         )
         for title in _active_task_titles:
             lines.append(f"  - {title}")
         if active_count > len(_active_task_titles):
             lines.append(f"  (+ {active_count - len(_active_task_titles)} more)")
-        lines.append(
-            "ACTIVE TASK GROUNDING RULE: When referencing pending/active tasks, "
-            "you MUST use ONLY the names listed above. NEVER infer, recall, or "
-            "reconstruct task names from conversation history or semantic memory."
-        )
 
-    # v7: Overdue task titles
-    overdue_count = counts.get('overdue_tasks', 0)
-    if overdue_count > 0 and _overdue_task_titles:
+    lines.append("")
+    lines.append(
+        "TASK TIME-HORIZON RULES:\n"
+        "  • For daily check-ins and status updates: reference ONLY overdue + today tasks.\n"
+        "  • Do NOT proactively mention tomorrow or future tasks unless the user asks.\n"
+        "  • When the user asks about planning or 'what's coming up', you MAY include tomorrow/future.\n"
+        "  • NEVER infer or reconstruct task names from conversation history."
+    )
+
+    # Completed-today titles from SAE
+    completed_count = counts.get('completed_tasks_today', 0)
+    if completed_count > 0 and _completed_titles:
         lines.append("")
-        lines.append("OVERDUE TASKS (past due date):")
-        for title in _overdue_task_titles:
+        lines.append("COMPLETED TASKS TODAY (AUTHORITATIVE):")
+        for title in _completed_titles:
             lines.append(f"  - {title}")
+        if completed_count > len(_completed_titles):
+            lines.append(f"  (+ {completed_count - len(_completed_titles)} more)")
 
     # Add non-negotiable skip streak awareness
     nn_streak_count = counts.get('non_negotiable_skip_streaks', 0)

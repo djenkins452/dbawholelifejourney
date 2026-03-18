@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Time Horizon Enforcement: Task State + UI + CoS Alignment
+
+**Purpose:** Fix time horizon integrity across SAE task state, CoS reasoning, and task list UI.
+
+**Changes:**
+- SAE: Added overdue/today/tomorrow/future/no_date task buckets with full detail
+- CoS: Task grounding now reads from SAE (eliminates ~6 raw queries); daily check-ins scoped to overdue + today only
+- UI: Task list grouped by Overdue → Today → Tomorrow → Future → No Due Date
+- TaskQueries: Added due_today(), due_tomorrow(), due_future(), no_due_date()
+
+**Files:** state_builder.py, cos_context.py, task_queries.py, views.py, task_list.html, _task_row.html (new)
+
+---
+
 ## 2026-03-18 — CoS Purity Enforcement: Replace Raw DB Queries with SAE State
 
 **Purpose:** Enforce architecture law "Raw Data → Signals/State → CoS → LLM" by replacing raw database queries on the CoS request path with SAE state reads, and adding structured violation logging for uncovered domains.

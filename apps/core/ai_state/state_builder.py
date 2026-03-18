@@ -1654,17 +1654,75 @@ def build_task_state(user):
             due_date=tomorrow,
         ).count()
 
-        # Completed today
-        state['completed_today'] = Task.objects.filter(
+        # Completed today (count + titles for CoS grounding)
+        _completed_qs = Task.objects.filter(
             user=user, completion_status='completed',
             completed_at__date=user_today,
-        ).count()
+        )
+        state['completed_today'] = _completed_qs.count()
+        state['completed_today_titles'] = list(
+            _completed_qs.values_list('title', flat=True)[:10]
+        )
 
         # Tasks due today (titles for Beth context, max 10)
         due_today_tasks = pending_qs.filter(
             due_date=user_today,
         ).order_by('commitment_level').values_list('title', flat=True)[:10]
         state['tasks_due_today'] = list(due_today_tasks)
+
+        # ── Time-horizon bucketed task lists (for CoS + UI) ──
+        # Each bucket includes id, title, due_date, scheduled_time, priority,
+        # commitment_level. Computed here so CoS and UI share one source of truth.
+        _TIME_ORDER = ['scheduled_time', 'due_date', '-created_at']
+
+        def _serialize_task(t):
+            """Serialize a Task into a JSON-safe dict for SAE state."""
+            return {
+                'id': t.id,
+                'title': t.title,
+                'due_date': t.due_date.isoformat() if t.due_date else None,
+                'scheduled_time': (
+                    t.scheduled_time.strftime('%H:%M')
+                    if t.scheduled_time else None
+                ),
+                'priority': t.priority,
+                'commitment_level': t.commitment_level,
+            }
+
+        # Overdue: due_date < today AND pending
+        state['overdue_tasks'] = [
+            _serialize_task(t) for t in pending_qs.filter(
+                due_date__isnull=False, due_date__lt=user_today,
+            ).order_by('due_date', *_TIME_ORDER)[:25]
+        ]
+
+        # Today: due_date == today
+        state['due_today_tasks_detail'] = [
+            _serialize_task(t) for t in pending_qs.filter(
+                due_date=user_today,
+            ).order_by(*_TIME_ORDER)[:25]
+        ]
+
+        # Tomorrow: due_date == tomorrow
+        state['due_tomorrow_tasks'] = [
+            _serialize_task(t) for t in pending_qs.filter(
+                due_date=tomorrow,
+            ).order_by(*_TIME_ORDER)[:25]
+        ]
+
+        # Future: due_date > tomorrow
+        state['future_tasks'] = [
+            _serialize_task(t) for t in pending_qs.filter(
+                due_date__isnull=False, due_date__gt=tomorrow,
+            ).order_by('due_date', *_TIME_ORDER)[:25]
+        ]
+
+        # No due date
+        state['no_due_date_tasks'] = [
+            _serialize_task(t) for t in pending_qs.filter(
+                due_date__isnull=True,
+            ).order_by('-created_at')[:25]
+        ]
 
     except Exception:
         logger.warning("Task commitment state build failed", exc_info=True)

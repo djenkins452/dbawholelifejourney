@@ -89,6 +89,40 @@ class TaskQueries:
         )
 
     @classmethod
+    def due_today(cls, user, as_of=None):
+        """Pending tasks due today (user timezone)."""
+        if as_of is None:
+            from django.utils import timezone
+            as_of = timezone.localdate()
+        return cls.pending(user).filter(due_date=as_of)
+
+    @classmethod
+    def due_tomorrow(cls, user, as_of=None):
+        """Pending tasks due tomorrow (user timezone)."""
+        if as_of is None:
+            from django.utils import timezone
+            as_of = timezone.localdate()
+        from datetime import timedelta
+        return cls.pending(user).filter(due_date=as_of + timedelta(days=1))
+
+    @classmethod
+    def due_future(cls, user, as_of=None):
+        """Pending tasks due after tomorrow (user timezone)."""
+        if as_of is None:
+            from django.utils import timezone
+            as_of = timezone.localdate()
+        from datetime import timedelta
+        return cls.pending(user).filter(
+            due_date__isnull=False,
+            due_date__gt=as_of + timedelta(days=1),
+        )
+
+    @classmethod
+    def no_due_date(cls, user):
+        """Pending tasks with no due date."""
+        return cls.pending(user).filter(due_date__isnull=True)
+
+    @classmethod
     def routines_for_date(cls, user, target_date):
         """Routine tasks due on a specific date, ordered by scheduled time."""
         return Task.objects.filter(

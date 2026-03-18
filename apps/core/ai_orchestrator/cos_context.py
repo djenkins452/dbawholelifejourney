@@ -1161,88 +1161,47 @@ def _build_intelligence_signals(user, _module_permissions=None):
 
 
 def _build_people_and_mood(user):
-    """Build relationship signals and mood status.
+    """Build relationship signals and mood status — from SAE state (CoS purity enforced).
 
-    CoS purity: SOFT violation — relationships has no SAE state builder yet.
-    Mood status reads from SAE (clean). Relationship data is raw DB.
+    Relationships now read from SAE build_relationships_state().
+    Mood status still reads from SAE journal state (already clean).
     """
     result = {}
 
-    from apps.core.ai_orchestrator.cos_purity_guard import log_cos_purity_violation
-    log_cos_purity_violation(
-        domain='relationships', file=__file__,
-        operation='RelationshipAnalyticsService + RelationalHealthService',
-        operation_type='query',
-        detail='No SAE relationships builder; raw DB temporarily allowed',
-    )
-
+    # Relationships from SAE
     try:
-        # Phase R1: Use new canonical Person model for relationship signals
-        from apps.relationships.models import Person
-        from apps.relationships.services import RelationshipAnalyticsService
+        from apps.core.ai_state.state_engine import get_module_state
+        rel_state = get_module_state(user, 'relationships') or {}
+        contract = rel_state.get('_contract', {})
 
-        top_people = RelationshipAnalyticsService.top_interacted(user, limit=10)
-        rel_signals = []
-        for person in top_people:
-            days_since = RelationshipAnalyticsService.days_since_last_interaction(person)
-            breakdown = RelationshipAnalyticsService.context_breakdown(person)
-            rel_signals.append({
-                'name': person.get_display_name(),
-                'relationship_type': person.relationship_type,
-                'days_since_contact': days_since,
-                'drifting': days_since is not None and days_since > 14,
-                'interaction_count': person.interaction_count,
-                'context_distribution': breakdown,
-            })
-        result['relationship_signals'] = rel_signals
-    except ImportError:
-        # Fallback to legacy ai_relationships if new app not available
-        try:
-            from apps.core.ai_relationships.models import Relationship
-            relationships = Relationship.objects.filter(
-                user=user, importance_tier__lte=2,
-            ).select_related("person")[:5]
-            rel_signals = []
-            for rel in relationships:
-                days_since = None
-                if rel.last_interaction:
-                    days_since = (timezone.now() - rel.last_interaction).days
-                rel_signals.append({
-                    'name': rel.person.display_name if rel.person else 'Unknown',
-                    'tier': rel.importance_tier,
-                    'days_since_contact': days_since,
-                    'drifting': days_since is not None and days_since > 14,
-                })
-            result['relationship_signals'] = rel_signals
-        except Exception:
-            result['relationship_signals'] = []
+        # People list (from detail or flat key)
+        people = contract.get('detail', {}).get('people', [])
+        if not people:
+            people = rel_state.get('relationship_signals', [])
+        if people:
+            result['relationship_signals'] = people[:10]
+
+        # Neglect alerts
+        neglected = contract.get('alerts', {}).get('neglected', [])
+        if neglected:
+            result['relational_health'] = {
+                'stale_relationships_count': len(neglected),
+                'neglected_contacts': [
+                    {'name': n.get('name'), 'days_since': n.get('days_since_contact')}
+                    for n in neglected[:5]
+                ],
+            }
+
+        # Birthdays
+        birthdays = contract.get('today', {}).get('birthdays', [])
+        if birthdays:
+            result['birthdays_today'] = birthdays
+
     except Exception as e:
-        logger.warning("CoS context: relationship signals unavailable: %s", e)
+        logger.warning("CoS context: relationship state unavailable: %s", e)
         result['relationship_signals'] = []
 
-    # Phase R2: Relational health score and structured payload
-    try:
-        from apps.relationships.services import RelationalHealthService
-        health = RelationalHealthService.compute_health(user)
-        result['relational_health'] = {
-            'relational_health_score': health.get('score'),
-            'stale_relationships_count': health.get('stale_relationships_count', 0),
-            'top_anchor_persons': health.get('top_anchor_persons', []),
-            'imbalance_flags': [
-                {
-                    'person': f['display_name'],
-                    'dominant_context': f['dominant_context'],
-                    'percentage': f['percentage'],
-                }
-                for f in health.get('imbalance_flags', [])
-            ],
-        }
-    except ImportError:
-        result['relational_health'] = {}
-    except Exception as e:
-        logger.warning("CoS context: relational health unavailable: %s", e)
-        result['relational_health'] = {}
-
+    # Mood from SAE journal state (already clean — no raw DB)
     try:
         from apps.core.ai_state.state_engine import get_state_value
         result['mood_status'] = {
@@ -1464,251 +1423,122 @@ def _build_faith_context(user):
 
 
 def _build_finance_context(user):
-    """Build finance module context — budgets, goals, recent activity.
-
-    CoS purity: SOFT violation — finance has no SAE state builder yet.
-    All queries here are temporary until build_finance_state() is added.
-    """
-    from apps.core.ai_orchestrator.cos_purity_guard import log_cos_purity_violation
-    log_cos_purity_violation(
-        domain='finance', file=__file__,
-        operation='FinancialGoal + Budget queries',
-        operation_type='query',
-        detail='No SAE finance builder; raw DB temporarily allowed',
-    )
+    """Build finance context — from SAE state (CoS purity enforced)."""
+    result = {}
     try:
-        from datetime import timedelta as td
-        now = timezone.now()
-        result = {}
+        from apps.core.ai_state.state_engine import get_module_state
+        fin = get_module_state(user, 'finance') or {}
+        contract = fin.get('_contract', {})
 
-        try:
-            from apps.finance.models import FinancialGoal, Budget
-        except ImportError:
-            return {}
+        summary = contract.get('summary', {})
+        if summary.get('account_count', 0) > 0:
+            result['finance_summary'] = summary
 
-        # Active financial goals
-        active_goals = FinancialGoal.objects.filter(
-            user=user, goal_status='active',
-        ).order_by('target_date')[:5]
+        alerts = contract.get('alerts', {})
+        if alerts.get('overdue_bills'):
+            result['finance_overdue_bills'] = alerts['overdue_bills']
+        if alerts.get('over_budget'):
+            result['finance_budgets_alert'] = alerts['over_budget']
 
-        if active_goals:
-            goals_data = []
-            for g in active_goals:
-                progress = 0
-                if g.target_amount and g.target_amount > 0:
-                    progress = round(
-                        float(g.current_amount or 0) / float(g.target_amount) * 100, 1
-                    )
-                goals_data.append({
-                    'name': g.name,
-                    'type': g.goal_type,
-                    'target': float(g.target_amount or 0),
-                    'current': float(g.current_amount or 0),
-                    'progress_pct': progress,
-                    'target_date': g.target_date.strftime('%b %d')
-                    if g.target_date else None,
-                })
-            result['finance_goals'] = goals_data
-
-        # Current month budget status
-        first_of_month = now.date().replace(day=1)
-        budgets = Budget.objects.filter(
-            user=user, month=first_of_month,
-        ).select_related('category')[:10]
-
-        if budgets:
-            budget_data = []
-            for b in budgets:
-                cat_name = b.category.name if b.category else 'Uncategorized'
-                budgeted = float(b.budgeted_amount or 0)
-                spent = float(getattr(b, 'spent_amount', 0) or 0)
-                pct = round(spent / budgeted * 100, 1) if budgeted > 0 else 0
-                if pct >= 80:  # Only surface budgets near/over limit
-                    budget_data.append({
-                        'category': cat_name,
-                        'budgeted': budgeted,
-                        'spent': spent,
-                        'percent_used': pct,
-                        'over_budget': pct > 100,
-                    })
-            if budget_data:
-                result['finance_budgets_alert'] = budget_data
-
-        return result
+        upcoming = contract.get('upcoming', {})
+        if upcoming.get('goals'):
+            result['finance_goals'] = upcoming['goals']
+        if upcoming.get('recurring_due_14d'):
+            result['finance_upcoming_bills'] = upcoming['recurring_due_14d']
 
     except Exception as e:
         logger.debug("CoS context: finance unavailable: %s", e)
-        return {}
+    return result
 
 
 def _build_brain_training_context(user):
-    """Build brain training context — recent sessions, streaks.
-
-    CoS purity: SOFT violation — brain_training has no SAE state builder yet.
-    """
-    from apps.core.ai_orchestrator.cos_purity_guard import log_cos_purity_violation
-    log_cos_purity_violation(
-        domain='brain_training', file=__file__,
-        operation='UserOverallStats + DailyStats queries',
-        operation_type='query',
-        detail='No SAE brain_training builder; raw DB temporarily allowed',
-    )
+    """Build brain training context — from SAE state (CoS purity enforced)."""
+    result = {}
     try:
-        try:
-            from apps.brain_training.models import UserOverallStats, DailyStats
-        except ImportError:
-            return {}
+        from apps.core.ai_state.state_engine import get_module_state
+        bt = get_module_state(user, 'brain_training') or {}
+        contract = bt.get('_contract', {})
 
-        result = {}
-
-        # Overall stats
-        overall = UserOverallStats.objects.filter(user=user).first()
-        if overall:
+        summary = contract.get('summary', {})
+        if summary.get('total_sessions', 0) > 0:
             result['brain_training'] = {
-                'total_sessions': overall.total_sessions,
-                'total_completed': overall.total_completed,
-                'current_streak': overall.current_streak,
-                'favorite_game': (
-                    overall.favorite_game.name
-                    if overall.favorite_game else None
-                ),
+                'total_sessions': summary.get('total_sessions', 0),
+                'streak_length': summary.get('streak_length', 0),
+                'sessions_this_week': summary.get('sessions_this_week', 0),
+                'avg_score_7d': summary.get('avg_score_7d'),
+                'performance_trend': summary.get('performance_trend'),
             }
 
-        # Recent daily stats (last 7 days)
-        from datetime import timedelta as td
-        cutoff = timezone.now().date() - td(days=7)
-        recent_days = DailyStats.objects.filter(
-            user=user, date__gte=cutoff,
-        ).order_by('-date')[:7]
-        if recent_days:
-            result.setdefault('brain_training', {})['recent_days'] = [
-                {
-                    'date': d.date.strftime('%b %d'),
-                    'sessions': d.sessions_completed,
-                    'best_score': d.best_score,
-                }
-                for d in recent_days
-            ]
-
-        return result
+        alerts = contract.get('alerts', {})
+        if alerts.get('streak_at_risk'):
+            result.setdefault('brain_training', {})['streak_at_risk'] = True
+        if alerts.get('declining_performance'):
+            result.setdefault('brain_training', {})['declining_performance'] = True
 
     except Exception as e:
         logger.debug("CoS context: brain_training unavailable: %s", e)
-        return {}
+    return result
 
 
 def _build_capture_context(user):
-    """Build capture context — unprocessed captures, recent entries.
-
-    CoS purity: SOFT violation — capture has no SAE state builder for
-    pending/ready entries (only scan/image analysis is covered).
-    """
-    from apps.core.ai_orchestrator.cos_purity_guard import log_cos_purity_violation
-    log_cos_purity_violation(
-        domain='capture', file=__file__,
-        operation='PendingCapture + CaptureEntry queries',
-        operation_type='query',
-        detail='No SAE capture builder; raw DB temporarily allowed',
-    )
+    """Build capture context — from SAE state (CoS purity enforced)."""
+    result = {}
     try:
-        try:
-            from apps.capture.models import CaptureEntry, PendingCapture
-        except ImportError:
-            return {}
+        from apps.core.ai_state.state_engine import get_module_state
+        cap = get_module_state(user, 'capture') or {}
+        contract = cap.get('_contract', {})
 
-        result = {}
-
-        # Pending/unprocessed captures
-        pending_count = PendingCapture.objects.filter(
-            user=user, status__in=['pending', 'uploading'],
-        ).count()
-
-        # Recent ready entries (last 7 days)
-        from datetime import timedelta as td
-        cutoff = timezone.now() - td(days=7)
-        ready_entries = CaptureEntry.objects.filter(
-            user=user, status='ready', created_at__gte=cutoff,
-        ).order_by('-created_at')[:5]
-
-        if pending_count or ready_entries:
+        summary = contract.get('summary', {})
+        if summary:
             result['capture_status'] = {
-                'pending_uploads': pending_count,
-                'recent_captures': [
-                    {
-                        'title': e.title[:60] if e.title else 'Untitled',
-                        'category': e.category,
-                        'date': e.created_at.strftime('%b %d'),
-                    }
-                    for e in ready_entries
-                ],
+                'unprocessed_count': summary.get('unprocessed_count', 0),
+                'backlog_level': summary.get('backlog_level', 'low'),
+                'volume_7d': summary.get('capture_volume_7d', 0),
             }
 
-        return result
+        alerts = contract.get('alerts', {})
+        pending = alerts.get('pending_uploads', 0)
+        failed = alerts.get('failed_count', 0)
+        stale = alerts.get('stale_items', 0)
+        if pending or failed or stale:
+            result['capture_alerts'] = {
+                'pending_uploads': pending,
+                'failed': failed,
+                'stale_items': stale,
+            }
 
     except Exception as e:
         logger.debug("CoS context: capture unavailable: %s", e)
-        return {}
+    return result
 
 
 def _build_medical_context(user):
-    """Build medical context — recent labs, abnormal results.
-
-    CoS purity: SOFT violation — medical has no SAE state builder yet.
-    """
-    from apps.core.ai_orchestrator.cos_purity_guard import log_cos_purity_violation
-    log_cos_purity_violation(
-        domain='medical', file=__file__,
-        operation='LabResult + LabPanel queries',
-        operation_type='query',
-        detail='No SAE medical builder; raw DB temporarily allowed',
-    )
+    """Build medical context — from SAE state (CoS purity enforced)."""
+    result = {}
     try:
-        try:
-            from apps.medical.models import LabResult, LabPanel
-        except ImportError:
-            return {}
+        from apps.core.ai_state.state_engine import get_module_state
+        med = get_module_state(user, 'medical') or {}
+        contract = med.get('_contract', {})
 
-        result = {}
-        from datetime import timedelta as td
-        cutoff = timezone.now() - td(days=90)
+        alerts = contract.get('alerts', {})
+        if alerts.get('abnormal_results'):
+            result['medical_alerts'] = alerts['abnormal_results']
 
-        # Recent abnormal results (last 90 days)
-        abnormal = LabResult.objects.filter(
-            user=user,
-            collected_at__gte=cutoff,
-            abnormal_flag__in=['L', 'H', 'LL', 'HH', 'A'],
-        ).select_related('canonical_test').order_by('-collected_at')[:5]
+        detail = contract.get('detail', {})
+        if detail.get('recent_panels'):
+            result['recent_lab_panels'] = detail['recent_panels']
 
-        if abnormal:
-            result['medical_alerts'] = [
-                {
-                    'test': r.canonical_test.short_name if r.canonical_test else 'Unknown',
-                    'value': str(r.value_text)[:20],
-                    'flag': r.abnormal_flag,
-                    'date': r.collected_at.strftime('%b %d') if r.collected_at else None,
-                }
-                for r in abnormal
-            ]
-
-        # Recent lab panels
-        panels = LabPanel.objects.filter(
-            user=user, collected_at__gte=cutoff,
-        ).order_by('-collected_at')[:3]
-        if panels:
-            result['recent_lab_panels'] = [
-                {
-                    'type': p.panel_type,
-                    'name': p.name[:40] if p.name else p.panel_type,
-                    'date': p.collected_at.strftime('%b %d') if p.collected_at else None,
-                }
-                for p in panels
-            ]
-
-        return result
+        summary = contract.get('summary', {})
+        if summary.get('total_lab_results', 0) > 0:
+            result['medical_summary'] = {
+                'total_results': summary.get('total_lab_results', 0),
+                'recent_abnormal': summary.get('recent_abnormal_count', 0),
+                'provider_count': summary.get('provider_count', 0),
+            }
 
     except Exception as e:
         logger.debug("CoS context: medical unavailable: %s", e)
-        return {}
+    return result
 
 
 def _build_purpose_context(user):

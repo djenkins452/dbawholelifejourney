@@ -59,16 +59,18 @@ COS_COVERED_DOMAINS = frozenset({
     "feedback",
     "calendar",
     "routine",
-})
-
-# ── Domains that lack SAE coverage — SOFT violations ──────────────────
-# Raw queries are temporarily allowed but must be logged.
-COS_UNCOVERED_DOMAINS = frozenset({
     "finance",
     "brain_training",
     "capture",
     "medical",
     "relationships",
+})
+
+# ── Domains that lack SAE coverage — SOFT violations ──────────────────
+# Raw queries are temporarily allowed but must be logged.
+# Phase 2 complete: all domains now have SAE builders.
+COS_UNCOVERED_DOMAINS = frozenset({
+    # No uncovered domains remaining after Phase 2.
 })
 
 

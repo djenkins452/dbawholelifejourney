@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Phase 2: Full Domain Expansion (Finance, Relationships, Brain Training, Medical, Capture)
+
+**Purpose:** Expand SAE state to ALL remaining uncovered domains. Beth now has structured state for every domain in the system. Zero SOFT violations remain.
+
+**New SAE builders (all use _contract as primary structure):**
+- `build_finance_state()` — accounts, net worth, goals, budgets, recurring obligations, cash pressure
+- `build_relationships_state()` — people, neglect detection (>30d), birthdays, interaction counts
+- `build_brain_training_state()` — sessions, streaks, performance trends, streak-at-risk alerts
+- `build_medical_state()` — lab results, abnormal flags, panels, provider count (partial: no appointments)
+- `build_capture_state()` — backlog level, pending uploads, failed/stale items, volume
+
+**CoS context builders replaced (all 5 SOFT violation builders → SAE reads):**
+- `_build_finance_context()` — reads from SAE _contract
+- `_build_brain_training_context()` — reads from SAE _contract
+- `_build_capture_context()` — reads from SAE _contract
+- `_build_medical_context()` — reads from SAE _contract
+- `_build_people_and_mood()` — relationships now from SAE, mood still from SAE journal state
+
+**Purity guard:** All 5 domains moved from COS_UNCOVERED_DOMAINS to COS_COVERED_DOMAINS. Zero uncovered domains remain.
+
+**Validator extended:** 5 new domain schemas added to state_validator.py.
+
+**Files:** state_builder.py, cos_context.py, cos_purity_guard.py, state_validator.py, SAE_STATE_CONTRACT.md
+
+---
+
 ## 2026-03-18 — Phase 1.75B: Discipline Layer (Validator + Inventory + Mapping)
 
 **Purpose:** Lock the foundation before Phase 2 expansion. Add enforcement, visibility, and migration roadmap for the state contract overlay.

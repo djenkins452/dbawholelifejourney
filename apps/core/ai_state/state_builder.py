@@ -2400,6 +2400,578 @@ def build_behavior_state(user):
     return state
 
 
+# ── Phase 2 Domain Builders ──────────────────────────────────────
+# New domains designed with _contract as primary structure.
+# See docs/SAE_STATE_CONTRACT.md for architecture.
+
+
+def build_finance_state(user):
+    """Build finance state: obligations, cash pressure, spending.
+
+    _contract is primary. Flat keys minimal.
+    See docs/SAE_STATE_CONTRACT.md.
+    """
+    state = {}
+    try:
+        from apps.core.utils import get_user_today
+        from apps.finance.models import (
+            Budget, FinancialAccount, FinancialGoal,
+            FinancialMetricSnapshot, RecurringTransaction, Transaction,
+        )
+        from django.db.models import Sum
+
+        user_today = get_user_today(user)
+        first_of_month = user_today.replace(day=1)
+
+        # Accounts
+        accounts = FinancialAccount.objects.filter(
+            user=user, status='active', is_hidden=False,
+        )
+        assets = sum(float(a.current_balance) for a in accounts if a.is_asset)
+        liabilities = sum(abs(float(a.current_balance)) for a in accounts if a.is_liability)
+        net_worth = assets - liabilities
+
+        account_list = [
+            {'name': a.name, 'type': a.account_type, 'balance': float(a.current_balance)}
+            for a in accounts[:15]
+        ]
+
+        # Active goals
+        goals = FinancialGoal.objects.filter(
+            user=user, goal_status='active',
+        ).order_by('target_date')[:10]
+        goal_list = [
+            {
+                'name': g.name, 'type': g.goal_type,
+                'progress_pct': round(g.progress_percentage, 1),
+                'target': float(g.target_amount or 0),
+                'current': float(g.current_amount or 0),
+                'target_date': g.target_date.isoformat() if g.target_date else None,
+            }
+            for g in goals
+        ]
+
+        # Budgets this month
+        budgets = Budget.objects.filter(
+            user=user, month=first_of_month,
+        ).select_related('category')[:15]
+        over_budget = [
+            {
+                'category': b.category.name if b.category else 'Uncategorized',
+                'budgeted': float(b.budgeted_amount or 0),
+                'spent': float(b.spent_amount or 0),
+                'pct': round(b.spent_percentage, 1),
+            }
+            for b in budgets if b.spent_percentage > 100
+        ]
+        warning_budget = [
+            {
+                'category': b.category.name if b.category else 'Uncategorized',
+                'pct': round(b.spent_percentage, 1),
+            }
+            for b in budgets if 80 <= b.spent_percentage <= 100
+        ]
+
+        # Recurring obligations
+        active_recurring = RecurringTransaction.objects.filter(
+            user=user, is_active=True, transaction_type='expense',
+        )
+        overdue_recurring = [
+            {'name': r.name, 'amount': float(r.amount), 'due': r.next_due_date.isoformat()}
+            for r in active_recurring
+            if r.next_due_date and r.next_due_date < user_today
+        ][:10]
+        upcoming_recurring = [
+            {'name': r.name, 'amount': float(r.amount), 'due': r.next_due_date.isoformat()}
+            for r in active_recurring
+            if r.next_due_date and user_today <= r.next_due_date <= user_today + timedelta(days=14)
+        ][:10]
+
+        # Spending this month
+        month_spending = Transaction.objects.filter(
+            user=user, date__gte=first_of_month, amount__lt=0,
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        month_income = Transaction.objects.filter(
+            user=user, date__gte=first_of_month, amount__gt=0,
+        ).exclude(
+            is_opening_balance=True,
+        ).aggregate(total=Sum('amount'))['total'] or 0
+
+        # Cash pressure: simple heuristic
+        if liabilities > assets * 0.8:
+            pressure = 'high'
+        elif over_budget:
+            pressure = 'medium'
+        else:
+            pressure = 'low'
+
+        state['_contract'] = {
+            'summary': {
+                'account_count': accounts.count(),
+                'net_worth': round(net_worth, 2),
+                'total_assets': round(assets, 2),
+                'total_liabilities': round(liabilities, 2),
+                'active_goal_count': len(goal_list),
+                'month_spending': round(abs(float(month_spending)), 2),
+                'month_income': round(float(month_income), 2),
+                'cash_pressure_level': pressure,
+            },
+            'today': {},
+            'upcoming': {
+                'recurring_due_14d': upcoming_recurring,
+                'goals': goal_list,
+            },
+            'alerts': {
+                'overdue_bills': overdue_recurring,
+                'over_budget': over_budget,
+                'budget_warnings': warning_budget,
+            },
+            'detail': {
+                'accounts': account_list,
+            },
+        }
+        # Minimal flat keys for backward compat with existing CoS builder
+        state['finance_goals'] = goal_list
+        state['finance_budgets_alert'] = over_budget
+
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning("Finance state build failed", exc_info=True)
+
+    state['_meta'] = _build_state_meta(
+        completeness='full' if state.get('_contract', {}).get('summary', {}).get('account_count', 0) > 0 else 'limited',
+        confidence='high',
+    )
+    return state
+
+
+def build_relationships_state(user):
+    """Build relationships state: connection health, neglect detection.
+
+    Uses canonical Person model (apps.relationships). Falls back to legacy
+    model (apps.core.ai_relationships) for importance_tier/cadence_target
+    if available.
+
+    _contract is primary. See docs/SAE_STATE_CONTRACT.md.
+    """
+    state = {}
+    try:
+        from apps.core.utils import get_user_today
+
+        user_today = get_user_today(user)
+        people = []
+        neglected = []
+
+        # Try canonical model first
+        try:
+            from apps.relationships.models import Person, RelationshipInteraction
+            contacts = Person.objects.filter(
+                owner=user, deleted_at__isnull=True,
+            ).order_by('-interaction_count')[:25]
+
+            for p in contacts:
+                days_since = None
+                if p.last_interaction_date:
+                    days_since = (user_today - p.last_interaction_date).days
+
+                entry = {
+                    'name': p.get_display_name(),
+                    'relationship_type': p.relationship_type or '',
+                    'days_since_contact': days_since,
+                    'interaction_count': p.interaction_count or 0,
+                }
+                people.append(entry)
+
+                # Neglect detection: >30 days with no contact for active relationships
+                if days_since is not None and days_since > 30:
+                    neglected.append(entry)
+                elif days_since is None and p.interaction_count == 0:
+                    neglected.append(entry)  # Never contacted
+
+        except ImportError:
+            # Fall back to legacy model
+            from apps.core.ai_relationships.models import Relationship
+            rels = Relationship.objects.filter(
+                user=user, person__is_active=True,
+            ).select_related('person').order_by('importance_tier')[:25]
+
+            for rel in rels:
+                days_since = None
+                if rel.last_interaction:
+                    days_since = (user_today - rel.last_interaction).days
+
+                entry = {
+                    'name': rel.person.display_name,
+                    'tier': rel.importance_tier,
+                    'cadence_target': rel.cadence_target,
+                    'days_since_contact': days_since,
+                }
+                people.append(entry)
+
+                # Neglect: compare to cadence target
+                _cadence_days = {
+                    'daily': 2, 'weekly': 10, 'biweekly': 21,
+                    'monthly': 45, 'quarterly': 120,
+                }
+                threshold = _cadence_days.get(rel.cadence_target, 45)
+                if days_since is not None and days_since > threshold:
+                    neglected.append(entry)
+
+        # Birthdays (from life.SignificantEvent or similar — check what exists)
+        birthdays_today = []
+        upcoming_birthdays = []
+        try:
+            from apps.life.models import SignificantEvent
+            bday_events = SignificantEvent.objects.filter(
+                user=user, event_type='birthday',
+            )
+            for ev in bday_events:
+                if ev.next_occurrence:
+                    days_until = (ev.next_occurrence - user_today).days
+                    entry = {'name': ev.title, 'date': ev.next_occurrence.isoformat()}
+                    if days_until == 0:
+                        birthdays_today.append(entry)
+                    elif 0 < days_until <= 14:
+                        upcoming_birthdays.append(entry)
+        except (ImportError, Exception):
+            pass
+
+        state['_contract'] = {
+            'summary': {
+                'active_count': len(people),
+                'neglected_count': len(neglected),
+            },
+            'today': {
+                'birthdays': birthdays_today,
+            },
+            'upcoming': {
+                'birthdays': upcoming_birthdays[:5],
+            },
+            'alerts': {
+                'neglected': neglected[:10],
+            },
+            'detail': {
+                'people': people,
+            },
+        }
+        # Flat keys for backward compat with existing CoS builder
+        state['relationship_signals'] = people[:10]
+
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning("Relationships state build failed", exc_info=True)
+
+    state['_meta'] = _build_state_meta(
+        completeness='full' if state.get('_contract', {}).get('summary', {}).get('active_count', 0) > 0 else 'limited',
+        confidence='medium',  # interaction data may be incomplete
+    )
+    return state
+
+
+def build_brain_training_state(user):
+    """Build brain training state: consistency, performance, streaks.
+
+    _contract is primary. See docs/SAE_STATE_CONTRACT.md.
+    """
+    state = {}
+    try:
+        from apps.brain_training.models import (
+            DailyStats, GameSession, UserGameStats, UserOverallStats,
+        )
+        from apps.core.utils import get_user_today
+
+        user_today = get_user_today(user)
+        week_ago = user_today - timedelta(days=7)
+
+        # Overall stats
+        overall = UserOverallStats.objects.filter(user=user).first()
+
+        # Recent daily stats
+        recent_days = DailyStats.objects.filter(
+            user=user, date__gte=week_ago,
+        ).order_by('-date')[:7]
+        sessions_this_week = sum(d.sessions_completed for d in recent_days)
+        total_score_week = sum(d.total_score for d in recent_days)
+        avg_score_week = (
+            round(total_score_week / sessions_this_week)
+            if sessions_this_week > 0 else None
+        )
+
+        # Today's sessions
+        today_stats = DailyStats.objects.filter(
+            user=user, date=user_today,
+        ).first()
+        completed_today = today_stats.sessions_completed if today_stats else 0
+
+        # Performance trend (compare last 7d vs prior 7d)
+        prior_week_start = user_today - timedelta(days=14)
+        prior_days = DailyStats.objects.filter(
+            user=user, date__gte=prior_week_start, date__lt=week_ago,
+        )
+        prior_sessions = sum(d.sessions_completed for d in prior_days)
+        prior_score = sum(d.total_score for d in prior_days)
+        prior_avg = round(prior_score / prior_sessions) if prior_sessions > 0 else None
+
+        if avg_score_week and prior_avg:
+            if avg_score_week > prior_avg + 5:
+                trend = 'improving'
+            elif avg_score_week < prior_avg - 5:
+                trend = 'declining'
+            else:
+                trend = 'stable'
+        else:
+            trend = 'insufficient_data'
+
+        # Streak risk
+        streak = overall.current_streak if overall else 0
+        last_played = overall.last_played_date if overall else None
+        streak_at_risk = False
+        if last_played and (user_today - last_played).days >= 1:
+            streak_at_risk = True
+
+        daily_history = [
+            {
+                'date': d.date.isoformat(),
+                'sessions': d.sessions_completed,
+                'best_score': d.best_score,
+            }
+            for d in recent_days
+        ]
+
+        state['_contract'] = {
+            'summary': {
+                'sessions_this_week': sessions_this_week,
+                'streak_length': streak,
+                'avg_score_7d': avg_score_week,
+                'performance_trend': trend,
+                'total_sessions': overall.total_sessions if overall else 0,
+                'total_completed': overall.total_completed if overall else 0,
+            },
+            'today': {
+                'completed': completed_today,
+            },
+            'upcoming': {},
+            'alerts': {
+                'streak_at_risk': streak_at_risk,
+                'declining_performance': trend == 'declining',
+            },
+            'detail': {
+                'daily_history': daily_history,
+                'favorite_game': (
+                    overall.favorite_game.name if overall and overall.favorite_game else None
+                ),
+            },
+        }
+        # Flat keys for backward compat with existing CoS builder
+        state['brain_training'] = {
+            'total_sessions': overall.total_sessions if overall else 0,
+            'total_completed': overall.total_completed if overall else 0,
+            'current_streak': streak,
+            'favorite_game': (
+                overall.favorite_game.name if overall and overall.favorite_game else None
+            ),
+        }
+
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning("Brain training state build failed", exc_info=True)
+
+    state['_meta'] = _build_state_meta(
+        completeness='full' if state.get('_contract', {}).get('summary', {}).get('total_sessions', 0) > 0 else 'limited',
+        confidence='high',
+    )
+    return state
+
+
+def build_medical_state(user):
+    """Build medical state: lab results, abnormal flags, providers.
+
+    _contract is primary. See docs/SAE_STATE_CONTRACT.md.
+    Note: No appointment model exists — completeness is 'partial'.
+    """
+    state = {}
+    try:
+        from apps.medical.models import LabPanel, LabResult
+
+        # Recent abnormal results (90 days)
+        cutoff = get_current_time() - timedelta(days=90)
+        abnormal = list(LabResult.objects.filter(
+            user=user,
+            collected_at__gte=cutoff,
+            abnormal_flag__in=['L', 'H', 'LL', 'HH', 'A'],
+        ).select_related('canonical_test').order_by('-collected_at')[:10])
+
+        abnormal_list = [
+            {
+                'test': r.canonical_test.short_name if r.canonical_test else r.raw_test_name[:30],
+                'value': str(r.value_text)[:20],
+                'flag': r.abnormal_flag,
+                'date': r.collected_at.strftime('%Y-%m-%d') if r.collected_at else None,
+            }
+            for r in abnormal
+        ]
+
+        # Recent panels
+        panels = list(LabPanel.objects.filter(
+            user=user, collected_at__gte=cutoff,
+        ).order_by('-collected_at')[:5])
+        panel_list = [
+            {
+                'type': p.panel_type, 'name': p.name[:40] if p.name else p.panel_type,
+                'date': p.collected_at.strftime('%Y-%m-%d') if p.collected_at else None,
+                'result_count': p.result_count, 'abnormal_count': p.abnormal_count,
+            }
+            for p in panels
+        ]
+
+        # Total result count for completeness
+        total_results = LabResult.objects.filter(user=user).count()
+
+        # Provider count
+        provider_count = 0
+        try:
+            from apps.health.models import MedicalProvider
+            provider_count = MedicalProvider.objects.filter(user=user).count()
+        except ImportError:
+            pass
+
+        state['_contract'] = {
+            'summary': {
+                'total_lab_results': total_results,
+                'recent_abnormal_count': len(abnormal_list),
+                'recent_panel_count': len(panel_list),
+                'provider_count': provider_count,
+            },
+            'today': {},  # No appointment model
+            'upcoming': {},  # No appointment model
+            'alerts': {
+                'abnormal_results': abnormal_list,
+            },
+            'detail': {
+                'recent_panels': panel_list,
+            },
+        }
+        # Flat keys for backward compat with existing CoS builder
+        state['medical_alerts'] = abnormal_list
+        state['recent_lab_panels'] = panel_list
+
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning("Medical state build failed", exc_info=True)
+
+    state['_meta'] = _build_state_meta(
+        completeness='partial',  # No appointment tracking model
+        confidence='high',
+    )
+    return state
+
+
+def build_capture_state(user):
+    """Build capture state: intake pressure, backlog, processing status.
+
+    _contract is primary. See docs/SAE_STATE_CONTRACT.md.
+    """
+    state = {}
+    try:
+        from apps.capture.models import CaptureEntry, PendingCapture
+        from apps.core.utils import get_user_today
+
+        user_today = get_user_today(user)
+        week_ago = user_today - timedelta(days=7)
+
+        # Pending uploads
+        pending_count = PendingCapture.objects.filter(
+            user=user, status__in=['pending', 'uploading'],
+        ).count()
+
+        # Recent captures by status
+        recent_ready = list(CaptureEntry.objects.filter(
+            user=user, status='ready',
+            created_at__date__gte=week_ago,
+        ).order_by('-created_at')[:10])
+
+        failed_count = CaptureEntry.objects.filter(
+            user=user, status='failed',
+            created_at__date__gte=week_ago,
+        ).count()
+
+        # Today's captures
+        today_count = CaptureEntry.objects.filter(
+            user=user, created_at__date=user_today,
+        ).count()
+
+        # Volume 7d
+        volume_7d = CaptureEntry.objects.filter(
+            user=user, created_at__date__gte=week_ago,
+        ).count()
+
+        # Stale items (ready but old — not reviewed)
+        stale_cutoff = get_current_time() - timedelta(days=14)
+        stale_count = CaptureEntry.objects.filter(
+            user=user, status='ready',
+            created_at__lt=stale_cutoff,
+        ).count()
+
+        # Backlog level
+        total_unprocessed = pending_count + len(recent_ready) + failed_count
+        if total_unprocessed > 10:
+            backlog_level = 'high'
+        elif total_unprocessed > 3:
+            backlog_level = 'medium'
+        else:
+            backlog_level = 'low'
+
+        capture_items = [
+            {
+                'title': e.title[:60] if e.title else 'Untitled',
+                'category': e.category,
+                'subcategory': e.subcategory,
+                'date': e.created_at.strftime('%Y-%m-%d'),
+            }
+            for e in recent_ready
+        ]
+
+        state['_contract'] = {
+            'summary': {
+                'unprocessed_count': total_unprocessed,
+                'backlog_level': backlog_level,
+                'capture_volume_7d': volume_7d,
+            },
+            'today': {
+                'captures_today': today_count,
+            },
+            'upcoming': {},
+            'alerts': {
+                'pending_uploads': pending_count,
+                'failed_count': failed_count,
+                'stale_items': stale_count,
+            },
+            'detail': {
+                'recent_captures': capture_items,
+            },
+        }
+        # Flat keys for backward compat
+        state['capture_status'] = {
+            'pending_uploads': pending_count,
+            'recent_captures': capture_items,
+        }
+
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning("Capture state build failed", exc_info=True)
+
+    state['_meta'] = _build_state_meta(
+        completeness='full',
+        confidence='high',
+    )
+    return state
+
+
 MODULE_BUILDERS = {
     "health": build_health_state,
     "goals": build_goal_state,
@@ -2422,6 +2994,11 @@ MODULE_BUILDERS = {
     "behavior": build_behavior_state,
     "calendar": build_calendar_state,
     "routine": build_routine_state,
+    "finance": build_finance_state,
+    "relationships": build_relationships_state,
+    "brain_training": build_brain_training_state,
+    "medical": build_medical_state,
+    "capture": build_capture_state,
 }
 
 

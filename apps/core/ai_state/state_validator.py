@@ -57,6 +57,37 @@ _CONTRACT_SCHEMAS = {
         'upcoming': [],
         'alerts': ['missed'],
     },
+    # Phase 2 domains
+    'finance': {
+        'summary': ['account_count', 'cash_pressure_level'],
+        'today': [],
+        'upcoming': [],
+        'alerts': [],
+    },
+    'relationships': {
+        'summary': ['active_count', 'neglected_count'],
+        'today': ['birthdays'],
+        'upcoming': [],
+        'alerts': ['neglected'],
+    },
+    'brain_training': {
+        'summary': ['sessions_this_week', 'streak_length'],
+        'today': ['completed'],
+        'upcoming': [],
+        'alerts': [],
+    },
+    'medical': {
+        'summary': ['total_lab_results'],
+        'today': [],
+        'upcoming': [],
+        'alerts': ['abnormal_results'],
+    },
+    'capture': {
+        'summary': ['unprocessed_count', 'backlog_level'],
+        'today': ['captures_today'],
+        'upcoming': [],
+        'alerts': [],
+    },
 }
 
 _CONTRACT_SECTIONS = frozenset({'summary', 'today', 'upcoming', 'alerts'})

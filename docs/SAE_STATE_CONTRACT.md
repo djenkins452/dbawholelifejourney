@@ -1,7 +1,7 @@
 # SAE Rich State Contract — Migration Reference
 
 **Last updated:** 2026-03-18
-**Status:** Phase 1.75B — Contract overlay active, flat keys preserved
+**Status:** Phase 2 Complete — All domains have SAE builders + _contract overlay
 
 ## Architecture
 
@@ -169,9 +169,51 @@ The routine SAE builder reads ONLY from the dedicated routine models.
 
 ---
 
+## Phase 2 Domains
+
+All 5 previously uncovered domains now have SAE builders and CoS reads from SAE state.
+These domains use `_contract` as primary structure (flat keys are minimal backward-compat only).
+
+### Finance (`build_finance_state`)
+- **summary**: account_count, net_worth, total_assets, total_liabilities, month_spending, month_income, cash_pressure_level
+- **today**: (empty — no daily finance events)
+- **upcoming**: recurring_due_14d, goals
+- **alerts**: overdue_bills, over_budget, budget_warnings
+- **detail**: accounts
+- **Limitations**: No spend_trend computation, no subscription detection
+
+### Relationships (`build_relationships_state`)
+- **summary**: active_count, neglected_count
+- **today**: birthdays
+- **upcoming**: birthdays (14d)
+- **alerts**: neglected (>30 days no contact)
+- **detail**: people
+- **Limitations**: No follow-up tracking model, no relationship health score, confidence=medium
+
+### Brain Training (`build_brain_training_state`)
+- **summary**: sessions_this_week, streak_length, avg_score_7d, performance_trend, total_sessions
+- **today**: completed
+- **alerts**: streak_at_risk, declining_performance
+- **detail**: daily_history, favorite_game
+- **Limitations**: No category-level cognitive profiling
+
+### Medical (`build_medical_state`)
+- **summary**: total_lab_results, recent_abnormal_count, recent_panel_count, provider_count
+- **alerts**: abnormal_results
+- **detail**: recent_panels
+- **Limitations**: No appointment model (completeness=partial), no lab trend analysis
+
+### Capture (`build_capture_state`)
+- **summary**: unprocessed_count, backlog_level, capture_volume_7d
+- **today**: captures_today
+- **alerts**: pending_uploads, failed_count, stale_items
+- **detail**: recent_captures
+
+---
+
 ## Validation
 
 State contract validator: `apps/core/ai_state/state_validator.py`
-- Validates `_contract` shape for all Phase 1 domains
+- Validates `_contract` shape for all 9 contract domains
 - Validates `_meta` completeness and confidence values
 - Can be called from tests or background observability tasks

@@ -121,6 +121,22 @@ def compute_behavior_score(user, start_date, end_date):
     else:
         score = None
 
+    # ── Fail-safe logging ──
+    for output in domain_outputs:
+        d_name = output['domain']
+        d_expected = output.get('expected', 0)
+        d_completed = output.get('completed', 0)
+        d_late = output.get('late', 0)
+        d_missed = output.get('missed', 0)
+
+        # Warn if schedule exists but zero logs ever created
+        if d_expected > 0 and d_completed == 0 and d_late == 0 and output.get('skipped', 0) == 0:
+            logger.warning(
+                "BEHAVIOR_NO_LOGS domain=%s user=%s expected=%d — "
+                "schedule has obligations but no compliance logs exist",
+                d_name, user.id, d_expected,
+            )
+
     return {
         'score': score,
         'domains': domain_outputs,

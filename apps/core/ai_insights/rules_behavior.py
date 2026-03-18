@@ -16,6 +16,10 @@ from apps.core.ai_insights.utils import build_dedupe_key
 
 logger = logging.getLogger(__name__)
 
+# Minimum total expected occurrences across all domains before signals fire.
+# Prevents false positives from low data volume.
+_MIN_EXPECTED_THRESHOLD = 5
+
 
 @register
 class BehaviorScoreDropRule(BaseInsightRule):
@@ -36,10 +40,14 @@ class BehaviorScoreDropRule(BaseInsightRule):
             score = result.get('score')
             if score is None:
                 return []
+
+            domains = result.get('domains', [])
+            total_expected = sum(d.get('expected', 0) for d in domains)
+            if total_expected < _MIN_EXPECTED_THRESHOLD:
+                return []  # Not enough data to fire signal
             if score >= 60:
                 return []
 
-            domains = result.get('domains', [])
             weakest = result.get('weakest_domain', '')
 
             from django.utils import timezone
@@ -95,6 +103,9 @@ class BehaviorDomainWeaknessRule(BaseInsightRule):
                 return []
 
             domains = result.get('domains', [])
+            total_expected = sum(d.get('expected', 0) for d in domains)
+            if total_expected < _MIN_EXPECTED_THRESHOLD:
+                return []
             if len(domains) < 2:
                 return []
 
@@ -156,6 +167,10 @@ class BehaviorMultiDomainDeclineRule(BaseInsightRule):
             from apps.core.behavior.behavior_score_engine import compute_behavior_score_7d
             result = compute_behavior_score_7d(user)
             domains = result.get('domains', [])
+
+            total_expected = sum(d.get('expected', 0) for d in domains)
+            if total_expected < _MIN_EXPECTED_THRESHOLD:
+                return []
 
             weak_domains = [
                 d for d in domains

@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Behavior System Hardening: Workout Wiring + Guardrails + Debug
+
+**Purpose:** Stabilize behavior system for trustworthy outputs before UI expansion.
+
+**Changes:**
+- `apps/health/signals.py` — `post_save` on WorkoutSession: when `completed_at` is set, matches to active plan's schedule, creates WorkoutScheduleLog via `compute_occurrence_status()`. Idempotent, warns on ambiguous matches.
+- `apps/core/ai_insights/rules_behavior.py` — `_MIN_EXPECTED_THRESHOLD = 5` guard on all 3 PIE rules.
+- `apps/core/behavior/behavior_score_engine.py` — Fail-safe: `BEHAVIOR_NO_LOGS` warning when schedule has obligations but zero logs.
+- `apps/admin_console/views.py` + `urls.py` — Debug endpoint at `/admin-console/api/debug/behavior-score/`.
+
+**Verification:** 54 tests pass. All domain adapters use identical pattern. No scoring formula drift.
+
+---
+
 ## 2026-03-18 — Behavior System: Shared Adherence Engine + Routine Domain + Score
 
 **Purpose:** Standardize behavioral adherence tracking across medication, workouts, and routines. Produce deterministic behavior scores that feed into the signal pipeline and CoS.

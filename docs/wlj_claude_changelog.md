@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Fix False Positive Burst Detection on Polling Endpoints
+
+**Root cause:** The `APIRequestLoggingMiddleware` burst detection threshold was 50 requests/5min, which is easily exceeded by normal authenticated usage. Additionally, known frontend polling endpoints (`/api/notifications/count/` and `/api/blueprint/interventions/check/`) were counted toward the burst total, generating ~250 false positive anomaly warnings per 5-minute window.
+
+**Changes:**
+- `apps/core/middleware.py` — Excluded polling endpoints from burst counting via early return in `_check_realtime_anomalies()`. Raised burst threshold from 50 to 150 requests/5min. Adjusted anomaly score denominator from 100 to 300.
+
+**Why:** Eliminates noisy false positives in security logs from normal browser usage while keeping burst detection effective for actual abuse.
+
 ## 2026-03-18 — Editable History + Post-Day Correction Support
 
 **Purpose:** Allow users to edit past scheduled items after the fact. Behavior score recomputes from scratch — no permanent locking of daily data.

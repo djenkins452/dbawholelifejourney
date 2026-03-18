@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Foundational Pattern Break Detection (Context-Aware Coaching Signal)
+
+**Purpose:** Detect repeated misses of foundational commitments and surface a coaching signal enriched with whatever contextual signals already exist — without violating architecture (no CoS-level data scanning).
+
+**Changes:**
+- `apps/core/ai_insights/rules_behavior.py` — Added `FoundationalPatternBreakRule`:
+  - Triggers: same-domain ≥2 missed in 3 days OR cross-domain ≥3 missed in 3 days
+  - Enrichment: gathers related signals from existing PIE insights (motivation_drift, overtraining_risk, behavioral_instability, compliance_risk, financial_anxiety_cluster, overextension_risk) + SAE state (sleep deficit < 6.5h, low mood)
+  - Output: `coaching_mode = 'contextual'` (when related signals exist) or `'open_inquiry'` (when none exist)
+  - Beth response pattern: reference observed pattern, optionally reference related signals, ask a question, avoid assumptions
+
+**Signal audit findings (documented, NOT fixed):**
+- System detects the PATTERN (behavior_score_drop, multi_domain_decline) but cannot infer the CAUSE
+- No signals exist for: illness, injury, travel, stress, fatigue (as standalone events)
+- Sleep analysis exists but is display-only (no behavioral signal fired)
+- Journal theme extraction detects stress/health keywords but doesn't surface as signals
+- These gaps improve automatically as context signals are added later
+
+---
+
 ## 2026-03-18 — Behavior System Hardening: Workout Wiring + Guardrails + Debug
 
 **Purpose:** Stabilize behavior system for trustworthy outputs before UI expansion.

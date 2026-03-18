@@ -982,6 +982,7 @@ class Command(BaseCommand):
 
         # One-time: Reset fixtures for UI Alignment Phase (Routines, nav expansion)
         self._reset_ui_alignment_fixtures(DataLoadConfig, force, verbosity)
+        self._reset_beth_decisive_behavior_fixtures(DataLoadConfig, force, verbosity)
 
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
@@ -6158,3 +6159,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset UI alignment fixtures FAILED: {e}'))
+
+    def _reset_beth_decisive_behavior_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload coaching_styles fixture with decisive behavior updates.
+        Supportive Partner style updated: removed hedging, added action-first + foundational.
+        """
+        reset_tracker_name = 'reset_beth_decisive_2026_03_18'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='coaching_styles')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset coaching_styles for decisive behavior update')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset coaching_styles for Beth decisive behavior',
+                'command',
+                'One-time reset: supportive partner style updated with action-first language'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Beth decisive behavior fixtures FAILED: {e}'))

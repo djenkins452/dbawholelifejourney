@@ -1573,6 +1573,7 @@ def _build_purpose_context(user):
                     if g.target_date else None,
                     'days_until': (g.target_date - today).days
                     if g.target_date else None,
+                    'is_foundational': g.is_foundational,
                 }
                 for g in life_goals
             ]
@@ -1843,6 +1844,7 @@ def _build_signal_aware_context(user):
                     goal_momentum.append({
                         'goal_title': goal.title[:50],
                         'domain': getattr(goal.domain, 'slug', 'life') if goal.domain else 'life',
+                        'is_foundational': goal.is_foundational,
                         'momentum_score': latest.momentum_score,
                         'momentum_7d_avg': latest.momentum_7d_avg,
                         'momentum_trend': trend,

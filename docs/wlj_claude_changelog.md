@@ -6,6 +6,40 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Beth Behavior Refinement: Decisive, Momentum-Building Communication
+
+**Purpose:** Upgrade Beth from "correct" to "decisive, motivating, and momentum-building."
+
+**Master prompt (prompt_builder.py):**
+- Added DECISIVE COMMUNICATION section: action-first structure (instruction → reason → chain)
+- Foundational reinforcement rules: "This is foundational. Handle it first."
+- Momentum chaining: suggest ONE follow-up after each action
+- Completion acknowledgment: "Journal done. Move to workout."
+- Explicit forbidden hedging list: "you might want to", "consider doing", "how about", etc.
+- Pressure calibration rules by day state
+
+**Proactive intelligence (personal_assistant.py):**
+- Section 2: Added foundational detection + priority hierarchy (foundational outranks non-foundational at same urgency)
+- Section 3: Rewritten as ACTION-FIRST presentation — lead with instruction, not explanation. Added examples.
+
+**Tone service (tone_service.py):**
+- `encouraging` tone: "Build momentum — don't just celebrate, propel"
+- `challenger` mode: added foundational identity reinforcement
+
+**Coaching styles (coaching_styles.json):**
+- Default `supportive` style: removed all hedging ("you might consider", "how about"), replaced with decisive language
+- `gentle` style: still gentle but now action-oriented, names specific next steps
+
+**CoS context (cos_context.py):**
+- Added `is_foundational` flag to life_goals and goal_momentum context sections
+
+**Fixture loader (load_initial_data.py):**
+- One-time reset for coaching_styles fixture to deploy updated prompt text
+
+**Files:** `prompt_builder.py`, `personal_assistant.py`, `tone_service.py`, `coaching_styles.json`, `cos_context.py`, `load_initial_data.py`
+
+---
+
 ## 2026-03-18 — Dashboard V2: Final Hardening (Cache, Forms, Grouping, Closure)
 
 **Purpose:** Eliminate trust gaps and cognitive overload in the action cockpit.

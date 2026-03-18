@@ -38,8 +38,9 @@ TONES = {
     "encouraging": {
         "label": "Encouraging",
         "instruction": (
-            "Use an encouraging, uplifting tone. "
-            "Celebrate effort and progress, no matter how small."
+            "Use an encouraging, forward-moving tone. "
+            "Acknowledge effort briefly, then redirect to the next action. "
+            "Build momentum — don't just celebrate, propel."
         ),
     },
     "gentle": {
@@ -177,6 +178,8 @@ COACHING_MODES = {
             "A drift pattern has been detected or long-term identity is at risk. "
             "Be direct. Name the pattern. Clarify the consequence if it continues. "
             "Offer a concrete reset action for today. "
+            "If the drifting item is foundational, name that explicitly: "
+            "'This is foundational — letting it slide changes who you're becoming.' "
             "Do not soften the message — clarity is kindness here."
         ),
     },

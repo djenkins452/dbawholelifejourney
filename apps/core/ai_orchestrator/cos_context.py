@@ -2190,6 +2190,25 @@ def build_cos_context(user, scoped_builders=None):
         pass
     context['ranked_signals'] = _rank_top_signals(context, _ranking_context)
 
+    # Cross-Domain Signals — deterministic multi-domain intelligence
+    # Runs after all domain builders; reads only from _contract state.
+    try:
+        from apps.core.ai_signals.cross_domain_signals import (
+            generate_cross_domain_signals,
+            generate_signal_summary,
+        )
+        sae_state = getattr(user, '_sae_cache', None) or {}
+        if not sae_state:
+            from apps.core.ai_state.state_engine import get_user_state
+            sae_state = get_user_state(user) or {}
+
+        xd_signals = generate_cross_domain_signals(sae_state)
+        if xd_signals:
+            context['cross_domain_signals'] = xd_signals
+            context['cross_domain_summary'] = generate_signal_summary(xd_signals)
+    except Exception:
+        logger.debug("CoS context: cross-domain signals unavailable", exc_info=True)
+
     elapsed_ms = (_time.monotonic() - start) * 1000
     try:
         from apps.ai.readiness_telemetry import log_parallel_build
@@ -3945,6 +3964,36 @@ def format_cos_system_injection(context, user_message=None):
     if _signal_summary:
         lines.append("")
         lines.append(_signal_summary)
+
+    # Cross-Domain Signals — multi-domain pressure/imbalance detection
+    xd_signals = context.get('cross_domain_signals', [])
+    xd_summary = context.get('cross_domain_summary', {})
+    if xd_signals:
+        lines.append("")
+        high_count = xd_summary.get('high_severity_count', 0)
+        if high_count > 0:
+            lines.append(
+                f"=== CROSS-DOMAIN PRESSURE ({len(xd_signals)} signal(s), "
+                f"{high_count} high-severity) ==="
+            )
+        else:
+            lines.append(
+                f"=== CROSS-DOMAIN AWARENESS ({len(xd_signals)} signal(s)) ==="
+            )
+        for sig in xd_signals[:5]:  # Cap at 5 to limit token usage
+            sev = sig.get('severity', 'low').upper()
+            code = sig.get('signal_code', '')
+            summary_text = sig.get('summary', '')
+            action = sig.get('recommended_action', '')
+            domains = ', '.join(sig.get('domains', []))
+            lines.append(f"  [{sev}] {code} ({domains}): {summary_text}")
+            if action:
+                lines.append(f"    → Action: {action}")
+        lines.append(
+            "Cross-domain signals show patterns ACROSS life domains. "
+            "Surface the most actionable one if relevant to the conversation."
+        )
+        lines.append("=== END CROSS-DOMAIN SIGNALS ===")
 
     # Momentum Interpretation — trajectory narrative from GoalMomentumSnapshot
     _momentum_interp = _format_momentum_interpretation(context)

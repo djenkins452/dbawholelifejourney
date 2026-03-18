@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Phase 2.5: Cross-Domain Signal Intelligence
+
+**Purpose:** Enable Beth to reason ACROSS domains — detecting pressure, imbalance, and cause-effect patterns using deterministic signals derived purely from SAE _contract state.
+
+**New module:** `apps/core/ai_signals/cross_domain_signals.py`
+- 7 signal detectors: financial_pressure, execution_breakdown, routine_degradation, relationship_neglect, health_attention, cognitive_discipline, system_overload
+- 11 signal codes total (e.g., system_overload, health_attention_required, discipline_decline)
+- All signals include severity, confidence, evidence dict, and optional recommended_action
+- Sorted by severity (high first), deduplicated by signal_code
+
+**CoS integration:** Signals injected into formatted system injection as "CROSS-DOMAIN PRESSURE" block with severity labels, domain attribution, and action hints.
+
+**Key capabilities Beth now has:**
+- Detect 5-domain system overload (tasks + finance + medicine + routine + capture)
+- Connect missed meds + abnormal labs → health attention signal
+- Connect brain training decline + low task momentum → discipline decline
+- Surface financial pressure clusters (overdue + over-budget + high liabilities)
+
+**Files:** cross_domain_signals.py (new), __init__.py (new), cos_context.py (integration)
+
+---
+
 ## 2026-03-18 — Phase 2: Full Domain Expansion (Finance, Relationships, Brain Training, Medical, Capture)
 
 **Purpose:** Expand SAE state to ALL remaining uncovered domains. Beth now has structured state for every domain in the system. Zero SOFT violations remain.

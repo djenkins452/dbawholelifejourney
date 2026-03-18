@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Shared Decision Engine: Action Prioritizer
+
+**Purpose:** Extract action center prioritization into shared module used by both dashboard and CoS.
+
+- Created `apps/core/decision_engine/action_prioritizer.py` — pure, deterministic, no side effects
+- Exports: `build_action_priorities()`, `group_actions()`, `find_next_upcoming()`, `classify_urgency()`
+- Dashboard service rewired: `_build_action_center` replaced with normalizer → engine pattern
+- CoS context builder: injects ACTION PRIORITIES section (top 5 items) into data state, using same engine
+- Old monolithic `_build_action_center` and `_find_next_upcoming` replaced with thin normalization helpers
+- No behavior change — exact same priority ordering, exact same output format
+
+**Files:** `action_prioritizer.py` (new), `dashboard_service.py`, `cos_context.py`
+
+---
+
 ## 2026-03-18 — Beth Behavior Refinement: Decisive, Momentum-Building Communication
 
 **Purpose:** Upgrade Beth from "correct" to "decisive, motivating, and momentum-building."

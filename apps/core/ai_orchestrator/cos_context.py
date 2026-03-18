@@ -2880,6 +2880,67 @@ def _build_data_state_snapshot(user) -> str:
             "not judgment. Ask what's blocking them if they bring it up."
         )
 
+    # ── Unified Action Priorities (shared decision engine) ──
+    # Same prioritizer as the dashboard Action Center — ensures Beth
+    # recommends the SAME items the user sees on the dashboard.
+    try:
+        from apps.core.decision_engine.action_prioritizer import build_action_priorities
+        from apps.core.utils import get_user_now
+
+        user_now = get_user_now(user)
+        current_time = user_now.time()
+
+        # Build schedule items from SAE task state
+        _schedule_items = []
+        for t in _overdue:
+            _schedule_items.append({
+                "title": t.get("title", ""),
+                "pk": t.get("id"),
+                "time": None,
+                "is_overdue": True,
+                "is_completed": False,
+                "is_foundational": t.get("is_foundational", False),
+                "source_url": "",
+                "can_complete": True,
+                "commitment_level": t.get("commitment_level", ""),
+                "goal_name": "",
+                "type": "task",
+                "time_display": "",
+            })
+        for t in _today:
+            _schedule_items.append({
+                "title": t.get("title", ""),
+                "pk": t.get("id"),
+                "time": None,
+                "is_overdue": False,
+                "is_completed": False,
+                "is_foundational": t.get("is_foundational", False),
+                "source_url": "",
+                "can_complete": True,
+                "commitment_level": t.get("commitment_level", ""),
+                "goal_name": "",
+                "type": "task",
+                "time_display": "",
+            })
+
+        action_priorities = build_action_priorities(
+            schedule_items=_schedule_items,
+            current_time=current_time,
+        )
+
+        if action_priorities:
+            lines.append("")
+            lines.append("ACTION PRIORITIES (same as dashboard Action Center):")
+            lines.append("Use this ordering when recommending what to do next.")
+            for i, action in enumerate(action_priorities[:5], 1):
+                _f_tag = " [FOUNDATIONAL]" if action["is_foundational"] else ""
+                _u_tag = action["urgency"].upper()
+                lines.append(
+                    f"  {i}. [{_u_tag}]{_f_tag} {action['title']}"
+                )
+    except Exception:
+        logger.debug("Action prioritizer unavailable for CoS context")
+
     lines.append("========== END DATA STATE ==========")
     return "\n".join(lines)
 

@@ -337,27 +337,45 @@ class DashboardV2Service:
         # Time phase for section ordering
         context["time_phase"] = self.get_time_phase()
 
-        # Action center — all pending actionable items sorted by foundational + urgency
-        action_center = self._build_action_center(context, self._daily_progress)
+        # Action center — uses shared decision engine for prioritization
+        from apps.core.decision_engine.action_prioritizer import (
+            build_action_priorities,
+            find_next_upcoming,
+            group_actions,
+        )
 
-        # Group into NOW / NEXT / LATER for visual clarity
-        action_now = [a for a in action_center if a["urgency"] in ("overdue", "now")]
-        action_next = [a for a in action_center if a["urgency"] == "next"]
-        action_later = [a for a in action_center if a["urgency"] == "upcoming"]
+        action_center = build_action_priorities(
+            schedule_items=context.get("schedule_timeline", []),
+            pending_routines=self._normalize_pending_routines(
+                context.get("pending_routines", [])
+            ),
+            medicine_groups=self._normalize_medicine_groups(
+                context.get("visible_medicine_groups", [])
+            ),
+            binary_actions=self._build_binary_actions(
+                self._daily_progress, context.get("goals_by_domain", {})
+            ),
+            current_time=self._get_user_now().time(),
+        )
 
+        groups = group_actions(action_center)
         context["action_center"] = action_center
-        context["action_now"] = action_now
-        context["action_next"] = action_next
-        context["action_later"] = action_later
+        context["action_now"] = groups["now"]
+        context["action_next"] = groups["next"]
+        context["action_later"] = groups["later"]
         context["action_foundational"] = [a for a in action_center if a["is_foundational"]]
         context["action_standard"] = [a for a in action_center if not a["is_foundational"]]
         context["all_done"] = len(action_center) == 0
-        # Backward compat: next_action = first item (for any legacy template refs)
         context["next_action"] = action_center[0] if action_center else None
 
-        # When all done, find next upcoming for closure/forward orientation
         if context["all_done"]:
-            context["next_upcoming"] = self._find_next_upcoming(context)
+            context["next_upcoming"] = find_next_upcoming(
+                action_center,
+                future_medicine_groups=self._normalize_medicine_groups(
+                    context.get("future_medicine_groups", [])
+                ),
+                schedule_later=context.get("schedule_later", []),
+            )
 
         DashboardV2CacheService.set(self.user.pk, "execution", context)
         return context
@@ -465,213 +483,102 @@ class DashboardV2Service:
         target_mins = target_time.hour * 60 + target_time.minute
         return target_mins - now_mins
 
-    def _build_action_center(self, exec_context, daily_progress=None):
-        """
-        Build the full action center — ALL pending actionable items, sorted by
-        foundational priority and urgency.
+    # ── Normalization helpers for shared decision engine ────────────
+    # These convert ORM objects / dashboard-specific dicts into the
+    # pure-dict format expected by action_prioritizer.
 
-        Priority ordering:
-            1. foundational + overdue
-            2. foundational + due now
-            3. non-foundational + overdue
-            4. non-foundational + due now
-            5. foundational + next/upcoming
-            6. non-foundational + next/upcoming
-            7. binary items (journal, faith, workout) — foundational first
-
-        Foundational precedence per item:
-            linked goal/habit/domain is_foundational > task.is_foundational > False
-        """
-        from django.urls import reverse
-
-        actions = []
-        now = self._get_user_now()
-
-        # ── Schedule items (overdue + time-aware) ──
-        for item in exec_context.get("schedule_timeline", []):
-            if item.get("is_completed"):
-                continue
-
-            if item.get("is_overdue"):
-                urgency = "overdue"
-            elif item.get("time"):
-                delta = self._time_diff_minutes(now.time(), item["time"])
-                if -5 <= delta <= 30:
-                    urgency = "now"
-                elif delta <= 120:
-                    urgency = "next"
-                else:
-                    urgency = "upcoming"
-            else:
-                urgency = "upcoming"
-
-            actions.append({
-                "source": "schedule",
-                "urgency": urgency,
-                "type": item.get("type", "task"),
-                "pk": item.get("pk"),
-                "title": item["title"],
-                "source_url": item.get("source_url", ""),
-                "can_complete": item.get("can_complete", False),
-                "is_foundational": item.get("is_foundational", False),
-                "commitment_level": item.get("commitment_level", ""),
-                "goal_name": item.get("goal_name", ""),
-                "time_of_day": None,
-                "time_display": item.get("time_display", ""),
-            })
-
-        # ── Pending routines ──
-        for task in exec_context.get("pending_routines", []):
-            # Foundational precedence: domain goal > task fallback
-            is_foundational = getattr(task, "_domain_foundational", False) or getattr(task, "is_foundational", False)
-            actions.append({
-                "source": "routine",
-                "urgency": "next",
-                "type": "task",
+    @staticmethod
+    def _normalize_pending_routines(pending_routines):
+        """Convert Task ORM objects to dicts for the decision engine."""
+        result = []
+        for task in pending_routines:
+            is_foundational = (
+                getattr(task, "_domain_foundational", False)
+                or getattr(task, "is_foundational", False)
+            )
+            result.append({
                 "pk": task.pk,
                 "title": task.title,
                 "source_url": getattr(task, "detail_url", ""),
-                "can_complete": True,
                 "is_foundational": is_foundational,
                 "commitment_level": getattr(task, "commitment_level", ""),
                 "goal_name": getattr(task, "goal_name", ""),
-                "time_of_day": None,
-                "time_display": "",
             })
+        return result
 
-        # ── Untaken medicine groups ──
-        for g in exec_context.get("visible_medicine_groups", []):
-            if not g["all_taken"]:
-                actions.append({
-                    "source": "medicine",
-                    "urgency": "next",
-                    "type": "medicine_group",
-                    "pk": None,
-                    "title": g["label"],
-                    "source_url": "",
-                    "can_complete": True,
-                    "is_foundational": g.get("is_foundational", False),
-                    "commitment_level": "",
-                    "goal_name": g.get("goal_name", ""),
-                    "time_of_day": g["time_of_day"],
-                    "time_display": "",
-                })
+    @staticmethod
+    def _normalize_medicine_groups(medicine_groups):
+        """Convert medicine group dicts to engine-compatible format."""
+        result = []
+        for g in (medicine_groups or []):
+            result.append({
+                "title": g.get("label", ""),
+                "time_of_day": g.get("time_of_day", ""),
+                "is_foundational": g.get("is_foundational", False),
+                "goal_name": g.get("goal_name", ""),
+                "all_taken": g.get("all_taken", False),
+            })
+        return result
 
-        # ── Binary daily actions (journal, faith, workout) ──
-        # These are "Go Act" links, not inline-completable
+    @staticmethod
+    def _build_binary_actions(daily_progress, goals_by_domain):
+        """Build binary action items (journal, faith, workout) from progress data."""
+        from django.urls import reverse
+
         dp = daily_progress or {}
-        goals_by_domain = exec_context.get("goals_by_domain", {})
+        actions = []
 
-        if dp.get("journaling", {}).get("done", 0) == 0:
-            journal_goal = goals_by_domain.get("personal-growth", {})
-            try:
-                journal_url = reverse("journal:entry_list")
-            except Exception:
-                journal_url = "/journal/"
-            actions.append({
+        _BINARY_ITEMS = [
+            {
                 "source": "journal",
-                "urgency": "next",
-                "type": "link",
-                "pk": None,
+                "key": "journaling",
+                "domain": "personal-growth",
                 "title": "Write in journal",
-                "source_url": journal_url,
-                "can_complete": False,
-                "is_foundational": journal_goal.get("is_foundational", False) if isinstance(journal_goal, dict) else False,
-                "commitment_level": "",
-                "goal_name": journal_goal.get("title", "") if isinstance(journal_goal, dict) else "",
-                "time_of_day": None,
-                "time_display": "",
-            })
-
-        if dp.get("faith", {}).get("done", 0) == 0:
-            faith_goal = goals_by_domain.get("faith", {})
-            try:
-                faith_url = reverse("faith:reading_plans")
-            except Exception:
-                faith_url = "/faith/reading-plans/"
-            actions.append({
+                "url_name": "journal:entry_list",
+                "url_fallback": "/journal/",
+            },
+            {
                 "source": "faith",
-                "urgency": "next",
-                "type": "link",
-                "pk": None,
+                "key": "faith",
+                "domain": "faith",
                 "title": "Bible reading",
-                "source_url": faith_url,
-                "can_complete": False,
-                "is_foundational": faith_goal.get("is_foundational", False) if isinstance(faith_goal, dict) else False,
-                "commitment_level": "",
-                "goal_name": faith_goal.get("title", "") if isinstance(faith_goal, dict) else "",
-                "time_of_day": None,
-                "time_display": "",
-            })
-
-        if dp.get("workout", {}).get("done", 0) == 0:
-            health_goal = goals_by_domain.get("health", {})
-            try:
-                fitness_url = reverse("health:fitness_home")
-            except Exception:
-                fitness_url = "/health/physical/fitness/"
-            actions.append({
+                "url_name": "faith:reading_plans",
+                "url_fallback": "/faith/reading-plans/",
+            },
+            {
                 "source": "workout",
-                "urgency": "next",
-                "type": "link",
-                "pk": None,
+                "key": "workout",
+                "domain": "health",
                 "title": "Log a workout",
-                "source_url": fitness_url,
-                "can_complete": False,
-                "is_foundational": health_goal.get("is_foundational", False) if isinstance(health_goal, dict) else False,
-                "commitment_level": "",
-                "goal_name": health_goal.get("title", "") if isinstance(health_goal, dict) else "",
-                "time_of_day": None,
-                "time_display": "",
-            })
+                "url_name": "health:fitness_home",
+                "url_fallback": "/health/physical/fitness/",
+            },
+        ]
 
-        # ── Sort by foundational priority + urgency ──
-        URGENCY_ORDER = {"overdue": 0, "now": 1, "next": 2, "upcoming": 3}
-        actions.sort(key=lambda a: (
-            not a["is_foundational"],
-            URGENCY_ORDER.get(a["urgency"], 9),
-            a["title"],
-        ))
+        for item in _BINARY_ITEMS:
+            done = dp.get(item["key"], {}).get("done", 0)
+            domain_goal = goals_by_domain.get(item["domain"], {})
+            try:
+                url = reverse(item["url_name"])
+            except Exception:
+                url = item["url_fallback"]
+
+            actions.append({
+                "source": item["source"],
+                "title": item["title"],
+                "source_url": url,
+                "is_foundational": (
+                    domain_goal.get("is_foundational", False)
+                    if isinstance(domain_goal, dict) else False
+                ),
+                "goal_name": (
+                    domain_goal.get("title", "")
+                    if isinstance(domain_goal, dict) else ""
+                ),
+                "is_done": done > 0,
+            })
 
         return actions
-
-    def _find_next_upcoming(self, exec_context):
-        """
-        Find the next upcoming item for the "All Clear" closure state.
-        Returns a simple dict with title + time, or None.
-        Deterministic — no LLM, no CoS.
-        """
-        # Check future medicine groups
-        for g in exec_context.get("future_medicine_groups", []):
-            if not g.get("all_taken"):
-                return {"title": g["label"], "time_display": ""}
-
-        # Check later schedule items
-        for item in exec_context.get("schedule_later", []):
-            return {"title": item["title"], "time_display": item.get("time_display", "")}
-
-        # Check future tasks (tomorrow)
-        try:
-            from apps.life.models import Task
-            from datetime import timedelta
-            tomorrow = self.today + timedelta(days=1)
-            next_task = (
-                Task.objects.filter(
-                    user=self.user,
-                    due_date=tomorrow,
-                    completion_status="pending",
-                )
-                .exclude(status="deleted")
-                .order_by("scheduled_time", "title")
-                .values_list("title", flat=True)
-                .first()
-            )
-            if next_task:
-                return {"title": next_task, "time_display": "Tomorrow"}
-        except Exception:
-            pass
-
-        return None
 
     def _build_schedule_timeline(self, non_routine_tasks, today_events):
         """

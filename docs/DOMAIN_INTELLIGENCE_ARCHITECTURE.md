@@ -498,8 +498,9 @@ No guidance rules yet. Candidate: task prioritization coaching when >5 now-prior
 | Fitness | `fitness` | 2 | 1 (2 horizons) | `workout_frequency` | — | — |
 | Transformation | `transformation` | 1 | 1 | `transformation_coaching` | `log_transformation_protocol` | — |
 | **Tasks** | — | **3** | **1** | — | `create_task`, `complete_task`, `mutate_task` | — |
+| **Behavior (cross-domain)** | `behavior` | **3** | 0 | — | — | — |
 | Cross-module | — | — | — | `positive_reinforcement` | — | — |
-| **Total** | **9 modules** | **23** | **10** | **9** | — | — |
+| **Total** | **10 modules** | **26** | **10** | **9** | — | — |
 
 ---
 
@@ -521,4 +522,4 @@ When adding a new domain module to WLJ:
 
 ---
 
-*Last updated: 2026-03-17 — Added Tasks domain (3 PIE rules, 1 PRIE rule) + PendingAction bridge for proactive check-ins*
+*Last updated: 2026-03-18 — Added Behavior cross-domain (3 PIE rules), Routine domain models, WorkoutScheduleLog*

@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-17 (Signal Arbitration v1.0: deterministic CoS signal selection + delivery modes)
+**Last updated:** 2026-03-18 (Behavior System: shared adherence engine, Routine domain, behavior score, 3 behavior PIE rules)
 
 ---
 
@@ -791,6 +791,19 @@ When the user asks a health intelligence question with a brevity keyword ("keep 
 | `apps/core/ai_delivery/delivery_engine.py` | DNE — notification delivery |
 | `apps/core/domain_registry/registry.py` | Domain Capability Registry (autodiscover, coverage) |
 | `apps/core/domain_registry/descriptors.py` | DomainCapability descriptor dataclass |
+
+### Behavior System
+
+| File | Purpose |
+|------|---------|
+| `apps/core/behavior/status_engine.py` | Shared occurrence status + adherence math (all domains use this) |
+| `apps/core/behavior/behavior_score_engine.py` | Composite behavior score across domains |
+| `apps/core/behavior/domain_medication.py` | Medication adapter for behavior contract |
+| `apps/core/behavior/domain_workout.py` | Workout adapter for behavior contract |
+| `apps/core/behavior/domain_routine.py` | Routine adapter for behavior contract |
+| `apps/core/ai_insights/rules_behavior.py` | PIE — behavior score drop, domain weakness, multi-domain decline |
+| `apps/life/models.py` (Routine/RoutineSchedule/RoutineLog) | Routine domain models |
+| `apps/health/models.py` (WorkoutScheduleLog) | Workout schedule adherence log |
 
 ### Blueprint & Governance
 

@@ -6,6 +6,31 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Fix: Workout Minutes Inflation (Root Cause + 5-Point Fix)
+
+**Root cause:** Workout minutes were inflated by two architectural bugs:
+1. `DailyHealthSummaryBuilder`, signal aggregation, dashboard view, and export view all queried `WorkoutSession` without filtering `completed_at__isnull=False` — counting uncompleted/template-created sessions
+2. HealthKit workout ingestion only deduped by `sync_id`, allowing duplicate `WorkoutSession` records when a user manually logged a workout AND Apple Health synced the same physical workout
+
+**Fixes applied (5 files):**
+- `apps/health/services/daily_summary_builder.py` — added `completed_at__isnull=False` filter to `_collect_workouts()`
+- `apps/core/ai_eae/signal_aggregation.py` — added `completed_at__isnull=False` filter to `_compute_health_activity()`
+- `apps/health/views.py` — added `completed_at__isnull=False` to dashboard fitness duration query
+- `apps/health/views_export.py` — added `completed_at__isnull=False` to export total duration query
+- `apps/mobile/views.py` — added overlap-aware merge in `process_workout_metric()`: when a HealthKit workout's time window overlaps an existing manual entry, enriches the manual entry instead of creating a duplicate (merge requires both sessions to have timestamps — safe against false merges)
+
+**Evidence report:**
+- Created `apps/health/management/commands/audit_workout_minutes.py` — record-level diagnostic command
+- Created `apps/health/migrations/0064_audit_workout_minutes.py` — one-time data migration that logs evidence to production logs on deploy
+
+**Tests:** 12 new tests in `apps/health/tests/test_workout_minutes_fix.py` covering:
+- DailyHealthSummary completed_at filter (3 tests)
+- Signal aggregation completed_at filter (2 tests)
+- HealthKit overlap merge + safety guards (6 tests)
+- Cross-path parity validation (1 test)
+
+**Validation:** All 12 new tests + 327 existing fitness/signal tests pass. SAE, DailyHealthSummary, signals, dashboard, and export now all use consistent `completed_at__isnull=False` filtering.
+
 ## 2026-03-18 — Fix False Positive Burst Detection on Polling Endpoints
 
 **Root cause:** The `APIRequestLoggingMiddleware` burst detection threshold was 50 requests/5min, which is easily exceeded by normal authenticated usage. Additionally, known frontend polling endpoints (`/api/notifications/count/` and `/api/blueprint/interventions/check/`) were counted toward the burst total, generating ~250 false positive anomaly warnings per 5-minute window.

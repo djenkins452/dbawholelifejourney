@@ -379,9 +379,10 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             week_workouts = workouts.filter(date__gte=week_start)
             context["workouts_this_week"] = week_workouts.count()
 
-            # Total duration this week
+            # Total duration this week (only completed sessions)
             week_duration = week_workouts.filter(
-                duration_minutes__isnull=False
+                duration_minutes__isnull=False,
+                completed_at__isnull=False,
             ).aggregate(total=Sum('duration_minutes'))['total'] or 0
             context["fitness_duration_this_week"] = week_duration
 

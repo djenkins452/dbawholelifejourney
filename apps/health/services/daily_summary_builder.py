@@ -336,7 +336,9 @@ class DailyHealthSummaryBuilder:
         """Collect workout session data and compute training load."""
         from apps.health.models import ExerciseSet, WorkoutSession
 
-        sessions = WorkoutSession.objects.filter(user=user, date=target_date)
+        sessions = WorkoutSession.objects.filter(
+            user=user, date=target_date, completed_at__isnull=False,
+        )
         count = sessions.count()
         if count == 0:
             return {"workout_count": 0}

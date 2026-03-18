@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 CACHE_TTLS = {
     "momentum": 300,     # 5 minutes
     "daily_prog": 120,   # 2 minutes
-    "execution": 120,    # 2 minutes
+    "execution": 30,     # 30 seconds — action center must stay fresh
     "state": 300,        # 5 minutes
     "celebration": 600,  # 10 minutes
 }

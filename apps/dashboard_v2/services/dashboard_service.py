@@ -339,12 +339,25 @@ class DashboardV2Service:
 
         # Action center — all pending actionable items sorted by foundational + urgency
         action_center = self._build_action_center(context, self._daily_progress)
+
+        # Group into NOW / NEXT / LATER for visual clarity
+        action_now = [a for a in action_center if a["urgency"] in ("overdue", "now")]
+        action_next = [a for a in action_center if a["urgency"] == "next"]
+        action_later = [a for a in action_center if a["urgency"] == "upcoming"]
+
         context["action_center"] = action_center
+        context["action_now"] = action_now
+        context["action_next"] = action_next
+        context["action_later"] = action_later
         context["action_foundational"] = [a for a in action_center if a["is_foundational"]]
         context["action_standard"] = [a for a in action_center if not a["is_foundational"]]
         context["all_done"] = len(action_center) == 0
         # Backward compat: next_action = first item (for any legacy template refs)
         context["next_action"] = action_center[0] if action_center else None
+
+        # When all done, find next upcoming for closure/forward orientation
+        if context["all_done"]:
+            context["next_upcoming"] = self._find_next_upcoming(context)
 
         DashboardV2CacheService.set(self.user.pk, "execution", context)
         return context
@@ -621,6 +634,44 @@ class DashboardV2Service:
         ))
 
         return actions
+
+    def _find_next_upcoming(self, exec_context):
+        """
+        Find the next upcoming item for the "All Clear" closure state.
+        Returns a simple dict with title + time, or None.
+        Deterministic — no LLM, no CoS.
+        """
+        # Check future medicine groups
+        for g in exec_context.get("future_medicine_groups", []):
+            if not g.get("all_taken"):
+                return {"title": g["label"], "time_display": ""}
+
+        # Check later schedule items
+        for item in exec_context.get("schedule_later", []):
+            return {"title": item["title"], "time_display": item.get("time_display", "")}
+
+        # Check future tasks (tomorrow)
+        try:
+            from apps.life.models import Task
+            from datetime import timedelta
+            tomorrow = self.today + timedelta(days=1)
+            next_task = (
+                Task.objects.filter(
+                    user=self.user,
+                    due_date=tomorrow,
+                    completion_status="pending",
+                )
+                .exclude(status="deleted")
+                .order_by("scheduled_time", "title")
+                .values_list("title", flat=True)
+                .first()
+            )
+            if next_task:
+                return {"title": next_task, "time_display": "Tomorrow"}
+        except Exception:
+            pass
+
+        return None
 
     def _build_schedule_timeline(self, non_routine_tasks, today_events):
         """

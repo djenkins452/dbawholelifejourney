@@ -330,7 +330,8 @@ class GoalCreateView(SaveAddAnotherMixin, PurposeAccessMixin, CreateView):
     template_name = "purpose/goal_form.html"
     fields = [
         'title', 'description', 'why_it_matters', 'success_looks_like',
-        'domain', 'commitment_level', 'timeframe', 'target_date', 'annual_direction'
+        'domain', 'commitment_level', 'is_foundational',
+        'timeframe', 'target_date', 'annual_direction'
     ]
     save_add_another_message = "Goal '{title}' created. Add another!"
 
@@ -364,7 +365,8 @@ class GoalUpdateView(PurposeAccessMixin, UpdateView):
     template_name = "purpose/goal_form.html"
     fields = [
         'title', 'description', 'why_it_matters', 'success_looks_like',
-        'domain', 'commitment_level', 'timeframe', 'target_date', 'status', 'reflection',
+        'domain', 'commitment_level', 'is_foundational',
+        'timeframe', 'target_date', 'status', 'reflection',
         'annual_direction'
     ]
     
@@ -834,7 +836,7 @@ class HabitGoalCreateView(PurposeAccessMixin, CreateView):
         'start_date', 'end_date', 'habit_required',
         'measurement_type', 'frequency_type', 'target_value',
         'target_unit', 'sessions_per_week', 'category',
-        'domain', 'annual_direction',
+        'domain', 'is_foundational', 'annual_direction',
     ]
 
     def get_form(self, form_class=None):
@@ -867,7 +869,7 @@ class HabitGoalUpdateView(PurposeAccessMixin, UpdateView):
         'start_date', 'end_date', 'habit_required',
         'measurement_type', 'frequency_type', 'target_value',
         'target_unit', 'sessions_per_week', 'category',
-        'domain', 'status', 'annual_direction',
+        'domain', 'is_foundational', 'status', 'annual_direction',
     ]
 
     def get_queryset(self):

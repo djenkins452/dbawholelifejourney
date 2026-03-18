@@ -80,6 +80,15 @@
                     </select>
                 </div>
             </div>
+
+            <div class="form-group">
+                <label class="form-checkbox-label">
+                    <input type="checkbox" name="is_foundational" id="id_is_foundational"
+                           {% if form.is_foundational.value %}checked{% endif %}>
+                    <span>Foundational (identity-level priority)</span>
+                </label>
+                <p class="form-help">Foundational goals are always surfaced first in the dashboard and receive visual emphasis.</p>
+            </div>
             
             <div class="form-row">
                 <div class="form-group">

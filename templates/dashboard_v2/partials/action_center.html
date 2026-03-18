@@ -10,62 +10,32 @@
         <button class="v2-action-center-toggle" data-action="toggle-action-center">Collapse</button>
     </div>
     <div class="v2-action-center-list">
-        {% for action in action_center %}
-        <div class="v2-action-item v2-urgency-{{ action.urgency }}{% if action.is_foundational %} v2-foundational{% endif %}">
-            <div class="v2-action-item-left">
-                {% if action.is_foundational %}
-                <span class="v2-foundational-indicator" title="Foundational"></span>
-                {% endif %}
-                {% if action.can_complete %}
-                    {% if action.source == "routine" %}
-                    <button class="v2-action-toggle"
-                            hx-post="{% url 'dashboard_v2:routine_complete' pk=action.pk %}"
-                            hx-target="#routine-card"
-                            hx-swap="outerHTML">
-                        <span class="v2-check-empty">&#9675;</span>
-                    </button>
-                    {% elif action.source == "medicine" %}
-                    <button class="v2-action-toggle"
-                            hx-post="{% url 'dashboard_v2:medicine_group_log' time_of_day=action.time_of_day %}"
-                            hx-target="#medicine-card"
-                            hx-swap="outerHTML">
-                        <span class="v2-check-empty">&#9675;</span>
-                    </button>
-                    {% elif action.type == "task" %}
-                    <button class="v2-action-toggle"
-                            hx-post="{% url 'dashboard_v2:task_toggle' pk=action.pk %}"
-                            hx-target="#schedule-card"
-                            hx-swap="outerHTML">
-                        <span class="v2-check-empty">&#9675;</span>
-                    </button>
-                    {% endif %}
-                {% else %}
-                <span class="v2-action-link-icon">&#8594;</span>
-                {% endif %}
-            </div>
-            <div class="v2-action-item-info">
-                {% if action.source_url %}
-                <a href="{{ action.source_url }}" class="v2-action-title">{{ action.title }}</a>
-                {% else %}
-                <span class="v2-action-title">{{ action.title }}</span>
-                {% endif %}
-                {% if action.goal_name %}
-                <span class="v2-goal-tag">{{ action.goal_name }}</span>
-                {% endif %}
-            </div>
-            <div class="v2-action-item-right">
-                {% if action.time_display %}
-                <span class="v2-action-time">{{ action.time_display }}</span>
-                {% endif %}
-                <span class="v2-urgency-badge v2-urgency-badge-{{ action.urgency }}">
-                    {% if action.urgency == "overdue" %}Overdue
-                    {% elif action.urgency == "now" %}Now
-                    {% elif action.urgency == "next" %}Next
-                    {% else %}Later{% endif %}
-                </span>
-            </div>
+        {% if action_now %}
+        <div class="v2-action-group">
+            <div class="v2-action-group-label v2-group-now">Now</div>
+            {% for action in action_now %}
+            {% include "dashboard_v2/partials/_action_item.html" %}
+            {% endfor %}
         </div>
-        {% endfor %}
+        {% endif %}
+
+        {% if action_next %}
+        <div class="v2-action-group">
+            <div class="v2-action-group-label v2-group-next">Next</div>
+            {% for action in action_next %}
+            {% include "dashboard_v2/partials/_action_item.html" %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if action_later %}
+        <div class="v2-action-group">
+            <div class="v2-action-group-label v2-group-later">Later</div>
+            {% for action in action_later %}
+            {% include "dashboard_v2/partials/_action_item.html" %}
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
 </section>
 {% elif all_done %}
@@ -75,7 +45,14 @@
     </div>
     <div class="v2-action-center-done">
         <span class="v2-done-check">&#10003;</span>
-        <span>Everything's done for today. Nice work.</span>
+        <div class="v2-done-text">
+            <span class="v2-done-primary">All clear for now</span>
+            {% if next_upcoming %}
+            <span class="v2-done-next">
+                Next: {{ next_upcoming.title }}{% if next_upcoming.time_display %} &middot; {{ next_upcoming.time_display }}{% endif %}
+            </span>
+            {% endif %}
+        </div>
     </div>
 </section>
 {% endif %}

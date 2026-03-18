@@ -1278,3 +1278,54 @@ a.v2-action-title:hover {
 .v2-progress-item.v2-progress-incomplete {
     cursor: pointer;
 }
+
+/* ================================================================
+   Action Center — NOW / NEXT / LATER grouping
+   ================================================================ */
+
+.v2-action-group {
+    margin-bottom: 0.5rem;
+}
+
+.v2-action-group:last-child {
+    margin-bottom: 0;
+}
+
+.v2-action-group-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.35rem 0;
+    margin-top: 0.25rem;
+}
+
+.v2-group-now {
+    color: #dc2626;
+}
+
+.v2-group-next {
+    color: var(--color-text-secondary, #6b7280);
+}
+
+.v2-group-later {
+    color: var(--color-text-secondary, #9ca3af);
+}
+
+/* All Clear closure — forward orientation */
+.v2-done-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.v2-done-primary {
+    font-weight: 600;
+    color: #16a34a;
+}
+
+.v2-done-next {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary, #6b7280);
+    font-weight: 400;
+}

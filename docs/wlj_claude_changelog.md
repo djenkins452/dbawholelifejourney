@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Dashboard V2: Final Hardening (Cache, Forms, Grouping, Closure)
+
+**Purpose:** Eliminate trust gaps and cognitive overload in the action cockpit.
+
+**Objective 1 — Cache bypass:** `?refresh=1` query param invalidates execution cache on return to dashboard. Execution cache TTL reduced from 2min → 30sec.
+
+**Objective 2 — Foundational input:** Added `is_foundational` checkbox to GoalCreateView, GoalUpdateView, HabitGoalCreateView, HabitGoalUpdateView (views.py + templates).
+
+**Objective 3 — All Clear closure:** When all_done, shows "All clear for now" + next upcoming item (deterministic: future medicine, later schedule, or tomorrow's task).
+
+**Objective 4 — NOW/NEXT/LATER grouping:** Action center items grouped into visual sections with group headers. Foundational priority maintained within each group.
+
+**Objective 5 — HTMX integrity:** Verified all 3 action endpoints fire `refresh-next-action`, action center listens correctly, cache invalidation chain is complete.
+
+**Files:** `views.py`, `cache.py`, `dashboard_service.py`, `purpose/views.py`, `goal_form.html`, `habit_goal_form.html`, `action_center.html`, `_action_item.html` (new), `dashboard_v2.css`
+
+---
+
 ## 2026-03-18 — Dashboard V2: Action Cockpit Redesign
 
 **Purpose:** Transform Dashboard V2 from a summary page into an event-driven action command center.

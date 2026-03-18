@@ -1,0 +1,48 @@
+<div class="v2-action-item v2-urgency-{{ action.urgency }}{% if action.is_foundational %} v2-foundational{% endif %}">
+    <div class="v2-action-item-left">
+        {% if action.is_foundational %}
+        <span class="v2-foundational-indicator" title="Foundational"></span>
+        {% endif %}
+        {% if action.can_complete %}
+            {% if action.source == "routine" %}
+            <button class="v2-action-toggle"
+                    hx-post="{% url 'dashboard_v2:routine_complete' pk=action.pk %}"
+                    hx-target="#routine-card"
+                    hx-swap="outerHTML">
+                <span class="v2-check-empty">&#9675;</span>
+            </button>
+            {% elif action.source == "medicine" %}
+            <button class="v2-action-toggle"
+                    hx-post="{% url 'dashboard_v2:medicine_group_log' time_of_day=action.time_of_day %}"
+                    hx-target="#medicine-card"
+                    hx-swap="outerHTML">
+                <span class="v2-check-empty">&#9675;</span>
+            </button>
+            {% elif action.type == "task" %}
+            <button class="v2-action-toggle"
+                    hx-post="{% url 'dashboard_v2:task_toggle' pk=action.pk %}"
+                    hx-target="#schedule-card"
+                    hx-swap="outerHTML">
+                <span class="v2-check-empty">&#9675;</span>
+            </button>
+            {% endif %}
+        {% else %}
+        <span class="v2-action-link-icon">&#8594;</span>
+        {% endif %}
+    </div>
+    <div class="v2-action-item-info">
+        {% if action.source_url %}
+        <a href="{{ action.source_url }}" class="v2-action-title">{{ action.title }}</a>
+        {% else %}
+        <span class="v2-action-title">{{ action.title }}</span>
+        {% endif %}
+        {% if action.goal_name %}
+        <span class="v2-goal-tag">{{ action.goal_name }}</span>
+        {% endif %}
+    </div>
+    <div class="v2-action-item-right">
+        {% if action.time_display %}
+        <span class="v2-action-time">{{ action.time_display }}</span>
+        {% endif %}
+    </div>
+</div>

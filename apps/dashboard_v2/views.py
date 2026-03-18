@@ -36,6 +36,13 @@ class DashboardV2View(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # ?refresh=1 bypasses cache for action center + daily progress
+        # (used when returning to dashboard after acting externally)
+        force_refresh = self.request.GET.get("refresh") == "1"
+        if force_refresh:
+            DashboardV2CacheService.invalidate(self.request.user.pk, "execution")
+
         service = DashboardV2Service(self.request.user)
         context.update(service.get_critical_context())
 

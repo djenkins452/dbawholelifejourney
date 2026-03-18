@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Rich State Expansion Phase 1: Calendar, Medicine, Routines
+
+**Purpose:** Establish rich SAE state coverage for calendar, medicine per-schedule detail, and routines. Eliminates remaining raw DB queries from CoS for these domains.
+
+**New SAE builders:**
+- `build_calendar_state()` — today_events, current_event, next_event, schedule_density, upcoming_events, overdue_events, schedule_conflicts
+- `build_routine_state()` — routine_items_today (by time window), completion status, current_window, next_pending_item
+
+**Enhanced SAE builders:**
+- `build_medicine_state()` — added `schedule_status_today` with per-dose detail: medicine_name, scheduled_time, window_label, status (taken/pending/missed/overdue/upcoming), log_time
+
+**CoS context changes:**
+- `_build_calendar_events()` — fully replaced raw CalendarEvent queries with SAE calendar state
+- Medication context now passes through per-schedule detail from SAE
+- New `_build_routine_context()` added to tagged builders
+
+**Files:** state_builder.py, cos_context.py, cos_purity_guard.py
+
+---
+
 ## 2026-03-18 — Time Horizon Enforcement: Task State + UI + CoS Alignment
 
 **Purpose:** Fix time horizon integrity across SAE task state, CoS reasoning, and task list UI.

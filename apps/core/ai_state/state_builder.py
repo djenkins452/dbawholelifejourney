@@ -1739,21 +1739,29 @@ def build_medicine_state(user):
 
     Returns:
         dict with active_medicines, today's adherence, 7-day adherence,
-        and next pending dose.
+        per-schedule status detail, and refill alerts.
+
+    State contract:
+        summary: active_count, active_medicines, adherence_7d
+        today: today_taken, today_missed, today_pending, expected_today,
+               schedule_status_today (per-schedule operational detail)
+        alerts: needs_refill
     """
     state = {}
 
     try:
-        from apps.core.utils import get_user_today
+        from apps.core.utils import get_user_now, get_user_today
         from apps.health.models import Medicine, MedicineLog, MedicineSchedule
         from apps.health.medicine_utils import calculate_medicine_adherence_rate
 
         user_today = get_user_today(user)
+        user_now = get_user_now(user)
+        current_time = user_now.time()
 
         # Active medicines summary
         active_meds = Medicine.objects.filter(
             user=user, medicine_status='active',
-        )
+        ).prefetch_related('schedules')
         state['active_count'] = active_meds.count()
         state['active_medicines'] = list(
             active_meds.values_list('name', flat=True)[:15]
@@ -1767,11 +1775,11 @@ def build_medicine_state(user):
         if needs_refill:
             state['needs_refill'] = needs_refill
 
-        # Today's logs
+        # Today's logs — batch fetch for per-schedule detail
         today_logs = MedicineLog.objects.filter(
             medicine__user=user,
             scheduled_date=user_today,
-        )
+        ).select_related('medicine', 'schedule')
         state['today_taken'] = today_logs.filter(
             log_status__in=['taken', 'late'],
         ).count()
@@ -1782,14 +1790,55 @@ def build_medicine_state(user):
             log_status='pending',
         ).count() if today_logs.filter(log_status='pending').exists() else 0
 
-        # Count expected doses for today (schedules that apply to today's weekday)
+        # Build per-schedule operational detail for today
+        # Index today's logs by (medicine_id, schedule_id) for O(1) lookup
+        log_index = {}
+        for log in today_logs:
+            key = (log.medicine_id, log.schedule_id)
+            log_index[key] = log
+
         weekday = user_today.weekday()  # 0=Monday
         expected_today = 0
+        schedule_status = []
+
         for med in active_meds:
             for sched in med.schedules.filter(is_active=True):
-                if sched.applies_to_day(weekday):
-                    expected_today += 1
+                if not sched.applies_to_day(weekday):
+                    continue
+                expected_today += 1
+
+                # Look up today's log for this schedule
+                log = log_index.get((med.id, sched.id))
+                if log and log.log_status in ('taken', 'late'):
+                    status = 'taken'
+                    log_time = (
+                        log.completed_at.astimezone(user_now.tzinfo).strftime('%I:%M %p').lstrip('0')
+                        if log.completed_at else None
+                    )
+                elif log and log.log_status == 'missed':
+                    status = 'missed'
+                    log_time = None
+                elif sched.scheduled_time and sched.scheduled_time > current_time:
+                    status = 'upcoming'
+                    log_time = None
+                else:
+                    status = 'overdue'
+                    log_time = None
+
+                schedule_status.append({
+                    'medicine_name': med.name,
+                    'scheduled_time': (
+                        sched.scheduled_time.strftime('%I:%M %p').lstrip('0')
+                        if sched.scheduled_time else None
+                    ),
+                    'window_label': sched.time_of_day or '',
+                    'status': status,
+                    'log_time': log_time,
+                    'required_today': True,
+                })
+
         state['expected_today'] = expected_today
+        state['schedule_status_today'] = schedule_status
 
         # 7-day adherence rate (reuse existing utility)
         adherence = calculate_medicine_adherence_rate(user, days=7)
@@ -1798,6 +1847,287 @@ def build_medicine_state(user):
 
     except Exception:
         logger.warning("Medicine state build failed", exc_info=True)
+
+    return state
+
+
+# ── Calendar State ────────────────────────────────────────────────
+
+def build_calendar_state(user):
+    """
+    Build calendar state from CalendarEvent records.
+
+    Returns:
+        dict with today's events, next event, schedule density,
+        and upcoming events.
+
+    State contract:
+        summary: today_event_count, schedule_density
+        today: today_events (time-ordered), current_event, next_event
+        upcoming: upcoming_events (next 3 days beyond today)
+        alerts: overdue_events, conflicts
+    """
+    import datetime as _dt
+
+    state = {}
+
+    try:
+        from apps.calendar_engine.models import CalendarEvent
+        from apps.core.utils import get_user_now
+
+        user_now = get_user_now(user)
+        tz = user_now.tzinfo
+        today_start = user_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = user_now.replace(hour=23, minute=59, second=59, microsecond=0)
+
+        # Today's events (materialized rows only — no recurrence expansion)
+        today_events = list(
+            CalendarEvent.objects.filter(
+                user=user,
+                start_dt__lte=today_end,
+                end_dt__gte=today_start,
+                status__in=['scheduled', 'completed'],
+                deleted_at__isnull=True,
+            ).select_related('domain').order_by('start_dt')[:15]
+        )
+
+        state['today_event_count'] = len(today_events)
+
+        # Serialize today's events with time status
+        serialized = []
+        current_event = None
+        next_event = None
+        overdue_events = []
+
+        for ev in today_events:
+            local_start = ev.start_dt.astimezone(tz)
+            local_end = ev.end_dt.astimezone(tz)
+
+            # Compute time status
+            if ev.status == 'completed':
+                time_status = 'completed'
+            elif ev.end_dt <= user_now:
+                time_status = 'past'
+            elif ev.start_dt <= user_now <= ev.end_dt:
+                time_status = 'in_progress'
+            elif ev.start_dt <= user_now + _dt.timedelta(hours=1):
+                time_status = 'upcoming_soon'
+            else:
+                time_status = 'upcoming'
+
+            is_overdue = (
+                ev.end_dt <= user_now and ev.status != 'completed'
+            )
+
+            entry = {
+                'id': ev.id,
+                'title': ev.title,
+                'start': local_start.strftime('%I:%M %p').lstrip('0'),
+                'end': local_end.strftime('%I:%M %p').lstrip('0'),
+                'domain': ev.domain.name if ev.domain else '',
+                'is_protected': ev.is_protected,
+                'commitment_level': ev.commitment_level,
+                'time_status': time_status,
+                'is_overdue': is_overdue,
+                'actual_status': ev.status,
+            }
+            serialized.append(entry)
+
+            if is_overdue:
+                overdue_events.append(entry)
+            if time_status == 'in_progress' and current_event is None:
+                current_event = entry
+            if time_status in ('upcoming', 'upcoming_soon') and next_event is None:
+                next_event = entry
+
+        state['today_events'] = serialized
+        state['current_event'] = current_event
+        state['next_event'] = next_event
+        state['overdue_events'] = overdue_events
+
+        # Schedule density: total scheduled minutes today
+        total_minutes = 0
+        for ev in today_events:
+            dur = (ev.end_dt - ev.start_dt).total_seconds() / 60
+            if dur > 0:
+                total_minutes += dur
+        waking_minutes = 16 * 60  # 16 waking hours
+        state['schedule_density'] = round(
+            min(total_minutes / waking_minutes * 100, 100), 1
+        ) if waking_minutes > 0 else 0
+
+        # Upcoming events (next 3 days, excluding today)
+        upcoming_start = today_end + _dt.timedelta(seconds=1)
+        upcoming_end = today_start + _dt.timedelta(days=4)
+        upcoming_qs = CalendarEvent.objects.filter(
+            user=user,
+            start_dt__gte=upcoming_start,
+            start_dt__lte=upcoming_end,
+            status='scheduled',
+            deleted_at__isnull=True,
+        ).select_related('domain').order_by('start_dt')[:10]
+
+        state['upcoming_events'] = [
+            {
+                'title': ev.title,
+                'start': ev.start_dt.astimezone(tz).strftime('%a %I:%M %p').lstrip('0'),
+                'domain': ev.domain.name if ev.domain else '',
+                'is_protected': ev.is_protected,
+            }
+            for ev in upcoming_qs
+        ]
+
+        # Conflict detection (overlapping events)
+        conflicts = []
+        for i, ev_a in enumerate(today_events):
+            for ev_b in today_events[i + 1:]:
+                if ev_a.end_dt > ev_b.start_dt and ev_a.start_dt < ev_b.end_dt:
+                    if ev_a.status != 'completed' and ev_b.status != 'completed':
+                        conflicts.append({
+                            'event_a': ev_a.title,
+                            'event_b': ev_b.title,
+                        })
+        if conflicts:
+            state['schedule_conflicts'] = conflicts[:5]
+
+    except ImportError:
+        pass  # calendar_engine may not be deployed
+    except Exception:
+        logger.warning("Calendar state build failed", exc_info=True)
+
+    return state
+
+
+# ── Routine State ─────────────────────────────────────────────────
+
+def build_routine_state(user):
+    """
+    Build routine state from Routine, RoutineSchedule, RoutineLog models.
+
+    Returns:
+        dict with today's routine items grouped by time window,
+        completion status, and next pending item.
+
+    State contract:
+        summary: total_routines, today_item_count, today_completed, today_missed
+        today: routine_items_today (grouped by time_of_day window)
+        current: current_window, next_pending_item
+    """
+    state = {}
+
+    try:
+        from apps.core.utils import get_user_now, get_user_today
+        from apps.life.models import Routine, RoutineLog, RoutineSchedule
+
+        user_today = get_user_today(user)
+        user_now = get_user_now(user)
+        current_time = user_now.time()
+        weekday = user_today.weekday()  # 0=Monday
+
+        # Active routines
+        active_routines = Routine.objects.filter(
+            user=user, is_active=True,
+        ).prefetch_related('items')
+        state['total_routines'] = active_routines.count()
+
+        if state['total_routines'] == 0:
+            return state
+
+        # Collect today's schedule items across all routines
+        today_items = []
+        for routine in active_routines:
+            for item in routine.items.filter(is_active=True):
+                if item.specific_date:
+                    if item.specific_date != user_today:
+                        continue
+                elif not item.applies_to_day(weekday):
+                    continue
+                today_items.append((routine, item))
+
+        # Batch-fetch today's logs
+        schedule_ids = [item.id for _, item in today_items]
+        logs = RoutineLog.objects.filter(
+            schedule_id__in=schedule_ids,
+            scheduled_date=user_today,
+        )
+        log_by_schedule = {log.schedule_id: log for log in logs}
+
+        # Build structured items
+        items_by_window = {}
+        total_completed = 0
+        total_missed = 0
+        next_pending = None
+
+        for routine, item in today_items:
+            log = log_by_schedule.get(item.id)
+            if log:
+                if log.log_status in ('completed', 'completed_late'):
+                    status = 'completed'
+                    total_completed += 1
+                elif log.log_status == 'skipped':
+                    status = 'skipped'
+                else:
+                    status = 'pending'
+            else:
+                # No log = pending or missed (based on time + grace)
+                from datetime import time as _time_cls
+                cutoff = item.scheduled_time
+                if cutoff and item.grace_period_minutes:
+                    from datetime import datetime as _dt_cls, timedelta as _td
+                    cutoff_dt = _dt_cls.combine(user_today, cutoff) + _td(
+                        minutes=item.grace_period_minutes
+                    )
+                    cutoff = cutoff_dt.time()
+
+                if cutoff and current_time > cutoff:
+                    status = 'missed'
+                    total_missed += 1
+                else:
+                    status = 'pending'
+
+            entry = {
+                'routine_name': routine.name,
+                'item_name': item.name,
+                'scheduled_time': (
+                    item.scheduled_time.strftime('%I:%M %p').lstrip('0')
+                    if item.scheduled_time else None
+                ),
+                'time_of_day': routine.time_of_day,
+                'status': status,
+            }
+
+            window = routine.time_of_day or 'other'
+            items_by_window.setdefault(window, []).append(entry)
+
+            if status == 'pending' and next_pending is None:
+                next_pending = entry
+
+        state['today_item_count'] = len(today_items)
+        state['today_completed'] = total_completed
+        state['today_missed'] = total_missed
+        state['routine_items_today'] = items_by_window
+        state['next_pending_item'] = next_pending
+
+        # Determine current time window
+        _WINDOW_HOURS = {
+            'morning': (5, 10),
+            'mid_morning': (10, 12),
+            'lunch': (12, 14),
+            'afternoon': (14, 17),
+            'evening': (17, 23),
+        }
+        current_window = 'other'
+        hour = current_time.hour
+        for window_name, (start_h, end_h) in _WINDOW_HOURS.items():
+            if start_h <= hour < end_h:
+                current_window = window_name
+                break
+        state['current_window'] = current_window
+
+    except ImportError:
+        pass  # Routine models may not exist
+    except Exception:
+        logger.warning("Routine state build failed", exc_info=True)
 
     return state
 
@@ -1858,6 +2188,8 @@ MODULE_BUILDERS = {
     "tasks": build_task_state,
     "medicine": build_medicine_state,
     "behavior": build_behavior_state,
+    "calendar": build_calendar_state,
+    "routine": build_routine_state,
 }
 
 

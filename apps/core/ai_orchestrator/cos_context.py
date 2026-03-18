@@ -313,13 +313,10 @@ def _build_health_and_vitals(user):
     except Exception:
         logger.error("CoS context: medication adherence failed", exc_info=True)
 
-    # Pending medication summary — from SAE (CoS purity: no raw DB)
-    # NOTE: SAE provides aggregate counts (taken/missed/pending) and medicine
-    # names, but NOT per-schedule detail with exact times. Per-schedule detail
-    # is a SOFT gap — the SAE medicine builder should be extended to include it.
+    # Pending medication detail — from SAE per-schedule status (CoS purity enforced)
+    # SAE build_medicine_state now computes schedule_status_today with per-dose detail.
     try:
         from apps.core.ai_state.state_engine import get_module_state
-        from apps.core.ai_orchestrator.cos_purity_guard import log_cos_purity_violation
         med_state = get_module_state(user, 'medicine') or {}
         active_names = med_state.get('active_medicines', [])
         if active_names:
@@ -331,15 +328,10 @@ def _build_health_and_vitals(user):
                 'expected_today': med_state.get('expected_today', 0),
                 'needs_refill': med_state.get('needs_refill', []),
             }
-            # Log that per-schedule detail is not yet in SAE
-            if med_state.get('today_pending', 0) > 0 or med_state.get('today_missed', 0) > 0:
-                log_cos_purity_violation(
-                    domain='medicine',
-                    file=__file__,
-                    operation='pending_medications per-schedule detail',
-                    operation_type='query',
-                    detail='SAE lacks per-schedule times; extend build_medicine_state',
-                )
+            # Per-schedule operational detail (now available from SAE)
+            schedule_status = med_state.get('schedule_status_today', [])
+            if schedule_status:
+                result['pending_medications'] = schedule_status
     except Exception:
         logger.error("CoS context: pending medication details failed", exc_info=True)
 
@@ -516,69 +508,39 @@ def _build_health_and_vitals(user):
 
 
 def _build_calendar_events(user):
-    """Build calendar events for today.
+    """Build calendar events for today — from SAE state (CoS purity enforced).
 
-    CoS purity: SOFT violation — calendar has no SAE state builder yet.
+    Calendar state is now pre-computed by build_calendar_state() in SAE,
+    rebuilt every 5 minutes by the ISE scheduler.
     """
-    from apps.core.ai_orchestrator.cos_purity_guard import log_cos_purity_violation
-    log_cos_purity_violation(
-        domain='calendar', file=__file__,
-        operation='CalendarEvent.objects.filter()',
-        operation_type='query',
-        detail='No SAE calendar builder; raw DB temporarily allowed',
-    )
     result = {}
     try:
-        from apps.calendar_engine.models import CalendarEvent
-        from apps.core.utils import get_user_now, get_user_today
+        from apps.core.ai_state.state_engine import get_module_state
+        cal_state = get_module_state(user, 'calendar') or {}
 
-        user_now = get_user_now(user)
-        today_start = user_now.replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = user_now.replace(hour=23, minute=59, second=59, microsecond=0)
+        # Pass through SAE-computed calendar state directly
+        today_events = cal_state.get('today_events', [])
+        if today_events:
+            result['calendar_events_today'] = today_events
+        result['current_event'] = cal_state.get('current_event')
+        result['next_event'] = cal_state.get('next_event')
+        result['schedule_density'] = cal_state.get('schedule_density', 0)
+        result['today_event_count'] = cal_state.get('today_event_count', 0)
 
-        events = CalendarEvent.objects.filter(
-            user=user,
-            start_dt__lte=today_end,
-            end_dt__gte=today_start,
-            status__in=['scheduled', 'completed'],
-        ).order_by('start_dt')[:12]
+        overdue = cal_state.get('overdue_events', [])
+        if overdue:
+            result['overdue_calendar_events'] = overdue
 
-        event_summaries = []
-        for ev in events:
-            actual_status = ev.status  # 'scheduled', 'completed', 'canceled'
+        conflicts = cal_state.get('schedule_conflicts')
+        if conflicts:
+            result['schedule_conflicts'] = conflicts
 
-            if actual_status == 'completed':
-                time_status = 'completed'
-            elif ev.end_dt <= user_now:
-                time_status = 'past'
-            elif ev.start_dt <= user_now <= ev.end_dt:
-                time_status = 'in_progress'
-            elif ev.start_dt <= user_now + datetime.timedelta(hours=1):
-                time_status = 'upcoming_soon'
-            else:
-                time_status = 'upcoming'
+        upcoming = cal_state.get('upcoming_events', [])
+        if upcoming:
+            result['upcoming_calendar_events'] = upcoming
 
-            # Overdue = past its time AND not completed
-            is_overdue = (
-                ev.end_dt <= user_now
-                and actual_status != 'completed'
-            )
-
-            _local_start = ev.start_dt.astimezone(user_now.tzinfo)
-            _local_end = ev.end_dt.astimezone(user_now.tzinfo)
-            event_summaries.append({
-                'title': ev.title,
-                'start': _local_start.strftime('%I:%M %p').lstrip('0'),
-                'end': _local_end.strftime('%I:%M %p').lstrip('0'),
-                'domain': ev.domain.name if ev.domain else '',
-                'is_protected': ev.is_protected,
-                'time_status': time_status,
-                'is_overdue': is_overdue,
-                'actual_status': actual_status,
-            })
-        result['calendar_events_today'] = event_summaries
     except Exception as e:
-        logger.debug("CoS context: calendar events unavailable: %s", e)
+        logger.debug("CoS context: calendar state unavailable: %s", e)
 
     return result
 
@@ -1808,6 +1770,38 @@ def _build_purpose_context(user):
 # Each entry: (tag, builder_fn, domain_key_or_None).
 #   - tag: builder identifier for scoped-builder selection and telemetry
 #   - builder_fn: callable(user, prefs) → dict of context updates
+def _build_routine_context(user):
+    """Build routine context — from SAE state (CoS purity enforced)."""
+    result = {}
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        routine_state = get_module_state(user, 'routine') or {}
+
+        if routine_state.get('total_routines', 0) == 0:
+            return result
+
+        result['routine_summary'] = {
+            'total_routines': routine_state.get('total_routines', 0),
+            'today_items': routine_state.get('today_item_count', 0),
+            'today_completed': routine_state.get('today_completed', 0),
+            'today_missed': routine_state.get('today_missed', 0),
+            'current_window': routine_state.get('current_window'),
+        }
+
+        items = routine_state.get('routine_items_today', {})
+        if items:
+            result['routine_items_today'] = items
+
+        next_pending = routine_state.get('next_pending_item')
+        if next_pending:
+            result['next_routine_item'] = next_pending
+
+    except Exception as e:
+        logger.debug("CoS context: routine state unavailable: %s", e)
+
+    return result
+
+
 #   - domain_key: domain registry key, or None for system-level builders
 #
 # Domain-keyed builders are filtered by module enablement (Phase 2).
@@ -1838,6 +1832,7 @@ _TAGGED_BUILDERS = [
     ('finance', lambda user, prefs: _build_finance_context(user), 'finance'),
     ('purpose', lambda user, prefs: _build_purpose_context(user), 'purpose'),
     ('relationships', lambda user, prefs: _build_people_and_mood(user), 'relationships'),
+    ('routine', lambda user, prefs: _build_routine_context(user), None),
 ]
 
 # Backward-compatible flat list (used by telemetry and tests)

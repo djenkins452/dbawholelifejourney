@@ -57,6 +57,8 @@ COS_COVERED_DOMAINS = frozenset({
     "life_events",
     "intervention",
     "feedback",
+    "calendar",
+    "routine",
 })
 
 # ── Domains that lack SAE coverage — SOFT violations ──────────────────
@@ -67,7 +69,6 @@ COS_UNCOVERED_DOMAINS = frozenset({
     "capture",
     "medical",
     "relationships",
-    "calendar",
 })
 
 

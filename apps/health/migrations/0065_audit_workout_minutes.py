@@ -76,7 +76,7 @@ def audit_workout_minutes(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("health", "0063_behavior_system"),
+        ("health", "0064_user_corrected_field"),
     ]
 
     operations = [

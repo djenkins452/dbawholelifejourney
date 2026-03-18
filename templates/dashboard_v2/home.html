@@ -27,10 +27,16 @@
     </section>
     {% endif %}
 
-    <!-- Section 2: Next Action Panel (critical path, inline) -->
-    {% include "dashboard_v2/partials/next_action.html" %}
+    <!-- Section 2: Daily Progress Ring (MOVED UP — critical path, inline) -->
+    <section class="v2-section v2-progress-section">
+        <h2 class="v2-section-title">Today's Progress</h2>
+        {% include "dashboard_v2/sections/daily_progress.html" %}
+    </section>
 
-    <!-- Section 3: Today's Execution (critical path, inline) -->
+    <!-- Section 3: Action Center (replaces Next Action — critical path, inline) -->
+    {% include "dashboard_v2/partials/action_center.html" %}
+
+    <!-- Section 4: Today's Execution (critical path, inline) -->
     <section class="v2-section v2-execution-section">
         <h2 class="v2-section-title">
             {% if time_phase == "morning" %}Morning Focus
@@ -39,12 +45,6 @@
             {% endif %}
         </h2>
         {% include "dashboard_v2/sections/execution.html" %}
-    </section>
-
-    <!-- Section 4: Daily Progress Ring (critical path, inline) -->
-    <section class="v2-section v2-progress-section">
-        <h2 class="v2-section-title">Today's Progress</h2>
-        {% include "dashboard_v2/sections/daily_progress.html" %}
     </section>
 
     <!-- Section 5: Health Telemetry (HTMX lazy, compact) -->
@@ -68,7 +68,7 @@
         </div>
     </section>
 
-    <!-- Section 6: Celebration (HTMX lazy, only if ready) -->
+    <!-- Section 7: Celebration (HTMX lazy, only if ready) -->
     {% if has_celebration %}
     <div hx-get="{% url 'dashboard_v2:section_celebration' %}"
          hx-trigger="load"
@@ -142,6 +142,17 @@ document.addEventListener('DOMContentLoaded', function() {
         // Don't toggle if clicking a link or button inside the card
         if (e.target.closest('a, button')) return;
         card.classList.toggle('expanded');
+    });
+
+    // Action Center collapse/expand
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-action="toggle-action-center"]');
+        if (!btn) return;
+        var panel = document.getElementById('action-center-panel');
+        if (panel) {
+            panel.classList.toggle('v2-collapsed');
+            btn.textContent = panel.classList.contains('v2-collapsed') ? 'Show All' : 'Collapse';
+        }
     });
 });
 </script>

@@ -6,6 +6,33 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Dashboard V2: Action Cockpit Redesign
+
+**Purpose:** Transform Dashboard V2 from a summary page into an event-driven action command center.
+
+**Data model:**
+- Added `is_foundational` BooleanField (default=False) to LifeGoal, HabitGoal, Task
+- Foundational precedence: linked goal/domain > task fallback > False
+
+**Service layer:**
+- `_build_action_center()` replaces `_determine_next_action()` — returns ALL pending actions, not just 1
+- Priority: foundational+overdue > foundational+now > non-foundational+overdue > non-foundational+now > next > upcoming
+- Journal/faith/workout surfaced as "Go Act" link items when not done today
+- `_get_goals_by_domain()` now tracks `is_foundational` per domain for precedence resolution
+- Momentum service includes `is_foundational` + `commitment_level`, sorts foundational first
+
+**Templates:**
+- Page reordered: Momentum → Today's Progress → Action Center → Execution (Progress moved up)
+- New `action_center.html` partial: multi-item collapsible list with foundational emphasis
+- Momentum gauge: foundational badge on goal cards
+- Daily progress: incomplete items are clickable links to action pages
+
+**CSS:** Action center styles, foundational badge (gold/amber), urgency badges, collapsible behavior
+
+**Files:** 12 files changed across models, services, views, urls, templates, CSS
+
+---
+
 ## 2026-03-18 — Cross-Domain Time Alignment: Canonical Time Windows
 
 **Purpose:** Unify time-based reasoning across domains using canonical time_windows.py.

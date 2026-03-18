@@ -63,6 +63,7 @@ class DashboardV2Service:
         self.user = user
         self.prefs = user.preferences
         self._today = None
+        self._daily_progress = None  # Set by get_critical_context for action center
 
     @property
     def today(self):
@@ -86,12 +87,13 @@ class DashboardV2Service:
         momentum_service = GoalMomentumService(self.user)
         goal_momentum = momentum_service.get_all_momentum()
 
-        # Execution (promoted to critical path)
-        exec_context = self.get_execution_context()
-
-        # Daily progress (from DB snapshot)
+        # Daily progress BEFORE execution — action center needs this
         progress_service = DailyProgressService(self.user)
         daily_progress = progress_service.get_today()
+        self._daily_progress = daily_progress
+
+        # Execution (promoted to critical path, uses _daily_progress for action center)
+        exec_context = self.get_execution_context()
 
         # Quick celebration check (just the flag)
         from .celebration_service import CelebrationDetectionService
@@ -136,12 +138,15 @@ class DashboardV2Service:
             routine_tasks = list(
                 TaskQueries.routines_for_date(self.user, self.today)
             )
-            # Attach goal names, engagement levels, and safe URLs
+            # Attach goal names, foundational status, engagement, and URLs
             for task in routine_tasks:
                 domain_slug = MODULE_DOMAIN_MAP.get(
                     getattr(task, "module", ""), ""
                 )
-                task.goal_name = goals_by_domain.get(domain_slug, "")
+                domain_goal = goals_by_domain.get(domain_slug, {})
+                task.goal_name = domain_goal.get("title", "") if isinstance(domain_goal, dict) else ""
+                # Foundational precedence: linked goal/domain > task-level fallback
+                task._domain_foundational = domain_goal.get("is_foundational", False) if isinstance(domain_goal, dict) else False
                 task.engagement_level = self._match_engagement(
                     task.title, engagement
                 )
@@ -179,7 +184,9 @@ class DashboardV2Service:
                 domain_slug = MODULE_DOMAIN_MAP.get(
                     getattr(task, "module", ""), ""
                 )
-                task.goal_name = goals_by_domain.get(domain_slug, "")
+                domain_goal = goals_by_domain.get(domain_slug, {})
+                task.goal_name = domain_goal.get("title", "") if isinstance(domain_goal, dict) else ""
+                task._domain_foundational = domain_goal.get("is_foundational", False) if isinstance(domain_goal, dict) else False
             context["non_routine_tasks"] = non_routine_tasks
         except Exception:
             logger.error("Failed to load tasks", exc_info=True)
@@ -244,7 +251,9 @@ class DashboardV2Service:
             )
             for g in medicine_groups:
                 g["all_taken"] = g["taken_count"] == g["total_count"]
-                g["goal_name"] = goals_by_domain.get("health", "")
+                health_goal = goals_by_domain.get("health", {})
+                g["goal_name"] = health_goal.get("title", "") if isinstance(health_goal, dict) else ""
+                g["is_foundational"] = health_goal.get("is_foundational", False) if isinstance(health_goal, dict) else False
 
             context["medicine_groups"] = medicine_groups
             context["medicine_items"] = medicine_items
@@ -285,7 +294,9 @@ class DashboardV2Service:
             # Attach goal names via domain
             for event in today_events:
                 domain_slug = event.domain.slug if event.domain else ""
-                event.goal_name = goals_by_domain.get(domain_slug, "")
+                domain_goal = goals_by_domain.get(domain_slug, {})
+                event.goal_name = domain_goal.get("title", "") if isinstance(domain_goal, dict) else ""
+                event._domain_foundational = domain_goal.get("is_foundational", False) if isinstance(domain_goal, dict) else False
             context["today_events"] = today_events
         except Exception:
             logger.error("Failed to load calendar events", exc_info=True)
@@ -326,16 +337,26 @@ class DashboardV2Service:
         # Time phase for section ordering
         context["time_phase"] = self.get_time_phase()
 
-        # Next action panel — the single most important thing to do now
-        next_action = self._determine_next_action(context)
-        context["next_action"] = next_action
-        context["all_done"] = next_action is None
+        # Action center — all pending actionable items sorted by foundational + urgency
+        action_center = self._build_action_center(context, self._daily_progress)
+        context["action_center"] = action_center
+        context["action_foundational"] = [a for a in action_center if a["is_foundational"]]
+        context["action_standard"] = [a for a in action_center if not a["is_foundational"]]
+        context["all_done"] = len(action_center) == 0
+        # Backward compat: next_action = first item (for any legacy template refs)
+        context["next_action"] = action_center[0] if action_center else None
 
         DashboardV2CacheService.set(self.user.pk, "execution", context)
         return context
 
     def _get_goals_by_domain(self):
-        """Pre-fetch active goals indexed by domain slug."""
+        """Pre-fetch active goals indexed by domain slug.
+
+        Returns dict: {domain_slug: {"title": str, "is_foundational": bool}}
+        The is_foundational flag is True if ANY active goal in that domain
+        is marked foundational — this is the canonical source of truth for
+        domain-level foundational priority (not task-level).
+        """
         goals_by_domain = {}
         try:
             from apps.purpose.models import LifeGoal
@@ -344,7 +365,17 @@ class DashboardV2Service:
                 user=self.user, status="active"
             ).select_related("domain"):
                 if goal.domain:
-                    goals_by_domain[goal.domain.slug] = goal.title
+                    slug = goal.domain.slug
+                    existing = goals_by_domain.get(slug)
+                    if existing is None:
+                        goals_by_domain[slug] = {
+                            "title": goal.title,
+                            "is_foundational": goal.is_foundational,
+                        }
+                    else:
+                        # If any goal in domain is foundational, domain is foundational
+                        if goal.is_foundational:
+                            existing["is_foundational"] = True
         except Exception:
             logger.error("Failed to load goals for domain mapping", exc_info=True)
         return goals_by_domain
@@ -421,59 +452,175 @@ class DashboardV2Service:
         target_mins = target_time.hour * 60 + target_time.minute
         return target_mins - now_mins
 
-    def _determine_next_action(self, exec_context):
+    def _build_action_center(self, exec_context, daily_progress=None):
         """
-        Pick the single most important next action from all execution items.
-        Priority: overdue → within 30 min → next routine → medicine → upcoming.
+        Build the full action center — ALL pending actionable items, sorted by
+        foundational priority and urgency.
+
+        Priority ordering:
+            1. foundational + overdue
+            2. foundational + due now
+            3. non-foundational + overdue
+            4. non-foundational + due now
+            5. foundational + next/upcoming
+            6. non-foundational + next/upcoming
+            7. binary items (journal, faith, workout) — foundational first
+
+        Foundational precedence per item:
+            linked goal/habit/domain is_foundational > task.is_foundational > False
         """
+        from django.urls import reverse
+
+        actions = []
         now = self._get_user_now()
 
-        # Priority 1: Overdue tasks
+        # ── Schedule items (overdue + time-aware) ──
         for item in exec_context.get("schedule_timeline", []):
-            if item.get("is_overdue") and not item.get("is_completed"):
-                return {"source": "schedule", "urgency": "overdue", **item}
+            if item.get("is_completed"):
+                continue
 
-        # Priority 2: Schedule item within 30 min
-        for item in exec_context.get("schedule_timeline", []):
-            if item.get("time") and not item.get("is_completed"):
+            if item.get("is_overdue"):
+                urgency = "overdue"
+            elif item.get("time"):
                 delta = self._time_diff_minutes(now.time(), item["time"])
                 if -5 <= delta <= 30:
-                    return {"source": "schedule", "urgency": "now", **item}
+                    urgency = "now"
+                elif delta <= 120:
+                    urgency = "next"
+                else:
+                    urgency = "upcoming"
+            else:
+                urgency = "upcoming"
 
-        # Priority 3: Next routine
-        pending = exec_context.get("pending_routines", [])
-        if pending:
-            task = pending[0]
-            return {
+            actions.append({
+                "source": "schedule",
+                "urgency": urgency,
+                "type": item.get("type", "task"),
+                "pk": item.get("pk"),
+                "title": item["title"],
+                "source_url": item.get("source_url", ""),
+                "can_complete": item.get("can_complete", False),
+                "is_foundational": item.get("is_foundational", False),
+                "commitment_level": item.get("commitment_level", ""),
+                "goal_name": item.get("goal_name", ""),
+                "time_of_day": None,
+                "time_display": item.get("time_display", ""),
+            })
+
+        # ── Pending routines ──
+        for task in exec_context.get("pending_routines", []):
+            # Foundational precedence: domain goal > task fallback
+            is_foundational = getattr(task, "_domain_foundational", False) or getattr(task, "is_foundational", False)
+            actions.append({
                 "source": "routine",
                 "urgency": "next",
                 "type": "task",
                 "pk": task.pk,
                 "title": task.title,
-                "source_url": task.detail_url,
+                "source_url": getattr(task, "detail_url", ""),
                 "can_complete": True,
+                "is_foundational": is_foundational,
+                "commitment_level": getattr(task, "commitment_level", ""),
                 "goal_name": getattr(task, "goal_name", ""),
-            }
+                "time_of_day": None,
+                "time_display": "",
+            })
 
-        # Priority 4: Next untaken medicine group (visible only)
+        # ── Untaken medicine groups ──
         for g in exec_context.get("visible_medicine_groups", []):
             if not g["all_taken"]:
-                return {
+                actions.append({
                     "source": "medicine",
                     "urgency": "next",
                     "type": "medicine_group",
+                    "pk": None,
                     "title": g["label"],
-                    "time_of_day": g["time_of_day"],
+                    "source_url": "",
                     "can_complete": True,
+                    "is_foundational": g.get("is_foundational", False),
+                    "commitment_level": "",
                     "goal_name": g.get("goal_name", ""),
-                }
+                    "time_of_day": g["time_of_day"],
+                    "time_display": "",
+                })
 
-        # Priority 5: Next upcoming schedule item
-        for item in exec_context.get("schedule_timeline", []):
-            if not item.get("is_completed"):
-                return {"source": "schedule", "urgency": "upcoming", **item}
+        # ── Binary daily actions (journal, faith, workout) ──
+        # These are "Go Act" links, not inline-completable
+        dp = daily_progress or {}
+        goals_by_domain = exec_context.get("goals_by_domain", {})
 
-        return None  # All done!
+        if dp.get("journaling", {}).get("done", 0) == 0:
+            journal_goal = goals_by_domain.get("personal-growth", {})
+            try:
+                journal_url = reverse("journal:entry_list")
+            except Exception:
+                journal_url = "/journal/"
+            actions.append({
+                "source": "journal",
+                "urgency": "next",
+                "type": "link",
+                "pk": None,
+                "title": "Write in journal",
+                "source_url": journal_url,
+                "can_complete": False,
+                "is_foundational": journal_goal.get("is_foundational", False) if isinstance(journal_goal, dict) else False,
+                "commitment_level": "",
+                "goal_name": journal_goal.get("title", "") if isinstance(journal_goal, dict) else "",
+                "time_of_day": None,
+                "time_display": "",
+            })
+
+        if dp.get("faith", {}).get("done", 0) == 0:
+            faith_goal = goals_by_domain.get("faith", {})
+            try:
+                faith_url = reverse("faith:reading_plans")
+            except Exception:
+                faith_url = "/faith/reading-plans/"
+            actions.append({
+                "source": "faith",
+                "urgency": "next",
+                "type": "link",
+                "pk": None,
+                "title": "Bible reading",
+                "source_url": faith_url,
+                "can_complete": False,
+                "is_foundational": faith_goal.get("is_foundational", False) if isinstance(faith_goal, dict) else False,
+                "commitment_level": "",
+                "goal_name": faith_goal.get("title", "") if isinstance(faith_goal, dict) else "",
+                "time_of_day": None,
+                "time_display": "",
+            })
+
+        if dp.get("workout", {}).get("done", 0) == 0:
+            health_goal = goals_by_domain.get("health", {})
+            try:
+                fitness_url = reverse("health:fitness_home")
+            except Exception:
+                fitness_url = "/health/physical/fitness/"
+            actions.append({
+                "source": "workout",
+                "urgency": "next",
+                "type": "link",
+                "pk": None,
+                "title": "Log a workout",
+                "source_url": fitness_url,
+                "can_complete": False,
+                "is_foundational": health_goal.get("is_foundational", False) if isinstance(health_goal, dict) else False,
+                "commitment_level": "",
+                "goal_name": health_goal.get("title", "") if isinstance(health_goal, dict) else "",
+                "time_of_day": None,
+                "time_display": "",
+            })
+
+        # ── Sort by foundational priority + urgency ──
+        URGENCY_ORDER = {"overdue": 0, "now": 1, "next": 2, "upcoming": 3}
+        actions.sort(key=lambda a: (
+            not a["is_foundational"],
+            URGENCY_ORDER.get(a["urgency"], 9),
+            a["title"],
+        ))
+
+        return actions
 
     def _build_schedule_timeline(self, non_routine_tasks, today_events):
         """
@@ -493,6 +640,8 @@ class DashboardV2Service:
         for task in non_routine_tasks:
             t = task.scheduled_time
             task_pks.add(task.pk)
+            # Foundational precedence: domain goal > task fallback
+            is_foundational = getattr(task, "_domain_foundational", False) or getattr(task, "is_foundational", False)
             timeline.append({
                 "type": "task",
                 "pk": task.pk,
@@ -505,6 +654,7 @@ class DashboardV2Service:
                 "is_overdue": task.is_overdue,
                 "commitment_level": getattr(task, "commitment_level", ""),
                 "goal_name": getattr(task, "goal_name", ""),
+                "is_foundational": is_foundational,
                 "is_all_day": False,
             })
 
@@ -534,6 +684,7 @@ class DashboardV2Service:
                 "source_url": self._resolve_event_url(event),
                 "is_all_day": event.is_all_day,
                 "goal_name": getattr(event, "goal_name", ""),
+                "is_foundational": getattr(event, "_domain_foundational", False),
                 "is_overdue": False,
                 "commitment_level": "",
             })

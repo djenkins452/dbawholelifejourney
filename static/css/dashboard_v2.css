@@ -1052,3 +1052,229 @@ a.v2-next-action-title:hover {
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
+/* ================================================================
+   Action Center — multi-item command panel
+   ================================================================ */
+
+.v2-action-center-section {
+    background: var(--color-surface, #fff);
+    border-radius: 0.75rem;
+    border: 1px solid var(--color-border, #e5e7eb);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.v2-action-center-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.v2-action-center-header .v2-section-title {
+    margin: 0;
+}
+
+.v2-action-center-toggle {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary, #6b7280);
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+}
+
+.v2-action-center-toggle:hover {
+    color: var(--color-text, #1f2937);
+}
+
+.v2-action-center-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.v2-action-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--color-border-light, #f3f4f6);
+    min-height: 48px;
+}
+
+.v2-action-item:last-child {
+    border-bottom: none;
+}
+
+/* Foundational emphasis — subtle gold left border */
+.v2-action-item.v2-foundational {
+    border-left: 3px solid #d4a017;
+    padding-left: 0.75rem;
+    margin-left: -0.25rem;
+}
+
+/* Urgency accents */
+.v2-action-item.v2-urgency-overdue {
+    background: rgba(220, 38, 38, 0.04);
+}
+
+.v2-action-item.v2-urgency-now {
+    background: rgba(37, 99, 235, 0.04);
+}
+
+.v2-action-item-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.v2-foundational-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #d4a017;
+    flex-shrink: 0;
+}
+
+.v2-action-link-icon {
+    color: var(--color-text-secondary, #6b7280);
+    font-size: 1rem;
+    width: 28px;
+    text-align: center;
+}
+
+.v2-action-item-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+}
+
+.v2-action-title {
+    font-size: 0.9rem;
+    color: var(--color-text, #1f2937);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+a.v2-action-title:hover {
+    text-decoration: underline;
+}
+
+.v2-action-item-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.v2-action-time {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary, #6b7280);
+}
+
+.v2-urgency-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.25rem;
+}
+
+.v2-urgency-badge-overdue {
+    color: #dc2626;
+    background: rgba(220, 38, 38, 0.1);
+}
+
+.v2-urgency-badge-now {
+    color: #2563eb;
+    background: rgba(37, 99, 235, 0.1);
+}
+
+.v2-urgency-badge-next {
+    color: var(--color-text-secondary, #6b7280);
+    background: var(--color-border-light, #f3f4f6);
+}
+
+.v2-urgency-badge-upcoming {
+    color: var(--color-text-secondary, #6b7280);
+    background: transparent;
+}
+
+/* All done state */
+.v2-action-center-done {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 0;
+    color: #16a34a;
+    font-weight: 500;
+}
+
+.v2-done-check {
+    font-size: 1.25rem;
+}
+
+/* Collapsed state — hide items beyond 3 */
+.v2-collapsed .v2-action-item:nth-child(n+4) {
+    display: none;
+}
+
+/* ================================================================
+   Foundational Badge — shared across goals and actions
+   ================================================================ */
+
+.v2-foundational-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #92600a;
+    background: #fef3c7;
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.2rem;
+    line-height: 1.4;
+}
+
+/* Foundational goal card — subtle gold top border */
+.v2-momentum-card.v2-foundational {
+    border-top: 2px solid #d4a017;
+}
+
+.v2-momentum-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* ================================================================
+   Daily Progress — clickable incomplete items
+   ================================================================ */
+
+.v2-progress-item-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-decoration: none;
+    color: inherit;
+    width: 100%;
+}
+
+.v2-progress-item-link:hover {
+    color: var(--color-primary, #2563eb);
+}
+
+.v2-progress-item-link:hover .v2-progress-item-label {
+    text-decoration: underline;
+}
+
+.v2-progress-item.v2-progress-incomplete {
+    cursor: pointer;
+}

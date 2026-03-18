@@ -100,18 +100,27 @@ class InsightsSectionView(LoginRequiredMixin, TemplateView):
         return context
 
 
-class NextActionSectionView(LoginRequiredMixin, View):
-    """HTMX endpoint for the Next Action panel (refreshed after actions)."""
+class ActionCenterSectionView(LoginRequiredMixin, View):
+    """HTMX endpoint for the Action Center (refreshed after inline actions)."""
 
     def get(self, request):
         service = DashboardV2Service(request.user)
+        # Ensure daily progress is available for action center binary items
+        from .services.daily_progress_service import DailyProgressService
+        progress_service = DailyProgressService(request.user)
+        service._daily_progress = progress_service.get_today()
+
         exec_ctx = service.get_execution_context()
         html = render_to_string(
-            "dashboard_v2/partials/next_action.html",
+            "dashboard_v2/partials/action_center.html",
             {**exec_ctx, "request": request},
             request=request,
         )
         return HttpResponse(html)
+
+
+# Backward compat alias
+NextActionSectionView = ActionCenterSectionView
 
 
 # ── Action Endpoints ─────────────────────────────────────────────────

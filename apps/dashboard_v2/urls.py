@@ -29,8 +29,14 @@ urlpatterns = [
         name="section_insights",
     ),
     path(
+        "sections/action-center/",
+        views.ActionCenterSectionView.as_view(),
+        name="section_action_center",
+    ),
+    # Backward compat alias for existing references
+    path(
         "sections/next-action/",
-        views.NextActionSectionView.as_view(),
+        views.ActionCenterSectionView.as_view(),
         name="section_next_action",
     ),
     # Inline action endpoints

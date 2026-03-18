@@ -17,12 +17,19 @@
         </svg>
     </div>
 
-    <!-- Component breakdown -->
+    <!-- Component breakdown — incomplete items link to action pages -->
     <div class="v2-progress-components">
         {% if daily_progress.routines.total > 0 %}
-        <div class="v2-progress-item">
-            <span class="v2-progress-item-label">Routines</span>
+        <div class="v2-progress-item{% if daily_progress.routines.score < 100 %} v2-progress-incomplete{% endif %}">
+            {% if daily_progress.routines.score < 100 %}
+            <a href="{% url 'life:routine_list' %}" class="v2-progress-item-link">
+                <span class="v2-progress-item-label">Routines</span>
+                <span class="v2-progress-item-value">{{ daily_progress.routines.done }}/{{ daily_progress.routines.total }}</span>
+            </a>
+            {% else %}
+            <span class="v2-progress-item-label">Routines &#10003;</span>
             <span class="v2-progress-item-value">{{ daily_progress.routines.done }}/{{ daily_progress.routines.total }}</span>
+            {% endif %}
             <div class="v2-progress-bar">
                 <div class="v2-progress-bar-fill" style="width: {{ daily_progress.routines.score }}%"></div>
             </div>
@@ -30,9 +37,16 @@
         {% endif %}
 
         {% if daily_progress.medicine.total > 0 %}
-        <div class="v2-progress-item">
-            <span class="v2-progress-item-label">Medicine</span>
+        <div class="v2-progress-item{% if daily_progress.medicine.score < 100 %} v2-progress-incomplete{% endif %}">
+            {% if daily_progress.medicine.score < 100 %}
+            <a href="{% url 'health:medicine_list' %}" class="v2-progress-item-link">
+                <span class="v2-progress-item-label">Medicine</span>
+                <span class="v2-progress-item-value">{{ daily_progress.medicine.done }}/{{ daily_progress.medicine.total }}</span>
+            </a>
+            {% else %}
+            <span class="v2-progress-item-label">Medicine &#10003;</span>
             <span class="v2-progress-item-value">{{ daily_progress.medicine.done }}/{{ daily_progress.medicine.total }}</span>
+            {% endif %}
             <div class="v2-progress-bar">
                 <div class="v2-progress-bar-fill" style="width: {{ daily_progress.medicine.score }}%"></div>
             </div>
@@ -40,34 +54,62 @@
         {% endif %}
 
         {% if daily_progress.tasks.total > 0 %}
-        <div class="v2-progress-item">
-            <span class="v2-progress-item-label">Tasks</span>
+        <div class="v2-progress-item{% if daily_progress.tasks.score < 100 %} v2-progress-incomplete{% endif %}">
+            {% if daily_progress.tasks.score < 100 %}
+            <a href="{% url 'life:task_list' %}" class="v2-progress-item-link">
+                <span class="v2-progress-item-label">Tasks</span>
+                <span class="v2-progress-item-value">{{ daily_progress.tasks.done }}/{{ daily_progress.tasks.total }}</span>
+            </a>
+            {% else %}
+            <span class="v2-progress-item-label">Tasks &#10003;</span>
             <span class="v2-progress-item-value">{{ daily_progress.tasks.done }}/{{ daily_progress.tasks.total }}</span>
+            {% endif %}
             <div class="v2-progress-bar">
                 <div class="v2-progress-bar-fill" style="width: {{ daily_progress.tasks.score }}%"></div>
             </div>
         </div>
         {% endif %}
 
-        <div class="v2-progress-item">
-            <span class="v2-progress-item-label">Workout</span>
-            <span class="v2-progress-item-value">{% if daily_progress.workout.done %}Done{% else %}—{% endif %}</span>
+        <div class="v2-progress-item{% if not daily_progress.workout.done %} v2-progress-incomplete{% endif %}">
+            {% if daily_progress.workout.done %}
+            <span class="v2-progress-item-label">Workout &#10003;</span>
+            <span class="v2-progress-item-value">Done</span>
+            {% else %}
+            <a href="{% url 'health:fitness_home' %}" class="v2-progress-item-link">
+                <span class="v2-progress-item-label">Workout</span>
+                <span class="v2-progress-item-value">&mdash;</span>
+            </a>
+            {% endif %}
             <div class="v2-progress-bar">
                 <div class="v2-progress-bar-fill" style="width: {{ daily_progress.workout.score }}%"></div>
             </div>
         </div>
 
-        <div class="v2-progress-item">
-            <span class="v2-progress-item-label">Journal</span>
-            <span class="v2-progress-item-value">{% if daily_progress.journaling.done %}Done{% else %}—{% endif %}</span>
+        <div class="v2-progress-item{% if not daily_progress.journaling.done %} v2-progress-incomplete{% endif %}">
+            {% if daily_progress.journaling.done %}
+            <span class="v2-progress-item-label">Journal &#10003;</span>
+            <span class="v2-progress-item-value">Done</span>
+            {% else %}
+            <a href="{% url 'journal:entry_list' %}" class="v2-progress-item-link">
+                <span class="v2-progress-item-label">Journal</span>
+                <span class="v2-progress-item-value">&mdash;</span>
+            </a>
+            {% endif %}
             <div class="v2-progress-bar">
                 <div class="v2-progress-bar-fill" style="width: {{ daily_progress.journaling.score }}%"></div>
             </div>
         </div>
 
-        <div class="v2-progress-item">
-            <span class="v2-progress-item-label">Faith</span>
-            <span class="v2-progress-item-value">{% if daily_progress.faith.done %}Done{% else %}—{% endif %}</span>
+        <div class="v2-progress-item{% if not daily_progress.faith.done %} v2-progress-incomplete{% endif %}">
+            {% if daily_progress.faith.done %}
+            <span class="v2-progress-item-label">Faith &#10003;</span>
+            <span class="v2-progress-item-value">Done</span>
+            {% else %}
+            <a href="{% url 'faith:reading_plans' %}" class="v2-progress-item-link">
+                <span class="v2-progress-item-label">Faith</span>
+                <span class="v2-progress-item-value">&mdash;</span>
+            </a>
+            {% endif %}
             <div class="v2-progress-bar">
                 <div class="v2-progress-bar-fill" style="width: {{ daily_progress.faith.score }}%"></div>
             </div>

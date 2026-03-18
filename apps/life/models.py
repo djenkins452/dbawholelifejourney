@@ -232,6 +232,11 @@ class Task(UserOwnedModel):
         default='important',
         help_text="Non-negotiable tasks trigger coaching if skipped repeatedly",
     )
+    is_foundational = models.BooleanField(
+        default=False,
+        help_text="Fallback foundational flag for standalone tasks. "
+                  "Dashboard prefers linked goal/habit foundational status.",
+    )
     skip_streak = models.PositiveSmallIntegerField(
         default=0,
         help_text="Consecutive skip count for tracking patterns",

@@ -168,6 +168,9 @@ class GoalMomentumService:
                     self.user.pk,
                     exc_info=True,
                 )
+
+        # Foundational goals always appear first in the momentum strip
+        results.sort(key=lambda g: (not g.get("is_foundational", False), g["goal_title"]))
         return results
 
     def compute_momentum(self, goal):
@@ -223,6 +226,8 @@ class GoalMomentumService:
             "momentum": momentum_score,
             "progress": progress_score,
             "momentum_trend": momentum_trend,
+            "is_foundational": goal.is_foundational,
+            "commitment_level": goal.commitment_level,
             "drivers": {
                 "habits": habits_result,
                 "tasks": tasks_result,

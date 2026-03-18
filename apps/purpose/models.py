@@ -269,7 +269,12 @@ class LifeGoal(UserOwnedModel):
         default='important',
         help_text="How committed are you to this goal?",
     )
-    
+    is_foundational = models.BooleanField(
+        default=False,
+        help_text="Identity-level priority. Foundational goals are always surfaced "
+                  "first in the dashboard and receive visual emphasis.",
+    )
+
     # Reflection on completion or release
     reflection = models.TextField(
         blank=True,
@@ -907,6 +912,11 @@ class HabitGoal(UserOwnedModel):
         default='important',
         help_text="Non-negotiable habits trigger coaching if missed. "
                   "Used by compensatory reasoning engine.",
+    )
+    is_foundational = models.BooleanField(
+        default=False,
+        help_text="Identity-level priority. Foundational habits are always surfaced "
+                  "first in the dashboard and receive visual emphasis.",
     )
 
     # Link to annual direction

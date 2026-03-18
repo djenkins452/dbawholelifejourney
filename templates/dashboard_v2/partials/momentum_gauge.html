@@ -1,7 +1,12 @@
-<div class="v2-momentum-card" style="--domain-color: {{ goal.domain_color }}">
+<div class="v2-momentum-card{% if goal.is_foundational %} v2-foundational{% endif %}" style="--domain-color: {{ goal.domain_color }}">
     <div class="v2-momentum-header">
         <h3 class="v2-momentum-title">{{ goal.goal_title }}</h3>
-        <span class="v2-momentum-domain">{{ goal.domain }}</span>
+        <div class="v2-momentum-meta">
+            <span class="v2-momentum-domain">{{ goal.domain }}</span>
+            {% if goal.is_foundational %}
+            <span class="v2-foundational-badge">Foundational</span>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Gauge -->

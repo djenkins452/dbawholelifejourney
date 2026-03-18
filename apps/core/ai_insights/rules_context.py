@@ -14,10 +14,12 @@ All rules:
   - Run on scheduled_check (not real-time)
   - Max one signal per type per day (via dedupe_key)
   - 2-day cooldown (via created_at check on existing insights)
+  - Negation-aware: "not sick", "no pain" suppresses detection
   - Architecture-compliant: read journal.body at signal layer, not CoS
 """
 
 import logging
+import re
 from datetime import timedelta
 
 from apps.core.ai_insights.base_rules import BaseInsightRule
@@ -26,16 +28,22 @@ from apps.core.ai_insights.utils import build_dedupe_key
 
 logger = logging.getLogger(__name__)
 
-# ── Keyword sets ──
-_INJURY_HIGH = {'injured', 'injury', 'broke', 'broken', 'fracture', 'sprain', 'sprained', 'torn'}
-_INJURY_MED = {'pain', 'hurt', 'sore', 'ache', 'twisted', 'fell', 'fall', 'pulled'}
+# ── Keyword sets (hardened — Step 2) ──
+_INJURY_HIGH = {'injured', 'injury', 'broken', 'fracture', 'sprain', 'sprained', 'twisted', 'tore', 'torn'}
+_INJURY_MED = {'hurt', 'pain'}  # Removed: sore, ache, fell, fall, pulled (too ambiguous)
 
 _ILLNESS_HIGH = {'fever', 'flu', 'covid', 'infection', 'vomiting', 'hospitalized'}
-_ILLNESS_MED = {'sick', 'unwell', 'cold', 'headache', 'nausea', 'congestion', 'cough'}
+_ILLNESS_MED = {'sick', 'unwell', 'headache', 'nausea', 'congestion', 'cough'}  # Removed: cold (too ambiguous)
 
-_FATIGUE_KEYWORDS = {'tired', 'exhausted', 'drained', 'fatigued', 'worn', 'burnout', 'burned'}
+_FATIGUE_KEYWORDS = {'tired', 'exhausted', 'drained', 'fatigued', 'burnout'}  # Removed: worn, burned (ambiguous)
 
-_TRAVEL_KEYWORDS = {'travel', 'traveling', 'travelling', 'flight', 'airport', 'hotel', 'vacation', 'trip'}
+_TRAVEL_KEYWORDS_JOURNAL = {'traveling', 'travelling', 'flight', 'airport', 'hotel', 'vacation'}
+# Calendar requires STRONG keywords only (Step 4)
+_TRAVEL_KEYWORDS_CALENDAR_STRONG = {'flight', 'airport', 'hotel', 'boarding'}
+
+# Negation patterns (Step 1) — suppress keyword within 3-word window
+_NEGATION_WORDS = {'not', 'no', "don't", "didn't", "isn't", "wasn't", "aren't", "won't"}
+_RECOVERY_PHRASES = {'feeling better', 'recovered', 'no longer', 'getting better', 'much better'}
 
 # How many days back to scan journal entries
 _JOURNAL_LOOKBACK_DAYS = 3
@@ -44,8 +52,8 @@ _JOURNAL_LOOKBACK_DAYS = 3
 _COOLDOWN_HOURS = 48
 
 
-def _get_recent_journal_words(user, days):
-    """Get lowercase word set from recent journal entries."""
+def _get_recent_journal_texts(user, days):
+    """Get list of lowercase journal body texts from recent entries."""
     try:
         from apps.journal.models import JournalEntry
         from django.utils import timezone as _tz
@@ -57,13 +65,45 @@ def _get_recent_journal_words(user, days):
             created_at__gte=cutoff,
         ).values_list('body', flat=True)
 
-        words = set()
-        for body in entries:
-            if body:
-                words.update(body.lower().split())
-        return words
+        return [body.lower() for body in entries if body]
     except Exception:
-        return set()
+        return []
+
+
+def _keyword_matches_with_negation(texts, keywords):
+    """
+    Find keyword matches in journal texts, filtering out negated occurrences.
+
+    Returns set of confirmed (non-negated) keyword matches.
+
+    Negation check: if any negation word appears within 3 words BEFORE the
+    keyword, or if a recovery phrase appears in the same sentence, suppress.
+    """
+    confirmed = set()
+
+    for text in texts:
+        # Check recovery phrases first — suppress entire text
+        if any(phrase in text for phrase in _RECOVERY_PHRASES):
+            continue
+
+        words = text.split()
+        for i, word in enumerate(words):
+            # Strip punctuation for matching
+            clean = re.sub(r'[^\w]', '', word)
+            if clean not in keywords:
+                continue
+
+            # Check 3-word window before for negation
+            window_start = max(0, i - 3)
+            preceding = words[window_start:i]
+            preceding_clean = {re.sub(r'[^\w\']', '', w) for w in preceding}
+
+            if preceding_clean & _NEGATION_WORDS:
+                continue  # Negated — skip this match
+
+            confirmed.add(clean)
+
+    return confirmed
 
 
 def _has_recent_insight(user, insight_type, hours=_COOLDOWN_HOURS):
@@ -84,7 +124,7 @@ def _has_recent_insight(user, insight_type, hours=_COOLDOWN_HOURS):
 
 @register
 class InjuryDetectedRule(BaseInsightRule):
-    """Detect injury mentions in recent journal entries."""
+    """Detect injury mentions in recent journal entries (negation-aware)."""
 
     rule_name = "injury_detected"
     module = "health"
@@ -98,21 +138,23 @@ class InjuryDetectedRule(BaseInsightRule):
         if _has_recent_insight(user, self.insight_type):
             return []
 
-        words = _get_recent_journal_words(user, _JOURNAL_LOOKBACK_DAYS)
-        if not words:
+        texts = _get_recent_journal_texts(user, _JOURNAL_LOOKBACK_DAYS)
+        if not texts:
             return []
 
-        high_matches = words & _INJURY_HIGH
-        med_matches = words & _INJURY_MED
+        high_matches = _keyword_matches_with_negation(texts, _INJURY_HIGH)
+        med_matches = _keyword_matches_with_negation(texts, _INJURY_MED)
 
         if not high_matches and not med_matches:
             return []
+
+        sources = ['journal']
 
         if high_matches:
             confidence = 0.80
             summary = f"Injury mentioned: {', '.join(sorted(high_matches)[:3])}"
         else:
-            confidence = 0.50
+            confidence = 0.55
             summary = f"Pain/discomfort mentioned: {', '.join(sorted(med_matches)[:3])}"
 
         from django.utils import timezone
@@ -130,6 +172,7 @@ class InjuryDetectedRule(BaseInsightRule):
                 'rule_name': self.rule_name,
                 'high_keywords': sorted(high_matches),
                 'med_keywords': sorted(med_matches),
+                'sources': sources,
             },
             'dedupe_key': build_dedupe_key(user.id, self.insight_type, today_str),
         }]
@@ -137,7 +180,7 @@ class InjuryDetectedRule(BaseInsightRule):
 
 @register
 class IllnessDetectedRule(BaseInsightRule):
-    """Detect illness mentions in recent journal entries."""
+    """Detect illness mentions in journal entries or sleep logs (negation-aware)."""
 
     rule_name = "illness_detected"
     module = "health"
@@ -151,9 +194,9 @@ class IllnessDetectedRule(BaseInsightRule):
         if _has_recent_insight(user, self.insight_type):
             return []
 
-        words = _get_recent_journal_words(user, _JOURNAL_LOOKBACK_DAYS)
+        texts = _get_recent_journal_texts(user, _JOURNAL_LOOKBACK_DAYS)
 
-        # Also check SleepEntry factors for structured illness signal
+        # SleepEntry structured illness factor
         has_sleep_illness = False
         try:
             from apps.health.models import SleepEntry
@@ -168,22 +211,28 @@ class IllnessDetectedRule(BaseInsightRule):
         except Exception:
             pass
 
-        high_matches = words & _ILLNESS_HIGH
-        med_matches = words & _ILLNESS_MED
+        high_matches = _keyword_matches_with_negation(texts, _ILLNESS_HIGH) if texts else set()
+        med_matches = _keyword_matches_with_negation(texts, _ILLNESS_MED) if texts else set()
 
         if not high_matches and not med_matches and not has_sleep_illness:
             return []
 
+        sources = []
+        if high_matches or med_matches:
+            sources.append('journal')
+        if has_sleep_illness:
+            sources.append('sleep')
+
         if high_matches or has_sleep_illness:
             confidence = 0.80
-            sources = []
+            parts = []
             if high_matches:
-                sources.append(f"journal: {', '.join(sorted(high_matches)[:3])}")
+                parts.append(f"journal: {', '.join(sorted(high_matches)[:3])}")
             if has_sleep_illness:
-                sources.append("sleep log: feeling unwell")
-            summary = f"Illness indicators: {'; '.join(sources)}"
+                parts.append("sleep log: feeling unwell")
+            summary = f"Illness indicators: {'; '.join(parts)}"
         else:
-            confidence = 0.50
+            confidence = 0.55
             summary = f"Illness mentioned: {', '.join(sorted(med_matches)[:3])}"
 
         from django.utils import timezone
@@ -202,6 +251,7 @@ class IllnessDetectedRule(BaseInsightRule):
                 'high_keywords': sorted(high_matches),
                 'med_keywords': sorted(med_matches),
                 'sleep_illness_factor': has_sleep_illness,
+                'sources': sources,
             },
             'dedupe_key': build_dedupe_key(user.id, self.insight_type, today_str),
         }]
@@ -209,7 +259,7 @@ class IllnessDetectedRule(BaseInsightRule):
 
 @register
 class FatigueDetectedRule(BaseInsightRule):
-    """Detect fatigue from sleep deficit OR journal fatigue keywords."""
+    """Detect fatigue from sleep deficit OR journal keywords. Single signal only."""
 
     rule_name = "fatigue_detected"
     module = "health"
@@ -236,15 +286,21 @@ class FatigueDetectedRule(BaseInsightRule):
         except Exception:
             pass
 
-        # Source 2: Journal fatigue keywords
-        words = _get_recent_journal_words(user, _JOURNAL_LOOKBACK_DAYS)
-        journal_fatigue = bool(words & _FATIGUE_KEYWORDS)
-        fatigue_words = sorted(words & _FATIGUE_KEYWORDS) if journal_fatigue else []
+        # Source 2: Journal fatigue keywords (negation-aware)
+        texts = _get_recent_journal_texts(user, _JOURNAL_LOOKBACK_DAYS)
+        fatigue_words = sorted(_keyword_matches_with_negation(texts, _FATIGUE_KEYWORDS)) if texts else []
+        journal_fatigue = bool(fatigue_words)
 
         if not sleep_deficit and not journal_fatigue:
             return []
 
-        # Confidence: HIGH if both sources, MEDIUM if one
+        # Single signal with appropriate confidence (Step 3)
+        sources = []
+        if sleep_deficit:
+            sources.append('sleep')
+        if journal_fatigue:
+            sources.append('journal')
+
         if sleep_deficit and journal_fatigue:
             confidence = 0.85
             parts = []
@@ -256,7 +312,7 @@ class FatigueDetectedRule(BaseInsightRule):
             confidence = 0.60
             summary = f"Sleep deficit: averaging {sleep_avg // 60}h {sleep_avg % 60}m (below 6.5h)"
         else:
-            confidence = 0.50
+            confidence = 0.55
             summary = f"Fatigue mentioned: {', '.join(fatigue_words[:3])}"
 
         from django.utils import timezone
@@ -276,6 +332,7 @@ class FatigueDetectedRule(BaseInsightRule):
                 'sleep_avg_minutes': sleep_avg,
                 'journal_fatigue': journal_fatigue,
                 'fatigue_words': fatigue_words,
+                'sources': sources,
             },
             'dedupe_key': build_dedupe_key(user.id, self.insight_type, today_str),
         }]
@@ -283,7 +340,7 @@ class FatigueDetectedRule(BaseInsightRule):
 
 @register
 class TravelActiveRule(BaseInsightRule):
-    """Detect travel from journal or calendar keywords."""
+    """Detect travel from journal, calendar (strong keywords only), or sleep logs."""
 
     rule_name = "travel_active"
     module = "life"
@@ -297,12 +354,12 @@ class TravelActiveRule(BaseInsightRule):
         if _has_recent_insight(user, self.insight_type):
             return []
 
-        # Source 1: Journal travel keywords
-        words = _get_recent_journal_words(user, _JOURNAL_LOOKBACK_DAYS)
-        journal_travel = bool(words & _TRAVEL_KEYWORDS)
-        travel_words = sorted(words & _TRAVEL_KEYWORDS) if journal_travel else []
+        # Source 1: Journal travel keywords (negation-aware)
+        texts = _get_recent_journal_texts(user, _JOURNAL_LOOKBACK_DAYS)
+        travel_words = sorted(_keyword_matches_with_negation(texts, _TRAVEL_KEYWORDS_JOURNAL)) if texts else []
+        journal_travel = bool(travel_words)
 
-        # Source 2: Calendar event titles
+        # Source 2: Calendar event titles — STRONG keywords only (Step 4)
         calendar_travel = False
         try:
             from apps.calendar_engine.models import CalendarEvent
@@ -315,8 +372,8 @@ class TravelActiveRule(BaseInsightRule):
 
             for title in events:
                 if title:
-                    title_lower = title.lower()
-                    if any(kw in title_lower for kw in _TRAVEL_KEYWORDS):
+                    title_words = set(re.sub(r'[^\w\s]', '', title.lower()).split())
+                    if title_words & _TRAVEL_KEYWORDS_CALENDAR_STRONG:
                         calendar_travel = True
                         break
         except Exception:
@@ -337,19 +394,30 @@ class TravelActiveRule(BaseInsightRule):
         except Exception:
             pass
 
+        # Calendar-only is NOT sufficient (Step 4) — need journal or sleep confirmation
+        if calendar_travel and not journal_travel and not sleep_travel:
+            return []  # Calendar alone is too noisy
+
         if not journal_travel and not calendar_travel and not sleep_travel:
             return []
 
         sources = []
         if journal_travel:
-            sources.append(f"journal: {', '.join(travel_words[:3])}")
+            sources.append('journal')
         if calendar_travel:
-            sources.append("calendar: travel event")
+            sources.append('calendar')
         if sleep_travel:
-            sources.append("sleep log: travel/jet lag")
+            sources.append('sleep')
 
         confidence = 0.80 if len(sources) >= 2 else 0.55
-        summary = f"Travel indicators: {'; '.join(sources)}"
+        parts = []
+        if journal_travel:
+            parts.append(f"journal: {', '.join(travel_words[:3])}")
+        if calendar_travel:
+            parts.append("calendar: travel event")
+        if sleep_travel:
+            parts.append("sleep log: travel/jet lag")
+        summary = f"Travel indicators: {'; '.join(parts)}"
 
         from django.utils import timezone
         today_str = str(timezone.now().date())
@@ -368,6 +436,7 @@ class TravelActiveRule(BaseInsightRule):
                 'calendar_travel': calendar_travel,
                 'sleep_travel': sleep_travel,
                 'travel_words': travel_words,
+                'sources': sources,
             },
             'dedupe_key': build_dedupe_key(user.id, self.insight_type, today_str),
         }]

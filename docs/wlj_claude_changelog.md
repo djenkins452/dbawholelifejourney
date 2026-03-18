@@ -6,19 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-## 2026-03-18 — Context Signals: Injury, Illness, Fatigue, Travel Detection
+## 2026-03-18 — Context Signals Hardened: Negation + Precision + False Positive Prevention
+
+**Purpose:** Tighten context signals to minimize false positives while maintaining detection accuracy.
+
+**Hardening changes to `apps/core/ai_insights/rules_context.py`:**
+- **Negation handling:** `_keyword_matches_with_negation()` — checks 3-word window before keyword for negation words (not, no, don't, didn't, etc). Recovery phrases ("feeling better", "recovered", "no longer") suppress entire text.
+- **Injury precision:** Removed ambiguous terms (sore, ache, fell, fall, pulled). HIGH: injured/broken/fracture/sprain/twisted/tore. MEDIUM: hurt/pain only.
+- **Illness precision:** Removed "cold" (too ambiguous). Kept structured SleepEntry.factors as corroboration.
+- **Fatigue dedup:** Guarantees single signal per evaluation. Both sources → HIGH (0.85). One source → MEDIUM (0.55-0.60).
+- **Travel calendar hardening:** Calendar-only is NO LONGER sufficient. Strong keywords only (flight/airport/hotel/boarding). Requires journal or sleep confirmation alongside calendar.
+- **Evidence field:** All signals include `sources: ["journal", "sleep", "calendar"]` array showing which data sources triggered.
+- **Confidence consistency:** HIGH (≥0.80) = strong keywords OR multi-source. MEDIUM (0.55-0.60) = single moderate signal. LOW = signal not emitted (suppressed).
+- **Journal reader upgraded:** `_get_recent_journal_texts()` returns full text list (not word set) for negation-aware scanning.
+
+---
+
+## 2026-03-18 — Context Signals: Injury, Illness, Fatigue, Travel Detection (initial)
 
 **Purpose:** Fill the "why" gap in behavioral pattern breaks. These signals explain disruptions without violating architecture — all detection runs at the signal layer, not CoS.
 
-**New file:** `apps/core/ai_insights/rules_context.py` — 4 PIE rules:
-- `InjuryDetectedRule` — journal keyword scan (high: injured/broken/sprain; medium: pain/hurt/sore)
-- `IllnessDetectedRule` — journal keywords + SleepEntry.factors `illness` field
-- `FatigueDetectedRule` — SAE sleep_avg < 6.5h OR journal fatigue keywords; HIGH confidence when both
-- `TravelActiveRule` — journal keywords + CalendarEvent titles + SleepEntry.factors `travel`
+**New file:** `apps/core/ai_insights/rules_context.py` — 4 PIE rules.
 
-**Guardrails:** 2-day cooldown per signal type (won't re-fire within 48h). Max one per type per day via dedupe_key. Multi-source confirmation raises confidence.
-
-**Integration:** Added all 4 types to `_CONTEXT_SIGNAL_TYPES` in rules_behavior.py → `FoundationalPatternBreakRule._gather_related_signals()` automatically picks them up.
+**Integration:** Added all 4 types to `_CONTEXT_SIGNAL_TYPES` in rules_behavior.py.
 
 **Registered in:** intelligence_hook.py, execution_engine.py, run_daily_insights.py
 

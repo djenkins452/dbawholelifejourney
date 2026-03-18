@@ -5,6 +5,7 @@ Rules:
   1. BehaviorScoreDropRule — warning when 7-day score drops below threshold
   2. BehaviorDomainWeaknessRule — info when a single domain is significantly weaker
   3. BehaviorMultiDomainDeclineRule — warning when 2+ domains declining
+  4. FoundationalPatternBreakRule — warning on repeated foundational misses (3-day)
 """
 
 import logging
@@ -212,3 +213,201 @@ class BehaviorMultiDomainDeclineRule(BaseInsightRule):
         except Exception as e:
             logger.warning("BehaviorMultiDomainDeclineRule failed: %s", e, exc_info=True)
             return []
+
+
+# ── Related signal types that may explain a behavioral pattern break ──
+# These are insight_types from OTHER rules that fire independently.
+# If present alongside a pattern break, they provide causal context.
+_CONTEXT_SIGNAL_TYPES = {
+    'motivation_drift',
+    'overtraining_risk',
+    'behavioral_instability',
+    'compliance_risk',
+    'financial_anxiety_cluster',
+    'overextension_risk',
+}
+
+
+@register
+class FoundationalPatternBreakRule(BaseInsightRule):
+    """
+    Warning when foundational commitments are repeatedly missed in a tight window.
+
+    Triggers on:
+      - Same domain: ≥2 missed in 3 days
+      - Cross-domain: ≥3 missed total in 3 days
+
+    Enriched with any related signals already in the system (motivation_drift,
+    overtraining_risk, etc). Does NOT scan raw data — only reads existing signals.
+    """
+
+    rule_name = "foundational_pattern_break"
+    module = "life"
+    insight_type = "foundational_pattern_break"
+    severity = "warning"
+
+    def applies(self, user, event):
+        return event.get("event_type") == "scheduled_check"
+
+    def evaluate(self, user, event):
+        try:
+            from apps.core.behavior.behavior_score_engine import compute_behavior_score
+            from apps.core.utils import get_user_today
+
+            today = get_user_today(user)
+            start_3d = today - timedelta(days=3)
+
+            # Get 3-day behavior data
+            result = compute_behavior_score(user, start_3d, today)
+            domains = result.get('domains', [])
+            if not domains:
+                return []
+
+            # Check triggers
+            total_missed_3d = 0
+            same_domain_break = False
+            affected_domains = []
+
+            for d in domains:
+                missed = d.get('missed', 0)
+                total_missed_3d += missed
+                if missed >= 2:
+                    same_domain_break = True
+                    affected_domains.append(d['domain'])
+
+            cross_domain_break = total_missed_3d >= 3
+
+            if not same_domain_break and not cross_domain_break:
+                return []
+
+            # All domains with misses
+            if not affected_domains:
+                affected_domains = [
+                    d['domain'] for d in domains if d.get('missed', 0) > 0
+                ]
+
+            # ── Enrich with related signals (ONLY existing signals) ──
+            related_signals = self._gather_related_signals(user)
+
+            # ── Build coaching context ──
+            from django.utils import timezone
+            today_str = str(timezone.now().date())
+
+            domain_names = ', '.join(d.title() for d in affected_domains)
+            has_context = bool(related_signals)
+
+            if has_context:
+                context_summary = '; '.join(
+                    s['title'] for s in related_signals[:3]
+                )
+                message = (
+                    f"Foundational items missed in {domain_names} "
+                    f"({total_missed_3d} in 3 days). "
+                    f"Possibly related: {context_summary}."
+                )
+            else:
+                message = (
+                    f"Foundational items missed in {domain_names} "
+                    f"({total_missed_3d} in 3 days). "
+                    f"No clear contextual signals — check in with the user."
+                )
+
+            return [{
+                'insight_type': self.insight_type,
+                'module': self.module,
+                'severity': self.severity,
+                'title': 'Foundational pattern break detected',
+                'message': message,
+                'explain_why': (
+                    'Multiple foundational commitments missed in a short window '
+                    'may indicate a life disruption, stress, illness, or need to '
+                    'adjust the plan. Ask — do not assume.'
+                ),
+                'confidence_score': 0.75 if has_context else 0.60,
+                'evidence': {
+                    'rule_name': self.rule_name,
+                    'affected_domains': affected_domains,
+                    'total_missed_3d': total_missed_3d,
+                    'same_domain_break': same_domain_break,
+                    'cross_domain_break': cross_domain_break,
+                    'related_signals': [
+                        {'type': s['type'], 'title': s['title']}
+                        for s in related_signals
+                    ],
+                    'has_context': has_context,
+                    # Coaching directive for Beth
+                    'coaching_mode': 'contextual' if has_context else 'open_inquiry',
+                },
+                'dedupe_key': build_dedupe_key(
+                    user.id, self.insight_type, today_str
+                ),
+            }]
+
+        except Exception as e:
+            logger.warning("FoundationalPatternBreakRule failed: %s", e, exc_info=True)
+            return []
+
+    def _gather_related_signals(self, user):
+        """
+        Gather EXISTING signals that may explain a behavioral break.
+
+        Reads from:
+          1. Active PIE insights (recent, matching context types)
+          2. SAE state (sleep, mood — pre-computed, no raw queries)
+
+        Does NOT query raw data. Architecture-compliant.
+        """
+        related = []
+
+        # 1. Check for active context insights from other engines
+        try:
+            from apps.core.ai_insights.models import Insight
+            from django.utils import timezone as _tz
+
+            cutoff = _tz.now() - timedelta(hours=72)
+            context_insights = Insight.objects.filter(
+                user=user,
+                status__in=['new', 'read'],
+                created_at__gte=cutoff,
+                insight_type__in=_CONTEXT_SIGNAL_TYPES,
+            ).order_by('-created_at')[:5]
+
+            for i in context_insights:
+                related.append({
+                    'type': i.insight_type,
+                    'title': i.title,
+                    'severity': i.severity,
+                    'source': 'insight',
+                })
+        except Exception:
+            pass
+
+        # 2. Check SAE state for sleep and mood indicators
+        try:
+            from apps.core.ai_state import get_module_state
+
+            health_state = get_module_state(user, 'health')
+            if health_state:
+                sleep_avg = health_state.get('sleep_avg_duration_7d')
+                if sleep_avg and sleep_avg < 390:  # < 6.5 hours
+                    related.append({
+                        'type': 'sleep_deficit',
+                        'title': f'Sleep averaging {sleep_avg // 60}h {sleep_avg % 60}m (below 6.5h)',
+                        'severity': 'info',
+                        'source': 'state',
+                    })
+
+            journal_state = get_module_state(user, 'journal')
+            if journal_state:
+                last_mood = journal_state.get('last_mood')
+                if last_mood and last_mood in ('low', 'very_low', 'anxious', 'sad', 'stressed'):
+                    related.append({
+                        'type': 'mood_low',
+                        'title': f'Recent mood: {last_mood}',
+                        'severity': 'info',
+                        'source': 'state',
+                    })
+        except Exception:
+            pass
+
+        return related

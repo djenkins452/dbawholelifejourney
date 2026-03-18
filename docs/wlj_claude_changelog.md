@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-18 — Context Signal Final Lock: Timezone + Future Guard + Cross-Signal Suppression
+
+**Purpose:** Final safeguards for deterministic correctness.
+
+**Changes to `apps/core/ai_insights/rules_context.py`:**
+- **Timezone normalization:** All time comparisons now use `get_user_now(user)` via `_get_user_now()` helper. Decay, freshness, cooldown, and journal cutoffs all use user-local time.
+- **Future date guard:** Journal entries, sleep logs, and calendar events with `created_at > now` are excluded. "I have a flight tomorrow" in a future-dated entry won't trigger today.
+- **Cross-signal suppression:** `_has_active_illness_signal()` — FatigueDetectedRule suppressed when illness_detected already active (illness subsumes fatigue).
+- **Evidence dedup:** Already correct — each source contributes at most once per signal. Journal = one source regardless of keyword count.
+- **Fatigue recovery fix:** When both sleep deficit and journal fatigue exist but journal has recovery, journal evidence is cleared while sleep evidence continues alone.
+
+---
+
 ## 2026-03-18 — Context Signal Final Hardening: Time Decay + Conflict Resolution + Freshness
 
 **Purpose:** Ensure context signals expire when stale and are suppressed when newer recovery evidence exists.

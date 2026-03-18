@@ -16,6 +16,9 @@ Hardening layers:
   - Time decay (per-type expiration windows)
   - Freshness tagging (recent vs aging)
   - Cooldown (48h per type)
+  - Timezone normalization (all comparisons use user-local time)
+  - Future date guard (future-dated evidence ignored)
+  - Cross-signal suppression (illness subsumes fatigue)
   - Architecture-compliant: reads journal.body at signal layer, not CoS
 """
 
@@ -64,21 +67,33 @@ _COOLDOWN_HOURS = 48
 
 # ── Shared helpers ──
 
+def _get_user_now(user):
+    """Get current datetime in user's timezone. Falls back to UTC."""
+    try:
+        from apps.core.utils import get_user_now
+        return get_user_now(user)
+    except Exception:
+        from django.utils import timezone as _tz
+        return _tz.now()
+
+
 def _get_recent_journal_entries(user, days):
     """
     Get recent journal entries with timestamps for evidence tracking.
 
     Returns list of (body_lower, created_at) tuples, ordered newest first.
+    Future-dated entries are excluded.
     """
     try:
         from apps.journal.models import JournalEntry
-        from django.utils import timezone as _tz
 
-        cutoff = _tz.now() - timedelta(days=days)
+        now = _get_user_now(user)
+        cutoff = now - timedelta(days=days)
         entries = JournalEntry.objects.filter(
             user=user,
             status='active',
             created_at__gte=cutoff,
+            created_at__lte=now,  # Future date guard
         ).order_by('-created_at').values_list('body', 'created_at')
 
         return [(body.lower(), created_at) for body, created_at in entries if body]
@@ -144,31 +159,30 @@ def _has_newer_recovery(entries, evidence_at):
     return False
 
 
-def _compute_freshness(last_evidence_at):
-    """Compute freshness tag based on evidence age."""
+def _compute_freshness(last_evidence_at, user=None):
+    """Compute freshness tag based on evidence age (user-local time)."""
     if not last_evidence_at:
         return 'aging'
-    from django.utils import timezone as _tz
-    age_hours = (_tz.now() - last_evidence_at).total_seconds() / 3600
+    now = _get_user_now(user) if user else __import__('django.utils.timezone', fromlist=['now']).now()
+    age_hours = (now - last_evidence_at).total_seconds() / 3600
     return 'recent' if age_hours <= _FRESHNESS_BOUNDARY_HOURS else 'aging'
 
 
-def _within_decay_window(last_evidence_at, signal_type):
-    """Check if evidence is within the decay window for this signal type."""
+def _within_decay_window(last_evidence_at, signal_type, user=None):
+    """Check if evidence is within the decay window (user-local time)."""
     if not last_evidence_at:
         return False
-    from django.utils import timezone as _tz
+    now = _get_user_now(user) if user else __import__('django.utils.timezone', fromlist=['now']).now()
     decay_hours = _DECAY_HOURS.get(signal_type, 72)
-    return (_tz.now() - last_evidence_at).total_seconds() / 3600 <= decay_hours
+    return (now - last_evidence_at).total_seconds() / 3600 <= decay_hours
 
 
 def _has_recent_insight(user, insight_type, hours=_COOLDOWN_HOURS):
     """Check if this insight type was already fired recently (cooldown)."""
     try:
         from apps.core.ai_insights.models import Insight
-        from django.utils import timezone as _tz
 
-        cutoff = _tz.now() - timedelta(hours=hours)
+        cutoff = _get_user_now(user) - timedelta(hours=hours)
         return Insight.objects.filter(
             user=user,
             insight_type=insight_type,
@@ -178,14 +192,30 @@ def _has_recent_insight(user, insight_type, hours=_COOLDOWN_HOURS):
         return False
 
 
-def _suppression_gate(entries, last_evidence_at, signal_type):
+def _has_active_illness_signal(user):
+    """Check if illness_detected is active. Used for cross-signal suppression."""
+    try:
+        from apps.core.ai_insights.models import Insight
+
+        cutoff = _get_user_now(user) - timedelta(hours=72)
+        return Insight.objects.filter(
+            user=user,
+            insight_type='illness_detected',
+            status__in=['new', 'read'],
+            created_at__gte=cutoff,
+        ).exists()
+    except Exception:
+        return False
+
+
+def _suppression_gate(entries, last_evidence_at, signal_type, user=None):
     """
     Unified pre-emission suppression check.
 
     Returns (suppressed: bool, reason: str or None).
     """
     # 1. Within decay window?
-    if not _within_decay_window(last_evidence_at, signal_type):
+    if not _within_decay_window(last_evidence_at, signal_type, user):
         return True, 'outside_decay_window'
 
     # 2. Recovery language in newer entries?
@@ -224,12 +254,12 @@ class InjuryDetectedRule(BaseInsightRule):
             return []
 
         last_evidence_at = high_evidence or med_evidence
-        suppressed, reason = _suppression_gate(entries, last_evidence_at, self.insight_type)
+        suppressed, reason = _suppression_gate(entries, last_evidence_at, self.insight_type, user)
         if suppressed:
             return []
 
         sources = ['journal']
-        freshness = _compute_freshness(last_evidence_at)
+        freshness = _compute_freshness(last_evidence_at, user)
 
         if high_matches:
             confidence = 0.80
@@ -238,8 +268,8 @@ class InjuryDetectedRule(BaseInsightRule):
             confidence = 0.55
             summary = f"Pain/discomfort mentioned: {', '.join(sorted(med_matches)[:3])}"
 
-        from django.utils import timezone
-        today_str = str(timezone.now().date())
+        from apps.core.utils import get_user_today
+        today_str = str(get_user_today(user))
 
         return [{
             'insight_type': self.insight_type,
@@ -284,12 +314,13 @@ class IllnessDetectedRule(BaseInsightRule):
         sleep_evidence_at = None
         try:
             from apps.health.models import SleepEntry
-            from django.utils import timezone as _tz
-            cutoff = _tz.now() - timedelta(days=_JOURNAL_LOOKBACK_DAYS)
+            now = _get_user_now(user)
+            cutoff = now - timedelta(days=_JOURNAL_LOOKBACK_DAYS)
             sleep_entry = SleepEntry.objects.filter(
                 user=user,
                 status='active',
                 created_at__gte=cutoff,
+                created_at__lte=now,  # Future date guard
                 factors__contains=['illness'],
             ).order_by('-created_at').first()
             if sleep_entry:
@@ -308,7 +339,7 @@ class IllnessDetectedRule(BaseInsightRule):
         candidates = [t for t in [high_ev, med_ev, sleep_evidence_at] if t]
         last_evidence_at = max(candidates) if candidates else None
 
-        suppressed, reason = _suppression_gate(entries, last_evidence_at, self.insight_type)
+        suppressed, reason = _suppression_gate(entries, last_evidence_at, self.insight_type, user)
         if suppressed:
             return []
 
@@ -318,7 +349,7 @@ class IllnessDetectedRule(BaseInsightRule):
         if has_sleep_illness:
             sources.append('sleep')
 
-        freshness = _compute_freshness(last_evidence_at)
+        freshness = _compute_freshness(last_evidence_at, user)
 
         if high_matches or has_sleep_illness:
             confidence = 0.80
@@ -332,8 +363,8 @@ class IllnessDetectedRule(BaseInsightRule):
             confidence = 0.55
             summary = f"Illness mentioned: {', '.join(sorted(med_matches)[:3])}"
 
-        from django.utils import timezone
-        today_str = str(timezone.now().date())
+        from apps.core.utils import get_user_today
+        today_str = str(get_user_today(user))
 
         return [{
             'insight_type': self.insight_type,
@@ -372,19 +403,22 @@ class FatigueDetectedRule(BaseInsightRule):
         if _has_recent_insight(user, self.insight_type):
             return []
 
+        # Cross-signal suppression: illness subsumes fatigue
+        if _has_active_illness_signal(user):
+            return []
+
         # Source 1: SAE sleep state (always "recent" — computed from 7d rolling)
         sleep_deficit = False
         sleep_avg = None
         sleep_evidence_at = None
         try:
             from apps.core.ai_state import get_module_state
-            from django.utils import timezone as _tz
             health_state = get_module_state(user, 'health')
             if health_state:
                 sleep_avg = health_state.get('sleep_avg_duration_7d')
                 if sleep_avg and sleep_avg < 390:
                     sleep_deficit = True
-                    sleep_evidence_at = _tz.now()  # SAE state is current
+                    sleep_evidence_at = _get_user_now(user)  # SAE state is current
         except Exception:
             pass
 
@@ -405,13 +439,15 @@ class FatigueDetectedRule(BaseInsightRule):
 
         # Suppression: journal recovery overrides journal fatigue (but not sleep deficit)
         if journal_fatigue and not sleep_deficit:
-            suppressed, reason = _suppression_gate(entries, journal_evidence_at, self.insight_type)
+            suppressed, reason = _suppression_gate(entries, journal_evidence_at, self.insight_type, user)
             if suppressed:
                 return []
         elif journal_fatigue and sleep_deficit:
-            # Both sources — only suppress if recovery AND sleep has recovered
-            if _has_newer_recovery(entries, journal_evidence_at) and not sleep_deficit:
-                return []
+            # Both sources — journal recovery suppresses journal evidence only
+            if _has_newer_recovery(entries, journal_evidence_at):
+                journal_fatigue = False
+                fatigue_words = []
+                # Still have sleep deficit, continue with that alone
 
         sources = []
         if sleep_deficit:
@@ -419,7 +455,10 @@ class FatigueDetectedRule(BaseInsightRule):
         if journal_fatigue:
             sources.append('journal')
 
-        freshness = _compute_freshness(last_evidence_at)
+        if not sources:
+            return []
+
+        freshness = _compute_freshness(last_evidence_at, user)
 
         if sleep_deficit and journal_fatigue:
             confidence = 0.85
@@ -435,8 +474,8 @@ class FatigueDetectedRule(BaseInsightRule):
             confidence = 0.55
             summary = f"Fatigue mentioned: {', '.join(fatigue_words[:3])}"
 
-        from django.utils import timezone
-        today_str = str(timezone.now().date())
+        from apps.core.utils import get_user_today
+        today_str = str(get_user_today(user))
 
         return [{
             'insight_type': self.insight_type,
@@ -490,11 +529,12 @@ class TravelActiveRule(BaseInsightRule):
         calendar_evidence_at = None
         try:
             from apps.calendar_engine.models import CalendarEvent
-            from django.utils import timezone as _tz
-            cutoff = _tz.now() - timedelta(days=_JOURNAL_LOOKBACK_DAYS)
+            now = _get_user_now(user)
+            cutoff = now - timedelta(days=_JOURNAL_LOOKBACK_DAYS)
             events = CalendarEvent.objects.filter(
                 user=user,
                 start_dt__gte=cutoff,
+                start_dt__lte=now,  # Future date guard
             ).order_by('-start_dt').values_list('title', 'start_dt')[:50]
 
             for title, start_dt in events:
@@ -512,12 +552,13 @@ class TravelActiveRule(BaseInsightRule):
         sleep_evidence_at = None
         try:
             from apps.health.models import SleepEntry
-            from django.utils import timezone as _tz
-            cutoff = _tz.now() - timedelta(days=_JOURNAL_LOOKBACK_DAYS)
+            now = _get_user_now(user)
+            cutoff = now - timedelta(days=_JOURNAL_LOOKBACK_DAYS)
             sleep_entry = SleepEntry.objects.filter(
                 user=user,
                 status='active',
                 created_at__gte=cutoff,
+                created_at__lte=now,  # Future date guard
                 factors__contains=['travel'],
             ).order_by('-created_at').first()
             if sleep_entry:
@@ -538,7 +579,7 @@ class TravelActiveRule(BaseInsightRule):
         last_evidence_at = max(candidates) if candidates else None
 
         # Decay check
-        if not _within_decay_window(last_evidence_at, self.insight_type):
+        if not _within_decay_window(last_evidence_at, self.insight_type, user):
             return []
 
         sources = []
@@ -549,7 +590,7 @@ class TravelActiveRule(BaseInsightRule):
         if sleep_travel:
             sources.append('sleep')
 
-        freshness = _compute_freshness(last_evidence_at)
+        freshness = _compute_freshness(last_evidence_at, user)
         confidence = 0.80 if len(sources) >= 2 else 0.55
 
         parts = []
@@ -561,8 +602,8 @@ class TravelActiveRule(BaseInsightRule):
             parts.append("sleep log: travel/jet lag")
         summary = f"Travel indicators: {'; '.join(parts)}"
 
-        from django.utils import timezone
-        today_str = str(timezone.now().date())
+        from apps.core.utils import get_user_today
+        today_str = str(get_user_today(user))
 
         return [{
             'insight_type': self.insight_type,

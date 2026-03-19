@@ -2493,6 +2493,12 @@ class RoutineSchedule(models.Model):
     Example: 'Prayer time' in 'Morning Routine' at 6:30 AM, Mon-Sat.
     """
 
+    IMPORTANCE_CHOICES = [
+        ("foundational", "Foundational"),
+        ("important", "Important"),
+        ("flexible", "Flexible"),
+    ]
+
     routine = models.ForeignKey(
         Routine,
         on_delete=models.CASCADE,
@@ -2501,6 +2507,12 @@ class RoutineSchedule(models.Model):
     name = models.CharField(
         max_length=200,
         help_text="Name of this routine item (e.g., 'Prayer time', 'Shower')",
+    )
+    importance = models.CharField(
+        max_length=20,
+        choices=IMPORTANCE_CHOICES,
+        default="flexible",
+        help_text="Priority tier: foundational > important > flexible",
     )
     scheduled_time = models.TimeField(
         help_text="When this item should be done",

@@ -1702,8 +1702,8 @@ def build_task_state(user):
         user_now = get_user_now(user)
         current_time = user_now.time()
 
-        # Commitment level ordering: non_negotiable=0, important=1, optional=2
-        _COMMIT_ORDER = {'non_negotiable': 0, 'important': 1, 'optional': 2}
+        # Importance/commitment ordering: foundational=0, non_negotiable=0, important=1, optional/flexible=2
+        _COMMIT_ORDER = {'foundational': 0, 'non_negotiable': 0, 'important': 1, 'optional': 2, 'flexible': 2}
         _PRIORITY_ORDER = {'now': 0, 'soon': 1, 'someday': 2}
 
         def _classify_time_proximity(scheduled_time, _user_now):

@@ -111,6 +111,7 @@ def get_todays_routine_items(user):
             'routine_name': routine.name,
             'schedule_id': item.id,
             'item_name': item.name,
+            'importance': getattr(item, 'importance', 'flexible'),
             'scheduled_time': (
                 item.scheduled_time.strftime('%I:%M %p').lstrip('0')
                 if item.scheduled_time else None

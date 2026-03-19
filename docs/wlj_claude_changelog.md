@@ -6,6 +6,31 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — FEATURE: Routine Item Importance (Foundational/Important/Flexible)
+
+**Problem:** Routine items had no priority tier — Beth couldn't distinguish between foundational items (prayer, Bible reading) and flexible ones (stretching, optional tasks).
+
+**Changes:**
+1. **Model:** Added `importance` field to `RoutineSchedule` with choices: foundational, important, flexible (default: flexible)
+2. **Migration:** `0035_routineschedule_importance` — adds field with safe default
+3. **Form/UI:** Added Priority dropdown to routine item form in `routine_form.html`
+4. **State builder:** Routine items now serialize `importance` field. `_COMMIT_ORDER` extended with foundational/flexible mappings.
+5. **CoS context:** Pending routine items now carry `importance` and `is_foundational` flag for action prioritizer
+6. **Beth's prompt:** Updated priority hierarchy to FOUNDATIONAL > IMPORTANT > FLEXIBLE (replacing non_negotiable/deadline/momentum terminology)
+
+**Files changed:**
+- `apps/life/models.py` — RoutineSchedule.importance field + IMPORTANCE_CHOICES
+- `apps/life/migrations/0035_routineschedule_importance.py` — schema migration
+- `apps/life/forms.py` — importance in form fields + widget
+- `apps/life/services/_routine_internal.py` — importance in serialized entries
+- `apps/life/tests/test_routines.py` — importance in test POST data
+- `apps/core/ai_state/state_builder.py` — _COMMIT_ORDER extended
+- `apps/core/ai_orchestrator/cos_context.py` — importance wired into pending routines
+- `apps/ai/personal_assistant.py` — updated priority hierarchy text
+- `templates/life/routine_form.html` — Priority dropdown in schedule item UI
+
+---
+
 ## 2026-03-19 — FEATURE: Execution Truth + Time-Aware Task Prioritization
 
 **Problems:**

@@ -3030,11 +3030,13 @@ def _build_data_state_snapshot(user) -> str:
         for _window_items in _routine_items.values():
             for item in _window_items:
                 if item.get('status') == 'pending':
+                    _importance = item.get("importance", "flexible")
                     _pending_routines.append({
                         "pk": item.get("schedule_id"),
                         "title": item.get("item_name", ""),
-                        "is_foundational": item.get("is_foundational", False),
-                        "commitment_level": "",
+                        "is_foundational": _importance == "foundational",
+                        "importance": _importance,
+                        "commitment_level": _importance,
                         "goal_name": item.get("routine_name", ""),
                         "source_url": "",
                     })

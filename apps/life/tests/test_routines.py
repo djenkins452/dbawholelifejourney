@@ -116,6 +116,7 @@ class RoutineCreateViewTests(RoutineTestMixin, TestCase):
             'items-MAX_NUM_FORMS': '1000',
             # First item
             'items-0-name': 'Exercise',
+            'items-0-importance': 'flexible',
             'items-0-scheduled_time': '07:00',
             'items-0-grace_period_minutes': '30',
             'items-0-active_days': ['0', '1', '2', '3', '4'],
@@ -148,6 +149,7 @@ class RoutineUpdateViewTests(RoutineTestMixin, TestCase):
             'items-MAX_NUM_FORMS': '1000',
             'items-0-id': str(schedule.pk),
             'items-0-name': 'Updated Item',
+            'items-0-importance': 'important',
             'items-0-scheduled_time': '20:00',
             'items-0-grace_period_minutes': '15',
             'items-0-active_days': ['0', '1', '2', '3', '4', '5', '6'],

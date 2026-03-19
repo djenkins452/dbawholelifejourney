@@ -188,11 +188,14 @@ class RoutineScheduleForm(forms.ModelForm):
 
     class Meta:
         model = RoutineSchedule
-        fields = ['name', 'scheduled_time', 'grace_period_minutes', 'is_active', 'sort_order']
+        fields = ['name', 'importance', 'scheduled_time', 'grace_period_minutes', 'is_active', 'sort_order']
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'form-input',
                 'placeholder': 'e.g., Prayer time',
+            }),
+            'importance': forms.Select(attrs={
+                'class': 'form-select',
             }),
             'scheduled_time': forms.TimeInput(attrs={
                 'class': 'form-input',
@@ -210,6 +213,7 @@ class RoutineScheduleForm(forms.ModelForm):
             }),
         }
         labels = {
+            'importance': 'Priority',
             'grace_period_minutes': 'Grace (min)',
             'sort_order': 'Order',
             'is_active': 'Active',

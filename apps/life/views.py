@@ -383,11 +383,11 @@ class TaskListView(HelpContextMixin, LifeAccessMixin, ListView):
         context['total_all_count'] = all_tasks.count()
 
         # Time-horizon grouping for active tasks (pending only)
+        # Uses centralized classify_time_status() — single source of truth.
         show = self.request.GET.get('show', 'active')
         if show == 'active':
-            from apps.core.utils import get_user_now
+            from apps.core.utils import classify_time_status, get_user_now
             user_now = get_user_now(user)
-            current_time = user_now.time()
 
             tasks = list(context.get('tasks', self.get_queryset()))
             overdue = []
@@ -404,8 +404,11 @@ class TaskListView(HelpContextMixin, LifeAccessMixin, ListView):
                 elif t.due_date < user_today:
                     overdue.append(t)
                 elif t.due_date == user_today:
-                    # Time-aware: if scheduled_time has passed, it's overdue
-                    if t.scheduled_time and t.scheduled_time < current_time:
+                    result = classify_time_status(
+                        t.due_date, t.scheduled_time, user_now,
+                        grace_minutes=getattr(t, 'grace_minutes', 0),
+                    )
+                    if result['status'] == 'overdue':
                         overdue.append(t)
                     else:
                         today_tasks.append(t)

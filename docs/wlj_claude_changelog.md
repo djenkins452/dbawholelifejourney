@@ -6,6 +6,37 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — FIX: Unified Time Classification + Cache Invalidation
+
+**Problems:**
+1. Task edits did NOT invalidate SAE state or dashboard cache — stale overdue data persisted until next SAE cycle (~5 min)
+2. Overdue logic was duplicated in 3 places (model property, state_builder, task list view) with inconsistent behavior
+3. No grace period support for tasks — items marked overdue the instant scheduled_time passes
+
+**Root cause:** `post_save` signal for Task only invalidated CoS context cache, not SAE state (UserState DB row) or dashboard cache.
+
+**Fix:**
+1. **Centralized time classification** (`apps/core/utils.py: classify_time_status()`): Single function for all overdue/due_now/upcoming logic. Grace-aware. Used by model, state_builder, views, and routine internal.
+2. **Cache invalidation** (`apps/life/signals.py`): Task save now invalidates all 3 caches: CoS context + SAE state (rebuild_user_state) + dashboard cache (DashboardV2CacheService.invalidate_all).
+3. **Task.grace_minutes field**: New field (default 0) allows per-task grace periods. Migration `0036_task_grace_minutes`.
+4. **Routine alignment**: `_routine_internal.py` now uses same `classify_time_status()` for missed detection.
+
+**Classification logic:**
+- `now < scheduled_time` → upcoming
+- `scheduled_time <= now <= scheduled_time + grace` → due_now
+- `now > scheduled_time + grace` → overdue
+
+**Files changed:**
+- `apps/core/utils.py` — `classify_time_status()` centralized function
+- `apps/life/models.py` — `Task.grace_minutes` field + `Task.is_overdue` property rewritten
+- `apps/life/migrations/0036_task_grace_minutes.py` — schema migration
+- `apps/life/signals.py` — full cache invalidation chain
+- `apps/core/ai_state/state_builder.py` — overdue logic replaced with centralized function
+- `apps/life/views.py` — task list overdue grouping replaced
+- `apps/life/services/_routine_internal.py` — missed detection aligned
+
+---
+
 ## 2026-03-19 — FEATURE: Routine-Level Checkbox with Bidirectional Sync
 
 **Problem:** No way to complete an entire routine at once. No routine-level completion state. No parent↔child sync between routine checkbox and item checkboxes.

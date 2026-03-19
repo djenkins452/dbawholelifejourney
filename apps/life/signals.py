@@ -77,12 +77,27 @@ def handle_task_saved(sender, instance, created, **kwargs):
                 "Failed to project task %s to calendar: %s", instance.pk, e
             )
 
-    # Invalidate CoS context cache so next interaction sees updated schedule
+    # Invalidate ALL caches so next interaction sees updated schedule
+    # 1. CoS context cache (Beth's prompt data)
     try:
         from apps.ai.readiness_cache import invalidate_cos_context
         invalidate_cos_context(instance.user)
     except Exception:
         pass  # Cache invalidation is best-effort
+
+    # 2. SAE state (UserState DB row — feeds CoS data state snapshot)
+    try:
+        from apps.core.ai_state.state_engine import rebuild_user_state
+        rebuild_user_state(instance.user)
+    except Exception:
+        pass  # SAE rebuild is best-effort
+
+    # 3. Dashboard cache (execution context, action center)
+    try:
+        from apps.dashboard_v2.cache import DashboardV2CacheService
+        DashboardV2CacheService.invalidate_all(instance.user.pk)
+    except Exception:
+        pass  # Dashboard cache invalidation is best-effort
 
 
 @receiver(post_save, sender='life.LifeEvent')

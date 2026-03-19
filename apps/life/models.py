@@ -309,6 +309,10 @@ class Task(UserOwnedModel):
         blank=True,
         help_text="Scheduled end time for routine tasks (e.g., 06:30)"
     )
+    grace_minutes = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Minutes of grace after scheduled_time before marking overdue (0 = immediate)",
+    )
     estimated_duration_minutes = models.PositiveIntegerField(
         null=True,
         blank=True,
@@ -469,10 +473,16 @@ class Task(UserOwnedModel):
 
     @property
     def is_overdue(self):
-        if self.due_date and self.completion_status == 'pending':
-            user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
-            return self.due_date < user_today
-        return False
+        """Grace-aware overdue check using centralized time classification."""
+        if not self.due_date or self.completion_status != 'pending':
+            return False
+        from apps.core.utils import classify_time_status, get_user_now
+        user_now = get_user_now(self.user) if self.user_id else timezone.now()
+        result = classify_time_status(
+            self.due_date, self.scheduled_time, user_now,
+            grace_minutes=getattr(self, 'grace_minutes', 0),
+        )
+        return result['status'] == 'overdue'
 
     def calculate_priority(self, user_today=None):
         """

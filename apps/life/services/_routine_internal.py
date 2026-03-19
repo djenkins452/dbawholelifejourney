@@ -82,6 +82,9 @@ def get_todays_routine_items(user):
     total_completed = 0
     total_missed = 0
 
+    # Use centralized time classification for missed detection
+    from apps.core.utils import classify_time_status
+
     for routine, item in today_items:
         log = log_by_schedule.get(item.id)
         if log:
@@ -93,14 +96,12 @@ def get_todays_routine_items(user):
             else:
                 status = 'pending'
         else:
-            cutoff = item.scheduled_time
-            if cutoff and item.grace_period_minutes:
-                cutoff_dt = _dt_cls.combine(user_today, cutoff) + _td(
-                    minutes=item.grace_period_minutes
-                )
-                cutoff = cutoff_dt.time()
-
-            if cutoff and current_time > cutoff:
+            # Grace-aware missed detection via centralized function
+            result = classify_time_status(
+                user_today, item.scheduled_time, user_now,
+                grace_minutes=item.grace_period_minutes or 0,
+            )
+            if result['status'] == 'overdue':
                 status = 'missed'
                 total_missed += 1
             else:

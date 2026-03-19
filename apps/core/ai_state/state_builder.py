@@ -1745,18 +1745,31 @@ def build_task_state(user):
                 entry['time_proximity'] = time_proximity
             return entry
 
-        # ── OVERDUE: date-overdue OR time-overdue within today ──
-        # Date-overdue: due_date < today
+        # ── OVERDUE + TODAY: unified grace-aware classification ──
+        # Uses centralized classify_time_status() — single source of truth.
+        from apps.core.utils import classify_time_status
+
+        # Date-overdue: due_date < today (no time check needed)
         date_overdue = list(pending_qs.filter(
             due_date__isnull=False, due_date__lt=user_today,
         ).order_by('due_date', 'scheduled_time', '-created_at')[:25])
 
-        # Time-overdue: due_date == today AND scheduled_time < now AND not completed
-        time_overdue_today = list(pending_qs.filter(
+        # Today's tasks: classify each with grace-aware time logic
+        today_all = list(pending_qs.filter(
             due_date=user_today,
-            scheduled_time__isnull=False,
-            scheduled_time__lt=current_time,
-        ).order_by('scheduled_time', '-created_at')[:25])
+        ).order_by('scheduled_time', '-created_at')[:50])
+
+        time_overdue_today = []
+        today_remaining = []
+        for t in today_all:
+            result = classify_time_status(
+                t.due_date, t.scheduled_time, user_now,
+                grace_minutes=getattr(t, 'grace_minutes', 0),
+            )
+            if result['status'] == 'overdue':
+                time_overdue_today.append(t)
+            else:
+                today_remaining.append(t)
 
         all_overdue = [
             _serialize_task(t, overdue_reason='past_due_date') for t in date_overdue
@@ -1765,16 +1778,6 @@ def build_task_state(user):
         ]
         state['overdue_tasks'] = all_overdue
         state['overdue_count'] = len(all_overdue)
-
-        # ── TODAY: due today, NOT yet overdue by time ──
-        # Intelligent ordering: time-overdue first, then by scheduled_time,
-        # then commitment_level, then priority, then created_at
-        _time_overdue_ids = {t.id for t in time_overdue_today}
-        today_remaining = list(pending_qs.filter(
-            due_date=user_today,
-        ).exclude(id__in=_time_overdue_ids).order_by(
-            'scheduled_time', '-created_at',
-        )[:25])
 
         # Sort today's tasks with intelligent ordering
         def _today_sort_key(t):

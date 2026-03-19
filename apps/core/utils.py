@@ -132,6 +132,80 @@ def make_dst_safe(dt, user):
     return dt
 
 
+# ── Unified Time Classification ──────────────────────────────────
+# Single source of truth for overdue/due_now/upcoming status.
+# ALL code paths (state_builder, views, model properties, dashboard)
+# MUST use this function — no duplicate logic.
+
+
+def classify_time_status(due_date, scheduled_time, user_now, grace_minutes=0):
+    """
+    Classify the time status of a task or routine item.
+
+    Uses real datetime comparison with optional grace period.
+
+    Args:
+        due_date: date or None
+        scheduled_time: time or None (naive)
+        user_now: timezone-aware datetime in user's timezone
+        grace_minutes: int, minutes of grace after scheduled_time (default 0)
+
+    Returns:
+        dict: {
+            'status': 'overdue' | 'due_now' | 'upcoming' | 'no_date',
+            'minutes_until_due': int or None (negative if past),
+            'minutes_past_due': int or None (positive if past effective_due),
+        }
+    """
+    from datetime import datetime as _dt, timedelta as _td
+
+    user_today = user_now.date()
+    now_naive = _dt.combine(user_today, user_now.time())
+
+    if due_date is None:
+        return {'status': 'no_date', 'minutes_until_due': None, 'minutes_past_due': None}
+
+    if due_date < user_today:
+        # Past date — always overdue
+        return {'status': 'overdue', 'minutes_until_due': None, 'minutes_past_due': None}
+
+    if due_date > user_today:
+        # Future date — always upcoming
+        return {'status': 'upcoming', 'minutes_until_due': None, 'minutes_past_due': None}
+
+    # due_date == user_today — check time
+    if scheduled_time is None:
+        # Due today but no specific time — treat as upcoming (due by end of day)
+        return {'status': 'upcoming', 'minutes_until_due': None, 'minutes_past_due': None}
+
+    scheduled_dt = _dt.combine(user_today, scheduled_time)
+    effective_due_dt = scheduled_dt + _td(minutes=grace_minutes)
+    minutes_until = (scheduled_dt - now_naive).total_seconds() / 60
+
+    if now_naive < scheduled_dt:
+        # Before scheduled time
+        return {
+            'status': 'upcoming',
+            'minutes_until_due': round(minutes_until),
+            'minutes_past_due': None,
+        }
+    elif now_naive <= effective_due_dt:
+        # Between scheduled time and grace period end
+        return {
+            'status': 'due_now',
+            'minutes_until_due': round(minutes_until),
+            'minutes_past_due': None,
+        }
+    else:
+        # Past effective due (scheduled_time + grace)
+        minutes_past = (now_naive - effective_due_dt).total_seconds() / 60
+        return {
+            'status': 'overdue',
+            'minutes_until_due': round(minutes_until),
+            'minutes_past_due': round(minutes_past),
+        }
+
+
 def is_safe_redirect_url(url, request):
     """
     Check if a URL is safe for redirecting.

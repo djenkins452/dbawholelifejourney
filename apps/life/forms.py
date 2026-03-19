@@ -230,6 +230,10 @@ class RoutineScheduleForm(forms.ModelForm):
         instance = super().save(commit=False)
         active_days = self.cleaned_data.get('active_days', [])
         instance.days_of_week = ','.join(sorted(active_days))
+        # is_active checkbox is not rendered for new items (only during edit),
+        # so form binding sets it to False. Force True for new schedule items.
+        if not instance.pk:
+            instance.is_active = True
         if commit:
             instance.save()
         return instance

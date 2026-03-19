@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — FIX: Routine Created But Invisible (is_active=False on Create)
+
+**Root cause:** The `is_active` checkbox in `RoutineForm` is only rendered during edit (`{% if is_edit %}`), never during create. Since `is_active` is in the form's `Meta.fields`, Django form binding interprets the missing checkbox as `False`. Every new routine was saved with `is_active=False`, making it invisible to all queries that filter `is_active=True` (list view, SAE state builder, CoS context).
+
+Same bug affected `RoutineScheduleForm` — new schedule items were also saved with `is_active=False`, so even if the routine showed up, its items wouldn't.
+
+**Fix:**
+- `RoutineCreateView.form_valid()`: Set `form.instance.is_active = True` before save
+- `RoutineScheduleForm.save()`: Set `instance.is_active = True` for new (unsaved) items
+
+**Files changed:**
+- `apps/life/views.py` — Force is_active=True in RoutineCreateView
+- `apps/life/forms.py` — Force is_active=True for new RoutineSchedule items
+
+---
+
 ## 2026-03-19 — FIX: Routine Not Recognized (Dashboard/CoS/Action Center)
 
 **Root cause:** The dashboard, action center, and CoS context each had a different data path for routines. The dashboard exclusively queried `Task.objects.filter(is_routine=True)` (legacy path), while the user creates routines via the canonical `Routine` model at `/life/routines/new/`. These two systems were completely disconnected — canonical Routine objects never appeared on the dashboard, in the action center, or in CoS context (due to stale SAE cache).

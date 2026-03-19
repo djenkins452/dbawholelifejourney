@@ -3344,6 +3344,9 @@ class RoutineCreateView(HelpContextMixin, LifeAccessMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.user = self.request.user
+        # is_active checkbox is not rendered during create (only during edit),
+        # so Django form binding sets it to False. Force True for new routines.
+        form.instance.is_active = True
         self.object = form.save()
 
         formset = RoutineScheduleFormSet(self.request.POST, instance=self.object)

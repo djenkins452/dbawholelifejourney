@@ -193,6 +193,117 @@ def build_action_priorities(
     return actions
 
 
+def prioritize_execution_items(execution_items, current_time, summaries=None):
+    """
+    Adapter: convert ExecutionItem dicts from the authoritative execution contract
+    into the format build_action_priorities() expects, then prioritize.
+
+    This is the PREFERRED entry point for consumers of the execution contract.
+
+    Args:
+        execution_items: list of ExecutionItem dicts from build_today_execution()
+        current_time: datetime.time — user's local time
+        summaries: optional dict — execution summaries for binary domain actions
+
+    Returns:
+        Sorted list of action dicts (same format as build_action_priorities output).
+    """
+    # Map execution items → action prioritizer's schedule_items + pending_routines
+    schedule_items = []
+    pending_routines = []
+    medicine_groups_map = {}  # window → {total, taken, ...}
+
+    for item in execution_items:
+        if not item.get('is_actionable', False):
+            continue
+
+        if item['source_type'] == 'task':
+            schedule_items.append({
+                'title': item['title'],
+                'pk': item['source_id'],
+                'time': _parse_time(item.get('scheduled_time')),
+                'time_display': item.get('scheduled_time', ''),
+                'is_overdue': item['time_status'] == 'overdue',
+                'is_completed': False,
+                'is_foundational': item.get('is_foundational', False),
+                'source_url': item.get('detail_url', ''),
+                'can_complete': True,
+                'commitment_level': item.get('importance', 'important'),
+                'goal_name': '',
+                'type': 'task',
+                'is_all_day': False,
+            })
+        elif item['source_type'] == 'routine_item':
+            pending_routines.append({
+                'pk': item['source_id'],
+                'title': item['title'],
+                'source_url': item.get('detail_url', ''),
+                'is_foundational': item.get('is_foundational', False),
+                'commitment_level': item.get('importance', 'flexible'),
+                'goal_name': item.get('parent_title', ''),
+                'toggle_url': item.get('toggle_url', ''),
+            })
+        elif item['source_type'] == 'medication_dose':
+            window = item.get('execution_group_id', 'unscheduled')
+            if window not in medicine_groups_map:
+                medicine_groups_map[window] = {
+                    'title': item.get('parent_title', window),
+                    'time_of_day': window,
+                    'is_foundational': True,
+                    'goal_name': '',
+                    'all_taken': False,
+                    'total': 0,
+                    'taken': 0,
+                }
+            medicine_groups_map[window]['total'] += 1
+            if item.get('completed_today'):
+                medicine_groups_map[window]['taken'] += 1
+
+    # Finalize medicine groups
+    medicine_groups = []
+    for ws in medicine_groups_map.values():
+        ws['all_taken'] = ws['taken'] >= ws['total'] and ws['total'] > 0
+        medicine_groups.append(ws)
+
+    # Binary actions from summaries
+    binary_actions = []
+    if summaries and summaries.get('domains'):
+        domains = summaries['domains']
+        _binary_map = [
+            ('journal', 'Write in journal', '/journal/'),
+            ('faith_engaged', 'Bible reading', '/faith/reading-plans/'),
+            ('workout', 'Log a workout', '/health/fitness/'),
+        ]
+        for key, title, url in _binary_map:
+            binary_actions.append({
+                'source': key,
+                'title': title,
+                'source_url': url,
+                'is_done': domains.get(key, False),
+                'is_foundational': False,
+                'goal_name': '',
+            })
+
+    return build_action_priorities(
+        schedule_items=schedule_items,
+        pending_routines=pending_routines,
+        medicine_groups=medicine_groups,
+        binary_actions=binary_actions,
+        current_time=current_time,
+    )
+
+
+def _parse_time(time_str):
+    """Parse HH:MM string to datetime.time, or None."""
+    if not time_str:
+        return None
+    try:
+        from datetime import datetime as _dt
+        return _dt.strptime(time_str, '%H:%M').time()
+    except (ValueError, TypeError):
+        return None
+
+
 def group_actions(actions):
     """
     Group action items into NOW / NEXT / LATER categories.

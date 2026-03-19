@@ -364,25 +364,23 @@ class DashboardV2Service:
         # Time phase for section ordering
         context["time_phase"] = self.get_time_phase()
 
-        # Action center — uses shared decision engine for prioritization
+        # ── Action center from authoritative execution contract ──
+        # Dashboard calls build_today_execution() directly for live freshness,
+        # then uses the shared prioritizer. No separate normalization.
         from apps.core.decision_engine.action_prioritizer import (
-            build_action_priorities,
             find_next_upcoming,
             group_actions,
+            prioritize_execution_items,
         )
+        from apps.core.execution.today_execution import build_today_execution
 
-        action_center = build_action_priorities(
-            schedule_items=context.get("schedule_timeline", []),
-            pending_routines=self._normalize_pending_routines(
-                context.get("pending_routines", [])
-            ),
-            medicine_groups=self._normalize_medicine_groups(
-                context.get("visible_medicine_groups", [])
-            ),
-            binary_actions=self._build_binary_actions(
-                self._daily_progress, context.get("goals_by_domain", {})
-            ),
-            current_time=self._get_user_now().time(),
+        exec_contract = build_today_execution(self.user)
+        context["execution_contract"] = exec_contract
+
+        action_center = prioritize_execution_items(
+            exec_contract['items'],
+            self._get_user_now().time(),
+            summaries=exec_contract.get('summaries'),
         )
 
         groups = group_actions(action_center)

@@ -6,6 +6,45 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — ARCHITECTURE: Authoritative Execution Contract
+
+**Problem:** Dashboard V2 and CoS assembled execution data independently — Dashboard from live ORM queries, CoS from SAE state snapshots — with duplicated normalization code (~300 lines across two files). This caused drift in completion truth, overdue status, and action recommendations.
+
+**Solution:** Single authoritative `build_today_execution(user)` function that both consumers share.
+
+**Architecture:**
+- **`apps/core/execution/today_execution.py`** — NEW. Collects atomic execution items (tasks, routine items, medication doses) + summaries (routine progress, medication windows, domain completion).
+- **`prioritize_execution_items()`** — NEW adapter in action_prioritizer.py. Converts ExecutionItem dicts to action priority format and calls shared `build_action_priorities()`.
+- **Dashboard V2** calls `build_today_execution()` directly (live, 30s cache). Removed ~100 lines of duplicated normalization.
+- **CoS** reads from SAE state via `get_module_state(user, 'execution')`. Removed ~100 lines of duplicated normalization from separate SAE modules.
+- Both feed into the same prioritizer → identical action ordering.
+
+**ExecutionItem contract shape:**
+```
+source_type, source_id, title, domain, importance, time_status,
+scheduled_time, grace_minutes, completion_status, completed_today,
+is_actionable, is_foundational, toggle_url, detail_url,
+execution_group_type, execution_group_id, parent_title
+```
+
+**Rules enforced:**
+1. Atomic items only in `items` (task, routine_item, medication_dose) — never containers/summaries
+2. Binary domains (journal, workout, faith) in summaries.domains only
+3. Medication is atomic at dose level — window summaries are summary only
+4. Only overdue tasks + today tasks + today routine items + today medication doses included
+5. CoS uses ONLY execution module for action truth
+6. Dashboard uses execution.items for action surfaces, execution.summaries for progress
+
+**Files changed:**
+- `apps/core/execution/__init__.py` — NEW package
+- `apps/core/execution/today_execution.py` — NEW authoritative contract
+- `apps/core/decision_engine/action_prioritizer.py` — `prioritize_execution_items()` adapter
+- `apps/core/ai_state/state_builder.py` — registered 'execution' module
+- `apps/dashboard_v2/services/dashboard_service.py` — consumes execution contract
+- `apps/core/ai_orchestrator/cos_context.py` — consumes execution contract, removed normalization duplication
+
+---
+
 ## 2026-03-19 — FEATURE: Normalize Task Priority to Foundational/Important/Flexible
 
 **Problem:** Tasks used legacy values (non_negotiable, optional) while routines used new values (foundational, flexible). This caused inconsistency in prioritization, CoS behavior, and user understanding.

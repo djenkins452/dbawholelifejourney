@@ -2942,42 +2942,52 @@ def _build_data_state_snapshot(user) -> str:
             "not judgment. Ask what's blocking them if they bring it up."
         )
 
-    # ── Daily Execution Status (canonical truth) ──
-    # Explicit boolean completion state — Beth must NEVER infer completion.
+    # ── Daily Execution Status (from authoritative execution contract) ──
+    # Reads from the single execution contract — both summaries and domain truth.
     try:
         from apps.core.ai_state.state_engine import get_module_state as _get_mod_state
-        _exec = _get_mod_state(user, 'daily_execution_status') or {}
+        _exec_contract = _get_mod_state(user, 'execution') or {}
+        _exec_summaries = _exec_contract.get('summaries', {})
+        _exec_domains = _exec_summaries.get('domains', {})
     except Exception:
-        _exec = {}
+        _exec_summaries = {}
+        _exec_domains = {}
 
     lines.append("")
     lines.append("DAILY EXECUTION STATUS (AUTHORITATIVE — today only):")
-    _exec_domains = [
-        ('journal', _exec.get('journal_completed', False)),
-        ('workout', _exec.get('workout_completed', False)),
-        ('bible_reading', _exec.get('bible_reading_completed', False)),
-        ('prayer', _exec.get('prayer_completed', False)),
+    _domain_fields = [
+        ('journal', _exec_domains.get('journal', False)),
+        ('workout', _exec_domains.get('workout', False)),
+        ('bible_reading', _exec_domains.get('bible_reading', False)),
+        ('prayer', _exec_domains.get('prayer', False)),
     ]
-    for domain_name, done in _exec_domains:
+    for domain_name, done in _domain_fields:
         lines.append(f"  {domain_name}: {'DONE' if done else 'NOT DONE'}")
-    lines.append(f"  tasks_completed_today: {_exec.get('tasks_completed_today', 0)}")
+    lines.append(f"  tasks_completed_today: {_exec_summaries.get('tasks_completed_today', 0)}")
 
-    # Routine-level progress (derived from item logs, not stored)
-    try:
-        from apps.core.ai_state.state_engine import get_module_state as _get_routine_state
-        _routine_state = _get_routine_state(user, 'routine') or {}
-        _routine_comp = _routine_state.get('routine_completion', {})
-        if _routine_comp:
-            lines.append("")
-            lines.append("ROUTINE PROGRESS (derived from item completion):")
-            for _rid, _rc in _routine_comp.items():
-                _rname = _rc.get('name', f'Routine {_rid}')
-                _done = _rc.get('completed_count', 0)
-                _total = _rc.get('total_count', 0)
-                _status = "COMPLETE" if _rc.get('all_complete') else f"{_done}/{_total}"
-                lines.append(f"  {_rname}: {_status}")
-    except Exception:
-        pass  # Routine state not available
+    # Routine-level progress (derived from item completion, never stored)
+    _routine_comp = _exec_summaries.get('routines', {})
+    if _routine_comp:
+        lines.append("")
+        lines.append("ROUTINE PROGRESS (derived from item completion):")
+        for _rid, _rc in _routine_comp.items():
+            _rname = _rc.get('name', f'Routine {_rid}')
+            _done = _rc.get('completed_count', 0)
+            _total = _rc.get('total_count', 0)
+            _status = "COMPLETE" if _rc.get('all_complete') else f"{_done}/{_total}"
+            lines.append(f"  {_rname}: {_status}")
+
+    # Medication progress (from execution summaries)
+    _med_summaries = _exec_summaries.get('medications', {})
+    if _med_summaries:
+        lines.append("")
+        lines.append("MEDICATION PROGRESS:")
+        for _window, _ms in _med_summaries.items():
+            _label = _ms.get('label', _window)
+            _taken = _ms.get('taken', 0)
+            _total = _ms.get('total', 0)
+            _mstatus = "ALL TAKEN" if _ms.get('all_taken') else f"{_taken}/{_total}"
+            lines.append(f"  {_label}: {_mstatus}")
 
     lines.append("")
     lines.append(
@@ -2995,127 +3005,23 @@ def _build_data_state_snapshot(user) -> str:
         "  • Never summarize routine completion without checking all items."
     )
 
-    # ── Unified Action Priorities (shared decision engine) ──
-    # Same prioritizer as the dashboard Action Center — ensures Beth
-    # recommends the SAME items the user sees on the dashboard.
-    # Inputs normalized from SAE state (not fresh ORM — CoS reads snapshots).
+    # ── Unified Action Priorities from Execution Contract ──
+    # Reads from the SINGLE authoritative execution contract (SAE 'execution' module).
+    # Both Dashboard V2 and CoS use the same contract — no separate normalization.
     try:
-        from apps.core.decision_engine.action_prioritizer import build_action_priorities
+        from apps.core.decision_engine.action_prioritizer import prioritize_execution_items
         from apps.core.ai_state.state_engine import get_module_state
         from apps.core.utils import get_user_now
 
         user_now = get_user_now(user)
         current_time = user_now.time()
 
-        # ── Tasks from SAE (overdue + today) ──
-        _schedule_items = []
-        for t in _overdue:
-            _schedule_items.append({
-                "title": t.get("title", ""),
-                "pk": t.get("id"),
-                "time": None,
-                "is_overdue": True,
-                "is_completed": False,
-                "is_foundational": t.get("is_foundational", False),
-                "source_url": "",
-                "can_complete": True,
-                "commitment_level": t.get("commitment_level", ""),
-                "goal_name": "",
-                "type": "task",
-                "time_display": "",
-            })
-        for t in _today:
-            _schedule_items.append({
-                "title": t.get("title", ""),
-                "pk": t.get("id"),
-                "time": None,
-                "is_overdue": False,
-                "is_completed": False,
-                "is_foundational": t.get("is_foundational", False),
-                "source_url": "",
-                "can_complete": True,
-                "commitment_level": t.get("commitment_level", ""),
-                "goal_name": "",
-                "type": "task",
-                "time_display": "",
-            })
+        exec_state = get_module_state(user, 'execution') or {}
+        exec_items = exec_state.get('items', [])
+        exec_summaries = exec_state.get('summaries', {})
 
-        # ── Routines from SAE ──
-        _pending_routines = []
-        routine_state = get_module_state(user, 'routine') or {}
-        _routine_items = routine_state.get('routine_items_today', {})
-        for _window_items in _routine_items.values():
-            for item in _window_items:
-                if item.get('status') == 'pending':
-                    _importance = item.get("importance", "flexible")
-                    _pending_routines.append({
-                        "pk": item.get("schedule_id"),
-                        "title": item.get("item_name", ""),
-                        "is_foundational": _importance == "foundational",
-                        "importance": _importance,
-                        "commitment_level": _importance,
-                        "goal_name": item.get("routine_name", ""),
-                        "source_url": "",
-                    })
-
-        # ── Medicine from SAE ──
-        _medicine_groups = []
-        med_state = get_module_state(user, 'medicine') or {}
-        _med_schedules = med_state.get('schedule_status_today', [])
-        # Group by window_label (same as dashboard groups by time_of_day)
-        _med_by_window = {}
-        for s in _med_schedules:
-            w = s.get('window_label', 'unscheduled')
-            if w not in _med_by_window:
-                _med_by_window[w] = {"total": 0, "taken": 0}
-            _med_by_window[w]["total"] += 1
-            if s.get("status") == "taken":
-                _med_by_window[w]["taken"] += 1
-        for window_label, counts in _med_by_window.items():
-            _medicine_groups.append({
-                "title": f"{window_label.replace('_', ' ').title()} Stack",
-                "time_of_day": window_label,
-                "is_foundational": False,
-                "goal_name": "",
-                "all_taken": counts["taken"] >= counts["total"],
-            })
-
-        # ── Binary daily actions (journal, faith, workout) from SAE ──
-        _binary_actions = []
-        journal_state = get_module_state(user, 'journal') or {}
-        faith_state = get_module_state(user, 'faith') or {}
-        fitness_state = get_module_state(user, 'fitness') or {}
-
-        # Journal: check days_since_entry (0 = today)
-        _journal_done = journal_state.get('days_since_entry', 99) == 0
-        _binary_actions.append({
-            "source": "journal", "title": "Write in journal",
-            "source_url": "", "is_foundational": False,
-            "goal_name": "", "is_done": _journal_done,
-        })
-
-        # Faith: check days_since_reading (0 = today)
-        _faith_done = faith_state.get('days_since_reading', 99) == 0
-        _binary_actions.append({
-            "source": "faith", "title": "Bible reading",
-            "source_url": "", "is_foundational": False,
-            "goal_name": "", "is_done": _faith_done,
-        })
-
-        # Workout: check workouts_7d recent or today
-        _workout_done = fitness_state.get('workouts_7d', 0) > 0 and fitness_state.get('most_recent_type')
-        _binary_actions.append({
-            "source": "workout", "title": "Log a workout",
-            "source_url": "", "is_foundational": False,
-            "goal_name": "", "is_done": bool(_workout_done),
-        })
-
-        action_priorities = build_action_priorities(
-            schedule_items=_schedule_items,
-            pending_routines=_pending_routines,
-            medicine_groups=_medicine_groups,
-            binary_actions=_binary_actions,
-            current_time=current_time,
+        action_priorities = prioritize_execution_items(
+            exec_items, current_time, summaries=exec_summaries,
         )
 
         if action_priorities:

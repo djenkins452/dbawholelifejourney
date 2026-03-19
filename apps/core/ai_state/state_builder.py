@@ -3040,6 +3040,20 @@ MODULE_BUILDERS = {
 }
 
 
+def _build_execution_state(user):
+    """SAE wrapper for the authoritative execution contract."""
+    try:
+        from apps.core.execution.today_execution import build_today_execution
+        return build_today_execution(user)
+    except Exception:
+        logger.warning("Execution contract build failed", exc_info=True)
+        return {'items': [], 'summaries': {}}
+
+
+# Register execution after function definition (forward reference workaround)
+MODULE_BUILDERS["execution"] = _build_execution_state
+
+
 def get_builder(module):
     """Get the state builder function for a module."""
     return MODULE_BUILDERS.get(module)

@@ -6,6 +6,23 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — FIX: Beth Falsely Claiming Routine Complete at 3/4
+
+**Problem:** Beth said "Your morning routine is complete" when it was 3/4 (Workout missed). Two causes:
+1. The `execution` SAE module was just deployed — not yet built for the user, so routine progress section was empty. Beth had no structured data and inferred completion.
+2. Even with data, the "3/4" format wasn't explicit enough to prevent LLM misinterpretation (3/4 with 1 missed → "effectively done").
+
+**Fixes:**
+1. **Fallback to routine SAE state** — if execution module isn't built yet, read from `routine` module directly
+2. **Explicit NOT COMPLETE language** — changed from "3/4" to "3/4 — NOT COMPLETE (1 item(s) remaining/missed)"
+3. **Item-level detail in prompt** — Beth now sees `[COMPLETED] Prayer Time (Morning Routine)`, `[MISSED] Workout (Morning Routine)` etc.
+4. **Strengthened ROUTINE COMPLETION RULE** — explicit "3/4 means NOT COMPLETE", "missed items count as NOT done", "never say complete unless ALL items done"
+
+**Files changed:**
+- `apps/core/ai_orchestrator/cos_context.py` — prompt rules + item detail + fallback
+
+---
+
 ## 2026-03-19 — FIX: Task Edit Save Broken (Legacy Priority Values in Templates)
 
 **Root cause:** Task model's `commitment_level` choices were updated to `foundational/important/flexible`, but 6 templates still used the old values (`optional`, `non_negotiable`). When the task edit form submitted, Django validated `commitment_level` against the model choices → validation failed → entire form rejected → nothing saved. User saw the form "blink" (re-render without error).

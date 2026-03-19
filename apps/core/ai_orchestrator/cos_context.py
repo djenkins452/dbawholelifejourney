@@ -2974,8 +2974,57 @@ def _build_data_state_snapshot(user) -> str:
             _rname = _rc.get('name', f'Routine {_rid}')
             _done = _rc.get('completed_count', 0)
             _total = _rc.get('total_count', 0)
-            _status = "COMPLETE" if _rc.get('all_complete') else f"{_done}/{_total}"
+            if _rc.get('all_complete'):
+                _status = "COMPLETE (all items done)"
+            else:
+                _missed = _total - _done
+                _status = f"{_done}/{_total} — NOT COMPLETE ({_missed} item(s) remaining/missed)"
             lines.append(f"  {_rname}: {_status}")
+    else:
+        # Fallback: read from routine SAE state if execution module not yet built
+        try:
+            _routine_state = _get_mod_state(user, 'routine') or {}
+            _fallback_comp = _routine_state.get('routine_completion', {})
+            if _fallback_comp:
+                lines.append("")
+                lines.append("ROUTINE PROGRESS (derived from item completion):")
+                for _rid, _rc in _fallback_comp.items():
+                    _rname = _rc.get('name', f'Routine {_rid}')
+                    _done = _rc.get('completed_count', 0)
+                    _total = _rc.get('total_count', 0)
+                    if _rc.get('all_complete'):
+                        _status = "COMPLETE (all items done)"
+                    else:
+                        _missed = _total - _done
+                        _status = f"{_done}/{_total} — NOT COMPLETE ({_missed} item(s) remaining/missed)"
+                    lines.append(f"  {_rname}: {_status}")
+        except Exception:
+            pass
+
+    # Routine item detail (so Beth sees exactly which items are done/missed/pending)
+    _exec_items = _exec_contract.get('items', [])
+    _routine_items_for_prompt = [i for i in _exec_items if i.get('source_type') == 'routine_item']
+    if _routine_items_for_prompt:
+        lines.append("  Item detail:")
+        for ri in _routine_items_for_prompt:
+            _ri_status = ri.get('completion_status', 'pending').upper()
+            _ri_parent = ri.get('parent_title', '')
+            lines.append(f"    [{_ri_status}] {ri.get('title', '')} ({_ri_parent})")
+    elif not _routine_comp:
+        # Fallback: item detail from routine SAE state
+        try:
+            _routine_state_fb = _get_mod_state(user, 'routine') or {}
+            _ri_by_window = _routine_state_fb.get('routine_items_today', {})
+            if _ri_by_window:
+                lines.append("  Item detail:")
+                for _w_items in _ri_by_window.values():
+                    for _ri in _w_items:
+                        _ri_status = _ri.get('status', 'pending').upper()
+                        lines.append(
+                            f"    [{_ri_status}] {_ri.get('item_name', '')} ({_ri.get('routine_name', '')})"
+                        )
+        except Exception:
+            pass
 
     # Medication progress (from execution summaries)
     _med_summaries = _exec_summaries.get('medications', {})
@@ -3000,9 +3049,12 @@ def _build_data_state_snapshot(user) -> str:
         "  • Absence of evidence = NOT DONE (never infer).\n"
         "\n"
         "ROUTINE COMPLETION RULE:\n"
-        "  • A routine is ONLY complete if ALL items are complete today.\n"
-        "  • Partial completion must be stated explicitly.\n"
-        "  • Never summarize routine completion without checking all items."
+        "  • A routine is ONLY complete when the status above says 'COMPLETE (all items done)'.\n"
+        "  • If status shows 'NOT COMPLETE' — the routine is NOT done. Period.\n"
+        "  • 3/4 items done means NOT COMPLETE. Say '3 of 4 items done' — never 'complete'.\n"
+        "  • 'Missed' items count as NOT done. A routine with missed items is NOT complete.\n"
+        "  • Never say 'your routine is complete' unless ALL items show as completed.\n"
+        "  • When items are missed, acknowledge the miss explicitly."
     )
 
     # ── Unified Action Priorities from Execution Contract ──

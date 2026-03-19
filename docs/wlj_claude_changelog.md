@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — Beth Pattern Intelligence: Streak Data + Coaching Prompt
+
+**Purpose:** Enable Beth to reference specific habit streaks and behavioral patterns in coaching, without new engines or signals.
+
+**Changes:**
+- **Per-habit streak data injected into CoS context** (`cos_context.py::_build_purpose_context`): calls `streak_service.get_streak_data()` per active habit (capped at 8), returns name, current/longest streak, at_risk, is_foundational, frequency. Sorted foundational-first.
+- **Streak-aware coaching instructions** added to Beth's prompt (`prompt_builder.py`): rules for streak urgency ("14 days consistent — don't break that"), at-risk protection, confidence building, foundational+streak combination, and pattern weaving. Max 1 streak + 1 pattern reference per response.
+
+**Architecture note:** No new signals, engines, or pipelines. Uses existing `streak_service.get_streak_data()` (already used by momentum service) and existing `BehavioralPattern` context block (already injected by `personal_assistant.py`). This only wires data that was computed but not reaching Beth, and tells her how to use it.
+
+**Files:** `apps/core/ai_orchestrator/cos_context.py`, `apps/core/cos/prompt_builder.py`
+
+---
+
 ## 2026-03-18 — CoS Full Domain Input Alignment
 
 **Purpose:** Expand CoS prioritizer inputs to include ALL domains (routines, medicine, binary) from SAE state, matching dashboard domain coverage.

@@ -1590,6 +1590,45 @@ def _build_purpose_context(user):
                 'last_activity': habits_state.get('last_activity'),
             }
 
+        # Per-habit streak data — enables Beth to reference specific habit
+        # streaks in coaching (e.g., "14-day journaling streak — protect it").
+        # Lightweight: 1 query per active habit (typically ≤5 habits).
+        try:
+            from apps.purpose.models import HabitGoal
+            from apps.purpose.services.streak_service import get_streak_data
+
+            active_habits = HabitGoal.objects.filter(
+                user=user, status='active',
+            ).select_related('user')[:8]  # Cap to prevent runaway
+
+            habit_streaks = []
+            for habit in active_habits:
+                try:
+                    streak = get_streak_data(habit)
+                    if streak.current > 0 or streak.at_risk:
+                        habit_streaks.append({
+                            'name': habit.name,
+                            'current_streak': streak.current,
+                            'longest_streak': streak.longest,
+                            'at_risk': streak.at_risk,
+                            'is_foundational': habit.is_foundational,
+                            'frequency': habit.frequency_type,
+                        })
+                except Exception:
+                    continue
+
+            if habit_streaks:
+                # Sort: foundational first, then by streak length desc
+                habit_streaks.sort(key=lambda h: (
+                    not h['is_foundational'],
+                    -h['current_streak'],
+                ))
+                result['habit_streaks'] = habit_streaks
+        except ImportError:
+            pass
+        except Exception:
+            logger.debug("CoS context: habit streaks unavailable", exc_info=True)
+
         return result
 
     except Exception as e:

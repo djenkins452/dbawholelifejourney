@@ -85,7 +85,7 @@ def run_protection_pass(user):
             module_key = _block_to_module_key(block)
             profile = profiles.get(module_key)
 
-            if profile and profile.commitment_level == 'non_negotiable':
+            if profile and profile.commitment_level == 'foundational':
                 if not block.is_locked:
                     block.is_locked = True
                     block.save(update_fields=['is_locked'])
@@ -126,7 +126,7 @@ def run_protection_pass(user):
                 and b.tier >= 3
                 and _block_to_module_key(b) not in {
                     k for k, p in profiles.items()
-                    if p.commitment_level == 'non_negotiable'
+                    if p.commitment_level == 'foundational'
                 }
             ]
 

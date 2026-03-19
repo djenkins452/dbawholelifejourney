@@ -1574,7 +1574,7 @@ def build_task_state(user):
             .values('commitment_level')
             .annotate(count=Count('id'))
         )
-        by_level = {'optional': 0, 'important': 0, 'non_negotiable': 0}
+        by_level = {'foundational': 0, 'important': 0, 'flexible': 0}
         for entry in level_counts:
             level = entry['commitment_level']
             if level in by_level:
@@ -1586,14 +1586,14 @@ def build_task_state(user):
 
         nn_completed_7d = Task.objects.filter(
             user=user,
-            commitment_level='non_negotiable',
+            commitment_level='foundational',
             completion_status='completed',
             completed_at__gte=seven_days_ago,
         ).count()
 
         nn_skipped_7d = Task.objects.filter(
             user=user,
-            commitment_level='non_negotiable',
+            commitment_level='foundational',
             completion_status='skipped',
             last_skipped_at__gte=seven_days_ago,
         ).count()
@@ -1603,22 +1603,22 @@ def build_task_state(user):
 
         nn_total = Task.objects.filter(
             user=user,
-            commitment_level='non_negotiable',
+            commitment_level='foundational',
             status='active',
             completion_status='pending',
         ).count()
 
         state['task_commitment_summary'] = {
-            'non_negotiable_total': nn_total,
-            'non_negotiable_completed_7d': nn_completed_7d,
-            'non_negotiable_skipped_7d': nn_skipped_7d,
+            'foundational_total': nn_total,
+            'foundational_completed_7d': nn_completed_7d,
+            'foundational_skipped_7d': nn_skipped_7d,
             'consistency_score': consistency,
         }
 
         # Top 5 NN tasks with active skip streaks (recency-guarded)
         nn_streak_tasks = Task.objects.filter(
             user=user,
-            commitment_level='non_negotiable',
+            commitment_level='foundational',
             skip_streak__gte=1,
             status='active',
         ).order_by('-skip_streak')[:5]
@@ -1634,7 +1634,7 @@ def build_task_state(user):
         today = now.date() if hasattr(now, 'date') else now
         overdue_nn = Task.objects.filter(
             user=user,
-            commitment_level='non_negotiable',
+            commitment_level='foundational',
             completion_status='pending',
             status='active',
             due_date__lt=today,
@@ -1702,8 +1702,8 @@ def build_task_state(user):
         user_now = get_user_now(user)
         current_time = user_now.time()
 
-        # Importance/commitment ordering: foundational=0, non_negotiable=0, important=1, optional/flexible=2
-        _COMMIT_ORDER = {'foundational': 0, 'non_negotiable': 0, 'important': 1, 'optional': 2, 'flexible': 2}
+        # Importance ordering: foundational > important > flexible
+        _COMMIT_ORDER = {'foundational': 0, 'important': 1, 'flexible': 2}
         _PRIORITY_ORDER = {'now': 0, 'soon': 1, 'someday': 2}
 
         def _classify_time_proximity(scheduled_time, _user_now):

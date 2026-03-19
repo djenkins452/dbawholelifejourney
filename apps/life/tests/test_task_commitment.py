@@ -30,20 +30,20 @@ class TaskCommitmentLevelTest(TestCase):
         self.assertEqual(task.commitment_level, 'important')
 
     def test_commitment_level_optional(self):
-        """Tasks can be created with 'optional' commitment level."""
+        """Tasks can be created with 'flexible' commitment level."""
         task = Task.objects.create(
-            user=self.user, title='Optional task',
-            commitment_level='optional'
+            user=self.user, title='Flexible task',
+            commitment_level='flexible'
         )
-        self.assertEqual(task.commitment_level, 'optional')
+        self.assertEqual(task.commitment_level, 'flexible')
 
-    def test_commitment_level_non_negotiable(self):
-        """Tasks can be created with 'non_negotiable' commitment level."""
+    def test_commitment_level_foundational(self):
+        """Tasks can be created with 'foundational' commitment level."""
         task = Task.objects.create(
             user=self.user, title='NN task',
-            commitment_level='non_negotiable'
+            commitment_level='foundational'
         )
-        self.assertEqual(task.commitment_level, 'non_negotiable')
+        self.assertEqual(task.commitment_level, 'foundational')
 
     def test_default_skip_streak_is_zero(self):
         """New tasks have skip_streak of 0."""
@@ -69,7 +69,7 @@ class SkipStreakTest(TestCase):
         """mark_skipped() increments skip_streak by 1."""
         task = Task.objects.create(
             user=self.user, title='Skip me',
-            commitment_level='non_negotiable'
+            commitment_level='foundational'
         )
         task.mark_skipped()
         task.refresh_from_db()
@@ -79,7 +79,7 @@ class SkipStreakTest(TestCase):
         """mark_skipped() sets last_skipped_at timestamp."""
         task = Task.objects.create(
             user=self.user, title='Skip me',
-            commitment_level='non_negotiable'
+            commitment_level='foundational'
         )
         task.mark_skipped()
         task.refresh_from_db()
@@ -89,7 +89,7 @@ class SkipStreakTest(TestCase):
         """Multiple skips increment streak each time."""
         task = Task.objects.create(
             user=self.user, title='Skip me lots',
-            commitment_level='non_negotiable'
+            commitment_level='foundational'
         )
         # Simulate multiple skips on the same task (not recurring)
         task.mark_skipped()
@@ -196,7 +196,7 @@ class RecurrenceCommitmentPropagationTest(TestCase):
         """commitment_level is copied to next recurring task occurrence."""
         task = Task.objects.create(
             user=self.user, title='Daily workout',
-            commitment_level='non_negotiable',
+            commitment_level='foundational',
             is_recurring=True,
             recurrence_pattern='daily',
             due_date=timezone.now().date()
@@ -209,13 +209,13 @@ class RecurrenceCommitmentPropagationTest(TestCase):
             completion_status='pending'
         ).first()
         self.assertIsNotNone(next_task)
-        self.assertEqual(next_task.commitment_level, 'non_negotiable')
+        self.assertEqual(next_task.commitment_level, 'foundational')
 
     def test_skip_streak_propagates_on_skip(self):
         """skip_streak carries to next occurrence after skip."""
         task = Task.objects.create(
             user=self.user, title='Daily workout skip',
-            commitment_level='non_negotiable',
+            commitment_level='foundational',
             is_recurring=True,
             recurrence_pattern='daily',
             due_date=timezone.now().date()
@@ -233,7 +233,7 @@ class RecurrenceCommitmentPropagationTest(TestCase):
         """skip_streak resets to 0 on next occurrence after completion."""
         task = Task.objects.create(
             user=self.user, title='Daily workout complete',
-            commitment_level='non_negotiable',
+            commitment_level='foundational',
             skip_streak=3,
             is_recurring=True,
             recurrence_pattern='daily',
@@ -249,10 +249,10 @@ class RecurrenceCommitmentPropagationTest(TestCase):
         self.assertEqual(next_task.skip_streak, 0)
 
     def test_optional_level_propagates(self):
-        """Optional commitment level also propagates correctly."""
+        """Flexible commitment level also propagates correctly."""
         task = Task.objects.create(
-            user=self.user, title='Optional recurring',
-            commitment_level='optional',
+            user=self.user, title='Flexible recurring',
+            commitment_level='flexible',
             is_recurring=True,
             recurrence_pattern='daily',
             due_date=timezone.now().date()
@@ -260,11 +260,11 @@ class RecurrenceCommitmentPropagationTest(TestCase):
         task.mark_complete()
 
         next_task = Task.objects.filter(
-            user=self.user, title='Optional recurring',
+            user=self.user, title='Flexible recurring',
             completion_status='pending'
         ).first()
         self.assertIsNotNone(next_task)
-        self.assertEqual(next_task.commitment_level, 'optional')
+        self.assertEqual(next_task.commitment_level, 'flexible')
 
 
 class SkipEscalationTest(TestCase):
@@ -280,14 +280,14 @@ class SkipEscalationTest(TestCase):
         UserPreferences.objects.get_or_create(user=self.user)
 
     def test_no_escalation_for_optional_task(self):
-        """Optional tasks do not trigger escalation on skip."""
+        """Flexible tasks do not trigger escalation on skip."""
         from apps.ai.action_handlers import ActionHandler
         task = Task.objects.create(
-            user=self.user, title='Optional task',
-            commitment_level='optional',
+            user=self.user, title='Flexible task',
+            commitment_level='flexible',
         )
         handler = ActionHandler(self.user)
-        result = handler.handle_skip_task(task_keyword='Optional task')
+        result = handler.handle_skip_task(task_keyword='Flexible task')
         self.assertTrue(result.success)
         # No escalation note in message
         self.assertNotIn('non-negotiable', result.message.lower())
@@ -309,7 +309,7 @@ class SkipEscalationTest(TestCase):
         from apps.ai.action_handlers import ActionHandler
         task = Task.objects.create(
             user=self.user, title='Workout',
-            commitment_level='non_negotiable',
+            commitment_level='foundational',
         )
         handler = ActionHandler(self.user)
         result = handler.handle_skip_task(task_keyword='Workout')
@@ -322,7 +322,7 @@ class SkipEscalationTest(TestCase):
         from apps.ai.action_handlers import ActionHandler
         task = Task.objects.create(
             user=self.user, title='Prayer time',
-            commitment_level='non_negotiable',
+            commitment_level='foundational',
             skip_streak=1,
             last_skipped_at=timezone.now() - timedelta(hours=12),
         )
@@ -337,7 +337,7 @@ class SkipEscalationTest(TestCase):
         from apps.ai.action_handlers import ActionHandler
         task = Task.objects.create(
             user=self.user, title='Exercise',
-            commitment_level='non_negotiable',
+            commitment_level='foundational',
             skip_streak=4,
             last_skipped_at=timezone.now() - timedelta(hours=6),
         )
@@ -353,11 +353,11 @@ class SkipEscalationTest(TestCase):
         handler = ActionHandler(self.user)
         result = handler.handle_create_task(
             title='Morning run',
-            commitment_level='non_negotiable'
+            commitment_level='foundational'
         )
         self.assertTrue(result.success)
         task = Task.objects.get(user=self.user, title='Morning run')
-        self.assertEqual(task.commitment_level, 'non_negotiable')
+        self.assertEqual(task.commitment_level, 'foundational')
 
     def test_create_task_default_commitment_level(self):
         """create_task defaults to 'important' commitment_level."""
@@ -387,12 +387,12 @@ class GoalCommitmentLevelTest(TestCase):
         )
         self.assertEqual(goal.commitment_level, 'important')
 
-    def test_goal_non_negotiable(self):
-        """LifeGoal can be set to 'non_negotiable'."""
+    def test_goal_foundational(self):
+        """LifeGoal can be set to 'foundational'."""
         from apps.purpose.models import LifeGoal
         goal = LifeGoal.objects.create(
             user=self.user,
             title='Essential Goal',
-            commitment_level='non_negotiable'
+            commitment_level='foundational'
         )
-        self.assertEqual(goal.commitment_level, 'non_negotiable')
+        self.assertEqual(goal.commitment_level, 'foundational')

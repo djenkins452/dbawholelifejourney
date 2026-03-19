@@ -67,8 +67,8 @@ LIFE_INTENT_TOOLS = [
                     },
                     "commitment_level": {
                         "type": "string",
-                        "enum": ["optional", "important", "non_negotiable"],
-                        "description": "How committed the user is to this task. 'optional' for nice-to-have, 'important' (default) for standard tasks, 'non_negotiable' for tasks the user considers essential and shouldn't skip."
+                        "enum": ["flexible", "important", "foundational"],
+                        "description": "Priority tier: 'flexible' for nice-to-have, 'important' (default) for standard tasks, 'foundational' for identity-level tasks the user considers essential."
                     }
                 },
                 "required": ["title"]
@@ -239,12 +239,12 @@ LIFE_INTENT_TOOLS = [
                     },
                     "new_commitment_level": {
                         "type": "string",
-                        "enum": ["optional", "important", "non_negotiable"],
+                        "enum": ["flexible", "important", "foundational"],
                         "description": (
-                            "New commitment level. Use when the user says "
-                            "'make it non-negotiable', 'change to optional', "
-                            "'set as important', or similar. Map 'non negotiable', "
-                            "'non-negotiable', 'nonnegotiable' → 'non_negotiable'."
+                            "New priority tier. Use when the user says "
+                            "'make it foundational', 'change to flexible', "
+                            "'set as important', or similar. Map 'non-negotiable' → "
+                            "'foundational', 'optional' → 'flexible'."
                         ),
                     },
                     "new_end_time": {

@@ -259,9 +259,9 @@ class LifeGoal(UserOwnedModel):
 
     # Commitment level
     COMMITMENT_LEVEL_CHOICES = [
-        ('optional', 'Optional'),
+        ('foundational', 'Foundational'),
         ('important', 'Important'),
-        ('non_negotiable', 'Non-Negotiable'),
+        ('flexible', 'Flexible'),
     ]
     commitment_level = models.CharField(
         max_length=20,
@@ -902,9 +902,9 @@ class HabitGoal(UserOwnedModel):
 
     # Commitment level — shared concept with Task
     COMMITMENT_LEVEL_CHOICES = [
-        ('optional', 'Optional'),
+        ('foundational', 'Foundational'),
         ('important', 'Important'),
-        ('non_negotiable', 'Non-Negotiable'),
+        ('flexible', 'Flexible'),
     ]
     commitment_level = models.CharField(
         max_length=20,

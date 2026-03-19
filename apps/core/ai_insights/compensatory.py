@@ -33,7 +33,7 @@ NON_COMPENSABLE_RULES = {
     'medication_adherence': 'Medication adherence cannot be offset by other activities.',
 }
 
-# Any commitment with commitment_level='non_negotiable' is also non-compensable
+# Any commitment with commitment_level='foundational' is also non-compensable
 # (handled in _check_non_compensable)
 
 
@@ -169,7 +169,7 @@ class CompensatoryReasoningService:
     def _analyze_single_gap(user, date, commitment):
         """Analyze a single missed commitment for compensatory signals."""
         domain = commitment.get('domain', '')
-        commitment_level = commitment.get('commitment_level', 'optional')
+        commitment_level = commitment.get('commitment_level', 'flexible')
 
         # Layer 1: Hard gate
         is_non_compensable = CompensatoryReasoningService._check_non_compensable(
@@ -227,10 +227,10 @@ class CompensatoryReasoningService:
 
         Non-compensable conditions:
         1. Source type maps to a non-compensable signal (e.g., medication)
-        2. commitment_level is 'non_negotiable'
+        2. commitment_level is 'foundational'
         """
         # Check commitment_level
-        if commitment.get('commitment_level') == 'non_negotiable':
+        if commitment.get('commitment_level') == 'foundational':
             return True
 
         # Check source_type mapping

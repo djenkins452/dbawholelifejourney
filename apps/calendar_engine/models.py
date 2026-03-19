@@ -54,15 +54,18 @@ class CalendarEvent(models.Model):
         (SOURCE_WORKOUT_SCHEDULE, 'Workout Schedule'),
     ]
 
-    # Commitment levels (shared vocabulary with Task, HabitGoal)
-    COMMITMENT_OPTIONAL = 'optional'
+    # Commitment levels (shared vocabulary with Task, HabitGoal, RoutineSchedule)
+    COMMITMENT_FOUNDATIONAL = 'foundational'
     COMMITMENT_IMPORTANT = 'important'
-    COMMITMENT_NON_NEGOTIABLE = 'non_negotiable'
+    COMMITMENT_FLEXIBLE = 'flexible'
+    # Legacy aliases for backward compat during transition
+    COMMITMENT_OPTIONAL = 'flexible'
+    COMMITMENT_NON_NEGOTIABLE = 'foundational'
 
     COMMITMENT_LEVEL_CHOICES = [
-        (COMMITMENT_OPTIONAL, 'Optional'),
+        (COMMITMENT_FOUNDATIONAL, 'Foundational'),
         (COMMITMENT_IMPORTANT, 'Important'),
-        (COMMITMENT_NON_NEGOTIABLE, 'Non-Negotiable'),
+        (COMMITMENT_FLEXIBLE, 'Flexible'),
     ]
 
     # Status

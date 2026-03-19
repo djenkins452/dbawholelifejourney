@@ -186,7 +186,7 @@ class TestRecurringTaskMutationGuard(TestCase):
         result = self.handler.handle_mutate_task(
             action='update',
             task_query='Morning Workout',
-            new_commitment_level='non_negotiable',
+            new_commitment_level='foundational',
         )
         self.assertFalse(result.success)
         self.assertEqual(result.error, 'series_scope_required')

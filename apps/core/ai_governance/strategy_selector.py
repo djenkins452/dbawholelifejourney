@@ -101,7 +101,7 @@ def select_strategy(user, drift_pressure_result):
 
     # Decision tree
     if (capacity_pct < 50
-            and dp.commitment_level == 'non_negotiable'
+            and dp.commitment_level == 'foundational'
             and dp.miss_rate >= 0.3):
         # Low capacity + non-negotiable + some misses → COMPRESS
         strategy = STRATEGY_COMPRESS
@@ -229,7 +229,7 @@ def build_strategy_system_injection(user):
 
     # At-risk items (non-negotiables with pressure)
     at_risk = [d for d in decisions
-               if d.commitment_level == 'non_negotiable' and d.drift_pressure >= 20]
+               if d.commitment_level == 'foundational' and d.drift_pressure >= 20]
     if at_risk:
         items = ', '.join(f"{d.display_name} ({d.drift_pressure:.0f})" for d in at_risk[:4])
         lines.append(f"At Risk: {items}")

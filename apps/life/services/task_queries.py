@@ -82,9 +82,9 @@ class TaskQueries:
 
     @classmethod
     def non_negotiable_at_risk(cls, user, skip_threshold=2):
-        """Non-negotiable tasks with consecutive skips >= threshold."""
+        """Foundational tasks with consecutive skips >= threshold."""
         return cls.pending(user).filter(
-            commitment_level='non_negotiable',
+            commitment_level='foundational',
             skip_streak__gte=skip_threshold,
         )
 

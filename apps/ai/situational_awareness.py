@@ -130,8 +130,8 @@ def _get_user_priority_model(user):
                 'display_name': gp.display_name,
                 'escalation': gp.escalation_preference,
             }
-            # GovernanceProfile non_negotiable also counts
-            if gp.commitment_level == 'non_negotiable':
+            # GovernanceProfile foundational also counts
+            if gp.commitment_level == 'foundational':
                 result['non_negotiable_keys'].add(gp.module_key.upper())
                 if gp.display_name:
                     result['non_negotiables'].append(gp.display_name)

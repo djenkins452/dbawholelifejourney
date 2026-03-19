@@ -3122,8 +3122,14 @@ class ActionHandler:
                 if end_tmp > start_tmp:
                     duration_minutes = int((end_tmp - start_tmp).total_seconds() / 60)
 
-            # Validate commitment_level
-            valid_levels = ('optional', 'important', 'non_negotiable')
+            # Validate commitment_level (normalize legacy values)
+            _level_map = {
+                'non_negotiable': 'foundational', 'non-negotiable': 'foundational',
+                'nonnegotiable': 'foundational', 'optional': 'flexible',
+            }
+            if commitment_level in _level_map:
+                commitment_level = _level_map[commitment_level]
+            valid_levels = ('foundational', 'important', 'flexible')
             if commitment_level not in valid_levels:
                 commitment_level = 'important'
 
@@ -3829,19 +3835,24 @@ class ActionHandler:
                             action_type='mutate_task',
                         )
 
-                # Validate commitment_level
+                # Validate commitment_level (normalize legacy values)
                 if new_commitment_level:
-                    valid_levels = ('optional', 'important', 'non_negotiable')
-                    # Normalize common variants
+                    _level_map = {
+                        'non_negotiable': 'foundational', 'non-negotiable': 'foundational',
+                        'nonnegotiable': 'foundational', 'optional': 'flexible',
+                    }
                     normalized = new_commitment_level.lower().replace(
                         '-', '_',
                     ).replace(' ', '_')
+                    if normalized in _level_map:
+                        normalized = _level_map[normalized]
+                    valid_levels = ('foundational', 'important', 'flexible')
                     if normalized not in valid_levels:
                         return ActionResult(
                             success=False,
                             message=(
-                                f"'{new_commitment_level}' isn't a valid commitment level. "
-                                f"Use 'optional', 'important', or 'non-negotiable'."
+                                f"'{new_commitment_level}' isn't a valid priority level. "
+                                f"Use 'foundational', 'important', or 'flexible'."
                             ),
                             error='invalid_commitment_level',
                             action_type='mutate_task',

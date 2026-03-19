@@ -30,12 +30,14 @@ class GovernanceProfile(models.Model):
     CHALLENGE/COMPRESS) and recalibration conversations.
     """
 
-    COMMITMENT_NON_NEGOTIABLE = 'non_negotiable'
+    COMMITMENT_FOUNDATIONAL = 'foundational'
     COMMITMENT_IMPORTANT = 'important'
     COMMITMENT_FLEXIBLE = 'flexible'
+    # Legacy alias
+    COMMITMENT_NON_NEGOTIABLE = 'foundational'
 
     COMMITMENT_CHOICES = [
-        (COMMITMENT_NON_NEGOTIABLE, 'Non-Negotiable'),
+        (COMMITMENT_FOUNDATIONAL, 'Foundational'),
         (COMMITMENT_IMPORTANT, 'Important'),
         (COMMITMENT_FLEXIBLE, 'Flexible'),
     ]

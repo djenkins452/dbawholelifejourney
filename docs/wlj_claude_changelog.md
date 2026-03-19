@@ -6,6 +6,44 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — FEATURE: Normalize Task Priority to Foundational/Important/Flexible
+
+**Problem:** Tasks used legacy values (non_negotiable, optional) while routines used new values (foundational, flexible). This caused inconsistency in prioritization, CoS behavior, and user understanding.
+
+**Changes:**
+1. **Model choices** updated: Task, LifeGoal, HabitGoal, CalendarEvent, GovernanceProfile → foundational/important/flexible
+2. **Data migration** `0038_convert_commitment_values`: non_negotiable→foundational, optional→flexible across all models
+3. **Business logic** updated: state_builder, task_queries, compensatory, strategy_selector, tomorrow_protection, situational_awareness — all filter on `'foundational'` instead of `'non_negotiable'`
+4. **AI layer**: Intent schemas (OpenAI function enums), action handlers (validation + normalization), intent_service (examples) — all use new values. Handlers normalize legacy input (non-negotiable→foundational, optional→flexible) for backward compat with existing conversations.
+5. **CoS prompts**: All "non-negotiable" terminology replaced with "foundational" in Beth's prompt text
+6. **Tests**: Updated test_task_commitment.py, test_situational_awareness.py, test_recurring_mutation_guard.py
+
+**Files changed (20+):**
+- `apps/life/models.py` — Task.COMMITMENT_LEVEL_CHOICES
+- `apps/purpose/models.py` — LifeGoal + HabitGoal choices
+- `apps/calendar_engine/models.py` — CalendarEvent choices + constants
+- `apps/core/ai_governance/models.py` — GovernanceProfile choices
+- `apps/life/migrations/0037_normalize_commitment_to_importance.py` — schema
+- `apps/life/migrations/0038_convert_commitment_values.py` — data
+- `apps/purpose/migrations/0011_normalize_commitment_to_importance.py` — schema
+- `apps/calendar_engine/migrations/0010_normalize_commitment_to_importance.py` — schema
+- `apps/core/migrations/0119_normalize_commitment_to_importance.py` — schema
+- `apps/core/ai_state/state_builder.py` — _COMMIT_ORDER + filter queries
+- `apps/life/services/task_queries.py` — non_negotiable_at_risk filter
+- `apps/core/ai_insights/compensatory.py` — commitment checks
+- `apps/core/ai_governance/strategy_selector.py` — strategy decisions
+- `apps/core/ai_governance/tomorrow_protection.py` — block locking
+- `apps/ai/situational_awareness.py` — governance profile filter
+- `apps/ai/action_handlers.py` — validation + normalization
+- `apps/ai/intents/life_intents.py` — OpenAI schema enums
+- `apps/ai/intent_service.py` — prompt examples
+- `apps/core/ai_orchestrator/cos_context.py` — prompt text + skip streak naming
+- `apps/life/tests/test_task_commitment.py` — all assertions
+- `apps/ai/tests/test_situational_awareness.py` — test data
+- `apps/ai/tests/test_recurring_mutation_guard.py` — test data
+
+---
+
 ## 2026-03-19 — FIX: Dashboard Routine Completion Count (Routine-Level, Not Item-Level)
 
 **Problem:** Dashboard showed "Routines 2/7 complete" counting individual items instead of routines. Morning Routine at 2/4 was treated as "2 done" instead of "0 routines complete."

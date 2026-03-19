@@ -477,8 +477,8 @@ LIFE/TASKS:
 - "add task to file taxes by Friday at 3pm" → create_task(title="File taxes", due_date="friday", scheduled_time="15:00")
 - "add a task today at 5pm - 6pm to Gather Tax Papers" → create_task(title="Gather Tax Papers", due_date="today", scheduled_time="17:00", end_time="18:00")
 - "task from 2pm to 3:30pm tomorrow: Team sync" → create_task(title="Team sync", due_date="tomorrow", scheduled_time="14:00", end_time="15:30")
-- "add a non-negotiable task to work out tomorrow" → create_task(title="Work out", due_date="tomorrow", commitment_level="non_negotiable")
-- "create an optional reminder to check the mail" → create_task(title="Check the mail", commitment_level="optional")
+- "add a foundational task to work out tomorrow" → create_task(title="Work out", due_date="tomorrow", commitment_level="foundational")
+- "create a flexible reminder to check the mail" → create_task(title="Check the mail", commitment_level="flexible")
 - "I finished the laundry task" → complete_task(task_keyword="laundry")
 - "skip the grocery task" → skip_task(task_keyword="grocery")
 - "I'm going to pass on the dentist task" → skip_task(task_keyword="dentist")
@@ -509,8 +509,8 @@ When the user says move, reschedule, push, postpone, change, rename, update, or 
 - "remove the recurring grocery task permanently" → mutate_task(action="delete", task_query="grocery", delete_series=true)
 - "stop this recurring task from coming back" → mutate_task(action="delete", task_query=<from context>, delete_series=true)
 - "move all my tasks to tomorrow" → mutate_task(action="update", task_query="", new_due_date="tomorrow", apply_to_all=true)
-- "make my Charge Watch task non-negotiable" → mutate_task(action="update", task_query="Charge Watch", new_commitment_level="non_negotiable")
-- "change my workout to optional" → mutate_task(action="update", task_query="workout", new_commitment_level="optional")
+- "make my Charge Watch task foundational" → mutate_task(action="update", task_query="Charge Watch", new_commitment_level="foundational")
+- "change my workout to flexible" → mutate_task(action="update", task_query="workout", new_commitment_level="flexible")
 - "set the grocery task as important" → mutate_task(action="update", task_query="grocery", new_commitment_level="important")
 
 CRITICAL ROUTING RULE: If the user's message contains a mutation verb (move, reschedule, push, postpone, change, rename, update, delete, remove) referring to tasks, you MUST call mutate_task — NEVER call read_task for these.

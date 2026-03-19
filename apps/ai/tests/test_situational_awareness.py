@@ -486,7 +486,7 @@ class TestDynamicPriorityModel(SATestMixin, TestCase):
             user=self.user,
             module_key='journal',
             display_name='Journaling',
-            commitment_level='non_negotiable',
+            commitment_level='foundational',
         )
 
         # Create old journal entry to establish history

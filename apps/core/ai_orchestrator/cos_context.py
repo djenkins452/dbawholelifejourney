@@ -2766,7 +2766,7 @@ def _build_data_state_snapshot(user) -> str:
         )
         counts['completed_tasks_today'] = task_state.get('completed_today', 0)
         counts['overdue_tasks'] = task_state.get('overdue_count', 0)
-        counts['non_negotiable_skip_streaks'] = len(
+        counts['foundational_skip_streaks'] = len(
             task_state.get('nn_skip_streaks', [])
         )
 
@@ -2805,7 +2805,7 @@ def _build_data_state_snapshot(user) -> str:
         lines.append("ABSOLUTE GROUNDING RULES FOR ZERO-DATA DOMAINS:")
         lines.append(
             "If a domain shows 0 records you MUST NOT reference specific items "
-            "from that domain. This is non-negotiable."
+            "from that domain. This is foundational."
         )
         domain_examples = {
             'active_medications': "NEVER say 'medication is due' or 'make sure to take your meds'",
@@ -2818,7 +2818,7 @@ def _build_data_state_snapshot(user) -> str:
             'journal_entries': "NEVER reference journal entries or mood logs",
             'active_tasks': "NEVER say 'you completed X of Y tasks' or reference task names",
             'completed_tasks_today': "NEVER claim tasks were completed today if count is 0",
-            'non_negotiable_skip_streaks': "User has no active non-negotiable skip streaks",
+            'foundational_skip_streaks': "User has no active foundational skip streaks",
         }
         for domain in zero_domains:
             example = domain_examples.get(domain, f"NEVER reference specific {domain}")
@@ -2931,13 +2931,13 @@ def _build_data_state_snapshot(user) -> str:
         if completed_count > len(_completed_titles_list):
             lines.append(f"  (+ {completed_count - len(_completed_titles_list)} more)")
 
-    # Add non-negotiable skip streak awareness
-    nn_streak_count = counts.get('non_negotiable_skip_streaks', 0)
+    # Add foundational skip streak awareness
+    nn_streak_count = counts.get('foundational_skip_streaks', 0)
     if nn_streak_count > 0:
         lines.append("")
         lines.append("NON-NEGOTIABLE COMMITMENT AWARENESS:")
         lines.append(
-            f"  User has {nn_streak_count} non-negotiable task(s) with consecutive skips (2+). "
+            f"  User has {nn_streak_count} foundational task(s) with consecutive skips (2+). "
             "These are tasks the user considers essential. Approach with supportive coaching, "
             "not judgment. Ask what's blocking them if they bring it up."
         )
@@ -3993,7 +3993,7 @@ def format_cos_system_injection(context, user_message=None):
                     "SESSION MODE: RECOVERY. "
                     "The user is in recovery mode. Reduce expectations, focus on "
                     "essentials only, and use an encouraging but low-pressure tone. "
-                    "Protect non-negotiables but defer everything else."
+                    "Protect foundationals but defer everything else."
                 ),
             }
 
@@ -4510,7 +4510,7 @@ def format_cos_system_injection(context, user_message=None):
                 "2. Frame as: 'While you missed X, you still showed progress "
                 "through Y.'\n"
                 "3. NEVER apply compensatory reasoning to medication or "
-                "non-negotiable commitments.\n"
+                "foundational commitments.\n"
                 "4. Maximum language: 'partially offset' — never 'fully replaced' "
                 "or 'made up for.'\n"
                 "5. Always end compensatory observations with forward guidance: "
@@ -5269,7 +5269,7 @@ def format_cos_system_injection(context, user_message=None):
         "do a lighter session to protect the streak. A) Full workout, "
         "B) Reduced intensity session, C) Active recovery walk.'\n"
         "\n"
-        "Workout = non-negotiable core discipline. Protect it.\n"
+        "Workout = foundational core discipline. Protect it.\n"
         "Bike ride = extra/optional bonus. Can be deferred.\n"
         "Maintenance reminders (charge watch, etc.) = minor, not major obligations.\n"
         "\n"
@@ -5413,7 +5413,7 @@ priority question, or strategic evaluation, respond using this structure:
    One concise paragraph. No filler. No emotional mirroring.
 
 2. Priority Alignment Check
-   Reference the user's declared priorities and non-negotiable commitments.
+   Reference the user's declared priorities and foundational commitments.
    State whether alignment or conflict exists.
 
 3. Trade-Off Model
@@ -5433,18 +5433,18 @@ priority question, or strategic evaluation, respond using this structure:
    Explanation first. Then a clear directive.
    Format: "Given this, proceed with X." or "Given this, protect Y and reschedule Z now."
 
-6. Enforcement (non-negotiable conflicts only)
-   If the choice would override a non-negotiable commitment:
+6. Enforcement (foundational conflicts only)
+   If the choice would override a foundational commitment:
    - Require immediate rescheduling, OR
    - Require explicit confirmation before proceeding.
 
 ## NON-NEGOTIABLE OVERRIDE PROTOCOL
 
-When a user chooses to violate a declared non-negotiable commitment, this is
+When a user chooses to violate a declared foundational commitment, this is
 not a negotiation. It is a procedural override event. Respond with this
 exact structure:
 
-1. State the contradiction: "[Action] contradicts [specific non-negotiable]."
+1. State the contradiction: "[Action] contradicts [specific foundational]."
 2. Name the cost: identity erosion, streak loss, priority inversion — be specific.
 3. Provide the corrective minimum: the smallest action that preserves the commitment.
 4. If the user insists after hearing the cost and corrective minimum, state:
@@ -5503,7 +5503,7 @@ Prefer high-density statements over multi-phrase explanations.
 When referencing commitments, habits, or behavioral patterns, use identity-based
 framing rather than consistency language.
 - "This reinforces who you said you are." — not "This helps maintain consistency."
-- "You declared this non-negotiable because it defines you." — not "This is important to your routine."
+- "You declared this foundational because it defines you." — not "This is important to your routine."
 - "Skipping erodes the identity you built." — not "Skipping breaks the streak."
 Connect choices to the person, not the system.
 

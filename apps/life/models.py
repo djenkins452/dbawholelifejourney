@@ -191,9 +191,9 @@ class Task(UserOwnedModel):
     ]
 
     COMMITMENT_LEVEL_CHOICES = [
-        ('optional', 'Optional'),
+        ('foundational', 'Foundational'),
         ('important', 'Important'),
-        ('non_negotiable', 'Non-Negotiable'),
+        ('flexible', 'Flexible'),
     ]
 
     title = models.CharField(max_length=300)

@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — CRITICAL FIX: Beth False Completion Bug
+
+**Root cause:** Beth had NO explicit "done today" signal for journal, workout, or faith. The LLM inferred completion from 7-day aggregates and streaks — classic hallucination from ambiguous context.
+
+**Evidence:**
+- SAE `build_journal_state()` returns `entry_frequency`, `last_entry` — no today flag
+- SAE `build_fitness_state()` returns `workouts_7d` — no today flag
+- CoS context showed "Workouts: 3 this week" but never "Workout: NOT DONE today"
+- Medicine was less affected (had per-dose status) but lacked explicit all-done/not-done framing
+
+**Fix:** Inject `TODAY'S EXECUTION STATUS (AUTHORITATIVE)` block into Beth's system prompt, using `DailyProgressService.get_today()` — the same canonical source the dashboard uses. Shows explicit per-domain completion with DONE/NOT DONE labels and truth enforcement rules.
+
+**File:** `apps/core/ai_orchestrator/cos_context.py` (lines 5038-5103)
+
+---
+
 ## 2026-03-19 — Beth Pattern Intelligence: Streak Data + Coaching Prompt
 
 **Purpose:** Enable Beth to reference specific habit streaks and behavioral patterns in coaching, without new engines or signals.

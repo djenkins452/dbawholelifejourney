@@ -5036,6 +5036,79 @@ def format_cos_system_injection(context, user_message=None):
         except Exception:
             pass  # Snapshot must never break CoS
 
+        # ── TODAY'S EXECUTION STATUS (CANONICAL — from DailyProgressService) ──
+        # This block gives Beth explicit per-domain completion truth for TODAY.
+        # Without it, the LLM infers completion from 7-day aggregates and streaks,
+        # causing false-positive "done" statements (the core trust bug).
+        try:
+            from apps.dashboard_v2.services.daily_progress_service import DailyProgressService
+            _dp_svc = DailyProgressService(_cos_user_final)
+            _dp = _dp_svc.get_today()
+
+            _exec_lines = []
+            _exec_lines.append("")
+            _exec_lines.append("========== TODAY'S EXECUTION STATUS (AUTHORITATIVE) ==========")
+            _exec_lines.append("These are the EXACT completion states for today. Use ONLY these")
+            _exec_lines.append("when stating what is done or not done today.")
+            _exec_lines.append("If a domain shows NOT DONE, you MUST NOT say it is complete.")
+            _exec_lines.append("")
+
+            # Routines
+            r = _dp.get('routines', {})
+            r_done, r_total = r.get('done', 0), r.get('total', 0)
+            if r_total > 0:
+                _exec_lines.append(f"  Routines: {r_done}/{r_total} completed" + (" — ALL DONE" if r_done >= r_total else " — NOT ALL DONE"))
+            else:
+                _exec_lines.append("  Routines: none scheduled today")
+
+            # Medicine
+            m = _dp.get('medicine', {})
+            m_done, m_total = m.get('done', 0), m.get('total', 0)
+            if m_total > 0:
+                _exec_lines.append(f"  Medicine: {m_done}/{m_total} taken" + (" — ALL DONE" if m_done >= m_total else " — NOT ALL DONE"))
+            else:
+                _exec_lines.append("  Medicine: none scheduled today")
+
+            # Tasks
+            t = _dp.get('tasks', {})
+            t_done, t_total = t.get('done', 0), t.get('total', 0)
+            if t_total > 0:
+                _exec_lines.append(f"  Tasks: {t_done}/{t_total} completed" + (" — ALL DONE" if t_done >= t_total else " — NOT ALL DONE"))
+            else:
+                _exec_lines.append("  Tasks: none due today")
+
+            # Workout (binary)
+            w = _dp.get('workout', {})
+            if w.get('done'):
+                _exec_lines.append("  Workout: DONE")
+            else:
+                _exec_lines.append("  Workout: NOT DONE")
+
+            # Journal (binary)
+            j = _dp.get('journaling', {})
+            if j.get('done'):
+                _exec_lines.append("  Journaling: DONE")
+            else:
+                _exec_lines.append("  Journaling: NOT DONE")
+
+            # Faith (binary)
+            f = _dp.get('faith', {})
+            if f.get('done'):
+                _exec_lines.append("  Faith: DONE")
+            else:
+                _exec_lines.append("  Faith: NOT DONE")
+
+            _exec_lines.append("")
+            _exec_lines.append(f"  Overall day score: {_dp.get('overall_score', 0)}%")
+            _exec_lines.append("")
+            _exec_lines.append("TRUTH ENFORCEMENT: If any domain shows NOT DONE above,")
+            _exec_lines.append("you MUST NOT say it is done, complete, or handled.")
+            _exec_lines.append("7-day aggregates and streaks do NOT override today's status.")
+
+            lines.extend(_exec_lines)
+        except Exception:
+            pass  # Execution status must never break CoS
+
     # ── v6: Consolidated CoS Operational Rules ──
     lines.append("")
     lines.append(

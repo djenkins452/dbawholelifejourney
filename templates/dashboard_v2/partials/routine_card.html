@@ -10,7 +10,7 @@
         {% for task in completed_routines %}
         <div class="v2-completed-compact" id="routine-row-{{ task.pk }}">
             <button class="v2-compact-toggle"
-                    hx-post="{% url 'dashboard_v2:routine_complete' pk=task.pk %}"
+                    hx-post="{% if task.toggle_url %}{{ task.toggle_url }}{% else %}{% url 'dashboard_v2:routine_complete' pk=task.pk %}{% endif %}"
                     hx-target="#routine-card"
                     hx-swap="outerHTML">
                 <span class="v2-check-sm">&#10003;</span>

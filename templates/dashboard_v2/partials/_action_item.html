@@ -6,7 +6,7 @@
         {% if action.can_complete %}
             {% if action.source == "routine" %}
             <button class="v2-action-toggle"
-                    hx-post="{% url 'dashboard_v2:routine_complete' pk=action.pk %}"
+                    hx-post="{% if action.toggle_url %}{{ action.toggle_url }}{% else %}{% url 'dashboard_v2:routine_complete' pk=action.pk %}{% endif %}"
                     hx-target="#routine-card"
                     hx-swap="outerHTML">
                 <span class="v2-check-empty">&#9675;</span>

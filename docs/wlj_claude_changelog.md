@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — FIX: Routine Not Recognized (Dashboard/CoS/Action Center)
+
+**Root cause:** The dashboard, action center, and CoS context each had a different data path for routines. The dashboard exclusively queried `Task.objects.filter(is_routine=True)` (legacy path), while the user creates routines via the canonical `Routine` model at `/life/routines/new/`. These two systems were completely disconnected — canonical Routine objects never appeared on the dashboard, in the action center, or in CoS context (due to stale SAE cache).
+
+**Three bugs fixed:**
+1. **Dashboard** (`dashboard_service.py`): Added `_get_canonical_routine_items()` to merge Routine model items into the dashboard execution context alongside legacy Task-based routines. Creates lightweight proxy objects with the same attributes templates expect.
+2. **SAE/CoS cache invalidation** (`life/views.py`): Added `_invalidate_routine_caches()` — called on routine create, update, and delete. Rebuilds SAE state, invalidates CoS context cache, and invalidates dashboard cache.
+3. **Action center** (`action_prioritizer.py`, `_action_item.html`): Passed `toggle_url` through the decision engine so canonical routine items use the correct HTMX endpoint instead of the legacy Task toggle.
+
+**New endpoint:** `dashboard_v2:routine_schedule_toggle` — HTMX POST for toggling RoutineSchedule item completion on the dashboard.
+
+**Navigation:** Added Routines quick link to Life/Organize home page.
+
+**Files changed:**
+- `apps/dashboard_v2/views.py` — Added `RoutineScheduleToggleAction` view
+- `apps/dashboard_v2/urls.py` — Added `routine_schedule_toggle` URL
+- `apps/dashboard_v2/services/dashboard_service.py` — Added `_get_canonical_routine_items()`, updated `_normalize_pending_routines()`
+- `apps/life/views.py` — Added `_invalidate_routine_caches()`, called from create/update/delete views
+- `apps/core/decision_engine/action_prioritizer.py` — Pass through `toggle_url` for routine actions
+- `templates/dashboard_v2/partials/routine_card.html` — Use `toggle_url` when available
+- `templates/dashboard_v2/partials/routine_row.html` — Use `toggle_url` when available
+- `templates/dashboard_v2/partials/_action_item.html` — Use `toggle_url` when available
+- `templates/life/home.html` — Added Routines to Quick Access grid
+
+---
+
 ## 2026-03-19 — CRITICAL FIX: Beth False Completion Bug
 
 **Root cause:** Beth had NO explicit "done today" signal for journal, workout, or faith. The LLM inferred completion from 7-day aggregates and streaks — classic hallucination from ambiguous context.

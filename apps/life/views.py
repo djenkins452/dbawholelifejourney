@@ -3249,6 +3249,26 @@ class BulkDeleteSignificantEventsView(LoginRequiredMixin, View):
 # Routines — First-class domain views
 # =============================================================================
 
+
+def _invalidate_routine_caches(user):
+    """Invalidate SAE state + CoS context + dashboard cache after routine CRUD."""
+    try:
+        from apps.core.ai_state.state_engine import rebuild_user_state
+        rebuild_user_state(user)
+    except Exception:
+        logger.warning("Failed to rebuild SAE state after routine change", exc_info=True)
+    try:
+        from apps.ai.readiness_cache import invalidate_cos_context_on_action
+        invalidate_cos_context_on_action(user)
+    except Exception:
+        pass  # CoS invalidation is best-effort
+    try:
+        from apps.dashboard_v2.cache import DashboardV2CacheService
+        DashboardV2CacheService.invalidate(user.pk, "execution")
+    except Exception:
+        pass  # Dashboard cache invalidation is best-effort
+
+
 class RoutineListView(HelpContextMixin, LifeAccessMixin, TemplateView):
     """
     Today's routines grouped by time window.
@@ -3329,6 +3349,7 @@ class RoutineCreateView(HelpContextMixin, LifeAccessMixin, CreateView):
         formset = RoutineScheduleFormSet(self.request.POST, instance=self.object)
         if formset.is_valid():
             formset.save()
+            _invalidate_routine_caches(self.request.user)
             messages.success(self.request, f"Routine '{self.object.name}' created.")
             return redirect('life:routine_list')
         else:
@@ -3364,6 +3385,7 @@ class RoutineUpdateView(HelpContextMixin, LifeAccessMixin, UpdateView):
         formset = RoutineScheduleFormSet(self.request.POST, instance=self.object)
         if formset.is_valid():
             formset.save()
+            _invalidate_routine_caches(self.request.user)
             messages.success(self.request, f"Routine '{self.object.name}' updated.")
             return redirect('life:routine_list')
         else:
@@ -3381,6 +3403,7 @@ class RoutineDeleteView(LifeAccessMixin, View):
             Routine.objects.filter(user=request.user), pk=pk
         )
         routine.soft_delete()
+        _invalidate_routine_caches(request.user)
         messages.success(request, f"Routine '{routine.name}' deleted.")
         return redirect('life:routine_list')
 

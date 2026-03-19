@@ -131,7 +131,7 @@ class DashboardV2Service:
         engagement = self._compute_engagement_strength()
         context["engagement"] = engagement
 
-        # Routine tasks (due today, is_routine=True)
+        # Routine tasks — merge legacy Task-based AND canonical Routine model items
         try:
             from apps.life.services.task_queries import TaskQueries
 
@@ -151,22 +151,29 @@ class DashboardV2Service:
                     task.title, engagement
                 )
                 task.detail_url = self._resolve_task_url(task)
-            context["routine_tasks"] = routine_tasks
-
-            # Split into completed (compact) and pending (full-size)
-            context["completed_routines"] = [
-                t for t in routine_tasks if t.is_completed
-            ]
-            context["pending_routines"] = [
-                t for t in routine_tasks if not t.is_completed
-            ]
-            if context["pending_routines"]:
-                context["pending_routines"][0].is_next = True
+                task.toggle_url = None  # will be set by template via {% url %}
         except Exception:
             logger.error("Failed to load routine tasks", exc_info=True)
-            context["routine_tasks"] = []
-            context["completed_routines"] = []
-            context["pending_routines"] = []
+            routine_tasks = []
+
+        # Canonical Routine model items (the first-class routine system)
+        try:
+            canonical_items = self._get_canonical_routine_items(engagement)
+            routine_tasks.extend(canonical_items)
+        except Exception:
+            logger.error("Failed to load canonical routine items", exc_info=True)
+
+        context["routine_tasks"] = routine_tasks
+
+        # Split into completed (compact) and pending (full-size)
+        context["completed_routines"] = [
+            t for t in routine_tasks if t.is_completed
+        ]
+        context["pending_routines"] = [
+            t for t in routine_tasks if not t.is_completed
+        ]
+        if context["pending_routines"]:
+            context["pending_routines"][0].is_next = True
 
         # Non-routine tasks (due today or overdue, pending)
         try:
@@ -483,13 +490,58 @@ class DashboardV2Service:
         target_mins = target_time.hour * 60 + target_time.minute
         return target_mins - now_mins
 
+    def _get_canonical_routine_items(self, engagement):
+        """
+        Load today's routine items from the canonical Routine model
+        and wrap them in lightweight objects compatible with the dashboard
+        template (which expects Task-like attributes).
+        """
+        from types import SimpleNamespace
+
+        from django.urls import reverse
+
+        from apps.life.services._routine_internal import get_todays_routine_items
+
+        result = get_todays_routine_items(self.user)
+        items = []
+
+        for window_items in result['items_by_window'].values():
+            for item in window_items:
+                is_completed = item.get('status') == 'completed'
+                schedule_id = item['schedule_id']
+                proxy = SimpleNamespace(
+                    pk=f"rs-{schedule_id}",  # prefixed to avoid Task pk collision
+                    title=item['item_name'],
+                    scheduled_time=None,  # already formatted in item
+                    is_completed=is_completed,
+                    is_next=False,
+                    goal_name="",
+                    engagement_level=self._match_engagement(
+                        item['item_name'], engagement
+                    ),
+                    detail_url=reverse('life:routine_list'),
+                    toggle_url=reverse(
+                        'dashboard_v2:routine_schedule_toggle',
+                        kwargs={'schedule_id': schedule_id},
+                    ),
+                    _domain_foundational=False,
+                    is_foundational=False,
+                    commitment_level="",
+                    # Extra metadata for action prioritizer
+                    _is_canonical_routine=True,
+                    _schedule_id=schedule_id,
+                )
+                items.append(proxy)
+
+        return items
+
     # ── Normalization helpers for shared decision engine ────────────
     # These convert ORM objects / dashboard-specific dicts into the
     # pure-dict format expected by action_prioritizer.
 
     @staticmethod
     def _normalize_pending_routines(pending_routines):
-        """Convert Task ORM objects to dicts for the decision engine."""
+        """Convert Task ORM objects or canonical routine proxies to dicts for the decision engine."""
         result = []
         for task in pending_routines:
             is_foundational = (
@@ -503,6 +555,7 @@ class DashboardV2Service:
                 "is_foundational": is_foundational,
                 "commitment_level": getattr(task, "commitment_level", ""),
                 "goal_name": getattr(task, "goal_name", ""),
+                "toggle_url": getattr(task, "toggle_url", ""),
             })
         return result
 

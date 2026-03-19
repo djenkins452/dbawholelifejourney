@@ -127,7 +127,7 @@ def build_action_priorities(
 
     # ── Pending routines ──
     for item in (pending_routines or []):
-        actions.append({
+        action = {
             "source": "routine",
             "urgency": "next",
             "type": "task",
@@ -140,7 +140,10 @@ def build_action_priorities(
             "goal_name": item.get("goal_name", ""),
             "time_of_day": None,
             "time_display": "",
-        })
+        }
+        if item.get("toggle_url"):
+            action["toggle_url"] = item["toggle_url"]
+        actions.append(action)
 
     # ── Untaken medicine groups ──
     for g in (medicine_groups or []):

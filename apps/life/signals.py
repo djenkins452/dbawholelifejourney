@@ -100,6 +100,82 @@ def handle_task_saved(sender, instance, created, **kwargs):
         pass  # Dashboard cache invalidation is best-effort
 
 
+@receiver(post_save, sender='life.Routine')
+def handle_routine_saved(sender, instance, **kwargs):
+    """Rebuild SAE execution state when a Routine is created or updated."""
+    try:
+        user = instance.user
+    except Exception:
+        return
+    _rebuild_routine_sae(user)
+
+
+@receiver(post_save, sender='life.RoutineSchedule')
+def handle_routine_schedule_saved(sender, instance, **kwargs):
+    """Rebuild SAE execution state when a RoutineSchedule item is created or updated."""
+    try:
+        user = instance.routine.user
+    except Exception:
+        return
+    _rebuild_routine_sae(user)
+
+
+def _rebuild_routine_sae(user):
+    """Shared SAE + cache invalidation for routine model changes."""
+    try:
+        from apps.core.ai_state.state_engine import rebuild_user_state
+        rebuild_user_state(user)
+    except Exception:
+        logger.warning("Failed to rebuild SAE after routine change", exc_info=True)
+    try:
+        from apps.ai.readiness_cache import invalidate_cos_context
+        invalidate_cos_context(user)
+    except Exception:
+        pass
+    try:
+        from apps.dashboard_v2.cache import DashboardV2CacheService
+        DashboardV2CacheService.invalidate_all(user.pk)
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender='life.RoutineLog')
+def handle_routine_log_saved(sender, instance, **kwargs):
+    """
+    When a RoutineLog is created/updated, rebuild SAE state + invalidate caches.
+
+    This ensures the execution contract reflects the latest routine completion
+    status immediately, preventing Beth from making stale claims about routine
+    progress. Without this, CoS would read stale execution state until the next
+    scheduled SAE rebuild cycle (~5 min).
+    """
+    try:
+        user = instance.user
+    except Exception:
+        return
+
+    # 1. SAE state (execution contract)
+    try:
+        from apps.core.ai_state.state_engine import rebuild_user_state
+        rebuild_user_state(user)
+    except Exception:
+        logger.warning("Failed to rebuild SAE after RoutineLog change", exc_info=True)
+
+    # 2. CoS context cache
+    try:
+        from apps.ai.readiness_cache import invalidate_cos_context
+        invalidate_cos_context(user)
+    except Exception:
+        pass
+
+    # 3. Dashboard cache
+    try:
+        from apps.dashboard_v2.cache import DashboardV2CacheService
+        DashboardV2CacheService.invalidate_all(user.pk)
+    except Exception:
+        pass
+
+
 @receiver(post_save, sender='life.LifeEvent')
 def handle_life_event_saved(sender, instance, **kwargs):
     """

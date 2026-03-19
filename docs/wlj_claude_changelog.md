@@ -6,6 +6,31 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — HARDEN: CoS Execution Handling — Prevent Inference When Data Missing
+
+**Problem:** When the `execution` SAE module hadn't been built yet (or was stale), CoS fell back to reading routine/medication data from legacy SAE modules. This created parallel truth sources that could drift, causing Beth to make stale or contradictory claims about routine completion.
+
+**Root causes:**
+1. **Fallback to routine SAE module** — cos_context.py fell back to `get_module_state(user, 'routine')` when execution module was empty, creating a parallel truth path
+2. **No signal-based rebuild** — RoutineLog, Routine, and RoutineSchedule saves did NOT trigger SAE state rebuild, so execution state could be stale for ~5 min
+3. **Routine context builder leaked completion counts** — `_build_routine_context()` injected `today_completed`/`today_missed`/`routine_items_today` from the routine SAE module, providing Beth a parallel (non-authoritative) source of completion truth
+4. **Individual routine item toggle** — `RoutineToggleView` and `RoutineSkipView` didn't invalidate caches, so Beth saw stale data after checkbox clicks
+
+**Fixes:**
+1. **Removed all fallback paths** — if execution module has no data, CoS gets "Data syncing — execution state is being rebuilt" message. NO fallback to routine or other SAE modules.
+2. **Added post_save signals** for `Routine`, `RoutineSchedule`, and `RoutineLog` → trigger SAE rebuild + CoS cache invalidation + dashboard cache invalidation
+3. **Added cache invalidation** to `RoutineToggleView` and `RoutineSkipView` (individual item toggle/skip)
+4. **Stripped completion counts** from `_build_routine_context()` — only structural data (total routines, current window, next pending item). Completion truth comes ONLY from execution contract.
+5. **Strengthened EXECUTION TRUTH RULE** — added "syncing" clause and "NEVER fall back to other data sources" directive
+6. **Upgraded action prioritizer logging** — `logger.debug` → `logger.warning` for visibility in production
+
+**Files changed:**
+- `apps/core/ai_orchestrator/cos_context.py` — removed fallback, data syncing gate, stripped completion counts from routine context, strengthened rules
+- `apps/life/signals.py` — added `handle_routine_saved`, `handle_routine_schedule_saved`, `handle_routine_log_saved` signals
+- `apps/life/views.py` — added `_invalidate_routine_caches()` to RoutineToggleView and RoutineSkipView
+
+---
+
 ## 2026-03-19 — FIX: Beth Falsely Claiming Routine Complete at 3/4
 
 **Problem:** Beth said "Your morning routine is complete" when it was 3/4 (Workout missed). Two causes:

@@ -1641,7 +1641,11 @@ def _build_purpose_context(user):
 #   - tag: builder identifier for scoped-builder selection and telemetry
 #   - builder_fn: callable(user, prefs) → dict of context updates
 def _build_routine_context(user):
-    """Build routine context — from SAE state (CoS purity enforced)."""
+    """Build routine context — structural awareness only (NOT execution truth).
+
+    Provides Beth awareness of the user's routine schedule structure.
+    Completion claims MUST come from the execution contract section only.
+    """
     result = {}
     try:
         from apps.core.ai_state.state_engine import get_module_state
@@ -1650,17 +1654,16 @@ def _build_routine_context(user):
         if routine_state.get('total_routines', 0) == 0:
             return result
 
+        # Structural data only — completion counts are contextual, NOT
+        # authoritative. The execution contract DATA STATE section is the
+        # ONLY source of truth for completion claims.
         result['routine_summary'] = {
             'total_routines': routine_state.get('total_routines', 0),
             'today_items': routine_state.get('today_item_count', 0),
-            'today_completed': routine_state.get('today_completed', 0),
-            'today_missed': routine_state.get('today_missed', 0),
             'current_window': routine_state.get('current_window'),
+            # NOTE: today_completed/today_missed intentionally omitted here.
+            # Completion truth comes ONLY from the execution contract.
         }
-
-        items = routine_state.get('routine_items_today', {})
-        if items:
-            result['routine_items_today'] = items
 
         next_pending = routine_state.get('next_pending_item')
         if next_pending:
@@ -2965,66 +2968,48 @@ def _build_data_state_snapshot(user) -> str:
         lines.append(f"  {domain_name}: {'DONE' if done else 'NOT DONE'}")
     lines.append(f"  tasks_completed_today: {_exec_summaries.get('tasks_completed_today', 0)}")
 
-    # Routine-level progress (derived from item completion, never stored)
-    _routine_comp = _exec_summaries.get('routines', {})
-    if _routine_comp:
-        lines.append("")
-        lines.append("ROUTINE PROGRESS (derived from item completion):")
-        for _rid, _rc in _routine_comp.items():
-            _rname = _rc.get('name', f'Routine {_rid}')
-            _done = _rc.get('completed_count', 0)
-            _total = _rc.get('total_count', 0)
-            if _rc.get('all_complete'):
-                _status = "COMPLETE (all items done)"
-            else:
-                _missed = _total - _done
-                _status = f"{_done}/{_total} — NOT COMPLETE ({_missed} item(s) remaining/missed)"
-            lines.append(f"  {_rname}: {_status}")
-    else:
-        # Fallback: read from routine SAE state if execution module not yet built
-        try:
-            _routine_state = _get_mod_state(user, 'routine') or {}
-            _fallback_comp = _routine_state.get('routine_completion', {})
-            if _fallback_comp:
-                lines.append("")
-                lines.append("ROUTINE PROGRESS (derived from item completion):")
-                for _rid, _rc in _fallback_comp.items():
-                    _rname = _rc.get('name', f'Routine {_rid}')
-                    _done = _rc.get('completed_count', 0)
-                    _total = _rc.get('total_count', 0)
-                    if _rc.get('all_complete'):
-                        _status = "COMPLETE (all items done)"
-                    else:
-                        _missed = _total - _done
-                        _status = f"{_done}/{_total} — NOT COMPLETE ({_missed} item(s) remaining/missed)"
-                    lines.append(f"  {_rname}: {_status}")
-        except Exception:
-            pass
+    # ── Execution data availability gate ──
+    # If execution module has no data, DO NOT infer or fall back to other modules.
+    # This prevents parallel truth drift between execution contract and legacy SAE modules.
+    _exec_has_data = bool(_exec_contract) and (
+        bool(_exec_summaries.get('routines'))
+        or bool(_exec_contract.get('items'))
+        or bool(_exec_summaries.get('medications'))
+    )
 
-    # Routine item detail (so Beth sees exactly which items are done/missed/pending)
-    _exec_items = _exec_contract.get('items', [])
-    _routine_items_for_prompt = [i for i in _exec_items if i.get('source_type') == 'routine_item']
-    if _routine_items_for_prompt:
-        lines.append("  Item detail:")
-        for ri in _routine_items_for_prompt:
-            _ri_status = ri.get('completion_status', 'pending').upper()
-            _ri_parent = ri.get('parent_title', '')
-            lines.append(f"    [{_ri_status}] {ri.get('title', '')} ({_ri_parent})")
-    elif not _routine_comp:
-        # Fallback: item detail from routine SAE state
-        try:
-            _routine_state_fb = _get_mod_state(user, 'routine') or {}
-            _ri_by_window = _routine_state_fb.get('routine_items_today', {})
-            if _ri_by_window:
-                lines.append("  Item detail:")
-                for _w_items in _ri_by_window.values():
-                    for _ri in _w_items:
-                        _ri_status = _ri.get('status', 'pending').upper()
-                        lines.append(
-                            f"    [{_ri_status}] {_ri.get('item_name', '')} ({_ri.get('routine_name', '')})"
-                        )
-        except Exception:
-            pass
+    if not _exec_has_data:
+        lines.append("")
+        lines.append(
+            "ROUTINE PROGRESS: Data syncing — execution state is being rebuilt. "
+            "DO NOT make claims about routine or medication completion until data is available. "
+            "If the user asks, say 'Let me check — your routine data is still syncing.'"
+        )
+    else:
+        # Routine-level progress (derived from item completion, never stored)
+        _routine_comp = _exec_summaries.get('routines', {})
+        if _routine_comp:
+            lines.append("")
+            lines.append("ROUTINE PROGRESS (derived from item completion):")
+            for _rid, _rc in _routine_comp.items():
+                _rname = _rc.get('name', f'Routine {_rid}')
+                _done = _rc.get('completed_count', 0)
+                _total = _rc.get('total_count', 0)
+                if _rc.get('all_complete'):
+                    _status = "COMPLETE (all items done)"
+                else:
+                    _missed = _total - _done
+                    _status = f"{_done}/{_total} — NOT COMPLETE ({_missed} item(s) remaining/missed)"
+                lines.append(f"  {_rname}: {_status}")
+
+        # Routine item detail (so Beth sees exactly which items are done/missed/pending)
+        _exec_items = _exec_contract.get('items', [])
+        _routine_items_for_prompt = [i for i in _exec_items if i.get('source_type') == 'routine_item']
+        if _routine_items_for_prompt:
+            lines.append("  Item detail:")
+            for ri in _routine_items_for_prompt:
+                _ri_status = ri.get('completion_status', 'pending').upper()
+                _ri_parent = ri.get('parent_title', '')
+                lines.append(f"    [{_ri_status}] {ri.get('title', '')} ({_ri_parent})")
 
     # Medication progress (from execution summaries)
     _med_summaries = _exec_summaries.get('medications', {})
@@ -3047,6 +3032,8 @@ def _build_data_state_snapshot(user) -> str:
         "    or historical consistency.\n"
         "  • If no completion record exists → it is NOT DONE.\n"
         "  • Absence of evidence = NOT DONE (never infer).\n"
+        "  • If routine/medication data says 'syncing' or 'being rebuilt', DO NOT\n"
+        "    guess or infer status. Say 'still syncing' and move on.\n"
         "\n"
         "ROUTINE COMPLETION RULE:\n"
         "  • A routine is ONLY complete when the status above says 'COMPLETE (all items done)'.\n"
@@ -3054,7 +3041,9 @@ def _build_data_state_snapshot(user) -> str:
         "  • 3/4 items done means NOT COMPLETE. Say '3 of 4 items done' — never 'complete'.\n"
         "  • 'Missed' items count as NOT done. A routine with missed items is NOT complete.\n"
         "  • Never say 'your routine is complete' unless ALL items show as completed.\n"
-        "  • When items are missed, acknowledge the miss explicitly."
+        "  • When items are missed, acknowledge the miss explicitly.\n"
+        "  • NEVER fall back to other data sources for routine/medication truth.\n"
+        "    The execution contract above is the ONLY source."
     )
 
     # ── Unified Action Priorities from Execution Contract ──
@@ -3092,7 +3081,7 @@ def _build_data_state_snapshot(user) -> str:
             lines.append("")
             lines.append("ACTION PRIORITIES: All clear — no pending actions.")
     except Exception:
-        logger.debug("Action prioritizer unavailable for CoS context", exc_info=True)
+        logger.warning("Action prioritizer unavailable for CoS context", exc_info=True)
 
     lines.append("========== END DATA STATE ==========")
     return "\n".join(lines)

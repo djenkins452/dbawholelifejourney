@@ -3463,6 +3463,9 @@ class RoutineToggleView(LifeAccessMixin, View):
         from .services.routine_helpers import toggle_routine_completion
         result = toggle_routine_completion(request.user, schedule, target_date)
 
+        # Rebuild SAE execution state so CoS sees updated routine completion
+        _invalidate_routine_caches(request.user)
+
         return JsonResponse({
             'success': True,
             'schedule_id': int(schedule_id),
@@ -3503,6 +3506,9 @@ class RoutineSkipView(LifeAccessMixin, View):
 
         from .services.routine_helpers import skip_routine
         result = skip_routine(request.user, schedule, target_date)
+
+        # Rebuild SAE execution state so CoS sees updated routine status
+        _invalidate_routine_caches(request.user)
 
         return JsonResponse({
             'success': True,

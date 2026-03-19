@@ -2962,6 +2962,23 @@ def _build_data_state_snapshot(user) -> str:
         lines.append(f"  {domain_name}: {'DONE' if done else 'NOT DONE'}")
     lines.append(f"  tasks_completed_today: {_exec.get('tasks_completed_today', 0)}")
 
+    # Routine-level progress (derived from item logs, not stored)
+    try:
+        from apps.core.ai_state.state_engine import get_module_state as _get_routine_state
+        _routine_state = _get_routine_state(user, 'routine') or {}
+        _routine_comp = _routine_state.get('routine_completion', {})
+        if _routine_comp:
+            lines.append("")
+            lines.append("ROUTINE PROGRESS (derived from item completion):")
+            for _rid, _rc in _routine_comp.items():
+                _rname = _rc.get('name', f'Routine {_rid}')
+                _done = _rc.get('completed_count', 0)
+                _total = _rc.get('total_count', 0)
+                _status = "COMPLETE" if _rc.get('all_complete') else f"{_done}/{_total}"
+                lines.append(f"  {_rname}: {_status}")
+    except Exception:
+        pass  # Routine state not available
+
     lines.append("")
     lines.append(
         "EXECUTION TRUTH RULE (NON-NEGOTIABLE):\n"

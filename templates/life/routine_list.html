@@ -65,7 +65,7 @@
     <!-- Time Window Sections -->
     {% for window in windows %}
     {% if window.items %}
-    {% include "components/time_window_section.html" with window_name=window.name window_key=window.key is_current=window.is_current items=window.items completed_count=window.completed_count %}
+    {% include "components/time_window_section.html" with window_name=window.name window_key=window.key is_current=window.is_current items=window.items completed_count=window.completed_count routines=window.routines %}
     {% endif %}
     {% endfor %}
 
@@ -152,36 +152,47 @@
         });
     });
 
-    // Routine checkbox toggle via fetch
+    // Helper: get CSRF token
+    function getCsrf() {
+        var el = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (el) return el.value;
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var c = cookies[i].trim();
+            if (c.indexOf('csrftoken=') === 0) return decodeURIComponent(c.substring(10));
+        }
+        return '';
+    }
+
+    // Helper: update routine-level checkbox based on child items (child→parent)
+    function updateRoutineCheckbox(routineId) {
+        var routineCheck = document.querySelector('.routine-complete-checkbox[data-routine-id="' + routineId + '"]');
+        if (!routineCheck) return;
+        // Count all item checkboxes for this routine
+        var items = document.querySelectorAll('.routine-checkbox[data-routine-id="' + routineId + '"]');
+        var total = items.length;
+        var completed = 0;
+        items.forEach(function(cb) { if (cb.checked) completed++; });
+        routineCheck.checked = (total > 0 && completed === total);
+        // Update progress text
+        var progress = document.querySelector('.routine-progress[data-routine-id="' + routineId + '"]');
+        if (progress) progress.textContent = completed + '/' + total;
+    }
+
+    // Item-level checkbox toggle
     document.addEventListener('change', function(e) {
         if (!e.target.classList.contains('routine-checkbox')) return;
 
         var checkbox = e.target;
         var scheduleId = checkbox.dataset.scheduleId;
-        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
-        if (!csrfToken) {
-            // Get CSRF from cookie
-            var cookies = document.cookie.split(';');
-            for (var i = 0; i < cookies.length; i++) {
-                var c = cookies[i].trim();
-                if (c.indexOf('csrftoken=') === 0) {
-                    csrfToken = decodeURIComponent(c.substring(10));
-                    break;
-                }
-            }
-        } else {
-            csrfToken = csrfToken.value;
-        }
+        var routineId = checkbox.dataset.routineId;
 
         var formData = new FormData();
         formData.append('schedule_id', scheduleId);
 
         fetch('{% url "life:routine_toggle" %}', {
             method: 'POST',
-            headers: {
-                'X-CSRFToken': csrfToken,
-                'X-Requested-With': 'XMLHttpRequest',
-            },
+            headers: { 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
             body: formData,
         })
         .then(function(response) { return response.json(); })
@@ -190,30 +201,53 @@
                 var item = checkbox.closest('.checkbox-item');
                 var label = item ? item.querySelector('span[style*="font-weight"]') : null;
                 if (label) {
-                    if (data.is_completed) {
-                        label.style.textDecoration = 'line-through';
-                        label.style.color = 'var(--color-text-muted)';
-                    } else {
-                        label.style.textDecoration = 'none';
-                        label.style.color = '';
-                    }
+                    label.style.textDecoration = data.is_completed ? 'line-through' : 'none';
+                    label.style.color = data.is_completed ? 'var(--color-text-muted)' : '';
                 }
-                // Update status badge
                 var statusBadge = item ? item.querySelector('span:last-child') : null;
                 if (statusBadge && statusBadge.textContent.trim()) {
-                    if (data.is_completed) {
-                        statusBadge.textContent = 'Done';
-                        statusBadge.style.color = 'var(--color-success)';
-                    } else {
-                        statusBadge.textContent = '';
-                    }
+                    statusBadge.textContent = data.is_completed ? 'Done' : '';
+                    if (data.is_completed) statusBadge.style.color = 'var(--color-success)';
                 }
+                // Child→parent: update routine checkbox
+                if (routineId) updateRoutineCheckbox(routineId);
             }
         })
-        .catch(function(err) {
-            // Revert checkbox on failure
-            checkbox.checked = !checkbox.checked;
-        });
+        .catch(function() { checkbox.checked = !checkbox.checked; });
+    });
+
+    // Routine-level checkbox toggle (parent→child)
+    document.addEventListener('change', function(e) {
+        if (!e.target.classList.contains('routine-complete-checkbox')) return;
+
+        var checkbox = e.target;
+        var routineId = checkbox.dataset.routineId;
+
+        fetch('/life/routines/' + routineId + '/toggle-complete/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.success) {
+                // Update all child checkboxes for this routine
+                var items = document.querySelectorAll('.routine-checkbox[data-routine-id="' + routineId + '"]');
+                items.forEach(function(cb) {
+                    cb.checked = data.all_complete;
+                    var item = cb.closest('.checkbox-item');
+                    var label = item ? item.querySelector('span[style*="font-weight"]') : null;
+                    if (label) {
+                        label.style.textDecoration = data.all_complete ? 'line-through' : 'none';
+                        label.style.color = data.all_complete ? 'var(--color-text-muted)' : '';
+                    }
+                });
+                // Update progress
+                var progress = document.querySelector('.routine-progress[data-routine-id="' + routineId + '"]');
+                if (progress) progress.textContent = data.completed_count + '/' + data.total_count;
+                checkbox.checked = data.all_complete;
+            }
+        })
+        .catch(function() { checkbox.checked = !checkbox.checked; });
     });
 })();
 </script>

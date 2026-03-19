@@ -1,5 +1,5 @@
 {# Reusable time-window section for routines #}
-{# Usage: {% include "components/time_window_section.html" with window_name="Morning" window_key="morning" is_current=True items=window_items %} #}
+{# Usage: {% include "components/time_window_section.html" with window_name="Morning" window_key="morning" is_current=True items=window_items routines=window_routines %} #}
 
 <div class="card mb-4{% if is_current %} time-window-active{% endif %}"
      style="{% if is_current %}border-left: 3px solid var(--color-accent);{% endif %}">
@@ -16,8 +16,28 @@
     </div>
     {% if items %}
     <div class="card-body" style="padding: 0;">
+        {# Routine-level checkboxes #}
+        {% for routine in routines %}
+        <div class="routine-header" style="display: flex; align-items: center; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border); background: var(--color-surface-raised, var(--color-surface));"
+             data-routine-id="{{ routine.id }}">
+            <label style="display: flex; align-items: center; gap: var(--space-3); cursor: pointer; flex: 1; min-height: 44px;">
+                <input type="checkbox"
+                       class="routine-complete-checkbox"
+                       data-routine-id="{{ routine.id }}"
+                       {% if routine.all_complete %}checked{% endif %}
+                       style="width: 20px; height: 20px; accent-color: var(--color-accent);">
+                <span style="font-weight: 600; font-size: var(--font-size-sm);">
+                    {{ routine.name }}
+                </span>
+            </label>
+            <span class="text-muted text-sm routine-progress" data-routine-id="{{ routine.id }}">
+                {{ routine.completed_count }}/{{ routine.total_count }}
+            </span>
+        </div>
+        {% endfor %}
+        {# Individual item checkboxes #}
         {% for item in items %}
-        {% include "components/checkbox_item.html" with item_id=item.schedule_id label=item.item_name sublabel=item.routine_name checked=item.is_completed status=item.status time_display=item.scheduled_time %}
+        {% include "components/checkbox_item.html" with item_id=item.schedule_id routine_id=item.routine_id label=item.item_name sublabel=item.routine_name checked=item.is_completed status=item.status time_display=item.scheduled_time %}
         {% endfor %}
     </div>
     {% else %}

@@ -175,6 +175,24 @@ class DashboardV2Service:
         if context["pending_routines"]:
             context["pending_routines"][0].is_next = True
 
+        # Routine-level completion for routine card checkbox
+        from django.urls import reverse as _reverse
+        _rc = getattr(self, '_routine_completion', {})
+        context["routine_groups"] = [
+            {
+                'id': rid,
+                'name': rc.get('name', ''),
+                'all_complete': rc.get('all_complete', False),
+                'completed_count': rc.get('completed_count', 0),
+                'total_count': rc.get('total_count', 0),
+                'toggle_url': _reverse(
+                    'dashboard_v2:routine_complete_toggle',
+                    kwargs={'routine_id': rid},
+                ),
+            }
+            for rid, rc in _rc.items()
+        ]
+
         # Non-routine tasks (due today or overdue, pending)
         try:
             from apps.life.services.task_queries import TaskQueries
@@ -530,8 +548,12 @@ class DashboardV2Service:
                     # Extra metadata for action prioritizer
                     _is_canonical_routine=True,
                     _schedule_id=schedule_id,
+                    _routine_id=item.get('routine_id'),
                 )
                 items.append(proxy)
+
+        # Store routine-level completion for dashboard card
+        self._routine_completion = result.get('routine_completion', {})
 
         return items
 

@@ -280,6 +280,37 @@ class RoutineScheduleToggleAction(LoginRequiredMixin, View):
         return response
 
 
+class RoutineCompleteToggleAction(LoginRequiredMixin, View):
+    """HTMX POST endpoint to toggle routine-level completion (all items).
+
+    Routine-level checkbox: derives current state from item logs,
+    then either completes all pending items or reverts all completions.
+    """
+
+    def post(self, request, routine_id):
+        from apps.core.utils import get_user_today
+        from apps.life.models import Routine
+        from apps.life.services.routine_helpers import toggle_routine_complete
+
+        routine = get_object_or_404(Routine, pk=routine_id, user=request.user)
+        today = get_user_today(request.user)
+        toggle_routine_complete(request.user, routine, today)
+
+        # Invalidate cache and return full routine card
+        DashboardV2CacheService.invalidate(request.user.pk, "execution")
+        service = DashboardV2Service(request.user)
+        exec_ctx = service.get_execution_context()
+
+        html = render_to_string(
+            "dashboard_v2/partials/routine_card.html",
+            {**exec_ctx, "request": request},
+            request=request,
+        )
+        response = HttpResponse(html)
+        response["HX-Trigger"] = "refresh-next-action"
+        return response
+
+
 class MedicineGroupLogAction(LoginRequiredMixin, View):
     """HTMX POST endpoint to log/unlog all medicines in a time_of_day group."""
 

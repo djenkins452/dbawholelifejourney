@@ -314,3 +314,214 @@ class RoutineMigrationViewTests(RoutineTestMixin, TestCase):
         self.assertEqual(
             Routine.objects.filter(name='Already Migrated').count(), 1
         )
+
+
+class RoutineCompletionServiceTests(RoutineTestMixin, TestCase):
+    """Tests for routine-level completion (bidirectional sync)."""
+
+    def test_get_completion_state_empty(self):
+        """Routine with no items returns zero state."""
+        from apps.life.services.routine_helpers import get_routine_completion_state
+        from apps.core.utils import get_user_today
+        routine = self._create_routine()
+        # No items added
+        today = get_user_today(self.user)
+        state = get_routine_completion_state(self.user, routine, today)
+        self.assertEqual(state['total_count'], 0)
+        self.assertFalse(state['all_complete'])
+
+    def test_get_completion_state_partial(self):
+        """Routine with some items completed."""
+        from apps.life.services.routine_helpers import get_routine_completion_state
+        from apps.core.utils import get_user_today
+        routine = self._create_routine()
+        s1 = self._create_schedule(routine, 'Prayer', 6, 0)
+        s2 = self._create_schedule(routine, 'Bible', 6, 30)
+        today = get_user_today(self.user)
+        RoutineLog.objects.create(
+            user=self.user, schedule=s1, scheduled_date=today, log_status='completed',
+        )
+        state = get_routine_completion_state(self.user, routine, today)
+        self.assertEqual(state['completed_count'], 1)
+        self.assertEqual(state['total_count'], 2)
+        self.assertFalse(state['all_complete'])
+
+    def test_get_completion_state_all_complete(self):
+        """Routine fully complete."""
+        from apps.life.services.routine_helpers import get_routine_completion_state
+        from apps.core.utils import get_user_today
+        routine = self._create_routine()
+        s1 = self._create_schedule(routine, 'Prayer', 6, 0)
+        s2 = self._create_schedule(routine, 'Bible', 6, 30)
+        today = get_user_today(self.user)
+        RoutineLog.objects.create(
+            user=self.user, schedule=s1, scheduled_date=today, log_status='completed',
+        )
+        RoutineLog.objects.create(
+            user=self.user, schedule=s2, scheduled_date=today, log_status='completed',
+        )
+        state = get_routine_completion_state(self.user, routine, today)
+        self.assertTrue(state['all_complete'])
+
+    def test_toggle_routine_complete_checks_all(self):
+        """Toggling incomplete routine completes all items."""
+        from apps.life.services.routine_helpers import toggle_routine_complete
+        from apps.core.utils import get_user_today
+        routine = self._create_routine()
+        s1 = self._create_schedule(routine, 'Prayer', 6, 0)
+        s2 = self._create_schedule(routine, 'Bible', 6, 30)
+        s3 = self._create_schedule(routine, 'Workout', 7, 0)
+        today = get_user_today(self.user)
+
+        result = toggle_routine_complete(self.user, routine, today)
+        self.assertTrue(result['all_complete'])
+        self.assertEqual(result['completed_count'], 3)
+        # Verify logs exist
+        self.assertEqual(
+            RoutineLog.objects.filter(
+                scheduled_date=today, log_status='completed',
+                schedule__in=[s1, s2, s3],
+            ).count(), 3
+        )
+
+    def test_toggle_routine_complete_unchecks_all(self):
+        """Toggling complete routine reverts all items to pending."""
+        from apps.life.services.routine_helpers import toggle_routine_complete
+        from apps.core.utils import get_user_today
+        routine = self._create_routine()
+        s1 = self._create_schedule(routine, 'Prayer', 6, 0)
+        s2 = self._create_schedule(routine, 'Bible', 6, 30)
+        today = get_user_today(self.user)
+        # Pre-complete both
+        RoutineLog.objects.create(
+            user=self.user, schedule=s1, scheduled_date=today, log_status='completed',
+        )
+        RoutineLog.objects.create(
+            user=self.user, schedule=s2, scheduled_date=today, log_status='completed',
+        )
+        result = toggle_routine_complete(self.user, routine, today)
+        self.assertFalse(result['all_complete'])
+        self.assertEqual(result['completed_count'], 0)
+        # Logs should be deleted
+        self.assertEqual(
+            RoutineLog.objects.filter(
+                scheduled_date=today, schedule__in=[s1, s2],
+            ).count(), 0
+        )
+
+    def test_completing_last_item_makes_routine_complete(self):
+        """Child→parent: completing the last item makes routine all_complete."""
+        from apps.life.services.routine_helpers import (
+            toggle_routine_completion, get_routine_completion_state,
+        )
+        from apps.core.utils import get_user_today
+        routine = self._create_routine()
+        s1 = self._create_schedule(routine, 'Prayer', 6, 0)
+        s2 = self._create_schedule(routine, 'Bible', 6, 30)
+        today = get_user_today(self.user)
+        # Complete first item
+        toggle_routine_completion(self.user, s1, today)
+        state = get_routine_completion_state(self.user, routine, today)
+        self.assertFalse(state['all_complete'])
+        # Complete last item
+        toggle_routine_completion(self.user, s2, today)
+        state = get_routine_completion_state(self.user, routine, today)
+        self.assertTrue(state['all_complete'])
+
+    def test_unchecking_one_item_makes_routine_incomplete(self):
+        """Child→parent: unchecking any item makes routine incomplete."""
+        from apps.life.services.routine_helpers import (
+            toggle_routine_completion, get_routine_completion_state,
+        )
+        from apps.core.utils import get_user_today
+        routine = self._create_routine()
+        s1 = self._create_schedule(routine, 'Prayer', 6, 0)
+        s2 = self._create_schedule(routine, 'Bible', 6, 30)
+        today = get_user_today(self.user)
+        # Complete both
+        toggle_routine_completion(self.user, s1, today)
+        toggle_routine_completion(self.user, s2, today)
+        state = get_routine_completion_state(self.user, routine, today)
+        self.assertTrue(state['all_complete'])
+        # Uncheck one
+        toggle_routine_completion(self.user, s1, today)
+        state = get_routine_completion_state(self.user, routine, today)
+        self.assertFalse(state['all_complete'])
+
+    def test_only_target_date_affected(self):
+        """Toggling routine only affects target date logs."""
+        from apps.life.services.routine_helpers import toggle_routine_complete
+        from apps.core.utils import get_user_today
+        from datetime import timedelta
+        routine = self._create_routine()
+        s1 = self._create_schedule(routine, 'Prayer', 6, 0)
+        today = get_user_today(self.user)
+        yesterday = today - timedelta(days=1)
+        # Create yesterday's log
+        RoutineLog.objects.create(
+            user=self.user, schedule=s1, scheduled_date=yesterday, log_status='completed',
+        )
+        # Toggle today
+        toggle_routine_complete(self.user, routine, today)
+        # Yesterday's log must be untouched
+        self.assertTrue(
+            RoutineLog.objects.filter(
+                schedule=s1, scheduled_date=yesterday, log_status='completed',
+            ).exists()
+        )
+
+    def test_zero_applicable_items_noop(self):
+        """Routine with items not applicable today no-ops safely."""
+        from apps.life.services.routine_helpers import toggle_routine_complete
+        from apps.core.utils import get_user_today
+        routine = self._create_routine()
+        # Create item only for Monday (weekday 0)
+        schedule = RoutineSchedule.objects.create(
+            routine=routine, name='Monday Only',
+            scheduled_time=time(6, 0),
+            grace_period_minutes=30,
+            days_of_week='0',  # Monday only
+            is_active=True,
+        )
+        today = get_user_today(self.user)
+        # If today is not Monday, no-op
+        if today.weekday() != 0:
+            result = toggle_routine_complete(self.user, routine, today)
+            self.assertEqual(result['total_count'], 0)
+
+
+class RoutineCompleteToggleViewTests(RoutineTestMixin, TestCase):
+    """Tests for the routine-level toggle endpoint."""
+
+    def test_toggle_endpoint(self):
+        from apps.core.utils import get_user_today
+        routine = self._create_routine()
+        s1 = self._create_schedule(routine, 'Prayer', 6, 0)
+        s2 = self._create_schedule(routine, 'Bible', 6, 30)
+        response = self.client.post(
+            reverse('life:routine_complete_toggle', args=[routine.pk]),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertTrue(data['all_complete'])
+        self.assertEqual(data['completed_count'], 2)
+
+    def test_state_builder_includes_routine_completion(self):
+        from apps.core.ai_state.state_builder import build_routine_state
+        from apps.core.utils import get_user_today
+        routine = self._create_routine()
+        s1 = self._create_schedule(routine, 'Prayer', 6, 0)
+        s2 = self._create_schedule(routine, 'Bible', 6, 30)
+        today = get_user_today(self.user)
+        RoutineLog.objects.create(
+            user=self.user, schedule=s1, scheduled_date=today, log_status='completed',
+        )
+        state = build_routine_state(self.user)
+        contract = state.get('_contract', {})
+        rc = contract.get('today', {}).get('routine_completion', {})
+        self.assertIn(routine.id, rc)
+        self.assertEqual(rc[routine.id]['completed_count'], 1)
+        self.assertEqual(rc[routine.id]['total_count'], 2)
+        self.assertFalse(rc[routine.id]['all_complete'])

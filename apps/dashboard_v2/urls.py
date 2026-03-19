@@ -65,6 +65,11 @@ urlpatterns = [
         views.RoutineScheduleToggleAction.as_view(),
         name="routine_schedule_toggle",
     ),
+    path(
+        "actions/routine/<int:routine_id>/toggle-complete/",
+        views.RoutineCompleteToggleAction.as_view(),
+        name="routine_complete_toggle",
+    ),
     # Celebration endpoints
     path(
         "celebration/<int:pk>/reveal/",

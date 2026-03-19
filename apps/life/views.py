@@ -3292,16 +3292,31 @@ class RoutineListView(HelpContextMixin, LifeAccessMixin, TemplateView):
         items_by_window = today.get('items_by_window', {})
 
         # Build ordered list of windows for template iteration
+        _routine_completion = today.get('routine_completion', {})
         windows = []
         for window_key in WINDOW_ORDER:
             items = items_by_window.get(window_key, [])
             completed_count = sum(1 for i in items if i.get('status') == 'completed')
+            # Collect unique routines in this window with their completion state
+            _window_routines = {}
+            for item in items:
+                rid = item.get('routine_id')
+                if rid and rid not in _window_routines:
+                    rc = _routine_completion.get(rid, {})
+                    _window_routines[rid] = {
+                        'id': rid,
+                        'name': item.get('routine_name', ''),
+                        'all_complete': rc.get('all_complete', False),
+                        'completed_count': rc.get('completed_count', 0),
+                        'total_count': rc.get('total_count', 0),
+                    }
             windows.append({
                 'key': window_key,
                 'name': WINDOW_DISPLAY_NAMES.get(window_key, window_key.title()),
                 'items': items,
                 'completed_count': completed_count,
                 'is_current': window_key == today.get('current_window'),
+                'routines': list(_window_routines.values()),
             })
 
         context['windows'] = windows
@@ -3310,6 +3325,7 @@ class RoutineListView(HelpContextMixin, LifeAccessMixin, TemplateView):
         context['today_missed'] = summary.get('today_missed', 0)
         context['current_window'] = today.get('current_window')
         context['total_routines'] = summary.get('total_routines', 0)
+        context['routine_completion'] = today.get('routine_completion', {})
         # All routines for manage panel (lightweight query)
         context['all_routines'] = Routine.objects.filter(
             user=self.request.user, is_active=True,
@@ -3489,6 +3505,34 @@ class RoutineSkipView(LifeAccessMixin, View):
             'success': True,
             'schedule_id': int(schedule_id),
             'status': 'skipped',
+        })
+
+
+class RoutineCompleteToggleView(LifeAccessMixin, View):
+    """Toggle routine-level completion (check/uncheck all items).
+
+    Routine-level checkbox: derives current state from item logs,
+    then either completes all pending items or reverts all completions.
+    Delegates to routine_helpers.toggle_routine_complete().
+    """
+
+    def post(self, request, routine_id):
+        from apps.life.models import Routine
+        from apps.life.services.routine_helpers import toggle_routine_complete
+        from apps.core.utils import get_user_today
+
+        routine = get_object_or_404(Routine, pk=routine_id, user=request.user)
+        target_date = get_user_today(request.user)
+
+        result = toggle_routine_complete(request.user, routine, target_date)
+        _invalidate_routine_caches(request.user)
+
+        return JsonResponse({
+            'success': True,
+            'routine_id': routine_id,
+            'all_complete': result['all_complete'],
+            'completed_count': result['completed_count'],
+            'total_count': result['total_count'],
         })
 
 

@@ -27,6 +27,7 @@ from .views import (
     RoutineDeleteView,
     RoutineToggleView,
     RoutineSkipView,
+    RoutineCompleteToggleView,
     RoutineMigrationView,
     # Calendar & Events
     CalendarView,
@@ -144,6 +145,7 @@ urlpatterns = [
     path("routines/<int:pk>/delete/", RoutineDeleteView.as_view(), name="routine_delete"),
     path("routines/toggle/", RoutineToggleView.as_view(), name="routine_toggle"),
     path("routines/skip/", RoutineSkipView.as_view(), name="routine_skip"),
+    path("routines/<int:routine_id>/toggle-complete/", RoutineCompleteToggleView.as_view(), name="routine_complete_toggle"),
     path("routines/migrate/", RoutineMigrationView.as_view(), name="routine_migration"),
 
     # Calendar & Events

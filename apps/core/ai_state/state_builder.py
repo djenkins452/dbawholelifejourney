@@ -2271,6 +2271,7 @@ def build_routine_state(user):
         state['today_missed'] = result['today_missed']
         state['routine_items_today'] = result['items_by_window']
         state['current_window'] = result['current_window']
+        state['routine_completion'] = result.get('routine_completion', {})
 
         # Find next pending item for CoS
         next_pending = None
@@ -2305,6 +2306,7 @@ def build_routine_state(user):
             'items_by_window': state.get('routine_items_today', {}),
             'current_window': state.get('current_window'),
             'next_up': state.get('next_pending_item'),
+            'routine_completion': state.get('routine_completion', {}),
         },
         'upcoming': {},  # routines are daily — no future items
         'alerts': {

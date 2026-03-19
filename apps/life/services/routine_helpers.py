@@ -5,6 +5,8 @@ This is the ONLY module that views and external code should import for
 routine operations. It exposes:
   - toggle_routine_completion()  — toggle a schedule item's completion
   - skip_routine()               — mark a schedule item as skipped
+  - toggle_routine_complete()    — toggle ALL items in a routine (routine-level checkbox)
+  - get_routine_completion_state() — derive routine completion from item logs
 
 For reading routine state (items, windows, summaries), use:
   apps.core.ai_state.state_builder.build_routine_state()
@@ -20,10 +22,14 @@ Status transition rules (strict execution model):
   - none → skipped  (explicit skip action)
   - Missed is COMPUTED, not stored (absence of log + time past grace)
   - No auto-complete — completion is explicit only
+
+Routine-level completion is DERIVED from item logs, never stored:
+  - routine_complete = all(applicable items have completed logs for today)
 """
 
 import logging
 
+from django.db import transaction
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -101,3 +107,132 @@ def skip_routine(user, schedule, target_date):
         },
     )
     return {'status': 'skipped'}
+
+
+def _get_applicable_items(routine, target_date):
+    """Get active routine items that apply to a specific date."""
+    weekday = target_date.weekday()
+    items = []
+    for item in routine.items.filter(is_active=True):
+        if item.specific_date:
+            if item.specific_date == target_date:
+                items.append(item)
+        elif item.applies_to_day(weekday):
+            items.append(item)
+    return items
+
+
+def get_routine_completion_state(user, routine, target_date):
+    """
+    Derive routine completion from item execution records.
+
+    Routine completion is NEVER stored — it is always computed from
+    the individual RoutineLog records for today's applicable items.
+
+    Args:
+        user: User instance
+        routine: Routine instance (must belong to user)
+        target_date: date
+
+    Returns:
+        dict: {all_complete: bool, completed_count: int, total_count: int}
+    """
+    from apps.life.models import RoutineLog
+
+    applicable = _get_applicable_items(routine, target_date)
+    total = len(applicable)
+
+    if total == 0:
+        return {'all_complete': False, 'completed_count': 0, 'total_count': 0}
+
+    schedule_ids = [item.id for item in applicable]
+    completed_ids = set(
+        RoutineLog.objects.filter(
+            schedule_id__in=schedule_ids,
+            scheduled_date=target_date,
+            log_status__in=('completed', 'completed_late'),
+        ).values_list('schedule_id', flat=True)
+    )
+
+    completed_count = len(completed_ids)
+    return {
+        'all_complete': completed_count == total,
+        'completed_count': completed_count,
+        'total_count': total,
+    }
+
+
+@transaction.atomic
+def toggle_routine_complete(user, routine, target_date):
+    """
+    Toggle ALL items in a routine for a date (routine-level checkbox).
+
+    Derives current state from item logs, then:
+      - If NOT all complete → create completed logs for all pending items
+      - If all complete → delete today's completed logs (revert to pending)
+
+    This is the bidirectional sync: checking the routine checkbox
+    propagates to all child items. Unchecking reverts them all.
+
+    Args:
+        user: User instance
+        routine: Routine instance (must belong to user)
+        target_date: date
+
+    Returns:
+        dict: {all_complete: bool, completed_count: int, total_count: int}
+    """
+    from apps.life.models import RoutineLog
+
+    applicable = _get_applicable_items(routine, target_date)
+    total = len(applicable)
+
+    if total == 0:
+        return {'all_complete': False, 'completed_count': 0, 'total_count': 0}
+
+    schedule_ids = [item.id for item in applicable]
+    existing_logs = {
+        log.schedule_id: log
+        for log in RoutineLog.objects.filter(
+            schedule_id__in=schedule_ids,
+            scheduled_date=target_date,
+        )
+    }
+
+    completed_ids = {
+        sid for sid, log in existing_logs.items()
+        if log.log_status in ('completed', 'completed_late')
+    }
+    currently_all_complete = len(completed_ids) == total
+
+    now = timezone.now()
+
+    if currently_all_complete:
+        # Uncheck: delete today's completed/completed_late logs → items become pending
+        RoutineLog.objects.filter(
+            schedule_id__in=schedule_ids,
+            scheduled_date=target_date,
+            log_status__in=('completed', 'completed_late'),
+        ).delete()
+        return {'all_complete': False, 'completed_count': 0, 'total_count': total}
+    else:
+        # Check: create completed logs for all items that aren't already completed
+        for item in applicable:
+            if item.id in completed_ids:
+                continue  # already completed, leave it
+            existing = existing_logs.get(item.id)
+            if existing:
+                # Has a log (skipped or other) — update to completed
+                existing.log_status = 'completed'
+                existing.completed_at = now
+                existing.save(update_fields=['log_status', 'completed_at', 'updated_at'])
+            else:
+                # No log — create completed
+                RoutineLog.objects.create(
+                    user=user,
+                    schedule=item,
+                    scheduled_date=target_date,
+                    log_status='completed',
+                    completed_at=now,
+                )
+        return {'all_complete': True, 'completed_count': total, 'total_count': total}

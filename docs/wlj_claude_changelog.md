@@ -6,6 +6,45 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — FEATURE: Routine-Level Checkbox with Bidirectional Sync
+
+**Problem:** No way to complete an entire routine at once. No routine-level completion state. No parent↔child sync between routine checkbox and item checkboxes.
+
+**Changes:**
+1. **Service layer** (`apps/life/services/routine_helpers.py`): Added `toggle_routine_complete()` (atomic, completes/reverts ALL items) and `get_routine_completion_state()` (derived from RoutineLog, never stored).
+2. **Internal state** (`apps/life/services/_routine_internal.py`): Added `routine_completion` dict to `get_todays_routine_items()` — per-routine {all_complete, completed_count, total_count, name}.
+3. **Endpoints**: Routines page (`life:routine_complete_toggle`) and dashboard (`dashboard_v2:routine_complete_toggle`) — both call same service.
+4. **State builder**: `routine_completion` surfaced in routine contract under `today.routine_completion`.
+5. **UI — Routines page**: Routine-level checkbox per time window. JS handles parent→child (check routine = complete all items) and child→parent (check last item = routine becomes checked).
+6. **UI — Dashboard**: Routine-level checkbox in routine card header with HTMX toggle.
+7. **CoS context**: ROUTINE PROGRESS block shows per-routine completion (e.g., "Morning Routine: 3/4").
+8. **Tests**: 11 new tests covering toggle all, revert all, child→parent, only-today-affected, zero-items no-op, state builder.
+
+**Bidirectional sync rules:**
+- Routine checkbox checked → all items get completed RoutineLog for today
+- Routine checkbox unchecked → all today's completed logs deleted (items revert to pending)
+- Last item completed individually → routine shows complete
+- Any item unchecked → routine shows incomplete
+- Routine completion is DERIVED, never stored separately
+
+**Files changed:**
+- `apps/life/services/routine_helpers.py` — toggle_routine_complete, get_routine_completion_state
+- `apps/life/services/_routine_internal.py` — routine_completion in return dict
+- `apps/life/views.py` — RoutineCompleteToggleView
+- `apps/life/urls.py` — URL pattern
+- `apps/dashboard_v2/views.py` — RoutineCompleteToggleAction
+- `apps/dashboard_v2/urls.py` — URL pattern
+- `apps/dashboard_v2/services/dashboard_service.py` — routine_groups context
+- `apps/core/ai_state/state_builder.py` — routine_completion in contract
+- `apps/core/ai_orchestrator/cos_context.py` — ROUTINE PROGRESS block
+- `templates/life/routine_list.html` — routine checkbox JS + pass routines to include
+- `templates/components/time_window_section.html` — routine-level checkbox rows
+- `templates/components/checkbox_item.html` — data-routine-id attribute
+- `templates/dashboard_v2/partials/routine_card.html` — routine-level checkbox
+- `apps/life/tests/test_routines.py` — 11 new tests
+
+---
+
 ## 2026-03-19 — FEATURE: Routine Item Importance (Foundational/Important/Flexible)
 
 **Problem:** Routine items had no priority tier — Beth couldn't distinguish between foundational items (prayer, Bible reading) and flexible ones (stretching, optional tasks).

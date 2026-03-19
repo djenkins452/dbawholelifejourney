@@ -5,6 +5,25 @@
         <span class="v2-count-badge">{{ routine_done }}/{{ routine_total }}</span>
     </div>
 
+    {# Routine-level checkboxes — toggle all items in a routine #}
+    {% for rg in routine_groups %}
+    <div class="v2-routine-group" style="display: flex; align-items: center; padding: 8px 16px; background: var(--color-surface-raised, var(--color-surface)); border-bottom: 1px solid var(--color-border);">
+        <button class="v2-action-toggle {% if rg.all_complete %}v2-completed{% endif %}"
+                hx-post="{{ rg.toggle_url }}"
+                hx-target="#routine-card"
+                hx-swap="outerHTML"
+                style="margin-right: 8px;">
+            {% if rg.all_complete %}
+                <span class="v2-check">&#10003;</span>
+            {% else %}
+                <span class="v2-check-empty">&#9675;</span>
+            {% endif %}
+        </button>
+        <span style="font-weight: 600; font-size: 0.875rem; flex: 1;">{{ rg.name }}</span>
+        <span class="v2-count-badge" style="font-size: 0.75rem;">{{ rg.completed_count }}/{{ rg.total_count }}</span>
+    </div>
+    {% endfor %}
+
     {% if completed_routines %}
     <div class="v2-completed-strip">
         {% for task in completed_routines %}

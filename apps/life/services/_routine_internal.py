@@ -124,6 +124,26 @@ def get_todays_routine_items(user):
         window = routine.time_of_day or 'other'
         items_by_window.setdefault(window, []).append(entry)
 
+    # Derive per-routine completion from item logs (never stored)
+    _routine_items = {}  # routine_id → {total, completed}
+    for routine, item in today_items:
+        rid = routine.id
+        if rid not in _routine_items:
+            _routine_items[rid] = {'total': 0, 'completed': 0, 'name': routine.name}
+        _routine_items[rid]['total'] += 1
+        log = log_by_schedule.get(item.id)
+        if log and log.log_status in ('completed', 'completed_late'):
+            _routine_items[rid]['completed'] += 1
+
+    routine_completion = {}
+    for rid, counts in _routine_items.items():
+        routine_completion[rid] = {
+            'all_complete': counts['completed'] == counts['total'] and counts['total'] > 0,
+            'completed_count': counts['completed'],
+            'total_count': counts['total'],
+            'name': counts['name'],
+        }
+
     return {
         'items_by_window': items_by_window,
         'today_count': len(today_items),
@@ -133,4 +153,5 @@ def get_todays_routine_items(user):
         'logs_by_schedule': log_by_schedule,
         'total_routines': total_routines,
         'routines': list(active_routines),
+        'routine_completion': routine_completion,
     }

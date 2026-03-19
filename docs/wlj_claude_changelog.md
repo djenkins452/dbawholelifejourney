@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — FIX: Repair Existing Routines with is_active=False (Data Migration)
+
+**Problem:** Routines created before the code fix still have `is_active=False` in the production database. The code fix only applies to NEW routines — existing ones need a data repair.
+
+**Fix:** Data migration `0034_fix_routine_is_active` sets `is_active=True` for all Routine and RoutineSchedule records that have `status='active'` but `is_active=False`. Since these records were only False due to the form bug (not user intent), this is safe.
+
+**Files changed:**
+- `apps/life/migrations/0034_fix_routine_is_active.py` — data migration
+
+---
+
 ## 2026-03-19 — FIX: Routine Created But Invisible (is_active=False on Create)
 
 **Root cause:** The `is_active` checkbox in `RoutineForm` is only rendered during edit (`{% if is_edit %}`), never during create. Since `is_active` is in the form's `Meta.fields`, Django form binding interprets the missing checkbox as `False`. Every new routine was saved with `is_active=False`, making it invisible to all queries that filter `is_active=True` (list view, SAE state builder, CoS context).

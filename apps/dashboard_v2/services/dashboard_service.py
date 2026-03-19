@@ -349,11 +349,13 @@ class DashboardV2Service:
             i for i in timeline if i["is_completed"]
         ]
 
-        # Completion counts for group headers
+        # Completion counts for group headers — ROUTINE-LEVEL (not item-level)
+        # A routine is complete only when ALL its items are done (all_complete).
+        _rg = context.get("routine_groups", [])
         context["routine_done"] = sum(
-            1 for t in context.get("routine_tasks", []) if t.is_completed
+            1 for rg in _rg if rg.get("all_complete")
         )
-        context["routine_total"] = len(context.get("routine_tasks", []))
+        context["routine_total"] = len(_rg)
         context["medicine_done"] = sum(
             1 for m in context.get("medicine_items", []) if m.get("taken")
         )

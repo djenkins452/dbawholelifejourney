@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — FIX: Dashboard Routine Completion Count (Routine-Level, Not Item-Level)
+
+**Problem:** Dashboard showed "Routines 2/7 complete" counting individual items instead of routines. Morning Routine at 2/4 was treated as "2 done" instead of "0 routines complete."
+
+**Root cause:** `dashboard_service.py` lines 353-356 counted `t.is_completed` per item, not per routine.
+
+**Fix:** Changed to count from `routine_groups` where `all_complete == True`. A routine counts as done ONLY when ALL its items are complete.
+
+**Before:** Morning 2/4 + Nightly 0/3 → "2/7 complete" (item-level, misleading)
+**After:** Morning 2/4 + Nightly 0/3 → "0/2 complete" (routine-level, correct)
+
+**File:** `apps/dashboard_v2/services/dashboard_service.py` — lines 353-356
+
+---
+
 ## 2026-03-19 — FIX: Unified Time Classification + Cache Invalidation
 
 **Problems:**

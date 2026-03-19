@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — FIX: Task Edit Save Broken (Legacy Priority Values in Templates)
+
+**Root cause:** Task model's `commitment_level` choices were updated to `foundational/important/flexible`, but 6 templates still used the old values (`optional`, `non_negotiable`). When the task edit form submitted, Django validated `commitment_level` against the model choices → validation failed → entire form rejected → nothing saved. User saw the form "blink" (re-render without error).
+
+**Fix:** Updated all templates to use new priority values:
+- `templates/life/task_form.html` — select dropdown: optional→foundational, non_negotiable→flexible
+- `apps/purpose/templates/purpose/goal_form.html` — same select dropdown fix
+- `templates/dashboard_v2/partials/schedule_row.html` — badge: non_negotiable→foundational
+- `templates/dashboard_v2/partials/task_row.html` — badge: non_negotiable→foundational
+- `templates/life/_task_row.html` — badge: non_negotiable→foundational
+- `templates/life/home.html` — badge: non_negotiable→foundational
+
+**Note:** ~52 Python files still reference `non_negotiable` (blueprint, governance, AI engines). These are deeper cleanup — the data migration already maps old→new values in the DB, so they won't block saves. Template fix is the critical path.
+
+---
+
 ## 2026-03-19 — INTEGRITY: Execution Contract Audit + Fixes
 
 **Audit findings and fixes:**

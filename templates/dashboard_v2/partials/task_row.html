@@ -14,8 +14,8 @@
         {% if task.due_date and task.is_overdue %}
             <span class="v2-action-badge v2-badge-overdue">Overdue</span>
         {% endif %}
-        {% if task.commitment_level == "non_negotiable" %}
-            <span class="v2-action-badge v2-badge-priority">Non-Negotiable</span>
+        {% if task.commitment_level == "foundational" %}
+            <span class="v2-action-badge v2-badge-priority">Foundational</span>
         {% endif %}
         {% if task.goal_name %}
             <span class="v2-goal-tag">{{ task.goal_name }}</span>

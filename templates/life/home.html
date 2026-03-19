@@ -115,8 +115,8 @@
                         </form>
                         <a href="{% url 'life:task_update' task.pk %}?next={{ request.path|urlencode }}" class="task-row-link">
                             <div class="task-content">
-                                {% if task.commitment_level == 'non_negotiable' %}
-                                <span class="task-commitment-badge task-commitment-nn">NN</span>
+                                {% if task.commitment_level == 'foundational' %}
+                                <span class="task-commitment-badge task-commitment-nn">F</span>
                                 {% endif %}
                                 <span class="task-title">{{ task.title }}</span>
                                 {% if task.project %}

@@ -224,16 +224,16 @@
                 </div>
             </div>
 
-            <!-- 6. Commitment Level -->
+            <!-- 6. Priority -->
             <div class="form-section">
                 <div class="form-group">
-                    <label for="id_commitment_level" class="form-label">Commitment Level</label>
+                    <label for="id_commitment_level" class="form-label">Priority</label>
                     <select name="commitment_level" id="id_commitment_level" class="form-select">
-                        <option value="optional" {% if form.commitment_level.value == 'optional' %}selected{% endif %}>Optional</option>
+                        <option value="foundational" {% if form.commitment_level.value == 'foundational' %}selected{% endif %}>Foundational</option>
                         <option value="important" {% if form.commitment_level.value == 'important' or not form.commitment_level.value %}selected{% endif %}>Important</option>
-                        <option value="non_negotiable" {% if form.commitment_level.value == 'non_negotiable' %}selected{% endif %}>Non-Negotiable</option>
+                        <option value="flexible" {% if form.commitment_level.value == 'flexible' %}selected{% endif %}>Flexible</option>
                     </select>
-                    <p class="form-help">Non-negotiable tasks trigger coaching if skipped repeatedly.</p>
+                    <p class="form-help">Foundational tasks trigger coaching if skipped repeatedly.</p>
                 </div>
             </div>
 

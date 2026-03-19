@@ -1983,6 +1983,9 @@ def build_medicine_state(user):
         expected_today = 0
         schedule_status = []
 
+        # Use centralized time classification (same as routines + tasks)
+        from apps.core.utils import classify_time_status
+
         for med in active_meds:
             for sched in med.schedules.filter(is_active=True):
                 if not sched.applies_to_day(weekday):
@@ -2000,11 +2003,13 @@ def build_medicine_state(user):
                 elif log and log.log_status == 'missed':
                     status = 'missed'
                     log_time = None
-                elif sched.scheduled_time and sched.scheduled_time > current_time:
-                    status = 'upcoming'
-                    log_time = None
                 else:
-                    status = 'overdue'
+                    # Centralized: classify_time_status handles grace-aware overdue
+                    ts = classify_time_status(
+                        user_today, sched.scheduled_time, user_now,
+                        grace_minutes=0,  # medications have no grace period yet
+                    )
+                    status = 'overdue' if ts['status'] == 'overdue' else 'upcoming'
                     log_time = None
 
                 schedule_status.append({
@@ -3036,7 +3041,9 @@ MODULE_BUILDERS = {
     "brain_training": build_brain_training_state,
     "medical": build_medical_state,
     "capture": build_capture_state,
-    "daily_execution_status": build_daily_execution_status,
+    # NOTE: daily_execution_status is DEPRECATED — subsumed by the 'execution'
+    # module which provides identical domain booleans in summaries.domains.
+    # Kept as function only for backward compat; NOT registered in MODULE_BUILDERS.
 }
 
 

@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — INTEGRITY: Execution Contract Audit + Fixes
+
+**Audit findings and fixes:**
+
+1. **Medication overdue logic unified** — `build_medicine_state()` was using ad-hoc `sched.scheduled_time > current_time` comparison instead of the centralized `classify_time_status()`. Now all three domains (tasks, routines, medications) use the same classifier. Medications pass `grace_minutes=0` since they have no grace period yet.
+   - File: `apps/core/ai_state/state_builder.py` (medication section)
+
+2. **`daily_execution_status` SAE module deprecated** — Its domain booleans (journal, workout, faith) are now provided by `execution.summaries.domains`. Removed from MODULE_BUILDERS to prevent parallel truth. Function retained for backward compat.
+   - File: `apps/core/ai_state/state_builder.py` (MODULE_BUILDERS dict)
+
+**Verified clean:**
+- Routine summaries derived from items (same data loop) ✅
+- Medication summaries derived from items (same data loop) ✅
+- Domain summaries use direct ORM (correct — no atomic items to derive from) ✅
+- No workout duplication in items (workout is summary-only, no atomic truth) ✅
+- `is_routine=True` tasks excluded from execution items (no routine duplication) ✅
+
+---
+
 ## 2026-03-19 — ARCHITECTURE: Authoritative Execution Contract
 
 **Problem:** Dashboard V2 and CoS assembled execution data independently — Dashboard from live ORM queries, CoS from SAE state snapshots — with duplicated normalization code (~300 lines across two files). This caused drift in completion truth, overdue status, and action recommendations.

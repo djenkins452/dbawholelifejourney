@@ -1706,7 +1706,27 @@ def build_task_state(user):
         _COMMIT_ORDER = {'non_negotiable': 0, 'important': 1, 'optional': 2}
         _PRIORITY_ORDER = {'now': 0, 'soon': 1, 'someday': 2}
 
-        def _serialize_task(t, overdue_reason=None):
+        def _classify_time_proximity(scheduled_time, _user_now):
+            """Classify task time proximity relative to now.
+
+            Returns: 'overdue', 'due_now', 'due_soon', 'later_today', or 'unscheduled'.
+            Uses real datetime comparison — no synthetic reference dates.
+            """
+            if scheduled_time is None:
+                return 'unscheduled'
+            from datetime import datetime as _dt
+            sched_dt = _dt.combine(_user_now.date(), scheduled_time)
+            now_dt = _dt.combine(_user_now.date(), _user_now.time())
+            delta_min = (sched_dt - now_dt).total_seconds() / 60
+            if delta_min < 0:
+                return 'overdue'  # safety fallback; these are normally in time_overdue bucket
+            elif delta_min <= 60:
+                return 'due_now'
+            elif delta_min <= 180:
+                return 'due_soon'
+            return 'later_today'
+
+        def _serialize_task(t, overdue_reason=None, time_proximity=None):
             """Serialize a Task into a JSON-safe dict for SAE state."""
             entry = {
                 'id': t.id,
@@ -1721,6 +1741,8 @@ def build_task_state(user):
             }
             if overdue_reason:
                 entry['overdue_reason'] = overdue_reason
+            if time_proximity:
+                entry['time_proximity'] = time_proximity
             return entry
 
         # ── OVERDUE: date-overdue OR time-overdue within today ──
@@ -1768,7 +1790,11 @@ def build_task_state(user):
 
         today_remaining.sort(key=_today_sort_key)
         state['due_today_tasks_detail'] = [
-            _serialize_task(t) for t in today_remaining
+            _serialize_task(
+                t,
+                time_proximity=_classify_time_proximity(t.scheduled_time, user_now),
+            )
+            for t in today_remaining
         ]
 
         # Legacy key (title list) — maintained for backward compat
@@ -1814,11 +1840,19 @@ def build_task_state(user):
         elif today_remaining:
             # Earliest scheduled or highest commitment today
             best_today = today_remaining[0]  # already sorted by _today_sort_key
-            if best_today.scheduled_time:
+            proximity = _classify_time_proximity(best_today.scheduled_time, user_now)
+            if proximity == 'due_now':
+                reason = 'due_now'
+            elif proximity == 'due_soon':
+                reason = 'due_soon'
+            elif best_today.scheduled_time:
                 reason = 'next_scheduled'
             else:
                 reason = 'highest_commitment'
-            next_up = {**_serialize_task(best_today), 'reason': reason}
+            next_up = {
+                **_serialize_task(best_today, time_proximity=proximity),
+                'reason': reason,
+            }
         else:
             # Fallback: pick from tomorrow or no-date
             for fallback_bucket in [
@@ -2281,6 +2315,84 @@ def build_routine_state(user):
         completeness='full' if state.get('total_routines', 0) > 0 else 'limited',
         confidence='high',
     )
+    return state
+
+
+# ── Daily Execution Status (Canonical Truth) ────────────────────
+
+
+def build_daily_execution_status(user):
+    """
+    Canonical boolean execution truth for today — per domain.
+
+    This is the SINGLE SOURCE OF TRUTH for whether a user has completed
+    specific activities today. Beth must NEVER infer completion from
+    streaks, aggregates, or patterns — only from this explicit state.
+
+    Returns dict with explicit booleans for each domain.
+    """
+    from apps.core.utils import get_user_today
+    user_today = get_user_today(user)
+    state = {}
+
+    try:
+        # Tasks: count of tasks completed today
+        from apps.life.models import Task
+        completed_tasks = Task.objects.filter(
+            user=user, completion_status='completed',
+            completed_at__date=user_today,
+        )
+        state['tasks_completed_today'] = completed_tasks.count()
+        state['completed_task_ids'] = list(
+            completed_tasks.values_list('id', flat=True)[:50]
+        )
+    except Exception:
+        state['tasks_completed_today'] = 0
+        state['completed_task_ids'] = []
+
+    try:
+        # Routines: IDs of completed routine items today
+        from apps.life.models import RoutineLog
+        state['completed_routine_item_ids'] = list(
+            RoutineLog.objects.filter(
+                schedule__routine__user=user,
+                scheduled_date=user_today,
+                log_status__in=('completed', 'completed_late'),
+            ).values_list('schedule_id', flat=True)[:50]
+        )
+    except Exception:
+        state['completed_routine_item_ids'] = []
+
+    try:
+        # Journal: explicit entry today
+        from apps.journal.models import JournalEntry
+        state['journal_completed'] = JournalEntry.objects.filter(
+            user=user, entry_date=user_today,
+        ).exists()
+    except Exception:
+        state['journal_completed'] = False
+
+    try:
+        # Workout: explicit session today
+        from apps.health.models import WorkoutSession
+        state['workout_completed'] = WorkoutSession.objects.filter(
+            user=user, date=user_today,
+        ).exclude(status='deleted').exists()
+    except Exception:
+        state['workout_completed'] = False
+
+    try:
+        # Faith: reuse canonical engagement check
+        from apps.faith.engagement import get_faith_engagement_details
+        faith = get_faith_engagement_details(user, user_today)
+        state['bible_reading_completed'] = faith.get('reading_completed_today', False)
+        state['prayer_completed'] = faith.get('faith_task_completed_today', False)
+        state['faith_engaged'] = faith.get('faith_engaged_today', False)
+    except Exception:
+        state['bible_reading_completed'] = False
+        state['prayer_completed'] = False
+        state['faith_engaged'] = False
+
     return state
 
 
@@ -2919,6 +3031,7 @@ MODULE_BUILDERS = {
     "brain_training": build_brain_training_state,
     "medical": build_medical_state,
     "capture": build_capture_state,
+    "daily_execution_status": build_daily_execution_status,
 }
 
 

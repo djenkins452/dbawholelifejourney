@@ -2835,6 +2835,8 @@ def _build_data_state_snapshot(user) -> str:
             'past_due_date': 'overdue — past due date',
             'missed_scheduled_time': 'overdue — missed scheduled time today',
             'next_scheduled': 'next scheduled task today',
+            'due_now': 'due within the next hour — act on this now',
+            'due_soon': 'due within the next few hours',
             'highest_commitment': 'highest-commitment task today',
             'fallback': 'next available task',
             'overdue': 'overdue',
@@ -2862,12 +2864,28 @@ def _build_data_state_snapshot(user) -> str:
         for title in _overdue_task_titles:
             lines.append(f"  - {title}")
 
-    # Today's remaining tasks
-    if _today_task_titles:
+    # Today's remaining tasks — grouped by time proximity
+    if _today:
         lines.append("")
         lines.append("TODAY'S TASKS (AUTHORITATIVE — due today, not yet overdue):")
-        for title in _today_task_titles:
-            lines.append(f"  - {title}")
+        _PROX_ORDER = ['due_now', 'due_soon', 'later_today', 'unscheduled']
+        _PROX_LABELS = {
+            'due_now': 'DUE NOW (within 1 hour)',
+            'due_soon': 'DUE SOON (within 3 hours)',
+            'later_today': 'LATER TODAY',
+            'unscheduled': 'UNSCHEDULED',
+        }
+        _by_prox = {}
+        for t in _today:
+            prox = t.get('time_proximity', 'unscheduled')
+            _by_prox.setdefault(prox, []).append(t)
+        for prox_key in _PROX_ORDER:
+            tasks_in_group = _by_prox.get(prox_key, [])
+            if tasks_in_group:
+                lines.append(f"  [{_PROX_LABELS.get(prox_key, prox_key)}]")
+                for t in tasks_in_group[:10]:
+                    time_str = f" @{t['scheduled_time']}" if t.get('scheduled_time') else ""
+                    lines.append(f"    - (id:{t['id']}) {t['title']}{time_str}")
 
     # All active tasks for entity grounding
     active_count = counts.get('active_tasks', 0)
@@ -2885,6 +2903,11 @@ def _build_data_state_snapshot(user) -> str:
     lines.append(
         "TASK TIME-HORIZON RULES:\n"
         "  • For daily check-ins: lead with NEXT UP task, then overdue, then today.\n"
+        "  • TIME PROXIMITY RULE (STRICT): Within the same importance tier,\n"
+        "    ALWAYS recommend DUE NOW tasks before DUE SOON, and DUE SOON before LATER TODAY.\n"
+        "    NEVER recommend a LATER TODAY task as the next action when DUE NOW or DUE SOON tasks exist,\n"
+        "    unless the user explicitly asks about it.\n"
+        "  • A task scheduled within 60 minutes is DUE NOW — treat it as time-urgent.\n"
         "  • Do NOT proactively mention tomorrow or future tasks unless the user asks.\n"
         "  • When the user asks about planning or 'what's coming up', you MAY include tomorrow/future.\n"
         "  • NEVER infer or reconstruct task names from conversation history."
@@ -2918,6 +2941,42 @@ def _build_data_state_snapshot(user) -> str:
             "These are tasks the user considers essential. Approach with supportive coaching, "
             "not judgment. Ask what's blocking them if they bring it up."
         )
+
+    # ── Daily Execution Status (canonical truth) ──
+    # Explicit boolean completion state — Beth must NEVER infer completion.
+    try:
+        from apps.core.ai_state.state_engine import get_module_state as _get_mod_state
+        _exec = _get_mod_state(user, 'daily_execution_status') or {}
+    except Exception:
+        _exec = {}
+
+    lines.append("")
+    lines.append("DAILY EXECUTION STATUS (AUTHORITATIVE — today only):")
+    _exec_domains = [
+        ('journal', _exec.get('journal_completed', False)),
+        ('workout', _exec.get('workout_completed', False)),
+        ('bible_reading', _exec.get('bible_reading_completed', False)),
+        ('prayer', _exec.get('prayer_completed', False)),
+    ]
+    for domain_name, done in _exec_domains:
+        lines.append(f"  {domain_name}: {'DONE' if done else 'NOT DONE'}")
+    lines.append(f"  tasks_completed_today: {_exec.get('tasks_completed_today', 0)}")
+
+    lines.append("")
+    lines.append(
+        "EXECUTION TRUTH RULE (NON-NEGOTIABLE):\n"
+        "  • NEVER state or imply a task, routine, or habit is complete unless\n"
+        "    explicitly marked DONE above or in the completed-tasks list.\n"
+        "  • Do NOT infer completion from streaks, patterns, weekly aggregates,\n"
+        "    or historical consistency.\n"
+        "  • If no completion record exists → it is NOT DONE.\n"
+        "  • Absence of evidence = NOT DONE (never infer).\n"
+        "\n"
+        "ROUTINE COMPLETION RULE:\n"
+        "  • A routine is ONLY complete if ALL items are complete today.\n"
+        "  • Partial completion must be stated explicitly.\n"
+        "  • Never summarize routine completion without checking all items."
+    )
 
     # ── Unified Action Priorities (shared decision engine) ──
     # Same prioritizer as the dashboard Action Center — ensures Beth

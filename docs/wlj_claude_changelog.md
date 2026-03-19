@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-19 — FEATURE: Execution Truth + Time-Aware Task Prioritization
+
+**Problems:**
+1. Beth hallucinated task completion — inferred from streaks/aggregates instead of checking explicit today-records
+2. Beth ignored time proximity — recommended 8:30 PM journal instead of 5:30 AM prayer
+
+**Changes:**
+1. **`build_daily_execution_status()`** — New canonical truth builder providing explicit boolean completion state for journal, workout, bible_reading, prayer, and task counts. Registered in MODULE_BUILDERS as `daily_execution_status`.
+2. **Time proximity classification** — `_classify_time_proximity()` classifies today-tasks as `due_now` (≤60min), `due_soon` (≤3hr), `later_today`, or `unscheduled`. Added to `_serialize_task()` and next_up reason.
+3. **CoS context** — Today's tasks now grouped by proximity with headers. Added DAILY EXECUTION STATUS block, EXECUTION TRUTH RULE, and ROUTINE COMPLETION RULE. Updated TIME-HORIZON RULES with time proximity enforcement.
+4. **Beth's prompt** — Added TIME PROXIMITY TIEBREAKER to priority hierarchy. Added time-aware recommendation example.
+5. **Pre-existing test fixes** — Updated stale test assertions in `test_data_state_snapshot.py`.
+
+**Files changed:**
+- `apps/core/ai_state/state_builder.py` — time proximity, daily execution status, MODULE_BUILDERS registration
+- `apps/core/ai_orchestrator/cos_context.py` — proximity grouping, execution truth block, rules
+- `apps/ai/personal_assistant.py` — priority tiebreaker, example
+- `apps/core/ai_orchestrator/tests/test_data_state_snapshot.py` — test fix
+
+---
+
 ## 2026-03-19 — FIX: Repair Existing Routines with is_active=False (Data Migration)
 
 **Problem:** Routines created before the code fix still have `is_active=False` in the production database. The code fix only applies to NEW routines — existing ones need a data repair.

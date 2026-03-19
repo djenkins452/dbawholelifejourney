@@ -74,7 +74,7 @@ class DataStateSnapshotCompletedTasksTest(TestCase):
 
         snapshot = _build_data_state_snapshot(self.user)
 
-        self.assertIn("COMPLETED TASKS TODAY", snapshot)
+        self.assertIn("COMPLETED TODAY", snapshot)
         self.assertIn("Morning Workout", snapshot)
         self.assertIn("Review Budget", snapshot)
         self.assertIn("completed_tasks_today: 2", snapshot)
@@ -87,7 +87,8 @@ class DataStateSnapshotCompletedTasksTest(TestCase):
 
         snapshot = _build_data_state_snapshot(self.user)
 
-        self.assertIn("TASK NAME GROUNDING RULE", snapshot)
+        # Execution truth rules prevent Beth from inferring completion
+        self.assertIn("EXECUTION TRUTH RULE", snapshot)
         self.assertIn("NEVER infer", snapshot)
 
     def test_snapshot_no_titles_section_when_zero_completed(self):

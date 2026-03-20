@@ -81,6 +81,10 @@ COACHING_STYLE_TEMPLATES = {
         'routine_still_outstanding': "{item_name} still outstanding today.",
         'routine_last_chance': "{item_name} — last window today. Do it now or skip?",
         'routine_moved_multiple': "{item_name} has been moved a couple times today. Want to lock it in now?",
+        # Escalation ladder: pre-nudge, due-now, ask-if-completed
+        'routine_pre_nudge': "{item_name} starts in {minutes} minutes.",
+        'routine_due_now': "Start {item_name} now — this is your current focus.",
+        'routine_ask_if_completed': "Did you finish {item_name}? Mark it complete if so. If not, want to reschedule?",
     },
     'southern_belle': {
         'missed_med': "Sugar, looks like your {time} {medicine} wasn't marked yet. Did you take it, or want me to mark it skipped?",
@@ -116,6 +120,9 @@ COACHING_STYLE_TEMPLATES = {
         'routine_still_outstanding': "{item_name} still waitin' on you today, dear.",
         'routine_last_chance': "{item_name} — last chance today, sugar. Do it now or skip?",
         'routine_moved_multiple': "{item_name} has been moved a couple times today, hon. Want to lock it in now?",
+        'routine_pre_nudge': "{item_name} starts in {minutes} minutes, hon.",
+        'routine_due_now': "Time for {item_name}, sugar. This is your focus right now.",
+        'routine_ask_if_completed': "Did you get {item_name} done, dear? Mark it complete if so. If not, want to reschedule?",
     },
     'new_yorker': {
         'missed_med': "{time} {medicine} - not marked. Took it or no?",
@@ -151,6 +158,9 @@ COACHING_STYLE_TEMPLATES = {
         'routine_still_outstanding': "{item_name} still open today.",
         'routine_last_chance': "{item_name} — last call. Now or never.",
         'routine_moved_multiple': "{item_name} — moved a couple times. Locking it in or what?",
+        'routine_pre_nudge': "{item_name} — {minutes} min out.",
+        'routine_due_now': "{item_name} — now. Go.",
+        'routine_ask_if_completed': "{item_name} — done or not?",
     },
     'california': {
         'missed_med': "Hey, your {time} {medicine} isn't marked yet. Did you take it, or want me to skip it?",
@@ -186,6 +196,9 @@ COACHING_STYLE_TEMPLATES = {
         'routine_still_outstanding': "{item_name} still outstanding today.",
         'routine_last_chance': "{item_name} — last window today. Gonna do it or skip?",
         'routine_moved_multiple': "{item_name} has been moved a couple times today. Wanna lock it in now?",
+        'routine_pre_nudge': "Heads up — {item_name} in {minutes} minutes.",
+        'routine_due_now': "Time to start {item_name} — this is your focus right now.",
+        'routine_ask_if_completed': "Did you finish {item_name}? If so, mark it complete. If not, wanna reschedule?",
     },
 }
 

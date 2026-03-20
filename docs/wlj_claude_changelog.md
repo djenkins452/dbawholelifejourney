@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — Feature: Beth Final Nudge Polish — 3-Stage Proactive Escalation Ladder
+
+- **Feature:** Added 3-stage proactive escalation ladder (pre-nudge → due-now → post-grace follow-up) for routine items
+  - Stage 1 (Pre-Nudge): Fires 0-15 min before scheduled time with gentle heads-up
+  - Stage 2 (Due-Now): Fires 0-10 min after scheduled time; context-aware — asks if completed when recent conversation suggests engagement
+  - Stage 3 (Post-Grace Follow-Up): Extended existing routine_recovery with conversation context awareness before assuming a miss
+  - Files: `apps/ai/proactive_checkins.py`, `apps/ai/assistant_intelligence.py`, `apps/ai/quick_reply_handlers.py`
+- **Feature:** Context-aware conversation matching with domain/alias keyword map (faith, health, journal, life domains)
+  - Files: `apps/ai/proactive_checkins.py`
+- **Feature:** CoS tone guardrails — banned system phrases, preferred human phrasing, capped goal-linked coaching directive
+  - Files: `apps/core/ai_orchestrator/cos_context.py`
+- **Feature:** 3 new question-type response modes: `completed_query`, `remaining_query` (separated into due/upcoming/flexible groups), `current_focus`
+  - Files: `apps/core/ai_orchestrator/cos_context.py`
+
+---
+
 ## 2026-03-20 — FEATURE: Workout UX + Exercise Intelligence Upgrade
 
 **What changed:**

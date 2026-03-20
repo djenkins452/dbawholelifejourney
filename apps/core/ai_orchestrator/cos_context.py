@@ -4847,7 +4847,7 @@ def format_cos_system_injection(context, user_message=None):
             _msg_low = user_message.lower()
             _has_decision = any(kw in _msg_low for kw in _decision_keywords)
         _inject_cognitive = (
-            activation_state_check != ACTIVATION_CLEAN
+            activation_state_check == ACTIVATION_CLEAN
             or _has_decision
         )
     if _inject_cognitive:

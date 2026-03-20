@@ -15,7 +15,7 @@ Usage in pipeline code:
     result = classify_and_route(msg, user)
     trace.end('ROUTER_CLASSIFICATION')
     ...
-    trace.set_meta('model', 'gpt-4o')
+    trace.set_meta('model', settings.OPENAI_MODEL)
     trace.set_meta('prompt_tokens', 6120)
     ...
     trace.report()  # Logs structured report + persists to DB

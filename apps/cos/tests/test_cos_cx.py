@@ -51,7 +51,7 @@ class SpecificityBlockTests(TestCase):
 
     def setUp(self):
         self.user = _create_test_user("cx1@example.com")
-        self.now = timezone.now()
+        self.now = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
 
     def test_empty_when_no_data(self):
         """Returns empty string when user has no tasks/events/meds/goals."""
@@ -165,7 +165,7 @@ class LeadSignalPrioritizerTests(TestCase):
 
     def setUp(self):
         self.user = _create_test_user("cx2@example.com")
-        self.now = timezone.now()
+        self.now = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
 
     def test_empty_when_no_signals(self):
         """Returns empty string when nothing is urgent."""
@@ -241,7 +241,7 @@ class GoalGapAnalyzerTests(TestCase):
 
     def setUp(self):
         self.user = _create_test_user("cx3@example.com")
-        self.now = timezone.now()
+        self.now = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
 
     def test_empty_when_no_goals(self):
         """Returns empty list when user has no active goals."""
@@ -367,7 +367,7 @@ class TemporalMatcherTests(TestCase):
     def setUp(self):
         self.user = _create_test_user("cx4@example.com")
         # Use a morning time so there's room for windows
-        self.now = timezone.now().replace(hour=9, minute=0, second=0, microsecond=0)
+        self.now = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0).replace(hour=9, minute=0, second=0, microsecond=0)
 
     def test_empty_when_no_tasks(self):
         """Returns empty string when user has no overdue/due tasks."""
@@ -458,7 +458,7 @@ class DiagnosticContextTests(TestCase):
 
     def setUp(self):
         self.user = _create_test_user("cx5@example.com")
-        self.now = timezone.now()
+        self.now = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
 
     def test_trigger_detection_positive(self):
         """Detects diagnostic trigger phrases."""
@@ -523,7 +523,7 @@ class BehaviorForecastTests(TestCase):
 
     def setUp(self):
         self.user = _create_test_user("cx6@example.com")
-        self.now = timezone.now()
+        self.now = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
 
     def test_returns_forecast_for_new_user(self):
         """New user with no behavior data gets 0% forecast (history shows no completions)."""

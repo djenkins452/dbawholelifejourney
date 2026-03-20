@@ -333,7 +333,7 @@ def _call_openai(email_dict):
         f"\n--- Email Content ---\n{body}"
     )
 
-    model = getattr(settings, 'OPENAI_FACT_EXTRACTION_MODEL', 'gpt-4o-mini')
+    model = getattr(settings, 'OPENAI_FACT_EXTRACTION_MODEL', settings.OPENAI_MINI_MODEL)
 
     try:
         response = client.chat.completions.create(

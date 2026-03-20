@@ -8,7 +8,7 @@ Path: apps/core/ai_cross_domain/tests.py
 import datetime
 from unittest.mock import MagicMock, patch
 
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 
 from apps.users.models import User
@@ -502,13 +502,22 @@ class CDCESchedulerRunnerTests(TestCase):
         self.assertEqual(result["errors"], 0)
 
 
-class CDCEContextInjectionTests(TestCase):
+class CDCEContextInjectionTests(TransactionTestCase):
     """Tests for CDCE output wiring into CoS context."""
 
     def setUp(self):
+        from django.conf import settings
+        from apps.users.models import TermsAcceptance
+
         self.user = User.objects.create_user(
             email="cdce-ctx@test.com", password="testpass123",
         )
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
+        )
+        self.user.preferences.has_completed_onboarding = True
+        self.user.preferences.save()
 
     def test_correlation_appears_in_context(self):
         """Active correlations are included in build_cos_context."""
@@ -560,7 +569,7 @@ class CDCEContextInjectionTests(TestCase):
         context = build_cos_context(self.user)
         injection = format_cos_system_injection(context)
         self.assertIn("CROSS-DOMAIN PATTERNS", injection)
-        self.assertIn("[Strong]", injection)
+        self.assertIn("[STRONG]", injection)
         self.assertIn("6.5h", injection)
 
     def test_no_correlations_no_block(self):
@@ -572,4 +581,4 @@ class CDCEContextInjectionTests(TestCase):
 
         context = build_cos_context(self.user)
         injection = format_cos_system_injection(context)
-        self.assertNotIn("CROSS-DOMAIN PATTERNS", injection)
+        self.assertNotIn("CROSS-DOMAIN PATTERNS (CDCE):", injection)

@@ -7,6 +7,7 @@ Path: apps/ai/tests/test_web_search.py
 
 from unittest.mock import MagicMock, patch
 
+from django.conf import settings
 from django.test import TestCase
 
 
@@ -136,7 +137,7 @@ class GeneralKnowledgeTests(TestCase):
 
         # Verify the call used gpt-4o-mini and low temperature
         call_kwargs = mock_client.chat.completions.create.call_args[1]
-        self.assertEqual(call_kwargs["model"], "gpt-4o-mini")
+        self.assertEqual(call_kwargs["model"], settings.OPENAI_MODEL)
         self.assertEqual(call_kwargs["temperature"], 0.3)
 
     @patch("openai.OpenAI")

@@ -64,6 +64,7 @@ except ImportError:
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o')
 OPENAI_VISION_MODEL = os.environ.get('OPENAI_VISION_MODEL', 'gpt-4o')
+OPENAI_MINI_MODEL = os.environ.get('OPENAI_MINI_MODEL', 'gpt-4o-mini')
 # CoS assistant uses gpt-4o regardless of the default model — quality matters here.
 COS_MODEL = os.environ.get('COS_MODEL', 'gpt-4o')
 

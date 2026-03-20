@@ -6,6 +6,30 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — ENHANCE: Reschedule Awareness + Latest-Time Clarity (no restrictions)
+
+**Objective:** Track reschedule count for coaching awareness without penalties or restrictions. Ensure last-reschedule-wins, Beth acknowledges repeated moves gently.
+
+**Changes:**
+1. **reschedule_count field** — Added `PositiveSmallIntegerField` to RoutineLog. Incremented on each reschedule call. No max limit — user explicitly wants unlimited reschedules.
+2. **Removed max-1 reschedule guard** — `reschedule_routine_item()` now allows unlimited same-day reschedules. Each call overwrites `rescheduled_time` (last-reschedule-wins) and increments `reschedule_count`.
+3. **CoS coaching annotation** — Items rescheduled 2+ times show `(moved Nx today)` in execution status. Added gentle coaching rule: "MAY note it, MUST NOT scold or penalize."
+4. **Proactive check-in awareness** — When `reschedule_count >= 2`, proactive nudges use `routine_moved_multiple` template instead of tier-based templates.
+5. **Style templates** — Added `routine_moved_multiple` to all 4 coaching styles (default, southern_belle, new_yorker, california).
+6. **Internal state propagation** — `_routine_internal.py` reads `reschedule_count` from log, propagates through entry dict → execution contract → CoS.
+
+**Files changed:**
+- `apps/life/models.py` — `reschedule_count` field on RoutineLog
+- `apps/life/migrations/0040_routine_log_reschedule_count.py` — NEW migration
+- `apps/life/services/routine_helpers.py` — removed max-1 guard, increment `reschedule_count`
+- `apps/life/services/_routine_internal.py` — propagate `reschedule_count` from log to entry
+- `apps/core/execution/today_execution.py` — `reschedule_count` in ExecutionItem dict
+- `apps/core/ai_orchestrator/cos_context.py` — `(moved Nx today)` annotation + coaching rule
+- `apps/ai/proactive_checkins.py` — template selection for `reschedule_count >= 2`
+- `apps/ai/assistant_intelligence.py` — `routine_moved_multiple` template in all 4 styles
+
+---
+
 ## 2026-03-20 — HARDEN: Routine Recovery Final Hardening (closure + reschedule guard + nudge control + tone)
 
 **Objective:** Finalize routine recovery behavior to prevent drift, abuse, and poor coaching.

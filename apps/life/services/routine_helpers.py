@@ -372,9 +372,12 @@ def reschedule_routine_item(user, schedule, target_date, new_time):
         existing_log.log_status = 'rescheduled'
         existing_log.rescheduled_time = new_time
         existing_log.completed_at = None
+        existing_log.reschedule_count = (existing_log.reschedule_count or 0) + 1
         existing_log.save(update_fields=[
-            'log_status', 'rescheduled_time', 'completed_at', 'updated_at',
+            'log_status', 'rescheduled_time', 'completed_at',
+            'reschedule_count', 'updated_at',
         ])
+        count = existing_log.reschedule_count
     else:
         # Create new rescheduled log
         RoutineLog.objects.create(
@@ -384,12 +387,15 @@ def reschedule_routine_item(user, schedule, target_date, new_time):
             log_status='rescheduled',
             rescheduled_time=new_time,
             completed_at=None,
+            reschedule_count=1,
         )
+        count = 1
 
     formatted_time = new_time.strftime('%I:%M %p').lstrip('0')
     return {
         'success': True,
         'status': 'rescheduled',
         'rescheduled_time': formatted_time,
+        'reschedule_count': count,
         'item_name': schedule.name,
     }

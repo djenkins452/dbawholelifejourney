@@ -2607,6 +2607,10 @@ class RoutineLog(UserOwnedModel):
         blank=True,
         help_text="Override time for same-day reschedule (log-level only, never modifies template)",
     )
+    reschedule_count = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Number of times this item was rescheduled today (awareness only, no penalty)",
+    )
     is_user_corrected = models.BooleanField(
         default=False,
         help_text="True when user has manually edited a past log",

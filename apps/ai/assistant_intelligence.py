@@ -80,6 +80,7 @@ COACHING_STYLE_TEMPLATES = {
         'routine_missed_window': "Your {item_name} window has passed. Want to reschedule for later today?",
         'routine_still_outstanding': "{item_name} still outstanding today.",
         'routine_last_chance': "{item_name} — last window today. Do it now or skip?",
+        'routine_moved_multiple': "{item_name} has been moved a couple times today. Want to lock it in now?",
     },
     'southern_belle': {
         'missed_med': "Sugar, looks like your {time} {medicine} wasn't marked yet. Did you take it, or want me to mark it skipped?",
@@ -114,6 +115,7 @@ COACHING_STYLE_TEMPLATES = {
         'routine_missed_window': "Your {item_name} window has passed, hon. Want to reschedule for later today?",
         'routine_still_outstanding': "{item_name} still waitin' on you today, dear.",
         'routine_last_chance': "{item_name} — last chance today, sugar. Do it now or skip?",
+        'routine_moved_multiple': "{item_name} has been moved a couple times today, hon. Want to lock it in now?",
     },
     'new_yorker': {
         'missed_med': "{time} {medicine} - not marked. Took it or no?",
@@ -148,6 +150,7 @@ COACHING_STYLE_TEMPLATES = {
         'routine_missed_window': "{item_name} window passed. Reschedule or skip?",
         'routine_still_outstanding': "{item_name} still open today.",
         'routine_last_chance': "{item_name} — last call. Now or never.",
+        'routine_moved_multiple': "{item_name} — moved a couple times. Locking it in or what?",
     },
     'california': {
         'missed_med': "Hey, your {time} {medicine} isn't marked yet. Did you take it, or want me to skip it?",
@@ -182,6 +185,7 @@ COACHING_STYLE_TEMPLATES = {
         'routine_missed_window': "Your {item_name} window passed. Wanna reschedule for later today?",
         'routine_still_outstanding': "{item_name} still outstanding today.",
         'routine_last_chance': "{item_name} — last window today. Gonna do it or skip?",
+        'routine_moved_multiple': "{item_name} has been moved a couple times today. Wanna lock it in now?",
     },
 }
 

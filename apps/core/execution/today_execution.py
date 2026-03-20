@@ -216,6 +216,7 @@ def _collect_routine_items(user, user_now, user_today):
                 'is_actionable': status in ('pending', 'missed', 'overdue', 'rescheduled'),
                 'is_foundational': importance == 'foundational',
                 'rescheduled_time': rescheduled_time_str,
+                'reschedule_count': item.get('reschedule_count', 0),
                 'toggle_url': reverse(
                     'life:routine_toggle'
                 ),

@@ -3010,9 +3010,14 @@ def _build_data_state_snapshot(user) -> str:
                 _ri_status = ri.get('completion_status', 'pending').upper()
                 _ri_parent = ri.get('parent_title', '')
                 _ri_resched = ri.get('rescheduled_time')
+                _ri_resched_count = ri.get('reschedule_count', 0) or 0
                 if _ri_resched and _ri_status == 'RESCHEDULED':
+                    _count_note = (
+                        f" (moved {_ri_resched_count}x today)"
+                        if _ri_resched_count >= 2 else ""
+                    )
                     lines.append(
-                        f"    [RESCHEDULED \u2192 {ri.get('scheduled_time', '')}] "
+                        f"    [RESCHEDULED \u2192 {ri.get('scheduled_time', '')}{_count_note}] "
                         f"{ri.get('title', '')} ({_ri_parent})"
                     )
                 else:
@@ -3052,6 +3057,9 @@ def _build_data_state_snapshot(user) -> str:
         "  • When items are late, say '{item_name} is still outstanding' — not 'missed'.\n"
         "  • When items are rescheduled, say '{item_name} is rescheduled for {time} today'.\n"
         "  • Rescheduled items are NOT complete and NOT missed — they are pending at the new time.\n"
+        "  • If an item shows '(moved 2x today)' or more, you MAY gently note it:\n"
+        "    'I see you've moved this a couple times — want to lock it in now?'\n"
+        "    Do NOT scold or penalize. Keep it supportive and brief.\n"
         "  • Never say 'your routine is complete' unless ALL items show as completed.\n"
         "  • NEVER fall back to other data sources for routine/medication truth.\n"
         "    The execution contract above is the ONLY source."

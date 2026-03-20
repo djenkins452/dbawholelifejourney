@@ -968,14 +968,21 @@ class ProactiveCheckInService:
             return None
 
         # Select template based on tier
-        template_map = {
-            'tier1': 'routine_missed_window',
-            'tier2': 'routine_still_outstanding',
-            'tier3': 'routine_last_chance',
-        }
-        template_key = template_map.get(tier, 'routine_missed_window')
+        reschedule_count = item.get('reschedule_count', 0) or 0
+        if reschedule_count >= 2:
+            # Item has been moved multiple times — use gentler "lock it in" tone
+            template_key = 'routine_moved_multiple'
+        else:
+            template_map = {
+                'tier1': 'routine_missed_window',
+                'tier2': 'routine_still_outstanding',
+                'tier3': 'routine_last_chance',
+            }
+            template_key = template_map.get(tier, 'routine_missed_window')
         template = get_style_template(self.user, template_key)
-        message_content = template.format(item_name=item_name)
+        message_content = template.format(
+            item_name=item_name, count=reschedule_count,
+        )
 
         from apps.ai.quick_reply_handlers import generate_routine_recovery_replies
         quick_replies = generate_routine_recovery_replies(

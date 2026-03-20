@@ -90,6 +90,8 @@ def get_todays_routine_items(user):
         display_time = item.scheduled_time  # may be overridden by reschedule
         rescheduled_time = None
 
+        reschedule_count = 0
+
         if log:
             if log.log_status in ('completed', 'completed_late'):
                 status = 'completed'
@@ -101,6 +103,7 @@ def get_todays_routine_items(user):
                 # actionable until day close (never auto-missed same-day)
                 rescheduled_time = getattr(log, 'rescheduled_time', None)
                 display_time = rescheduled_time or item.scheduled_time
+                reschedule_count = getattr(log, 'reschedule_count', 0) or 0
                 status = 'rescheduled'
             else:
                 status = 'pending'
@@ -135,6 +138,7 @@ def get_todays_routine_items(user):
             'time_of_day': routine.time_of_day,
             'status': status,
             'is_completed': status == 'completed',
+            'reschedule_count': reschedule_count,
         }
 
         window = routine.time_of_day or 'other'

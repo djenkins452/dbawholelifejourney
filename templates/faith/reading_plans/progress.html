@@ -1244,10 +1244,10 @@ document.addEventListener('DOMContentLoaded', function() {
         'revelation': 'REV', 'rev': 'REV'
     };
 
-    // Parse scripture reference like "Matthew 6:28-32" or "Genesis 1:1"
+    // Parse scripture reference like "Matthew 6:28-32", "Genesis 1:1", or "Jonah 1-4"
     function parseScriptureRef(reference) {
-        // Match patterns like "Luke 18:1-8", "2 Timothy 1:7", "Genesis 1", "Proverbs 3:5-6"
-        const match = reference.match(/^(\d?\s*[A-Za-z]+(?:\s+of\s+[A-Za-z]+)?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/i);
+        // Match patterns like "Luke 18:1-8", "2 Timothy 1:7", "Genesis 1", "Proverbs 3:5-6", "Jonah 1-4"
+        const match = reference.match(/^(\d?\s*[A-Za-z]+(?:\s+of\s+[A-Za-z]+)?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?(?:-(\d+))?$/i);
         if (!match) return null;
 
         const bookName = match[1].trim().toLowerCase();
@@ -1258,14 +1258,19 @@ document.addEventListener('DOMContentLoaded', function() {
             bookId: bookId,
             chapter: parseInt(match[2]),
             verseStart: match[3] ? parseInt(match[3]) : null,
-            verseEnd: match[4] ? parseInt(match[4]) : null
+            verseEnd: match[4] ? parseInt(match[4]) : null,
+            chapterEnd: match[5] ? parseInt(match[5]) : null
         };
     }
 
     // Build passage ID for API
     // USFM format: BOOK.CHAPTER.VERSE or BOOK.CHAPTER.VERSE_START-VERSE_END
+    // Chapter ranges: BOOK.CHAPTER_START-BOOK.CHAPTER_END
     function buildPassageId(parsed) {
         const base = `${parsed.bookId}.${parsed.chapter}`;
+        if (parsed.chapterEnd) {
+            return `${base}-${parsed.bookId}.${parsed.chapterEnd}`; // Chapter range (e.g., JON.1-JON.4)
+        }
         if (!parsed.verseStart) {
             return base; // Whole chapter
         }

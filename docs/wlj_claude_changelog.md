@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — FIX: Scripture parsing fails for chapter ranges (e.g., "Jonah 1-4")
+
+**Problem:** Reading plan progress page could not parse chapter-range scripture references like "Jonah 1-4". The `parseScriptureRef()` regex only handled `Book Chapter:Verse-Verse` format, not `Book ChapterStart-ChapterEnd`. This caused "Could not parse" errors while verse-range references like "Matthew 12:38-41" worked fine.
+
+**Fix:** Updated regex in `parseScriptureRef()` to capture an optional chapter-end group (`(?:-(\d+))?$`), and updated `buildPassageId()` to emit the correct USFM chapter-range format (`BOOK.START-BOOK.END`).
+
+**Files:** `templates/faith/reading_plans/progress.html`
+
+---
+
 ## 2026-03-20 — FIX: CI test suite — resolve remaining failures (round 2)
 
 **Problem:** CI had 38 failures and 12 errors after first round of fixes. Root causes: stale test assertions, runtime config leaking into tests, orphaned 'notes' module, model guard scanning worktrees, missing prompt parameter, cache config inconsistency.

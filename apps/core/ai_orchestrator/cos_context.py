@@ -5232,6 +5232,82 @@ def format_cos_system_injection(context, user_message=None):
             _exec_lines.append("  DONE means SATISFIED — do not re-prescribe (e.g., prayer DONE → no prayer suggestion).")
             _exec_lines.append("- 7-day aggregates and streaks do NOT override today's status.")
 
+            # ── DOMAIN STATE CLASSIFICATION ──
+            # Classify each domain as ACTIONABLE / SATISFIED / IRRELEVANT
+            # so Beth knows which mode to operate in per-domain.
+            _domain_states = {}
+            _r_satisfied = r.get('done', 0) >= r.get('total', 0) and r.get('total', 0) > 0
+            _domain_states['routines'] = 'SATISFIED' if _r_satisfied else ('ACTIONABLE' if r.get('total', 0) > 0 else 'IRRELEVANT')
+            _domain_states['medicine'] = 'SATISFIED' if (m.get('done', 0) >= m.get('total', 0) and m.get('total', 0) > 0) else ('ACTIONABLE' if m.get('total', 0) > 0 else 'IRRELEVANT')
+            _domain_states['tasks'] = 'SATISFIED' if (t.get('done', 0) >= t.get('total', 0) and t.get('total', 0) > 0) else ('ACTIONABLE' if t.get('total', 0) > 0 else 'IRRELEVANT')
+            _domain_states['workout'] = 'SATISFIED' if w.get('done') else 'ACTIONABLE'
+            _domain_states['journaling'] = 'SATISFIED' if j.get('done') else 'ACTIONABLE'
+            _domain_states['faith'] = 'SATISFIED' if f.get('done') else 'ACTIONABLE'
+
+            _exec_lines.append("")
+            _exec_lines.append("DOMAIN STATE CLASSIFICATION:")
+            for _ds_name, _ds_state in _domain_states.items():
+                _exec_lines.append(f"  {_ds_name}: {_ds_state}")
+
+            _has_actionable = any(v == 'ACTIONABLE' for v in _domain_states.values())
+            _satisfied_domains = [k for k, v in _domain_states.items() if v == 'SATISFIED']
+
+            _exec_lines.append("")
+            if _has_actionable:
+                _exec_lines.append("RESPONSE MODE: ACTION")
+                _exec_lines.append("  Primary recommendations MUST come from action priorities list.")
+                _exec_lines.append("  SATISFIED domains may receive reinforcement (not action) if a signal justifies it.")
+            else:
+                _exec_lines.append("RESPONSE MODE: REINFORCEMENT")
+                _exec_lines.append("  All domains satisfied. No new actions to recommend.")
+                _exec_lines.append("  Focus on meaning, encouragement, or reflection.")
+                _exec_lines.append("  Scripture reinforcement is permitted if a meaningful signal exists.")
+
+            # ── SCRIPTURE REINFORCEMENT (signal-driven, SATISFIED domains only) ──
+            # When a domain is SATISFIED but a meaningful signal exists,
+            # provide a relevant scripture verse for reinforcement — NOT as an action.
+            _reinforce_contexts = []
+            try:
+                _emo_state = context.get('emotion_state', {})
+                _stress_sc = context.get('stress_score')
+                _stress_sig = _emo_state.get('stress_signals', 0)
+                _positive_sig = _emo_state.get('positive_signals', 0)
+
+                # Map active signals to scripture context tags
+                if _stress_sig >= 2 or (_stress_sc and isinstance(_stress_sc, dict) and _stress_sc.get('score', 0) > 0.3):
+                    _reinforce_contexts.extend(['anxiety', 'worry', 'stress', 'burden'])
+                _mood_status = context.get('mood_status', {})
+                if _mood_status.get('trend') == 'declining':
+                    _reinforce_contexts.extend(['sadness', 'difficulty', 'heartbreak', 'discouragement'])
+                if _positive_sig >= 5:
+                    _reinforce_contexts.extend(['gratitude', 'growth', 'daily life'])
+
+                # Only inject scripture if: (a) signal exists AND (b) at least one domain SATISFIED
+                if _reinforce_contexts and _satisfied_domains:
+                    from apps.faith.models import ScriptureVerse
+                    from django.db.models import Q as _SQ
+                    _ctx_q = _SQ()
+                    for _rc in _reinforce_contexts[:4]:
+                        _ctx_q |= _SQ(contexts__contains=[_rc])
+                    _verses = list(
+                        ScriptureVerse.objects.filter(
+                            _ctx_q, is_active=True,
+                        ).order_by('?')[:2]
+                    )
+                    if _verses:
+                        _exec_lines.append("")
+                        _exec_lines.append("SCRIPTURE REINFORCEMENT (signal-driven — use for SATISFIED domains ONLY):")
+                        _exec_lines.append("  These verses match the user's current emotional signals.")
+                        _exec_lines.append("  Use ONLY for reinforcement, NOT as an action recommendation.")
+                        _exec_lines.append("  Rules: Quote exactly. Include reference. No sermonizing.")
+                        _exec_lines.append("  Maximum: ONE verse per response. Do NOT force it — only if the moment warrants it.")
+                        for _sv in _verses:
+                            _exec_lines.append(f"  → \"{_sv.text}\" — {_sv.reference}")
+            except ImportError:
+                pass  # ScriptureVerse not available
+            except Exception:
+                pass  # Scripture reinforcement must never break CoS
+
             lines.extend(_exec_lines)
         except Exception:
             pass  # Execution status must never break CoS
@@ -5263,9 +5339,17 @@ def format_cos_system_injection(context, user_message=None):
         "   - The action is explicitly repeatable (hydration, meds at different times)\n"
         "   - OR a NEW trigger signal exists (e.g., stress spike after prayer)\n"
         "\n"
-        "Your primary recommendation MUST come from the ACTION PRIORITIES list.\n"
-        "If that list is empty, acknowledge all-clear — do NOT invent actions\n"
-        "from informational context sections.\n"
+        "D) MODE AWARENESS: Check RESPONSE MODE in DOMAIN STATE CLASSIFICATION.\n"
+        "   - ACTION MODE: Primary recommendation MUST come from ACTION PRIORITIES list.\n"
+        "     SATISFIED domains may receive reinforcement (non-action guidance like\n"
+        "     scripture or encouragement) if a meaningful signal justifies it.\n"
+        "   - REINFORCEMENT MODE: All domains satisfied. No new actions to recommend.\n"
+        "     Focus on meaning, encouragement, reflection, or scripture if warranted.\n"
+        "   - In either mode: reinforcement is NOT an action. It does not prescribe\n"
+        "     an activity. It acknowledges what was done and anchors the moment.\n"
+        "\n"
+        "If ACTION PRIORITIES list is empty and no signals justify reinforcement,\n"
+        "acknowledge all-clear — do NOT invent actions from informational context.\n"
         "\n"
         "--- RULE 1: NO GENERIC PRODUCTIVITY ADVICE ---\n"
         "Generic productivity templates are FORBIDDEN when user context exists.\n"
@@ -5383,6 +5467,31 @@ def format_cos_system_injection(context, user_message=None):
         "a good starting point. Log your weight at [Weight Tracking]"
         "(/health/weight/) and I\\'ll give you a precise number based on "
         "your lean body mass.'\n"
+        "\n"
+        "--- RULE 7: REINFORCEMENT MODE (SATISFIED DOMAIN + SIGNAL) ---\n"
+        "When a domain is SATISFIED (completed today) but a meaningful signal\n"
+        "exists (stress, declining mood, fatigue, milestone), you may provide\n"
+        "reinforcement — NOT an action recommendation.\n"
+        "\n"
+        "Reinforcement rules:\n"
+        "- NEVER re-recommend the completed domain's activity\n"
+        "  (prayer DONE + stress → do NOT suggest more prayer)\n"
+        "- Briefly acknowledge the domain is satisfied\n"
+        "- Anchor the moment with scripture IF provided in SCRIPTURE REINFORCEMENT\n"
+        "- Quote scripture exactly with reference. No paraphrasing.\n"
+        "- No sermonizing. One verse maximum per response.\n"
+        "- Only use reinforcement if the moment genuinely warrants it.\n"
+        "  Routine noise (completing tasks, marking items done) does NOT warrant it.\n"
+        "\n"
+        "Example (correct):\n"
+        "  Signal: stress rising. Faith: SATISFIED.\n"
+        "  'You've already covered prayer today — that foundation is solid. '\n"
+        "  'With the stress showing up tonight: '\n"
+        "  '\"Cast all your anxiety on him because he cares for you.\" — 1 Peter 5:7'\n"
+        "\n"
+        "Example (WRONG — violates RULE 0):\n"
+        "  'Maybe try praying about the stress tonight.'\n"
+        "  (Re-recommends prayer when faith is SATISFIED)\n"
         "\n"
         "=== END CHIEF OF STAFF OPERATIONAL RULES ==="
     )

@@ -225,6 +225,32 @@
 - `apps/life/services/email_fact_extractor.py` — Use settings.OPENAI_MINI_MODEL
 - `apps/users/fixtures/module_definitions.json` — Remove stale 'notes' module
 
+---
+
+## 2026-03-19 — FEATURE: CoS Domain State Classification + Action/Reinforcement Mode
+
+**Problem:** After implementing action eligibility (RULE 0), Beth correctly suppressed completed domains from recommendations but missed opportunities for meaningful reinforcement. Example: faith DONE + stress signal → Beth gave generic guidance instead of scripture-based encouragement.
+
+**Solution:** Added three behavioral concepts to CoS:
+
+1. **Domain State Classification** — Each domain classified as ACTIONABLE (not completed), SATISFIED (completed today, blocked from recommendations), or IRRELEVANT (not applicable). Computed from DailyProgressService data.
+
+2. **Action Mode vs Reinforcement Mode** — RULE 0 section D selects the response mode:
+   - ACTION MODE: actionable items exist → primary recommendations from action priorities list
+   - REINFORCEMENT MODE: all domains satisfied → focus on meaning, encouragement, scripture
+
+3. **Scripture Reinforcement** — When SATISFIED domains + emotional signals (stress, declining mood) are present, CoS queries `ScriptureVerse` model by matching signal types to verse `contexts` tags. Provides up to 2 candidate verses. Beth may use ONE per response, only if the moment genuinely warrants it.
+
+4. **RULE 7: Reinforcement Mode** — New operational rule governing behavior when reinforcing SATISFIED domains: no re-recommendations, brief acknowledgment, exact scripture quotes, no sermonizing.
+
+**Files changed:**
+- `apps/core/ai_orchestrator/cos_context.py` — Domain state classification block, scripture reinforcement query, RULE 0 section D (mode awareness), RULE 7 (reinforcement mode)
+- `docs/ENGINE_COS_REFERENCE.md` — Updated rule table, added domain state classification docs
+
+**Architecture compliance:** All changes within CoS behavior layer. No new engines, services, or scoring systems. Execution contract unchanged. RULE 0 action eligibility preserved.
+
+---
+
 ## 2026-03-19 — HARDEN: CoS Execution Handling — Prevent Inference When Data Missing
 
 **Problem:** When the `execution` SAE module hadn't been built yet (or was stale), CoS fell back to reading routine/medication data from legacy SAE modules. This created parallel truth sources that could drift, causing Beth to make stale or contradictory claims about routine completion.

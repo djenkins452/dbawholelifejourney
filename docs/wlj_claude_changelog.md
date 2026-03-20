@@ -6,6 +6,33 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — FEATURE: Today State deterministic truth layer (anti-hallucination)
+
+**Problem:** CoS could infer/fabricate today's completion status from streaks, trends, and signals rather than deterministic DB records, causing trust-breaking false positives ("you completed X" when X wasn't done).
+
+**Solution:** Introduced a new Today State layer that separates TRUTH from EXECUTION and INTERPRETATION:
+
+1. **New file: `apps/core/services/today_state.py`**
+   - `build_today_state(user)` — deterministic truth builder from DB records only
+   - `format_today_state_injection()` — renders authoritative truth block for system prompt
+   - `_classify_domain_states()` — ACTIONABLE / SATISFIED / IRRELEVANT classification
+   - Per-domain `data_confidence` rollup (present / partial / missing)
+   - Explainable missing data guidance (WHAT is missing, WHY it matters, HOW to track)
+
+2. **Modified: `apps/core/ai_orchestrator/cos_context.py`**
+   - Added `build_today_state()` call in `build_cos_context()` post-assembly
+   - Replaced inline `DailyProgressService` rendering in `format_cos_system_injection()` with `format_today_state_injection()`
+   - Added `TODAY TRUTH RULE` directive to system prompt (anti-hallucination enforcement)
+   - Updated RULE 0 to reference new TODAY'S TRUTH STATE section
+
+3. **New file: `apps/core/tests/test_today_state.py`** — 14 tests covering all 5 verification scenarios
+
+**Architecture:** `Raw Data → Signals → Today State → CoS → LLM`
+
+**Files changed:** `apps/core/services/today_state.py` (new), `apps/core/ai_orchestrator/cos_context.py`, `apps/core/tests/test_today_state.py` (new), `docs/wlj_claude_changelog.md`
+
+---
+
 ## 2026-03-20 — FIX: Scripture parsing fails for chapter ranges (e.g., "Jonah 1-4")
 
 **Problem:** Reading plan progress page could not parse chapter-range scripture references like "Jonah 1-4". The `parseScriptureRef()` regex only handled `Book Chapter:Verse-Verse` format, not `Book ChapterStart-ChapterEnd`. This caused "Could not parse" errors while verse-range references like "Matthew 12:38-41" worked fine.

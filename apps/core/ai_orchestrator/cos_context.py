@@ -2229,6 +2229,14 @@ def build_cos_context(user, scoped_builders=None):
     # POST-ASSEMBLY (depends on composed context — must be sequential)
     # =====================================================================
 
+    # Today State — deterministic truth layer (MUST run before tone/ranking)
+    try:
+        from apps.core.services.today_state import build_today_state
+        context['today_state'] = build_today_state(user)
+    except Exception:
+        logger.warning("CoS context: today_state build failed", exc_info=True)
+        context['today_state'] = None
+
     # Executive tone mode (depends on full context)
     context['executive_tone_mode'] = _determine_tone_mode(user, context)
 
@@ -3726,6 +3734,27 @@ def format_cos_system_injection(context, user_message=None):
     )
     lines.append("")
     lines.append(
+        "TODAY TRUTH RULE (CRITICAL — anti-hallucination):\n"
+        "- You may ONLY state something is completed today if it is explicitly "
+        "marked DONE in the TODAY'S TRUTH STATE section below.\n"
+        "- If a domain is NOT DONE → clearly state it is not completed.\n"
+        "- You MUST NOT infer completion from trends, streaks, signals, or "
+        "past behavior. Signals are for MOMENTUM and COACHING only.\n"
+        "- TODAY'S TRUTH STATE is the SOLE authority for: completed today, "
+        "outstanding today, routine progress, task completion, medication status.\n"
+        "- When data_confidence is 'missing' or 'partial', you MUST:\n"
+        "  1. Identify exactly what data is missing\n"
+        "  2. Explain why that data matters for THEIR goals\n"
+        "  3. Suggest how to improve tracking (with app link)\n"
+        "  BAD: 'I don't have enough data.'\n"
+        "  GOOD: 'I don't see a workout logged for today. If you track your "
+        "workouts consistently, I can better assess your fitness momentum and "
+        "recovery patterns.'\n"
+        "  GOOD: 'I don't have any journal entries for today. Logging even a "
+        "short reflection helps me track your emotional patterns and stress levels.'"
+    )
+    lines.append("")
+    lines.append(
         "LINK & LIST FORMATTING: When listing tasks, events, or items, ALWAYS "
         "use a consistent bulleted list with markdown. When referencing an app "
         "page, use a markdown link with the RELATIVE path from the APP NAVIGATION "
@@ -5161,156 +5190,64 @@ def format_cos_system_injection(context, user_message=None):
         except Exception:
             pass  # Snapshot must never break CoS
 
-        # ── TODAY'S EXECUTION STATUS (CANONICAL — from DailyProgressService) ──
-        # This block gives Beth explicit per-domain completion truth for TODAY.
-        # Without it, the LLM infers completion from 7-day aggregates and streaks,
-        # causing false-positive "done" statements (the core trust bug).
+        # ── TODAY'S TRUTH STATE (from today_state.py — deterministic layer) ──
+        # Replaces inline DailyProgressService rendering. today_state is built
+        # in build_cos_context() post-assembly and stored in context['today_state'].
         try:
-            from apps.dashboard_v2.services.daily_progress_service import DailyProgressService
-            _dp_svc = DailyProgressService(_cos_user_final)
-            _dp = _dp_svc.get_today()
+            _today_state = context.get('today_state')
+            if _today_state:
+                from apps.core.services.today_state import format_today_state_injection
+                _ts_block = format_today_state_injection(_today_state)
+                if _ts_block:
+                    lines.append(_ts_block)
 
-            _exec_lines = []
-            _exec_lines.append("")
-            _exec_lines.append("========== TODAY'S EXECUTION STATUS (AUTHORITATIVE) ==========")
-            _exec_lines.append("These are the EXACT completion states for today. Use ONLY these")
-            _exec_lines.append("when stating what is done or not done today.")
-            _exec_lines.append("If a domain shows NOT DONE, you MUST NOT say it is complete.")
-            _exec_lines.append("")
+                # ── SCRIPTURE REINFORCEMENT (signal-driven, SATISFIED domains only) ──
+                from apps.core.services.today_state import _classify_domain_states
+                _domain_states = _classify_domain_states(_today_state)
+                _satisfied_domains = [k for k, v in _domain_states.items() if v == 'SATISFIED']
 
-            # Routines
-            r = _dp.get('routines', {})
-            r_done, r_total = r.get('done', 0), r.get('total', 0)
-            if r_total > 0:
-                _exec_lines.append(f"  Routines: {r_done}/{r_total} completed" + (" — ALL DONE" if r_done >= r_total else " — NOT ALL DONE"))
-            else:
-                _exec_lines.append("  Routines: none scheduled today")
+                if _satisfied_domains:
+                    try:
+                        _reinforce_contexts = []
+                        _emo_state = context.get('emotion_state', {})
+                        _stress_sc = context.get('stress_score')
+                        _stress_sig = _emo_state.get('stress_signals', 0)
+                        _positive_sig = _emo_state.get('positive_signals', 0)
 
-            # Medicine
-            m = _dp.get('medicine', {})
-            m_done, m_total = m.get('done', 0), m.get('total', 0)
-            if m_total > 0:
-                _exec_lines.append(f"  Medicine: {m_done}/{m_total} taken" + (" — ALL DONE" if m_done >= m_total else " — NOT ALL DONE"))
-            else:
-                _exec_lines.append("  Medicine: none scheduled today")
+                        if _stress_sig >= 2 or (_stress_sc and isinstance(_stress_sc, dict) and _stress_sc.get('score', 0) > 0.3):
+                            _reinforce_contexts.extend(['anxiety', 'worry', 'stress', 'burden'])
+                        _mood_status = context.get('mood_status', {})
+                        if _mood_status.get('trend') == 'declining':
+                            _reinforce_contexts.extend(['sadness', 'difficulty', 'heartbreak', 'discouragement'])
+                        if _positive_sig >= 5:
+                            _reinforce_contexts.extend(['gratitude', 'growth', 'daily life'])
 
-            # Tasks
-            t = _dp.get('tasks', {})
-            t_done, t_total = t.get('done', 0), t.get('total', 0)
-            if t_total > 0:
-                _exec_lines.append(f"  Tasks: {t_done}/{t_total} completed" + (" — ALL DONE" if t_done >= t_total else " — NOT ALL DONE"))
-            else:
-                _exec_lines.append("  Tasks: none due today")
-
-            # Workout (binary)
-            w = _dp.get('workout', {})
-            if w.get('done'):
-                _exec_lines.append("  Workout: DONE")
-            else:
-                _exec_lines.append("  Workout: NOT DONE")
-
-            # Journal (binary)
-            j = _dp.get('journaling', {})
-            if j.get('done'):
-                _exec_lines.append("  Journaling: DONE")
-            else:
-                _exec_lines.append("  Journaling: NOT DONE")
-
-            # Faith (binary)
-            f = _dp.get('faith', {})
-            if f.get('done'):
-                _exec_lines.append("  Faith: DONE")
-            else:
-                _exec_lines.append("  Faith: NOT DONE")
-
-            _exec_lines.append("")
-            _exec_lines.append(f"  Overall day score: {_dp.get('overall_score', 0)}%")
-            _exec_lines.append("")
-            _exec_lines.append("TRUTH ENFORCEMENT:")
-            _exec_lines.append("- If a domain shows NOT DONE, you MUST NOT say it is done.")
-            _exec_lines.append("- If a domain shows DONE, you MUST NOT recommend it as an action.")
-            _exec_lines.append("  DONE means SATISFIED — do not re-prescribe (e.g., prayer DONE → no prayer suggestion).")
-            _exec_lines.append("- 7-day aggregates and streaks do NOT override today's status.")
-
-            # ── DOMAIN STATE CLASSIFICATION ──
-            # Classify each domain as ACTIONABLE / SATISFIED / IRRELEVANT
-            # so Beth knows which mode to operate in per-domain.
-            _domain_states = {}
-            _r_satisfied = r.get('done', 0) >= r.get('total', 0) and r.get('total', 0) > 0
-            _domain_states['routines'] = 'SATISFIED' if _r_satisfied else ('ACTIONABLE' if r.get('total', 0) > 0 else 'IRRELEVANT')
-            _domain_states['medicine'] = 'SATISFIED' if (m.get('done', 0) >= m.get('total', 0) and m.get('total', 0) > 0) else ('ACTIONABLE' if m.get('total', 0) > 0 else 'IRRELEVANT')
-            _domain_states['tasks'] = 'SATISFIED' if (t.get('done', 0) >= t.get('total', 0) and t.get('total', 0) > 0) else ('ACTIONABLE' if t.get('total', 0) > 0 else 'IRRELEVANT')
-            _domain_states['workout'] = 'SATISFIED' if w.get('done') else 'ACTIONABLE'
-            _domain_states['journaling'] = 'SATISFIED' if j.get('done') else 'ACTIONABLE'
-            _domain_states['faith'] = 'SATISFIED' if f.get('done') else 'ACTIONABLE'
-
-            _exec_lines.append("")
-            _exec_lines.append("DOMAIN STATE CLASSIFICATION:")
-            for _ds_name, _ds_state in _domain_states.items():
-                _exec_lines.append(f"  {_ds_name}: {_ds_state}")
-
-            _has_actionable = any(v == 'ACTIONABLE' for v in _domain_states.values())
-            _satisfied_domains = [k for k, v in _domain_states.items() if v == 'SATISFIED']
-
-            _exec_lines.append("")
-            if _has_actionable:
-                _exec_lines.append("RESPONSE MODE: ACTION")
-                _exec_lines.append("  Primary recommendations MUST come from action priorities list.")
-                _exec_lines.append("  SATISFIED domains may receive reinforcement (not action) if a signal justifies it.")
-            else:
-                _exec_lines.append("RESPONSE MODE: REINFORCEMENT")
-                _exec_lines.append("  All domains satisfied. No new actions to recommend.")
-                _exec_lines.append("  Focus on meaning, encouragement, or reflection.")
-                _exec_lines.append("  Scripture reinforcement is permitted if a meaningful signal exists.")
-
-            # ── SCRIPTURE REINFORCEMENT (signal-driven, SATISFIED domains only) ──
-            # When a domain is SATISFIED but a meaningful signal exists,
-            # provide a relevant scripture verse for reinforcement — NOT as an action.
-            _reinforce_contexts = []
-            try:
-                _emo_state = context.get('emotion_state', {})
-                _stress_sc = context.get('stress_score')
-                _stress_sig = _emo_state.get('stress_signals', 0)
-                _positive_sig = _emo_state.get('positive_signals', 0)
-
-                # Map active signals to scripture context tags
-                if _stress_sig >= 2 or (_stress_sc and isinstance(_stress_sc, dict) and _stress_sc.get('score', 0) > 0.3):
-                    _reinforce_contexts.extend(['anxiety', 'worry', 'stress', 'burden'])
-                _mood_status = context.get('mood_status', {})
-                if _mood_status.get('trend') == 'declining':
-                    _reinforce_contexts.extend(['sadness', 'difficulty', 'heartbreak', 'discouragement'])
-                if _positive_sig >= 5:
-                    _reinforce_contexts.extend(['gratitude', 'growth', 'daily life'])
-
-                # Only inject scripture if: (a) signal exists AND (b) at least one domain SATISFIED
-                if _reinforce_contexts and _satisfied_domains:
-                    from apps.faith.models import ScriptureVerse
-                    from django.db.models import Q as _SQ
-                    _ctx_q = _SQ()
-                    for _rc in _reinforce_contexts[:4]:
-                        _ctx_q |= _SQ(contexts__contains=[_rc])
-                    _verses = list(
-                        ScriptureVerse.objects.filter(
-                            _ctx_q, is_active=True,
-                        ).order_by('?')[:2]
-                    )
-                    if _verses:
-                        _exec_lines.append("")
-                        _exec_lines.append("SCRIPTURE REINFORCEMENT (signal-driven — use for SATISFIED domains ONLY):")
-                        _exec_lines.append("  These verses match the user's current emotional signals.")
-                        _exec_lines.append("  Use ONLY for reinforcement, NOT as an action recommendation.")
-                        _exec_lines.append("  Rules: Quote exactly. Include reference. No sermonizing.")
-                        _exec_lines.append("  Maximum: ONE verse per response. Do NOT force it — only if the moment warrants it.")
-                        for _sv in _verses:
-                            _exec_lines.append(f"  → \"{_sv.text}\" — {_sv.reference}")
-            except ImportError:
-                pass  # ScriptureVerse not available
-            except Exception:
-                pass  # Scripture reinforcement must never break CoS
-
-            lines.extend(_exec_lines)
+                        if _reinforce_contexts:
+                            from apps.faith.models import ScriptureVerse
+                            from django.db.models import Q as _SQ
+                            _ctx_q = _SQ()
+                            for _rc in _reinforce_contexts[:4]:
+                                _ctx_q |= _SQ(contexts__contains=[_rc])
+                            _verses = list(
+                                ScriptureVerse.objects.filter(
+                                    _ctx_q, is_active=True,
+                                ).order_by('?')[:2]
+                            )
+                            if _verses:
+                                lines.append("")
+                                lines.append("SCRIPTURE REINFORCEMENT (signal-driven — use for SATISFIED domains ONLY):")
+                                lines.append("  These verses match the user's current emotional signals.")
+                                lines.append("  Use ONLY for reinforcement, NOT as an action recommendation.")
+                                lines.append("  Rules: Quote exactly. Include reference. No sermonizing.")
+                                lines.append("  Maximum: ONE verse per response. Do NOT force it — only if the moment warrants it.")
+                                for _sv in _verses:
+                                    lines.append(f"  → \"{_sv.text}\" — {_sv.reference}")
+                    except ImportError:
+                        pass
+                    except Exception:
+                        pass
         except Exception:
-            pass  # Execution status must never break CoS
+            pass  # Today state must never break CoS
 
     # ── v6: Consolidated CoS Operational Rules ──
     lines.append("")
@@ -5320,9 +5257,8 @@ def format_cos_system_injection(context, user_message=None):
         "--- RULE 0: ACTION ELIGIBILITY (MANDATORY PRE-CHECK) ---\n"
         "Before recommending ANY action, you MUST check:\n"
         "\n"
-        "A) NOT ALREADY COMPLETED: Check DAILY EXECUTION STATUS and TODAY'S\n"
-        "   EXECUTION STATUS sections. If a domain shows DONE, do NOT recommend\n"
-        "   actions in that domain. Examples:\n"
+        "A) NOT ALREADY COMPLETED: Check TODAY'S TRUTH STATE section. If a\n"
+        "   domain shows DONE, do NOT recommend actions in that domain. Examples:\n"
         "   - prayer: DONE → do NOT suggest prayer, even if prayer requests exist\n"
         "   - bible_reading: DONE → do NOT suggest Bible reading\n"
         "   - workout: DONE → do NOT suggest working out\n"

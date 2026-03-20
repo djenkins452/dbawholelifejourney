@@ -92,7 +92,7 @@ class TestNoHardcodedModels(unittest.TestCase):
         for dirpath, _dirnames, filenames in os.walk(PROJECT_ROOT):
             # Skip hidden dirs, venv, node_modules, backups
             if any(skip in dirpath for skip in ('.git', '__pycache__', 'node_modules',
-                                                 '.venv', 'venv', 'backups')):
+                                                 '.venv', 'venv', 'backups', '.claude')):
                 continue
 
             for filename in filenames:

@@ -2444,11 +2444,15 @@ class TestSystemPromptHealthRules(TestCase):
 
     def test_built_prompt_includes_health_enforcement(self):
         """build_personal_assistant_prompt should include health rules."""
-        from apps.ai.personal_assistant import build_personal_assistant_prompt
+        from apps.ai.personal_assistant import (
+            COS_PROACTIVE_INTELLIGENCE_PROMPT,
+            build_personal_assistant_prompt,
+        )
 
         prompt = build_personal_assistant_prompt(
             coaching_style='supportive',
             faith_enabled=False,
+            cos_proactive_prompt=COS_PROACTIVE_INTELLIGENCE_PROMPT,
         )
 
         self.assertIn("HEALTH INTELLIGENCE ENFORCEMENT", prompt)

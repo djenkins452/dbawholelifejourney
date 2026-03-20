@@ -178,10 +178,26 @@ class ActionRateLimiterTests(TestCase):
     """Test rate limiter behavior."""
 
     def setUp(self):
+        from unittest.mock import patch
+        from django.core.cache import cache
         from apps.users.models import User
+        cache.clear()
         self.user = User.objects.create_user(
             email='ratelimit@test.com', password='test123',
         )
+        # Pin limits to class defaults so AIThresholdConfig doesn't interfere
+        self._limits_patcher = patch.object(
+            ActionRateLimiter, '_get_limits',
+            return_value=(
+                ActionRateLimiter.MAX_DESTRUCTIVE_PER_MINUTE,
+                ActionRateLimiter.MAX_GENERAL_PER_MINUTE,
+                ActionRateLimiter.MAX_ACTIONS_PER_MESSAGE,
+            ),
+        )
+        self._limits_patcher.start()
+
+    def tearDown(self):
+        self._limits_patcher.stop()
 
     def test_first_action_is_allowed(self):
         allowed, reason = ActionRateLimiter.check_rate_limit(

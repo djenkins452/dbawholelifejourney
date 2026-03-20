@@ -6,6 +6,31 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — ENHANCEMENT: Nudge Timing + Consistency Layer (Stabilization)
+
+**Problem:** Five nudge quality issues:
+1. 15-min scheduler cadence caused mistimed nudges (arriving after start time)
+2. Multiple nudges could fire too close together (noise/stacking)
+3. Nudges could conflict with current focus item
+4. Same item could be nudged repeatedly in short windows
+5. No prioritization across competing nudge candidates
+
+**Solution:**
+1. **Widened pre-nudge lookahead to 20 min** with dynamic phrasing: "coming up soon" (15-20 min), "starts in X minutes" (5-14 min), "starts in a few minutes" (≤5 min) — compensates for scheduler delay
+2. **Global nudge prioritization** — `_collect_escalation_candidates()` collects ALL candidates in one pass, `_score_nudge_candidate()` scores each (base: due_now=100, recovery=80, pre_nudge=60; +20 foundational, +10 time-sensitive, -15 recently nudged), top 1-2 sent per cycle
+3. **Current focus alignment** — `_get_current_focus_source_id()` retrieves top-priority item; pre-nudges for non-focus items are suppressed
+4. **Recent nudge memory** — `_was_recently_nudged()` uses existing dedup cache to detect same-item nudges across all stages (30 min window); applies scoring penalty
+5. **Per-user cooldown** — `_check_user_nudge_cooldown()` blocks all routine nudges for 5 min after last one sent
+6. **Template variations** — Added `routine_pre_nudge_soon` and `routine_pre_nudge_imminent` templates for all 4 coaching styles
+
+**Files changed:**
+- `apps/ai/proactive_checkins.py` — Refactored `_dispatch_for_window()` from fire-all to collect-score-send; added 7 new functions for candidate collection, scoring, focus alignment, cooldown, and prioritized sending
+- `apps/ai/assistant_intelligence.py` — Added `routine_pre_nudge_soon` and `routine_pre_nudge_imminent` templates for all 4 styles
+
+**Tests:** 20/20 proactive scheduler tests pass, no migrations needed
+
+---
+
 ## 2026-03-20 — ENHANCEMENT: CoS Rules 8+9 — Question-type response patterns + page context soft signal
 
 - **Enhancement:** Expanded RULE 8 with explicit patterns for "What have I completed?", "What have I NOT completed?", "How am I doing?", and "What should I be doing right now?" — each with distinct formatting rules

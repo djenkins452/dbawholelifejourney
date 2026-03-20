@@ -16,6 +16,7 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase, override_settings
 
 from apps.core.services.today_state import (
+    _bridge_routine_to_faith,
     _build_confidence_rollup,
     _classify_domain_states,
     build_today_state,
@@ -387,3 +388,88 @@ class TestFormatInjection(TestCase):
 
         self.assertIn('REINFORCEMENT', output)
         self.assertIn('All domains satisfied', output)
+
+
+class TestRoutineToFaithBridge(TestCase):
+    """Test that routine items bridge to faith domain."""
+
+    def test_prayer_routine_bridges_to_faith(self):
+        """Completing 'Prayer Time' in routine should mark faith prayer done."""
+        state = {
+            'domains': {
+                'faith': {'prayer_completed': False, 'bible_reading_completed': False, 'confidence': 'high'},
+            },
+            'routines': {
+                'items': {'Morning Routine': {'total': 4, 'completed': 1, 'fully_complete': False}},
+                'total': 4, 'completed': 1, 'fully_complete': False,
+                '_raw_items': {
+                    'morning': [
+                        {'item_name': 'Prayer Time', 'is_completed': True, 'routine_name': 'Morning Routine'},
+                        {'item_name': 'Exercise', 'is_completed': False, 'routine_name': 'Morning Routine'},
+                    ],
+                },
+            },
+        }
+
+        _bridge_routine_to_faith(state)
+
+        self.assertTrue(state['domains']['faith']['prayer_completed'])
+        self.assertFalse(state['domains']['faith']['bible_reading_completed'])
+
+    def test_bible_routine_bridges_to_faith(self):
+        """Completing 'Bible Reading' in routine should mark faith bible done."""
+        state = {
+            'domains': {
+                'faith': {'prayer_completed': False, 'bible_reading_completed': False, 'confidence': 'high'},
+            },
+            'routines': {
+                'items': {}, 'total': 2, 'completed': 1, 'fully_complete': False,
+                '_raw_items': {
+                    'morning': [
+                        {'item_name': 'Bible Reading', 'is_completed': True, 'routine_name': 'Morning Routine'},
+                    ],
+                },
+            },
+        }
+
+        _bridge_routine_to_faith(state)
+
+        self.assertFalse(state['domains']['faith']['prayer_completed'])
+        self.assertTrue(state['domains']['faith']['bible_reading_completed'])
+
+    def test_bridge_does_not_downgrade(self):
+        """If faith already shows prayer done, bridge must not downgrade it."""
+        state = {
+            'domains': {
+                'faith': {'prayer_completed': True, 'bible_reading_completed': True, 'confidence': 'high'},
+            },
+            'routines': {
+                'items': {}, 'total': 2, 'completed': 0, 'fully_complete': False,
+                '_raw_items': {
+                    'morning': [
+                        {'item_name': 'Prayer Time', 'is_completed': False, 'routine_name': 'Morning Routine'},
+                        {'item_name': 'Bible Reading', 'is_completed': False, 'routine_name': 'Morning Routine'},
+                    ],
+                },
+            },
+        }
+
+        _bridge_routine_to_faith(state)
+
+        # Should stay True — bridge only upgrades, never downgrades
+        self.assertTrue(state['domains']['faith']['prayer_completed'])
+        self.assertTrue(state['domains']['faith']['bible_reading_completed'])
+
+    def test_bridge_no_raw_items_is_noop(self):
+        """If no _raw_items, bridge does nothing."""
+        state = {
+            'domains': {
+                'faith': {'prayer_completed': False, 'bible_reading_completed': False, 'confidence': 'high'},
+            },
+            'routines': {'items': {}, 'total': 0, 'completed': 0, 'fully_complete': False},
+        }
+
+        _bridge_routine_to_faith(state)
+
+        self.assertFalse(state['domains']['faith']['prayer_completed'])
+        self.assertFalse(state['domains']['faith']['bible_reading_completed'])

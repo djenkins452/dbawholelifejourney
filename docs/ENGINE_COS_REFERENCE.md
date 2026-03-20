@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-19 (CoS: Domain State Classification, Action/Reinforcement Mode, Scripture Reinforcement for SATISFIED domains)
+**Last updated:** 2026-03-20 (Today State: routine truth fix, faith bridge, Current Focus, Nudge Guidance, Conversation Awareness, CoS voice upgrade, Response Rules)
 
 ---
 
@@ -272,7 +272,8 @@ System prompt layers (highest priority first):
 ├─ 6. format_cos_system_injection(cos_context) ← THE MAIN CONTEXT
 │     └─ v4: Data State Snapshot moved to END (highest recency weight)
 │     └─ v5: RESPONSE QUALITY RULES + CoS Voice + Missing Data Framing
-│     └─ v6: Consolidated CHIEF OF STAFF OPERATIONAL RULES (6 rules)
+│     └─ Today State: CURRENT FOCUS + NUDGE GUIDANCE + CONVERSATION AWARENESS
+│     └─ v6: Consolidated CHIEF OF STAFF OPERATIONAL RULES (8 rules)
 │     └─ v7: MANDATORY CONTEXT EVALUATION (8 steps — added STEP 8: EVALUATE INTELLIGENCE SIGNALS)
 │     └─ v7: PROACTIVE INTELLIGENCE directive (priority-ranked signal surfacing)
 │     └─ v8: SITUATIONAL AWARENESS SUMMARY (pattern-aware guidance rules)
@@ -334,6 +335,16 @@ System prompt layers (highest priority first):
 **RULE 0 update (2026-03-19):** Added MODE AWARENESS (section D) — Action Mode vs Reinforcement Mode. Action Mode: primary recommendations from action priorities list, reinforcement permitted for SATISFIED domains. Reinforcement Mode: all domains satisfied, no new actions, focus on meaning/encouragement/scripture.
 
 **Domain State Classification (2026-03-19):** Each domain is classified as ACTIONABLE (not completed, eligible for recommendation), SATISFIED (completed today, blocked from recommendations but eligible for reinforcement), or IRRELEVANT (not applicable). Classification drives Response Mode selection and RULE 7 eligibility. Scripture reinforcement queries `ScriptureVerse.contexts` against active emotional signals (stress→anxiety/worry/stress, declining mood→sadness/difficulty, positive→gratitude/growth).
+
+**RULE 8 (2026-03-20):** Response Rules by Question Type — pattern-matched response guidance for "Did I...?", "How's my day?", "What should I do?", "I just did X", and general chat. Ensures Beth answers definitively from Truth State rather than hedging.
+
+**Today State Enhancements (2026-03-20):**
+- **Routine truth fix:** `_build_routine_state()` was reading wrong dict keys (`total`/`completed` instead of `total_count`/`completed_count` from `_routine_internal.py`), causing routines to always show 0/0. Fixed.
+- **Faith bridge:** New `_bridge_routine_to_faith()` — when a routine item named "Prayer Time" or "Bible Reading" is completed in RoutineLog, it propagates to the faith domain. Prevents the split where routine shows "Prayer: DONE" but faith shows "NOT DONE".
+- **Current Focus block:** Surfaces `action_priorities[0]` as a dedicated CURRENT FOCUS section in the system prompt. No new computation — reads existing action priorities.
+- **Nudge Guidance block:** Per-domain nudge hints based on `_classify_domain_states()`. ACTIONABLE → "gently mention", SATISFIED → "reinforce the win", IRRELEVANT → omit.
+- **Conversation Awareness directive:** Rules for handling user claims ("I just did X") vs truth state, and tone-matching from conversation context.
+- **CoS voice upgrade (RULE 2):** Added warmth/authority voice markers, humanized data language ("knocked out 3 of 4" vs "75% completion"), banned system-speak phrases ("based on your data", "according to your logs").
 
 **Additional v6 changes:**
 - **Mandatory Context Evaluation** expanded to 6 steps (from 4) — now explicitly checks tasks due/overdue, outstanding commitments, missing data domains

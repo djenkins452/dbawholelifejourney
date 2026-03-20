@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — ENHANCEMENT: CoS Rules 8+9 — Question-type response patterns + page context soft signal
+
+- **Enhancement:** Expanded RULE 8 with explicit patterns for "What have I completed?", "What have I NOT completed?", "How am I doing?", and "What should I be doing right now?" — each with distinct formatting rules
+- **Enhancement:** Added RULE 9: PAGE CONTEXT AS SOFT SIGNAL — Beth can reference user's current page/module as a behavioral hint but NEVER as completion truth
+- Files: `apps/core/ai_orchestrator/cos_context.py`
+
+---
+
 ## 2026-03-20 — Feature: Beth Final Nudge Polish — 3-Stage Proactive Escalation Ladder
 
 - **Feature:** Added 3-stage proactive escalation ladder (pre-nudge → due-now → post-grace follow-up) for routine items

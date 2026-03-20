@@ -15,13 +15,8 @@
         <span class="text-muted text-sm" style="display: block;">{{ sublabel }}</span>
         {% endif %}
     </div>
-    {% if status == "missed" %}
-    <span style="font-size: var(--font-size-xs); color: var(--color-error); font-weight: 500;">Missed</span>
-    {% elif status == "skipped" %}
-    <span style="font-size: var(--font-size-xs); color: var(--color-text-muted);">Skipped</span>
-    {% elif status == "completed" %}
-    <span style="font-size: var(--font-size-xs); color: var(--color-success);">Done</span>
-    {% endif %}
+    <span class="status-badge" style="font-size: var(--font-size-xs); font-weight: 500; flex-shrink: 0;
+        {% if status == "missed" %}color: var(--color-error);{% elif status == "overdue" %}color: var(--color-warning, #e67e22);{% elif status == "skipped" %}color: var(--color-text-muted);{% elif status == "completed" %}color: var(--color-success);{% elif status == "rescheduled" %}color: var(--color-accent, #3498db);{% else %}display: none;{% endif %}">{% if status == "missed" %}Missed{% elif status == "overdue" %}Late{% elif status == "skipped" %}Skipped{% elif status == "completed" %}Done{% elif status == "rescheduled" %}Rescheduled{% endif %}</span>
     {% if time_display %}
     <span class="text-muted text-sm" style="flex-shrink: 0;">{{ time_display }}</span>
     {% endif %}

@@ -191,7 +191,7 @@ def _collect_routine_items(user, user_now, user_today):
                 # Rescheduled items stay actionable until day close
                 # — never auto-convert to missed same-day
                 time_status = ts['status']
-            elif status == 'missed':
+            elif status in ('missed', 'overdue'):
                 time_status = 'overdue'
             else:
                 ts = classify_time_status(
@@ -213,7 +213,7 @@ def _collect_routine_items(user, user_now, user_today):
                 'grace_minutes': 0,
                 'completion_status': status,
                 'completed_today': completed,
-                'is_actionable': status in ('pending', 'missed', 'rescheduled'),
+                'is_actionable': status in ('pending', 'missed', 'overdue', 'rescheduled'),
                 'is_foundational': importance == 'foundational',
                 'rescheduled_time': rescheduled_time_str,
                 'toggle_url': reverse(

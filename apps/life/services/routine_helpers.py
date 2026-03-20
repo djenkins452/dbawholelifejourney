@@ -81,14 +81,26 @@ def toggle_routine_completion(user, schedule, target_date):
         else:
             return {'status': existing_log.log_status, 'is_completed': False}
     else:
+        # Determine if this is a late completion (past scheduled window)
+        from apps.core.utils import classify_time_status, get_user_now, get_user_today
+        log_status = 'completed'
+        user_now = get_user_now(user)
+        user_today = get_user_today(user)
+        if target_date == user_today and schedule.scheduled_time:
+            result = classify_time_status(
+                user_today, schedule.scheduled_time, user_now,
+                grace_minutes=getattr(schedule, 'grace_period_minutes', 0) or 0,
+            )
+            if result['status'] == 'overdue':
+                log_status = 'completed_late'
         RoutineLog.objects.create(
             user=user,
             schedule=schedule,
             scheduled_date=target_date,
-            log_status='completed',
+            log_status=log_status,
             completed_at=timezone.now(),
         )
-        return {'status': 'completed', 'is_completed': True}
+        return {'status': log_status, 'is_completed': True}
 
 
 def skip_routine(user, schedule, target_date):
@@ -242,12 +254,23 @@ def toggle_routine_complete(user, routine, target_date):
                 existing.completed_at = now
                 existing.save(update_fields=['log_status', 'completed_at', 'updated_at'])
             else:
-                # No log — create completed
+                # No log — create completed (or completed_late if past window)
+                from apps.core.utils import classify_time_status, get_user_now, get_user_today
+                batch_status = 'completed'
+                user_now = get_user_now(user)
+                user_today = get_user_today(user)
+                if target_date == user_today and item.scheduled_time:
+                    ts = classify_time_status(
+                        user_today, item.scheduled_time, user_now,
+                        grace_minutes=getattr(item, 'grace_period_minutes', 0) or 0,
+                    )
+                    if ts['status'] == 'overdue':
+                        batch_status = 'completed_late'
                 RoutineLog.objects.create(
                     user=user,
                     schedule=item,
                     scheduled_date=target_date,
-                    log_status='completed',
+                    log_status=batch_status,
                     completed_at=now,
                 )
         return {'all_complete': True, 'completed_count': total, 'total_count': total}

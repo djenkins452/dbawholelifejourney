@@ -33,7 +33,7 @@
             <span class="text-muted text-sm" style="margin-left: var(--space-2);">completed today</span>
         </div>
         {% if today_missed > 0 %}
-        <span style="font-size: var(--font-size-sm); color: var(--color-error);">{{ today_missed }} missed</span>
+        <span style="font-size: var(--font-size-sm); color: var(--color-warning, #e67e22);">{{ today_missed }} late</span>
         {% endif %}
         <a href="#" class="btn btn-sm btn-ghost" id="manage-routines-toggle" data-testid="manage-routines-btn">Manage</a>
     </div>
@@ -204,10 +204,16 @@
                     label.style.textDecoration = data.is_completed ? 'line-through' : 'none';
                     label.style.color = data.is_completed ? 'var(--color-text-muted)' : '';
                 }
-                var statusBadge = item ? item.querySelector('span:last-child') : null;
-                if (statusBadge && statusBadge.textContent.trim()) {
-                    statusBadge.textContent = data.is_completed ? 'Done' : '';
-                    if (data.is_completed) statusBadge.style.color = 'var(--color-success)';
+                var statusBadge = item ? item.querySelector('.status-badge') : null;
+                if (statusBadge) {
+                    if (data.is_completed) {
+                        statusBadge.textContent = data.status === 'completed_late' ? 'Done (Late)' : 'Done';
+                        statusBadge.style.color = 'var(--color-success)';
+                        statusBadge.style.display = '';
+                    } else {
+                        statusBadge.textContent = '';
+                        statusBadge.style.display = 'none';
+                    }
                 }
                 // Child→parent: update routine checkbox
                 if (routineId) updateRoutineCheckbox(routineId);

@@ -6,6 +6,35 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — FIX: Routine items show "Missed" instead of "Late" + toggle doesn't mark completed_late
+
+**Problem:** Routine items past their scheduled time showed "Missed" all day even though they were still actionable. Clicking the checkbox to complete them created a `completed` log instead of `completed_late`, and the "Missed" badge didn't update in the UI because the JS targeted `span:last-child` (the time display) instead of the status badge.
+
+**Root causes:**
+1. `_routine_internal.py` set `status = 'missed'` for overdue items — but "missed" should be a post-day-close outcome, not a same-day status
+2. `toggle_routine_completion()` created `log_status='completed'` even when item was past its window — should be `'completed_late'`
+3. `checkbox_item.html` had no `overdue`/`Late` badge variant, and no CSS class on status badges
+4. JS toggle handler used `span:last-child` which selected the time display span, not the status badge
+5. Same bug in batch `toggle_routine_complete()` path
+
+**Fixes:**
+1. Changed overdue items to `status = 'overdue'` (display: "Late" in amber) — still actionable until day close
+2. `toggle_routine_completion()` now checks `classify_time_status()` when no log exists — creates `completed_late` if past window
+3. Added `.status-badge` class to `checkbox_item.html` with `overdue` → "Late" (amber) and `rescheduled` → "Rescheduled" (blue) variants
+4. JS now uses `.status-badge` selector and shows "Done (Late)" for `completed_late` status
+5. Same fix applied to batch toggle path
+6. Updated summary label from "X missed" to "X late"
+7. Execution contract updated to recognize `'overdue'` status from internal state
+
+**Files changed:**
+- `apps/life/services/_routine_internal.py` — `'missed'` → `'overdue'` for same-day overdue items
+- `apps/life/services/routine_helpers.py` — toggle creates `completed_late` when past window (both single + batch)
+- `templates/components/checkbox_item.html` — added `.status-badge` class, `overdue`/`rescheduled` variants
+- `templates/life/routine_list.html` — JS uses `.status-badge`, shows "Done (Late)"; summary says "late" not "missed"
+- `apps/core/execution/today_execution.py` — recognizes `'overdue'` status from internal state
+
+---
+
 ## 2026-03-20 — FEATURE: Same-Day Routine Recovery + Proactive Coaching
 
 **Problem:** When a routine item was missed (e.g., Workout at 6:15 AM), it stayed permanently "missed" for the day. Users couldn't recover it, and Beth had no way to reschedule — she'd have to create a duplicate task instead. No proactive nudging existed for missed foundational routine items.

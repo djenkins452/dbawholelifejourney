@@ -105,13 +105,15 @@ def get_todays_routine_items(user):
             else:
                 status = 'pending'
         else:
-            # Grace-aware missed detection via centralized function
+            # Grace-aware overdue detection via centralized function
             result = classify_time_status(
                 user_today, item.scheduled_time, user_now,
                 grace_minutes=item.grace_period_minutes or 0,
             )
             if result['status'] == 'overdue':
-                status = 'missed'
+                # Same-day: show as 'overdue' (still actionable).
+                # 'missed' is a post-day-close outcome only.
+                status = 'overdue'
                 total_missed += 1
             else:
                 status = 'pending'

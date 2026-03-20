@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-18 (Behavior System: shared adherence engine, Routine domain, behavior score, 3 behavior PIE rules)
+**Last updated:** 2026-03-19 (CoS: Domain State Classification, Action/Reinforcement Mode, Scripture Reinforcement for SATISFIED domains)
 
 ---
 
@@ -329,6 +329,11 @@ System prompt layers (highest priority first):
 | RULE 4 | Decision Mode | Situation→Assessment→Recommendation→Next Step for "should I..." |
 | RULE 5 | Operational Briefing Format | Goals→Actions→Tasks→Overdue→Maintenance→Recommendation |
 | RULE 6 | Knowledge Response Grounding | Acknowledge missing data→provide knowledge→suggest tracking |
+| RULE 7 | Reinforcement Mode | SATISFIED domain + signal → scripture/encouragement, NOT action |
+
+**RULE 0 update (2026-03-19):** Added MODE AWARENESS (section D) — Action Mode vs Reinforcement Mode. Action Mode: primary recommendations from action priorities list, reinforcement permitted for SATISFIED domains. Reinforcement Mode: all domains satisfied, no new actions, focus on meaning/encouragement/scripture.
+
+**Domain State Classification (2026-03-19):** Each domain is classified as ACTIONABLE (not completed, eligible for recommendation), SATISFIED (completed today, blocked from recommendations but eligible for reinforcement), or IRRELEVANT (not applicable). Classification drives Response Mode selection and RULE 7 eligibility. Scripture reinforcement queries `ScriptureVerse.contexts` against active emotional signals (stress→anxiety/worry/stress, declining mood→sadness/difficulty, positive→gratitude/growth).
 
 **Additional v6 changes:**
 - **Mandatory Context Evaluation** expanded to 6 steps (from 4) — now explicitly checks tasks due/overdue, outstanding commitments, missing data domains

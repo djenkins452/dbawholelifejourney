@@ -86,7 +86,7 @@ class GovernanceProfileModelTest(TestCase):
 
         GovernanceProfile.objects.create(
             user=self.user, module_key="faith", display_name="Prayer",
-            commitment_level="non_negotiable",
+            commitment_level="foundational",
         )
         GovernanceProfile.objects.create(
             user=self.user, module_key="journal", display_name="Journal",

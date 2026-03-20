@@ -47,11 +47,11 @@ PASSWORD_HASHERS = [
 EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
 
 # =============================================================================
-# Caching - Use dummy cache
+# Caching - Use in-memory cache (LocMemCache) so cache-dependent tests work
 # =============================================================================
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.dummy.DummyCache',
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
     }
 }
 

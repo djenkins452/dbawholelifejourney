@@ -1391,7 +1391,7 @@ class ChatLatencySnapshot(models.Model):
 
     Meta dict example:
         {
-            "model": "gpt-4o",
+            "model": "<model-name>",
             "prompt_tokens": 6120,
             "completion_tokens": 180,
             "route_name": "no_match",

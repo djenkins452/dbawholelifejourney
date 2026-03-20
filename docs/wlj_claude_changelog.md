@@ -6,6 +6,49 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — FIX: CI Test Suite — Fix 43 failures and 12 errors across 10,600 tests
+
+**Root causes (6 categories):**
+
+1. **DummyCache in CI settings** (~20 failures): `config/settings_test.py` used DummyCache which silently discards all cache operations. Changed to LocMemCache.
+
+2. **Midnight-crossing race conditions** (drift engine, COS-CX tests): Tests using `timezone.now()` could cross midnight when adding time deltas. Fixed by pinning test times to noon.
+
+3. **Hardcoded model strings** (6 service files + 2 observability files): Model guard test flagged files using literal `'gpt-4o-mini'` instead of `settings.OPENAI_MINI_MODEL`. Added `OPENAI_MINI_MODEL` to settings.py.
+
+4. **Fixture/test data issues**: Duplicate PKs in help_topics.json (pk=147) and teaching_destinations.json (pk=178). Stale 'notes' module in module_definitions.json. Wrong commitment_level constant in governance test.
+
+5. **Test assertion mismatches**: Web search test asserted wrong model name. Bundling budget test threshold above DB default. CDCE format changed to `[STRONG]` but test expected `[Strong]`. CDCE no-correlations test matched static reasoning hierarchy text.
+
+6. **Thread visibility in CDCE tests**: `build_cos_context` uses ThreadPoolExecutor on PostgreSQL, making transaction-wrapped test data invisible to worker threads. Changed to TransactionTestCase.
+
+**Also fixed:** Phase4 CoS COGNITIVE PRECISION condition was inverted (excluded ACTIVATION_CLEAN instead of including it). Noise budget constants not exported for test access. WorkoutSession missing `completed_at` in state transformation test.
+
+**Files changed (23):**
+- `config/settings.py` — Added OPENAI_MINI_MODEL setting
+- `config/settings_test.py` — DummyCache → LocMemCache
+- `apps/ai/conversation/token_budget.py` — Use settings.OPENAI_MODEL
+- `apps/ai/tests/test_web_search.py` — Use settings.OPENAI_MODEL in assertion
+- `apps/capture/services/signal_extractor.py` — Use settings.OPENAI_MINI_MODEL
+- `apps/core/ai_cross_domain/tests.py` — TransactionTestCase, onboarding setup, specific assertion
+- `apps/core/ai_eae/tests/test_bundling.py` — Threshold below DB default
+- `apps/core/ai_insights/noise_budget.py` — Export public constant aliases
+- `apps/core/ai_observability/latency_trace.py` — Remove hardcoded model in docstring
+- `apps/core/ai_observability/models.py` — Remove hardcoded model in docstring
+- `apps/core/ai_orchestrator/cos_context.py` — Fix inverted COGNITIVE PRECISION condition
+- `apps/core/ai_state/tests_transformation.py` — Add completed_at to WorkoutSession
+- `apps/core/drift/tests/test_drift_engine.py` — Pin to noon, avoid midnight crossing
+- `apps/core/tests/test_phase5_governance.py` — Use 'foundational' constant
+- `apps/cos/tests/test_cos_cx.py` — Pin to noon for all setUp methods
+- `apps/help/fixtures/help_topics.json` — Fix duplicate pk=147
+- `apps/help/fixtures/teaching_destinations.json` — Fix duplicate pk=178
+- `apps/journal/services/signal_extractor.py` — Use settings.OPENAI_MINI_MODEL
+- `apps/life/services/document_fact_extractor.py` — Use settings.OPENAI_MINI_MODEL
+- `apps/life/services/document_signal_extractor.py` — Use settings.OPENAI_MINI_MODEL
+- `apps/life/services/email_classifier.py` — Use settings.OPENAI_MINI_MODEL
+- `apps/life/services/email_fact_extractor.py` — Use settings.OPENAI_MINI_MODEL
+- `apps/users/fixtures/module_definitions.json` — Remove stale 'notes' module
+
 ## 2026-03-19 — HARDEN: CoS Execution Handling — Prevent Inference When Data Missing
 
 **Problem:** When the `execution` SAE module hadn't been built yet (or was stale), CoS fell back to reading routine/medication data from legacy SAE modules. This created parallel truth sources that could drift, causing Beth to make stale or contradictory claims about routine completion.

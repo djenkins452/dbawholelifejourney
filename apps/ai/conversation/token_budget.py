@@ -11,6 +11,8 @@ with a character-ratio heuristic as fallback.
 import logging
 from typing import List, Dict
 
+from django.conf import settings
+
 logger = logging.getLogger(__name__)
 
 # Average chars per token for English text (fallback when tiktoken unavailable).
@@ -31,7 +33,7 @@ def _get_tiktoken_encoder():
         return _tiktoken_encoder
     try:
         import tiktoken
-        _tiktoken_encoder = tiktoken.encoding_for_model("gpt-4o")
+        _tiktoken_encoder = tiktoken.encoding_for_model(settings.OPENAI_MODEL)
         _tiktoken_available = True
         return _tiktoken_encoder
     except ImportError:

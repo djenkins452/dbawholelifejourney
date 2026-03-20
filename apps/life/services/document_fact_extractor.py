@@ -165,7 +165,7 @@ def _call_openai(text):
     if not client:
         return []
 
-    model = getattr(settings, 'OPENAI_FACT_EXTRACTION_MODEL', 'gpt-4o-mini')
+    model = getattr(settings, 'OPENAI_FACT_EXTRACTION_MODEL', settings.OPENAI_MINI_MODEL)
 
     try:
         response = client.chat.completions.create(

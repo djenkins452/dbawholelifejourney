@@ -238,6 +238,7 @@ class TestBuildFitnessStateWithData(TestCase):
                 name=f"Workout {i}",
                 date=today - timedelta(days=i),
                 duration_minutes=60,
+                completed_at=timezone.now() - timedelta(days=i),
             )
 
         state = build_fitness_state(self.user)

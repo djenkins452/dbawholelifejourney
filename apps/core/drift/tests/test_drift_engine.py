@@ -29,32 +29,36 @@ User = get_user_model()
 class WeightCalculationTests(TestCase):
     """Deterministic weight rule verification."""
 
+    def _noon(self):
+        """Fixed noon time to avoid midnight-crossing race conditions."""
+        return timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
+
     def test_small_shift_under_15_min(self):
-        base = timezone.now()
+        base = self._noon()
         result = compute_schedule_change_weight(base, base + dt.timedelta(minutes=10))
         self.assertEqual(result['weight'], 5)
         self.assertEqual(result['instability_points'], 0)
 
     def test_shift_15_to_59_min(self):
-        base = timezone.now()
+        base = self._noon()
         result = compute_schedule_change_weight(base, base + dt.timedelta(minutes=30))
         self.assertEqual(result['weight'], 20)
         self.assertEqual(result['instability_points'], 1)
 
     def test_shift_60_to_179_min(self):
-        base = timezone.now()
+        base = self._noon()
         result = compute_schedule_change_weight(base, base + dt.timedelta(minutes=90))
         self.assertEqual(result['weight'], 45)
         self.assertEqual(result['instability_points'], 3)
 
     def test_shift_180_plus_min(self):
-        base = timezone.now()
+        base = self._noon()
         result = compute_schedule_change_weight(base, base + dt.timedelta(minutes=200))
         self.assertEqual(result['weight'], 75)
         self.assertEqual(result['instability_points'], 5)
 
     def test_date_change_override(self):
-        base = timezone.now().replace(hour=10)
+        base = self._noon()
         next_day = base + dt.timedelta(days=1)
         result = compute_schedule_change_weight(base, next_day)
         self.assertTrue(result['date_changed'])
@@ -62,12 +66,12 @@ class WeightCalculationTests(TestCase):
         self.assertGreaterEqual(result['instability_points'], 4)
 
     def test_boundary_14_min(self):
-        base = timezone.now()
+        base = self._noon()
         result = compute_schedule_change_weight(base, base + dt.timedelta(minutes=14))
         self.assertEqual(result['instability_points'], 0)
 
     def test_boundary_15_min(self):
-        base = timezone.now()
+        base = self._noon()
         result = compute_schedule_change_weight(base, base + dt.timedelta(minutes=15))
         self.assertEqual(result['instability_points'], 1)
 
@@ -80,7 +84,8 @@ class DriftEngineTestMixin:
             email='drift-test@example.com',
             password='testpass123',
         )
-        self.now = timezone.now()
+        # Fixed noon time to avoid midnight-crossing race conditions in CI
+        self.now = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
 
     def _create_event(self, title='Test Event', protected=False, source_type='none', source_id=''):
         start = self.now + dt.timedelta(hours=1)

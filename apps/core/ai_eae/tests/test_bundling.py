@@ -136,7 +136,9 @@ class BudgetTests(TestCase):
 
     def test_low_capacity_reduces_budget(self):
         """Low capacity reduces budget by 1."""
-        budget = compute_budget(CHANNEL_CHAT, capacity_score=0.3)
+        # Use 0.21 — above critical threshold (0.2) but below low threshold
+        # (model default 0.25 or code fallback 0.4)
+        budget = compute_budget(CHANNEL_CHAT, capacity_score=0.21)
         self.assertEqual(budget, BUDGET_CHAT - 1)
 
     def test_high_capacity_increases_budget(self):

@@ -18,6 +18,8 @@ import json
 import logging
 import re
 
+from django.conf import settings
+
 logger = logging.getLogger(__name__)
 
 # Source weight constants for confidence scoring
@@ -299,7 +301,7 @@ def classify_with_llm(email):
             }
 
         response = client.chat.completions.create(
-            model='gpt-4o-mini',
+            model=settings.OPENAI_MINI_MODEL,
             messages=[
                 {"role": "system", "content": CLASSIFICATION_PROMPT},
                 {"role": "user", "content": user_prompt},

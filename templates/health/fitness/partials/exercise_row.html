@@ -10,10 +10,14 @@ Variables:
 - class_details: ClassDetails object (for fitness class exercises)
 {% endcomment %}
 
-<div class="exercise-row {% if exercise.category == 'cardio' %}cardio-row{% elif exercise.category == 'class' %}class-row{% elif exercise.movement_type == 'bodyweight' %}bodyweight-row{% elif exercise.movement_type == 'time' %}time-row{% endif %}" data-exercise-id="{{ exercise.pk }}" {% if exercise.movement_type %}data-movement-type="{{ exercise.movement_type }}"{% endif %}>
+<div class="exercise-row {% if exercise.category == 'cardio' %}cardio-row{% elif exercise.category == 'class' %}class-row{% elif exercise.movement_type == 'bodyweight' %}bodyweight-row{% elif exercise.movement_type == 'time' %}time-row{% endif %}" data-exercise-id="{{ exercise.pk }}" {% if exercise.movement_type %}data-movement-type="{{ exercise.movement_type }}"{% endif %} data-youtube-url="{{ exercise.youtube_url }}" data-instructions="{{ exercise.instructions|escapejs }}">
     <input type="hidden" name="exercise_id" value="{{ exercise.pk }}">
     <div class="exercise-header">
         <h3 class="exercise-name">{{ exercise.name }}</h3>
+        <div class="exercise-guidance-btns">
+            <button type="button" class="guidance-btn watch-btn" data-action="watch" data-exercise-id="{{ exercise.pk }}" title="Watch exercise video">&#9654; Watch</button>
+            {% if exercise.instructions %}<button type="button" class="guidance-btn how-btn" data-action="how" data-exercise-id="{{ exercise.pk }}" title="How to perform">&#8505; How</button>{% endif %}
+        </div>
         {% if exercise.movement_type == "bodyweight" %}
             <div class="exercise-header-actions">
                 <label class="add-weight-toggle">
@@ -34,6 +38,10 @@ Variables:
                 </svg>
             </button>
         {% endif %}
+    </div>
+    <!-- Instructions panel (hidden by default) -->
+    <div class="instructions-panel" style="display: none;">
+        <div class="instructions-content"></div>
     </div>
 
     {% if exercise.category == "resistance" and exercise.movement_type == "time" %}

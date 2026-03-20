@@ -56,18 +56,39 @@
             </div>
         </div>
 
-        <!-- Quick Start from Template -->
+        <!-- Template Selection -->
         {% if templates and not editing %}
-            <div class="quick-start-section">
-                <span class="section-label">Quick start from template:</span>
-                <div class="template-chips">
-                    {% for template in templates %}
-                        <a href="?template={{ template.pk }}" class="template-chip {% if from_template.pk == template.pk %}active{% endif %}" data-template-id="{{ template.pk }}">
-                            {{ template.name }}
-                        </a>
-                    {% endfor %}
+            {% if from_template %}
+                <!-- Active template banner -->
+                <div class="quick-start-section active-template-section" id="activeTemplateBanner">
+                    <span class="section-label">Using Template:</span>
+                    <span class="active-template-name">{{ from_template.name }}</span>
+                    <button type="button" class="btn btn-ghost btn-sm" id="changeTemplateBtn">Change Template</button>
                 </div>
-            </div>
+                <!-- Hidden template list -->
+                <div class="quick-start-section template-selector-expanded" id="templateSelectorExpanded" style="display: none;">
+                    <span class="section-label">Select template:</span>
+                    <div class="template-chips">
+                        {% for template in templates %}
+                            <a href="#" class="template-chip template-preview-chip" data-template-id="{{ template.pk }}">
+                                {{ template.name }}
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% else %}
+                <!-- Fresh selection with preview -->
+                <div class="quick-start-section">
+                    <span class="section-label">Quick start from template:</span>
+                    <div class="template-chips">
+                        {% for template in templates %}
+                            <a href="#" class="template-chip template-preview-chip" data-template-id="{{ template.pk }}">
+                                {{ template.name }}
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
         {% endif %}
 
         <!-- Exercise Selection -->
@@ -103,19 +124,19 @@
                             {% for group in muscle_groups %}
                                 <optgroup label="  {{ group.grouper }}">
                                     {% for exercise in group.list %}
-                                        <option value="{{ exercise.pk }}" data-category="resistance" data-movement-type="{{ exercise.movement_type }}">{{ exercise.name }}</option>
+                                        <option value="{{ exercise.pk }}" data-category="resistance" data-movement-type="{{ exercise.movement_type }}" data-youtube-url="{{ exercise.youtube_url }}" data-instructions="{{ exercise.instructions|escapejs }}">{{ exercise.name }}</option>
                                     {% endfor %}
                                 </optgroup>
                             {% endfor %}
                         </optgroup>
                         <optgroup label="Cardio">
                             {% for exercise in cardio_exercises %}
-                                <option value="{{ exercise.pk }}" data-category="cardio">{{ exercise.name }}</option>
+                                <option value="{{ exercise.pk }}" data-category="cardio" data-youtube-url="{{ exercise.youtube_url }}" data-instructions="{{ exercise.instructions|escapejs }}">{{ exercise.name }}</option>
                             {% endfor %}
                         </optgroup>
                         <optgroup label="Fitness Classes">
                             {% for exercise in class_exercises %}
-                                <option value="{{ exercise.pk }}" data-category="class">{{ exercise.name }}</option>
+                                <option value="{{ exercise.pk }}" data-category="class" data-youtube-url="{{ exercise.youtube_url }}" data-instructions="{{ exercise.instructions|escapejs }}">{{ exercise.name }}</option>
                             {% endfor %}
                         </optgroup>
                     </select>
@@ -146,18 +167,61 @@
     </form>
 </div>
 
+<!-- Template Preview Modal -->
+<div id="templatePreviewModal" class="modal" style="display: none;">
+    <div class="modal-backdrop" id="templatePreviewBackdrop"></div>
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 id="templatePreviewTitle" style="margin: 0;">Template Preview</h3>
+            <button type="button" class="modal-close" id="templatePreviewClose">&times;</button>
+        </div>
+        <div class="modal-body" id="templatePreviewBody">
+            <div class="template-preview-loading">Loading...</div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="templatePreviewCancel">Cancel</button>
+            <a href="#" class="btn btn-primary" id="templatePreviewStart">Start Workout</a>
+        </div>
+    </div>
+</div>
+
+<!-- Video Modal -->
+<div id="videoModal" class="modal" style="display: none;">
+    <div class="modal-backdrop" id="videoModalBackdrop"></div>
+    <div class="modal-content" style="max-width: 640px;">
+        <div class="modal-header">
+            <h3 id="videoModalTitle" style="margin: 0;">Exercise Video</h3>
+            <button type="button" class="modal-close" id="videoModalClose">&times;</button>
+        </div>
+        <div class="modal-body" id="videoModalBody">
+            <div class="video-container">
+                <iframe id="videoIframe" width="100%" height="360" frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
+                        allowfullscreen></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Exercise Row Template (for JS) -->
 <template id="resistanceTemplate">
-    <div class="exercise-row" data-exercise-id="EXERCISE_ID">
+    <div class="exercise-row" data-exercise-id="EXERCISE_ID" data-youtube-url="EXERCISE_YOUTUBE_URL" data-instructions="EXERCISE_INSTRUCTIONS">
         <input type="hidden" name="exercise_id" value="EXERCISE_ID">
         <div class="exercise-header">
             <h3 class="exercise-name">EXERCISE_NAME</h3>
+            <div class="exercise-guidance-btns">
+                <button type="button" class="guidance-btn watch-btn" data-action="watch" data-exercise-id="EXERCISE_ID" title="Watch exercise video">&#9654; Watch</button>
+                <button type="button" class="guidance-btn how-btn" data-action="how" data-exercise-id="EXERCISE_ID" title="How to perform">&#8505; How</button>
+            </div>
             <button type="button" class="remove-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
             </button>
+        </div>
+        <div class="instructions-panel" style="display: none;">
+            <div class="instructions-content"></div>
         </div>
         <div class="sets-container">
             <div class="set-row" data-set-number="1">
@@ -199,16 +263,23 @@
 </template>
 
 <template id="cardioTemplate">
-    <div class="exercise-row cardio-row" data-exercise-id="EXERCISE_ID">
+    <div class="exercise-row cardio-row" data-exercise-id="EXERCISE_ID" data-youtube-url="EXERCISE_YOUTUBE_URL" data-instructions="EXERCISE_INSTRUCTIONS">
         <input type="hidden" name="exercise_id" value="EXERCISE_ID">
         <div class="exercise-header">
             <h3 class="exercise-name">EXERCISE_NAME</h3>
+            <div class="exercise-guidance-btns">
+                <button type="button" class="guidance-btn watch-btn" data-action="watch" data-exercise-id="EXERCISE_ID" title="Watch exercise video">&#9654; Watch</button>
+                <button type="button" class="guidance-btn how-btn" data-action="how" data-exercise-id="EXERCISE_ID" title="How to perform">&#8505; How</button>
+            </div>
             <button type="button" class="remove-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
             </button>
+        </div>
+        <div class="instructions-panel" style="display: none;">
+            <div class="instructions-content"></div>
         </div>
         <div class="cardio-inputs">
             <div class="cardio-field">
@@ -243,16 +314,23 @@
 </template>
 
 <template id="classTemplate">
-    <div class="exercise-row class-row" data-exercise-id="EXERCISE_ID">
+    <div class="exercise-row class-row" data-exercise-id="EXERCISE_ID" data-youtube-url="EXERCISE_YOUTUBE_URL" data-instructions="EXERCISE_INSTRUCTIONS">
         <input type="hidden" name="exercise_id" value="EXERCISE_ID">
         <div class="exercise-header">
             <h3 class="exercise-name">EXERCISE_NAME</h3>
+            <div class="exercise-guidance-btns">
+                <button type="button" class="guidance-btn watch-btn" data-action="watch" data-exercise-id="EXERCISE_ID" title="Watch exercise video">&#9654; Watch</button>
+                <button type="button" class="guidance-btn how-btn" data-action="how" data-exercise-id="EXERCISE_ID" title="How to perform">&#8505; How</button>
+            </div>
             <button type="button" class="remove-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
             </button>
+        </div>
+        <div class="instructions-panel" style="display: none;">
+            <div class="instructions-content"></div>
         </div>
         <div class="class-inputs">
             <div class="class-field">
@@ -280,10 +358,14 @@
 </template>
 
 <template id="bodyweightTemplate">
-    <div class="exercise-row bodyweight-row" data-exercise-id="EXERCISE_ID" data-movement-type="bodyweight">
+    <div class="exercise-row bodyweight-row" data-exercise-id="EXERCISE_ID" data-movement-type="bodyweight" data-youtube-url="EXERCISE_YOUTUBE_URL" data-instructions="EXERCISE_INSTRUCTIONS">
         <input type="hidden" name="exercise_id" value="EXERCISE_ID">
         <div class="exercise-header">
             <h3 class="exercise-name">EXERCISE_NAME</h3>
+            <div class="exercise-guidance-btns">
+                <button type="button" class="guidance-btn watch-btn" data-action="watch" data-exercise-id="EXERCISE_ID" title="Watch exercise video">&#9654; Watch</button>
+                <button type="button" class="guidance-btn how-btn" data-action="how" data-exercise-id="EXERCISE_ID" title="How to perform">&#8505; How</button>
+            </div>
             <div class="exercise-header-actions">
                 <label class="add-weight-toggle">
                     <input type="checkbox" class="add-weight-checkbox"> + Weight
@@ -295,6 +377,9 @@
                     </svg>
                 </button>
             </div>
+        </div>
+        <div class="instructions-panel" style="display: none;">
+            <div class="instructions-content"></div>
         </div>
         <div class="sets-container">
             <div class="set-row" data-set-number="1">
@@ -342,16 +427,23 @@
 </template>
 
 <template id="timeTemplate">
-    <div class="exercise-row time-row" data-exercise-id="EXERCISE_ID" data-movement-type="time">
+    <div class="exercise-row time-row" data-exercise-id="EXERCISE_ID" data-movement-type="time" data-youtube-url="EXERCISE_YOUTUBE_URL" data-instructions="EXERCISE_INSTRUCTIONS">
         <input type="hidden" name="exercise_id" value="EXERCISE_ID">
         <div class="exercise-header">
             <h3 class="exercise-name">EXERCISE_NAME</h3>
+            <div class="exercise-guidance-btns">
+                <button type="button" class="guidance-btn watch-btn" data-action="watch" data-exercise-id="EXERCISE_ID" title="Watch exercise video">&#9654; Watch</button>
+                <button type="button" class="guidance-btn how-btn" data-action="how" data-exercise-id="EXERCISE_ID" title="How to perform">&#8505; How</button>
+            </div>
             <button type="button" class="remove-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
             </button>
+        </div>
+        <div class="instructions-panel" style="display: none;">
+            <div class="instructions-content"></div>
         </div>
         <div class="sets-container">
             <div class="set-row time-set-row" data-set-number="1">
@@ -857,6 +949,221 @@
 .time-done-btn {
     min-width: 70px;
 }
+
+/* Active template banner */
+.active-template-section {
+    align-items: center;
+}
+
+.active-template-name {
+    font-weight: 600;
+    color: var(--color-accent);
+    font-size: var(--font-size-base);
+}
+
+.btn-ghost {
+    background: none;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+}
+
+.btn-ghost:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+/* Exercise guidance buttons */
+.exercise-guidance-btns {
+    display: flex;
+    gap: var(--space-1);
+    margin-left: auto;
+    margin-right: var(--space-2);
+}
+
+.guidance-btn {
+    padding: var(--space-1) var(--space-2);
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    min-height: 32px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.guidance-btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+/* Instructions panel */
+.instructions-panel {
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+    background: var(--color-background);
+    border-radius: var(--radius-md);
+    border-left: 3px solid var(--color-accent);
+}
+
+.instructions-content {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    white-space: pre-line;
+    line-height: 1.5;
+}
+
+/* Modals */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    position: relative;
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    padding: var(--space-1);
+}
+
+.modal-close:hover {
+    color: var(--color-text);
+}
+
+.modal-body {
+    padding: var(--space-4);
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+/* Template preview */
+.template-preview-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.template-preview-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.template-preview-item:last-child {
+    border-bottom: none;
+}
+
+.preview-exercise-name {
+    font-weight: 500;
+}
+
+.preview-exercise-meta {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.template-preview-summary {
+    display: flex;
+    gap: var(--space-4);
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+/* Video modal */
+.video-container {
+    position: relative;
+    width: 100%;
+    padding-bottom: 56.25%;
+    height: 0;
+}
+
+.video-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: var(--radius-md);
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+    .guidance-btn span.btn-label {
+        display: none;
+    }
+
+    .exercise-guidance-btns {
+        margin-right: var(--space-1);
+    }
+
+    .modal-content {
+        width: 95%;
+    }
+
+    .video-container iframe {
+        height: 200px;
+    }
+
+    .template-preview-summary {
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+}
 </style>
 
 <script nonce="{{ csp_nonce }}">
@@ -1267,9 +1574,12 @@ async function markTimeDone(button, exerciseId, setNumber) {
 function addExercise() {
     const select = document.getElementById('exerciseSelect');
     const exerciseId = select.value;
-    const exerciseName = select.options[select.selectedIndex].text;
-    const category = select.options[select.selectedIndex].dataset.category;
-    const movementType = select.options[select.selectedIndex].dataset.movementType || 'weighted';
+    const selectedOption = select.options[select.selectedIndex];
+    const exerciseName = selectedOption.text;
+    const category = selectedOption.dataset.category;
+    const movementType = selectedOption.dataset.movementType || 'weighted';
+    const youtubeUrl = selectedOption.dataset.youtubeUrl || '';
+    const instructions = selectedOption.dataset.instructions || '';
 
     if (!exerciseId) {
         alert('Please select an exercise');
@@ -1300,8 +1610,17 @@ function addExercise() {
     // Replace placeholders
     template = template.replace(/EXERCISE_ID/g, exerciseId);
     template = template.replace(/EXERCISE_NAME/g, exerciseName);
+    template = template.replace(/EXERCISE_YOUTUBE_URL/g, youtubeUrl);
+    template = template.replace(/EXERCISE_INSTRUCTIONS/g, instructions);
 
     container.insertAdjacentHTML('beforeend', template);
+
+    // Hide "How" button if no instructions
+    const newRow = container.querySelector(`[data-exercise-id="${exerciseId}"]`);
+    if (newRow && !instructions) {
+        const howBtn = newRow.querySelector('.how-btn');
+        if (howBtn) howBtn.style.display = 'none';
+    }
 
     // Reset select
     select.value = '';
@@ -1437,6 +1756,88 @@ function applyTemplateDefaults() {
 }
 
 // =====================================================
+// Modal helpers
+// =====================================================
+function showModal(modalId) {
+    document.getElementById(modalId).style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function hideModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+// Extract YouTube video ID from various URL formats
+function extractYouTubeId(url) {
+    if (!url) return null;
+    const patterns = [
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+        /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+    ];
+    for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) return match[1];
+    }
+    return null;
+}
+
+// Fetch and display template preview in modal
+async function showTemplatePreview(templateId) {
+    const modal = document.getElementById('templatePreviewModal');
+    const body = document.getElementById('templatePreviewBody');
+    const startBtn = document.getElementById('templatePreviewStart');
+
+    body.innerHTML = '<div class="template-preview-loading">Loading...</div>';
+    startBtn.href = '?template=' + templateId;
+    showModal('templatePreviewModal');
+
+    try {
+        const response = await fetch('/health/physical/fitness/api/template-preview/' + templateId + '/', {
+            headers: { 'X-CSRFToken': getCSRFToken() },
+        });
+        const data = await response.json();
+
+        let exerciseHtml = '<ul class="template-preview-list">';
+        const muscleGroups = new Set();
+
+        data.exercises.forEach(function(ex) {
+            const meta = [];
+            if (ex.category === 'resistance') {
+                meta.push(ex.default_sets + ' sets');
+            } else if (ex.category === 'cardio') {
+                meta.push('Cardio');
+            } else if (ex.category === 'class') {
+                meta.push('Class');
+            }
+            if (ex.muscle_group) {
+                meta.push(ex.muscle_group);
+                muscleGroups.add(ex.muscle_group);
+            }
+            exerciseHtml += '<li class="template-preview-item">';
+            exerciseHtml += '<span class="preview-exercise-name">' + ex.name + '</span>';
+            exerciseHtml += '<span class="preview-exercise-meta">' + meta.join(' · ') + '</span>';
+            exerciseHtml += '</li>';
+        });
+        exerciseHtml += '</ul>';
+
+        exerciseHtml += '<div class="template-preview-summary">';
+        exerciseHtml += '<span>' + data.exercises.length + ' exercises</span>';
+        exerciseHtml += '<span>' + data.total_sets + ' total sets</span>';
+        exerciseHtml += '<span>~' + data.estimated_minutes + ' min</span>';
+        if (muscleGroups.size > 0) {
+            exerciseHtml += '<span>' + Array.from(muscleGroups).join(', ') + '</span>';
+        }
+        exerciseHtml += '</div>';
+
+        document.getElementById('templatePreviewTitle').textContent = data.name;
+        body.innerHTML = exerciseHtml;
+    } catch (err) {
+        body.innerHTML = '<p>Failed to load template preview.</p>';
+    }
+}
+
+// =====================================================
 // Event Delegation — replaces all inline onclick handlers
 // CSP nonce-based policy blocks inline event handlers,
 // so all clicks are handled here via delegation.
@@ -1509,6 +1910,80 @@ document.addEventListener('click', function(e) {
     const timerCloseBtn = target.closest('.rest-timer-close');
     if (timerCloseBtn) {
         dismissRestTimer();
+        return;
+    }
+
+    // --- Watch button (exercise video) ---
+    // SIGNAL_READY: Future PIE event { type: 'exercise_guidance', action: 'watch', exercise_id }
+    const watchBtn = target.closest('.watch-btn');
+    if (watchBtn) {
+        const exerciseRow = watchBtn.closest('.exercise-row');
+        if (exerciseRow) {
+            const youtubeUrl = exerciseRow.dataset.youtubeUrl;
+            if (youtubeUrl) {
+                const videoId = extractYouTubeId(youtubeUrl);
+                if (videoId) {
+                    document.getElementById('videoIframe').src = 'https://www.youtube.com/embed/' + videoId + '?rel=0';
+                    const exerciseName = exerciseRow.querySelector('.exercise-name').textContent.trim();
+                    document.getElementById('videoModalTitle').textContent = exerciseName;
+                    showModal('videoModal');
+                } else {
+                    window.open(youtubeUrl, '_blank');
+                }
+            } else {
+                const exerciseName = exerciseRow.querySelector('.exercise-name').textContent.trim();
+                const searchQuery = encodeURIComponent(exerciseName + ' proper form');
+                window.open('https://www.youtube.com/results?search_query=' + searchQuery, '_blank');
+            }
+        }
+        return;
+    }
+
+    // --- How button (exercise instructions) ---
+    // SIGNAL_READY: Future PIE event { type: 'exercise_guidance', action: 'how', exercise_id }
+    const howBtn = target.closest('.how-btn');
+    if (howBtn) {
+        const exerciseRow = howBtn.closest('.exercise-row');
+        if (exerciseRow) {
+            const panel = exerciseRow.querySelector('.instructions-panel');
+            if (panel) {
+                const isVisible = panel.style.display !== 'none';
+                panel.style.display = isVisible ? 'none' : 'block';
+                if (!isVisible) {
+                    const content = panel.querySelector('.instructions-content');
+                    content.textContent = exerciseRow.dataset.instructions || 'No instructions available.';
+                }
+            }
+        }
+        return;
+    }
+
+    // --- Template preview chip ---
+    const previewChip = target.closest('.template-preview-chip');
+    if (previewChip) {
+        e.preventDefault();
+        const templateId = previewChip.dataset.templateId;
+        showTemplatePreview(templateId);
+        return;
+    }
+
+    // --- Change Template button ---
+    if (target.closest('#changeTemplateBtn')) {
+        const banner = document.getElementById('activeTemplateBanner');
+        const selector = document.getElementById('templateSelectorExpanded');
+        if (banner) banner.style.display = 'none';
+        if (selector) selector.style.display = 'flex';
+        return;
+    }
+
+    // --- Modal close/backdrop handlers ---
+    if (target.closest('#templatePreviewClose') || target.closest('#templatePreviewCancel') || target.id === 'templatePreviewBackdrop') {
+        hideModal('templatePreviewModal');
+        return;
+    }
+    if (target.closest('#videoModalClose') || target.id === 'videoModalBackdrop') {
+        hideModal('videoModal');
+        document.getElementById('videoIframe').src = '';
         return;
     }
 });

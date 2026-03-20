@@ -1500,6 +1500,29 @@ class Exercise(models.Model):
         help_text="Primary muscle group (for resistance exercises)",
     )
     description = models.TextField(blank=True)
+
+    VIDEO_SOURCE_CHOICES = [
+        ("athleanx", "AthleanX"),
+        ("nippard", "Jeff Nippard"),
+        ("ethier", "Jeremy Ethier"),
+        ("custom", "Custom"),
+    ]
+
+    instructions = models.TextField(
+        blank=True,
+        help_text="Step-by-step exercise instructions and form cues",
+    )
+    youtube_url = models.URLField(
+        blank=True,
+        help_text="Direct YouTube video URL for exercise demonstration",
+    )
+    video_source = models.CharField(
+        max_length=20,
+        choices=VIDEO_SOURCE_CHOICES,
+        blank=True,
+        help_text="Source channel of the assigned video",
+    )
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

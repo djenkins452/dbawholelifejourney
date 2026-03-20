@@ -248,6 +248,9 @@ urlpatterns = [
     path("physical/fitness/add-exercise/", views.add_exercise_htmx, name="add_exercise_htmx"),
     path("physical/fitness/add-set/<int:exercise_id>/", views.add_set_htmx, name="add_set_htmx"),
 
+    # Template Preview API
+    path("physical/fitness/api/template-preview/<int:template_id>/", views.template_preview_json, name="template_preview_json"),
+
     # Live Workout AJAX Endpoints
     path("physical/fitness/api/start-workout/", views.start_workout_ajax, name="start_workout_ajax"),
     path("physical/fitness/api/save-set/", views.save_set_ajax, name="save_set_ajax"),

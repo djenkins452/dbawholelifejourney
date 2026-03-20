@@ -87,6 +87,8 @@ class SignalComputerCoverageTest(TestCase):
         for signal_type in SIGNAL_TYPE_DOMAIN:
             if signal_type in PATTERN_TYPES:
                 continue  # Phase 5: patterns computed by PatternEngine
+            if signal_type in STUBBED_SIGNAL_TYPES:
+                continue  # Stubbed types have documented reasons, no computer needed
             method_name = computer_methods.get(signal_type)
             self.assertIsNotNone(
                 method_name,
@@ -361,8 +363,8 @@ class SignalValidationTest(TestCase):
             summary['status'], 'healthy',
             f"Signal health drift detected: {summary}"
         )
-        # 10 base signal types + 5 Phase 5 pattern types = 15
-        self.assertEqual(summary['taxonomy_types'], 15)
+        # 10 base signal types + 3 emotional types + 5 Phase 5 pattern types = 18
+        self.assertEqual(summary['taxonomy_types'], 18)
         self.assertEqual(summary['computers_missing'], 0)
 
     def test_registry_health_includes_signal_health(self):

@@ -98,6 +98,8 @@ class ScoreCalculationTest(InsightsTestMixin, TestCase):
     """Tests for RelationalHealthService.compute_health scoring."""
 
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
         self.user = self.create_user()
 
     def test_empty_contacts_returns_none_score(self):
@@ -314,6 +316,8 @@ class InsightsViewTest(InsightsTestMixin, TestCase):
     """Tests for the insights page and dashboard card."""
 
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
         self.user = self.create_user()
         self.login_user()
 
@@ -358,6 +362,8 @@ class CosPayloadTest(InsightsTestMixin, TestCase):
     """Tests for CoS context builder relational health payload."""
 
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
         self.user = self.create_user()
 
     def test_cos_payload_structure(self):

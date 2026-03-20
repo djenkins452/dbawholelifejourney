@@ -51,6 +51,9 @@ SIGNAL_TYPE_DOMAIN = {
 # Signal types intentionally stubbed (domain exists but data pipeline not yet mature)
 STUBBED_SIGNAL_TYPES = {
     'financial_health': 'Finance module is coming_soon — no deterministic data source yet',
+    'emotional_stress': 'Produced by journal blending pipeline (_blend_journal_signals), not a direct computer',
+    'emotional_low_mood': 'Produced by journal blending pipeline (_blend_journal_signals), not a direct computer',
+    'emotional_positive': 'Produced by journal blending pipeline (_blend_journal_signals), not a direct computer',
 }
 
 

@@ -18,6 +18,8 @@ class GoalMomentumServiceTest(TestCase):
     """Tests for the GoalMomentumService."""
 
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
         self.user = User.objects.create_user(
             email="momentum@test.com", password="testpass123"
         )

@@ -3296,6 +3296,10 @@ class TestHealthIntelligenceScheduling(TestCase):
 class TestHealthIntelligenceTelemetry(TestCase):
     """Verify Health Intelligence ops telemetry returns expected structure."""
 
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
     def test_telemetry_returns_expected_keys(self):
         """_get_health_intelligence_telemetry must return all required keys."""
         from apps.core.ai_observability.ops_views import (

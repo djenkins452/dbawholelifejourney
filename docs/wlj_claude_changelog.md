@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — FIX: CI test suite — resolve remaining failures (round 3)
+
+**Problem:** After round 2 fixes, CI still had 27 failures and 1 error across 10,614 tests. Root causes: unregistered 'emotional' domain in signal governance, COGNITIVE PRECISION framework incorrectly gated by conditional-frameworks flag, cache leakage between tests (AAFR, relationships, momentum, health telemetry), and time-sensitive routine completion status.
+
+**Fixes:**
+1. **Signal governance (6 tests)** — Registered 'emotional' domain via new `apps/core/ai_eae/capabilities.py`. Added emotional signal types to `STUBBED_SIGNAL_TYPES` (produced by journal blending pipeline, not direct computers). Updated test to skip stubbed types in computer coverage check. Updated taxonomy count assertion 15→18.
+2. **COGNITIVE PRECISION (3 tests)** — Simplified conditional injection logic — cognitive precision is now always injected regardless of activation state. Drift/erosion states need the framework more, not less. The conditional-frameworks flag only gates trajectory precision (Phase 3).
+3. **AAFR tests (6 tests)** — Added `cache.clear()` to `AAFRAggregationTests.setUp()`. The `_get_aafr_metrics()` function caches results for 30s, causing stale data between tests.
+4. **Relationship insight tests (3 tests)** — Added `cache.clear()` to `ScoreCalculationTest`, `InsightsViewTest`, and `CosPayloadTest` setUp methods. Cached relational health scores were leaking between tests.
+5. **Momentum test (1 test)** — Added `cache.clear()` to `GoalMomentumServiceTest.setUp()`. Mocked `_compute_all` result was cached and returned by subsequent tests.
+6. **Health telemetry test (1 test)** — Added `cache.clear()` to `TestHealthIntelligenceTelemetry.setUp()`. Cached 'ERROR' status from prior test prevented fresh computation.
+7. **Routine toggle tests (2 tests)** — Updated assertions to accept both `completed` and `completed_late` log statuses. When tests run after the schedule's grace period, items get `completed_late` instead of `completed`.
+
+**Files changed:**
+- `apps/core/ai_eae/capabilities.py` — NEW: Register 'emotional' domain in DomainRegistry
+- `apps/core/ai_eae/signal_aggregation.py` — Add emotional types to STUBBED_SIGNAL_TYPES
+- `apps/core/ai_eae/tests/test_signal_governance.py` — Skip stubbed types, update taxonomy count
+- `apps/core/ai_orchestrator/cos_context.py` — Always inject COGNITIVE PRECISION
+- `apps/core/ai_observability/tests_aafr.py` — Add cache.clear() to setUp
+- `apps/relationships/tests/test_relationship_insights.py` — Add cache.clear() to 3 test classes
+- `apps/dashboard_v2/tests/test_momentum.py` — Add cache.clear() to setUp
+- `apps/health/tests/test_health_intelligence.py` — Add cache.clear() to setUp
+- `apps/life/tests/test_routines.py` — Accept completed_late in toggle assertions
+
+---
+
 ## 2026-03-20 — FIX: CI test suite — resolve remaining failures (round 2)
 
 **Problem:** CI had 38 failures and 12 errors after first round of fixes. Root causes: stale test assertions, runtime config leaking into tests, orphaned 'notes' module, model guard scanning worktrees, missing prompt parameter, cache config inconsistency.

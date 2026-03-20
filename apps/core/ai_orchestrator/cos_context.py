@@ -4834,25 +4834,11 @@ def format_cos_system_injection(context, user_message=None):
     # Phase 2: Cognitive Precision Framework
     # Conditionally injected: only when drift is detected, decision keywords
     # are present, or the conditional frameworks flag is disabled (legacy mode).
+    # Cognitive precision is always injected — drift/erosion states need
+    # the framework even more than clean state. The conditional-frameworks
+    # flag only gates whether TRAJECTORY precision is state-dependent
+    # (which is handled below in the Phase 3 section).
     _inject_cognitive = True
-    if getattr(settings, 'WLJ_CONDITIONAL_FRAMEWORKS_ENABLED', False):
-        activation_state_check = context.get(
-            'trajectory_activation_state', ACTIVATION_CLEAN
-        )
-        _decision_keywords = (
-            'should i', 'what should', 'is it worth', 'trade-off',
-            'tradeoff', 'instead of', 'priority', 'conflict',
-            'which is more important', 'pros and cons', 'better to',
-            'decide', 'dilemma', 'struggling with',
-        )
-        _has_decision = False
-        if user_message:
-            _msg_low = user_message.lower()
-            _has_decision = any(kw in _msg_low for kw in _decision_keywords)
-        _inject_cognitive = (
-            activation_state_check == ACTIVATION_CLEAN
-            or _has_decision
-        )
     if _inject_cognitive:
         lines.append("")
         lines.append(COGNITIVE_PRECISION_FRAMEWORK.strip())

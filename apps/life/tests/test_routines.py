@@ -203,7 +203,7 @@ class RoutineToggleViewTests(RoutineTestMixin, TestCase):
         self.assertTrue(data['success'])
         self.assertTrue(data['is_completed'])
         self.assertTrue(RoutineLog.objects.filter(
-            schedule=schedule, log_status='completed',
+            schedule=schedule, log_status__in=('completed', 'completed_late'),
         ).exists())
 
     def test_un_complete_log(self):
@@ -376,10 +376,11 @@ class RoutineCompletionServiceTests(RoutineTestMixin, TestCase):
         result = toggle_routine_complete(self.user, routine, today)
         self.assertTrue(result['all_complete'])
         self.assertEqual(result['completed_count'], 3)
-        # Verify logs exist
+        # Verify logs exist (completed or completed_late depending on time of day)
         self.assertEqual(
             RoutineLog.objects.filter(
-                scheduled_date=today, log_status='completed',
+                scheduled_date=today,
+                log_status__in=('completed', 'completed_late'),
                 schedule__in=[s1, s2, s3],
             ).count(), 3
         )

@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — ENHANCEMENT: Confidence × Consistency Behavioral Gating
+
+**Problem:** Beth uses the same tone/directness regardless of data coverage or user's behavioral consistency. This causes:
+- False-confident directives when data is missing/partial
+- Generic coaching that doesn't adapt to strong vs weak patterns
+- Over-coaching on every response
+
+**Solution:** Added per-domain behavioral gating that adapts Beth's tone based on two axes:
+1. **Data confidence** (from SAE `_meta.completeness`): present → direct, partial → confirm, missing → ask/guide
+2. **Behavioral consistency** (from signal scores + 7-day trends): high → affirm/challenge, medium → nudge, low → correct
+
+**Matrix examples:**
+- Present + High: "You're consistent here — keep going." (direct, forward-looking)
+- Present + Low: "You've been missing this. Start today." (direct, corrective)
+- Partial + Low: "I don't see this logged — are you planning to do it today?" (confirm)
+- Missing: "I don't have enough data yet. Track it and I can help." (ask/educate)
+
+**Over-coaching guard:** Only coaches when meaningful gap or win. If already addressed in last few messages, shortens to one sentence.
+
+**Files changed:**
+- `apps/core/ai_orchestrator/cos_context.py` — New `_build_confidence_consistency_directive()`, `_classify_domain_consistency()`, `_matrix_directive()` functions; RULE 10 added; injected after TONE GUARDRAILS
+
+**Tests:** 20/20 pass, no migrations needed
+
+---
+
 ## 2026-03-20 — ENHANCEMENT: Nudge Timing + Consistency Layer (Stabilization)
 
 **Problem:** Five nudge quality issues:

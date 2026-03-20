@@ -1102,7 +1102,11 @@ class ProactiveCheckInService:
         """
         Generate a pre-nudge for an upcoming routine item (Stage 1).
 
-        Fires 0-15 minutes before scheduled time. Gentle heads-up only.
+        Fires 0-20 minutes before scheduled time. Gentle heads-up only.
+        Dynamic phrasing based on distance:
+        - 15-20 min → "coming up soon"
+        - 5-14 min → "starts in X minutes"
+        - ≤5 min → "starts in a few minutes"
         """
         schedule_id = item.get('source_id')
         item_name = item.get('title', 'routine item')
@@ -1111,10 +1115,18 @@ class ProactiveCheckInService:
         if not self.throttler.can_send(throttle_key, schedule_id):
             return None
 
-        template = get_style_template(self.user, 'routine_pre_nudge')
-        message_content = template.format(
-            item_name=item_name, minutes=minutes_until_due,
-        )
+        # Dynamic phrasing based on distance
+        if minutes_until_due > 14:
+            template = get_style_template(self.user, 'routine_pre_nudge_soon')
+            message_content = template.format(item_name=item_name)
+        elif minutes_until_due <= 5:
+            template = get_style_template(self.user, 'routine_pre_nudge_imminent')
+            message_content = template.format(item_name=item_name)
+        else:
+            template = get_style_template(self.user, 'routine_pre_nudge')
+            message_content = template.format(
+                item_name=item_name, minutes=minutes_until_due,
+            )
 
         from apps.ai.quick_reply_handlers import generate_routine_recovery_replies
         quick_replies = generate_routine_recovery_replies(
@@ -1640,8 +1652,9 @@ def generate_pre_nudge_check_ins_for_user(user):
     """
     Generate pre-nudge check-ins for upcoming routine items (Stage 1).
 
-    Fires for foundational/important items due within the next 15 minutes.
+    Fires for foundational/important items due within the next 20 minutes.
     Gentle heads-up only — no implication of lateness.
+    Dynamic phrasing: 15-20 min → "coming up soon", 5-14 → "in X minutes", ≤5 → imminent.
     Max 2 check-ins per run.
     """
     from apps.core.utils import get_user_now, classify_time_status
@@ -1685,7 +1698,7 @@ def generate_pre_nudge_check_ins_for_user(user):
 
         ts = classify_time_status(user_today, sched_time_obj, user_now, grace_minutes=0)
         minutes_until = ts.get('minutes_until_due')
-        if minutes_until is not None and 0 < minutes_until <= 15:
+        if minutes_until is not None and 0 < minutes_until <= 20:
             candidates.append((item, minutes_until))
 
     if not candidates:
@@ -2612,12 +2625,288 @@ def generate_evening_wrap_for_user(user):
 
 
 # -----------------------------------------------------------------------------
+# Nudge Candidate Collection & Scoring (Steps 2-4, 6)
+# -----------------------------------------------------------------------------
+
+# Maximum routine nudges per PGS cycle (prevents noise/stacking)
+_MAX_ROUTINE_NUDGES_PER_CYCLE = 2
+
+# Per-user cooldown: no new routine nudge within this many minutes of the last one
+_NUDGE_COOLDOWN_MINUTES = 5
+
+# Dedup windows by stage type (minutes) — prevents re-sending same item+stage
+_NUDGE_DEDUP_WINDOWS = {
+    'pre_nudge': 20,
+    'due_now': 20,
+    'routine_recovery': 60,
+}
+
+# Base scores by stage for prioritization
+_STAGE_BASE_SCORES = {
+    'due_now': 100,
+    'routine_recovery': 80,
+    'pre_nudge': 60,
+}
+
+
+def _collect_escalation_candidates(user):
+    """
+    Collect ALL routine escalation candidates (pre-nudge, due-now, recovery)
+    in a single pass over the execution contract.
+
+    Returns list of dicts:
+        [{item, stage, score, minutes_until, minutes_past, tier}, ...]
+
+    Does NOT create messages — just identifies and scores candidates.
+    """
+    from apps.core.utils import get_user_now, classify_time_status
+    from datetime import datetime as _dt
+
+    try:
+        from apps.core.execution.today_execution import build_today_execution
+        execution = build_today_execution(user)
+    except Exception:
+        logger.exception("Failed to build execution for escalation candidates")
+        return []
+
+    items = execution.get('items', [])
+    if not items:
+        return []
+
+    user_now = get_user_now(user)
+    user_today = user_now.date()
+    hour = user_now.hour
+
+    resolved_statuses = {'completed', 'completed_late', 'skipped', 'rescheduled'}
+    candidates = []
+
+    for item in items:
+        if (item.get('source_type') != 'routine_item'
+                or not item.get('is_actionable', False)
+                or item.get('importance') not in ('foundational', 'important')
+                or item.get('completion_status') in resolved_statuses):
+            continue
+
+        sched_time_str = item.get('scheduled_time')
+        if not sched_time_str:
+            continue
+        try:
+            sched_time_obj = _dt.strptime(sched_time_str, '%H:%M').time()
+        except (ValueError, AttributeError):
+            continue
+
+        ts = classify_time_status(user_today, sched_time_obj, user_now, grace_minutes=0)
+        minutes_until = ts.get('minutes_until_due')
+        minutes_past = ts.get('minutes_past_due')
+
+        stage = None
+        tier = None
+
+        # Determine stage
+        if minutes_until is not None and 0 < minutes_until <= 20:
+            stage = 'pre_nudge'
+        elif minutes_past is not None and 0 <= minutes_past <= 10:
+            stage = 'due_now'
+        elif minutes_past is not None and minutes_past > 10:
+            stage = 'routine_recovery'
+            # Determine recovery tier by hour
+            if 16 <= hour <= 20:
+                tier = 'tier3'
+            elif 10 <= hour <= 14:
+                tier = 'tier2'
+            else:
+                tier = 'tier1'
+
+        if not stage:
+            continue
+
+        # Score the candidate
+        score = _score_nudge_candidate(item, stage, user)
+
+        candidates.append({
+            'item': item,
+            'stage': stage,
+            'score': score,
+            'minutes_until': minutes_until,
+            'minutes_past': minutes_past,
+            'tier': tier,
+        })
+
+    # Sort by score descending
+    candidates.sort(key=lambda c: c['score'], reverse=True)
+    return candidates
+
+
+def _score_nudge_candidate(item, stage, user):
+    """
+    Score a nudge candidate for prioritization.
+
+    Base scoring:
+    - due_now → 100, recovery → 80, pre_nudge → 60
+
+    Adjustments:
+    - +20 if importance == 'foundational'
+    - +10 if time-sensitive (has scheduled_time)
+    - -15 if similar nudge sent recently (same item, any stage, last 30 min)
+    """
+    score = _STAGE_BASE_SCORES.get(stage, 50)
+
+    if item.get('importance') == 'foundational':
+        score += 20
+    if item.get('scheduled_time'):
+        score += 10
+
+    # Penalty if recently nudged (same item, any stage)
+    schedule_id = item.get('source_id')
+    if schedule_id and _was_recently_nudged(user, schedule_id, minutes=30):
+        score -= 15
+
+    return score
+
+
+def _was_recently_nudged(user, schedule_id, minutes=30):
+    """
+    Check if a nudge was recently sent for this schedule item.
+
+    Uses the existing dedup cache (thread-local) for fast lookup.
+    Falls back to DB query if cache not available.
+    """
+    dedup = getattr(_dedup_local, 'cache', None)
+    if dedup is not None:
+        # Check all escalation stage types
+        for stage_type in ('pre_nudge', 'due_now', 'routine_recovery'):
+            if dedup.already_sent(stage_type, schedule_id=schedule_id):
+                return True
+        return False
+
+    # Fallback: DB check for recent nudges (within N minutes)
+    cutoff = timezone.now() - timedelta(minutes=minutes)
+    return AssistantMessage.objects.filter(
+        conversation__user=user,
+        is_proactive=True,
+        metadata__schedule_id=schedule_id,
+        metadata__check_in_type__in=['pre_nudge', 'due_now', 'routine_recovery'],
+        created_at__gte=cutoff,
+    ).exists()
+
+
+def _get_current_focus_source_id(user):
+    """
+    Get the source_id of the user's current focus item from action priorities.
+
+    Returns None if unavailable (graceful degradation).
+    """
+    try:
+        from apps.core.execution.today_execution import build_today_execution
+        execution = build_today_execution(user)
+        items = execution.get('items', [])
+        # Current focus = first actionable, non-completed item sorted by priority
+        for item in items:
+            if (item.get('is_actionable', False)
+                    and item.get('completion_status') not in (
+                        'completed', 'completed_late', 'skipped', 'rescheduled')
+                    and item.get('time_status') in ('overdue', 'upcoming')):
+                return item.get('source_id')
+    except Exception:
+        pass
+    return None
+
+
+def _check_user_nudge_cooldown(user, cooldown_minutes=None):
+    """
+    Check if user is in nudge cooldown (a routine nudge was sent recently).
+
+    Uses existing dedup cache data when available, falls back to DB.
+    Returns True if in cooldown (should NOT send), False if clear.
+    """
+    if cooldown_minutes is None:
+        cooldown_minutes = _NUDGE_COOLDOWN_MINUTES
+
+    cutoff = timezone.now() - timedelta(minutes=cooldown_minutes)
+    return AssistantMessage.objects.filter(
+        conversation__user=user,
+        is_proactive=True,
+        metadata__check_in_type__in=['pre_nudge', 'due_now', 'routine_recovery'],
+        created_at__gte=cutoff,
+    ).exists()
+
+
+def _send_prioritized_nudges(user, candidates):
+    """
+    Send the top-priority nudge candidates, respecting limits and cooldown.
+
+    Args:
+        user: The user
+        candidates: Pre-sorted list of candidate dicts from _collect_escalation_candidates
+
+    Returns:
+        int — number of nudges actually sent
+    """
+    if not candidates:
+        return 0
+
+    # Cooldown check: skip if a routine nudge was sent very recently
+    if _check_user_nudge_cooldown(user):
+        logger.debug(
+            "PGS_COOLDOWN user=%s — routine nudge sent within last %d min, skipping",
+            user.pk, _NUDGE_COOLDOWN_MINUTES,
+        )
+        return 0
+
+    # Current focus alignment: get the user's top-priority item
+    focus_source_id = _get_current_focus_source_id(user)
+
+    service = get_proactive_service(user)
+    sent = 0
+
+    for candidate in candidates:
+        if sent >= _MAX_ROUTINE_NUDGES_PER_CYCLE:
+            break
+
+        item = candidate['item']
+        stage = candidate['stage']
+        schedule_id = item.get('source_id')
+
+        # Focus alignment: suppress non-focus nudges unless higher urgency
+        if focus_source_id and schedule_id != focus_source_id:
+            # Only allow if this candidate is due_now (urgent)
+            # or if focus item is not time-sensitive
+            if stage == 'pre_nudge':
+                logger.debug(
+                    "PGS_FOCUS_SUPPRESS user=%s item=%s stage=%s — "
+                    "not current focus, suppressing pre-nudge",
+                    user.pk, schedule_id, stage,
+                )
+                continue
+
+        # Send based on stage
+        result = None
+        if stage == 'pre_nudge':
+            minutes_until = candidate.get('minutes_until', 10)
+            result = service.generate_pre_nudge_check_in(item, minutes_until)
+        elif stage == 'due_now':
+            result = service.generate_due_now_check_in(item)
+        elif stage == 'routine_recovery':
+            tier = candidate.get('tier', 'tier1')
+            result = service.generate_routine_recovery_check_in(item, tier)
+
+        if result:
+            sent += 1
+
+    return sent
+
+
+# -----------------------------------------------------------------------------
 # Time Window Dispatch
 # -----------------------------------------------------------------------------
 
 def _dispatch_for_window(user, prefs, hour, is_weekend):
     """
     Call the appropriate generators for the user's current time window.
+
+    Routine escalation nudges (pre-nudge, due-now, recovery) are collected,
+    scored, and prioritized before sending — max 2 per cycle. Other
+    domain-specific generators run independently.
 
     Returns the number of generator invocations attempted.
     """
@@ -2628,13 +2917,15 @@ def _dispatch_for_window(user, prefs, hour, is_weekend):
         generate_medicine_check_ins_for_user(user)
         count += 1
 
-    # Escalation ladder: pre-nudge → due-now → routine recovery (any non-quiet hour)
-    generate_pre_nudge_check_ins_for_user(user)
-    count += 1
-    generate_due_now_check_ins_for_user(user)
-    count += 1
-    generate_routine_recovery_check_ins_for_user(user)
-    count += 1
+    # ── Prioritized escalation ladder (collect → score → send top N) ──
+    candidates = _collect_escalation_candidates(user)
+    nudges_sent = _send_prioritized_nudges(user, candidates)
+    count += 1  # Count as one coordinated dispatch
+    if nudges_sent:
+        logger.debug(
+            "PGS_ESCALATION user=%s sent=%d candidates=%d",
+            user.pk, nudges_sent, len(candidates),
+        )
 
     # --- Morning 7–9 ---
     if hour in WINDOW_MORNING:

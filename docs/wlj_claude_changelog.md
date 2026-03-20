@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — ENHANCEMENT: Today State routine integrity + CoS humanization
+
+**Problem:** Three gaps in the Today State truth layer:
+1. `_build_routine_state()` read wrong dict keys (`total`/`completed` vs `total_count`/`completed_count`), so routines always showed 0/0
+2. Prayer/Bible reading completed via routine didn't bridge to faith domain (split truth)
+3. Beth's CoS voice lacked warmth, current focus surfacing, nudge guidance, and conversation awareness
+
+**Solution:**
+1. **Routine truth fix** (`today_state.py`): Fixed key names, use routine `name` as dict key instead of raw ID
+2. **Faith bridge** (`today_state.py`): New `_bridge_routine_to_faith()` — "Prayer Time"/"Bible Reading" routine completion propagates to faith domain
+3. **Current Focus** (`cos_context.py`): Surfaces `action_priorities[0]` as dedicated CURRENT FOCUS block
+4. **Nudge Guidance** (`cos_context.py`): Per-domain nudge hints from `_classify_domain_states()` (ACTIONABLE/SATISFIED)
+5. **Conversation Awareness** (`cos_context.py`): Rules for user claims vs truth state, tone-matching
+6. **CoS voice upgrade** (`cos_context.py`): RULE 2 enhanced with warmth/authority markers, humanized data language
+7. **Response Rules** (`cos_context.py`): RULE 8 — pattern-matched responses for "Did I...?", "How's my day?", etc.
+
+**Files changed:**
+- `apps/core/services/today_state.py` — routine fix, faith bridge, `_raw_items` for cross-domain
+- `apps/core/ai_orchestrator/cos_context.py` — Current Focus, Nudge Guidance, Conversation Awareness, RULE 2 upgrade, RULE 8
+- `apps/core/tests/test_today_state.py` — 4 new bridge tests (18 total)
+- `docs/ENGINE_COS_REFERENCE.md` — updated pipeline docs
+
+**Tests:** 18/18 pass, no migrations needed
+
+---
+
 ## 2026-03-20 — FEATURE: Today State deterministic truth layer (anti-hallucination)
 
 **Problem:** CoS could infer/fabricate today's completion status from streaks, trends, and signals rather than deterministic DB records, causing trust-breaking false positives ("you completed X" when X wasn't done).

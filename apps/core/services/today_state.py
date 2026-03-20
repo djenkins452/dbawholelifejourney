@@ -69,6 +69,9 @@ def build_today_state(user) -> dict:
     # ── Medications ──
     state['medications'] = _build_medication_state(user, user_today)
 
+    # ── Bridge: routine items → faith domain ──
+    _bridge_routine_to_faith(state)
+
     # ── Data confidence rollup ──
     state['data_confidence'] = _build_confidence_rollup(state)
 
@@ -183,12 +186,13 @@ def _build_routine_state(user) -> dict:
         total = 0
         completed = 0
 
-        for routine_name, completion in routine_completion.items():
-            r_total = completion.get('total', 0)
-            r_done = completion.get('completed', 0)
+        for routine_id, completion in routine_completion.items():
+            r_total = completion.get('total_count', 0)
+            r_done = completion.get('completed_count', 0)
+            r_name = completion.get('name', str(routine_id))
             total += r_total
             completed += r_done
-            result['items'][routine_name] = {
+            result['items'][r_name] = {
                 'total': r_total,
                 'completed': r_done,
                 'fully_complete': r_done >= r_total and r_total > 0,
@@ -197,6 +201,9 @@ def _build_routine_state(user) -> dict:
         result['total'] = total
         result['completed'] = completed
         result['fully_complete'] = completed >= total and total > 0
+
+        # Store raw item-level data for cross-domain bridging
+        result['_raw_items'] = routine_data.get('items_by_window', {})
 
     except ImportError:
         pass
@@ -257,6 +264,44 @@ def _build_medication_state(user, user_today: date) -> dict:
         logger.warning("today_state: medication state failed", exc_info=True)
 
     return result
+
+
+# ── Cross-Domain Bridges ──────────────────────────────────────
+
+
+# Routine item names that map to faith domain (case-insensitive)
+_FAITH_PRAYER_NAMES = {'prayer time', 'prayer', 'morning prayer', 'evening prayer'}
+_FAITH_BIBLE_NAMES = {'bible reading', 'bible study', 'scripture reading', 'devotional'}
+
+
+def _bridge_routine_to_faith(state: dict) -> None:
+    """
+    Bridge routine item completion to faith domain.
+
+    When a routine item named "Prayer Time" or "Bible Reading" (etc.) is
+    completed in RoutineLog, propagate that to the faith domain so both
+    views stay consistent. This avoids the split where the routine shows
+    "Prayer Time: DONE" but faith shows "NOT DONE".
+
+    Modifies state in-place. Only upgrades False → True, never downgrades.
+    """
+    faith = state.get('domains', {}).get('faith')
+    if not faith:
+        return
+
+    raw_items = state.get('routines', {}).get('_raw_items', {})
+    if not raw_items:
+        return
+
+    for _window, items in raw_items.items():
+        for item in items:
+            if not item.get('is_completed'):
+                continue
+            item_name = (item.get('item_name') or '').lower().strip()
+            if item_name in _FAITH_PRAYER_NAMES:
+                faith['prayer_completed'] = True
+            elif item_name in _FAITH_BIBLE_NAMES:
+                faith['bible_reading_completed'] = True
 
 
 # ── Confidence Rollup ───────────────────────────────────────────

@@ -181,6 +181,10 @@ class ExecuteActionHookTests(TestCase):
 class AAFRAggregationTests(TestCase):
     """Tests for _get_aafr_metrics() aggregation and status thresholds."""
 
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
     def _create_metrics(self, outcome, count, age_minutes=0):
         """Create count metrics with given outcome, aged back by age_minutes."""
         now = timezone.now()

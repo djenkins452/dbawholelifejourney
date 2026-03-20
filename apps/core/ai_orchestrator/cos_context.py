@@ -3628,8 +3628,14 @@ def _format_daily_context_summary(context):
 _COMPLETENESS_TO_CONFIDENCE = {
     'full': 'present',
     'partial': 'partial',
-    'limited': 'missing',
+    'limited': 'low_confidence',
+    # When _meta is entirely absent → 'missing' (handled by .get default)
 }
+
+# Minimum signal sample count to trust consistency classification.
+# Below this threshold, consistency is capped at 'medium' to prevent
+# false "high consistency" from tiny samples.
+_MIN_SIGNAL_SAMPLE = 3
 
 # Domains to check for confidence + consistency
 _BEHAVIORAL_DOMAINS = {
@@ -3644,7 +3650,11 @@ def _classify_domain_consistency(daily_signals, signal_types):
     """
     Classify domain consistency from signal scores + trends.
 
-    Returns: 'high', 'medium', or 'low'
+    Returns: 'high', 'medium', or 'low', or None if no data.
+
+    Applies minimum sample threshold: if fewer than _MIN_SIGNAL_SAMPLE
+    signals exist, caps result at 'medium' to prevent false high-confidence
+    from tiny samples.
     """
     if not daily_signals or not signal_types:
         return None  # No signal data — cannot classify
@@ -3657,10 +3667,24 @@ def _classify_domain_consistency(daily_signals, signal_types):
         return None
 
     avg_score = sum(s.get('score', 0) for s in relevant) / len(relevant)
-    # Check for declining trend
     has_declining = any(s.get('trend_7d') == 'declining' for s in relevant)
 
+    # Count source signals for sample size check
+    total_source_count = 0
+    for s in relevant:
+        src = s.get('source_signals')
+        if isinstance(src, dict):
+            facts = src.get('facts', [])
+            total_source_count += len(facts) if isinstance(facts, list) else 0
+        elif isinstance(src, list):
+            total_source_count += len(src)
+    # Fallback: if no source_signals metadata, use number of signal snapshots
+    sample_size = max(total_source_count, len(relevant))
+
     if avg_score >= 0.7 and not has_declining:
+        # Cap at medium if sample is too small
+        if sample_size < _MIN_SIGNAL_SAMPLE:
+            return 'medium'
         return 'high'
     elif avg_score >= 0.4:
         return 'medium'
@@ -3668,13 +3692,39 @@ def _classify_domain_consistency(daily_signals, signal_types):
         return 'low'
 
 
+def _get_today_domain_override(context, domain_key):
+    """
+    Check today_state for same-day completion or in-progress status.
+
+    If the user has completed or is actively working on this domain TODAY,
+    returns a consistency floor so Beth reacts to today's behavior, not
+    just historical trends.
+
+    Returns: 'high' | 'medium' | None
+    """
+    today_state = context.get('today_state', {})
+    if not today_state:
+        return None
+
+    domains = today_state.get('domains', {})
+    domain_data = domains.get(domain_key, {})
+    status = domain_data.get('status', '')
+
+    if status == 'completed':
+        return 'high'
+    elif status in ('in_progress', 'partial'):
+        return 'medium'
+    return None
+
+
 def _build_confidence_consistency_directive(context, user):
     """
     Build per-domain behavioral directive based on data confidence × consistency.
 
     Reads:
-    - SAE state _meta.completeness per domain → mapped to present/partial/missing
+    - SAE state _meta.completeness per domain → present/partial/low_confidence/missing
     - Signal scores + trends → high/medium/low consistency
+    - today_state → same-day override (completed/in-progress floors)
 
     Returns formatted block with behavioral gating, or empty string if insufficient data.
     """
@@ -3690,13 +3740,28 @@ def _build_confidence_consistency_directive(context, user):
         # Get data confidence from SAE _meta
         module_state = get_module_state(user, domain_key)
         meta = module_state.get('_meta', {})
-        completeness = meta.get('completeness', 'limited')
-        data_confidence = _COMPLETENESS_TO_CONFIDENCE.get(completeness, 'missing')
+        completeness = meta.get('completeness')
+        if completeness is None:
+            data_confidence = 'missing'
+        else:
+            data_confidence = _COMPLETENESS_TO_CONFIDENCE.get(
+                completeness, 'missing'
+            )
 
         # Get consistency from signals
         consistency = _classify_domain_consistency(
             daily_signals, cfg['signal_types']
         )
+
+        # Apply today override — if user completed or is in-progress today,
+        # floor the consistency so Beth reacts to TODAY not just trends
+        today_floor = _get_today_domain_override(context, domain_key)
+        if today_floor and consistency:
+            _floor_rank = {'low': 0, 'medium': 1, 'high': 2}
+            if _floor_rank.get(today_floor, 0) > _floor_rank.get(consistency, 0):
+                consistency = today_floor
+        elif today_floor and not consistency:
+            consistency = today_floor
 
         # Build directive based on matrix
         label = cfg['label']
@@ -3714,10 +3779,17 @@ def _build_confidence_consistency_directive(context, user):
     )
     lines.extend(domain_directives)
     lines.append(
-        "\nOVER-COACHING GUARD: Only include coaching if there is a meaningful "
-        "gap or a meaningful win. Otherwise stay direct and quiet. "
-        "If you already corrected this behavior in the last 3-5 messages, "
-        "shorten to a single sentence like 'Stay on track.' or 'Finish your workout.'"
+        "\nSINGLE DOMAIN COACHING RULE: Per response, only ONE domain gets "
+        "full coaching (explanation + next step). All other domains get factual "
+        "statements only or are omitted. Priority: (1) current focus domain, "
+        "(2) most critical gap, (3) foundational domain."
+    )
+    lines.append(
+        "\nOVER-COACHING GUARD: If you already coached this domain in the "
+        "last 2 messages, downgrade to a short directive — remove explanation. "
+        "Example: instead of 'You\\'ve been inconsistent with workouts...', "
+        "just say 'Get your workout in.' "
+        "If no meaningful gap or win exists, stay quiet on that domain."
     )
     lines.append("=== END CONFIDENCE × CONSISTENCY GATING ===")
 
@@ -3730,7 +3802,7 @@ def _matrix_directive(label, data_confidence, consistency):
 
     Args:
         label: Human-readable domain name
-        data_confidence: 'present' | 'partial' | 'missing'
+        data_confidence: 'present' | 'partial' | 'low_confidence' | 'missing'
         consistency: 'high' | 'medium' | 'low' | None
 
     Returns:
@@ -3738,9 +3810,15 @@ def _matrix_directive(label, data_confidence, consistency):
     """
     if data_confidence == 'missing':
         return (
-            f"- {label}: DATA MISSING — Do not infer. Ask and guide. "
-            f"Example: 'I don\\'t have enough data on your {label.lower()} yet. "
-            f"Track it and I can help you improve.'"
+            f"- {label}: NO DATA — Educate and suggest tracking. "
+            f"Example: 'I don\\'t have any {label.lower()} data yet. "
+            f"Start tracking it and I can help you build consistency.'"
+        )
+
+    if data_confidence == 'low_confidence':
+        return (
+            f"- {label}: LOW CONFIDENCE — Limited data available. Ask before directing. "
+            f"Example: 'I have limited {label.lower()} data — are you tracking this regularly?'"
         )
 
     if data_confidence == 'partial':
@@ -5800,13 +5878,32 @@ def format_cos_system_injection(context, user_message=None):
         "'Getting it in today would help stabilize that.'\n"
         "PARTIAL DATA → Soften. Confirm before directing. "
         "'I don\\'t see this logged yet — did you do it?'\n"
-        "MISSING DATA → Do NOT infer. Ask and educate. "
-        "'Track it and I can help you improve.'\n"
+        "LOW CONFIDENCE → Limited data. Ask before directing. "
+        "'Are you tracking this regularly?'\n"
+        "NO DATA → Educate and suggest tracking. Never infer.\n"
         "\n"
-        "OVER-COACHING GUARD: Only include coaching when there is a meaningful "
-        "gap or meaningful win. If you already addressed this behavior in the "
-        "last few messages, shorten to a single sentence.\n"
+        "TODAY OVERRIDE: If the user completed or started something TODAY, "
+        "react to today\\'s behavior — not just historical trends. "
+        "A completed item today means treat consistency as at least medium.\n"
         "\n"
+        "--- RULE 11: SINGLE DOMAIN COACHING + ANTI-REPETITION ---\n"
+        "Per response, only ONE domain gets full coaching (explanation + next step). "
+        "All other domains: factual only or omitted.\n"
+        "Priority: (1) current focus domain, (2) most critical gap, (3) foundational.\n"
+        "\n"
+        "If you already coached this domain in the last 2 messages: "
+        "downgrade to short directive. Remove explanation.\n"
+        "  Full: 'You\\'ve been inconsistent with workouts. Getting it in "
+        "today helps stabilize that pattern.'\n"
+        "  Short: 'Get your workout in.'\n"
+        "\n"
+        "--- RULE 12: RESPONSE CONSISTENCY ---\n"
+        "NEVER contradict yourself across nudges, focus, and responses:\n"
+        "  - If current focus is 'Bible reading', do NOT nudge about workout first\n"
+        "  - If an item is completed, NEVER list it as remaining\n"
+        "  - If an item is upcoming, NEVER say it\\'s overdue\n"
+        "NEVER use system language: no 'signals', 'momentum', 'operational status', "
+        "'adherence scores', 'data confidence'\n"
         "HUMANIZE: Connect actions to outcomes when natural. "
         "'Getting your workout in keeps your blood sugar steady.' "
         "Never: 'Based on your health metrics and patterns...'\n"

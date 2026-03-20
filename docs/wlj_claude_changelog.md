@@ -6,6 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — FIX: CI test suite — resolve remaining failures (round 2)
+
+**Problem:** CI had 38 failures and 12 errors after first round of fixes. Root causes: stale test assertions, runtime config leaking into tests, orphaned 'notes' module, model guard scanning worktrees, missing prompt parameter, cache config inconsistency.
+
+**Fixes:**
+1. **Disambiguation tests** — Updated assertions to match current message format ('I found a few matches' + 'none of these')
+2. **Rate limiter tests** — Mocked `_get_limits()` to use class defaults, added `cache.clear()` in setUp to prevent cross-test contamination
+3. **Module catalog** — Created migration 0078 to delete orphaned 'notes' ModuleDefinition (created by migration 0069 but never removed)
+4. **Health intelligence prompt test** — Pass `COS_PROACTIVE_INTELLIGENCE_PROMPT` to `build_personal_assistant_prompt()` (was missing, so health enforcement section wasn't included)
+5. **Model guard** — Added `.claude` to skip directories so worktree copies don't trigger false positives
+6. **Test cache config** — Added `LOCATION: 'wlj-test'` to settings_test.py for cache isolation consistency
+
+**Files changed:**
+- `apps/core/ai_orchestrator/tests/test_disambiguation.py` — Fix message format assertions
+- `apps/core/ai_orchestrator/tests/test_action_policy.py` — Mock _get_limits, add cache.clear()
+- `apps/core/tests/test_module_catalog.py` — (no change needed, migration fixes the data)
+- `apps/health/tests/test_health_intelligence.py` — Pass cos_proactive_prompt parameter
+- `apps/ai/tests/test_model_guard.py` — Skip .claude directories
+- `apps/users/migrations/0078_remove_notes_module.py` — New data migration
+- `config/settings_test.py` — Add cache LOCATION
+
+---
+
 ## 2026-03-20 — FIX: Action eligibility filtering — prevent recommending completed actions
 
 **Problem:** Beth recommended prayer at 10 PM even though prayer was completed in the morning routine. She saw "5 active prayer requests" in the faith context section and independently decided to recommend it, ignoring the execution status that showed prayer as DONE.

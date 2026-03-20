@@ -340,8 +340,7 @@ class BuildDisambiguationMessageTests(TestCase):
         msg = build_disambiguation_message(recon)
         self.assertIn('1. Workout (6:15 AM)', msg)
         self.assertIn('2. Workout (1:30 PM)', msg)
-        self.assertIn('CANCEL', msg)
-        self.assertIn('NONE', msg)
+        self.assertIn('none of these', msg)
 
     def test_includes_due_date(self):
         recon = ReconciliationResult(
@@ -376,7 +375,7 @@ class BuildDisambiguationMessageTests(TestCase):
             ],
         )
         msg = build_disambiguation_message(recon)
-        self.assertIn('I found multiple matches', msg)
+        self.assertIn('I found a few matches', msg)
 
 
 # ── handle_disambiguation_response Tests ──────────────────────────────

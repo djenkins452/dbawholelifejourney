@@ -366,19 +366,9 @@ def reschedule_routine_item(user, schedule, target_date, new_time):
     if existing_log and existing_log.log_status in ('completed', 'completed_late'):
         return {'success': False, 'error': 'Item is already completed'}
 
-    # Validation 4: max 1 reschedule per item per day
-    # If already rescheduled once, require a different action (complete or skip)
-    if existing_log and existing_log.log_status == 'rescheduled':
-        return {
-            'success': False,
-            'error': (
-                f'{schedule.name} has already been rescheduled today. '
-                f'Complete it at the rescheduled time or skip it.'
-            ),
-        }
-
     if existing_log:
-        # Update existing log (skipped → rescheduled with new time)
+        # Update existing log (skipped/rescheduled → rescheduled with new time)
+        # Multiple reschedules allowed — as long as it gets done
         existing_log.log_status = 'rescheduled'
         existing_log.rescheduled_time = new_time
         existing_log.completed_at = None

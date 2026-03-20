@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — FIX: Action eligibility filtering — prevent recommending completed actions
+
+**Problem:** Beth recommended prayer at 10 PM even though prayer was completed in the morning routine. She saw "5 active prayer requests" in the faith context section and independently decided to recommend it, ignoring the execution status that showed prayer as DONE.
+
+**Root cause:** Faith/prayer context was injected into CoS prompt as informational data without any completion awareness. Beth had no explicit rule prohibiting her from recommending actions in domains already marked DONE by the execution contract.
+
+**Fix (behavioral filtering in CoS, no new engines or models):**
+1. **Action eligibility rule (RULE 0)** — Added as the first operational rule in CoS. Beth must check execution status BEFORE recommending any action. DONE domains are ineligible unless a new trigger signal exists.
+2. **Faith context completion annotation** — Faith & Prayer section now shows "(today's faith engagement: DONE)" header and explicit "do NOT recommend" guard when faith domain is satisfied.
+3. **Action priorities reinforcement** — Added explicit notes: list is pre-filtered (completed items excluded), do NOT recommend anything not on this list, empty list = acknowledge completion (don't invent actions).
+4. **Truth enforcement expansion** — Added reverse rule: "If a domain shows DONE, you MUST NOT recommend it as an action."
+5. **Time-window guidance** — Rule 0 includes time-appropriateness: morning routines not suggested at night, after 8 PM focus on closure/reflection/prep.
+
+**Files changed:**
+- `apps/core/ai_orchestrator/cos_context.py` — 4 edits: Rule 0, faith completion annotation, action priority guards, truth enforcement expansion
+
+---
+
 ## 2026-03-20 — FEAT: Feelings → Stress Intelligence Integration (4-phase)
 
 **Objective:** Make feelings first-class inputs to the existing intelligence pipeline. Fix dormant mood_trend gap, add emotion-derived signals, extend cross-domain rules, add temporal stress memory.

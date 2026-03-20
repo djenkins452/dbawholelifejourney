@@ -3111,8 +3111,10 @@ def _build_data_state_snapshot(user) -> str:
         if action_priorities:
             lines.append("")
             lines.append("ACTION PRIORITIES (same as dashboard Action Center):")
+            lines.append("This list is pre-filtered: completed items are EXCLUDED.")
             lines.append("Use this ordering when recommending what to do next.")
             lines.append("Your primary recommendation MUST match item #1.")
+            lines.append("Do NOT recommend anything not on this list unless the user asks.")
             for i, action in enumerate(action_priorities[:7], 1):
                 _f_tag = " [FOUNDATIONAL]" if action["is_foundational"] else ""
                 _u_tag = action["urgency"].upper()
@@ -3123,6 +3125,7 @@ def _build_data_state_snapshot(user) -> str:
         else:
             lines.append("")
             lines.append("ACTION PRIORITIES: All clear — no pending actions.")
+            lines.append("Do NOT invent actions from informational sections. Acknowledge completion.")
     except Exception:
         logger.warning("Action prioritizer unavailable for CoS context", exc_info=True)
 
@@ -4900,11 +4903,30 @@ def format_cos_system_injection(context, user_message=None):
             lines.append("")
             lines.append(db_block)
 
-    # Faith & Prayer context
+    # Faith & Prayer context (annotated with today's completion status)
     faith = context.get('faith_summary', {})
     if faith and (faith.get('active_prayers', 0) > 0 or faith.get('answered_prayers', 0) > 0):
         lines.append("")
-        lines.append("FAITH & PRAYER:")
+        # Check execution contract for today's faith completion
+        _faith_done_today = False
+        _prayer_done_today = False
+        _bible_done_today = False
+        try:
+            from apps.core.ai_state.state_engine import get_module_state as _faith_mod
+            _f_exec = _faith_mod(context.get('_user'), 'execution') or {}
+            _f_domains = _f_exec.get('summaries', {}).get('domains', {})
+            _faith_done_today = _f_domains.get('faith_engaged', False)
+            _prayer_done_today = _f_domains.get('prayer', False)
+            _bible_done_today = _f_domains.get('bible_reading', False)
+        except Exception:
+            pass
+
+        if _faith_done_today:
+            lines.append("FAITH & PRAYER (today's faith engagement: DONE):")
+            lines.append("  ⚠ Faith domain is SATISFIED today. Do NOT recommend prayer or Bible")
+            lines.append("  reading as an action item unless a NEW trigger signal exists.")
+        else:
+            lines.append("FAITH & PRAYER:")
         lines.append(f"  Active prayer requests: {faith['active_prayers']}")
         lines.append(f"  Answered prayers: {faith['answered_prayers']}")
         if faith.get('urgent_prayers'):
@@ -4914,7 +4936,8 @@ def format_cos_system_injection(context, user_message=None):
         bible = faith.get('bible_reading')
         if bible:
             if bible.get('plan'):
-                lines.append(f"  Bible reading plan: {bible['plan']}")
+                _bible_tag = " (DONE today)" if _bible_done_today else ""
+                lines.append(f"  Bible reading plan: {bible['plan']}{_bible_tag}")
             if bible.get('streak_days'):
                 lines.append(f"  Reading streak: {bible['streak_days']} days")
 
@@ -5203,9 +5226,11 @@ def format_cos_system_injection(context, user_message=None):
             _exec_lines.append("")
             _exec_lines.append(f"  Overall day score: {_dp.get('overall_score', 0)}%")
             _exec_lines.append("")
-            _exec_lines.append("TRUTH ENFORCEMENT: If any domain shows NOT DONE above,")
-            _exec_lines.append("you MUST NOT say it is done, complete, or handled.")
-            _exec_lines.append("7-day aggregates and streaks do NOT override today's status.")
+            _exec_lines.append("TRUTH ENFORCEMENT:")
+            _exec_lines.append("- If a domain shows NOT DONE, you MUST NOT say it is done.")
+            _exec_lines.append("- If a domain shows DONE, you MUST NOT recommend it as an action.")
+            _exec_lines.append("  DONE means SATISFIED — do not re-prescribe (e.g., prayer DONE → no prayer suggestion).")
+            _exec_lines.append("- 7-day aggregates and streaks do NOT override today's status.")
 
             lines.extend(_exec_lines)
         except Exception:
@@ -5215,6 +5240,32 @@ def format_cos_system_injection(context, user_message=None):
     lines.append("")
     lines.append(
         "=== CHIEF OF STAFF OPERATIONAL RULES (v6) ===\n"
+        "\n"
+        "--- RULE 0: ACTION ELIGIBILITY (MANDATORY PRE-CHECK) ---\n"
+        "Before recommending ANY action, you MUST check:\n"
+        "\n"
+        "A) NOT ALREADY COMPLETED: Check DAILY EXECUTION STATUS and TODAY'S\n"
+        "   EXECUTION STATUS sections. If a domain shows DONE, do NOT recommend\n"
+        "   actions in that domain. Examples:\n"
+        "   - prayer: DONE → do NOT suggest prayer, even if prayer requests exist\n"
+        "   - bible_reading: DONE → do NOT suggest Bible reading\n"
+        "   - workout: DONE → do NOT suggest working out\n"
+        "   - journal: DONE → do NOT suggest journaling\n"
+        "   The existence of static state (prayer requests, reading plans) does NOT\n"
+        "   make a domain actionable if it is already DONE today.\n"
+        "\n"
+        "B) TIME-APPROPRIATE: Check the current time of day.\n"
+        "   - Morning routines should NOT be suggested in the evening.\n"
+        "   - After 8 PM, focus on closure, reflection, or tomorrow prep.\n"
+        "   - Use the ACTION PRIORITIES list — it is already time-filtered.\n"
+        "\n"
+        "C) EXCEPTION — Repeat recommendation ONLY if:\n"
+        "   - The action is explicitly repeatable (hydration, meds at different times)\n"
+        "   - OR a NEW trigger signal exists (e.g., stress spike after prayer)\n"
+        "\n"
+        "Your primary recommendation MUST come from the ACTION PRIORITIES list.\n"
+        "If that list is empty, acknowledge all-clear — do NOT invent actions\n"
+        "from informational context sections.\n"
         "\n"
         "--- RULE 1: NO GENERIC PRODUCTIVITY ADVICE ---\n"
         "Generic productivity templates are FORBIDDEN when user context exists.\n"

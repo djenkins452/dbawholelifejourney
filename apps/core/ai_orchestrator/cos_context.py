@@ -3624,6 +3624,167 @@ def _format_daily_context_summary(context):
     return '\n'.join(lines)
 
 
+# ── Domain confidence → data_confidence mapping ──
+_COMPLETENESS_TO_CONFIDENCE = {
+    'full': 'present',
+    'partial': 'partial',
+    'limited': 'missing',
+}
+
+# Domains to check for confidence + consistency
+_BEHAVIORAL_DOMAINS = {
+    'health': {'label': 'Health', 'signal_types': ('health_activity',)},
+    'faith': {'label': 'Faith', 'signal_types': ('faith_practice',)},
+    'routines': {'label': 'Routines', 'signal_types': ()},
+    'finance': {'label': 'Finance', 'signal_types': ('finance_tracking',)},
+}
+
+
+def _classify_domain_consistency(daily_signals, signal_types):
+    """
+    Classify domain consistency from signal scores + trends.
+
+    Returns: 'high', 'medium', or 'low'
+    """
+    if not daily_signals or not signal_types:
+        return None  # No signal data — cannot classify
+
+    relevant = [
+        s for s in daily_signals
+        if s.get('signal_type') in signal_types
+    ]
+    if not relevant:
+        return None
+
+    avg_score = sum(s.get('score', 0) for s in relevant) / len(relevant)
+    # Check for declining trend
+    has_declining = any(s.get('trend_7d') == 'declining' for s in relevant)
+
+    if avg_score >= 0.7 and not has_declining:
+        return 'high'
+    elif avg_score >= 0.4:
+        return 'medium'
+    else:
+        return 'low'
+
+
+def _build_confidence_consistency_directive(context, user):
+    """
+    Build per-domain behavioral directive based on data confidence × consistency.
+
+    Reads:
+    - SAE state _meta.completeness per domain → mapped to present/partial/missing
+    - Signal scores + trends → high/medium/low consistency
+
+    Returns formatted block with behavioral gating, or empty string if insufficient data.
+    """
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+    except ImportError:
+        return ''
+
+    daily_signals = context.get('daily_signals', [])
+    domain_directives = []
+
+    for domain_key, cfg in _BEHAVIORAL_DOMAINS.items():
+        # Get data confidence from SAE _meta
+        module_state = get_module_state(user, domain_key)
+        meta = module_state.get('_meta', {})
+        completeness = meta.get('completeness', 'limited')
+        data_confidence = _COMPLETENESS_TO_CONFIDENCE.get(completeness, 'missing')
+
+        # Get consistency from signals
+        consistency = _classify_domain_consistency(
+            daily_signals, cfg['signal_types']
+        )
+
+        # Build directive based on matrix
+        label = cfg['label']
+        directive = _matrix_directive(label, data_confidence, consistency)
+        if directive:
+            domain_directives.append(directive)
+
+    if not domain_directives:
+        return ''
+
+    lines = ["=== CONFIDENCE × CONSISTENCY BEHAVIORAL GATING ==="]
+    lines.append(
+        "Adapt your tone and directness per domain based on data coverage "
+        "and behavioral consistency:"
+    )
+    lines.extend(domain_directives)
+    lines.append(
+        "\nOVER-COACHING GUARD: Only include coaching if there is a meaningful "
+        "gap or a meaningful win. Otherwise stay direct and quiet. "
+        "If you already corrected this behavior in the last 3-5 messages, "
+        "shorten to a single sentence like 'Stay on track.' or 'Finish your workout.'"
+    )
+    lines.append("=== END CONFIDENCE × CONSISTENCY GATING ===")
+
+    return '\n'.join(lines)
+
+
+def _matrix_directive(label, data_confidence, consistency):
+    """
+    Return a behavioral directive for one domain based on confidence × consistency.
+
+    Args:
+        label: Human-readable domain name
+        data_confidence: 'present' | 'partial' | 'missing'
+        consistency: 'high' | 'medium' | 'low' | None
+
+    Returns:
+        str — one-line directive, or empty string if no actionable guidance
+    """
+    if data_confidence == 'missing':
+        return (
+            f"- {label}: DATA MISSING — Do not infer. Ask and guide. "
+            f"Example: 'I don\\'t have enough data on your {label.lower()} yet. "
+            f"Track it and I can help you improve.'"
+        )
+
+    if data_confidence == 'partial':
+        if consistency == 'low':
+            return (
+                f"- {label}: PARTIAL DATA + LOW CONSISTENCY — Confirm before directing. "
+                f"Example: 'I don\\'t see this logged yet — are you planning to do it today?'"
+            )
+        elif consistency == 'high':
+            return (
+                f"- {label}: PARTIAL DATA + STRONG PATTERN — Confirm and reinforce. "
+                f"Example: 'You\\'ve been consistent here — did you get it done today?'"
+            )
+        else:
+            return (
+                f"- {label}: PARTIAL DATA — Soften with confirmation. "
+                f"Example: 'I don\\'t see a {label.lower()} entry yet — did you do it?'"
+            )
+
+    # data_confidence == 'present'
+    if consistency == 'high':
+        return (
+            f"- {label}: STRONG DATA + HIGH CONSISTENCY — Be direct and forward-looking. "
+            f"Affirm briefly, then challenge upward. "
+            f"Example: 'You\\'re consistent here — keep going. What\\'s the next level?'"
+        )
+    elif consistency == 'low':
+        return (
+            f"- {label}: STRONG DATA + LOW CONSISTENCY — Be direct and corrective. "
+            f"Name the gap, give one simple next step. "
+            f"Example: 'You\\'ve been missing this. Start today. Don\\'t overthink it.'"
+        )
+    elif consistency == 'medium':
+        return (
+            f"- {label}: SOLID DATA + MIXED CONSISTENCY — Guide and nudge. "
+            f"Example: 'You\\'ve been hit or miss. Getting it in today helps stabilize that.'"
+        )
+    else:
+        # No signal data — present confidence, unknown consistency
+        return (
+            f"- {label}: DATA PRESENT — Be direct and confident."
+        )
+
+
 def format_cos_system_injection(context, user_message=None):
     """
     Format the CoS context as a system prompt injection string.
@@ -4113,6 +4274,16 @@ def format_cos_system_injection(context, user_message=None):
         "Example: 'Morning prayer done — that keeps your faith streak going.'"
     )
     lines.append("")
+
+    # ── CONFIDENCE × CONSISTENCY BEHAVIORAL GATING ──
+    if _cos_user:
+        try:
+            _cc_directive = _build_confidence_consistency_directive(context, _cos_user)
+            if _cc_directive:
+                lines.append(_cc_directive)
+                lines.append("")
+        except Exception:
+            logger.debug("Failed to build confidence/consistency directive", exc_info=True)
 
     # ── Phase 7.5: DAILY CONTEXT SUMMARY ──
     _daily_summary = _format_daily_context_summary(context)
@@ -5617,6 +5788,28 @@ def format_cos_system_injection(context, user_message=None):
         "Mark it complete when you finish.'\n"
         "Page presence is NEVER completion truth. NEVER mark anything complete "
         "from page context alone.\n"
+        "\n"
+        "--- RULE 10: CONFIDENCE × CONSISTENCY BEHAVIORAL GATING ---\n"
+        "Adapt tone and directness based on data coverage + behavioral pattern:\n"
+        "\n"
+        "DATA PRESENT + HIGH CONSISTENCY → Direct, forward-looking. Brief affirmation "
+        "then push to next level. Do NOT over-praise streaks.\n"
+        "DATA PRESENT + LOW CONSISTENCY → Direct, corrective. Name the gap. "
+        "One simple next step. 'Start today. Don\\'t overthink it.'\n"
+        "DATA PRESENT + MEDIUM → Guide and nudge. "
+        "'Getting it in today would help stabilize that.'\n"
+        "PARTIAL DATA → Soften. Confirm before directing. "
+        "'I don\\'t see this logged yet — did you do it?'\n"
+        "MISSING DATA → Do NOT infer. Ask and educate. "
+        "'Track it and I can help you improve.'\n"
+        "\n"
+        "OVER-COACHING GUARD: Only include coaching when there is a meaningful "
+        "gap or meaningful win. If you already addressed this behavior in the "
+        "last few messages, shorten to a single sentence.\n"
+        "\n"
+        "HUMANIZE: Connect actions to outcomes when natural. "
+        "'Getting your workout in keeps your blood sugar steady.' "
+        "Never: 'Based on your health metrics and patterns...'\n"
         "\n"
         "=== END CHIEF OF STAFF OPERATIONAL RULES ==="
     )

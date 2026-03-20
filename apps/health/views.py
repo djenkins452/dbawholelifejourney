@@ -1987,12 +1987,49 @@ def exercise_list_json(request):
             "id": e.id,
             "name": e.name,
             "category": e.category,
+            "movement_type": e.movement_type,
             "muscle_group": e.muscle_group,
+            "youtube_url": e.youtube_url,
+            "instructions": e.instructions,
         }
         for e in exercises
     ]
 
     return JsonResponse({"exercises": data})
+
+
+def template_preview_json(request, template_id):
+    """Return template details for preview modal."""
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+    template = get_object_or_404(WorkoutTemplate, pk=template_id, user=request.user)
+    exercises = []
+    total_sets = 0
+    for te in template.template_exercises.select_related("exercise").order_by("order"):
+        ex = te.exercise
+        exercises.append({
+            "name": ex.name,
+            "category": ex.category,
+            "movement_type": ex.movement_type,
+            "muscle_group": ex.muscle_group,
+            "default_sets": te.default_sets,
+        })
+        total_sets += te.default_sets
+
+    estimated_minutes = 0
+    for ex in exercises:
+        if ex["category"] == "resistance":
+            estimated_minutes += ex["default_sets"] * 2
+        else:
+            estimated_minutes += 30
+
+    return JsonResponse({
+        "name": template.name,
+        "description": template.description,
+        "exercises": exercises,
+        "total_sets": total_sets,
+        "estimated_minutes": estimated_minutes,
+    })
 
 
 def add_exercise_htmx(request, workout_pk=None):

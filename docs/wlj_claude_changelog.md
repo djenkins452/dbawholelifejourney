@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — FEATURE: Workout UX + Exercise Intelligence Upgrade
+
+**What changed:**
+- Fixed template flow: when starting a workout from a template (`?template=ID`), the UI now shows "Using Template: {name}" with a [Change Template] button instead of re-showing the full template list
+- Added template preview modal: clicking a template chip shows exercises, sets, muscle groups, and estimated duration before committing
+- Extended Exercise model with `instructions`, `youtube_url`, and `video_source` fields for exercise guidance
+- Added [Watch] and [How] buttons to every exercise row during workout execution
+- Watch button: opens YouTube video embed (if URL assigned) or falls back to YouTube search for proper form
+- How button: toggles inline instructions panel below exercise header
+- Added `template_preview_json` API endpoint for template preview data
+- Updated `exercise_list_json` to include new guidance fields + movement_type
+- Updated ExerciseAdmin with guidance fieldset for managing videos/instructions
+
+**Files modified:**
+- `apps/health/models.py` — 3 new fields on Exercise model
+- `apps/health/admin.py` — ExerciseAdmin fieldsets, list_display, list_filter
+- `apps/health/views.py` — template_preview_json endpoint, extended exercise_list_json
+- `apps/health/urls.py` — template-preview API URL
+- `templates/health/fitness/workout_form.html` — template selector UX, preview modal, video modal, Watch/How buttons, CSS, JS handlers
+- `templates/health/fitness/partials/exercise_row.html` — guidance buttons, data attributes, instructions panel
+- `apps/health/migrations/0066_exercise_guidance_fields.py` — new migration
+
+**Why:** Remove friction when starting workouts from templates, provide exercise guidance during execution, and add a stable video instruction layer. Signal-ready for future Beth coaching quality improvements.
+
+---
+
 ## 2026-03-20 — ENHANCEMENT: Today State routine integrity + CoS humanization
 
 **Problem:** Three gaps in the Today State truth layer:

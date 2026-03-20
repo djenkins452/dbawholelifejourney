@@ -150,11 +150,15 @@ class DexcomCredentialAdmin(admin.ModelAdmin):
 
 @admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
-    list_display = ["name", "category", "muscle_group", "is_active", "created_at"]
-    list_filter = ["category", "muscle_group", "is_active"]
-    search_fields = ["name", "description"]
+    list_display = ["name", "category", "muscle_group", "video_source", "is_active", "created_at"]
+    list_filter = ["category", "muscle_group", "video_source", "is_active"]
+    search_fields = ["name", "description", "instructions"]
     ordering = ["category", "muscle_group", "name"]
     list_editable = ["is_active"]
+    fieldsets = (
+        (None, {"fields": ("name", "category", "movement_type", "muscle_group", "description", "is_active")}),
+        ("Exercise Guidance", {"fields": ("instructions", "youtube_url", "video_source")}),
+    )
 
 
 class ExerciseSetInline(admin.TabularInline):

@@ -1486,9 +1486,10 @@ def generate_routine_recovery_check_ins_for_user(user):
     if not items:
         return
 
-    # Filter: routine items that are overdue, actionable, not completed/skipped
+    # Filter: routine items that are overdue, actionable, not resolved
     # Per user correction: do NOT depend on 'missed' status — use actionable + overdue
-    resolved_statuses = {'completed', 'completed_late', 'skipped'}
+    # Stop nudging if: completed, skipped, OR already rescheduled (user engaged)
+    resolved_statuses = {'completed', 'completed_late', 'skipped', 'rescheduled'}
     candidates = [
         item for item in items
         if item.get('source_type') == 'routine_item'

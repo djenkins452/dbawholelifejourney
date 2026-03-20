@@ -66,6 +66,13 @@ def process_recurring_tasks():
     current_time = timezone.now()
     logger.info(f"Starting recurring task processing at {current_time} UTC")
 
+    # Day-close: finalize unresolved rescheduled routine logs from yesterday
+    try:
+        from apps.life.services.routine_helpers import close_unresolved_rescheduled_logs
+        close_unresolved_rescheduled_logs()
+    except Exception as e:
+        logger.exception(f"Error closing unresolved rescheduled logs: {e}")
+
     try:
         out = StringIO()
         call_command('process_recurring_tasks', stdout=out, verbosity=2)

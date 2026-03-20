@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — HARDEN: Routine Recovery Final Hardening (closure + reschedule guard + nudge control + tone)
+
+**Objective:** Finalize routine recovery behavior to prevent drift, abuse, and poor coaching.
+
+**Changes:**
+1. **End-of-day closure** — Added `close_unresolved_rescheduled_logs()` to finalize past-day rescheduled logs as `skipped`. Wired into existing `process_recurring_tasks` Celery task (runs 1:05 AM EST daily). Prevents stale `rescheduled` logs from persisting indefinitely.
+2. **Reschedule guard** — Max 1 reschedule per item per day. If already rescheduled, user must complete or skip — no infinite rescheduling.
+3. **Nudge stop conditions** — Added `rescheduled` to resolved_statuses in proactive coaching filter. Beth stops nudging once user has rescheduled (engaged with the item).
+4. **Beth language correction** — Strengthened CoS prompt rules: NEVER say "routine complete", "wrapped up", "all done" for partial completion. State facts: "{X} of {Y} items done". Rescheduled items: "{item} rescheduled for {time} today". Late items: "{item} is still outstanding" — not "missed".
+5. **Execution contract verified** — Rescheduled items remain actionable until day close, not counted as complete, not counted as missed.
+
+**Files changed:**
+- `apps/life/services/routine_helpers.py` — `close_unresolved_rescheduled_logs()` + max-1 reschedule guard
+- `apps/life/jobs.py` — wired closure into `process_recurring_tasks`
+- `apps/ai/proactive_checkins.py` — `rescheduled` added to nudge stop filter
+- `apps/core/ai_orchestrator/cos_context.py` — strengthened routine completion language rules
+
+---
+
 ## 2026-03-20 — FIX: Routine items show "Missed" instead of "Late" + toggle doesn't mark completed_late
 
 **Problem:** Routine items past their scheduled time showed "Missed" all day even though they were still actionable. Clicking the checkbox to complete them created a `completed` log instead of `completed_late`, and the "Missed" badge didn't update in the UI because the JS targeted `span:last-child` (the time display) instead of the status badge.

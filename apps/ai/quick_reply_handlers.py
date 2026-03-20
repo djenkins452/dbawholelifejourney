@@ -879,3 +879,53 @@ def generate_routine_recovery_replies(schedule_id: int, item_name: str) -> list:
             'style': 'secondary',
         },
     ]
+
+
+def generate_nudge_follow_up_replies(schedule_id: int, item_name: str) -> list:
+    """
+    Generate quick reply buttons for due-now and follow-up nudges.
+
+    Options:
+    - Mark done: marks complete
+    - Not yet: acknowledges, no action
+    - Reschedule: prompts for new time
+    - Skip: skips the routine item
+    """
+    return [
+        {
+            'id': 'done_already',
+            'label': 'Mark done',
+            'action': 'complete_routine_item',
+            'params': {
+                'schedule_id': schedule_id,
+            },
+            'style': 'primary',
+        },
+        {
+            'id': 'not_yet',
+            'label': 'Not yet',
+            'action': 'acknowledge',
+            'params': {
+                'message': f"Got it — keep {item_name} on your radar.",
+            },
+            'style': 'secondary',
+        },
+        {
+            'id': 'reschedule',
+            'label': 'Reschedule',
+            'action': 'acknowledge',
+            'params': {
+                'message': f"What time would you like to do {item_name}?",
+            },
+            'style': 'secondary',
+        },
+        {
+            'id': 'skip_today',
+            'label': 'Skip',
+            'action': 'skip_routine_item',
+            'params': {
+                'schedule_id': schedule_id,
+            },
+            'style': 'secondary',
+        },
+    ]

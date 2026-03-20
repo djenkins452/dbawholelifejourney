@@ -3324,6 +3324,30 @@ RESPONSE_MODE_DIRECTIVES = {
         "they are, surface one meaningful insight, and offer one forward action. "
         "Keep it conversational and grounded in their data."
     ),
+    'completed_query': (
+        "RESPONSE MODE: COMPLETED QUERY. The user wants to know what they've done. "
+        "List ONLY completed items from today_state truth. Group by domain if helpful. "
+        "Use checkmarks (✓). Do NOT mention pending, overdue, or upcoming items "
+        "unless explicitly asked. End with a factual count like '5 of 8 items done.' "
+        "No cheerleading — just facts."
+    ),
+    'remaining_query': (
+        "RESPONSE MODE: REMAINING QUERY. The user wants to know what's left. "
+        "List ONLY incomplete items. Separate into three clear groups:\n"
+        "1. DUE NOW / OVERDUE — items past their scheduled time or currently due\n"
+        "2. UPCOMING LATER — items with a scheduled time still ahead today\n"
+        "3. FLEXIBLE / UNSCHEDULED — items with no specific time\n"
+        "Do NOT mix future items into the overdue group. Include scheduled times "
+        "where available. Do NOT list completed items. End with total count: "
+        "'X items remaining.'"
+    ),
+    'current_focus': (
+        "RESPONSE MODE: CURRENT FOCUS. The user wants to know what to do RIGHT NOW. "
+        "Give exactly ONE item — the highest-priority actionable item based on "
+        "current time and urgency. Name it, give time context, and say 'Start this.' "
+        "Do NOT list other items unless nothing is time-critical. If nothing is "
+        "overdue or due now, state the next upcoming item and its time."
+    ),
 }
 
 REFLECTION_KEYWORDS = (
@@ -3338,17 +3362,52 @@ PLANNING_KEYWORDS = (
     'action items', 'game plan',
 )
 
+COMPLETED_QUERY_KEYWORDS = (
+    'what have i completed', 'what did i do', 'what have i done',
+    'what did i finish', 'what got done', 'show me completed',
+    'what i completed',
+)
+
+REMAINING_QUERY_KEYWORDS = (
+    "what haven't i done", "what's left", 'what am i missing',
+    'what still needs', 'what remains', 'anything left',
+    'what do i still need', "what's remaining",
+    'what have i not completed', 'what have i not done',
+)
+
+CURRENT_FOCUS_KEYWORDS = (
+    'what should i be doing', 'what should i do right now',
+    'what should i do now', 'what should i focus on',
+    'what is my priority', "what's next",
+)
+
 
 def _detect_response_mode(user_message):
     """
     Detect conversational response mode from user message keywords.
 
-    Returns 'reflection', 'planning', or 'check_in' (default).
+    Returns one of: 'completed_query', 'remaining_query', 'current_focus',
+    'reflection', 'planning', or 'check_in' (default).
+
+    More specific modes are checked first to prevent false matches.
     """
     if not user_message:
         return 'check_in'
 
     msg_lower = user_message.lower()
+
+    # Most specific queries first
+    for kw in COMPLETED_QUERY_KEYWORDS:
+        if kw in msg_lower:
+            return 'completed_query'
+
+    for kw in REMAINING_QUERY_KEYWORDS:
+        if kw in msg_lower:
+            return 'remaining_query'
+
+    for kw in CURRENT_FOCUS_KEYWORDS:
+        if kw in msg_lower:
+            return 'current_focus'
 
     for kw in REFLECTION_KEYWORDS:
         if kw in msg_lower:
@@ -4030,6 +4089,30 @@ def format_cos_system_injection(context, user_message=None):
                 lines.append("")
         except Exception:
             pass
+
+    # ── TONE GUARDRAILS ──
+    lines.append("")
+    lines.append(
+        "BANNED PHRASES — never use these patterns in responses: "
+        "'Operationally...', 'Your signal summary...', 'Momentum indicates...', "
+        "'You are scheduled to...', 'Based on your data...', 'Your metrics show...', "
+        "'According to your signals...', 'Your operational state...', "
+        "'Let me break this down...', 'Your routine compliance...'"
+    )
+    lines.append(
+        "PREFERRED PHRASING — use patterns like: "
+        "'Start this now.', 'You're off to a solid start.', 'Here's what matters today.', "
+        "'Three things left.', 'This is your focus right now.', "
+        "'Nice — X is done.', 'X is slipping — want to adjust?', "
+        "'What would move the needle now is...'"
+    )
+    lines.append(
+        "GOAL-LINKED COACHING: When referencing completed or pending items, "
+        "you may connect to the user's goals — but ONLY when natural and valuable. "
+        "Maximum one sentence. Do NOT include on every response. "
+        "Example: 'Morning prayer done — that keeps your faith streak going.'"
+    )
+    lines.append("")
 
     # ── Phase 7.5: DAILY CONTEXT SUMMARY ──
     _daily_summary = _format_daily_context_summary(context)

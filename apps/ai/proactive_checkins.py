@@ -967,9 +967,15 @@ class ProactiveCheckInService:
         if not self.throttler.can_send(throttle_key, schedule_id):
             return None
 
-        # Select template based on tier
+        # Context-aware: if recent conversation suggests engagement, ask
+        # instead of assuming a miss (Step 4 adjustment)
+        recent_mention = self._check_recent_conversation_for_item(item)
+
+        # Select template based on context and tier
         reschedule_count = item.get('reschedule_count', 0) or 0
-        if reschedule_count >= 2:
+        if recent_mention:
+            template_key = 'routine_ask_if_completed'
+        elif reschedule_count >= 2:
             # Item has been moved multiple times — use gentler "lock it in" tone
             template_key = 'routine_moved_multiple'
         else:
@@ -984,11 +990,19 @@ class ProactiveCheckInService:
             item_name=item_name, count=reschedule_count,
         )
 
-        from apps.ai.quick_reply_handlers import generate_routine_recovery_replies
-        quick_replies = generate_routine_recovery_replies(
-            schedule_id=schedule_id,
-            item_name=item_name,
-        )
+        # Use follow-up replies (with "Not yet") when context-aware
+        if recent_mention:
+            from apps.ai.quick_reply_handlers import generate_nudge_follow_up_replies
+            quick_replies = generate_nudge_follow_up_replies(
+                schedule_id=schedule_id,
+                item_name=item_name,
+            )
+        else:
+            from apps.ai.quick_reply_handlers import generate_routine_recovery_replies
+            quick_replies = generate_routine_recovery_replies(
+                schedule_id=schedule_id,
+                item_name=item_name,
+            )
 
         return self._create_proactive_message(
             content=message_content,
@@ -1002,13 +1016,174 @@ class ProactiveCheckInService:
             }
         )
 
+    # ── Domain alias map for conversation context matching ──
+    _DOMAIN_ALIASES = {
+        'faith': {
+            'bible', 'scripture', 'reading', 'devotion', 'devotional', 'prayer',
+            'praying', 'chapter', 'verse', 'psalm', 'proverbs', 'genesis',
+            'exodus', 'matthew', 'mark', 'luke', 'john', 'acts', 'romans',
+            'jonah', 'isaiah', 'revelation', 'faith', 'worship', 'church',
+            'sermon', 'gospel', 'lord', 'god', 'jesus', 'spirit',
+        },
+        'health': {
+            'workout', 'exercise', 'gym', 'run', 'running', 'fitness',
+            'lifting', 'weights', 'cardio', 'walk', 'walking', 'steps',
+            'stretch', 'yoga', 'training', 'pushup', 'squat',
+        },
+        'journal': {
+            'journal', 'journaling', 'writing', 'reflect', 'reflection',
+            'thoughts', 'diary', 'entry', 'gratitude',
+        },
+        'life': {
+            'routine', 'morning', 'evening', 'meditation', 'meditate',
+            'habit', 'schedule', 'task',
+        },
+    }
+
+    def _check_recent_conversation_for_item(self, item: dict) -> bool:
+        """
+        Check if recent conversation suggests user was engaged with this item.
+
+        Uses item title words + domain aliases for matching.
+        Returns True if recent messages mention the item — affects wording ONLY,
+        NEVER marks anything complete or changes data state.
+        """
+        from datetime import timedelta
+        from django.utils import timezone
+
+        try:
+            from apps.ai.models import AssistantConversation, AssistantMessage
+            conv = AssistantConversation.objects.filter(
+                user=self.user, is_active=True
+            ).order_by('-updated_at').first()
+            if not conv:
+                return False
+
+            cutoff = timezone.now() - timedelta(minutes=30)
+            recent_msgs = AssistantMessage.objects.filter(
+                conversation=conv,
+                created_at__gte=cutoff,
+            ).order_by('-created_at')[:5]
+
+            if not recent_msgs:
+                return False
+
+            # Build keyword set: item title words + domain aliases
+            item_name = (item.get('title') or '').lower()
+            keywords = {w for w in item_name.split() if len(w) > 2}
+
+            # Add domain aliases
+            item_domain = (item.get('domain') or '').lower()
+            parent_title = (item.get('parent_title') or '').lower()
+            for domain_key, aliases in self._DOMAIN_ALIASES.items():
+                if (domain_key in item_domain
+                        or domain_key in item_name
+                        or domain_key in parent_title):
+                    keywords.update(aliases)
+
+            if not keywords:
+                return False
+
+            # Check message content for keyword matches
+            for msg in recent_msgs:
+                content_lower = (msg.content or '').lower()
+                for kw in keywords:
+                    if kw in content_lower:
+                        return True
+
+            return False
+        except Exception:
+            logger.debug("Error checking conversation context for nudge", exc_info=True)
+            return False
+
+    def generate_pre_nudge_check_in(
+        self, item: dict, minutes_until_due: int,
+    ) -> Optional[AssistantMessage]:
+        """
+        Generate a pre-nudge for an upcoming routine item (Stage 1).
+
+        Fires 0-15 minutes before scheduled time. Gentle heads-up only.
+        """
+        schedule_id = item.get('source_id')
+        item_name = item.get('title', 'routine item')
+
+        throttle_key = f'pre_nudge_{schedule_id}'
+        if not self.throttler.can_send(throttle_key, schedule_id):
+            return None
+
+        template = get_style_template(self.user, 'routine_pre_nudge')
+        message_content = template.format(
+            item_name=item_name, minutes=minutes_until_due,
+        )
+
+        from apps.ai.quick_reply_handlers import generate_routine_recovery_replies
+        quick_replies = generate_routine_recovery_replies(
+            schedule_id=schedule_id,
+            item_name=item_name,
+        )
+
+        return self._create_proactive_message(
+            content=message_content,
+            quick_replies=quick_replies,
+            message_type='nudge',
+            metadata={
+                'check_in_type': 'pre_nudge',
+                'schedule_id': schedule_id,
+                'item_name': item_name,
+                'minutes_until_due': minutes_until_due,
+            }
+        )
+
+    def generate_due_now_check_in(
+        self, item: dict,
+    ) -> Optional[AssistantMessage]:
+        """
+        Generate a due-now nudge for a routine item that just became due (Stage 2).
+
+        Context-aware: if recent conversation suggests engagement, asks if completed
+        instead of issuing a hard directive.
+        """
+        schedule_id = item.get('source_id')
+        item_name = item.get('title', 'routine item')
+
+        throttle_key = f'due_now_{schedule_id}'
+        if not self.throttler.can_send(throttle_key, schedule_id):
+            return None
+
+        # Context-aware: check recent conversation before choosing template
+        if self._check_recent_conversation_for_item(item):
+            template_key = 'routine_ask_if_completed'
+        else:
+            template_key = 'routine_due_now'
+
+        template = get_style_template(self.user, template_key)
+        message_content = template.format(item_name=item_name)
+
+        from apps.ai.quick_reply_handlers import generate_nudge_follow_up_replies
+        quick_replies = generate_nudge_follow_up_replies(
+            schedule_id=schedule_id,
+            item_name=item_name,
+        )
+
+        return self._create_proactive_message(
+            content=message_content,
+            quick_replies=quick_replies,
+            message_type='nudge',
+            metadata={
+                'check_in_type': 'due_now',
+                'schedule_id': schedule_id,
+                'item_name': item_name,
+            }
+        )
+
     # Check-in types that warrant immediate push delivery (high priority)
     _HIGH_PRIORITY_CHECKIN_TYPES = {'medicine', 'grouped_medicine'}
     # Check-in types that use standard delivery (lower priority)
     _STANDARD_CHECKIN_TYPES = {'workout', 'journal', 'overdue_task', 'busy_day',
                                'faith_reading', 'finance_budget', 'goal_deadline',
                                'relationship_drift', 'journal_concern',
-                               'cdce_correlation', 'routine_recovery'}
+                               'cdce_correlation', 'routine_recovery',
+                               'pre_nudge', 'due_now'}
 
     def _create_proactive_message(
         self,
@@ -1461,13 +1636,147 @@ def generate_overdue_task_check_ins_for_user(user):
             service.generate_overdue_task_check_in(overdue_task)
 
 
+def generate_pre_nudge_check_ins_for_user(user):
+    """
+    Generate pre-nudge check-ins for upcoming routine items (Stage 1).
+
+    Fires for foundational/important items due within the next 15 minutes.
+    Gentle heads-up only — no implication of lateness.
+    Max 2 check-ins per run.
+    """
+    from apps.core.utils import get_user_now, classify_time_status
+    from datetime import datetime as _dt
+
+    prefs = user.preferences
+    if not getattr(prefs, 'assistant_proactive_checkins', True):
+        return
+
+    try:
+        from apps.core.execution.today_execution import build_today_execution
+        execution = build_today_execution(user)
+    except Exception:
+        logger.exception("Failed to build execution for pre-nudge check-ins")
+        return
+
+    items = execution.get('items', [])
+    if not items:
+        return
+
+    user_now = get_user_now(user)
+    user_today = user_now.date()
+
+    # Filter: upcoming routine items that are foundational/important
+    candidates = []
+    for item in items:
+        if (item.get('source_type') != 'routine_item'
+                or not item.get('is_actionable', False)
+                or item.get('time_status') != 'upcoming'
+                or item.get('importance') not in ('foundational', 'important')):
+            continue
+
+        # Re-derive minutes until due
+        sched_time_str = item.get('scheduled_time')
+        if not sched_time_str:
+            continue
+        try:
+            sched_time_obj = _dt.strptime(sched_time_str, '%H:%M').time()
+        except (ValueError, AttributeError):
+            continue
+
+        ts = classify_time_status(user_today, sched_time_obj, user_now, grace_minutes=0)
+        minutes_until = ts.get('minutes_until_due')
+        if minutes_until is not None and 0 < minutes_until <= 15:
+            candidates.append((item, minutes_until))
+
+    if not candidates:
+        return
+
+    service = get_proactive_service(user)
+    generated = 0
+    for item, minutes_until in candidates:
+        result = service.generate_pre_nudge_check_in(item, minutes_until)
+        if result:
+            generated += 1
+            if generated >= 2:
+                break
+
+
+def generate_due_now_check_ins_for_user(user):
+    """
+    Generate due-now check-ins for routine items that just became due (Stage 2).
+
+    Fires for items 0-10 minutes past scheduled time (recently overdue).
+    Context-aware: checks recent conversation before choosing directive vs ask tone.
+    Max 2 check-ins per run.
+    """
+    from apps.core.utils import get_user_now, classify_time_status
+    from datetime import datetime as _dt
+
+    prefs = user.preferences
+    if not getattr(prefs, 'assistant_proactive_checkins', True):
+        return
+
+    try:
+        from apps.core.execution.today_execution import build_today_execution
+        execution = build_today_execution(user)
+    except Exception:
+        logger.exception("Failed to build execution for due-now check-ins")
+        return
+
+    items = execution.get('items', [])
+    if not items:
+        return
+
+    user_now = get_user_now(user)
+    user_today = user_now.date()
+
+    resolved_statuses = {'completed', 'completed_late', 'skipped', 'rescheduled'}
+    candidates = []
+    for item in items:
+        if (item.get('source_type') != 'routine_item'
+                or not item.get('is_actionable', False)
+                or item.get('time_status') != 'overdue'
+                or item.get('completion_status') in resolved_statuses
+                or item.get('importance') not in ('foundational', 'important')):
+            continue
+
+        # Re-derive to check how recently it became overdue
+        sched_time_str = item.get('scheduled_time')
+        if not sched_time_str:
+            continue
+        try:
+            sched_time_obj = _dt.strptime(sched_time_str, '%H:%M').time()
+        except (ValueError, AttributeError):
+            continue
+
+        ts = classify_time_status(user_today, sched_time_obj, user_now, grace_minutes=0)
+        minutes_past = ts.get('minutes_past_due')
+        if minutes_past is not None and 0 <= minutes_past <= 10:
+            candidates.append(item)
+
+    if not candidates:
+        return
+
+    service = get_proactive_service(user)
+    generated = 0
+    for item in candidates:
+        result = service.generate_due_now_check_in(item)
+        if result:
+            generated += 1
+            if generated >= 2:
+                break
+
+
 def generate_routine_recovery_check_ins_for_user(user):
     """
-    Generate proactive check-ins for missed/overdue routine items.
+    Generate proactive check-ins for missed/overdue routine items (Stage 3).
 
     Reads from execution contract (single source of truth).
     Filters: routine items that are actionable + overdue + not completed/skipped,
     with foundational or important importance.
+
+    Context-aware: if recent conversation suggests engagement, asks if completed
+    instead of assuming a miss.
 
     Escalation tiers by user's local hour:
     - Tier 1 (any hour post-grace): Window passed, offer reschedule
@@ -1476,7 +1785,8 @@ def generate_routine_recovery_check_ins_for_user(user):
 
     Max 2 check-ins per run to avoid overwhelming.
     """
-    from apps.core.utils import get_user_now
+    from apps.core.utils import get_user_now, classify_time_status
+    from datetime import datetime as _dt
 
     prefs = user.preferences
     if not getattr(prefs, 'assistant_proactive_checkins', True):
@@ -1493,24 +1803,39 @@ def generate_routine_recovery_check_ins_for_user(user):
     if not items:
         return
 
+    user_now = get_user_now(user)
+    user_today = user_now.date()
+
     # Filter: routine items that are overdue, actionable, not resolved
     # Per user correction: do NOT depend on 'missed' status — use actionable + overdue
     # Stop nudging if: completed, skipped, OR already rescheduled (user engaged)
+    # Exclude items ≤10 min overdue — those are handled by due_now generator
     resolved_statuses = {'completed', 'completed_late', 'skipped', 'rescheduled'}
-    candidates = [
-        item for item in items
-        if item.get('source_type') == 'routine_item'
-        and item.get('is_actionable', False)
-        and item.get('time_status') == 'overdue'
-        and item.get('completion_status') not in resolved_statuses
-        and item.get('importance') in ('foundational', 'important')
-    ]
+    candidates = []
+    for item in items:
+        if (item.get('source_type') != 'routine_item'
+                or not item.get('is_actionable', False)
+                or item.get('time_status') != 'overdue'
+                or item.get('completion_status') in resolved_statuses
+                or item.get('importance') not in ('foundational', 'important')):
+            continue
+        # Exclude recently-overdue items (handled by due_now generator)
+        sched_time_str = item.get('scheduled_time')
+        if sched_time_str:
+            try:
+                sched_time_obj = _dt.strptime(sched_time_str, '%H:%M').time()
+                ts = classify_time_status(user_today, sched_time_obj, user_now, grace_minutes=0)
+                minutes_past = ts.get('minutes_past_due')
+                if minutes_past is not None and minutes_past <= 10:
+                    continue  # Let due_now handle this
+            except (ValueError, AttributeError):
+                pass
+        candidates.append(item)
 
     if not candidates:
         return
 
     # Determine escalation tier from user's local hour
-    user_now = get_user_now(user)
     hour = user_now.hour
 
     if 16 <= hour <= 20:
@@ -2303,7 +2628,11 @@ def _dispatch_for_window(user, prefs, hour, is_weekend):
         generate_medicine_check_ins_for_user(user)
         count += 1
 
-    # Routine recovery coaching (any non-quiet hour)
+    # Escalation ladder: pre-nudge → due-now → routine recovery (any non-quiet hour)
+    generate_pre_nudge_check_ins_for_user(user)
+    count += 1
+    generate_due_now_check_ins_for_user(user)
+    count += 1
     generate_routine_recovery_check_ins_for_user(user)
     count += 1
 

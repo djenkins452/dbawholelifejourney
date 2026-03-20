@@ -6,6 +6,44 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — FEATURE: Today State deterministic truth layer (anti-hallucination)
+
+**Problem:** CoS could infer/fabricate today's completion status from streaks, trends, and signals rather than deterministic DB records, causing trust-breaking false positives ("you completed X" when X wasn't done).
+
+**Solution:** Introduced a new Today State layer that separates TRUTH from EXECUTION and INTERPRETATION:
+
+1. **New file: `apps/core/services/today_state.py`**
+   - `build_today_state(user)` — deterministic truth builder from DB records only
+   - `format_today_state_injection()` — renders authoritative truth block for system prompt
+   - `_classify_domain_states()` — ACTIONABLE / SATISFIED / IRRELEVANT classification
+   - Per-domain `data_confidence` rollup (present / partial / missing)
+   - Explainable missing data guidance (WHAT is missing, WHY it matters, HOW to track)
+
+2. **Modified: `apps/core/ai_orchestrator/cos_context.py`**
+   - Added `build_today_state()` call in `build_cos_context()` post-assembly
+   - Replaced inline `DailyProgressService` rendering in `format_cos_system_injection()` with `format_today_state_injection()`
+   - Added `TODAY TRUTH RULE` directive to system prompt (anti-hallucination enforcement)
+   - Updated RULE 0 to reference new TODAY'S TRUTH STATE section
+
+3. **New file: `apps/core/tests/test_today_state.py`** — 14 tests covering:
+   - Fresh morning (no activity)
+   - Partial completion (prayer done, workout not)
+   - Signals don't override truth
+   - Missing data generates explainable guidance
+   - Routine accuracy (0/4 completed)
+   - Domain state classification
+   - Confidence rollup
+   - Format injection output
+
+**Architecture:** `Raw Data → Signals → Today State → CoS → LLM`
+- Signals = momentum, trends, patterns (coaching layer)
+- Today State = deterministic truth (execution layer)
+- CoS reads today_state as SOLE source of execution truth
+
+**Files changed:** `apps/core/services/today_state.py` (new), `apps/core/ai_orchestrator/cos_context.py`, `apps/core/tests/test_today_state.py` (new), `docs/wlj_claude_changelog.md`
+
+---
+
 ## 2026-03-20 — FIX: CI test suite — resolve remaining failures (round 2)
 
 **Problem:** CI had 38 failures and 12 errors after first round of fixes. Root causes: stale test assertions, runtime config leaking into tests, orphaned 'notes' module, model guard scanning worktrees, missing prompt parameter, cache config inconsistency.

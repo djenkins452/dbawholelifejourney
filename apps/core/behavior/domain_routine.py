@@ -69,9 +69,11 @@ def calculate_routine_behavior_output(user, start_date, end_date):
     completed = logs.filter(log_status="completed").count()
     late = logs.filter(log_status="completed_late").count()
     skipped = logs.filter(log_status="skipped").count()
+    # Rescheduled items that were never completed count as missed
+    rescheduled = logs.filter(log_status="rescheduled").count()
 
-    accounted = completed + late + skipped
-    missed = max(0, expected - accounted)
+    accounted = completed + late + skipped + rescheduled
+    missed = max(0, expected - accounted) + rescheduled  # rescheduled but unresolved = missed
 
     return build_behavior_output(
         domain='routine',

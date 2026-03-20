@@ -66,6 +66,7 @@ LIFE_INTENTS = {
     "add_reminder",
     "read_calendar_events",
     "mutate_calendar_event",
+    "reschedule_routine_item",
 }
 
 FITNESS_INTENTS = {

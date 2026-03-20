@@ -50,6 +50,7 @@ def compute_occurrence_status(now, scheduled_datetime, grace_minutes, log=None):
 ADHERENCE_WEIGHTS = {
     'completed': 1.0,
     'completed_late': 0.7,
+    'rescheduled': 0.0,   # Not yet completed — scores 0 until resolved to completed_late
     'skipped': 0.0,
     'missed': 0.0,
 }

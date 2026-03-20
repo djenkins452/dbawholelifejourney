@@ -2568,18 +2568,21 @@ class RoutineLog(UserOwnedModel):
     """
     Tracks completion of a routine schedule item on a specific date.
 
-    Status: completed, completed_late, skipped.
-    Missed is NOT stored — it is computed as absence of log.
+    Status: completed, completed_late, skipped, rescheduled.
+    Missed is NOT stored — it is computed as absence of log at day close.
+    Rescheduled items remain actionable until day close (never auto-missed).
     """
 
     STATUS_COMPLETED = "completed"
     STATUS_COMPLETED_LATE = "completed_late"
     STATUS_SKIPPED = "skipped"
+    STATUS_RESCHEDULED = "rescheduled"
 
     STATUS_CHOICES = [
         (STATUS_COMPLETED, "Completed"),
         (STATUS_COMPLETED_LATE, "Completed Late"),
         (STATUS_SKIPPED, "Skipped"),
+        (STATUS_RESCHEDULED, "Rescheduled"),
     ]
 
     schedule = models.ForeignKey(
@@ -2599,10 +2602,20 @@ class RoutineLog(UserOwnedModel):
         blank=True,
         help_text="When the item was completed (null for skipped)",
     )
+    rescheduled_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Override time for same-day reschedule (log-level only, never modifies template)",
+    )
     is_user_corrected = models.BooleanField(
         default=False,
         help_text="True when user has manually edited a past log",
     )
+
+    @property
+    def effective_time(self):
+        """Return rescheduled_time if set, else the schedule's original time."""
+        return self.rescheduled_time or self.schedule.scheduled_time
 
     class Meta:
         ordering = ["-scheduled_date"]

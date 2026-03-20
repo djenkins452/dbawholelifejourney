@@ -56,6 +56,8 @@ def handle_quick_reply(user, action: str, params: dict) -> dict:
         'start_journal': handle_start_journal,
         'acknowledge': handle_acknowledge,
         'mark_task_complete': handle_mark_task_complete,
+        'skip_routine_item': handle_skip_routine_item,
+        'complete_routine_item': handle_complete_routine_item,
     }
 
     handler = handlers.get(action)
@@ -760,6 +762,120 @@ def generate_journal_concern_replies() -> list:
             'label': "I'm handling it",
             'action': 'acknowledge',
             'params': {'message': "Good to hear. I'll keep an eye on it."},
+            'style': 'secondary',
+        },
+    ]
+
+
+# =============================================================================
+# Routine Recovery Quick Reply Handlers + Generators
+# =============================================================================
+
+def handle_skip_routine_item(user, params: dict) -> dict:
+    """Skip a routine item for today."""
+    from apps.life.models import RoutineSchedule
+    from apps.life.services.routine_helpers import skip_routine
+
+    schedule_id = params.get('schedule_id')
+    if not schedule_id:
+        return {
+            'success': False,
+            'message': "I couldn't find which routine item to skip.",
+        }
+
+    try:
+        schedule = RoutineSchedule.objects.get(id=schedule_id, routine__user=user)
+        from apps.core.utils import get_user_today
+        today = get_user_today(user)
+        skip_routine(user, schedule, today)
+        return {
+            'success': True,
+            'message': f"Okay, skipped {schedule.task_name} for today.",
+            'data': {'schedule_id': schedule_id, 'item_name': schedule.task_name},
+        }
+    except RoutineSchedule.DoesNotExist:
+        return {
+            'success': False,
+            'message': "I couldn't find that routine item.",
+        }
+    except Exception as e:
+        logger.exception(f"Error skipping routine item {schedule_id}: {e}")
+        return {
+            'success': False,
+            'message': "Something went wrong. Please try again.",
+        }
+
+
+def handle_complete_routine_item(user, params: dict) -> dict:
+    """Mark a routine item as completed (will be completed_late if past window)."""
+    from apps.life.models import RoutineSchedule
+    from apps.life.services.routine_helpers import toggle_routine_completion
+
+    schedule_id = params.get('schedule_id')
+    if not schedule_id:
+        return {
+            'success': False,
+            'message': "I couldn't find which routine item to complete.",
+        }
+
+    try:
+        schedule = RoutineSchedule.objects.get(id=schedule_id, routine__user=user)
+        from apps.core.utils import get_user_today
+        today = get_user_today(user)
+        result = toggle_routine_completion(user, schedule, today)
+        return {
+            'success': True,
+            'message': f"Done! {schedule.task_name} marked complete.",
+            'data': {'schedule_id': schedule_id, 'item_name': schedule.task_name},
+        }
+    except RoutineSchedule.DoesNotExist:
+        return {
+            'success': False,
+            'message': "I couldn't find that routine item.",
+        }
+    except Exception as e:
+        logger.exception(f"Error completing routine item {schedule_id}: {e}")
+        return {
+            'success': False,
+            'message': "Something went wrong. Please try again.",
+        }
+
+
+def generate_routine_recovery_replies(schedule_id: int, item_name: str) -> list:
+    """
+    Generate quick reply buttons for routine recovery check-in.
+
+    Options:
+    - Reschedule: prompts user for time (Beth handles via intent)
+    - Skip today: skips the routine item
+    - Done already: marks complete (completed_late)
+    """
+    return [
+        {
+            'id': 'reschedule',
+            'label': 'Reschedule',
+            'action': 'acknowledge',
+            'params': {
+                'message': f"What time would you like to do {item_name}?",
+            },
+            'style': 'primary',
+        },
+        {
+            'id': 'done_already',
+            'label': 'Done already',
+            'action': 'complete_routine_item',
+            'params': {
+                'schedule_id': schedule_id,
+            },
+            'style': 'primary',
+        },
+        {
+            'id': 'skip_today',
+            'label': 'Skip today',
+            'action': 'skip_routine_item',
+            'params': {
+                'schedule_id': schedule_id,
+            },
             'style': 'secondary',
         },
     ]

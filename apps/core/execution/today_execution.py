@@ -169,7 +169,9 @@ def _collect_routine_items(user, user_now, user_today):
             schedule_id = item['schedule_id']
 
             # Derive time_status from the canonical classifier
+            # For rescheduled items, use the rescheduled time
             sched_time_str = item.get('scheduled_time')
+            rescheduled_time_str = item.get('rescheduled_time')
             sched_time_obj = None
             if sched_time_str:
                 try:
@@ -180,10 +182,23 @@ def _collect_routine_items(user, user_now, user_today):
                 except (ValueError, AttributeError):
                     pass
 
-            ts = classify_time_status(
-                user_today, sched_time_obj, user_now,
-                grace_minutes=0,  # routine items use their own grace in _routine_internal
-            )
+            # For rescheduled items: classify against the new time
+            if status == 'rescheduled':
+                ts = classify_time_status(
+                    user_today, sched_time_obj, user_now,
+                    grace_minutes=0,
+                )
+                # Rescheduled items stay actionable until day close
+                # — never auto-convert to missed same-day
+                time_status = ts['status']
+            elif status == 'missed':
+                time_status = 'overdue'
+            else:
+                ts = classify_time_status(
+                    user_today, sched_time_obj, user_now,
+                    grace_minutes=0,
+                )
+                time_status = ts['status']
 
             items.append({
                 'source_type': 'routine_item',
@@ -191,15 +206,16 @@ def _collect_routine_items(user, user_now, user_today):
                 'title': item.get('item_name', ''),
                 'domain': 'life',
                 'importance': importance,
-                'time_status': 'overdue' if status == 'missed' else ts['status'],
+                'time_status': time_status,
                 'scheduled_time': (
                     sched_time_obj.strftime('%H:%M') if sched_time_obj else None
                 ),
                 'grace_minutes': 0,
                 'completion_status': status,
                 'completed_today': completed,
-                'is_actionable': status in ('pending', 'missed'),
+                'is_actionable': status in ('pending', 'missed', 'rescheduled'),
                 'is_foundational': importance == 'foundational',
+                'rescheduled_time': rescheduled_time_str,
                 'toggle_url': reverse(
                     'life:routine_toggle'
                 ),

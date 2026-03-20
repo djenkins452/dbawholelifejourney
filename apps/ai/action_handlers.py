@@ -4836,6 +4836,95 @@ class ActionHandler:
             )
 
     # =========================================================================
+    # ROUTINE HANDLERS
+    # =========================================================================
+
+    def handle_reschedule_routine_item(self, item_keyword: str, new_time: str,
+                                        **kwargs) -> ActionResult:
+        """
+        Reschedule a missed routine item to a later time today.
+
+        Args:
+            item_keyword: Keywords to identify the routine item
+            new_time: New time in HH:MM 24-hour format
+        """
+        from datetime import datetime as _dt
+        from apps.life.models import RoutineSchedule
+        from apps.life.services.routine_helpers import reschedule_routine_item
+
+        try:
+            today = self._get_user_today()
+
+            # Parse new_time
+            try:
+                time_obj = _dt.strptime(new_time.strip(), '%H:%M').time()
+            except (ValueError, AttributeError):
+                return ActionResult(
+                    success=False,
+                    message=f"I couldn't parse '{new_time}' as a time. Please use HH:MM format.",
+                    error='invalid_time',
+                    action_type='reschedule_routine_item',
+                )
+
+            # Find matching routine schedule item for today
+            keyword_lower = item_keyword.lower().strip()
+            active_schedules = RoutineSchedule.objects.filter(
+                routine__user=self.user,
+                routine__is_active=True,
+                is_active=True,
+            ).select_related('routine')
+
+            weekday = today.weekday()
+            match = None
+            for sched in active_schedules:
+                if sched.specific_date:
+                    if sched.specific_date != today:
+                        continue
+                elif not sched.applies_to_day(weekday):
+                    continue
+                if keyword_lower in sched.name.lower():
+                    match = sched
+                    break
+
+            if not match:
+                return ActionResult(
+                    success=False,
+                    message=f"I couldn't find a routine item matching '{item_keyword}' for today.",
+                    error='item_not_found',
+                    action_type='reschedule_routine_item',
+                )
+
+            result = reschedule_routine_item(self.user, match, today, time_obj)
+
+            if not result.get('success'):
+                return ActionResult(
+                    success=False,
+                    message=result.get('error', 'Reschedule failed.'),
+                    error='reschedule_failed',
+                    action_type='reschedule_routine_item',
+                )
+
+            formatted_time = result['rescheduled_time']
+            return ActionResult(
+                success=True,
+                message=(
+                    f"{_pick_opener(_SUCCESS_OPENERS, 'reschedule')} — "
+                    f"moved {match.name} to {formatted_time} today. "
+                    f"I'll check in if needed."
+                ),
+                action_type='reschedule_routine_item',
+            )
+
+        except Exception as e:
+            logger.error("Error rescheduling routine item: %s", e, exc_info=True)
+            return ActionResult(
+                success=False,
+                message="I wasn't able to reschedule that routine item.",
+                error='internal_error',
+                action_type='reschedule_routine_item',
+            )
+
+    # =========================================================================
     # FITNESS HANDLERS
     # =========================================================================
 

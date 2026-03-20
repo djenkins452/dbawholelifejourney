@@ -87,12 +87,21 @@ def get_todays_routine_items(user):
 
     for routine, item in today_items:
         log = log_by_schedule.get(item.id)
+        display_time = item.scheduled_time  # may be overridden by reschedule
+        rescheduled_time = None
+
         if log:
             if log.log_status in ('completed', 'completed_late'):
                 status = 'completed'
                 total_completed += 1
             elif log.log_status == 'skipped':
                 status = 'skipped'
+            elif log.log_status == 'rescheduled':
+                # Same-day reschedule: use rescheduled_time, item stays
+                # actionable until day close (never auto-missed same-day)
+                rescheduled_time = getattr(log, 'rescheduled_time', None)
+                display_time = rescheduled_time or item.scheduled_time
+                status = 'rescheduled'
             else:
                 status = 'pending'
         else:
@@ -114,8 +123,12 @@ def get_todays_routine_items(user):
             'item_name': item.name,
             'importance': getattr(item, 'importance', 'flexible'),
             'scheduled_time': (
-                item.scheduled_time.strftime('%I:%M %p').lstrip('0')
-                if item.scheduled_time else None
+                display_time.strftime('%I:%M %p').lstrip('0')
+                if display_time else None
+            ),
+            'rescheduled_time': (
+                rescheduled_time.strftime('%I:%M %p').lstrip('0')
+                if rescheduled_time else None
             ),
             'time_of_day': routine.time_of_day,
             'status': status,

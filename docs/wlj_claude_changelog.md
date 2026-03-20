@@ -6,6 +6,45 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — FEATURE: Same-Day Routine Recovery + Proactive Coaching
+
+**Problem:** When a routine item was missed (e.g., Workout at 6:15 AM), it stayed permanently "missed" for the day. Users couldn't recover it, and Beth had no way to reschedule — she'd have to create a duplicate task instead. No proactive nudging existed for missed foundational routine items.
+
+**Solution:** Added same-day routine recovery flow (MISSED → RESCHEDULED → COMPLETED_LATE) with proactive coaching.
+
+**Changes:**
+1. **Model** — Added `rescheduled` log status + `rescheduled_time` field to `RoutineLog` (log-level override only, never modifies template)
+2. **Service** — `reschedule_routine_item()` with tight validation (today only, future time, before day close); updated `toggle_routine_completion()` for rescheduled→completed_late transition
+3. **Internal state** — `get_todays_routine_items()` recognizes rescheduled status, uses rescheduled_time for display, keeps items actionable until day close
+4. **Execution contract** — propagates rescheduled status through `_collect_routine_items()` with `is_actionable=True`
+5. **Behavior scoring** — `rescheduled: 0.0` until resolved → transitions to `completed_late` (0.7)
+6. **Beth intent** — `reschedule_routine_item` with full 7-point registration (tool def, handler map, engine category, dispatcher, action handler, system prompt examples, time awareness)
+7. **Proactive coaching** — `generate_routine_recovery_check_ins_for_user()` reads from execution contract, filters for overdue+actionable+foundational/important items, 3 escalation tiers by time of day
+8. **Quick replies** — Reschedule/Skip/Done Already buttons with handlers
+9. **Style templates** — Routine recovery messages for all 4 coaching styles
+10. **CoS prompt** — Shows `[RESCHEDULED → HH:MM]` status for rescheduled items
+
+**Files changed:**
+- `apps/life/models.py` — rescheduled status + rescheduled_time on RoutineLog
+- `apps/life/migrations/0039_routine_log_reschedule.py` — migration
+- `apps/life/services/routine_helpers.py` — reschedule_routine_item(), toggle updates
+- `apps/life/services/_routine_internal.py` — recognize rescheduled status
+- `apps/core/execution/today_execution.py` — propagate rescheduled
+- `apps/core/behavior/status_engine.py` — rescheduled weight
+- `apps/core/behavior/domain_routine.py` — count rescheduled logs
+- `apps/ai/intents/life_intents.py` — tool definition
+- `apps/ai/intents/__init__.py` — INTENT_HANDLERS registration
+- `apps/core/ai_orchestrator/intent_engine.py` — LIFE_INTENTS + TIME_AWARE
+- `apps/ai/intent_service.py` — dispatcher + system prompt examples
+- `apps/ai/action_handlers.py` — handle_reschedule_routine_item()
+- `apps/ai/proactive_checkins.py` — routine recovery check-ins + dispatcher wiring
+- `apps/ai/quick_reply_handlers.py` — skip/complete handlers + recovery reply generator
+- `apps/ai/assistant_intelligence.py` — style templates for all 4 styles
+- `apps/core/ai_orchestrator/cos_context.py` — RESCHEDULED display
+- `apps/ai/tests/test_intent_registration.py` — NON_TIME_INTENTS update
+
+---
+
 ## 2026-03-19 — HARDEN: CoS Execution Handling — Prevent Inference When Data Missing
 
 **Problem:** When the `execution` SAE module hadn't been built yet (or was stale), CoS fell back to reading routine/medication data from legacy SAE modules. This created parallel truth sources that could drift, causing Beth to make stale or contradictory claims about routine completion.

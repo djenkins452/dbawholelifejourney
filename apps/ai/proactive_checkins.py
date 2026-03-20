@@ -941,13 +941,67 @@ class ProactiveCheckInService:
             }
         )
 
+    def generate_routine_recovery_check_in(
+        self, item: dict, tier: str,
+    ) -> Optional[AssistantMessage]:
+        """
+        Generate a proactive check-in for a missed/overdue routine item.
+
+        Escalation tiers:
+        - tier1: Window passed, offer reschedule
+        - tier2: Still outstanding midday
+        - tier3: Last chance before day close
+
+        Args:
+            item: ExecutionItem dict from build_today_execution()
+            tier: 'tier1', 'tier2', or 'tier3'
+
+        Returns:
+            AssistantMessage with quick reply buttons, or None if throttled
+        """
+        schedule_id = item.get('source_id')
+        item_name = item.get('title', 'routine item')
+
+        # Throttle key includes schedule_id + tier for per-item-per-tier dedup
+        throttle_key = f'routine_recovery_{schedule_id}_{tier}'
+        if not self.throttler.can_send(throttle_key, schedule_id):
+            return None
+
+        # Select template based on tier
+        template_map = {
+            'tier1': 'routine_missed_window',
+            'tier2': 'routine_still_outstanding',
+            'tier3': 'routine_last_chance',
+        }
+        template_key = template_map.get(tier, 'routine_missed_window')
+        template = get_style_template(self.user, template_key)
+        message_content = template.format(item_name=item_name)
+
+        from apps.ai.quick_reply_handlers import generate_routine_recovery_replies
+        quick_replies = generate_routine_recovery_replies(
+            schedule_id=schedule_id,
+            item_name=item_name,
+        )
+
+        return self._create_proactive_message(
+            content=message_content,
+            quick_replies=quick_replies,
+            message_type='nudge',
+            metadata={
+                'check_in_type': 'routine_recovery',
+                'schedule_id': schedule_id,
+                'item_name': item_name,
+                'tier': tier,
+            }
+        )
+
     # Check-in types that warrant immediate push delivery (high priority)
     _HIGH_PRIORITY_CHECKIN_TYPES = {'medicine', 'grouped_medicine'}
     # Check-in types that use standard delivery (lower priority)
     _STANDARD_CHECKIN_TYPES = {'workout', 'journal', 'overdue_task', 'busy_day',
                                'faith_reading', 'finance_budget', 'goal_deadline',
                                'relationship_drift', 'journal_concern',
-                               'cdce_correlation'}
+                               'cdce_correlation', 'routine_recovery'}
 
     def _create_proactive_message(
         self,
@@ -1398,6 +1452,74 @@ def generate_overdue_task_check_ins_for_user(user):
         overdue_task.refresh_from_db(fields=['completion_status', 'deleted_at'])
         if overdue_task.completion_status == 'pending' and overdue_task.deleted_at is None:
             service.generate_overdue_task_check_in(overdue_task)
+
+
+def generate_routine_recovery_check_ins_for_user(user):
+    """
+    Generate proactive check-ins for missed/overdue routine items.
+
+    Reads from execution contract (single source of truth).
+    Filters: routine items that are actionable + overdue + not completed/skipped,
+    with foundational or important importance.
+
+    Escalation tiers by user's local hour:
+    - Tier 1 (any hour post-grace): Window passed, offer reschedule
+    - Tier 2 (10-14): Still outstanding midday
+    - Tier 3 (16-20): Last chance before day close
+
+    Max 2 check-ins per run to avoid overwhelming.
+    """
+    from apps.core.utils import get_user_now
+
+    prefs = user.preferences
+    if not getattr(prefs, 'assistant_proactive_checkins', True):
+        return
+
+    try:
+        from apps.core.execution.today_execution import build_today_execution
+        execution = build_today_execution(user)
+    except Exception:
+        logger.exception("Failed to build execution for routine recovery check-ins")
+        return
+
+    items = execution.get('items', [])
+    if not items:
+        return
+
+    # Filter: routine items that are overdue, actionable, not completed/skipped
+    # Per user correction: do NOT depend on 'missed' status — use actionable + overdue
+    resolved_statuses = {'completed', 'completed_late', 'skipped'}
+    candidates = [
+        item for item in items
+        if item.get('source_type') == 'routine_item'
+        and item.get('is_actionable', False)
+        and item.get('time_status') == 'overdue'
+        and item.get('completion_status') not in resolved_statuses
+        and item.get('importance') in ('foundational', 'important')
+    ]
+
+    if not candidates:
+        return
+
+    # Determine escalation tier from user's local hour
+    user_now = get_user_now(user)
+    hour = user_now.hour
+
+    if 16 <= hour <= 20:
+        tier = 'tier3'
+    elif 10 <= hour <= 14:
+        tier = 'tier2'
+    else:
+        tier = 'tier1'
+
+    service = get_proactive_service(user)
+    generated = 0
+    for item in candidates:
+        result = service.generate_routine_recovery_check_in(item, tier)
+        if result:
+            generated += 1
+            if generated >= 2:
+                break
 
 
 def generate_nn_skip_check_ins_for_user(user):
@@ -2172,6 +2294,10 @@ def _dispatch_for_window(user, prefs, hour, is_weekend):
     if getattr(prefs, 'health_enabled', False):
         generate_medicine_check_ins_for_user(user)
         count += 1
+
+    # Routine recovery coaching (any non-quiet hour)
+    generate_routine_recovery_check_ins_for_user(user)
+    count += 1
 
     # --- Morning 7–9 ---
     if hour in WINDOW_MORNING:

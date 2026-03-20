@@ -76,6 +76,10 @@ COACHING_STYLE_TEMPLATES = {
         'habit_streak_note': "{streak} days on '{habit}'. Solid consistency.",
         'journal_concern': "You've mentioned {concern} in {count} recent entries. Want to talk through it?",
         'journal_gap_extended': "You haven't journaled in {days} days. Want to capture some thoughts?",
+        # Routine recovery proactive coaching
+        'routine_missed_window': "Your {item_name} window has passed. Want to reschedule for later today?",
+        'routine_still_outstanding': "{item_name} still outstanding today.",
+        'routine_last_chance': "{item_name} — last window today. Do it now or skip?",
     },
     'southern_belle': {
         'missed_med': "Sugar, looks like your {time} {medicine} wasn't marked yet. Did you take it, or want me to mark it skipped?",
@@ -107,6 +111,9 @@ COACHING_STYLE_TEMPLATES = {
         'habit_streak_note': "{streak} days on '{habit}'. That's real steady, sugar.",
         'journal_concern': "You've mentioned {concern} in {count} recent entries. Want to chat about it?",
         'journal_gap_extended': "You haven't journaled in {days} days, dear. Want to jot some thoughts?",
+        'routine_missed_window': "Your {item_name} window has passed, hon. Want to reschedule for later today?",
+        'routine_still_outstanding': "{item_name} still waitin' on you today, dear.",
+        'routine_last_chance': "{item_name} — last chance today, sugar. Do it now or skip?",
     },
     'new_yorker': {
         'missed_med': "{time} {medicine} - not marked. Took it or no?",
@@ -138,6 +145,9 @@ COACHING_STYLE_TEMPLATES = {
         'habit_streak_note': "{streak} days on '{habit}'.",
         'journal_concern': "{concern} — mentioned in {count} recent entries. Wanna talk about it?",
         'journal_gap_extended': "No journal in {days} days. Writing one?",
+        'routine_missed_window': "{item_name} window passed. Reschedule or skip?",
+        'routine_still_outstanding': "{item_name} still open today.",
+        'routine_last_chance': "{item_name} — last call. Now or never.",
     },
     'california': {
         'missed_med': "Hey, your {time} {medicine} isn't marked yet. Did you take it, or want me to skip it?",
@@ -169,6 +179,9 @@ COACHING_STYLE_TEMPLATES = {
         'habit_streak_note': "{streak} days on '{habit}'. Looking consistent.",
         'journal_concern': "You've mentioned {concern} in {count} recent entries. Wanna talk about it?",
         'journal_gap_extended': "No journal in {days} days. Wanna write something?",
+        'routine_missed_window': "Your {item_name} window passed. Wanna reschedule for later today?",
+        'routine_still_outstanding': "{item_name} still outstanding today.",
+        'routine_last_chance': "{item_name} — last window today. Gonna do it or skip?",
     },
 }
 

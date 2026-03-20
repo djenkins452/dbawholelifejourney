@@ -138,6 +138,7 @@ NON_TIME_INTENTS = {
     'mutate_task',             # Uses new_due_date/new_scheduled_time, not recorded_at
     'mutate_calendar_event',   # Uses start_date/start_time, not recorded_at
     'add_reminder',            # Reminders have a trigger time, not recorded_at
+    'reschedule_routine_item', # Uses new_time for scheduling, not recorded_at
     'create_goal',             # Goals have target_date, not recorded_at
     'update_goal_progress',    # Progress updates, not backdatable
     'set_intention',           # Intentions are forward-looking

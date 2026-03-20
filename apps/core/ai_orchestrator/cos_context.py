@@ -3009,7 +3009,14 @@ def _build_data_state_snapshot(user) -> str:
             for ri in _routine_items_for_prompt:
                 _ri_status = ri.get('completion_status', 'pending').upper()
                 _ri_parent = ri.get('parent_title', '')
-                lines.append(f"    [{_ri_status}] {ri.get('title', '')} ({_ri_parent})")
+                _ri_resched = ri.get('rescheduled_time')
+                if _ri_resched and _ri_status == 'RESCHEDULED':
+                    lines.append(
+                        f"    [RESCHEDULED \u2192 {ri.get('scheduled_time', '')}] "
+                        f"{ri.get('title', '')} ({_ri_parent})"
+                    )
+                else:
+                    lines.append(f"    [{_ri_status}] {ri.get('title', '')} ({_ri_parent})")
 
     # Medication progress (from execution summaries)
     _med_summaries = _exec_summaries.get('medications', {})

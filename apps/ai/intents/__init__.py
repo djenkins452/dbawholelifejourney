@@ -101,6 +101,7 @@ INTENT_HANDLERS = {
     'mutate_task': 'life',
     'create_event': 'life',
     'add_reminder': 'life',
+    'reschedule_routine_item': 'life',
     # Calendar CRUD
     'read_calendar_events': 'life',
     'mutate_calendar_event': 'life',

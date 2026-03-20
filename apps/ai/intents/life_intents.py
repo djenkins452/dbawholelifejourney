@@ -389,4 +389,32 @@ LIFE_INTENT_TOOLS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "reschedule_routine_item",
+            "description": (
+                "Reschedule a missed or overdue routine item to a later time today. "
+                "Use when user says they want to do a routine item later, "
+                "move it to a different time today, or mentions a time in "
+                "response to a missed routine nudge. "
+                "Examples: 'move my workout to 7pm', 'I'll do prayer time at noon', "
+                "'reschedule quiet time to 5:30pm'."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "item_keyword": {
+                        "type": "string",
+                        "description": "Keywords to identify the routine item (e.g., 'workout', 'prayer', 'quiet time')",
+                    },
+                    "new_time": {
+                        "type": "string",
+                        "description": "New time in HH:MM 24-hour format (e.g., '19:00', '12:30')",
+                    },
+                },
+                "required": ["item_keyword", "new_time"],
+            },
+        },
+    },
 ]

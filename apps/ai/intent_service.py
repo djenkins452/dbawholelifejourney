@@ -495,6 +495,12 @@ LIFE/TASKS:
 - "I want a daily workout at 6am" → create_routine_task(title="Workout", scheduled_time="06:00", duration_minutes=45)
 - "schedule my evening walk every day at 7pm" → create_routine_task(title="Evening Walk", scheduled_time="19:00", duration_minutes=30)
 
+ROUTINE RECOVERY (reschedule_routine_item) — use when user wants to move a missed routine item to later today:
+- "move my workout to 7pm" → reschedule_routine_item(item_keyword="workout", new_time="19:00")
+- "I'll do prayer time at noon" → reschedule_routine_item(item_keyword="prayer", new_time="12:00")
+- "reschedule quiet time to 5:30pm" → reschedule_routine_item(item_keyword="quiet time", new_time="17:30")
+NOTE: This is for ROUTINE ITEMS only (recurring daily habits), not tasks. For task rescheduling, use mutate_task.
+
 TASK UPDATES (mutate_task) — use for ANY task mutation verb:
 When the user says move, reschedule, push, postpone, change, rename, update, or delete referring to a task, call mutate_task DIRECTLY. Do NOT use read_task for these.
 - "move those two tasks to tomorrow" → mutate_task(action="update", task_query="office", new_due_date="tomorrow", apply_to_all=true)
@@ -1417,6 +1423,8 @@ the Medications page), honor the explicit domain.
 
             elif intent_type == 'add_reminder':
                 return handler.handle_add_reminder(**parameters)
+            elif intent_type == 'reschedule_routine_item':
+                return handler.handle_reschedule_routine_item(**parameters)
 
             # Fitness handlers
             elif intent_type == 'log_workout':

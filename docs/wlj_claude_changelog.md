@@ -6,6 +6,23 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — STABILIZATION: Final Intelligence Consolidation
+
+**Changes:**
+1. **Confidence classification fix:** `limited` → `low_confidence` (ask+guide), `missing` (no _meta at all) → educate+suggest tracking. Four-tier system: present/partial/low_confidence/missing
+2. **Minimum signal threshold:** Signals with < 3 source facts cap consistency at `medium` — prevents false "high consistency" from tiny samples
+3. **Today override:** If today_state shows completed/in-progress for a domain, floors consistency to high/medium so Beth reacts to TODAY's behavior, not just trends
+4. **Single domain coaching rule (RULE 11):** Only one domain per response gets full coaching; all others factual-only or omitted
+5. **Over-coaching prevention:** If same domain coached in last 2 messages → downgrade to short directive, remove explanation
+6. **Response consistency (RULE 12):** No contradictions between focus/nudges/responses, no completed items in remaining lists, no system language leaked
+
+**Files changed:**
+- `apps/core/ai_orchestrator/cos_context.py` — Updated `_COMPLETENESS_TO_CONFIDENCE`, `_classify_domain_consistency()`, new `_get_today_domain_override()`, updated `_build_confidence_consistency_directive()`, `_matrix_directive()`, added Rules 11+12
+
+**Tests:** 20/20 pass, no migrations needed
+
+---
+
 ## 2026-03-20 — ENHANCEMENT: Confidence × Consistency Behavioral Gating
 
 **Problem:** Beth uses the same tone/directness regardless of data coverage or user's behavioral consistency. This causes:

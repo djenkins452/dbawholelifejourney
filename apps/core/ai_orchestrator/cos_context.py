@@ -36,6 +36,7 @@ Copyright:
 
 import datetime
 import logging
+import random
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -2233,6 +2234,36 @@ def build_cos_context(user, scoped_builders=None):
     try:
         from apps.core.services.today_state import build_today_state
         context['today_state'] = build_today_state(user)
+
+        # Observability: log safe snapshot for correctness verification
+        _ts = context['today_state']
+        if _ts and (settings.DEBUG or random.random() < 0.1):
+            _ts_snapshot = {
+                "date": _ts.get("date"),
+                "domains": {
+                    domain: {
+                        k: v for k, v in data.items() if k != "confidence"
+                    }
+                    for domain, data in _ts.get("domains", {}).items()
+                },
+                "routines": {
+                    name: {
+                        "total": r.get("total"),
+                        "completed": r.get("completed"),
+                        "fully_complete": r.get("fully_complete"),
+                    }
+                    for name, r in _ts.get("routines", {}).get("items", {}).items()
+                },
+                "tasks": {
+                    "completed": _ts.get("tasks", {}).get("completed"),
+                    "total": _ts.get("tasks", {}).get("total"),
+                },
+                "data_confidence": _ts.get("data_confidence"),
+            }
+            logger.info(
+                "TODAY_STATE_SNAPSHOT user=%s %s",
+                user.id, _ts_snapshot,
+            )
     except Exception:
         logger.warning("CoS context: today_state build failed", exc_info=True)
         context['today_state'] = None

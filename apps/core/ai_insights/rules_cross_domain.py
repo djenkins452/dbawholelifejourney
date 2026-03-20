@@ -497,3 +497,189 @@ class BehavioralInstabilityRule(CrossDomainRule):
             },
             "dedupe_key": dedupe,
         }]
+
+
+# ── Emotion-Aware Cross-Domain Rules ─────────────────────────────────
+
+
+@register
+class StressRecoveryRule(CrossDomainRule):
+    """Emotional Stress + Poor Sleep → Recovery Needed.
+
+    Detects when user is reporting stress/anxiety AND sleep quality is
+    degraded. Cross-domain correlation is stronger than either signal alone.
+    """
+
+    rule_name = "cross_domain_stress_recovery"
+    insight_type = "stress_recovery_needed"
+
+    def evaluate(self, user, event):
+        state = self._get_state(user, event)
+        journal = state.get("journal", {})
+        health = state.get("health", {})
+
+        # Emotion-derived stress indicators (from Phase 2 SAE extension)
+        emotion_counts = journal.get("emotion_counts_7d", {})
+        stress_count = (
+            emotion_counts.get("stressed", 0)
+            + emotion_counts.get("anxious", 0)
+            + emotion_counts.get("overwhelmed", 0)
+        )
+        mood_trend = journal.get("mood_trend", "stable")
+
+        # Sleep indicators
+        sleep_avg = health.get("sleep_avg_hours_7d")
+        sleep_quality = health.get("sleep_quality_avg_7d")
+
+        # Need at least one stress signal
+        if stress_count < 2 and mood_trend not in ("declining", "decreasing"):
+            return []
+
+        # Need at least one sleep concern
+        sleep_poor = False
+        if sleep_avg is not None and sleep_avg < 6.5:
+            sleep_poor = True
+        if sleep_quality is not None and sleep_quality < 3.0:
+            sleep_poor = True
+
+        if not sleep_poor:
+            return []
+
+        confidence = 0.65
+        if stress_count >= 3:
+            confidence += 0.1
+        if sleep_avg is not None and sleep_avg < 5.5:
+            confidence += 0.1
+        if mood_trend in ("declining", "decreasing"):
+            confidence += 0.05
+
+        today = timezone.now().date()
+        dedupe = build_dedupe_key(
+            user.id, self.insight_type,
+            str(today - timedelta(days=7)), str(today),
+        )
+
+        self._fire_prediction(
+            user, "stress_recovery_7d", "cross_domain", 0.0,
+            7, confidence * 0.85,
+            "Stress signals combined with poor sleep suggest recovery is needed.",
+            {"stress_count": stress_count, "sleep_avg": sleep_avg},
+        )
+        self._elevate_guidance(user, "health")
+
+        return [{
+            "severity": "warning",
+            "title": "Recovery Needed — Stress + Poor Sleep",
+            "message": (
+                f"You've reported stress-related feelings {stress_count} times "
+                f"this week, and sleep has been below target"
+                f"{f' ({sleep_avg:.1f}h avg)' if sleep_avg else ''}. "
+                "This combination often signals the need to prioritize recovery. "
+                "Consider lighter scheduling and earlier bedtime."
+            ),
+            "confidence_score": confidence,
+            "explain_why": (
+                "Cross-domain correlation: emotional stress signals combined "
+                "with degraded sleep quality indicate recovery need."
+            ),
+            "evidence": {
+                "stress_emotion_count_7d": stress_count,
+                "mood_trend": mood_trend,
+                "sleep_avg_hours": sleep_avg,
+                "sleep_quality_avg": sleep_quality,
+                "rule": self.rule_name,
+            },
+            "dedupe_key": dedupe,
+        }]
+
+
+@register
+class EmotionalOverloadRule(CrossDomainRule):
+    """Emotional Stress + Task Overload → Overload Detected.
+
+    When a user is stressed AND has high execution pressure (many overdue
+    tasks, low completion rate), the combination suggests genuine overload
+    rather than temporary emotion.
+    """
+
+    rule_name = "cross_domain_emotional_overload"
+    insight_type = "emotional_overload"
+
+    def evaluate(self, user, event):
+        state = self._get_state(user, event)
+        journal = state.get("journal", {})
+        execution = state.get("execution", {})
+
+        # Emotion-derived stress indicators
+        emotion_counts = journal.get("emotion_counts_7d", {})
+        stress_count = (
+            emotion_counts.get("stressed", 0)
+            + emotion_counts.get("anxious", 0)
+            + emotion_counts.get("overwhelmed", 0)
+        )
+        mood_trend = journal.get("mood_trend", "stable")
+
+        # Need stress signal
+        if stress_count < 2 and mood_trend not in ("declining", "decreasing"):
+            return []
+
+        # Execution pressure indicators
+        overdue_count = 0
+        pending_count = 0
+        items = execution.get("items", [])
+        if isinstance(items, list):
+            for item in items:
+                if isinstance(item, dict):
+                    if item.get("time_status") == "overdue":
+                        overdue_count += 1
+                    if item.get("is_actionable"):
+                        pending_count += 1
+
+        # Need meaningful task pressure
+        if overdue_count < 3 and pending_count < 8:
+            return []
+
+        confidence = 0.60
+        if stress_count >= 3:
+            confidence += 0.1
+        if overdue_count >= 5:
+            confidence += 0.1
+        if mood_trend in ("declining", "decreasing"):
+            confidence += 0.05
+
+        today = timezone.now().date()
+        dedupe = build_dedupe_key(
+            user.id, self.insight_type,
+            str(today - timedelta(days=7)), str(today),
+        )
+
+        self._fire_prediction(
+            user, "emotional_overload_7d", "cross_domain", 0.0,
+            7, confidence * 0.85,
+            "Stress combined with high task load suggests overload risk.",
+            {"stress_count": stress_count, "overdue": overdue_count},
+        )
+
+        return [{
+            "severity": "warning",
+            "title": "Overload Detected — Stress + High Task Load",
+            "message": (
+                f"You've been feeling stressed ({stress_count} times this week) "
+                f"while carrying {overdue_count} overdue items and {pending_count} "
+                "pending tasks. This pattern suggests genuine overload — consider "
+                "deferring non-essential tasks and focusing on what matters most."
+            ),
+            "confidence_score": confidence,
+            "explain_why": (
+                "Cross-domain correlation: emotional stress signals combined "
+                "with high execution pressure indicates overload."
+            ),
+            "evidence": {
+                "stress_emotion_count_7d": stress_count,
+                "mood_trend": mood_trend,
+                "overdue_count": overdue_count,
+                "pending_count": pending_count,
+                "rule": self.rule_name,
+            },
+            "dedupe_key": dedupe,
+        }]

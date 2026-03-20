@@ -78,4 +78,6 @@ BASE_SIGNAL_TYPES = {
     'nutrition_compliance', 'faith_practice', 'mental_reflection',
     'cognitive_fitness', 'productivity_progress', 'financial_health',
     'relational_engagement',
+    # Emotion-derived (deterministic from structured journal emotion selections)
+    'emotional_stress', 'emotional_low_mood', 'emotional_positive',
 }

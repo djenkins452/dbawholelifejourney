@@ -536,6 +536,100 @@ def build_journal_state(user):
         if mood_counts:
             state["mood_distribution"] = mood_counts
 
+    # ── Mood trend (7-day, directional) ──────────────────────────
+    # Required by cross-domain rules: MotivationDriftRule,
+    # FinancialAnxietyRule, BehavioralInstabilityRule.
+    # Without this, those rules silently get default "stable" and never fire.
+    _MOOD_SCORES = {'great': 5, 'good': 4, 'okay': 3, 'low': 2, 'difficult': 1}
+    cutoff_7d = now - timedelta(days=7)
+    moods_7d = list(
+        JournalEntry.objects.filter(
+            user=user,
+            entry_date__gte=cutoff_7d.date(),
+            mood__isnull=False,
+        )
+        .exclude(mood="")
+        .order_by("entry_date")
+        .values_list("mood", flat=True)
+    )
+    state["entries_7d"] = len(moods_7d)
+    if len(moods_7d) >= 3:
+        scores = [_MOOD_SCORES.get(m, 3) for m in moods_7d]
+        avg = sum(scores) / len(scores)
+        state["mood_avg_7d"] = round(avg, 1)
+        # Directional trend: compare first half vs second half
+        mid = len(scores) // 2
+        first_half_avg = sum(scores[:mid]) / max(mid, 1)
+        second_half_avg = sum(scores[mid:]) / max(len(scores) - mid, 1)
+        diff = second_half_avg - first_half_avg
+        if diff < -0.5:
+            state["mood_trend"] = "declining"
+        elif diff > 0.5:
+            state["mood_trend"] = "improving"
+        else:
+            state["mood_trend"] = "stable"
+    else:
+        state["mood_avg_7d"] = None
+        state["mood_trend"] = "stable"  # Insufficient data — safe default
+
+    # ── Emotion counts (7-day, structured M2M selections) ────────
+    # Provides emotion_counts_7d for downstream signal generation
+    # and cross-domain rules (e.g., anxiety_mention_count_7d).
+    state["emotion_counts_7d"] = {}
+    state["anxiety_mention_count_7d"] = 0
+    try:
+        from django.db.models import Count as _Count
+        emotion_counts = dict(
+            JournalEntry.objects.filter(
+                user=user,
+                entry_date__gte=cutoff_7d.date(),
+                emotions__isnull=False,
+            )
+            .values_list('emotions__slug')
+            .annotate(cnt=_Count('id'))
+            .values_list('emotions__slug', 'cnt')
+        )
+        if emotion_counts:
+            state["emotion_counts_7d"] = emotion_counts
+            # Convenience: anxiety_mention_count_7d for FinancialAnxietyRule
+            state["anxiety_mention_count_7d"] = (
+                emotion_counts.get('anxious', 0)
+                + emotion_counts.get('stressed', 0)
+                + emotion_counts.get('overwhelmed', 0)
+            )
+    except Exception:
+        pass  # Defaults already set above
+
+    # ── Rolling stress score (14-day, decay-based persistence) ───
+    # Uses exponential decay to detect sustained stress vs. one-off bad days.
+    # Computed from per-day stress emotion counts over 14 days.
+    state["stress_score"] = None
+    try:
+        from django.db.models import Count as _StressCount
+        from apps.core.ai_insights.pattern_utils import compute_rolling_stress_score
+
+        _stress_slugs = ['stressed', 'anxious', 'overwhelmed']
+        cutoff_14d = now - timedelta(days=14)
+
+        # Get per-day stress emotion counts
+        daily_stress = list(
+            JournalEntry.objects.filter(
+                user=user,
+                entry_date__gte=cutoff_14d.date(),
+                emotions__slug__in=_stress_slugs,
+            )
+            .values_list('entry_date')
+            .annotate(stress_count=_StressCount('id'))
+            .order_by('entry_date')
+        )
+        if daily_stress:
+            # Normalize: each stress emotion selection = 0.4 weight
+            daily_values = [(d, min(count * 0.4, 1.0)) for d, count in daily_stress]
+            stress_result = compute_rolling_stress_score(daily_values)
+            state["stress_score"] = stress_result
+    except Exception:
+        pass  # stress_score remains None — no harm
+
     return state
 
 

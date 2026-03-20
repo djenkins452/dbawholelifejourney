@@ -1209,6 +1209,30 @@ def _build_people_and_mood(user):
             'avg_7d': get_state_value(user, 'journal.mood_avg_7d'),
             'entries_7d': get_state_value(user, 'journal.entries_7d', 0),
         }
+        # Emotion awareness (structured emotion selections from journal)
+        emotion_counts = get_state_value(user, 'journal.emotion_counts_7d', {})
+        if emotion_counts:
+            result['emotion_state'] = {
+                'counts_7d': emotion_counts,
+                'stress_signals': (
+                    (emotion_counts.get('stressed', 0) or 0)
+                    + (emotion_counts.get('anxious', 0) or 0)
+                    + (emotion_counts.get('overwhelmed', 0) or 0)
+                ),
+                'positive_signals': (
+                    (emotion_counts.get('great', 0) or 0)
+                    + (emotion_counts.get('good', 0) or 0)
+                    + (emotion_counts.get('grateful', 0) or 0)
+                    + (emotion_counts.get('calm', 0) or 0)
+                    + (emotion_counts.get('hopeful', 0) or 0)
+                    + (emotion_counts.get('energetic', 0) or 0)
+                    + (emotion_counts.get('excited', 0) or 0)
+                ),
+            }
+        # Rolling stress score (14-day, decay-based)
+        stress_score = get_state_value(user, 'journal.stress_score')
+        if stress_score:
+            result['stress_score'] = stress_score
     except Exception:
         result['mood_status'] = {}
 
@@ -4502,6 +4526,40 @@ def format_cos_system_injection(context, user_message=None):
     if mood.get('trend') and mood['trend'] != 'stable':
         lines.append(f"Mood Trend: {mood['trend']}")
 
+    # Emotional state (from structured emotion selections — 7-day)
+    emotion_state = context.get('emotion_state', {})
+    e_stress = emotion_state.get('stress_signals', 0)
+    e_positive = emotion_state.get('positive_signals', 0)
+    if e_stress >= 2 or e_positive >= 5:
+        emotion_parts = []
+        if e_stress >= 2:
+            emotion_parts.append(f"stress-related feelings: {e_stress} entries this week")
+        if e_positive >= 5:
+            emotion_parts.append(f"positive feelings: {e_positive} entries this week")
+        lines.append(f"Emotional State: {'; '.join(emotion_parts)}")
+        if e_stress >= 3:
+            lines.append(
+                "  → User is under notable emotional strain. Be supportive. "
+                "Avoid stacking new demands. Suggest pacing if appropriate."
+            )
+
+    # Rolling stress score (14-day, decay-based — from SAE)
+    stress_score = context.get('stress_score')
+    if stress_score and isinstance(stress_score, dict) and stress_score.get('score', 0) > 0.3:
+        s_val = stress_score['score']
+        s_trend = stress_score.get('trend', 'stable')
+        s_days = stress_score.get('days_elevated', 0)
+        lines.append(f"Stress Persistence: score={s_val:.1f}, trend={s_trend}, elevated {s_days}d")
+        if s_val >= 0.8:
+            lines.append(
+                "  → Sustained stress detected. Prioritize recovery. "
+                "Reduce workload proactively. Do NOT add new commitments."
+            )
+        elif s_trend == 'rising':
+            lines.append(
+                "  → Stress is rising. Monitor and suggest pacing."
+            )
+
     # Journal content intelligence
     journal_intel = context.get('journal_intelligence', {})
     if journal_intel and journal_intel.get('entry_count_14d', 0) > 0:
@@ -5613,12 +5671,21 @@ def _determine_tone_mode(user, context):
     weekly = context.get('weekly_pressure', {})
     pressure_avg = weekly.get('avg_load', 0) if weekly else 0
 
-    # High drift → Direct Accountability
+    # Emotion awareness: high stress signals → Reflective Support
+    emotion_state = context.get('emotion_state', {})
+    stress_signals = emotion_state.get('stress_signals', 0)
+
+    # High drift → Direct Accountability (unless emotionally stressed)
     if drift_score >= 40:
+        # If user is also emotionally stressed, soften to reflective
+        if stress_signals >= 3:
+            return 'reflective_support'
         return 'direct_accountability'
 
-    # Declining mood → Reflective Support
+    # Declining mood or elevated stress → Reflective Support
     if mood_trend in ('declining', 'decreasing'):
+        return 'reflective_support'
+    if stress_signals >= 3:
         return 'reflective_support'
 
     # High pressure → Strategic Executive (stay calm, lead clearly)

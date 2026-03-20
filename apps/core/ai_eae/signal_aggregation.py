@@ -42,6 +42,10 @@ SIGNAL_TYPE_DOMAIN = {
     'domain_neglect': 'life',                 # domain-level decline → organize/life management
     'compliance_drift': 'health',             # medication_adherence + health_biometrics
     'wellbeing_convergence': 'journal',       # reflection + relational + faith → inner life
+    # Emotion-derived signal types (deterministic, from structured journal emotion selections)
+    'emotional_stress': 'emotional',          # stressed/overwhelmed/anxious
+    'emotional_low_mood': 'emotional',        # sad/angry/low/difficult/tired
+    'emotional_positive': 'emotional',        # great/good/excited/grateful/hopeful/calm/energetic
 }
 
 # Signal types intentionally stubbed (domain exists but data pipeline not yet mature)

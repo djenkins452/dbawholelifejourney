@@ -35,6 +35,8 @@ VALID_SIGNAL_TYPES = {
     'nutrition_compliance', 'faith_practice', 'mental_reflection',
     'cognitive_fitness', 'productivity_progress', 'financial_health',
     'relational_engagement',
+    # Emotion-derived signal types (deterministic, from structured M2M selections)
+    'emotional_stress', 'emotional_low_mood', 'emotional_positive',
 }
 
 SIGNAL_TYPE_DOMAIN = {
@@ -48,6 +50,35 @@ SIGNAL_TYPE_DOMAIN = {
     'productivity_progress': 'life',
     'financial_health': 'finance',
     'relational_engagement': 'relationships',
+    # Emotion-derived
+    'emotional_stress': 'emotional',
+    'emotional_low_mood': 'emotional',
+    'emotional_positive': 'emotional',
+}
+
+# ── Emotion → Signal Mapping (deterministic, from structured M2M) ─────────
+# Groups semantically related emotions into signal types to avoid explosion.
+# confidence is fixed at 1.0 — user explicitly selected these.
+EMOTION_SIGNAL_MAP = {
+    # Stress cluster → emotional_stress
+    'stressed': 'emotional_stress',
+    'overwhelmed': 'emotional_stress',
+    'anxious': 'emotional_stress',
+    # Low mood cluster → emotional_low_mood
+    'sad': 'emotional_low_mood',
+    'angry': 'emotional_low_mood',
+    'low': 'emotional_low_mood',
+    'difficult': 'emotional_low_mood',
+    'tired': 'emotional_low_mood',
+    # Positive cluster → emotional_positive
+    'great': 'emotional_positive',
+    'good': 'emotional_positive',
+    'excited': 'emotional_positive',
+    'grateful': 'emotional_positive',
+    'hopeful': 'emotional_positive',
+    'calm': 'emotional_positive',
+    'energetic': 'emotional_positive',
+    # 'okay' is neutral — no signal emitted
 }
 
 EXTRACTION_PROMPT = """Analyze this journal entry and identify any behavioral signals — actions the user explicitly describes having done or experienced.
@@ -235,3 +266,63 @@ class JournalSignalExtractor:
             confidence=min(1.0, max(0.0, confidence)),
             extracted_text=extracted_text[:500],  # Cap at 500 chars
         )
+
+
+def extract_emotion_signals(entry):
+    """
+    Deterministic signal extraction from structured emotion M2M selections.
+
+    Unlike NLP extraction (OpenAI-based, probabilistic), this is fully
+    deterministic: user clicked emotion → signal emitted. Confidence is
+    always 1.0 because the user explicitly selected the emotion.
+
+    Groups semantically related emotions to avoid signal explosion:
+      - stressed/overwhelmed/anxious → emotional_stress
+      - sad/angry/low/difficult/tired → emotional_low_mood
+      - great/good/excited/grateful/hopeful/calm/energetic → emotional_positive
+
+    Idempotency: skips if emotion-derived signals already exist for this entry.
+
+    Returns list of created JournalSignal objects.
+    """
+    from apps.journal.models import JournalSignal
+
+    # Idempotency gate: don't re-extract if emotion signals already exist
+    if JournalSignal.objects.filter(
+        entry=entry,
+        signal_type__startswith='emotional_',
+    ).exists():
+        return []
+
+    emotions = list(entry.emotions.values_list('slug', flat=True))
+    if not emotions:
+        return []
+
+    # Group emotions by signal type (deduplicate — one signal per type)
+    signal_types_seen = {}
+    for slug in emotions:
+        signal_type = EMOTION_SIGNAL_MAP.get(slug)
+        if signal_type and signal_type not in signal_types_seen:
+            signal_types_seen[signal_type] = slug
+
+    created = []
+    for signal_type, representative_slug in signal_types_seen.items():
+        domain = SIGNAL_TYPE_DOMAIN.get(signal_type, 'emotional')
+        # Collect all matching emotion slugs for extracted_text provenance
+        matching = [s for s in emotions if EMOTION_SIGNAL_MAP.get(s) == signal_type]
+        extracted_text = f"User selected: {', '.join(matching)}"
+
+        signal = JournalSignal.objects.create(
+            entry=entry,
+            signal_type=signal_type,
+            domain=domain,
+            confidence=1.0,  # Deterministic — user explicitly selected
+            extracted_text=extracted_text,
+        )
+        created.append(signal)
+        logger.info(
+            "Emotion signal created: entry=%s type=%s emotions=%s",
+            entry.pk, signal_type, matching,
+        )
+
+    return created

@@ -72,6 +72,15 @@ def extract_people_from_journal(sender, instance, created, **kwargs):
     # --- Behavioral signal extraction (async primary, sync fallback) ---
     _dispatch_signal_extraction(instance)
 
+    # --- Deterministic emotion signal extraction (always synchronous) ---
+    # Structured M2M selections → canonical signals, no LLM involved.
+    # Runs separately from NLP extraction because it's instant and deterministic.
+    try:
+        from apps.journal.services.signal_extractor import extract_emotion_signals
+        extract_emotion_signals(instance)
+    except Exception as e:
+        logger.warning("Emotion signal extraction failed for entry %s: %s", instance.pk, e)
+
 
 def _dispatch_signal_extraction(entry):
     """

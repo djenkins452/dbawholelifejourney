@@ -6,6 +6,53 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — FEAT: Feelings → Stress Intelligence Integration (4-phase)
+
+**Objective:** Make feelings first-class inputs to the existing intelligence pipeline. Fix dormant mood_trend gap, add emotion-derived signals, extend cross-domain rules, add temporal stress memory.
+
+**Phase 1 — Fix broken mood_trend SAE gap:**
+- `build_journal_state()` now computes and stores `mood_trend` (declining/improving/stable), `mood_avg_7d`, `entries_7d`, `emotion_counts_7d`, and `anxiety_mention_count_7d`
+- Three dormant cross-domain rules (MotivationDriftRule, FinancialAnxietyRule, BehavioralInstabilityRule) can now actually fire — they were silently receiving default "stable" because mood_trend was never written to SAE
+- Added "Stressed" (😣) and "Overwhelmed" (😵) to Emotion model via data migration
+
+**Phase 2 — Emotions as first-class signals:**
+- Deterministic emotion → signal mapping: user selects emotion → canonical JournalSignal created (no LLM involved)
+- 3 signal types: `emotional_stress` (stressed/overwhelmed/anxious), `emotional_low_mood` (sad/angry/low/difficult/tired), `emotional_positive` (great/good/excited/grateful/hopeful/calm/energetic)
+- Registered in all signal taxonomies (extractor, EAE aggregation, pattern taxonomy)
+- Wired into post_save signal alongside NLP extraction
+
+**Phase 3 — Emotion-aware cross-domain rules:**
+- `StressRecoveryRule`: stress emotions + poor sleep → recovery needed (warning + prediction + guidance elevation)
+- `EmotionalOverloadRule`: stress emotions + task overload → overload detected (warning + prediction)
+- CoS tone mode now responds to stress: high stress → reflective_support tone (even if drift is high)
+- CoS prompt text now shows emotional state and stress-aware coaching guidance
+
+**Phase 4 — Temporal stress memory (decay model):**
+- `compute_rolling_stress_score()` in pattern_utils.py — exponential decay (0.85 factor)
+- Single bad day decays in ~4 days; sustained stress accumulates above 1.0
+- Computed per-user from 14-day emotion data, stored in SAE state
+- CoS shows stress persistence score, trend, days elevated, with coaching guidance at different thresholds
+
+**Architecture compliance:**
+- No new engines — extends existing SAE, PIE, EAE, CoS pipeline
+- EAE remains sole escalation authority
+- No parallel confidence/scoring model
+- Deterministic provenance: structured M2M → signal (confidence=1.0)
+- Text sentiment pipeline (content_intelligence.py) unchanged — complementary, not duplicate
+
+**Files changed:**
+- `apps/core/ai_state/state_builder.py` — mood_trend, emotion_counts_7d, stress_score in build_journal_state()
+- `apps/journal/migrations/0009_add_stressed_overwhelmed_emotions.py` — NEW data migration
+- `apps/journal/services/signal_extractor.py` — emotion signal mapping + extract_emotion_signals()
+- `apps/journal/signals.py` — wire emotion signal extraction into post_save
+- `apps/core/ai_eae/signal_aggregation.py` — register emotional_* signal types
+- `apps/core/ai_eae/pattern_taxonomy.py` — register in BASE_SIGNAL_TYPES
+- `apps/core/ai_insights/rules_cross_domain.py` — StressRecoveryRule, EmotionalOverloadRule
+- `apps/core/ai_insights/pattern_utils.py` — compute_rolling_stress_score()
+- `apps/core/ai_orchestrator/cos_context.py` — emotion_state, stress_score in context + prompt text + tone mode
+
+---
+
 ## 2026-03-20 — ENHANCE: Reschedule Awareness + Latest-Time Clarity (no restrictions)
 
 **Objective:** Track reschedule count for coaching awareness without penalties or restrictions. Ensure last-reschedule-wins, Beth acknowledges repeated moves gently.

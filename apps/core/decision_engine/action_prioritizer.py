@@ -216,6 +216,10 @@ def prioritize_execution_items(execution_items, current_time, summaries=None):
     for item in execution_items:
         if not item.get('is_actionable', False):
             continue
+        # Belt-and-suspenders: never surface completed items even if
+        # is_actionable was set incorrectly upstream.
+        if item.get('completed_today'):
+            continue
 
         if item['source_type'] == 'task':
             schedule_items.append({

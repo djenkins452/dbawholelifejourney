@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FEATURE: Action → Time Block Engine (daily execution layer)
+
+**Feature:** Assigns prioritized actions to suggested time windows within the user's day.
+
+**Logic:** HIGH → morning, MEDIUM → afternoon, LOW → evening. Skips windows that have already passed. No duplicate windows. Defers to tomorrow morning if all windows gone.
+
+**Duration heuristics:** maintenance 45 min, routine reset 20 min, stabilize 15 min, slow-down 10 min.
+
+**CoS injection:** Replaced `ROUTINE MAINTENANCE ACTIONS` with `ROUTINE MAINTENANCE PLAN` — Beth-ready guidance like "Take 45 minutes this morning to handle Oil Change."
+
+**Files:** `apps/life/services/action_time_service.py` (new), `apps/core/ai_orchestrator/cos_context.py`, `apps/life/tests/test_action_time_service.py` (new)
+
+**Tests:** 10/10 pass
+
+---
+
 ## 2026-03-21 — FEATURE: Routine Signal → Action Engine (prioritization layer)
 
 **Feature:** Converts routine health signals into ranked, actionable recommendations for Beth.

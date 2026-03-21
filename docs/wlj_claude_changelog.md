@@ -6,6 +6,30 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-20 — FIX: Priority + Signal Alignment
+
+**Problem:** Five alignment issues:
+1. Completed items could theoretically surface in priorities if `is_actionable` was set incorrectly
+2. Signals from disabled domains (e.g., fasting) still appeared in CoS context
+3. Small score dips triggered corrective "low consistency" tone without sustained decline
+4. Signal interpretation didn't show confidence level — Beth used strong language for weak signals
+5. Beth could reference disabled behaviours in coaching
+
+**Solution:**
+1. **Priority safety filter** — `completed_today` check in `prioritize_execution_items()` adapter (belt-and-suspenders)
+2. **Signal preference filtering** — `_build_signal_aware_context()` now checks module enablement (`health_enabled`, `faith_enabled`, etc.) and health sub-features (`health_features.fasting`, `health_features.medicine`). Disabled domain signals are excluded entirely.
+3. **Signal sensitivity** — `_classify_domain_consistency()` now requires BOTH `score < 0.4` AND `declining` trend with adequate sample (≥3) to classify as `low`. Single bad day → `medium`.
+4. **Confidence in signal summary** — `_format_signal_interpretation_summary()` now shows confidence qualifier (low/moderate) and includes INSIGHT LANGUAGE RULE directive
+5. **Preference-aware language** — RULE 12 updated: "NEVER reference disabled behaviours"
+
+**Files changed:**
+- `apps/core/decision_engine/action_prioritizer.py` — `completed_today` safety check
+- `apps/core/ai_orchestrator/cos_context.py` — Signal preference filtering, sensitivity fix, confidence gating, preference-aware rules
+
+**Tests:** 20/20 pass, no migrations needed
+
+---
+
 ## 2026-03-20 — STABILIZATION: Final Intelligence Consolidation
 
 **Changes:**

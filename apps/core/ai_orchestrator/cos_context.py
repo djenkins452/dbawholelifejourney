@@ -1836,10 +1836,47 @@ def _build_signal_aware_context(user):
 
         today = get_user_today(user)
 
+        # Build set of disabled signal domains from user preferences.
+        # Signals from disabled modules/sub-features are excluded entirely
+        # so Beth never references behaviours the user turned off.
+        _disabled_domains = set()
+        try:
+            prefs = user.preferences
+            _pref_domain_map = {
+                'health': getattr(prefs, 'health_enabled', True),
+                'faith': getattr(prefs, 'faith_enabled', True),
+                'journal': getattr(prefs, 'journal_enabled', True),
+                'finance': getattr(prefs, 'finances_enabled', True),
+                'brain_training': getattr(prefs, 'brain_training_enabled', True)
+                                  if hasattr(prefs, 'brain_training_enabled') else True,
+                'relationships': getattr(prefs, 'relationships_enabled', True),
+            }
+            for dom, enabled in _pref_domain_map.items():
+                if not enabled:
+                    _disabled_domains.add(dom)
+
+            # Health sub-feature checks — disable specific signal types
+            _health_features = getattr(prefs, 'health_features', {}) or {}
+            _health_sub_signals = {
+                'fasting': 'nutrition_compliance',
+                'medicine': 'medication_adherence',
+            }
+            for sub_feature, signal_type in _health_sub_signals.items():
+                if not _health_features.get(sub_feature, True):
+                    _disabled_domains.add(f'_signal:{signal_type}')
+        except Exception:
+            pass
+
         # Today's signals with trust classification
         daily_signals = []
         snapshots = SignalSnapshot.objects.filter(user=user, date=today)
         for s in snapshots:
+            # Skip signals from disabled domains
+            if s.domain in _disabled_domains:
+                continue
+            # Skip specific signal types disabled by sub-feature toggles
+            if f'_signal:{s.signal_type}' in _disabled_domains:
+                continue
             # Compute 7-day trend
             trend = _compute_signal_trend(user, s.signal_type, today, days=7)
             signal_entry = {
@@ -3441,10 +3478,20 @@ def _format_signal_interpretation_summary(context):
 
     for s in sorted_signals:
         score = s.get('score', 0)
+        confidence = s.get('confidence', 0)
         label = s.get('signal_type', 'unknown').replace('_', ' ').title()
         trend = s.get('trend_7d', '')
         trend_tag = f", {trend}" if trend else ''
-        entry = f"{label} ({score:.0%}{trend_tag})"
+
+        # Add confidence qualifier for low-confidence signals so Beth
+        # softens language accordingly
+        if confidence < 0.5:
+            conf_tag = ', low confidence'
+        elif confidence < 0.75:
+            conf_tag = ', moderate confidence'
+        else:
+            conf_tag = ''
+        entry = f"{label} ({score:.0%}{trend_tag}{conf_tag})"
 
         if score >= 0.7:
             strong.append(entry)
@@ -3463,6 +3510,12 @@ def _format_signal_interpretation_summary(context):
         lines.append(f"Moderate: {', '.join(moderate)}")
     if needs_attention:
         lines.append(f"Needs Attention: {', '.join(needs_attention)}")
+    lines.append(
+        "INSIGHT LANGUAGE RULE: For 'low confidence' signals, use suggestive "
+        "language ('it looks like there may be...') NOT definitive ('there's a "
+        "pattern where...'). For weak signals (< 40%), suggest rather than "
+        "correct: 'Staying consistent this week will help keep things steady.'"
+    )
     lines.append("=== END SIGNAL INTERPRETATION SUMMARY ===")
 
     return '\n'.join(lines)
@@ -3689,7 +3742,13 @@ def _classify_domain_consistency(daily_signals, signal_types):
     elif avg_score >= 0.4:
         return 'medium'
     else:
-        return 'low'
+        # Only classify as 'low' if there is BOTH a low score AND a
+        # declining trend with sufficient data. A single bad day or tiny
+        # sample should not trigger corrective tone.
+        if has_declining and sample_size >= _MIN_SIGNAL_SAMPLE:
+            return 'low'
+        # Small dip without sustained decline → 'medium' (guide, not correct)
+        return 'medium'
 
 
 def _get_today_domain_override(context, domain_key):
@@ -3736,7 +3795,25 @@ def _build_confidence_consistency_directive(context, user):
     daily_signals = context.get('daily_signals', [])
     domain_directives = []
 
+    # Check which domains the user has enabled
+    try:
+        _prefs = user.preferences
+    except Exception:
+        _prefs = None
+
+    _domain_pref_map = {
+        'health': 'health_enabled',
+        'faith': 'faith_enabled',
+        'routines': 'life_enabled',
+        'finance': 'finances_enabled',
+    }
+
     for domain_key, cfg in _BEHAVIORAL_DOMAINS.items():
+        # Skip domains the user has disabled
+        pref_field = _domain_pref_map.get(domain_key)
+        if _prefs and pref_field and not getattr(_prefs, pref_field, True):
+            continue
+
         # Get data confidence from SAE _meta
         module_state = get_module_state(user, domain_key)
         meta = module_state.get('_meta', {})
@@ -5904,6 +5981,9 @@ def format_cos_system_injection(context, user_message=None):
         "  - If an item is upcoming, NEVER say it\\'s overdue\n"
         "NEVER use system language: no 'signals', 'momentum', 'operational status', "
         "'adherence scores', 'data confidence'\n"
+        "NEVER reference disabled behaviours. If a feature is not in the user\\'s "
+        "signal data, it was disabled — do NOT mention it, coach on it, or "
+        "include it in insights.\n"
         "HUMANIZE: Connect actions to outcomes when natural. "
         "'Getting your workout in keeps your blood sugar steady.' "
         "Never: 'Based on your health metrics and patterns...'\n"

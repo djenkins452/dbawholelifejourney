@@ -1020,7 +1020,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "medicine_doses_taken_today": sum(1 for s in todays_schedules if s['taken']),
             "medicine_doses_overdue_today": sum(
                 1 for s in todays_schedules
-                if not s['taken'] and not s.get('skipped') and s['schedule'].scheduled_time <= timezone.now().time()
+                if not s['taken'] and not s.get('skipped') and s['schedule'].scheduled_time <= now.time()
             ),
             "medicine_adherence_rate": adherence_rate,
             "medicines_need_refill": needs_refill,

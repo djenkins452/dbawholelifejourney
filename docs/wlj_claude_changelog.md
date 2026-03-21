@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FIX: Timezone bug — medications falsely classified as overdue
+
+**Root cause:** `personal_assistant.py:3343` used `timezone.now().time()` (UTC) to compare against `sched.scheduled_time` (naive local time from DB). At 6:25 AM Eastern, `timezone.now().time()` = 10:25 UTC. A med scheduled for 9:00 AM local: `9:00 > 10:25` = false → classified as **overdue** (should be upcoming).
+
+Same bug in old dashboard (`dashboard/views.py:1023`).
+
+**Fix:** Changed both to use `user_now.time()` (from `get_user_now(user)`) which returns user's local time. This matches the pattern already used correctly in `build_medicine_state()`, `classify_time_status()`, and `proactive_checkins.py`.
+
+**Global sweep:** Checked all `timezone.now().time()` uses in codebase. Only 2 were comparisons against schedule times (both fixed). Remaining uses are default values or logging timestamps (safe).
+
+**Files changed:**
+- `apps/ai/personal_assistant.py:3343` — `timezone.now().time()` → `user_now.time()`
+- `apps/dashboard/views.py:1023` — `timezone.now().time()` → `now.time()`
+
+**Before/After (6:25 AM Eastern, med at 9:00 AM):**
+- Before: `9:00 > 10:25(UTC)`? NO → overdue ❌
+- After: `9:00 > 6:25(local)`? YES → upcoming ✅
+
+---
+
 ## 2026-03-21 — FIX: Root cause — check-in path overrides CoS voice contract
 
 **Root cause found:** Two separate prompt blocks were overriding the CoS voice:

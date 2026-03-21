@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FIX: Real-time CoS behavior — current moment awareness
+
+Added REAL-TIME AWARENESS block to system prompt injection that anchors every response to NOW:
+1. Active window check — if user is inside a routine window, reinforce don't interrupt
+2. Next action — always name the next item within ~60 min with specific time
+3. Overdue strictness — only overdue if past scheduled_time + grace, not "scheduled later"
+4. Single next action — pick ONE, never list options or delegate decision
+5. In-moment filtering — suppress irrelevant data during active blocks
+6. Response order — current moment → next step → quick status
+
+Added generic coaching phrases to banned list: "focus on the most important", "fit this in when you can", "consider doing". Updated preferred phrasing to require specific item names and times.
+
+Files: `apps/core/ai_orchestrator/cos_context.py`
+
+---
+
 ## 2026-03-21 — FIX: Strip ALL structured headers from system prompt injection
 
 Removed all `===`, `==========`, and `--- RULE N ---` section headers from the entire system prompt injection output. Content preserved — only decorative framing removed. The system prompt now reads as continuous natural prose with no labeled sections, numbered blocks, or delimiters. Verified: `format_cos_system_injection()` output contains zero `===` or `--- RULE` patterns.

@@ -29,6 +29,7 @@ from .views import (
     RoutineSkipView,
     RoutineCompleteToggleView,
     RoutineMigrationView,
+    RoutineToMaintenanceView,
     # Calendar & Events
     CalendarView,
     EventCreateView,
@@ -77,6 +78,8 @@ from .views import (
     MaintenanceLogCreateView,
     MaintenanceLogUpdateView,
     MaintenanceLogDeleteView,
+    MaintenanceMatchReviewView,
+    MaintenanceSyncRoutineView,
     # Documents
     DocumentListView,
     DocumentDetailView,
@@ -147,6 +150,7 @@ urlpatterns = [
     path("routines/skip/", RoutineSkipView.as_view(), name="routine_skip"),
     path("routines/<int:routine_id>/toggle-complete/", RoutineCompleteToggleView.as_view(), name="routine_complete_toggle"),
     path("routines/migrate/", RoutineMigrationView.as_view(), name="routine_migration"),
+    path("routines/<int:schedule_id>/to-maintenance/", RoutineToMaintenanceView.as_view(), name="routine_to_maintenance"),
 
     # Calendar & Events
     path("calendar/", CalendarView.as_view(), name="calendar"),
@@ -205,6 +209,8 @@ urlpatterns = [
     path("maintenance/<int:pk>/edit/", MaintenanceLogUpdateView.as_view(), name="maintenance_update"),
     path("maintenance/<int:pk>/delete/", MaintenanceLogDeleteView.as_view(), name="maintenance_delete"),
     path("maintenance/bulk/delete/", BulkDeleteMaintenanceView.as_view(), name="maintenance_bulk_delete"),
+    path("maintenance/<int:pk>/match-review/", MaintenanceMatchReviewView.as_view(), name="maintenance_match_review"),
+    path("maintenance/<int:pk>/sync-routine/<int:schedule_id>/", MaintenanceSyncRoutineView.as_view(), name="maintenance_sync_routine"),
     
     # Documents
     path("documents/", DocumentListView.as_view(), name="document_list"),

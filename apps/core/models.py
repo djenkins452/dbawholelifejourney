@@ -190,12 +190,14 @@ class UserOwnedModel(SoftDeleteModel):
     CREATED_VIA_AI_CAMERA = 'ai_camera'
     CREATED_VIA_IMPORT = 'import'
     CREATED_VIA_API = 'api'
+    CREATED_VIA_ROUTINE = 'routine'
 
     CREATED_VIA_CHOICES = [
         (CREATED_VIA_MANUAL, 'Manual Entry'),
         (CREATED_VIA_AI_CAMERA, 'AI Camera Scan'),
         (CREATED_VIA_IMPORT, 'Data Import'),
         (CREATED_VIA_API, 'API'),
+        (CREATED_VIA_ROUTINE, 'Routine Completion'),
     ]
 
     user = models.ForeignKey(

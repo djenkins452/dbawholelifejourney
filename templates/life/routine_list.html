@@ -217,6 +217,39 @@
                 }
                 // Child→parent: update routine checkbox
                 if (routineId) updateRoutineCheckbox(routineId);
+
+                // Maintenance bridge prompt
+                if (data.is_completed && data.maintenance_config) {
+                    var mc = data.maintenance_config;
+                    var existing = item ? item.parentNode.querySelector('.maint-prompt[data-sid="' + scheduleId + '"]') : null;
+                    if (existing) existing.remove();
+                    if (item) {
+                        var prompt = document.createElement('div');
+                        prompt.className = 'maint-prompt';
+                        prompt.dataset.sid = scheduleId;
+                        prompt.style.cssText = 'display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-4);background:var(--color-surface-raised,var(--color-surface));border-bottom:1px solid var(--color-border);font-size:var(--font-size-sm);';
+                        var txt = document.createElement('span');
+                        txt.textContent = 'Log maintenance?';
+                        txt.style.flex = '1';
+                        prompt.appendChild(txt);
+                        var params = 'title=' + encodeURIComponent(mc.title) + '&log_type=' + encodeURIComponent(mc.log_type) + '&area=' + encodeURIComponent(mc.area) + '&source=routine&schedule_id=' + mc.schedule_id;
+                        if (mc.follow_up_date) params += '&follow_up_date=' + encodeURIComponent(mc.follow_up_date);
+                        var yesBtn = document.createElement('a');
+                        yesBtn.href = '{% url "life:maintenance_create" %}?' + params;
+                        yesBtn.className = 'btn btn-sm btn-primary';
+                        yesBtn.textContent = 'Yes';
+                        yesBtn.style.cssText = 'min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;';
+                        prompt.appendChild(yesBtn);
+                        var noBtn = document.createElement('button');
+                        noBtn.type = 'button';
+                        noBtn.className = 'btn btn-sm btn-ghost';
+                        noBtn.textContent = 'No';
+                        noBtn.style.cssText = 'min-width:44px;min-height:44px;';
+                        prompt.appendChild(noBtn);
+                        item.insertAdjacentElement('afterend', prompt);
+                        noBtn.addEventListener('click', function() { prompt.remove(); });
+                    }
+                }
             }
         })
         .catch(function() { checkbox.checked = !checkbox.checked; });

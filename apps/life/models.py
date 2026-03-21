@@ -839,7 +839,15 @@ class MaintenanceLog(UserOwnedModel):
         blank=True,
         help_text="When should this be done again?"
     )
-    
+
+    # Soft reference to matched RoutineSchedule (NOT a FK).
+    # Set when user confirms a match from the matcher or bridge flow.
+    matched_schedule_id = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="RoutineSchedule ID this log was linked to (soft ref)",
+    )
+
     class Meta:
         ordering = ['-date']
         verbose_name = "Maintenance Log"
@@ -2543,6 +2551,36 @@ class RoutineSchedule(models.Model):
     )
     is_active = models.BooleanField(default=True)
     sort_order = models.PositiveIntegerField(default=0)
+
+    # ── Maintenance bridge config ──
+    # When enabled, completing this routine item prompts the user
+    # to create a prefilled MaintenanceLog entry.
+    creates_maintenance_log = models.BooleanField(
+        default=False,
+        help_text="Prompt to create a maintenance log when this item is completed",
+    )
+    maintenance_type = models.CharField(
+        max_length=20,
+        choices=MaintenanceLog.LOG_TYPE_CHOICES,
+        default='maintenance',
+        blank=True,
+        help_text="Default log type for the maintenance entry",
+    )
+    maintenance_area = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Default area (e.g., HVAC, Jeep, Yard)",
+    )
+    default_maintenance_title = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Default title for maintenance entry. Falls back to item name.",
+    )
+    follow_up_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Days until follow-up. Suggests follow_up_date on maintenance form.",
+    )
 
     class Meta:
         ordering = ["sort_order", "scheduled_time"]

@@ -188,7 +188,13 @@ class RoutineScheduleForm(forms.ModelForm):
 
     class Meta:
         model = RoutineSchedule
-        fields = ['name', 'importance', 'scheduled_time', 'grace_period_minutes', 'is_active', 'sort_order']
+        fields = [
+            'name', 'importance', 'scheduled_time', 'grace_period_minutes',
+            'is_active', 'sort_order',
+            # Maintenance bridge
+            'creates_maintenance_log', 'maintenance_type', 'maintenance_area',
+            'default_maintenance_title', 'follow_up_days',
+        ]
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'form-input',
@@ -211,12 +217,38 @@ class RoutineScheduleForm(forms.ModelForm):
                 'min': 0,
                 'style': 'width: 80px;',
             }),
+            # Maintenance bridge widgets
+            'creates_maintenance_log': forms.CheckboxInput(attrs={
+                'class': 'maintenance-bridge-toggle',
+            }),
+            'maintenance_type': forms.Select(attrs={
+                'class': 'form-select',
+            }),
+            'maintenance_area': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'e.g., HVAC, Jeep, Yard',
+            }),
+            'default_maintenance_title': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Override title (optional)',
+            }),
+            'follow_up_days': forms.NumberInput(attrs={
+                'class': 'form-input',
+                'min': 1,
+                'style': 'width: 100px;',
+                'placeholder': 'days',
+            }),
         }
         labels = {
             'importance': 'Priority',
             'grace_period_minutes': 'Grace (min)',
             'sort_order': 'Order',
             'is_active': 'Active',
+            'creates_maintenance_log': 'Creates maintenance log',
+            'maintenance_type': 'Type',
+            'maintenance_area': 'Area',
+            'default_maintenance_title': 'Title',
+            'follow_up_days': 'Follow-up (days)',
         }
 
     def __init__(self, *args, **kwargs):

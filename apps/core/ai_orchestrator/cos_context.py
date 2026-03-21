@@ -3194,18 +3194,54 @@ def _build_data_state_snapshot(user) -> str:
         )
 
         if action_priorities:
+            # ── CURRENT MOMENT detection ──
+            # Identify what the user should be doing RIGHT NOW based on
+            # urgency classification. "now" items are within the active
+            # window (-5 to +30 min of scheduled time).
+            _now_items = [a for a in action_priorities if a['urgency'] == 'now']
+            _next_items = [a for a in action_priorities if a['urgency'] == 'next']
+            _overdue_items = [a for a in action_priorities if a['urgency'] == 'overdue']
+
+            if _now_items:
+                _current = _now_items[0]
+                _time_note = f" ({_current['time_display']})" if _current.get('time_display') else ""
+                lines.append("")
+                lines.append(
+                    f"RIGHT NOW: {_current['title']}{_time_note} — "
+                    f"this is what the user should be doing at this moment."
+                )
+                if len(_now_items) > 1:
+                    _also = ', '.join(a['title'] for a in _now_items[1:])
+                    lines.append(f"Also active now: {_also}")
+            elif _overdue_items:
+                _top_overdue = _overdue_items[0]
+                lines.append("")
+                lines.append(
+                    f"RIGHT NOW: {_top_overdue['title']} is overdue — "
+                    f"this should be handled first."
+                )
+            elif _next_items:
+                _upcoming = _next_items[0]
+                _time_note = f" at {_upcoming['time_display']}" if _upcoming.get('time_display') else " soon"
+                lines.append("")
+                lines.append(
+                    f"NEXT UP: {_upcoming['title']}{_time_note}."
+                )
+
             lines.append("")
             lines.append("ACTION PRIORITIES (same as dashboard Action Center):")
             lines.append("This list is pre-filtered: completed items are EXCLUDED.")
             lines.append("Use this ordering when recommending what to do next.")
-            lines.append("Your primary recommendation MUST match item #1.")
+            lines.append("Your primary recommendation MUST match the RIGHT NOW item above, "
+                         "or item #1 if no RIGHT NOW item exists.")
             lines.append("Do NOT recommend anything not on this list unless the user asks.")
             for i, action in enumerate(action_priorities[:7], 1):
                 _f_tag = " [FOUNDATIONAL]" if action["is_foundational"] else ""
                 _u_tag = action["urgency"].upper()
                 _src = action["source"]
+                _time_tag = f" {action['time_display']}" if action.get('time_display') else ""
                 lines.append(
-                    f"  {i}. [{_u_tag}]{_f_tag} {action['title']} ({_src})"
+                    f"  {i}. [{_u_tag}]{_f_tag} {action['title']} ({_src}){_time_tag}"
                 )
         else:
             lines.append("")

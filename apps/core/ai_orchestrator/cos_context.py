@@ -36,7 +36,6 @@ Copyright:
 
 import datetime
 import logging
-import random
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -2275,44 +2274,6 @@ def build_cos_context(user, scoped_builders=None):
     # POST-ASSEMBLY (depends on composed context — must be sequential)
     # =====================================================================
 
-    # Today State — deterministic truth layer (MUST run before tone/ranking)
-    try:
-        from apps.core.services.today_state import build_today_state
-        context['today_state'] = build_today_state(user)
-
-        # Observability: log safe snapshot for correctness verification
-        _ts = context['today_state']
-        if _ts and (settings.DEBUG or random.random() < 0.1):
-            _ts_snapshot = {
-                "date": _ts.get("date"),
-                "domains": {
-                    domain: {
-                        k: v for k, v in data.items() if k != "confidence"
-                    }
-                    for domain, data in _ts.get("domains", {}).items()
-                },
-                "routines": {
-                    name: {
-                        "total": r.get("total"),
-                        "completed": r.get("completed"),
-                        "fully_complete": r.get("fully_complete"),
-                    }
-                    for name, r in _ts.get("routines", {}).get("items", {}).items()
-                },
-                "tasks": {
-                    "completed": _ts.get("tasks", {}).get("completed"),
-                    "total": _ts.get("tasks", {}).get("total"),
-                },
-                "data_confidence": _ts.get("data_confidence"),
-            }
-            logger.info(
-                "TODAY_STATE_SNAPSHOT user=%s %s",
-                user.id, _ts_snapshot,
-            )
-    except Exception:
-        logger.warning("CoS context: today_state build failed", exc_info=True)
-        context['today_state'] = None
-
     # Executive tone mode (depends on full context)
     context['executive_tone_mode'] = _determine_tone_mode(user, context)
 
@@ -2389,7 +2350,7 @@ def _format_health_intelligence_block(health_intel, context):
         str — formatted health intelligence block.
     """
     lines = []
-    lines.append("=== HEALTH INTELLIGENCE (SYSTEM-CALCULATED — USE THESE EXACT VALUES) ===")
+    lines.append("")
     lines.append("")
     lines.append(
         "MANDATORY: The values below are calculated by the WLJ Health Intelligence "
@@ -2635,7 +2596,7 @@ def _format_health_intelligence_block(health_intel, context):
                 lines.append(f"  Pattern: {interp}")
 
     lines.append("")
-    lines.append("=== END HEALTH INTELLIGENCE ===")
+    lines.append("")
     return '\n'.join(lines)
 
 
@@ -2901,7 +2862,7 @@ def _build_data_state_snapshot(user) -> str:
         return ""
 
     lines = [
-        "========== AUTHORITATIVE DATA STATE ==========",
+        "",
         "These are the EXACT record counts from the database.",
         "If a domain shows 0 records, you MUST NOT reference specific",
         "items from that domain. Violation = hallucination.",
@@ -3223,7 +3184,7 @@ def _build_data_state_snapshot(user) -> str:
     except Exception:
         logger.warning("Action prioritizer unavailable for CoS context", exc_info=True)
 
-    lines.append("========== END DATA STATE ==========")
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -3329,7 +3290,7 @@ def _format_operating_profile_injection(profile_data):
 
     # Assemble with Beth directive
     lines = []
-    lines.append("=== USER OPERATING PROFILE (behavioral context) ===")
+    lines.append("")
     lines.append("")
     for s in sections:
         lines.append(f"• {s}")
@@ -3350,7 +3311,7 @@ def _format_operating_profile_injection(profile_data):
         "these patterns are conversation context, not conclusions."
     )
     lines.append("")
-    lines.append("=== END OPERATING PROFILE ===")
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -4060,7 +4021,7 @@ def format_cos_system_injection(context, user_message=None):
             sit = CoSSituationState.objects.filter(user=_cos_user).first()
             if sit and sit.dominant_concern:
                 _situation_loaded = True
-                lines.append("=== CoS SITUATION AWARENESS (PRE-COMPUTED) ===")
+                lines.append("")
                 lines.append("")
                 lines.append(
                     f"SITUATION MODE: {sit.get_situation_mode_display()}"
@@ -4110,7 +4071,7 @@ def format_cos_system_injection(context, user_message=None):
                     "The opening frame above is a suggested natural-language start."
                 )
                 lines.append("")
-                lines.append("=== END SITUATION AWARENESS ===")
+                lines.append("")
                 lines.append("")
             else:
                 logger.warning(
@@ -4134,7 +4095,7 @@ def format_cos_system_injection(context, user_message=None):
         context.get('user_id', 'unknown'), _cache_hit, _situation_loaded,
     )
 
-    lines.append("=== OPERATIONAL INTELLIGENCE ===")
+    lines.append("")
     lines.append("")
     lines.append(
         "CRITICAL DIRECTIVE: You have REAL DATA about this person's day, tasks, "
@@ -4176,27 +4137,6 @@ def format_cos_system_injection(context, user_message=None):
     )
     lines.append("")
     lines.append(
-        "TODAY TRUTH RULE (CRITICAL — anti-hallucination):\n"
-        "- You may ONLY state something is completed today if it is explicitly "
-        "marked DONE in the TODAY'S TRUTH STATE section below.\n"
-        "- If a domain is NOT DONE → clearly state it is not completed.\n"
-        "- You MUST NOT infer completion from trends, streaks, signals, or "
-        "past behavior. Signals are for MOMENTUM and COACHING only.\n"
-        "- TODAY'S TRUTH STATE is the SOLE authority for: completed today, "
-        "outstanding today, routine progress, task completion, medication status.\n"
-        "- When data_confidence is 'missing' or 'partial', you MUST:\n"
-        "  1. Identify exactly what data is missing\n"
-        "  2. Explain why that data matters for THEIR goals\n"
-        "  3. Suggest how to improve tracking (with app link)\n"
-        "  BAD: 'I don't have enough data.'\n"
-        "  GOOD: 'I don't see a workout logged for today. If you track your "
-        "workouts consistently, I can better assess your fitness momentum and "
-        "recovery patterns.'\n"
-        "  GOOD: 'I don't have any journal entries for today. Logging even a "
-        "short reflection helps me track your emotional patterns and stress levels.'"
-    )
-    lines.append("")
-    lines.append(
         "LINK & LIST FORMATTING: When listing tasks, events, or items, ALWAYS "
         "use a consistent bulleted list with markdown. When referencing an app "
         "page, use a markdown link with the RELATIVE path from the APP NAVIGATION "
@@ -4221,7 +4161,6 @@ def format_cos_system_injection(context, user_message=None):
 
     # ── PART 3: Chief of Staff Reasoning Hierarchy (v6 — operational eval) ──
     lines.append(
-        "=== MANDATORY CONTEXT EVALUATION (v8) ===\n"
         "BEFORE generating ANY response, you MUST complete these steps internally:\n"
         "\n"
         "STEP 1 — READ INTELLIGENCE SIGNALS FIRST: Scan the SIGNAL INTERPRETATION "
@@ -4256,13 +4195,12 @@ def format_cos_system_injection(context, user_message=None):
         "\n"
         "ANTI-TEMPLATE RULE: If your response could apply to ANY user without "
         "modification, it is generic and MUST be rewritten.\n"
-        "=== END MANDATORY CONTEXT EVALUATION ==="
+        ""
     )
     lines.append("")
 
     # ── PART 4: Strengthened Context Relevance Rule ──
     lines.append(
-        "=== CONTEXT RELEVANCE ENFORCEMENT ===\n"
         "Do NOT inject unrelated OPERATIONAL reminders into responses.\n"
         "Examples of violations:\n"
         "  • A question about sleep science → Do NOT append task reminders\n"
@@ -4281,13 +4219,12 @@ def format_cos_system_injection(context, user_message=None):
         "is reference material — use on request. Intelligence signals (patterns, "
         "correlations, drift, predictions) are proactive awareness — surface when "
         "meaningful.\n"
-        "=== END CONTEXT RELEVANCE ==="
+        ""
     )
     lines.append("")
 
     # ── PART 5: Sparse Data Behavior ──
     lines.append(
-        "=== SPARSE DATA BEHAVIOR ===\n"
         "When user data is limited or missing, do NOT fall back to generic responses.\n"
         "Instead, follow this pattern:\n"
         "1. Acknowledge the missing data specifically\n"
@@ -4299,7 +4236,7 @@ def format_cos_system_injection(context, user_message=None):
         "Example — GOOD: 'You haven't logged weight yet. Since Health Discipline "
         "is one of your top priorities, getting a baseline weight logged would be "
         "a strong first step. Head to [Weight Tracking](/health/weight/) to start.'\n"
-        "=== END SPARSE DATA BEHAVIOR ==="
+        ""
     )
     lines.append("")
 
@@ -4319,7 +4256,7 @@ def format_cos_system_injection(context, user_message=None):
     # Authority hierarchy: user statement overrides system assumptions.
     affirmed = context.get('affirmed_completions', {})
     if affirmed:
-        lines.append("=== USER-AFFIRMED COMPLETIONS ===")
+        lines.append("")
         lines.append("")
         lines.append(
             "The user has STATED they already completed these activities. "
@@ -4339,7 +4276,7 @@ def format_cos_system_injection(context, user_message=None):
             "automatically — only suppress further reminders."
         )
         lines.append("")
-        lines.append("=== END USER-AFFIRMED COMPLETIONS ===")
+        lines.append("")
         lines.append("")
 
     # ── HEALTH SCREENSHOT ANALYSIS (PIE) ──
@@ -4347,7 +4284,7 @@ def format_cos_system_injection(context, user_message=None):
     # interpretation so Beth responds with reasoning, not data recitation.
     health_analysis = context.get('health_screenshot_analysis')
     if health_analysis:
-        lines.append("=== HEALTH SCREENSHOT ANALYSIS (PIE) ===")
+        lines.append("")
         lines.append("")
         lines.append(f"Summary: {health_analysis.get('summary_insight', '')}")
         lines.append("")
@@ -4377,7 +4314,7 @@ def format_cos_system_injection(context, user_message=None):
         if disclaimer:
             lines.append(f"\n{disclaimer}")
         lines.append("")
-        lines.append("=== END HEALTH SCREENSHOT ANALYSIS ===")
+        lines.append("")
         lines.append("")
 
     # ── DAILY SCAN BRIEF (structured summary for proactive intelligence) ──
@@ -4616,25 +4553,21 @@ def format_cos_system_injection(context, user_message=None):
         lines.append("")
         if delivery == 'interrupt':
             lines.append(
-                "=== PROACTIVE INTELLIGENCE (INTERRUPT — surface immediately) ===\n"
                 "A critical signal requires immediate attention. Before addressing "
                 "the user's message, state this signal clearly. Do not bury it."
             )
         elif delivery == 'lead':
             lines.append(
-                "=== PROACTIVE INTELLIGENCE (LEAD — open with this signal) ===\n"
                 "An important signal should lead your response. Mention it first, "
                 "then transition to the user's message."
             )
         elif delivery == 'support':
             lines.append(
-                "=== PROACTIVE INTELLIGENCE (SUPPORT — weave in naturally) ===\n"
                 "A relevant signal exists. Address the user's message first. "
                 "Mention this signal only if naturally relevant to the conversation."
             )
         else:  # silent
             lines.append(
-                "=== PROACTIVE INTELLIGENCE (AVAILABLE — do not surface proactively) ===\n"
                 "Intelligence signals exist but are not urgent enough to surface. "
                 "Only reference if the user asks about patterns or trends."
             )
@@ -4673,25 +4606,23 @@ def format_cos_system_injection(context, user_message=None):
             "HOW TO SURFACE: Frame as a pattern, not a command. "
             "'I'm noticing...' not 'You need to...'. "
             "Keep it brief — one or two sentences, then move to the user's topic.\n"
-            "=== END PROACTIVE INTELLIGENCE ==="
+            ""
         )
 
     elif has_any_intelligence and ranked and not ranked.get('top_signal'):
         # ── SUPPRESSED MODE: signals exist but none warrant surfacing ──
         lines.append("")
         lines.append(
-            "=== PROACTIVE INTELLIGENCE (NONE — no signals warrant mention) ===\n"
             "Intelligence signals were evaluated but none are urgent enough to "
             "surface proactively. Respond normally to the user's message.\n"
             f"Reason: {ranked.get('suppression_reason', 'Below surfacing threshold')}\n"
-            "=== END PROACTIVE INTELLIGENCE ==="
+            ""
         )
 
     elif has_any_intelligence:
         # ── FALLBACK MODE: arbitration failed, use flat lists ──
         lines.append("")
         lines.append(
-            "=== PROACTIVE INTELLIGENCE (surface the most important signal) ===\n"
             "You are a Chief of Staff reviewing a life dashboard. BEFORE responding "
             "to ANY message, evaluate the intelligence signals below and determine "
             "if one warrants proactive mention.\n"
@@ -4712,7 +4643,7 @@ def format_cos_system_injection(context, user_message=None):
             "WHEN TO HOLD BACK:\n"
             "  - Only positive/info-level signals with no warnings → skip\n"
             "  - Intelligence is 'degraded' → don't speculate\n"
-            "=== END PROACTIVE INTELLIGENCE DIRECTIVE ==="
+            ""
         )
 
     # Phase 7.5: Signal Interpretation Summary (always included regardless of ranking)
@@ -4743,7 +4674,7 @@ def format_cos_system_injection(context, user_message=None):
             if top:
                 lines.append("")
                 lines.append(
-                    f"=== CROSS-DOMAIN SIGNAL: {top.get('summary', '')} ==="
+                    f""
                 )
 
     # Momentum Interpretation — trajectory narrative from GoalMomentumSnapshot
@@ -4835,7 +4766,6 @@ def format_cos_system_injection(context, user_message=None):
     # ── REASONING HIERARCHY (signal-first response structure) ──
     lines.append("")
     lines.append(
-        "=== REASONING HIERARCHY ===\n"
         "Your PRIMARY reasoning layer is the intelligence signals and momentum "
         "data above. When composing ANY response:\n"
         "  1. SIGNALS FIRST — Describe behavioral signals across domains\n"
@@ -4857,7 +4787,7 @@ def format_cos_system_injection(context, user_message=None):
         "  WRONG: \"You completed prayer time and missed the dashboard work.\"\n"
         "  RIGHT: \"Your faith signals remain strong this week. Productivity "
         "momentum dipped — two tasks still open.\"\n"
-        "=== END REASONING HIERARCHY ==="
+        ""
     )
 
     # ── OPERATIONAL DATA SNAPSHOT (supporting evidence) ──
@@ -5339,11 +5269,25 @@ def format_cos_system_injection(context, user_message=None):
     # Phase 2: Cognitive Precision Framework
     # Conditionally injected: only when drift is detected, decision keywords
     # are present, or the conditional frameworks flag is disabled (legacy mode).
-    # Cognitive precision is always injected — drift/erosion states need
-    # the framework even more than clean state. The conditional-frameworks
-    # flag only gates whether TRAJECTORY precision is state-dependent
-    # (which is handled below in the Phase 3 section).
     _inject_cognitive = True
+    if getattr(settings, 'WLJ_CONDITIONAL_FRAMEWORKS_ENABLED', False):
+        activation_state_check = context.get(
+            'trajectory_activation_state', ACTIVATION_CLEAN
+        )
+        _decision_keywords = (
+            'should i', 'what should', 'is it worth', 'trade-off',
+            'tradeoff', 'instead of', 'priority', 'conflict',
+            'which is more important', 'pros and cons', 'better to',
+            'decide', 'dilemma', 'struggling with',
+        )
+        _has_decision = False
+        if user_message:
+            _msg_low = user_message.lower()
+            _has_decision = any(kw in _msg_low for kw in _decision_keywords)
+        _inject_cognitive = (
+            activation_state_check == ACTIVATION_CLEAN
+            or _has_decision
+        )
     if _inject_cognitive:
         lines.append("")
         lines.append(COGNITIVE_PRECISION_FRAMEWORK.strip())
@@ -5652,133 +5596,165 @@ def format_cos_system_injection(context, user_message=None):
         except Exception:
             pass  # Snapshot must never break CoS
 
-        # ── TODAY'S TRUTH STATE (from today_state.py — deterministic layer) ──
-        # Replaces inline DailyProgressService rendering. today_state is built
-        # in build_cos_context() post-assembly and stored in context['today_state'].
+        # ── TODAY'S EXECUTION STATUS (CANONICAL — from DailyProgressService) ──
+        # This block gives Beth explicit per-domain completion truth for TODAY.
+        # Without it, the LLM infers completion from 7-day aggregates and streaks,
+        # causing false-positive "done" statements (the core trust bug).
         try:
-            _today_state = context.get('today_state')
-            if _today_state:
-                from apps.core.services.today_state import format_today_state_injection
-                _ts_block = format_today_state_injection(_today_state)
-                if _ts_block:
-                    lines.append(_ts_block)
+            from apps.dashboard_v2.services.daily_progress_service import DailyProgressService
+            _dp_svc = DailyProgressService(_cos_user_final)
+            _dp = _dp_svc.get_today()
 
-                # ── SCRIPTURE REINFORCEMENT (signal-driven, SATISFIED domains only) ──
-                from apps.core.services.today_state import _classify_domain_states
-                _domain_states = _classify_domain_states(_today_state)
-                _satisfied_domains = [k for k, v in _domain_states.items() if v == 'SATISFIED']
+            _exec_lines = []
+            _exec_lines.append("")
+            _exec_lines.append("")
+            _exec_lines.append("These are the EXACT completion states for today. Use ONLY these")
+            _exec_lines.append("when stating what is done or not done today.")
+            _exec_lines.append("If a domain shows NOT DONE, you MUST NOT say it is complete.")
+            _exec_lines.append("")
 
-                if _satisfied_domains:
-                    try:
-                        _reinforce_contexts = []
-                        _emo_state = context.get('emotion_state', {})
-                        _stress_sc = context.get('stress_score')
-                        _stress_sig = _emo_state.get('stress_signals', 0)
-                        _positive_sig = _emo_state.get('positive_signals', 0)
+            # Routines
+            r = _dp.get('routines', {})
+            r_done, r_total = r.get('done', 0), r.get('total', 0)
+            if r_total > 0:
+                _exec_lines.append(f"  Routines: {r_done}/{r_total} completed" + (" — ALL DONE" if r_done >= r_total else " — NOT ALL DONE"))
+            else:
+                _exec_lines.append("  Routines: none scheduled today")
 
-                        if _stress_sig >= 2 or (_stress_sc and isinstance(_stress_sc, dict) and _stress_sc.get('score', 0) > 0.3):
-                            _reinforce_contexts.extend(['anxiety', 'worry', 'stress', 'burden'])
-                        _mood_status = context.get('mood_status', {})
-                        if _mood_status.get('trend') == 'declining':
-                            _reinforce_contexts.extend(['sadness', 'difficulty', 'heartbreak', 'discouragement'])
-                        if _positive_sig >= 5:
-                            _reinforce_contexts.extend(['gratitude', 'growth', 'daily life'])
+            # Medicine
+            m = _dp.get('medicine', {})
+            m_done, m_total = m.get('done', 0), m.get('total', 0)
+            if m_total > 0:
+                _exec_lines.append(f"  Medicine: {m_done}/{m_total} taken" + (" — ALL DONE" if m_done >= m_total else " — NOT ALL DONE"))
+            else:
+                _exec_lines.append("  Medicine: none scheduled today")
 
-                        if _reinforce_contexts:
-                            from apps.faith.models import ScriptureVerse
-                            from django.db.models import Q as _SQ
-                            _ctx_q = _SQ()
-                            for _rc in _reinforce_contexts[:4]:
-                                _ctx_q |= _SQ(contexts__contains=[_rc])
-                            _verses = list(
-                                ScriptureVerse.objects.filter(
-                                    _ctx_q, is_active=True,
-                                ).order_by('?')[:2]
-                            )
-                            if _verses:
-                                lines.append("")
-                                lines.append("SCRIPTURE REINFORCEMENT (signal-driven — use for SATISFIED domains ONLY):")
-                                lines.append("  These verses match the user's current emotional signals.")
-                                lines.append("  Use ONLY for reinforcement, NOT as an action recommendation.")
-                                lines.append("  Rules: Quote exactly. Include reference. No sermonizing.")
-                                lines.append("  Maximum: ONE verse per response. Do NOT force it — only if the moment warrants it.")
-                                for _sv in _verses:
-                                    lines.append(f"  → \"{_sv.text}\" — {_sv.reference}")
-                    except ImportError:
-                        pass
-                    except Exception:
-                        pass
+            # Tasks
+            t = _dp.get('tasks', {})
+            t_done, t_total = t.get('done', 0), t.get('total', 0)
+            if t_total > 0:
+                _exec_lines.append(f"  Tasks: {t_done}/{t_total} completed" + (" — ALL DONE" if t_done >= t_total else " — NOT ALL DONE"))
+            else:
+                _exec_lines.append("  Tasks: none due today")
+
+            # Workout (binary)
+            w = _dp.get('workout', {})
+            if w.get('done'):
+                _exec_lines.append("  Workout: DONE")
+            else:
+                _exec_lines.append("  Workout: NOT DONE")
+
+            # Journal (binary)
+            j = _dp.get('journaling', {})
+            if j.get('done'):
+                _exec_lines.append("  Journaling: DONE")
+            else:
+                _exec_lines.append("  Journaling: NOT DONE")
+
+            # Faith (binary)
+            f = _dp.get('faith', {})
+            if f.get('done'):
+                _exec_lines.append("  Faith: DONE")
+            else:
+                _exec_lines.append("  Faith: NOT DONE")
+
+            _exec_lines.append("")
+            _exec_lines.append(f"  Overall day score: {_dp.get('overall_score', 0)}%")
+            _exec_lines.append("")
+            _exec_lines.append("TRUTH ENFORCEMENT:")
+            _exec_lines.append("- If a domain shows NOT DONE, you MUST NOT say it is done.")
+            _exec_lines.append("- If a domain shows DONE, you MUST NOT recommend it as an action.")
+            _exec_lines.append("  DONE means SATISFIED — do not re-prescribe (e.g., prayer DONE → no prayer suggestion).")
+            _exec_lines.append("- 7-day aggregates and streaks do NOT override today's status.")
+
+            # ── DOMAIN STATE CLASSIFICATION ──
+            # Classify each domain as ACTIONABLE / SATISFIED / IRRELEVANT
+            # so Beth knows which mode to operate in per-domain.
+            _domain_states = {}
+            _r_satisfied = r.get('done', 0) >= r.get('total', 0) and r.get('total', 0) > 0
+            _domain_states['routines'] = 'SATISFIED' if _r_satisfied else ('ACTIONABLE' if r.get('total', 0) > 0 else 'IRRELEVANT')
+            _domain_states['medicine'] = 'SATISFIED' if (m.get('done', 0) >= m.get('total', 0) and m.get('total', 0) > 0) else ('ACTIONABLE' if m.get('total', 0) > 0 else 'IRRELEVANT')
+            _domain_states['tasks'] = 'SATISFIED' if (t.get('done', 0) >= t.get('total', 0) and t.get('total', 0) > 0) else ('ACTIONABLE' if t.get('total', 0) > 0 else 'IRRELEVANT')
+            _domain_states['workout'] = 'SATISFIED' if w.get('done') else 'ACTIONABLE'
+            _domain_states['journaling'] = 'SATISFIED' if j.get('done') else 'ACTIONABLE'
+            _domain_states['faith'] = 'SATISFIED' if f.get('done') else 'ACTIONABLE'
+
+            _exec_lines.append("")
+            _exec_lines.append("DOMAIN STATE CLASSIFICATION:")
+            for _ds_name, _ds_state in _domain_states.items():
+                _exec_lines.append(f"  {_ds_name}: {_ds_state}")
+
+            _has_actionable = any(v == 'ACTIONABLE' for v in _domain_states.values())
+            _satisfied_domains = [k for k, v in _domain_states.items() if v == 'SATISFIED']
+
+            _exec_lines.append("")
+            if _has_actionable:
+                _exec_lines.append("RESPONSE MODE: ACTION")
+                _exec_lines.append("  Primary recommendations MUST come from action priorities list.")
+                _exec_lines.append("  SATISFIED domains may receive reinforcement (not action) if a signal justifies it.")
+            else:
+                _exec_lines.append("RESPONSE MODE: REINFORCEMENT")
+                _exec_lines.append("  All domains satisfied. No new actions to recommend.")
+                _exec_lines.append("  Focus on meaning, encouragement, or reflection.")
+                _exec_lines.append("  Scripture reinforcement is permitted if a meaningful signal exists.")
+
+            # ── SCRIPTURE REINFORCEMENT (signal-driven, SATISFIED domains only) ──
+            # When a domain is SATISFIED but a meaningful signal exists,
+            # provide a relevant scripture verse for reinforcement — NOT as an action.
+            _reinforce_contexts = []
+            try:
+                _emo_state = context.get('emotion_state', {})
+                _stress_sc = context.get('stress_score')
+                _stress_sig = _emo_state.get('stress_signals', 0)
+                _positive_sig = _emo_state.get('positive_signals', 0)
+
+                # Map active signals to scripture context tags
+                if _stress_sig >= 2 or (_stress_sc and isinstance(_stress_sc, dict) and _stress_sc.get('score', 0) > 0.3):
+                    _reinforce_contexts.extend(['anxiety', 'worry', 'stress', 'burden'])
+                _mood_status = context.get('mood_status', {})
+                if _mood_status.get('trend') == 'declining':
+                    _reinforce_contexts.extend(['sadness', 'difficulty', 'heartbreak', 'discouragement'])
+                if _positive_sig >= 5:
+                    _reinforce_contexts.extend(['gratitude', 'growth', 'daily life'])
+
+                # Only inject scripture if: (a) signal exists AND (b) at least one domain SATISFIED
+                if _reinforce_contexts and _satisfied_domains:
+                    from apps.faith.models import ScriptureVerse
+                    from django.db.models import Q as _SQ
+                    _ctx_q = _SQ()
+                    for _rc in _reinforce_contexts[:4]:
+                        _ctx_q |= _SQ(contexts__contains=[_rc])
+                    _verses = list(
+                        ScriptureVerse.objects.filter(
+                            _ctx_q, is_active=True,
+                        ).order_by('?')[:2]
+                    )
+                    if _verses:
+                        _exec_lines.append("")
+                        _exec_lines.append("SCRIPTURE REINFORCEMENT (signal-driven — use for SATISFIED domains ONLY):")
+                        _exec_lines.append("  These verses match the user's current emotional signals.")
+                        _exec_lines.append("  Use ONLY for reinforcement, NOT as an action recommendation.")
+                        _exec_lines.append("  Rules: Quote exactly. Include reference. No sermonizing.")
+                        _exec_lines.append("  Maximum: ONE verse per response. Do NOT force it — only if the moment warrants it.")
+                        for _sv in _verses:
+                            _exec_lines.append(f"  → \"{_sv.text}\" — {_sv.reference}")
+            except ImportError:
+                pass  # ScriptureVerse not available
+            except Exception:
+                pass  # Scripture reinforcement must never break CoS
+
+            lines.extend(_exec_lines)
         except Exception:
-            pass  # Today state must never break CoS
-
-    # ── CURRENT FOCUS (from existing action_priorities) ──
-    try:
-        _ap = context.get('action_priorities', [])
-        if _ap:
-            _top = _ap[0]
-            lines.append("")
-            lines.append("── CURRENT FOCUS ──")
-            _f_tag = " (foundational)" if _top.get("is_foundational") else ""
-            lines.append(f"Your #1 priority right now: {_top['title']}{_f_tag}")
-            lines.append(f"  Urgency: {_top.get('urgency', 'unknown').upper()}")
-            lines.append(f"  Source: {_top.get('source', 'unknown')}")
-            lines.append("When the user asks 'what should I do?' — lead with this.")
-    except Exception:
-        pass
-
-    # ── NUDGE GUIDANCE (from domain state classification) ──
-    try:
-        _today_state_nudge = context.get('today_state')
-        if _today_state_nudge:
-            from apps.core.services.today_state import _classify_domain_states as _cds_nudge
-            _ds_nudge = _cds_nudge(_today_state_nudge)
-            _nudge_lines = []
-            _domain_labels = {
-                'faith': 'Faith', 'workout': 'Workout', 'journaling': 'Journaling',
-                'medicine': 'Medicine', 'routines': 'Routines', 'tasks': 'Tasks',
-            }
-            for _dk, _dv in _ds_nudge.items():
-                _label = _domain_labels.get(_dk, _dk.title())
-                if _dv == 'ACTIONABLE':
-                    _nudge_lines.append(
-                        f"  {_label}: still open — if the conversation touches their day, gently mention it"
-                    )
-                elif _dv == 'SATISFIED':
-                    _nudge_lines.append(
-                        f"  {_label}: complete — acknowledge if they bring it up, reinforce the win"
-                    )
-            if _nudge_lines:
-                lines.append("")
-                lines.append("── NUDGE GUIDANCE ──")
-                lines.append("Use these hints to weave domain awareness into natural conversation.")
-                lines.append("Do NOT force nudges — only mention if the moment is organic.")
-                lines.extend(_nudge_lines)
-    except Exception:
-        pass
-
-    # ── CONVERSATION CONTEXT AWARENESS ──
-    lines.append("")
-    lines.append(
-        "── CONVERSATION AWARENESS ──\n"
-        "- If the user mentions completing something NOT yet marked DONE in Truth State,\n"
-        "  respond warmly: 'Nice — I'll see that reflected once it syncs.' Do NOT treat\n"
-        "  conversation claims as truth. Only today_state is truth.\n"
-        "- Use conversation context for TONE only: they sound tired → be gentler,\n"
-        "  they're excited → match energy, they're frustrated → acknowledge first.\n"
-        "- If the user asks about something you have no data on, say what's missing\n"
-        "  and offer a tracking link — never say 'I can't access that.'"
-    )
+            pass  # Execution status must never break CoS
 
     # ── v6: Consolidated CoS Operational Rules ──
     lines.append("")
     lines.append(
-        "=== CHIEF OF STAFF OPERATIONAL RULES (v6) ===\n"
-        "\n"
-        "--- RULE 0: ACTION ELIGIBILITY (MANDATORY PRE-CHECK) ---\n"
         "Before recommending ANY action, you MUST check:\n"
         "\n"
-        "A) NOT ALREADY COMPLETED: Check TODAY'S TRUTH STATE section. If a\n"
-        "   domain shows DONE, do NOT recommend actions in that domain. Examples:\n"
+        "A) NOT ALREADY COMPLETED: Check DAILY EXECUTION STATUS and TODAY'S\n"
+        "   EXECUTION STATUS sections. If a domain shows DONE, do NOT recommend\n"
+        "   actions in that domain. Examples:\n"
         "   - prayer: DONE → do NOT suggest prayer, even if prayer requests exist\n"
         "   - bible_reading: DONE → do NOT suggest Bible reading\n"
         "   - workout: DONE → do NOT suggest working out\n"
@@ -5806,8 +5782,6 @@ def format_cos_system_injection(context, user_message=None):
         "\n"
         "If ACTION PRIORITIES list is empty and no signals justify reinforcement,\n"
         "acknowledge all-clear — do NOT invent actions from informational context.\n"
-        "\n"
-        "--- RULE 1: NO GENERIC PRODUCTIVITY ADVICE ---\n"
         "Generic productivity templates are FORBIDDEN when user context exists.\n"
         "FORBIDDEN examples:\n"
         "  - Eisenhower Matrix / urgency-importance grid\n"
@@ -5826,24 +5800,14 @@ def format_cos_system_injection(context, user_message=None):
         "  GOOD: 'I don\\'t see any goals logged yet. That\\'s the highest-impact "
         "first step — head to [Goals](/purpose/goals/) to define what you\\'re "
         "working toward.'\n"
+        "You are the user's Chief of Staff — a strategic operational partner.\n"
+        "Speak as a trusted advisor who KNOWS this person and their situation.\n"
         "\n"
-        "--- RULE 2: CHIEF OF STAFF VOICE ---\n"
-        "You are the user's Chief of Staff — a strategic operational partner\n"
-        "with warmth and authority. You KNOW this person. You are not reading\n"
-        "a dashboard — you are running their day alongside them.\n"
-        "\n"
-        "VOICE MARKERS (use naturally):\n"
-        "  Warmth: 'I noticed...', 'Nice work on...', 'Just a heads-up...'\n"
-        "  Authority: 'Here\\'s what I\\'d prioritize...', 'Let\\'s make sure we...'\n"
-        "  Directness: 'Danny — here\\'s the situation.', 'My recommendation: ...'\n"
-        "\n"
-        "HUMANIZE DATA — never speak in system language:\n"
-        "  BAD: 'Your routine completion is at 75%'\n"
-        "  GOOD: 'You\\'ve knocked out 3 of 4 this morning — one more to go'\n"
-        "  BAD: 'Based on your data, adherence is declining'\n"
-        "  GOOD: 'I\\'ve noticed the last few days have been tougher — let\\'s talk about that'\n"
-        "  BAD: 'According to your logs...'\n"
-        "  GOOD: 'Looking at this week...'\n"
+        "GOOD tone:\n"
+        "  'Danny — here\\'s the situation.'\n"
+        "  'Looking at your data, the biggest gap is...'\n"
+        "  'My recommendation: ...'\n"
+        "  'Based on your priorities, I\\'d focus on...'\n"
         "\n"
         "FORBIDDEN phrases (never use these):\n"
         "  'I\\'m here to assist you'\n"
@@ -5855,10 +5819,6 @@ def format_cos_system_injection(context, user_message=None):
         "  'I\\'m unable to access your personal data'\n"
         "  'I don\\'t have access to your records'\n"
         "  'I can\\'t retrieve your information'\n"
-        "  'Based on your data...' / 'According to your logs...'\n"
-        "  'Your [metric] is at [number]%' (humanize instead)\n"
-        "\n"
-        "--- RULE 3: MISSING DATA FRAMING ---\n"
         "You have FULL ACCESS to all user data. If data is missing, it\\'s "
         "because the user hasn\\'t logged it yet — NOT because you can\\'t "
         "access it.\n"
@@ -5870,8 +5830,6 @@ def format_cos_system_injection(context, user_message=None):
         "analyze your patterns at [Sleep Tracker](/health/sleep/).'\n"
         "  'You haven\\'t set up goals yet. Head to [Goals](/purpose/goals/) "
         "to define what matters most.'\n"
-        "\n"
-        "--- RULE 4: DECISION MODE ---\n"
         "When the user asks a decision question ('should I...', 'do you think "
         "I should...', 'is it a good idea to...', 'what do you recommend', "
         "'should I push through or...'), you MUST enter DECISION MODE.\n"
@@ -5897,8 +5855,6 @@ def format_cos_system_injection(context, user_message=None):
         "Workout = foundational core discipline. Protect it.\n"
         "Bike ride = extra/optional bonus. Can be deferred.\n"
         "Maintenance reminders (charge watch, etc.) = minor, not major obligations.\n"
-        "\n"
-        "--- RULE 5: OPERATIONAL BRIEFING FORMAT ---\n"
         "For advisory / planning / check-in style questions ('how should I "
         "structure my day', 'what should I focus on', 'what\\'s the situation', "
         "'if you were my chief of staff'), use this priority order:\n"
@@ -5918,8 +5874,6 @@ def format_cos_system_injection(context, user_message=None):
         "- Only mention future tasks if large/strategically important\n"
         "- Do NOT clutter with minor future items\n"
         "- Keep it concise and operational — no fluff\n"
-        "\n"
-        "--- RULE 6: KNOWLEDGE RESPONSE GROUNDING ---\n"
         "When the user asks a knowledge question about their body, metrics, "
         "or routines:\n"
         "1. Acknowledge what user-specific data is missing\n"
@@ -5933,8 +5887,6 @@ def format_cos_system_injection(context, user_message=None):
         "a good starting point. Log your weight at [Weight Tracking]"
         "(/health/weight/) and I\\'ll give you a precise number based on "
         "your lean body mass.'\n"
-        "\n"
-        "--- RULE 7: REINFORCEMENT MODE (SATISFIED DOMAIN + SIGNAL) ---\n"
         "When a domain is SATISFIED (completed today) but a meaningful signal\n"
         "exists (stress, declining mood, fatigue, milestone), you may provide\n"
         "reinforcement — NOT an action recommendation.\n"
@@ -5958,8 +5910,6 @@ def format_cos_system_injection(context, user_message=None):
         "Example (WRONG — violates RULE 0):\n"
         "  'Maybe try praying about the stress tonight.'\n"
         "  (Re-recommends prayer when faith is SATISFIED)\n"
-        "\n"
-        "--- RULE 8: RESPONSE RULES BY QUESTION TYPE ---\n"
         "Match your response pattern to the user's question type:\n"
         "\n"
         "'Did I...?' / 'Have I...?' → Check Truth State. Answer definitively.\n"
@@ -5990,8 +5940,6 @@ def format_cos_system_injection(context, user_message=None):
         "\n"
         "General chat → Be natural. Weave in domain nudges only if organic.\n"
         "  Do NOT pivot every conversation into a status report.\n"
-        "\n"
-        "--- RULE 9: PAGE CONTEXT AS SOFT SIGNAL ---\n"
         "When you can see the user's current page/module (from session activity), "
         "use it as a SOFT behavioral hint only:\n"
         "  - User in workout area: 'Looks like you\\'re working on your workout "
@@ -6000,8 +5948,6 @@ def format_cos_system_injection(context, user_message=None):
         "Mark it complete when you finish.'\n"
         "Page presence is NEVER completion truth. NEVER mark anything complete "
         "from page context alone.\n"
-        "\n"
-        "--- RULE 10: CONFIDENCE × CONSISTENCY BEHAVIORAL GATING ---\n"
         "Adapt tone and directness based on data coverage + behavioral pattern:\n"
         "\n"
         "DATA PRESENT + HIGH CONSISTENCY → Direct, forward-looking. Brief affirmation "
@@ -6019,8 +5965,6 @@ def format_cos_system_injection(context, user_message=None):
         "TODAY OVERRIDE: If the user completed or started something TODAY, "
         "react to today\\'s behavior — not just historical trends. "
         "A completed item today means treat consistency as at least medium.\n"
-        "\n"
-        "--- RULE 11: SINGLE DOMAIN COACHING + ANTI-REPETITION ---\n"
         "Per response, only ONE domain gets full coaching (explanation + next step). "
         "All other domains: factual only or omitted.\n"
         "Priority: (1) current focus domain, (2) most critical gap, (3) foundational.\n"
@@ -6030,8 +5974,6 @@ def format_cos_system_injection(context, user_message=None):
         "  Full: 'You\\'ve been inconsistent with workouts. Getting it in "
         "today helps stabilize that pattern.'\n"
         "  Short: 'Get your workout in.'\n"
-        "\n"
-        "--- RULE 12: RESPONSE CONSISTENCY ---\n"
         "NEVER contradict yourself across nudges, focus, and responses:\n"
         "  - If current focus is 'Bible reading', do NOT nudge about workout first\n"
         "  - If an item is completed, NEVER list it as remaining\n"
@@ -6046,16 +5988,12 @@ def format_cos_system_injection(context, user_message=None):
         "HUMANIZE: Connect actions to outcomes when natural. "
         "'Getting your workout in keeps your blood sugar steady.' "
         "Never: 'Based on your health metrics and patterns...'\n"
-        "\n"
-        "--- RULE 13: SUGGESTION + CLOSING FILTER ---\n"
         "Before ANY suggestion or recommendation:\n"
         "  FILTER OUT completed items, past items, and irrelevant items.\n"
         "  Suggestions must ONLY include incomplete or open-ended items.\n"
         "If all key items are done:\n"
         "  'You\\'re in good shape. Want to plan tomorrow, or done for the night?'\n"
         "  Do NOT suggest already-completed items.\n"
-        "\n"
-        "--- RULE 14: TIME-AWARE LANGUAGE ---\n"
         "Distinguish clearly between:\n"
         "  COMPLETED → 'Done.' / 'Logged.' (past tense, factual)\n"
         "  UPCOMING → 'Coming up at X.' (future, not yet due)\n"
@@ -6068,11 +6006,11 @@ def format_cos_system_injection(context, user_message=None):
         "  WRONG: 'You haven\\'t done prayer yet.' (implies lateness)\n"
         "  WRONG: 'Prayer is complete.' (hasn\\'t happened)\n"
         "\n"
-        "=== END CHIEF OF STAFF OPERATIONAL RULES ==="
+        ""
     )
 
     lines.append("")
-    lines.append("=== END SITUATIONAL AWARENESS ===")
+    lines.append("")
     lines.append("")
 
     result = '\n'.join(lines)
@@ -8385,7 +8323,7 @@ def format_learning_mode_injection(context):
         str — formatted system injection block.
     """
     lines = []
-    lines.append("=== OPERATIONAL AWARENESS ===")
+    lines.append("")
     lines.append("")
 
     # What the user has enabled
@@ -8454,6 +8392,6 @@ def format_learning_mode_injection(context):
     lines.append(COS_WRITE_SUPPRESSED_CONTRACT.strip())
 
     lines.append("")
-    lines.append("=== END OPERATIONAL AWARENESS ===")
+    lines.append("")
 
     return '\n'.join(lines)

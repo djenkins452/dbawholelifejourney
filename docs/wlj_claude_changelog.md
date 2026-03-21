@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FIX: Strip ALL structured headers from system prompt injection
+
+Removed all `===`, `==========`, and `--- RULE N ---` section headers from the entire system prompt injection output. Content preserved — only decorative framing removed. The system prompt now reads as continuous natural prose with no labeled sections, numbered blocks, or delimiters. Verified: `format_cos_system_injection()` output contains zero `===` or `--- RULE` patterns.
+
+Files: `apps/core/ai_orchestrator/cos_context.py`
+
+---
+
 ## 2026-03-21 — FIX: Remove all section headers/labels from context formatters
 
 Removed all bracket-style section headers from signal interpretation, momentum, daily context, and confidence/consistency formatters. No replacement labels — formatters now emit raw data lines only. Updated RULE 12 directive: "NEVER use section headers, labels, or numbered lists in responses. Write naturally."

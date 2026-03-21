@@ -3134,20 +3134,20 @@ def _build_data_state_snapshot(user) -> str:
             _mstatus = "ALL TAKEN" if _ms.get('all_taken') else f"{_taken}/{_total}"
             lines.append(f"  {_label}: {_mstatus}")
 
-    # Routine health signals (drift, overdue maintenance, neglect)
+    # Routine health → prioritized actions (what should the user DO)
     try:
-        from apps.life.services.routine_health_service import evaluate_all_routine_health
-        _routine_signals = evaluate_all_routine_health(user)
-        if _routine_signals:
+        from apps.life.services.routine_action_service import get_routine_actions_for_user
+        _routine_actions = get_routine_actions_for_user(user)
+        if _routine_actions:
             lines.append("")
-            lines.append("ROUTINE HEALTH SIGNALS:")
-            for rs in _routine_signals[:5]:  # Cap at 5 to limit token usage
-                _top = rs['top_signal']
-                _sev = _top['severity'].upper()
-                lines.append(f"  [{_sev}] {_top['detail']}")
+            lines.append("ROUTINE MAINTENANCE ACTIONS:")
+            for ra in _routine_actions:
+                _p = ra['priority'].upper()
+                lines.append(f"  [{_p}] {ra['message']}")
             lines.append(
-                "Use these signals to inform guidance — mention naturally, "
-                "not as a report. Only surface the most relevant one per response."
+                "Mention the top action naturally when relevant. "
+                "Do NOT list all actions — pick the most important one "
+                "for the current conversation."
             )
     except Exception:
         pass

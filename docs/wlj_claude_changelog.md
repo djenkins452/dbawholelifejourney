@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FEATURE: Routine Signal → Action Engine (prioritization layer)
+
+**Feature:** Converts routine health signals into ranked, actionable recommendations for Beth.
+
+**Mapping:**
+- `maintenance_overdue` → HIGH: "Oil Change is 15 days overdue — handle today"
+- `neglect` → HIGH: "HVAC Filter needs attention — no activity recently"
+- `drift` → MEDIUM: "Prayer is slipping — get back on track"
+- `over_maintenance` → LOW: "You may be overdoing Oil Change — check the schedule"
+
+**Prioritization:** Sorted by priority rank then days overdue. Capped at 3 actions.
+
+**CoS injection:** Replaced raw `ROUTINE HEALTH SIGNALS` block with `ROUTINE MAINTENANCE ACTIONS` — tells Beth what to recommend, not just what's happening. Directive: mention top action naturally, don't list all.
+
+**Files:** `apps/life/services/routine_action_service.py` (new), `apps/core/ai_orchestrator/cos_context.py`, `apps/life/tests/test_routine_action_service.py` (new)
+
+**Tests:** 7/7 action tests pass, 29/29 total (bridge + health + action)
+
+---
+
 ## 2026-03-21 — FEATURE: Routine Health & Drift Signals (intelligence layer)
 
 **Feature:** Signal service that evaluates routine health over time and injects signals into Beth's CoS context.

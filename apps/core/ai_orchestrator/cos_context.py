@@ -3135,10 +3135,12 @@ def _build_data_state_snapshot(user) -> str:
             lines.append(f"  {_label}: {_mstatus}")
 
     # Routine health → timed action recommendations (what + when)
+    _has_urgent_actions = False
     try:
         from apps.life.services.action_time_service import get_timed_actions_for_user
         _timed_actions = get_timed_actions_for_user(user)
         if _timed_actions:
+            _has_urgent_actions = True
             lines.append("")
             lines.append("ROUTINE MAINTENANCE PLAN:")
             for ta in _timed_actions:
@@ -3150,6 +3152,25 @@ def _build_data_state_snapshot(user) -> str:
             )
     except Exception:
         pass
+
+    # Proactive planning — upcoming opportunities (only when no urgent actions)
+    if not _has_urgent_actions:
+        try:
+            from apps.life.services.proactive_planning_service import (
+                generate_proactive_suggestions,
+            )
+            _proactive = generate_proactive_suggestions(user)
+            if _proactive:
+                lines.append("")
+                lines.append("UPCOMING OPPORTUNITIES:")
+                for ps in _proactive:
+                    lines.append(f"  {ps['message']}")
+                lines.append(
+                    "Mention only if the conversation is about planning or "
+                    "the user asks what's coming up. Use soft guidance tone."
+                )
+        except Exception:
+            pass
 
     lines.append("")
     lines.append(

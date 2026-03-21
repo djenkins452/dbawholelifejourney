@@ -55,7 +55,7 @@ from django.shortcuts import redirect
 
 from .models import DailyEncouragement
 from .services import DashboardConfigService
-from apps.core.utils import user_log_id
+from apps.core.utils import user_log_id, get_user_now
 from apps.help.mixins import HelpContextMixin
 
 logger = logging.getLogger(__name__)
@@ -1020,7 +1020,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "medicine_doses_taken_today": sum(1 for s in todays_schedules if s['taken']),
             "medicine_doses_overdue_today": sum(
                 1 for s in todays_schedules
-                if not s['taken'] and not s.get('skipped') and s['schedule'].scheduled_time <= now.time()
+                if not s['taken'] and not s.get('skipped') and s['schedule'].scheduled_time <= get_user_now(user).time()
             ),
             "medicine_adherence_rate": adherence_rate,
             "medicines_need_refill": needs_refill,

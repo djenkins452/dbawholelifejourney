@@ -3134,6 +3134,24 @@ def _build_data_state_snapshot(user) -> str:
             _mstatus = "ALL TAKEN" if _ms.get('all_taken') else f"{_taken}/{_total}"
             lines.append(f"  {_label}: {_mstatus}")
 
+    # Routine health signals (drift, overdue maintenance, neglect)
+    try:
+        from apps.life.services.routine_health_service import evaluate_all_routine_health
+        _routine_signals = evaluate_all_routine_health(user)
+        if _routine_signals:
+            lines.append("")
+            lines.append("ROUTINE HEALTH SIGNALS:")
+            for rs in _routine_signals[:5]:  # Cap at 5 to limit token usage
+                _top = rs['top_signal']
+                _sev = _top['severity'].upper()
+                lines.append(f"  [{_sev}] {_top['detail']}")
+            lines.append(
+                "Use these signals to inform guidance — mention naturally, "
+                "not as a report. Only surface the most relevant one per response."
+            )
+    except Exception:
+        pass
+
     lines.append("")
     lines.append(
         "EXECUTION TRUTH RULE (NON-NEGOTIABLE):\n"

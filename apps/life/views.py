@@ -3438,6 +3438,18 @@ class RoutineListView(HelpContextMixin, LifeAccessMixin, TemplateView):
         ).count()
         context['legacy_routine_count'] = legacy_count
 
+        # Routine health signals (for badges/indicators)
+        try:
+            from apps.life.services.routine_health_service import evaluate_all_routine_health
+            health_signals = evaluate_all_routine_health(self.request.user)
+            # Index by schedule_id for template lookup
+            context['routine_health'] = {
+                rs['schedule_id']: rs['top_signal']
+                for rs in health_signals
+            }
+        except Exception:
+            context['routine_health'] = {}
+
         return context
 
 

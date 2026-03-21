@@ -3665,24 +3665,23 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                     _validated_priorities.append(item)
                 _top_priorities = _validated_priorities[:2]
 
+                # Priority synthesis — provide as reference data, NOT as
+                # a formatting directive.  The CoS voice contract controls
+                # how Beth presents this to the user.
                 priority_synthesis = ''
                 if _top_priorities:
                     _pri_lines = []
                     for rank, (score, title, source) in enumerate(_top_priorities, 1):
                         if source == 'overdue_med':
-                            _pri_lines.append(
-                                f"  {rank}. TAKE MEDICATION: {title} [overdue — health-critical]"
-                            )
+                            _pri_lines.append(f"  {rank}. {title} (medication, overdue)")
                         elif source == 'overdue':
-                            _pri_lines.append(
-                                f"  {rank}. {title} [OVERDUE — needs immediate attention]"
-                            )
+                            _pri_lines.append(f"  {rank}. {title} (task, overdue)")
                         elif source == 'calendar':
                             _pri_lines.append(f"  {rank}. {title}")
                         else:
-                            _pri_lines.append(f"  {rank}. {title} [due today]")
+                            _pri_lines.append(f"  {rank}. {title} (due today)")
                     priority_synthesis = (
-                        "TOP PRIORITIES RIGHT NOW (Beth must highlight these):\n"
+                        "Highest-priority items right now:\n"
                         + '\n'.join(_pri_lines)
                     )
 
@@ -3731,11 +3730,10 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                     )
                 else:
                     _checkin_preamble = (
-                        "USER IS REQUESTING A CHECK-IN / STATUS REFRESH — "
-                        "this is a forced context refresh. ALL cached data "
-                        "has been discarded and rebuilt from the database. "
-                        "Deliver a complete Chief of Staff status briefing "
-                        "based ONLY on the fresh data below."
+                        "The user is asking what to do. The data below is "
+                        "fresh from the database. Respond following your "
+                        "CoS voice — current moment first, then next step. "
+                        "Write naturally, not as a briefing."
                     )
 
                 system_prompt += f"""
@@ -3777,43 +3775,15 @@ FAITH:
 TIME CONTEXT:
 - ~{time_context.get('hours_remaining', 'unknown')} hours until bedtime
 
-RESPONSE FORMAT — Follow this 6-part structure for check-in/status responses:
-1. SITUATION OVERVIEW — One or two sentences that synthesize the day so far.
-   Do NOT list every completed item. Instead, summarize completions naturally:
-   "Morning routine is done, and you've knocked out 4 tasks" — NOT a bullet
-   list of every completed task. Only call out a specific completion if it is
-   noteworthy (e.g., a PR, a streak milestone, a hard-to-do item).
-2. TOP PRIORITIES — The 1-2 most important things the user should focus on
-   RIGHT NOW, based on the priority scoring above. Explain WHY each is the
-   priority (overdue, health-critical, time-sensitive). For THIS SECTION
-   ONLY, use items from the TOP PRIORITIES data above. If no TOP PRIORITIES
-   are provided, state that no urgent priorities are identified right now.
-   NEVER invent task names that do not appear in the data above.
-3. REMAINING ITEMS — List ALL other pending tasks from the TASKS section
-   above, grouped by urgency (overdue first, then due today, then upcoming).
-   Every task listed in the TASKS data is a real task — include routine
-   tasks (Prayer Time, Workout, etc.) alongside non-routine tasks. They
-   all count equally. Use a tight list, not paragraphs.
-4. HEALTH / MEDICATION STATUS — Overdue meds by name with firm reminder.
-   Upcoming meds as gentle note. Skip meds already taken (don't list them).
-   Include workout and reading status ONLY if not yet done.
-5. INTELLIGENCE INSIGHT (optional) — One pattern, correlation, or observation
-   from recent data (e.g., streak at risk, goal drift, health trend).
-   Only include if there's a genuine insight — never force one.
-6. CLOSING QUESTION — One specific, actionable question to drive the next
-   action (e.g., "Want to knock out that Bible reading now?" or "Ready to
-   tackle the overdue finance task?"). Must relate to the top priority.
+Use the data above as REFERENCE — but respond following the CoS voice
+contract already in your instructions. Write naturally, no section headers,
+no numbered lists. Start with the current moment, then the next step, then
+quick status only if relevant. If the user is inside a routine window,
+reinforce that first. Pick ONE next action — don't list options.
 
-TONE AND STYLE:
-- You are a Chief of Staff delivering an executive briefing, not a dashboard
-  reading data aloud. SYNTHESIZE, don't list. PRIORITIZE, don't enumerate.
-- For COMPLETED items, summarize — don't list every one:
-  WRONG: "Wake Up is complete. Prayer Time is complete. Bible Reading is
-  complete. Workout is complete. Shower is complete."
-  RIGHT: "Morning routine is wrapped up — workout logged, quiet time done."
-- For PENDING items, always state the accurate total count AND list each
-  task by name. Every task in the TASKS section above is a real task that
-  the Organize page shows — routine tasks count the same as any other task.
+Summarize completed items in one sentence, not a list. Only mention
+overdue items if they are truly past due. Medications scheduled later
+today are NOT overdue — mention them as upcoming if relevant.
   WRONG: "You've got a couple things left." (vague, hides the real count)
   RIGHT: "You have 10 tasks on your plate right now — Prayer Time, Bible
   Reading, Workout, Journal, Charge Watch, Put Watch On, plus 4 others."

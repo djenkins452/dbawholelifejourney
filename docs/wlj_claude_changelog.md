@@ -6,6 +6,30 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FIX: Root cause — check-in path overrides CoS voice contract
+
+**Root cause found:** Two separate prompt blocks were overriding the CoS voice:
+
+1. **Check-in 6-part response format** (`personal_assistant.py:3780-3816`) — injected its own structured format (SITUATION OVERVIEW, TOP PRIORITIES, REMAINING ITEMS, HEALTH/MEDICATION STATUS, INTELLIGENCE INSIGHT, CLOSING QUESTION) which forced Beth into report mode regardless of CoS rules.
+
+2. **Daily Orientation 5-element mandate** (`prompt_builder.py:290-336`) — required Signal Summary, Momentum Interpretation, Operational Status, Recommendation with A/B/C options, and Execution Question — all contradicting "write naturally, no sections."
+
+3. **Priority synthesis override** (`personal_assistant.py:3668-3687`) — built `TOP PRIORITIES RIGHT NOW (Beth must highlight these)` with `[overdue — health-critical]` labels that overrode CoS state normalization.
+
+**Fixes:**
+- Replaced 6-part response format with 3-line CoS deferral directive
+- Replaced 5-element daily orientation with natural-voice orientation
+- Replaced priority synthesis labels with neutral reference data
+- Replaced check-in preamble with CoS-aligned instruction
+
+**Files changed:**
+- `apps/ai/personal_assistant.py` — check-in data injection, priority synthesis, preamble
+- `apps/core/cos/prompt_builder.py` — daily orientation section
+
+**Tests:** 20/20 pass
+
+---
+
 ## 2026-03-21 — REWRITE: CoS operational rules — unified voice directive
 
 Replaced the entire operational rules block (~250 lines of accumulated rules with stripped headers) with a single unified voice directive (~120 lines). Covers: identity, behavior modes (in-flow / on track / needs direction / off track), action eligibility, decision questions, reinforcement, question-type responses, missing data, tone calibration, hard restrictions, and target style. Written as natural prose, not labeled rules.

@@ -2262,6 +2262,14 @@ def build_cos_context(user, scoped_builders=None):
     context['_domain_filtering_active'] = _domain_filtering_active
     context['_skipped_builders'] = _skipped_builders
 
+    # Populate execution_summaries for today-domain override (confidence gating)
+    try:
+        from apps.core.ai_state.state_engine import get_module_state as _get_exec_state
+        _exec_mod = _get_exec_state(user, 'execution') or {}
+        context['execution_summaries'] = _exec_mod.get('summaries', {})
+    except Exception:
+        context['execution_summaries'] = {}
+
     # =====================================================================
     # POST-ASSEMBLY (depends on composed context — must be sequential)
     # =====================================================================
@@ -3100,11 +3108,17 @@ def _build_data_state_snapshot(user) -> str:
     lines.append(
         "EXECUTION TRUTH RULE (NON-NEGOTIABLE):\n"
         "  • NEVER state or imply a task, routine, or habit is complete unless\n"
-        "    explicitly marked DONE above or in the completed-tasks list.\n"
+        "    explicitly marked DONE/COMPLETED above.\n"
         "  • Do NOT infer completion from streaks, patterns, weekly aggregates,\n"
         "    or historical consistency.\n"
         "  • If no completion record exists → it is NOT DONE.\n"
         "  • Absence of evidence = NOT DONE (never infer).\n"
+        "  • TIME-AWARE RULE: If an item is scheduled for LATER today and not\n"
+        "    yet marked complete, it is UPCOMING — not missed, not done.\n"
+        "    Say 'coming up at X' not 'you haven't done X yet'.\n"
+        "  • COMPLETED TASK RULE: If a task shows status=completed or has a\n"
+        "    completed_date, it is DONE. NEVER surface it as a priority,\n"
+        "    suggestion, or open item — even if it was completed days ago.\n"
         "  • If routine/medication data says 'syncing' or 'being rebuilt', DO NOT\n"
         "    guess or infer status. Say 'still syncing' and move on.\n"
         "\n"
@@ -3118,6 +3132,10 @@ def _build_data_state_snapshot(user) -> str:
         "  • When items are late, say '{item_name} is still outstanding' — not 'missed'.\n"
         "  • When items are rescheduled, say '{item_name} is rescheduled for {time} today'.\n"
         "  • Rescheduled items are NOT complete and NOT missed — they are pending at the new time.\n"
+        "  • RESCHEDULED = NEUTRAL. Moving a task is NOT a failure or productivity drop.\n"
+        "    Do NOT say 'productivity dropped' or treat rescheduling negatively.\n"
+        "    Instead: 'you moved a few tasks — just make sure they don't keep slipping.'\n"
+        "  • Only treat rescheduling as concerning if: moved 3+ times today, or becomes overdue.\n"
         "  • If an item shows '(moved 2x today)' or more, you MAY gently note it:\n"
         "    'I see you've moved this a couple times — want to lock it in now?'\n"
         "    Do NOT scold or penalize. Keep it supportive and brief.\n"
@@ -3503,20 +3521,20 @@ def _format_signal_interpretation_summary(context):
     # Reverse needs_attention so lowest appears first (most urgent)
     needs_attention.reverse()
 
-    lines = ["=== SIGNAL INTERPRETATION SUMMARY ==="]
+    lines = ["[How things are tracking today]"]
     if strong:
-        lines.append(f"Strong (performing well): {', '.join(strong)}")
+        lines.append(f"Going well: {', '.join(strong)}")
     if moderate:
-        lines.append(f"Moderate: {', '.join(moderate)}")
+        lines.append(f"Mixed: {', '.join(moderate)}")
     if needs_attention:
-        lines.append(f"Needs Attention: {', '.join(needs_attention)}")
+        lines.append(f"Needs attention: {', '.join(needs_attention)}")
     lines.append(
-        "INSIGHT LANGUAGE RULE: For 'low confidence' signals, use suggestive "
+        "INSIGHT LANGUAGE RULE: For 'low confidence' items, use suggestive "
         "language ('it looks like there may be...') NOT definitive ('there's a "
-        "pattern where...'). For weak signals (< 40%), suggest rather than "
+        "pattern where...'). For weak items (< 40%), suggest rather than "
         "correct: 'Staying consistent this week will help keep things steady.'"
     )
-    lines.append("=== END SIGNAL INTERPRETATION SUMMARY ===")
+    lines.append("[end tracking summary]")
 
     return '\n'.join(lines)
 
@@ -3570,7 +3588,7 @@ def _format_momentum_interpretation(context):
         else:
             stable.append(entry)
 
-    lines = ["=== MOMENTUM INTERPRETATION ==="]
+    lines = ["[Goal trajectory]"]
 
     if rising:
         parts = []
@@ -3604,7 +3622,7 @@ def _format_momentum_interpretation(context):
         "Interpret momentum as trajectory: describe consistency, recovery, "
         "or drift — never expose raw scores."
     )
-    lines.append("=== END MOMENTUM INTERPRETATION ===")
+    lines.append("[end goal trajectory]")
 
     return '\n'.join(lines)
 
@@ -3669,10 +3687,9 @@ def _format_daily_context_summary(context):
     if not parts:
         return ''
 
-    lines = ["=== DAILY CONTEXT SUMMARY ==="]
+    lines = ["[Today's snapshot]"]
     lines.extend(parts)
-    lines.append("Use this summary for quick orientation. Detailed data follows below.")
-    lines.append("=== END DAILY CONTEXT SUMMARY ===")
+    lines.append("[end snapshot]")
 
     return '\n'.join(lines)
 
@@ -3753,26 +3770,45 @@ def _classify_domain_consistency(daily_signals, signal_types):
 
 def _get_today_domain_override(context, domain_key):
     """
-    Check today_state for same-day completion or in-progress status.
+    Check execution summaries for same-day completion status.
 
-    If the user has completed or is actively working on this domain TODAY,
-    returns a consistency floor so Beth reacts to today's behavior, not
-    just historical trends.
+    If the user has completed this domain TODAY, returns a consistency
+    floor so Beth reacts to today's behavior, not just historical trends.
 
-    Returns: 'high' | 'medium' | None
+    Reads from execution summaries (authoritative) which store domain
+    completion as booleans: {'journal': True, 'workout': False, ...}
+
+    Returns: 'high' | None
     """
-    today_state = context.get('today_state', {})
-    if not today_state:
-        return None
+    # Try execution summaries first (authoritative source)
+    exec_summaries = context.get('execution_summaries', {})
+    domains = exec_summaries.get('domains', {})
 
-    domains = today_state.get('domains', {})
-    domain_data = domains.get(domain_key, {})
-    status = domain_data.get('status', '')
+    # Map behavioral domain keys to execution summary keys
+    _domain_exec_map = {
+        'health': ('workout',),
+        'faith': ('prayer', 'bible_reading', 'faith_engaged'),
+        'routines': (),  # Routines checked via routine summaries
+        'finance': (),   # No binary domain flag
+    }
 
-    if status == 'completed':
-        return 'high'
-    elif status in ('in_progress', 'partial'):
-        return 'medium'
+    exec_keys = _domain_exec_map.get(domain_key, ())
+    for key in exec_keys:
+        if domains.get(key):
+            return 'high'
+
+    # Check routine summaries for routines domain
+    if domain_key == 'routines':
+        routine_summaries = exec_summaries.get('routines', {})
+        if routine_summaries:
+            all_complete = all(
+                r.get('all_complete', False)
+                for r in routine_summaries.values()
+                if isinstance(r, dict)
+            )
+            if all_complete:
+                return 'high'
+
     return None
 
 
@@ -3849,7 +3885,7 @@ def _build_confidence_consistency_directive(context, user):
     if not domain_directives:
         return ''
 
-    lines = ["=== CONFIDENCE × CONSISTENCY BEHAVIORAL GATING ==="]
+    lines = ["[How to calibrate your tone per domain]"]
     lines.append(
         "Adapt your tone and directness per domain based on data coverage "
         "and behavioral consistency:"
@@ -3868,7 +3904,7 @@ def _build_confidence_consistency_directive(context, user):
         "just say 'Get your workout in.' "
         "If no meaningful gap or win exists, stay quiet on that domain."
     )
-    lines.append("=== END CONFIDENCE × CONSISTENCY GATING ===")
+    lines.append("[end tone calibration]")
 
     return '\n'.join(lines)
 
@@ -5984,9 +6020,32 @@ def format_cos_system_injection(context, user_message=None):
         "NEVER reference disabled behaviours. If a feature is not in the user\\'s "
         "signal data, it was disabled — do NOT mention it, coach on it, or "
         "include it in insights.\n"
+        "NEVER echo internal section headers. Labels like '[How things are tracking]' "
+        "or '[Goal trajectory]' are for YOUR context — never repeat them to the user.\n"
         "HUMANIZE: Connect actions to outcomes when natural. "
         "'Getting your workout in keeps your blood sugar steady.' "
         "Never: 'Based on your health metrics and patterns...'\n"
+        "\n"
+        "--- RULE 13: SUGGESTION + CLOSING FILTER ---\n"
+        "Before ANY suggestion or recommendation:\n"
+        "  FILTER OUT completed items, past items, and irrelevant items.\n"
+        "  Suggestions must ONLY include incomplete or open-ended items.\n"
+        "If all key items are done:\n"
+        "  'You\\'re in good shape. Want to plan tomorrow, or done for the night?'\n"
+        "  Do NOT suggest already-completed items.\n"
+        "\n"
+        "--- RULE 14: TIME-AWARE LANGUAGE ---\n"
+        "Distinguish clearly between:\n"
+        "  COMPLETED → 'Done.' / 'Logged.' (past tense, factual)\n"
+        "  UPCOMING → 'Coming up at X.' (future, not yet due)\n"
+        "  DUE NOW → 'Start this now.' (present, actionable)\n"
+        "  OVERDUE → 'This was due at X.' (past due, needs action)\n"
+        "NEVER describe upcoming items as missed or completed.\n"
+        "NEVER describe completed items as upcoming or outstanding.\n"
+        "Example at 5:15 AM with prayer at 5:30:\n"
+        "  CORRECT: 'Prayer is coming up at 5:30.'\n"
+        "  WRONG: 'You haven\\'t done prayer yet.' (implies lateness)\n"
+        "  WRONG: 'Prayer is complete.' (hasn\\'t happened)\n"
         "\n"
         "=== END CHIEF OF STAFF OPERATIONAL RULES ==="
     )

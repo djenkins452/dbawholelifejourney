@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FIX: State Integrity + Human CoS Correction
+
+**Problem:** Six integrity and UX issues:
+1. `_get_today_domain_override()` read from non-existent `today_state` context key — always returned None
+2. No time-aware completion rule — Beth could claim items complete before their scheduled time
+3. Rescheduled tasks treated as negative signal — no explicit neutral directive
+4. System section headers (`=== SIGNAL INTERPRETATION SUMMARY ===` etc.) leaked into Beth's voice
+5. No suggestion filter — Beth could suggest already-completed items
+6. No explicit time-aware language rules for upcoming vs overdue vs completed
+
+**Solution:**
+1. **Wired execution_summaries** into `build_cos_context()` post-assembly; rewrote `_get_today_domain_override()` to read boolean domain format from execution summaries
+2. **TIME-AWARE RULE** in EXECUTION TRUTH RULE: items scheduled later are UPCOMING, not missed
+3. **COMPLETED TASK RULE**: completed tasks never resurface as priorities
+4. **RESCHEDULED = NEUTRAL** directive: moving tasks is not failure; only concerning if 3+ times or overdue
+5. **Humanized section headers**: `=== SIGNAL INTERPRETATION SUMMARY ===` → `[How things are tracking today]`, `=== MOMENTUM INTERPRETATION ===` → `[Goal trajectory]`, etc.
+6. **RULE 13 (Suggestion Filter)**: filter completed/past items before any suggestion
+7. **RULE 14 (Time-Aware Language)**: explicit patterns for completed/upcoming/due-now/overdue with 5:15 AM prayer example
+
+**Files changed:**
+- `apps/core/ai_orchestrator/cos_context.py` — All changes
+
+**Tests:** 20/20 pass, no migrations needed
+
+---
+
 ## 2026-03-20 — FIX: Priority + Signal Alignment
 
 **Problem:** Five alignment issues:

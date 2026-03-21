@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FIX: Medication overdue bug — field name mismatch + safety guard
+
+**Root cause:** `cos_context.py` accessed `m['name']` but state builder stores `m['medicine_name']`. This caused KeyErrors in 8 locations across scan brief, data snapshot, and learning mode — crashing med injection silently and causing LLM to produce generic "overdue medication" language.
+
+**Fixes:**
+1. Fixed all 8 `m['name']` → `m.get('medicine_name', m.get('name', 'Unknown'))` in cos_context.py
+2. Added MED_SAFETY_GUARD: before `pending_medications` reaches Beth, re-validates every "overdue" dose against user's local time. If `scheduled_time > local_now`, forces status back to "upcoming" with logging.
+
+**Files:** `apps/core/ai_orchestrator/cos_context.py`
+**Tests:** 20/20 pass
+
+---
+
 ## 2026-03-21 — FIX: Timezone bug — medications falsely classified as overdue
 
 **Root cause:** `personal_assistant.py:3343` used `timezone.now().time()` (UTC) to compare against `sched.scheduled_time` (naive local time from DB). At 6:25 AM Eastern, `timezone.now().time()` = 10:25 UTC. A med scheduled for 9:00 AM local: `9:00 > 10:25` = false → classified as **overdue** (should be upcoming).

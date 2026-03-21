@@ -331,6 +331,36 @@ def _build_health_and_vitals(user):
             # Per-schedule operational detail (now available from SAE)
             schedule_status = med_state.get('schedule_status_today', [])
             if schedule_status:
+                # SAFETY GUARD: Re-validate overdue status using user's
+                # local time. If a dose is marked 'overdue' but its
+                # scheduled_time is still in the future, force it back
+                # to 'upcoming'. This prevents stale SAE state or timezone
+                # mismatches from reaching Beth.
+                try:
+                    from apps.core.utils import get_user_now
+                    _local_now = get_user_now(user).time()
+                    for entry in schedule_status:
+                        if entry.get('status') == 'overdue':
+                            _sched_str = entry.get('scheduled_time', '')
+                            if _sched_str:
+                                from datetime import datetime as _dt
+                                try:
+                                    _sched_t = _dt.strptime(
+                                        _sched_str.strip(), '%I:%M %p'
+                                    ).time()
+                                    if _sched_t > _local_now:
+                                        entry['status'] = 'upcoming'
+                                        logger.info(
+                                            "MED_SAFETY_GUARD %s reclassified "
+                                            "%s → upcoming (sched=%s > now=%s)",
+                                            user.id,
+                                            entry.get('medicine_name', '?'),
+                                            _sched_str, _local_now,
+                                        )
+                                except ValueError:
+                                    pass  # Unparseable time — leave as-is
+                except Exception:
+                    pass  # Guard must never break context
                 result['pending_medications'] = schedule_status
     except Exception:
         logger.error("CoS context: pending medication details failed", exc_info=True)
@@ -2632,7 +2662,7 @@ def _build_daily_scan_brief(context):
     pending_meds = context.get('pending_medications', [])
     taken = med.get('taken_today', 0)
     total_sched = med.get('total_scheduled', 0)
-    taken_names = [m['name'] for m in pending_meds if m.get('status') == 'taken']
+    taken_names = [m.get('medicine_name', m.get('name', 'Unknown')) for m in pending_meds if m.get('status') == 'taken']
     if taken_names:
         completed_items.append(f"Medications: {', '.join(taken_names)}")
     elif taken > 0:
@@ -2655,7 +2685,7 @@ def _build_daily_scan_brief(context):
     overdue_meds = [m for m in pending_meds if m.get('status') == 'overdue']
     upcoming_meds = [m for m in pending_meds if m.get('status') == 'upcoming']
     if overdue_meds:
-        med_names = ', '.join(m['name'] for m in overdue_meds)
+        med_names = ', '.join(m.get('medicine_name', m.get('name', 'Unknown')) for m in overdue_meds)
         outstanding_items.append(f"Medications OVERDUE: {med_names}")
     elif total_sched > 0 and taken < total_sched:
         missed = total_sched - taken
@@ -4806,18 +4836,18 @@ def format_cos_system_injection(context, user_message=None):
         taken_meds = [m for m in pending_meds if m['status'] == 'taken']
         parts = []
         if taken_meds:
-            taken_str = ', '.join(m['name'] for m in taken_meds)
+            taken_str = ', '.join(m.get('medicine_name', m.get('name', 'Unknown')) for m in taken_meds)
             parts.append("Taken: " + taken_str)
         if overdue:
             overdue_items = []
             for m in overdue:
-                label = m['name'] + (" (due " + m['scheduled_time'] + ")" if m['scheduled_time'] else "")
+                label = m.get('medicine_name', m.get('name', 'Unknown')) + (" (due " + m['scheduled_time'] + ")" if m['scheduled_time'] else "")
                 overdue_items.append(label)
             parts.append("OVERDUE: " + ', '.join(overdue_items))
         if upcoming:
             upcoming_items = []
             for m in upcoming:
-                label = m['name'] + (" (" + m['scheduled_time'] + ")" if m['scheduled_time'] else "")
+                label = m.get('medicine_name', m.get('name', 'Unknown')) + (" (" + m['scheduled_time'] + ")" if m['scheduled_time'] else "")
                 upcoming_items.append(label)
             parts.append("Upcoming: " + ', '.join(upcoming_items))
         lines.append("Medication: " + ' | '.join(parts))
@@ -8282,11 +8312,11 @@ def format_learning_mode_injection(context):
         taken_meds = [m for m in pending_meds if m['status'] == 'taken']
         parts = []
         if taken_meds:
-            parts.append(f"Taken: {', '.join(m['name'] for m in taken_meds)}")
+            parts.append(f"Taken: {', '.join(m.get('medicine_name', m.get('name', 'Unknown')) for m in taken_meds)}")
         if overdue:
-            parts.append(f"OVERDUE: {', '.join(m['name'] for m in overdue)}")
+            parts.append(f"OVERDUE: {', '.join(m.get('medicine_name', m.get('name', 'Unknown')) for m in overdue)}")
         if upcoming:
-            parts.append(f"Upcoming: {', '.join(m['name'] for m in upcoming)}")
+            parts.append(f"Upcoming: {', '.join(m.get('medicine_name', m.get('name', 'Unknown')) for m in upcoming)}")
         lines.append(f"Medication: {' | '.join(parts)}")
     elif med.get('total_scheduled', 0) > 0:
         lines.append(

@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FIX: Beth completion fabrication — stale SAE cache root cause
+
+**Problem:** Beth stated items were completed when they weren't (e.g., "You've completed prayer" when UI shows 0/5). This is a critical trust failure.
+
+**Root cause:** The CoS context builder read execution status from the SAE `UserState.state_data` cache, which only rebuilds periodically via ISE scheduler. Between rebuilds, Beth could see stale data from previous cycles. Three stale cache reads identified:
+
+1. `_build_data_state_snapshot()` line 3051: `get_module_state(user, 'execution')` → **stale**
+2. `format_cos_system_injection()` action priorities line 3229: `get_module_state(user, 'execution')` → **stale**
+3. `format_cos_system_injection()` faith section line 5494: `get_module_state(user, 'execution')` → **stale**
+
+**Fix:**
+1. Execution status now calls `build_today_execution(user)` FRESH on every request — never from cache
+2. Action priorities reuse the same fresh contract (no second query)
+3. Faith completion section now calls `get_faith_engagement_details()` directly — live DB query
+
+**Why not just refresh the cache?** The SAE cache exists for heavy analytics (signal computation, momentum, patterns). The execution contract is lightweight (a few DB queries) and MUST be real-time for trust. Caching it was the wrong tradeoff.
+
+**Files:** `apps/core/ai_orchestrator/cos_context.py` (3 stale reads replaced with live queries)
+**Tests:** 20/20 pass
+
+---
+
 ## 2026-03-21 — FEATURE: Proactive Routine Planning (pre-signal layer)
 
 **Feature:** Identifies upcoming routine maintenance 3-10 days before due and suggests early action. Suppressed when urgent actions already exist.

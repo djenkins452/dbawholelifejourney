@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FEATURE: Proactive Routine Planning (pre-signal layer)
+
+**Feature:** Identifies upcoming routine maintenance 3-10 days before due and suggests early action. Suppressed when urgent actions already exist.
+
+**Detection:** Bridge-enabled schedules where `last_maintenance_date + follow_up_days` is 3-10 days away. Sorted soonest-first. Load-balancing note when 3+ items cluster.
+
+**Suppression rule:** If HIGH priority actions exist (overdue/neglect), proactive suggestions are suppressed — no noise when the user is already behind.
+
+**CoS injection:** `UPCOMING OPPORTUNITIES` block after ROUTINE MAINTENANCE PLAN, with soft guidance tone directive. Only surfaced during planning conversations.
+
+**Files:** `apps/life/services/proactive_planning_service.py` (new), `apps/core/ai_orchestrator/cos_context.py`, `apps/life/tests/test_proactive_planning_service.py` (new)
+
+**Tests:** 6/6 pass
+
+---
+
 ## 2026-03-21 — FEATURE: Action → Time Block Engine (daily execution layer)
 
 **Feature:** Assigns prioritized actions to suggested time windows within the user's day.

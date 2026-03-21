@@ -4037,6 +4037,42 @@ def format_cos_system_injection(context, user_message=None):
         except _UserModel.DoesNotExist:
             pass
 
+    # ── CENTRALIZED MEDICATION SAFETY GUARD ──
+    # Re-validate ALL pending medication statuses against user's local time.
+    # This catches stale cached data (from fast path or SAE cache) where
+    # doses were incorrectly marked "overdue" by a prior timezone bug or
+    # stale SAE snapshot.  Runs once at the top so every downstream
+    # section (scan brief, data snapshot, learning mode) sees corrected data.
+    _guard_user = context.get('_user')
+    _pending_meds = context.get('pending_medications', [])
+    if _guard_user and _pending_meds:
+        try:
+            from apps.core.utils import get_user_now as _guard_get_now
+            from datetime import datetime as _guard_dt
+            _guard_now = _guard_get_now(_guard_user).time()
+            for _med_entry in _pending_meds:
+                if _med_entry.get('status') == 'overdue':
+                    _sched_str = _med_entry.get('scheduled_time', '')
+                    if _sched_str:
+                        try:
+                            _sched_t = _guard_dt.strptime(
+                                _sched_str.strip(), '%I:%M %p'
+                            ).time()
+                            if _sched_t > _guard_now:
+                                _med_entry['status'] = 'upcoming'
+                                logger.info(
+                                    "MED_GUARD_FORMATTER user=%s %s "
+                                    "→ upcoming (sched=%s > now=%s)",
+                                    context.get('user_id', '?'),
+                                    _med_entry.get('medicine_name', '?'),
+                                    _sched_str,
+                                    _guard_now.strftime('%I:%M %p'),
+                                )
+                        except ValueError:
+                            pass
+        except Exception:
+            pass  # Guard must never break formatting
+
     lines = []
 
     # ── CoS SITUATION AWARENESS (highest priority) ──
@@ -4831,9 +4867,10 @@ def format_cos_system_injection(context, user_message=None):
     med = context.get('medication_adherence_state', {})
     pending_meds = context.get('pending_medications', [])
     if pending_meds:
-        overdue = [m for m in pending_meds if m['status'] == 'overdue']
-        upcoming = [m for m in pending_meds if m['status'] == 'upcoming']
-        taken_meds = [m for m in pending_meds if m['status'] == 'taken']
+        # Centralized guard already ran at top of format_cos_system_injection()
+        overdue = [m for m in pending_meds if m.get('status') == 'overdue']
+        upcoming = [m for m in pending_meds if m.get('status') == 'upcoming']
+        taken_meds = [m for m in pending_meds if m.get('status') == 'taken']
         parts = []
         if taken_meds:
             taken_str = ', '.join(m.get('medicine_name', m.get('name', 'Unknown')) for m in taken_meds)

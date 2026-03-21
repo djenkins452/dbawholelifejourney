@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FIX: Complete overdue medication fix — missing pattern + formatter guard
+
+**Why it was still broken:** Three compounding issues:
+1. "What should I be doing right now?" did NOT match CHECKIN_PATTERNS — took the streaming fast path which uses cached CoS context with stale SAE "overdue" data
+2. Builder-level safety guard only ran during `build_cos_context()` — cached/fast path bypassed it entirely
+3. No centralized guard in `format_cos_system_injection()` — stale data flowed to both scan brief and data snapshot unchecked
+
+**Fixes:**
+1. Added `'what should i be doing'`, `'what should i do right now'`, `'what should i do now'`, `'what should i be doing right now'` to CHECKIN_PATTERNS — ensures full pipeline path (with direct DB medication query) on both streaming and non-streaming
+2. Added CENTRALIZED MEDICATION SAFETY GUARD at top of `format_cos_system_injection()` — re-validates ALL "overdue" doses against user's local time before ANY section uses the data. Catches stale cache, timezone mismatches, and SAE snapshot lag.
+3. Removed duplicate per-section guard (centralized one handles all)
+
+**Files:**
+- `apps/ai/personal_assistant.py` — CHECKIN_PATTERNS additions
+- `apps/core/ai_orchestrator/cos_context.py` — centralized formatter guard
+
+---
+
 ## 2026-03-21 — FIX: Medication overdue bug — field name mismatch + safety guard
 
 **Root cause:** `cos_context.py` accessed `m['name']` but state builder stores `m['medicine_name']`. This caused KeyErrors in 8 locations across scan brief, data snapshot, and learning mode — crashing med injection silently and causing LLM to produce generic "overdue medication" language.

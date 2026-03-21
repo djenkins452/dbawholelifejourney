@@ -82,6 +82,8 @@ CHECKIN_PATTERNS = frozenset([
     'plan for today', 'plan for the day',
     'today look like', 'today looking like',
     'what should i do today', 'what should i focus on',
+    'what should i be doing', 'what should i do right now',
+    'what should i do now', 'what should i be doing right now',
     'what do i need to do', 'walk me through my day',
     'my schedule today', 'my schedule look',
     'what am i doing today', 'what have i got today',

@@ -2031,18 +2031,36 @@ class MaintenanceLogCreateView(LifeAccessMixin, CreateView):
 
         response = super().form_valid(form)
 
+        # Auto-sync: when created from routine bridge, sync timing + flags
+        if source == 'routine':
+            _sched_id = self.request.GET.get('schedule_id')
+            if _sched_id and _sched_id.isdigit():
+                try:
+                    from apps.life.services.routine_sync_service import sync_routine_from_maintenance
+                    schedule = RoutineSchedule.objects.get(
+                        pk=int(_sched_id),
+                        routine__user=self.request.user,
+                    )
+                    sync_routine_from_maintenance(
+                        schedule, self.object, self.request.user,
+                    )
+                except RoutineSchedule.DoesNotExist:
+                    pass
+                except Exception:
+                    logger.warning("Routine sync failed", exc_info=True)
+
         # Part B: Check for matching routines and store in session
-        try:
-            from apps.life.services.maintenance_routine_matcher import find_matching_routines
-            matches = find_matching_routines(self.object, self.request.user)
-            if matches and source != 'routine':
-                # Don't suggest matching if already coming from a routine
-                self.request.session['maintenance_matches'] = {
-                    'log_id': self.object.pk,
-                    'matches': matches,
-                }
-        except Exception:
-            pass
+        if source != 'routine':
+            try:
+                from apps.life.services.maintenance_routine_matcher import find_matching_routines
+                matches = find_matching_routines(self.object, self.request.user)
+                if matches:
+                    self.request.session['maintenance_matches'] = {
+                        'log_id': self.object.pk,
+                        'matches': matches,
+                    }
+            except Exception:
+                pass
 
         messages.success(self.request, f"Maintenance log '{form.instance.title}' added.")
         return response
@@ -3554,20 +3572,36 @@ class RoutineToggleView(LifeAccessMixin, View):
 
         # Include maintenance bridge config when item is completed and bridge
         # is enabled — the frontend shows "Log maintenance?" prompt.
+        # Suppress if maintenance was already logged for this item today.
+        # Check both the RoutineLog flag AND if a MaintenanceLog exists
+        # with this schedule_id for today (covers toggle uncomplete/re-complete).
         if result['is_completed'] and schedule.creates_maintenance_log:
-            from datetime import timedelta
-            follow_up_date = ''
-            if schedule.follow_up_days:
-                follow_up_date = (
-                    target_date + timedelta(days=schedule.follow_up_days)
-                ).isoformat()
-            response_data['maintenance_config'] = {
-                'title': schedule.default_maintenance_title or schedule.name,
-                'log_type': schedule.maintenance_type or 'maintenance',
-                'area': schedule.maintenance_area or '',
-                'follow_up_date': follow_up_date,
-                'schedule_id': int(schedule_id),
-            }
+            from apps.life.models import RoutineLog
+            _already_logged = RoutineLog.objects.filter(
+                schedule=schedule,
+                scheduled_date=target_date,
+                maintenance_logged=True,
+            ).exists()
+            if not _already_logged:
+                _already_logged = MaintenanceLog.objects.filter(
+                    user=request.user,
+                    matched_schedule_id=schedule.pk,
+                    date=target_date,
+                ).exists()
+            if not _already_logged:
+                from datetime import timedelta
+                follow_up_date = ''
+                if schedule.follow_up_days:
+                    follow_up_date = (
+                        target_date + timedelta(days=schedule.follow_up_days)
+                    ).isoformat()
+                response_data['maintenance_config'] = {
+                    'title': schedule.default_maintenance_title or schedule.name,
+                    'log_type': schedule.maintenance_type or 'maintenance',
+                    'area': schedule.maintenance_area or '',
+                    'follow_up_date': follow_up_date,
+                    'schedule_id': int(schedule_id),
+                }
 
         return JsonResponse(response_data)
 

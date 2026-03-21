@@ -253,3 +253,64 @@ class MaintenanceSyncTest(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.log.refresh_from_db()
         self.assertEqual(self.log.matched_schedule_id, self.schedule.pk)
+
+
+class AutoSyncTest(TestCase):
+    """Auto-sync: routine sync service updates schedule + log flags."""
+
+    def setUp(self):
+        from apps.life.models import Routine, RoutineSchedule, RoutineLog, MaintenanceLog
+        self.user = _create_test_user('sync@test.com')
+        self.routine = Routine.objects.create(user=self.user, name='Vehicle')
+        self.schedule = RoutineSchedule.objects.create(
+            routine=self.routine, name='Oil Change',
+            scheduled_time=time(9, 0),
+            creates_maintenance_log=True,
+            maintenance_area='Jeep',
+        )
+        self.today = date.today()
+        self.routine_log = RoutineLog.objects.create(
+            user=self.user, schedule=self.schedule,
+            scheduled_date=self.today, log_status='completed',
+        )
+        self.maint_log = MaintenanceLog.objects.create(
+            user=self.user, title='Oil Change', log_type='maintenance',
+            area='Jeep', date=self.today,
+        )
+
+    def test_sync_updates_schedule_last_maintenance_date(self):
+        from apps.life.services.routine_sync_service import sync_routine_from_maintenance
+        sync_routine_from_maintenance(self.schedule, self.maint_log, self.user)
+        self.schedule.refresh_from_db()
+        self.assertEqual(self.schedule.last_maintenance_date, self.today)
+
+    def test_sync_marks_routine_log_maintenance_logged(self):
+        from apps.life.services.routine_sync_service import sync_routine_from_maintenance
+        sync_routine_from_maintenance(self.schedule, self.maint_log, self.user)
+        self.routine_log.refresh_from_db()
+        self.assertTrue(self.routine_log.maintenance_logged)
+
+    def test_sync_sets_matched_schedule_id_on_maintenance(self):
+        from apps.life.services.routine_sync_service import sync_routine_from_maintenance
+        sync_routine_from_maintenance(self.schedule, self.maint_log, self.user)
+        self.maint_log.refresh_from_db()
+        self.assertEqual(self.maint_log.matched_schedule_id, self.schedule.pk)
+
+    def test_duplicate_sync_is_idempotent(self):
+        from apps.life.services.routine_sync_service import sync_routine_from_maintenance
+        sync_routine_from_maintenance(self.schedule, self.maint_log, self.user)
+        sync_routine_from_maintenance(self.schedule, self.maint_log, self.user)
+        self.routine_log.refresh_from_db()
+        self.assertTrue(self.routine_log.maintenance_logged)
+
+    def test_toggle_suppresses_prompt_after_sync(self):
+        """After maintenance_logged=True, toggle should NOT return maintenance_config."""
+        from apps.life.services.routine_sync_service import sync_routine_from_maintenance
+        sync_routine_from_maintenance(self.schedule, self.maint_log, self.user)
+        # Now toggle uncomplete and re-complete
+        self.client.login(email='sync@test.com', password='testpass123')
+        self.client.post(reverse('life:routine_toggle'), {'schedule_id': self.schedule.pk})
+        resp = self.client.post(reverse('life:routine_toggle'), {'schedule_id': self.schedule.pk})
+        data = resp.json()
+        # Should NOT get maintenance_config since maintenance was already logged
+        self.assertNotIn('maintenance_config', data)

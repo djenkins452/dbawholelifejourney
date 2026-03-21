@@ -2581,6 +2581,11 @@ class RoutineSchedule(models.Model):
         blank=True,
         help_text="Days until follow-up. Suggests follow_up_date on maintenance form.",
     )
+    last_maintenance_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date of last maintenance log created from this routine item.",
+    )
 
     class Meta:
         ordering = ["sort_order", "scheduled_time"]
@@ -2652,6 +2657,10 @@ class RoutineLog(UserOwnedModel):
     is_user_corrected = models.BooleanField(
         default=False,
         help_text="True when user has manually edited a past log",
+    )
+    maintenance_logged = models.BooleanField(
+        default=False,
+        help_text="True when maintenance was logged from this completion",
     )
 
     @property

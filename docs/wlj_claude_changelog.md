@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FEATURE: Routine → Maintenance Auto-Sync (close the loop)
+
+**Feature:** When a user saves a maintenance log from the routine bridge flow, the system automatically syncs without any extra user action.
+
+**Changes:**
+1. `last_maintenance_date` on RoutineSchedule — tracks when last maintenance was logged from this routine item
+2. `maintenance_logged` on RoutineLog — flags today's log as having triggered a maintenance entry
+3. New `routine_sync_service.py` — `sync_routine_from_maintenance()` sets last_maintenance_date, marks RoutineLog, and sets matched_schedule_id
+4. Wired into `MaintenanceLogCreateView.form_valid()` — automatically calls sync when `source=routine`
+5. Toggle view suppresses "Log maintenance?" prompt when already logged (checks both RoutineLog flag AND MaintenanceLog existence for today)
+6. Duplicate-safe: re-toggling doesn't re-prompt, sync is idempotent
+
+**Files:** `apps/life/models.py`, `apps/life/views.py`, `apps/life/services/routine_sync_service.py` (new), `apps/life/services/_routine_internal.py`, `apps/life/tests/test_routine_maintenance_bridge.py`, migration
+
+**Tests:** 18/18 pass
+
+---
+
 ## 2026-03-21 — FEATURE: Routine ↔ Maintenance Bridge (bidirectional)
 
 **Feature:** Connects routine completion to maintenance logging (both directions).

@@ -139,6 +139,7 @@ def get_todays_routine_items(user):
             'status': status,
             'is_completed': status == 'completed',
             'reschedule_count': reschedule_count,
+            'maintenance_logged': getattr(log, 'maintenance_logged', False) if log else False,
             # Maintenance bridge config
             'creates_maintenance_log': getattr(item, 'creates_maintenance_log', False),
             'maintenance_type': getattr(item, 'maintenance_type', ''),

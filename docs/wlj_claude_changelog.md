@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FIX: Remove all section headers/labels from context formatters
+
+Removed all bracket-style section headers from signal interpretation, momentum, daily context, and confidence/consistency formatters. No replacement labels — formatters now emit raw data lines only. Updated RULE 12 directive: "NEVER use section headers, labels, or numbered lists in responses. Write naturally."
+
+Files: `apps/core/ai_orchestrator/cos_context.py`
+
+---
+
 ## 2026-03-21 — FIX: State Integrity + Human CoS Correction
 
 **Problem:** Six integrity and UX issues:

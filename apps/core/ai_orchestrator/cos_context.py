@@ -3560,7 +3560,7 @@ def _format_signal_interpretation_summary(context):
     # Reverse needs_attention so lowest appears first (most urgent)
     needs_attention.reverse()
 
-    lines = ["[How things are tracking today]"]
+    lines = []
     if strong:
         lines.append(f"Going well: {', '.join(strong)}")
     if moderate:
@@ -3573,7 +3573,7 @@ def _format_signal_interpretation_summary(context):
         "pattern where...'). For weak items (< 40%), suggest rather than "
         "correct: 'Staying consistent this week will help keep things steady.'"
     )
-    lines.append("[end tracking summary]")
+    # (no closing label)
 
     return '\n'.join(lines)
 
@@ -3627,7 +3627,7 @@ def _format_momentum_interpretation(context):
         else:
             stable.append(entry)
 
-    lines = ["[Goal trajectory]"]
+    lines = []
 
     if rising:
         parts = []
@@ -3661,7 +3661,7 @@ def _format_momentum_interpretation(context):
         "Interpret momentum as trajectory: describe consistency, recovery, "
         "or drift — never expose raw scores."
     )
-    lines.append("[end goal trajectory]")
+    # (no closing label)
 
     return '\n'.join(lines)
 
@@ -3726,9 +3726,9 @@ def _format_daily_context_summary(context):
     if not parts:
         return ''
 
-    lines = ["[Today's snapshot]"]
+    lines = []
     lines.extend(parts)
-    lines.append("[end snapshot]")
+    # (no closing label)
 
     return '\n'.join(lines)
 
@@ -3924,7 +3924,7 @@ def _build_confidence_consistency_directive(context, user):
     if not domain_directives:
         return ''
 
-    lines = ["[How to calibrate your tone per domain]"]
+    lines = []
     lines.append(
         "Adapt your tone and directness per domain based on data coverage "
         "and behavioral consistency:"
@@ -3943,7 +3943,7 @@ def _build_confidence_consistency_directive(context, user):
         "just say 'Get your workout in.' "
         "If no meaningful gap or win exists, stay quiet on that domain."
     )
-    lines.append("[end tone calibration]")
+    # (no closing label)
 
     return '\n'.join(lines)
 
@@ -6041,8 +6041,8 @@ def format_cos_system_injection(context, user_message=None):
         "NEVER reference disabled behaviours. If a feature is not in the user\\'s "
         "signal data, it was disabled — do NOT mention it, coach on it, or "
         "include it in insights.\n"
-        "NEVER echo internal section headers. Labels like '[How things are tracking]' "
-        "or '[Goal trajectory]' are for YOUR context — never repeat them to the user.\n"
+        "NEVER use section headers, labels, or numbered lists in responses. "
+        "Write naturally as a person would speak.\n"
         "HUMANIZE: Connect actions to outcomes when natural. "
         "'Getting your workout in keeps your blood sugar steady.' "
         "Never: 'Based on your health metrics and patterns...'\n"

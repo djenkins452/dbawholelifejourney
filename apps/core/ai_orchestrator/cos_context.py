@@ -3134,20 +3134,19 @@ def _build_data_state_snapshot(user) -> str:
             _mstatus = "ALL TAKEN" if _ms.get('all_taken') else f"{_taken}/{_total}"
             lines.append(f"  {_label}: {_mstatus}")
 
-    # Routine health → prioritized actions (what should the user DO)
+    # Routine health → timed action recommendations (what + when)
     try:
-        from apps.life.services.routine_action_service import get_routine_actions_for_user
-        _routine_actions = get_routine_actions_for_user(user)
-        if _routine_actions:
+        from apps.life.services.action_time_service import get_timed_actions_for_user
+        _timed_actions = get_timed_actions_for_user(user)
+        if _timed_actions:
             lines.append("")
-            lines.append("ROUTINE MAINTENANCE ACTIONS:")
-            for ra in _routine_actions:
-                _p = ra['priority'].upper()
-                lines.append(f"  [{_p}] {ra['message']}")
+            lines.append("ROUTINE MAINTENANCE PLAN:")
+            for ta in _timed_actions:
+                lines.append(f"  {ta['guidance']}")
             lines.append(
-                "Mention the top action naturally when relevant. "
-                "Do NOT list all actions — pick the most important one "
-                "for the current conversation."
+                "Mention the top item naturally when relevant. "
+                "Suggest timing, don't command. Do NOT list all items "
+                "— pick the most important one for this conversation."
             )
     except Exception:
         pass

@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FEATURE: Routine Health & Drift Signals (intelligence layer)
+
+**Feature:** Signal service that evaluates routine health over time and injects signals into Beth's CoS context.
+
+**Signals detected:**
+1. `maintenance_overdue` — follow_up_days elapsed since last_maintenance_date (severity: medium/high)
+2. `drift` — 3+ of last 5 completions are late or skipped (severity: medium/high)
+3. `over_maintenance` — maintenance logged more frequently than follow_up_days allows (severity: low)
+4. `neglect` — bridge-enabled schedule with no activity for 2x follow_up_days (severity: high)
+
+**Integration:**
+- CoS context: ROUTINE HEALTH SIGNALS block injected after medication progress, capped at 5 signals, with directive to surface naturally (not as report)
+- Routine list view: `routine_health` dict in context, indexed by schedule_id for template badge lookup
+
+**Files:** `apps/life/services/routine_health_service.py` (new), `apps/core/ai_orchestrator/cos_context.py`, `apps/life/views.py`, `apps/life/tests/test_routine_health_service.py` (new)
+
+**Tests:** 11/11 health tests pass, 29/29 total (bridge + health)
+
+**Architecture:** Service layer only, no new models, no side effects, reads existing RoutineLog + MaintenanceLog data.
+
+---
+
 ## 2026-03-21 — FEATURE: Routine → Maintenance Auto-Sync (close the loop)
 
 **Feature:** When a user saves a maintenance log from the routine bridge flow, the system automatically syncs without any extra user action.

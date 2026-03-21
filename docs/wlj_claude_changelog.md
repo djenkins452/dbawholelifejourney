@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — REWRITE: CoS operational rules — unified voice directive
+
+Replaced the entire operational rules block (~250 lines of accumulated rules with stripped headers) with a single unified voice directive (~120 lines). Covers: identity, behavior modes (in-flow / on track / needs direction / off track), action eligibility, decision questions, reinforcement, question-type responses, missing data, tone calibration, hard restrictions, and target style. Written as natural prose, not labeled rules.
+
+Files: `apps/core/ai_orchestrator/cos_context.py`
+
+---
+
 ## 2026-03-21 — FIX: State normalization — single state per item before response
 
 Added STEP 0 STATE NORMALIZATION to REAL-TIME AWARENESS block. Before generating any text, Beth must assign each item exactly one state (completed / current / upcoming / overdue) based on deterministic rules, then use only that state in the response. No mixing states — an item cannot be both upcoming and overdue.

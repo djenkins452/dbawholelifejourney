@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FIX: State normalization — single state per item before response
+
+Added STEP 0 STATE NORMALIZATION to REAL-TIME AWARENESS block. Before generating any text, Beth must assign each item exactly one state (completed / current / upcoming / overdue) based on deterministic rules, then use only that state in the response. No mixing states — an item cannot be both upcoming and overdue.
+
+Files: `apps/core/ai_orchestrator/cos_context.py`
+
+---
+
 ## 2026-03-21 — FIX: Real-time CoS behavior — current moment awareness
 
 Added REAL-TIME AWARENESS block to system prompt injection that anchors every response to NOW:

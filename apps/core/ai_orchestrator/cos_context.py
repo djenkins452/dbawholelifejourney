@@ -4446,14 +4446,16 @@ def format_cos_system_injection(context, user_message=None):
         "'Operationally...', 'Your signal summary...', 'Momentum indicates...', "
         "'You are scheduled to...', 'Based on your data...', 'Your metrics show...', "
         "'According to your signals...', 'Your operational state...', "
-        "'Let me break this down...', 'Your routine compliance...'"
+        "'Let me break this down...', 'Your routine compliance...', "
+        "'Focus on the most important...', 'Fit this in when you can...', "
+        "'Consider doing...', 'Focus on something important...'"
     )
     lines.append(
-        "PREFERRED PHRASING — use patterns like: "
-        "'Start this now.', 'You're off to a solid start.', 'Here's what matters today.', "
+        "PREFERRED PHRASING — always be specific with item name and time: "
+        "'Start your workout at 6:15.', 'Do this after Bible reading.', "
+        "'Next, handle [specific task].', 'You're off to a solid start.', "
         "'Three things left.', 'This is your focus right now.', "
-        "'Nice — X is done.', 'X is slipping — want to adjust?', "
-        "'What would move the needle now is...'"
+        "'Nice — X is done.', 'X is slipping — want to adjust?'"
     )
     lines.append(
         "GOAL-LINKED COACHING: When referencing completed or pending items, "
@@ -5746,6 +5748,59 @@ def format_cos_system_injection(context, user_message=None):
             lines.extend(_exec_lines)
         except Exception:
             pass  # Execution status must never break CoS
+
+    # ── Real-Time Awareness (anchors every response to NOW) ──
+    lines.append("")
+    lines.append(
+        "REAL-TIME AWARENESS (applies to EVERY response):\n"
+        "\n"
+        "Before responding, determine the user's current moment:\n"
+        "\n"
+        "1. ACTIVE WINDOW CHECK: Look at the action priorities and routine items. "
+        "If the current time falls inside a scheduled activity window (prayer, "
+        "bible reading, workout, or any routine item), the user is IN that "
+        "activity right now. Acknowledge it and reinforce — do NOT interrupt "
+        "with unrelated priorities or coaching. Say something like: "
+        "'You\\'re in your prayer time right now — stay there.'\n"
+        "\n"
+        "2. NEXT ACTION: Always identify the next scheduled item within roughly "
+        "60 minutes. State it specifically: 'Bible reading starts in a couple "
+        "minutes.' or 'Your workout is at 6:15.' Never say 'focus on something "
+        "important' — name the specific item and time.\n"
+        "\n"
+        "3. OVERDUE RULE: An item is ONLY overdue if current_time is past its "
+        "scheduled_time plus any grace period. If it is scheduled for later "
+        "today, it is UPCOMING — not overdue, not missed. If nothing is "
+        "overdue, say 'Nothing is overdue right now.'\n"
+        "\n"
+        "4. SINGLE NEXT ACTION: When suggesting what to do, pick ONE item — "
+        "the highest-priority actionable item. Do not list multiple options. "
+        "Do not delegate the decision back to the user. Say: "
+        "'Next, handle [specific task].' not 'Focus on your priorities.'\n"
+        "\n"
+        "5. IN-MOMENT FILTERING: While the user is inside an active time block, "
+        "do NOT surface prayer request counts, long-term summaries, or "
+        "non-time-relevant information. Keep it tight to what matters NOW.\n"
+        "\n"
+        "6. RESPONSE ORDER: Always structure your response as:\n"
+        "   - Current moment (what they\\'re doing or should start)\n"
+        "   - Next step (what comes after)\n"
+        "   - Quick status (only if directly relevant)\n"
+        "\n"
+        "NEVER use these phrases:\n"
+        "  'Focus on the most important'\n"
+        "  'Fit this in when you can'\n"
+        "  'Consider doing'\n"
+        "  'Focus on something important'\n"
+        "ALWAYS be specific with time and item name.\n"
+        "\n"
+        "EXAMPLE of correct real-time response:\n"
+        "  'You\\'re in your prayer time right now — stay there. "
+        "Bible reading starts in a couple minutes. After that, go straight "
+        "into your workout at 6:15. Nothing is overdue. Your medications "
+        "are scheduled for 9:00.'"
+    )
+    lines.append("")
 
     # ── v6: Consolidated CoS Operational Rules ──
     lines.append("")

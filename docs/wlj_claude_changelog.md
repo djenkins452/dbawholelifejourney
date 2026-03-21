@@ -6,6 +6,31 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FEATURE: Routine ↔ Maintenance Bridge (bidirectional)
+
+**Feature:** Connects routine completion to maintenance logging (both directions).
+
+**Part A — Routine → Maintenance:**
+- 5 new fields on RoutineSchedule: `creates_maintenance_log`, `maintenance_type`, `maintenance_area`, `default_maintenance_title`, `follow_up_days`
+- On completion, toggle response includes `maintenance_config` → frontend shows "Log maintenance?" prompt
+- "Yes" redirects to prefilled MaintenanceLogCreateView (title, type, area, follow-up date)
+- Wrench icon on completed items with bridge enabled → links to redirect view
+- Routine form template: collapsible maintenance bridge config section
+
+**Part B — Maintenance → Routine matching:**
+- New `maintenance_routine_matcher.py` service — score-based matching (area +40, type +30, title +30)
+- After manual maintenance log creation, matcher runs and suggests matching routines
+- Match review page shows suggestions with "Link" buttons
+- Sync endpoint sets `matched_schedule_id` on MaintenanceLog (soft reference, not FK)
+
+**Model changes:** `matched_schedule_id` on MaintenanceLog, `created_via='routine'` choice on UserOwnedModel
+
+**Files:** `apps/core/models.py`, `apps/life/models.py`, `apps/life/forms.py`, `apps/life/views.py`, `apps/life/urls.py`, `apps/life/services/_routine_internal.py`, `apps/life/services/maintenance_routine_matcher.py` (new), `templates/life/routine_form.html`, `templates/life/routine_list.html`, `templates/life/maintenance_match_review.html` (new), `apps/life/tests/test_routine_maintenance_bridge.py` (new)
+
+**Tests:** 13/13 pass
+
+---
+
 ## 2026-03-21 — FIX: Current moment detection — routines now get time-based urgency
 
 **Problem:** Routine items were always classified as urgency="next" regardless of scheduled time. At 7:09 AM with Workout scheduled at 7:00, Beth said "no tasks scheduled" instead of "you should be in your workout right now."

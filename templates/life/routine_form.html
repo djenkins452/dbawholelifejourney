@@ -100,6 +100,36 @@
                         </div>
                     </div>
 
+                    <!-- Maintenance Bridge -->
+                    <div class="maintenance-bridge-section" style="margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px dashed var(--color-border);">
+                        <label style="display: flex; align-items: center; gap: var(--space-2); min-height: 44px; cursor: pointer;">
+                            {{ sform.creates_maintenance_log }}
+                            <span style="font-weight: 500; font-size: var(--font-size-sm);">Creates maintenance log on completion</span>
+                        </label>
+                        <div class="maintenance-fields" style="display: none; margin-top: var(--space-3);">
+                            <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
+                                <div class="form-group" style="flex: 1; min-width: 150px;">
+                                    <label class="form-label text-sm">Title</label>
+                                    {{ sform.default_maintenance_title }}
+                                </div>
+                                <div class="form-group" style="flex: 0 0 140px;">
+                                    <label class="form-label text-sm">Type</label>
+                                    {{ sform.maintenance_type }}
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
+                                <div class="form-group" style="flex: 1; min-width: 150px;">
+                                    <label class="form-label text-sm">Area</label>
+                                    {{ sform.maintenance_area }}
+                                </div>
+                                <div class="form-group" style="flex: 0 0 120px;">
+                                    <label class="form-label text-sm">Follow-up (days)</label>
+                                    {{ sform.follow_up_days }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div style="display: flex; align-items: center; gap: var(--space-4);">
                         {% if sform.instance.pk %}
                         <div class="form-group" style="margin: 0;">
@@ -237,14 +267,40 @@
             var orderInput = newItem.querySelector('[name$="-sort_order"]');
             if (orderInput) orderInput.value = '0';
 
+            // Clear maintenance bridge fields on clone
+            var maintenanceToggle = newItem.querySelector('.maintenance-bridge-toggle');
+            if (maintenanceToggle) maintenanceToggle.checked = false;
+            newItem.querySelectorAll('.maintenance-fields input[type="text"], .maintenance-fields input[type="number"]').forEach(function(el) {
+                el.value = '';
+            });
+
             container.appendChild(newItem);
             totalForms.value = count + 1;
+
+            // Re-init maintenance bridge visibility for cloned item
+            initMaintenanceBridgeToggles(newItem);
 
             // Focus the name field
             var nameInput = newItem.querySelector('[name$="-name"]');
             if (nameInput) nameInput.focus();
         });
     }
+
+    // Maintenance bridge: show/hide fields based on checkbox
+    function initMaintenanceBridgeToggles(scope) {
+        var root = scope || document;
+        root.querySelectorAll('.maintenance-bridge-toggle').forEach(function(toggle) {
+            var section = toggle.closest('.maintenance-bridge-section');
+            var fields = section ? section.querySelector('.maintenance-fields') : null;
+            if (!fields) return;
+            function updateVisibility() {
+                fields.style.display = toggle.checked ? 'block' : 'none';
+            }
+            updateVisibility();
+            toggle.addEventListener('change', updateVisibility);
+        });
+    }
+    initMaintenanceBridgeToggles();
 })();
 </script>
 {% endblock %}

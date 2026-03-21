@@ -1990,17 +1990,24 @@ class MaintenanceLogCreateView(LifeAccessMixin, CreateView):
     ]
 
     def get_initial(self):
-        """Pre-populate form with defaults and query parameters (for AI Camera scan)."""
+        """Pre-populate form with defaults and query parameters.
+
+        Supports prefill from:
+        - AI Camera scan (source=ai_camera)
+        - Routine completion bridge (source=routine)
+        """
         initial = super().get_initial()
         # Set default date to user's local date
         initial['date'] = get_user_today(self.request.user)
-        # Support prefill from Camera Scan feature
+        # Support prefill from Camera Scan and Routine Bridge
         if self.request.GET.get('title'):
             initial['title'] = self.request.GET.get('title')
         if self.request.GET.get('area'):
             initial['area'] = self.request.GET.get('area')
         if self.request.GET.get('log_type'):
             initial['log_type'] = self.request.GET.get('log_type')
+        if self.request.GET.get('follow_up_date'):
+            initial['follow_up_date'] = self.request.GET.get('follow_up_date')
         return initial
 
     def get_form(self, form_class=None):
@@ -2012,14 +2019,41 @@ class MaintenanceLogCreateView(LifeAccessMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.user = self.request.user
-        # Track if created via AI Camera scan
         source = self.request.GET.get('source')
         if source == 'ai_camera':
             form.instance.created_via = MaintenanceLog.CREATED_VIA_AI_CAMERA
+        elif source == 'routine':
+            form.instance.created_via = MaintenanceLog.CREATED_VIA_ROUTINE
+            # Set soft reference to the originating schedule
+            _sched_id = self.request.GET.get('schedule_id')
+            if _sched_id and _sched_id.isdigit():
+                form.instance.matched_schedule_id = int(_sched_id)
+
+        response = super().form_valid(form)
+
+        # Part B: Check for matching routines and store in session
+        try:
+            from apps.life.services.maintenance_routine_matcher import find_matching_routines
+            matches = find_matching_routines(self.object, self.request.user)
+            if matches and source != 'routine':
+                # Don't suggest matching if already coming from a routine
+                self.request.session['maintenance_matches'] = {
+                    'log_id': self.object.pk,
+                    'matches': matches,
+                }
+        except Exception:
+            pass
+
         messages.success(self.request, f"Maintenance log '{form.instance.title}' added.")
-        return super().form_valid(form)
+        return response
 
     def get_success_url(self):
+        matches = self.request.session.get('maintenance_matches')
+        if matches and matches.get('log_id') == self.object.pk:
+            return reverse(
+                'life:maintenance_match_review',
+                kwargs={'pk': self.object.pk},
+            )
         return reverse('life:maintenance_list')
 
 
@@ -2055,6 +2089,51 @@ class MaintenanceLogDeleteView(LifeAccessMixin, DeleteView):
     
     def get_queryset(self):
         return MaintenanceLog.objects.filter(user=self.request.user)
+
+
+class MaintenanceMatchReviewView(LifeAccessMixin, DetailView):
+    """Show matching routine suggestions after creating a maintenance log."""
+    model = MaintenanceLog
+    template_name = "life/maintenance_match_review.html"
+    context_object_name = "log"
+
+    def get_queryset(self):
+        return MaintenanceLog.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        session_data = self.request.session.pop('maintenance_matches', None)
+        if session_data and session_data.get('log_id') == self.object.pk:
+            ctx['matches'] = session_data['matches']
+        else:
+            ctx['matches'] = []
+        return ctx
+
+
+class MaintenanceSyncRoutineView(LifeAccessMixin, View):
+    """Link a maintenance log to a routine schedule (user-confirmed).
+
+    Sets the soft reference matched_schedule_id on the maintenance log.
+    Does NOT create RoutineLog or modify past logs.
+    """
+
+    def post(self, request, pk, schedule_id):
+        log = get_object_or_404(
+            MaintenanceLog, pk=pk, user=request.user,
+        )
+        schedule = get_object_or_404(
+            RoutineSchedule.objects.select_related('routine'),
+            pk=schedule_id,
+            routine__user=request.user,
+        )
+        log.matched_schedule_id = schedule.pk
+        log.save(update_fields=['matched_schedule_id'])
+
+        messages.success(
+            request,
+            f"Linked '{log.title}' to routine '{schedule.name}'.",
+        )
+        return redirect('life:maintenance_detail', pk=log.pk)
 
 
 # =============================================================================
@@ -3466,12 +3545,73 @@ class RoutineToggleView(LifeAccessMixin, View):
         # Rebuild SAE execution state so CoS sees updated routine completion
         _invalidate_routine_caches(request.user)
 
-        return JsonResponse({
+        response_data = {
             'success': True,
             'schedule_id': int(schedule_id),
             'status': result['status'],
             'is_completed': result['is_completed'],
-        })
+        }
+
+        # Include maintenance bridge config when item is completed and bridge
+        # is enabled — the frontend shows "Log maintenance?" prompt.
+        if result['is_completed'] and schedule.creates_maintenance_log:
+            from datetime import timedelta
+            follow_up_date = ''
+            if schedule.follow_up_days:
+                follow_up_date = (
+                    target_date + timedelta(days=schedule.follow_up_days)
+                ).isoformat()
+            response_data['maintenance_config'] = {
+                'title': schedule.default_maintenance_title or schedule.name,
+                'log_type': schedule.maintenance_type or 'maintenance',
+                'area': schedule.maintenance_area or '',
+                'follow_up_date': follow_up_date,
+                'schedule_id': int(schedule_id),
+            }
+
+        return JsonResponse(response_data)
+
+
+class RoutineToMaintenanceView(LifeAccessMixin, View):
+    """Redirect from routine completion to prefilled maintenance form.
+
+    Builds query params from the schedule's bridge config and redirects
+    to the existing MaintenanceLogCreateView. Used by the "convert to
+    maintenance" wrench icon on completed routine items.
+    """
+
+    def get(self, request, schedule_id):
+        schedule = get_object_or_404(
+            RoutineSchedule.objects.select_related('routine'),
+            pk=schedule_id,
+            routine__user=request.user,
+        )
+        if not schedule.creates_maintenance_log:
+            messages.warning(
+                request,
+                "This routine item is not configured for maintenance logging.",
+            )
+            return redirect('life:routine_list')
+
+        from datetime import timedelta
+        from apps.core.utils import get_user_today
+        from urllib.parse import urlencode
+
+        params = {
+            'title': schedule.default_maintenance_title or schedule.name,
+            'log_type': schedule.maintenance_type or 'maintenance',
+            'area': schedule.maintenance_area or '',
+            'source': 'routine',
+            'schedule_id': str(schedule.pk),
+        }
+        if schedule.follow_up_days:
+            user_today = get_user_today(request.user)
+            params['follow_up_date'] = (
+                user_today + timedelta(days=schedule.follow_up_days)
+            ).isoformat()
+
+        url = reverse('life:maintenance_create') + '?' + urlencode(params)
+        return redirect(url)
 
 
 class RoutineSkipView(LifeAccessMixin, View):

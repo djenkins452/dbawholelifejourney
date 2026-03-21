@@ -139,6 +139,12 @@ def get_todays_routine_items(user):
             'status': status,
             'is_completed': status == 'completed',
             'reschedule_count': reschedule_count,
+            # Maintenance bridge config
+            'creates_maintenance_log': getattr(item, 'creates_maintenance_log', False),
+            'maintenance_type': getattr(item, 'maintenance_type', ''),
+            'maintenance_area': getattr(item, 'maintenance_area', ''),
+            'default_maintenance_title': getattr(item, 'default_maintenance_title', '') or item.name,
+            'follow_up_days': getattr(item, 'follow_up_days', None),
         }
 
         window = routine.time_of_day or 'other'

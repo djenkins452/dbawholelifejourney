@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Maintenance Logged{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 600px; margin: 0 auto; padding: var(--space-6) var(--space-4);">
+
+    <div style="text-align: center; margin-bottom: var(--space-6);">
+        <div style="font-size: 2rem; margin-bottom: var(--space-2);">&#10003;</div>
+        <h2 style="margin: 0 0 var(--space-2);">Maintenance Logged</h2>
+        <p style="color: var(--color-text-muted);">{{ log.title }} &mdash; {{ log.date }}</p>
+    </div>
+
+    {% if matches %}
+    <div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4);">
+        <h3 style="margin: 0 0 var(--space-3); font-size: var(--font-size-base);">Update related routine?</h3>
+        <p style="color: var(--color-text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-4);">
+            We found routine items that may relate to this maintenance log.
+        </p>
+
+        {% for match in matches %}
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); margin-bottom: var(--space-2); gap: var(--space-3);">
+            <div style="flex: 1; min-width: 0;">
+                <div style="font-weight: 500;">{{ match.schedule_name }}</div>
+                <div style="font-size: var(--font-size-sm); color: var(--color-text-muted);">
+                    {{ match.routine_name }} &mdash; {{ match.reason }}
+                </div>
+            </div>
+            <form method="post" action="{% url 'life:maintenance_sync_routine' log.pk match.schedule_id %}" style="flex-shrink: 0;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-primary" style="min-width: 44px; min-height: 44px;">
+                    Link
+                </button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div style="text-align: center;">
+        <a href="{% url 'life:maintenance_detail' log.pk %}" class="btn btn-ghost" style="min-height: 44px;">
+            {% if matches %}No thanks &mdash; view log{% else %}View log{% endif %}
+        </a>
+    </div>
+</div>
+{% endblock %}

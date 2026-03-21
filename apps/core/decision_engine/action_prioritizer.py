@@ -127,9 +127,27 @@ def build_action_priorities(
 
     # ── Pending routines ──
     for item in (pending_routines or []):
+        # Classify urgency from scheduled time (if available) instead
+        # of always defaulting to "next". Routine items use a wider
+        # "now" window (45 min past scheduled time) because routines
+        # represent activity blocks, not point-in-time deadlines.
+        _r_time = item.get("time")
+        _r_overdue = item.get("is_overdue", False)
+        if _r_time and not _r_overdue:
+            _r_delta = time_diff_minutes(now_time, _r_time)
+            if -45 <= _r_delta <= 30:
+                _r_urgency = "now"
+            elif _r_delta < -45:
+                _r_urgency = "next"  # Past window but not flagged overdue
+            elif _r_delta <= 120:
+                _r_urgency = "next"
+            else:
+                _r_urgency = "upcoming"
+        else:
+            _r_urgency = classify_urgency(_r_time, _r_overdue, now_time)
         action = {
             "source": "routine",
-            "urgency": "next",
+            "urgency": _r_urgency,
             "type": "task",
             "pk": item["pk"],
             "title": item["title"],
@@ -139,7 +157,7 @@ def build_action_priorities(
             "commitment_level": item.get("commitment_level", ""),
             "goal_name": item.get("goal_name", ""),
             "time_of_day": None,
-            "time_display": "",
+            "time_display": item.get("time_display", ""),
         }
         if item.get("toggle_url"):
             action["toggle_url"] = item["toggle_url"]
@@ -238,6 +256,10 @@ def prioritize_execution_items(execution_items, current_time, summaries=None):
                 'is_all_day': False,
             })
         elif item['source_type'] == 'routine_item':
+            # Pass scheduled_time so routines get proper urgency
+            # classification (now/next/upcoming) instead of always "next"
+            _routine_time = _parse_time(item.get('scheduled_time'))
+            _routine_overdue = item.get('time_status') == 'overdue'
             pending_routines.append({
                 'pk': item['source_id'],
                 'title': item['title'],
@@ -246,6 +268,9 @@ def prioritize_execution_items(execution_items, current_time, summaries=None):
                 'commitment_level': item.get('importance', 'flexible'),
                 'goal_name': item.get('parent_title', ''),
                 'toggle_url': item.get('toggle_url', ''),
+                'time': _routine_time,
+                'time_display': item.get('scheduled_time', ''),
+                'is_overdue': _routine_overdue,
             })
         elif item['source_type'] == 'medication_dose':
             window = item.get('execution_group_id', 'unscheduled')

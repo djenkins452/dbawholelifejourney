@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FIX: Current moment detection — routines now get time-based urgency
+
+**Problem:** Routine items were always classified as urgency="next" regardless of scheduled time. At 7:09 AM with Workout scheduled at 7:00, Beth said "no tasks scheduled" instead of "you should be in your workout right now."
+
+**Root cause:** `action_prioritizer.py` hardcoded `"urgency": "next"` for all routine items (line 132) and didn't pass `scheduled_time` from the execution contract to the routine dict.
+
+**Fixes:**
+1. `prioritize_execution_items()` adapter now passes `scheduled_time`, `time_display`, and `is_overdue` for routine items
+2. `build_action_priorities()` uses time-based urgency for routines with a 45-min-past / 30-min-ahead "now" window (wider than the 5-min task window because routines are activity blocks)
+3. Added "RIGHT NOW" / "NEXT UP" block to CoS context — explicitly tells Beth what the user should be doing at this moment based on urgency classification
+4. Action priorities now show time for each item
+
+**Files:** `apps/core/decision_engine/action_prioritizer.py`, `apps/core/ai_orchestrator/cos_context.py`
+**Tests:** 20/20 pass
+
+**Before:** At 7:09 AM with workout at 7:00 → "You don't have anything scheduled right now."
+**After:** At 7:09 AM with workout at 7:00 → "RIGHT NOW: Workout (07:00) — you should be in your workout."
+
+---
+
 ## 2026-03-21 — FIX: Complete overdue medication fix — missing pattern + formatter guard
 
 **Why it was still broken:** Three compounding issues:

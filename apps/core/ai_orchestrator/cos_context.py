@@ -3044,19 +3044,22 @@ def _build_data_state_snapshot(user) -> str:
             "not judgment. Ask what's blocking them if they bring it up."
         )
 
-    # ── Daily Execution Status (from authoritative execution contract) ──
-    # Reads from the single execution contract — both summaries and domain truth.
+    # ── Daily Execution Status (FRESH — never from cache) ──
+    # CRITICAL: Build execution contract FRESH on every request to prevent
+    # stale cache from causing Beth to fabricate completions. The SAE cache
+    # can be minutes behind reality. This is the #1 trust issue.
     try:
-        from apps.core.ai_state.state_engine import get_module_state as _get_mod_state
-        _exec_contract = _get_mod_state(user, 'execution') or {}
+        from apps.core.execution.today_execution import build_today_execution
+        _exec_contract = build_today_execution(user)
         _exec_summaries = _exec_contract.get('summaries', {})
         _exec_domains = _exec_summaries.get('domains', {})
     except Exception:
+        _exec_contract = {}
         _exec_summaries = {}
         _exec_domains = {}
 
     lines.append("")
-    lines.append("DAILY EXECUTION STATUS (AUTHORITATIVE — today only):")
+    lines.append("DAILY EXECUTION STATUS (AUTHORITATIVE — today only, live query):")
     _domain_fields = [
         ('journal', _exec_domains.get('journal', False)),
         ('workout', _exec_domains.get('workout', False)),
@@ -3213,19 +3216,17 @@ def _build_data_state_snapshot(user) -> str:
     )
 
     # ── Unified Action Priorities from Execution Contract ──
-    # Reads from the SINGLE authoritative execution contract (SAE 'execution' module).
-    # Both Dashboard V2 and CoS use the same contract — no separate normalization.
+    # Uses the FRESH execution contract built above (not SAE cache).
     try:
         from apps.core.decision_engine.action_prioritizer import prioritize_execution_items
-        from apps.core.ai_state.state_engine import get_module_state
         from apps.core.utils import get_user_now
 
         user_now = get_user_now(user)
         current_time = user_now.time()
 
-        exec_state = get_module_state(user, 'execution') or {}
-        exec_items = exec_state.get('items', [])
-        exec_summaries = exec_state.get('summaries', {})
+        # Reuse the fresh contract built in the Daily Execution Status block
+        exec_items = _exec_contract.get('items', [])
+        exec_summaries = _exec_contract.get('summaries', {})
 
         action_priorities = prioritize_execution_items(
             exec_items, current_time, summaries=exec_summaries,
@@ -5485,17 +5486,20 @@ def format_cos_system_injection(context, user_message=None):
     faith = context.get('faith_summary', {})
     if faith and (faith.get('active_prayers', 0) > 0 or faith.get('answered_prayers', 0) > 0):
         lines.append("")
-        # Check execution contract for today's faith completion
+        # Check faith engagement LIVE (never from SAE cache — trust issue)
         _faith_done_today = False
         _prayer_done_today = False
         _bible_done_today = False
         try:
-            from apps.core.ai_state.state_engine import get_module_state as _faith_mod
-            _f_exec = _faith_mod(context.get('_user'), 'execution') or {}
-            _f_domains = _f_exec.get('summaries', {}).get('domains', {})
-            _faith_done_today = _f_domains.get('faith_engaged', False)
-            _prayer_done_today = _f_domains.get('prayer', False)
-            _bible_done_today = _f_domains.get('bible_reading', False)
+            from apps.faith.engagement import get_faith_engagement_details as _get_faith
+            from apps.core.utils import get_user_today as _get_faith_today
+            _faith_user = context.get('_user')
+            if _faith_user:
+                _faith_today = _get_faith_today(_faith_user)
+                _faith_details = _get_faith(_faith_user, _faith_today)
+                _bible_done_today = _faith_details.get('reading_completed_today', False)
+                _prayer_done_today = _faith_details.get('faith_task_completed_today', False)
+                _faith_done_today = _faith_details.get('faith_engaged_today', False)
         except Exception:
             pass
 

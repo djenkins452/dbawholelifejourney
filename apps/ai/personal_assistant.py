@@ -3340,7 +3340,11 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                 )
                 today = get_user_today(self.user)
                 user_now = get_user_now(self.user)
-                current_time = timezone.now().time()  # Define early — used by task priority scoring
+                # CRITICAL: Use user's LOCAL time, not UTC. Schedule times
+                # in the DB are naive local times. At 6:25 AM Eastern,
+                # timezone.now().time() returns 10:25 UTC which falsely marks
+                # 9:00 AM meds as overdue.
+                current_time = user_now.time()
 
                 faith = state.get('faith', {})
                 health = state.get('health', {})

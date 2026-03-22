@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — CoS Domain Label Correction: Health → Workout
+
+**Problem:** CoS used "Health" as a domain label in behavioral directives, but only workout data was behind it. This over-generalized single-domain data into a broader concept.
+
+**Fix:** Renamed `_BEHAVIORAL_DOMAINS['health']['label']` from "Health" to "Workout". Added NOT SCHEDULED state to DAILY EXECUTION STATUS for non-expected domains. Completion rate in execution status now only counts expected domains.
+
+**Files changed:** `apps/core/ai_orchestrator/cos_context.py`
+
+---
+
 ## 2026-03-22 — Execution Truth Engine: Expectation Awareness (Phase 1.5)
 
 **Root cause:** The engine correctly tracked what was COMPLETED but had no concept of what was EXPECTED today. All domains (workout, journal, faith) were hardcoded as always expected. This caused "Workout is not yet completed" on days where no workout was scheduled.

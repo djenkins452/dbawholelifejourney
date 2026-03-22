@@ -3190,6 +3190,13 @@ def _build_data_state_snapshot(user) -> str:
         "    - If partially complete → state exact count: '2 of 5 completed'.\n"
         "    - NEVER use 'looks like', 'seems like', or 'appears' for completion.\n"
         "    - When in doubt → default to NOT completed.\n"
+        "  • CONVERSATION ≠ EXECUTION (HARD RULE):\n"
+        "    - Talking about an activity is NOT the same as completing it.\n"
+        "    - If the user discussed doing something but it is NOT in the\n"
+        "      execution data → it is NOT completed.\n"
+        "    - NEVER say 'productive day' or 'wrapped up' based on conversation.\n"
+        "    - Day summaries MUST come from execution data only.\n"
+        "    - If activity was mentioned but not logged, suggest logging it.\n"
         "  • TIME-AWARE RULE: If an item is scheduled for LATER today and not\n"
         "    yet marked complete, it is UPCOMING — not missed, not done.\n"
         "    Say 'coming up at X' not 'you haven't done X yet'.\n"
@@ -4404,18 +4411,21 @@ def format_cos_system_injection(context, user_message=None):
     affirmed = context.get('affirmed_completions', {})
     if affirmed:
         lines.append("")
-        lines.append("")
         lines.append(
-            "The user has STATED they already completed these activities. "
-            "Do NOT re-prompt, remind, nudge, or ask about them again in "
-            "this conversation. Trust the user's word — they are the "
-            "authority on what they have done."
+            "USER-MENTIONED ACTIVITIES (suppress reminders only):\n"
+            "The user SAID they did these — stop reminding about them.\n"
+            "BUT these are NOT logged in WLJ execution data.\n"
+            "CRITICAL: Do NOT count these as 'completed' in any summary,\n"
+            "status report, or day review. They are UNVERIFIED.\n"
+            "When summarizing the day, ONLY count items marked DONE/COMPLETED\n"
+            "in the DAILY EXECUTION STATUS section above.\n"
+            "If the user asks 'what have I done today?', answer from execution\n"
+            "data only. You MAY add: 'You also mentioned [X] — want me to log it?'"
         )
         lines.append("")
         for activity_type, affirmed_at in affirmed.items():
-            # Show just the time portion for readability
             time_part = affirmed_at.split('T')[1][:5] if 'T' in affirmed_at else affirmed_at
-            lines.append(f"  - {activity_type} (affirmed at {time_part})")
+            lines.append(f"  - {activity_type} (mentioned at {time_part} — NOT LOGGED)")
         lines.append("")
         lines.append(
             "If the user explicitly asks you to RECORD or LOG the "

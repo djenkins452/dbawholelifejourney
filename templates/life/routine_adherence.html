@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Adherence Details — Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: var(--content-max-width, 800px); margin: 0 auto; padding: var(--space-4);">
+
+    <div class="page-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-6);">
+        <div>
+            <h1 style="margin: 0; font-size: var(--font-size-xl);">Adherence Details</h1>
+            <p class="text-muted" style="margin: var(--space-1) 0 0;">Last 7 days</p>
+        </div>
+        <a href="{% url 'life:routine_list' %}" class="btn btn-sm btn-secondary">Back to Routines</a>
+    </div>
+
+    {% if adherence.score != None %}
+    {# Score summary #}
+    <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+        <div style="display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-3);">
+            <span style="font-size: 2rem; font-weight: 700;
+                {% if adherence.score >= 75 %}color: var(--color-success);
+                {% elif adherence.score >= 40 %}color: var(--color-warning, #e67e22);
+                {% else %}color: var(--color-error);{% endif %}
+            ">{{ adherence.score|floatformat:0 }}%</span>
+            {% if adherence.delta != 0 %}
+            <span style="font-size: var(--font-size-sm); font-weight: 600;
+                {% if adherence.delta > 0 %}color: var(--color-success);
+                {% else %}color: var(--color-error);{% endif %}
+            ">{% if adherence.delta > 0 %}&#x2191; +{{ adherence.delta }}{% else %}&#x2193; {{ adherence.delta }}{% endif %} from yesterday</span>
+            {% endif %}
+        </div>
+        <div class="text-muted" style="font-size: var(--font-size-sm);">
+            {{ adherence.total_completed }}/{{ adherence.total_expected }} actions completed this week
+        </div>
+
+        {% if adherence.fastest_path %}
+        <div style="margin-top: var(--space-4); padding: var(--space-3) var(--space-4); background: var(--color-surface-raised, var(--color-bg)); border-radius: var(--radius-md, 8px); border-left: 3px solid var(--color-accent);">
+            <div style="font-size: var(--font-size-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Best Move</div>
+            <div style="font-weight: 600; margin-top: var(--space-1);">
+                {{ adherence.fastest_path.action }}
+                <span style="color: var(--color-success);">&#x2192; {{ adherence.fastest_path.projected_score }}%</span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# Missed items grouped by routine/domain #}
+    {% if missed_groups %}
+    <h2 style="font-size: var(--font-size-lg); margin-bottom: var(--space-4);">What Was Missed</h2>
+
+    {% for group in missed_groups %}
+    <div class="card" style="margin-bottom: var(--space-3); padding: var(--space-4);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
+            <h3 style="margin: 0; font-size: var(--font-size-base); font-weight: 600;">{{ group.group }}</h3>
+            <span style="font-size: var(--font-size-sm); font-weight: 600; color: var(--color-error);">{{ group.total_missed }} missed</span>
+        </div>
+        {% for item in group.items %}
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0;
+            {% if not forloop.last %}border-bottom: 1px solid var(--color-border);{% endif %}">
+            <span style="font-size: var(--font-size-sm);">{{ item.name }}</span>
+            <span class="text-muted" style="font-size: var(--font-size-sm);">
+                {{ item.missed }}/{{ item.total }} missed
+            </span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+
+    {% else %}
+    <div class="card" style="padding: var(--space-6); text-align: center;">
+        <p class="text-muted" style="margin: 0;">No missed items this week. Great job!</p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

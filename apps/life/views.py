@@ -3667,6 +3667,20 @@ class RoutineToMaintenanceView(LifeAccessMixin, View):
         return redirect(url)
 
 
+class RoutineAdherenceView(HelpContextMixin, LifeAccessMixin, TemplateView):
+    """7-day adherence drilldown — shows per-item missed details."""
+    template_name = "life/routine_adherence.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.core.behavior.behavior_score_engine import (
+            compute_adherence_summary, get_missed_items_detail,
+        )
+        context['adherence'] = compute_adherence_summary(self.request.user)
+        context['missed_groups'] = get_missed_items_detail(self.request.user)
+        return context
+
+
 class RoutineSkipView(LifeAccessMixin, View):
     """Mark a routine schedule as skipped for a given date.
 

@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FEATURE: Fastest Path (max score impact engine)
+
+**Feature:** Identifies the single action that increases the 7-day adherence score the most. Groups routine blocks and medication windows as single candidates for accurate impact scoring.
+
+**Output:** `fastest_path: {action: "Morning Routine", impact: 10, projected_score: 74, source: "routine"}`
+
+**How it works:**
+1. Reads today's pending execution items (actionable, not completed)
+2. Groups routine items by parent routine, medication doses by window
+3. Scores each candidate: `count × (100 / total_expected_7d)`
+4. Returns the highest-impact candidate with projected new score
+
+**CoS injection:** `BEST MOVE: Complete Morning Routine → +10% → 74%`
+**Beth directive:** Lead with BEST MOVE action, reference score impact.
+
+**Files:** `apps/core/behavior/behavior_score_engine.py` (_compute_fastest_path), `apps/core/ai_orchestrator/cos_context.py`
+
+---
+
 ## 2026-03-21 — FEATURE: 7-Day Adherence Score (replace momentum narrative)
 
 **Feature:** Concrete 7-day adherence score with delta and gap analysis, replacing vague "momentum" language in Beth's context.

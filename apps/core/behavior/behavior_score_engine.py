@@ -222,6 +222,13 @@ def compute_adherence_summary(user):
             domain_label = _domain_labels.get(d['domain'], d['domain'])
             top_gap = f"Missed {missed} {domain_label} this week"
 
+    # ── Fastest path: single highest-impact action ──
+    fastest_path = None
+    if total_expected > 0 and current_score is not None:
+        fastest_path = _compute_fastest_path(
+            user, today, current_score, total_expected, total_completed,
+        )
+
     return {
         'score': current_score,
         'delta': delta,
@@ -232,4 +239,103 @@ def compute_adherence_summary(user):
         'weakest': current.get('weakest_domain'),
         'total_expected': total_expected,
         'total_completed': total_completed,
+        'fastest_path': fastest_path,
+    }
+
+
+def _compute_fastest_path(user, today, current_score, total_expected, total_completed):
+    """
+    Find the single action that increases adherence score the most.
+
+    Reads today's pending execution items and calculates per-item impact
+    on the 7-day adherence score. For routine blocks (multiple items in
+    one routine), groups them as a single action with combined impact.
+
+    Returns:
+        dict: {
+            'action': str — action title,
+            'impact': int — percentage points gained,
+            'projected_score': int — new score after completion,
+            'source': str — 'routine', 'task', 'medicine', etc.
+        }
+        or None if no actionable items
+    """
+    try:
+        from apps.core.execution.today_execution import build_today_execution
+    except ImportError:
+        return None
+
+    exec_data = build_today_execution(user)
+    items = exec_data.get('items', [])
+
+    if not items or total_expected == 0:
+        return None
+
+    # Score per completed action = (1.0 weight / total_expected) * 100
+    per_item_impact = 100.0 / total_expected
+
+    # Group routine items by parent routine for block scoring
+    candidates = []
+    routine_groups = {}
+
+    for item in items:
+        if not item.get('is_actionable', False):
+            continue
+        if item.get('completed_today'):
+            continue
+
+        source_type = item.get('source_type', '')
+
+        if source_type == 'routine_item':
+            parent = item.get('parent_title') or item.get('title', '')
+            if parent not in routine_groups:
+                routine_groups[parent] = {
+                    'title': parent,
+                    'count': 0,
+                    'source': 'routine',
+                }
+            routine_groups[parent]['count'] += 1
+        elif source_type == 'medication_dose':
+            parent = item.get('parent_title') or 'Medications'
+            if parent not in routine_groups:
+                routine_groups[parent] = {
+                    'title': parent,
+                    'count': 0,
+                    'source': 'medicine',
+                }
+            routine_groups[parent]['count'] += 1
+        else:
+            # Individual task
+            candidates.append({
+                'title': item.get('title', 'Task'),
+                'count': 1,
+                'source': source_type or 'task',
+            })
+
+    # Add grouped routine/medicine candidates
+    candidates.extend(routine_groups.values())
+
+    if not candidates:
+        return None
+
+    # Score each candidate
+    best = None
+    best_impact = 0
+
+    for c in candidates:
+        impact = round(c['count'] * per_item_impact)
+        if impact > best_impact:
+            best_impact = impact
+            best = c
+
+    if not best or best_impact <= 0:
+        return None
+
+    projected = min(100, round(current_score + best_impact))
+
+    return {
+        'action': best['title'],
+        'impact': best_impact,
+        'projected_score': projected,
+        'source': best['source'],
     }

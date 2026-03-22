@@ -415,7 +415,9 @@ def build_faith_state(user):
     )
     if last_reading:
         state["last_scripture_read"] = last_reading.isoformat()
-        state["days_since_reading"] = (now - last_reading).days
+        # Use date comparison, not datetime, to prevent a reading at 9pm
+        # yesterday showing as "0 days since reading" at 6am today.
+        state["days_since_reading"] = (now.date() - last_reading.date()).days
 
     # Reading streak (consecutive days with completions)
     streak = _calculate_reading_streak(user, now)

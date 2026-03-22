@@ -4760,7 +4760,8 @@ def format_cos_system_injection(context, user_message=None):
         "GOAL-LINKED COACHING: When referencing completed or pending items, "
         "you may connect to the user's goals — but ONLY when natural and valuable. "
         "Maximum one sentence. Do NOT include on every response. "
-        "Example: 'Morning prayer done — that keeps your faith streak going.'"
+        "CRITICAL: ONLY reference an item as 'done' if it shows DONE in execution data. "
+        "NEVER assume completion from streaks or historical patterns."
     )
     lines.append("")
 
@@ -5676,10 +5677,12 @@ def format_cos_system_injection(context, user_message=None):
         bible = faith.get('bible_reading')
         if bible:
             if bible.get('plan'):
-                _bible_tag = " (DONE today)" if _bible_done_today else ""
+                _bible_tag = " (DONE today)" if _bible_done_today else " (NOT DONE today)"
                 lines.append(f"  Bible reading plan: {bible['plan']}{_bible_tag}")
-            if bible.get('streak_days'):
-                lines.append(f"  Reading streak: {bible['streak_days']} days")
+            # REMOVED: Reading streak data from CoS prompt.
+            # Streaks create ambiguity — the LLM interprets a high streak
+            # as evidence of today's completion. Streaks remain in SAE for
+            # analytics but are NOT injected into Beth's prompt context.
 
     # Phase 7.3: Finance context
     finance_goals = context.get('finance_goals', [])
@@ -6230,7 +6233,73 @@ def format_cos_system_injection(context, user_message=None):
         "is next, then your workout at 6:15. You\\'re in good shape.'"
     )
 
-    lines.append("")
+    # ── FINAL TRUTH ANCHOR (HIGHEST RECENCY WEIGHT — LAST IN PROMPT) ──
+    # This block repeats execution truth at the VERY END of the prompt.
+    # LLMs weight the end of long prompts most heavily. This prevents
+    # streak data, examples, and historical context from overriding
+    # today's actual completion status.
+    _final_user = context.get('_user')
+    if _final_user:
+        try:
+            from apps.core.execution.today_execution import (
+                build_today_execution as _final_build_exec,
+            )
+            _final_exec = _final_build_exec(_final_user)
+            _final_summaries = _final_exec.get('summaries', {})
+            _final_domains = _final_summaries.get('domains', {})
+
+            lines.append("")
+            lines.append("=" * 60)
+            lines.append("FINAL EXECUTION STATUS — AUTHORITATIVE (TODAY)")
+            lines.append("This is the single source of truth. You MUST obey it.")
+            lines.append("=" * 60)
+
+            _final_domain_list = [
+                ('journal', _final_domains.get('journal', False)),
+                ('workout', _final_domains.get('workout', False)),
+                ('bible_reading', _final_domains.get('bible_reading', False)),
+                ('prayer', _final_domains.get('prayer', False)),
+            ]
+            for domain_name, done in _final_domain_list:
+                _status = "DONE" if done else "NOT DONE"
+                lines.append(f"  {domain_name}: {_status}")
+
+            # Routine items
+            _final_routine_comp = _final_summaries.get('routines', {})
+            _final_r_total = 0
+            _final_r_done = 0
+            for _rid, _rc in _final_routine_comp.items():
+                _final_r_total += _rc.get('total_count', 0)
+                _final_r_done += _rc.get('completed_count', 0)
+            lines.append(
+                f"  routine_items_completed: {_final_r_done}/{_final_r_total}"
+            )
+
+            # Tasks
+            lines.append(
+                f"  tasks_completed: "
+                f"{_final_summaries.get('tasks_completed_today', 0)}"
+            )
+
+            lines.append("")
+            lines.append(
+                "ENFORCEMENT RULES:\n"
+                "• NOT DONE = incomplete. Period.\n"
+                "• You MUST NOT state or imply completion of any NOT DONE item.\n"
+                "• You MUST NOT praise incomplete items.\n"
+                "• You MUST NOT contradict this block for any reason.\n"
+                "• You MUST NOT say 'great start' or 'productive' when most "
+                "items are NOT DONE.\n"
+                "• Streaks and historical data do NOT mean today is done.\n"
+                "• If prayer shows NOT DONE, NEVER say 'prayer is complete' or\n"
+                "  'prayer and Bible reading have been completed'.\n"
+                "• When in doubt: NOT DONE. Better to under-report than "
+                "fabricate."
+            )
+            lines.append("=" * 60)
+        except Exception:
+            logger.debug("Final truth anchor unavailable", exc_info=True)
+
     lines.append("")
     lines.append("")
 

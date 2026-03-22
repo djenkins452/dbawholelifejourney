@@ -6,6 +6,37 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — CRITICAL FIX: CoS Truth Enforcement — Eliminate Fabricated Completions
+
+**Problem:** Beth (CoS) was telling users their prayer and Bible reading were completed when they were NOT. This destroyed user trust and system credibility.
+
+**Root Causes Identified:**
+1. Reading streak data ("23 days") in prompt competed with "NOT DONE" status, causing LLM to infer completion
+2. Coaching example "Morning prayer done — that keeps your faith streak going" was pattern-matched by LLM even when prayer NOT done
+3. `days_since_reading` used datetime diff (not date), so yesterday at 9pm → today at 6am = 0 days (misleading)
+4. 15-25K token prompt diluted truth enforcement rules
+5. No post-generation validation existed
+
+**Fixes Applied:**
+1. **Removed streak data from CoS prompt** — streaks remain in SAE for analytics but no longer injected into Beth's context
+2. **Removed misleading coaching example** — replaced with explicit "ONLY reference as done if DONE in execution data"
+3. **Fixed `days_since_reading`** in `state_builder.py` to use date comparison instead of datetime
+4. **Added FINAL TRUTH ANCHOR** at end of prompt (highest LLM attention weight) with per-domain status + routine/task counts
+5. **Added post-response validation guardrail** (`cos_truth_validator.py`) — regex-based detection of false completion claims
+6. **Non-streaming: reject + regenerate** when violations found; streaming: append correction
+7. **Added false praise detection** — blocks "great start" / "productive" when completion rate < 40%
+8. **Added CoS debug logging** — every response logs live execution state for traceability
+
+**Files Modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — removed streaks, added final truth anchor, fixed coaching example
+- `apps/core/ai_state/state_builder.py` — fixed `days_since_reading` date calculation
+- `apps/ai/cos_truth_validator.py` — NEW: post-response truth validation guardrail
+- `apps/ai/personal_assistant.py` — wired validator into both streaming and non-streaming paths
+
+**Tests:** 283 CoS/orchestrator tests + 212 faith/SAE tests + 15 hardening tests = all passing
+
+---
+
 ## 2026-03-22 — FEATURE: Missed Items Full Visibility (raw audit trail)
 
 **Feature:** Adherence drilldown now shows every individual missed/late/skipped item with date, time, routine name, and status badge. Raw items shown first (grouped by date, most recent first), summary by routine shown below.

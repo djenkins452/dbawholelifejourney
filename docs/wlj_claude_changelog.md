@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — CoS Locked Next Action: System Decides Priority, Not LLM
+
+**Problem:** CoS (Beth) was recommending goals, prayer requests, and other non-execution items when asked "what should I focus on next?" The LLM had access to goals/habits/prayer context and would pull from them despite instructions. Three competing signals (Action Priorities list, BEST MOVE, free LLM reasoning) caused inconsistent recommendations.
+
+**Fix:** Added `build_locked_next_action(user)` to `cos_fact_statements.py` — uses execution truth → prioritizer pipeline to compute top action deterministically. Locked next action included in LOCKED FACTS block with NEXT ACTION RULE. Updated competing instructions in `cos_context.py` to defer to locked facts.
+
+**Files changed:** `apps/ai/cos_fact_statements.py`, `apps/core/ai_orchestrator/cos_context.py`
+
+---
+
 ## 2026-03-22 — CoS Domain Label Correction: Health → Workout
 
 **Problem:** CoS used "Health" as a domain label in behavioral directives, but only workout data was behind it. This over-generalized single-domain data into a broader concept.

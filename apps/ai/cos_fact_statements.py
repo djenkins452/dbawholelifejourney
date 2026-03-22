@@ -99,6 +99,7 @@ def build_locked_facts(user) -> dict:
         'workout_summary': _build_workout_summary(raw),
         'journal_summary': _build_journal_summary(raw),
         'overall_summary': _build_overall_summary(raw),
+        'next_action': build_locked_next_action(user),
         '_raw': raw,
     }
 
@@ -243,6 +244,63 @@ def _build_overall_summary(raw):
     return f"{done_text} completed so far.{routine_text}{task_text}"
 
 
+def build_locked_next_action(user) -> str:
+    """
+    Build the system-determined next action recommendation.
+
+    Uses the Execution Truth Engine → today_execution → action prioritizer
+    pipeline. The LLM does NOT decide what to recommend — the system does.
+
+    Returns a locked statement like:
+        "Start with Shower."
+        "Start with Spay Weeds. Then move to Shower."
+        "All items are complete — nothing pending."
+    """
+    try:
+        from apps.core.execution.execution_truth_engine import get_execution_truth
+        from apps.core.execution.today_execution import build_today_execution
+        from apps.core.decision_engine.action_prioritizer import (
+            prioritize_execution_items,
+        )
+        from apps.core.utils import get_user_now
+
+        now = get_user_now(user)
+        current_time = now.time()
+
+        # Build execution contract for prioritizer
+        exec_contract = build_today_execution(user)
+        items = exec_contract.get('items', [])
+        summaries = exec_contract.get('summaries', {})
+
+        # Get prioritized actions (completed items already filtered out)
+        priorities = prioritize_execution_items(
+            items, current_time, summaries=summaries,
+        )
+
+        if not priorities:
+            return "All items are complete — nothing pending."
+
+        top = priorities[0]['title']
+        result = f"Start with {top}."
+
+        if len(priorities) >= 2:
+            second = priorities[1]['title']
+            result += f" Then move to {second}."
+
+        logger.info(
+            "[CoS LOCKED NEXT ACTION] user=%s top=%s total_pending=%d",
+            user.id, top, len(priorities),
+        )
+        return result
+
+    except Exception:
+        logger.warning(
+            "[CoS LOCKED NEXT ACTION] FAILED user=%s",
+            user.id, exc_info=True,
+        )
+        return "Unable to determine next action — check your routine and task list."
+
+
 def format_locked_facts_block(facts) -> str:
     """
     Format locked facts into the prompt block the LLM receives.
@@ -261,6 +319,8 @@ def format_locked_facts_block(facts) -> str:
         f"  Workout: {facts['workout_summary']}",
         f"  Journal: {facts['journal_summary']}",
         f"  Overall: {facts['overall_summary']}",
+        "",
+        f"  NEXT ACTION: {facts.get('next_action', 'Unable to determine.')}",
         "",
         "RULES:",
         "- You MUST include these facts in your response.",
@@ -283,6 +343,16 @@ def format_locked_facts_block(facts) -> str:
         "  Locked: 'No workout scheduled today.'",
         "  OK: 'No workout on the schedule today.'",
         "  NOT OK: 'Workout is not yet completed.'",
+        "",
+        "NEXT ACTION RULE (MANDATORY):",
+        "- When the user asks 'what should I do next' or 'what to focus on',",
+        "  your recommendation MUST match the NEXT ACTION above.",
+        "- You MUST NOT recommend goals, prayer requests, or items not in",
+        "  the execution list.",
+        "- You MUST NOT invent actions from contextual data (goals, habits,",
+        "  signals, patterns).",
+        "- The NEXT ACTION is computed by the system from execution priority.",
+        "  You do NOT decide priority — you only communicate it.",
         "=" * 60,
     ]
     return "\n".join(lines)

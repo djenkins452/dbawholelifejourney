@@ -3234,8 +3234,8 @@ def _build_data_state_snapshot(user) -> str:
             lines.append(
                 "Use adherence data for behavioral guidance. "
                 "Say 'you completed X of Y this week' not 'your momentum is...' "
-                "When suggesting what to do next, lead with the BEST MOVE action "
-                "and reference its score impact."
+                "BEST MOVE is advisory context only — your primary next-action "
+                "recommendation MUST match the NEXT ACTION in LOCKED FACTS."
             )
     except Exception:
         logger.debug("Adherence summary unavailable", exc_info=True)
@@ -3454,9 +3454,10 @@ def _build_data_state_snapshot(user) -> str:
             lines.append("ACTION PRIORITIES (same as dashboard Action Center):")
             lines.append("This list is pre-filtered: completed items are EXCLUDED.")
             lines.append("Use this ordering when recommending what to do next.")
-            lines.append("Your primary recommendation MUST match the RIGHT NOW item above, "
-                         "or item #1 if no RIGHT NOW item exists.")
-            lines.append("Do NOT recommend anything not on this list unless the user asks.")
+            lines.append("This list is for context only. Your primary next-action "
+                         "recommendation MUST match the NEXT ACTION in LOCKED FACTS.")
+            lines.append("Do NOT recommend goals, prayer requests, or items not in "
+                         "this execution list.")
             for i, action in enumerate(action_priorities[:7], 1):
                 _f_tag = " [FOUNDATIONAL]" if action["is_foundational"] else ""
                 _u_tag = action["urgency"].upper()
@@ -6166,8 +6167,9 @@ def format_cos_system_injection(context, user_message=None):
         "\n"
         "If nothing is overdue, say so: 'Nothing is overdue right now.'\n"
         "\n"
-        "RESPONSE ORDER: current moment first, then next step, then quick "
-        "status only if relevant. Pick ONE next action — do not list options.\n"
+        "RESPONSE ORDER: current moment first, then next step from LOCKED "
+        "FACTS NEXT ACTION, then quick status only if relevant. "
+        "Pick ONE next action — do not list options.\n"
         "\n"
         "NEVER use these phrases:\n"
         "  'Focus on the most important'\n"

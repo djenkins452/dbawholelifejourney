@@ -6,6 +6,31 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — CRITICAL FIX: CoS Truth Enforcement with Validated Tests (No Blind Deploy)
+
+**All 15 CoS truth enforcement tests PASS before deploy. No blind deploys.**
+
+**Test Results:**
+- Prompt structure: 7/7 PASS (FACTS at top, PATTERNS labeled advisory, anchor at end)
+- Validator catches: 4/4 fabricated responses correctly REJECTED
+- Validator passes: 4/4 honest responses correctly PASSED
+
+**New fixes in this deploy:**
+1. **Negation detection** — Validator now distinguishes "prayer is completed" (false claim) from "prayer is not completed" (honest denial). Uses 30-char context window with negation word detection.
+2. **Test harness** — `apps/ai/tests/test_cos_truth_enforcement.py` with 15 tests covering:
+   - Prompt structure validation (FACTS position, PATTERNS labels, anchor presence)
+   - Fabricated completion rejection (prayer, bible, workout, combined claims)
+   - False praise rejection ("great start", "strong morning" with nothing done)
+   - Honest response passage (direct "No", positive reframes, mixed done/not-done)
+
+**Files Modified:**
+- `apps/ai/cos_truth_validator.py` — Added negation detection, additional patterns
+- `apps/ai/tests/test_cos_truth_enforcement.py` — NEW: 15 validated test cases
+
+**Test Coverage:** 460 total tests passing (445 broader + 15 truth enforcement)
+
+---
+
 ## 2026-03-22 — CRITICAL FIX: CoS Architecture Restructure — FACTS/PATTERNS/CONTEXT Separation
 
 **Problem:** Despite truth anchor fixes, Beth still fabricated completions because 33+ competing signal sections (momentum, streaks, "going well", 7-day trends) overwhelmed the execution truth at the end of a 20K+ token prompt.

@@ -15,6 +15,23 @@ import re
 
 logger = logging.getLogger(__name__)
 
+# ─── NEGATION DETECTION ──────────────────────────────────────────────────
+# Used to distinguish "prayer is completed" (false claim) from
+# "prayer is not completed" (honest denial).
+_NEGATION_WORDS = re.compile(
+    r"\b(?:not|no|n't|neither|nor|never|hasn't|haven't|isn't|aren't|"
+    r"wasn't|weren't|don't|doesn't|didn't|won't|wouldn't|"
+    r"not yet|still pending|still outstanding|not done|not complet)"
+    r"\b",
+    re.I,
+)
+
+
+def _is_negated(context_window):
+    """Check if a completion claim is negated (e.g., 'not completed')."""
+    return bool(_NEGATION_WORDS.search(context_window))
+
+
 # ─── COMPLETION CLAIM PATTERNS ───────────────────────────────────────────
 # These detect when Beth says a domain is done/completed/finished.
 
@@ -111,7 +128,15 @@ def validate_response_truth(response_text, user, allow_regenerate=True):
 
         # Domain is NOT done — check if response claims it is
         for pattern in patterns:
-            if pattern.search(response_text):
+            match = pattern.search(response_text)
+            if match:
+                # Check for negation context — if the match is in a
+                # negative sentence, it's an honest denial, not a claim
+                start = max(0, match.start() - 30)
+                context_window = response_text[start:match.end()].lower()
+                if _is_negated(context_window):
+                    continue  # Honest denial — not a violation
+
                 violations.append({
                     'domain': domain,
                     'type': 'false_completion',
@@ -124,7 +149,12 @@ def validate_response_truth(response_text, user, allow_regenerate=True):
 
     # Check combined claims ("prayer and Bible reading have been completed")
     for pattern in _COMBINED_CLAIM_PATTERNS:
-        if pattern.search(response_text):
+        match = pattern.search(response_text)
+        if match:
+            start = max(0, match.start() - 30)
+            context_window = response_text[start:match.end()].lower()
+            if _is_negated(context_window):
+                continue  # Honest denial
             for domain in ['prayer', 'bible_reading']:
                 if not exec_domains.get(domain, False):
                     if not any(v['domain'] == domain for v in violations):

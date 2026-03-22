@@ -1,0 +1,56 @@
+{# Domain Adherence Dial — compact card showing 7-day adherence per domain #}
+{# Usage: {% include "dashboard_v2/partials/domain_dial.html" with domain=ds domain_key="routine" %} #}
+
+<div style="
+    flex: 1;
+    min-width: 140px;
+    max-width: 200px;
+    background: var(--color-surface);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    text-align: center;
+">
+    {# Domain label #}
+    <div style="font-size: var(--font-size-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--space-2);">
+        {{ domain.label }}
+    </div>
+
+    {# Score + Delta #}
+    <div style="display: flex; align-items: baseline; justify-content: center; gap: var(--space-2); margin-bottom: var(--space-2);">
+        <span style="font-size: 1.75rem; font-weight: 700; line-height: 1;
+            {% if domain.score >= 75 %}color: var(--color-success);
+            {% elif domain.score >= 40 %}color: var(--color-warning, #e67e22);
+            {% else %}color: var(--color-error);{% endif %}
+        ">{{ domain.score }}%</span>
+        {% if domain.delta != 0 %}
+        <span style="font-size: var(--font-size-xs); font-weight: 600;
+            {% if domain.delta > 0 %}color: var(--color-success);
+            {% else %}color: var(--color-error);{% endif %}
+        ">{% if domain.delta > 0 %}&#x2191;+{{ domain.delta }}{% else %}&#x2193;{{ domain.delta }}{% endif %}</span>
+        {% endif %}
+    </div>
+
+    {# Mini progress bar #}
+    <div style="background: var(--color-border); border-radius: 3px; height: 4px; margin-bottom: var(--space-2); overflow: hidden;">
+        <div style="
+            height: 100%; border-radius: 3px;
+            width: {{ domain.score }}%;
+            {% if domain.score >= 75 %}background: var(--color-success);
+            {% elif domain.score >= 40 %}background: var(--color-warning, #e67e22);
+            {% else %}background: var(--color-error);{% endif %}
+        "></div>
+    </div>
+
+    {# Completed count #}
+    <div style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-bottom: var(--space-1);">
+        {{ domain.completed }}/{{ domain.expected }} this week
+    </div>
+
+    {# Gap (single line) #}
+    {% if domain.top_gap %}
+    <div style="font-size: var(--font-size-xs); color: var(--color-error); font-weight: 500;">
+        {{ domain.top_gap }}
+    </div>
+    {% endif %}
+</div>

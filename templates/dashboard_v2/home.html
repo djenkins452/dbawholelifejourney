@@ -20,17 +20,16 @@
     {% include "dashboard_v2/partials/adherence_card.html" with adherence=adherence %}
     {% endif %}
 
-    <!-- Goal Momentum (kept as secondary, collapsed by default) -->
-    {% if goal_momentum %}
-    <section class="v2-section v2-momentum-section" style="margin-top: 0;">
-        <details>
-            <summary class="v2-section-title" style="cursor: pointer; user-select: none; font-size: var(--font-size-sm); color: var(--color-text-muted);">Goal Momentum Details</summary>
-            <div class="v2-momentum-strip" style="margin-top: var(--space-3);">
-                {% for goal in goal_momentum %}
-                    {% include "dashboard_v2/partials/momentum_gauge.html" with goal=goal %}
-                {% endfor %}
-            </div>
-        </details>
+    <!-- Domain Adherence Dials (unified with global score) -->
+    {% if adherence.domain_scores %}
+    <section class="v2-section" style="margin-top: 0;">
+        <div style="display: flex; gap: var(--space-3); overflow-x: auto; padding-bottom: var(--space-2);">
+            {% for domain_key, ds in adherence.domain_scores.items %}
+            {% if ds.score != None %}
+            {% include "dashboard_v2/partials/domain_dial.html" with domain=ds domain_key=domain_key %}
+            {% endif %}
+            {% endfor %}
+        </div>
     </section>
     {% endif %}
 

@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FEATURE: Domain Adherence Dials (replace momentum gauges)
+
+**Feature:** All domain dials now use the same 7-day adherence model as the global score. Each dial shows score %, delta, completed count, and single-line gap. Momentum gauges removed from default view.
+
+**Backend:** `compute_adherence_summary()` now returns `domain_scores` dict keyed by domain name, each with: score, delta, delta_direction, top_gap, expected, completed, missed, label.
+
+**UI:** Horizontal scrollable strip of compact domain cards below the global adherence score. Each card: large % (color-coded), delta arrow, mini progress bar, "X/Y this week", gap text.
+
+**Files:** `apps/core/behavior/behavior_score_engine.py` (domain_scores enrichment), `templates/dashboard_v2/home.html` (replaced momentum section), `templates/dashboard_v2/partials/domain_dial.html` (new)
+
+---
+
 ## 2026-03-21 — FEATURE: Missed Items Drilldown + "What to Improve" Block
 
 **Features:**

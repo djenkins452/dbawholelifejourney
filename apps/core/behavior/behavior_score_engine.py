@@ -197,7 +197,7 @@ def compute_adherence_summary(user):
         delta = 0
         delta_direction = 'flat'
 
-    # Gap analysis — find the biggest miss across domains
+    # Gap analysis + per-domain enrichment
     top_gap = None
     max_missed = 0
     total_expected = 0
@@ -209,18 +209,52 @@ def compute_adherence_summary(user):
         'routine': 'routine items',
     }
 
+    # Build previous domain lookup for per-domain delta
+    _prev_domains = {}
+    for pd in previous.get('domains', []):
+        _prev_domains[pd['domain']] = pd.get('adherence')
+
+    # Per-domain scores for template access
+    domain_scores = {}
+
     for d in current.get('domains', []):
+        domain_name = d['domain']
         expected = d.get('expected', 0)
         completed = d.get('completed', 0)
         late = d.get('late', 0)
         missed = d.get('missed', 0)
+        adherence = d.get('adherence')
         total_expected += expected
         total_completed += completed + late
 
         if missed > max_missed:
             max_missed = missed
-            domain_label = _domain_labels.get(d['domain'], d['domain'])
+            domain_label = _domain_labels.get(domain_name, domain_name)
             top_gap = f"Missed {missed} {domain_label} this week"
+
+        # Per-domain delta
+        prev_adh = _prev_domains.get(domain_name)
+        if adherence is not None and prev_adh is not None:
+            d_delta = round(adherence - prev_adh)
+        else:
+            d_delta = 0
+
+        # Per-domain gap
+        d_gap = None
+        if missed > 0:
+            d_label = _domain_labels.get(domain_name, domain_name)
+            d_gap = f"Missed {missed} {d_label}"
+
+        domain_scores[domain_name] = {
+            'score': round(adherence) if adherence is not None else None,
+            'delta': d_delta,
+            'delta_direction': 'up' if d_delta > 0 else ('down' if d_delta < 0 else 'flat'),
+            'top_gap': d_gap,
+            'expected': expected,
+            'completed': completed + late,
+            'missed': missed,
+            'label': _domain_labels.get(domain_name, domain_name).replace(' ', ' ').title(),
+        }
 
     # ── Fastest path: single highest-impact action ──
     fastest_path = None
@@ -234,6 +268,7 @@ def compute_adherence_summary(user):
         'delta': delta,
         'delta_direction': delta_direction,
         'top_gap': top_gap,
+        'domain_scores': domain_scores,
         'domains': current.get('domains', []),
         'strongest': current.get('strongest_domain'),
         'weakest': current.get('weakest_domain'),

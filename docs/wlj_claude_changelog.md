@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — CoS Next-Action: Bypass LLM Entirely via Deterministic Router
+
+**Problem:** Even with locked next-action facts, the LLM was expanding the response into paragraphs with medications, faith commentary, and extra suggestions. The LLM was still in the decision path.
+
+**Fix:** Added a deterministic next-action route in `apps/ai/deterministic_router.py` (Phase 0). When user asks "what should I focus on next?" (or variants), the router matches the intent lexically and returns the locked next-action string directly — no LLM call at all. Response is exactly: "Start with X. Then move to Y." Nothing else.
+
+**Files changed:** `apps/ai/deterministic_router.py`
+
+---
+
 ## 2026-03-22 — CoS Locked Next Action: System Decides Priority, Not LLM
 
 **Problem:** CoS (Beth) was recommending goals, prayer requests, and other non-execution items when asked "what should I focus on next?" The LLM had access to goals/habits/prayer context and would pull from them despite instructions. Three competing signals (Action Priorities list, BEST MOVE, free LLM reasoning) caused inconsistent recommendations.

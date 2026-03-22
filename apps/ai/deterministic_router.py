@@ -230,6 +230,13 @@ def classify_and_route(message, user, cos_context_cache=None):
     t_start = time.monotonic()
     msg_lower = message.lower()
 
+    # ── Phase 0: Locked next-action (bypasses LLM entirely) ───────
+    result = _try_next_action_route(msg_lower, user)
+    if result is not None:
+        result.elapsed_ms = (time.monotonic() - t_start) * 1000
+        _log_route_decision(result, user, message)
+        return result
+
     # ── Phase 1: Deterministic data routes (new L2 paths) ─────────
     if _is_data_routes_enabled():
         result = _try_deterministic_data_routes(msg_lower, user)
@@ -298,6 +305,73 @@ def register_data_route(route_name, matcher, handler, domain):
         domain: Primary domain string (e.g., 'health')
     """
     _DATA_ROUTES.append((route_name, matcher, handler, domain))
+
+
+# =============================================================================
+# Next-Action Route — bypasses LLM entirely
+# =============================================================================
+
+# Phrases that clearly ask "what should I do next?"
+_NEXT_ACTION_PHRASES = (
+    'what should i focus on',
+    'what should i do next',
+    'what should i work on',
+    'what do i do next',
+    'what\'s next',
+    "what's next",
+    'whats next',
+    'what is next',
+    'what next',
+    'what should i start',
+    'where should i start',
+    'what should i tackle',
+    'what to focus on',
+    'what to do next',
+    'what do i focus on',
+    'give me my next action',
+    'next action',
+    'what\'s my priority',
+    "what's my priority",
+    'what is my priority',
+    'what should i prioritize',
+)
+
+
+def _is_next_action_query(msg_lower):
+    """Detect if message is asking for next action recommendation."""
+    return any(phrase in msg_lower for phrase in _NEXT_ACTION_PHRASES)
+
+
+def _build_next_action_response(user):
+    """Build deterministic next-action response from locked facts."""
+    from apps.ai.cos_fact_statements import build_locked_next_action
+    response = build_locked_next_action(user)
+    logger.info(
+        "[DETERMINISTIC ROUTER] next_action user=%s response=%s",
+        user.id, response,
+    )
+    return response
+
+
+def _try_next_action_route(msg_lower, user):
+    """Try the next-action deterministic route."""
+    if not _is_next_action_query(msg_lower):
+        return None
+    try:
+        response = _build_next_action_response(user)
+        if response:
+            return RouteResult(
+                category=RouteCategory.DETERMINISTIC_DATA,
+                response=response,
+                route_name='next_action',
+                domain='execution',
+                is_terminal=True,
+            )
+    except Exception as e:
+        logger.warning(
+            "Next-action route failed: %s", e, exc_info=True,
+        )
+    return None
 
 
 def _try_deterministic_data_routes(msg_lower, user):

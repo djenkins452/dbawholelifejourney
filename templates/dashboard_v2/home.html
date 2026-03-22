@@ -5,6 +5,19 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/dashboard_v2.css' %}">
+<style nonce="{{ csp_nonce }}">
+.v2-progress-weather-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+    align-items: start;
+}
+@media (max-width: 768px) {
+    .v2-progress-weather-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -33,11 +46,19 @@
     </section>
     {% endif %}
 
-    <!-- Section 2: Daily Progress Ring (MOVED UP — critical path, inline) -->
-    <section class="v2-section v2-progress-section">
-        <h2 class="v2-section-title">Today's Progress</h2>
-        {% include "dashboard_v2/sections/daily_progress.html" %}
-    </section>
+    <!-- Section 2: Daily Progress + Weather (side by side) -->
+    <div class="v2-progress-weather-row">
+        <section class="v2-section v2-progress-section" style="margin-bottom: 0;">
+            <h2 class="v2-section-title">Today's Progress</h2>
+            {% include "dashboard_v2/sections/daily_progress.html" %}
+        </section>
+
+        {% if weather %}
+        <section class="v2-section" style="margin-bottom: 0;">
+            {% include "dashboard/tiles/weather.html" %}
+        </section>
+        {% endif %}
+    </div>
 
     <!-- Section 3: Action Center (replaces Next Action — critical path, inline) -->
     {% include "dashboard_v2/partials/action_center.html" %}

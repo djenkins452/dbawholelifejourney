@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FEATURE: Persona Template System (config-driven, scalable)
+
+**Feature:** Config-driven message rendering that controls Beth's tone based on coaching style × day status.
+
+**Architecture:** Extends existing `CoachingStyle` model (no new model) with `message_templates` JSONField. New `persona_service.py` renders messages using the user's style + day status (low/partial/strong). Falls back gracefully: user templates → hardcoded defaults.
+
+**Components:**
+1. `CoachingStyle.message_templates` — DB-stored JSON templates per message type per day status
+2. `apps/cos/services/persona_service.py` — `render_message()`, `get_day_status_from_rate()`, fallback chain
+3. CoS injection — PERSONA EXAMPLE lines give Beth tone-matched example phrases
+4. Data migration seeds templates for 4 base styles (supportive, direct, coach, gentle)
+
+**Message types:** `next_action`, `day_summary`, `nudge`, `empty_state`, `progress_update`
+**Day statuses:** `low` (< 40%), `partial` (40-74%), `strong` (75%+)
+
+**Guardrails:** Persona system ONLY formats text — never changes action selection, priority, or completion values.
+
+**Files:** `apps/ai/models.py` (message_templates field), `apps/cos/services/persona_service.py` (new), `apps/core/ai_orchestrator/cos_context.py` (persona injection), `apps/ai/migrations/0027_*`, `apps/ai/migrations/0028_*`
+
+---
+
 ## 2026-03-21 — FIX: Beth completion fabrication — stale SAE cache root cause
 
 **Problem:** Beth stated items were completed when they weren't (e.g., "You've completed prayer" when UI shows 0/5). This is a critical trust failure.

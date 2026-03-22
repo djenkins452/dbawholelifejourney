@@ -3129,6 +3129,34 @@ def _build_data_state_snapshot(user) -> str:
     )
     lines.append(f"  {_tone_rule}")
 
+    # ── Persona-rendered example message ──
+    # Give Beth a pre-rendered summary and progress message in the user's
+    # persona style so she matches the user's chosen coaching tone.
+    try:
+        from apps.cos.services.persona_service import render_message, get_day_status_from_rate
+        _persona_day = get_day_status_from_rate(_completion_rate)
+        _persona_ctx = {
+            'completed': _completed_items,
+            'total': _total_items,
+            'completion_rate': _completion_rate,
+        }
+        _persona_summary = render_message(
+            user, 'day_summary', _persona_ctx, _persona_day
+        )
+        _persona_progress = render_message(
+            user, 'progress_update', _persona_ctx, _persona_day
+        )
+        if _persona_summary:
+            lines.append(f"  PERSONA EXAMPLE (day summary): \"{_persona_summary}\"")
+        if _persona_progress:
+            lines.append(f"  PERSONA EXAMPLE (progress): \"{_persona_progress}\"")
+        lines.append(
+            "  Use these examples as a tone guide. Match the style, "
+            "but adapt the wording to the conversation."
+        )
+    except Exception:
+        pass
+
     # ── Execution data availability gate ──
     # If execution module has no data, DO NOT infer or fall back to other modules.
     # This prevents parallel truth drift between execution contract and legacy SAE modules.

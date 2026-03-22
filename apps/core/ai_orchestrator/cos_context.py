@@ -3194,10 +3194,20 @@ def _build_data_state_snapshot(user) -> str:
                 lines.append(f"  Top gap: {_adh['top_gap']}")
             if _adh.get('weakest'):
                 lines.append(f"  Weakest domain: {_adh['weakest']}")
+
+            # Fastest path — single highest-impact action
+            _fp = _adh.get('fastest_path')
+            if _fp:
+                lines.append(
+                    f"  BEST MOVE: Complete {_fp['action']} → "
+                    f"+{_fp['impact']}% → {_fp['projected_score']}%"
+                )
+
             lines.append(
                 "Use adherence data for behavioral guidance. "
                 "Say 'you completed X of Y this week' not 'your momentum is...' "
-                "Reference the top gap when suggesting next actions."
+                "When suggesting what to do next, lead with the BEST MOVE action "
+                "and reference its score impact."
             )
     except Exception:
         logger.debug("Adherence summary unavailable", exc_info=True)

@@ -1707,60 +1707,50 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         # Check if Beth fabricated completions that contradict live execution data.
         # If violations found, REJECT the response and regenerate with strict mode.
         try:
+            from apps.ai.cos_fact_statements import build_locked_facts
             from apps.ai.cos_truth_validator import (
-                validate_response_truth, log_cos_debug_state,
-                build_strict_regeneration_prompt,
+                validate_locked_facts, log_cos_debug_state,
+                build_locked_regeneration_prompt,
             )
             log_cos_debug_state(self.user)
-            _validated, _truth_violations = validate_response_truth(
-                response, self.user, allow_regenerate=True,
+            _locked = build_locked_facts(self.user)
+            _validated, _truth_violations = validate_locked_facts(
+                response, _locked, self.user, allow_regenerate=True,
             )
             if _truth_violations and any(
                 v.get('should_reject') for v in _truth_violations
             ):
                 logger.error(
-                    "COS_TRUTH_REJECT user=%s violations=%d domains=%s "
-                    "— REJECTING response, regenerating with strict mode",
+                    "COS_LOCKED_REJECT user=%s violations=%d domains=%s "
+                    "— REJECTING, regenerating with locked facts",
                     self.user.id, len(_truth_violations),
                     [v['domain'] for v in _truth_violations],
                 )
-                # Regenerate with strict enforcement suffix
                 try:
-                    from apps.core.execution.today_execution import (
-                        build_today_execution as _regen_exec,
-                    )
-                    _regen_domains = _regen_exec(self.user).get(
-                        'summaries', {},
-                    ).get('domains', {})
-                    _strict_suffix = build_strict_regeneration_prompt(
-                        _truth_violations, _regen_domains,
-                    )
-                    # Add strict suffix to cached cos_context and regenerate
                     response = self._generate_response(
                         message, conversation,
                         page_context=page_context,
-                        cos_context_cache=None,  # Force fresh context
+                        cos_context_cache=None,
                         all_images=all_images,
                         route_result=_route_result,
                         _ltrace=_ltrace,
                     )
-                    # Validate the regenerated response (no more retries)
-                    response, _regen_violations = validate_response_truth(
-                        response, self.user, allow_regenerate=False,
+                    # Validate regenerated (no more retries)
+                    response, _regen_violations = validate_locked_facts(
+                        response, _locked, self.user,
+                        allow_regenerate=False,
                     )
                     if _regen_violations:
                         logger.error(
-                            "COS_TRUTH_REGEN_STILL_VIOLATED user=%s — "
-                            "regeneration still has violations, correction appended",
+                            "COS_LOCKED_REGEN_STILL_VIOLATED user=%s",
                             self.user.id,
                         )
                 except Exception as regen_err:
                     logger.error(
-                        "COS_TRUTH_REGEN_FAILED user=%s error=%s — "
-                        "using corrected original response",
+                        "COS_LOCKED_REGEN_FAILED user=%s error=%s",
                         self.user.id, regen_err,
                     )
-                    response = _validated  # Fallback to corrected original
+                    response = _validated
             elif _truth_violations:
                 response = _validated
         except Exception:
@@ -5973,18 +5963,21 @@ Rules for this response:
                     except Exception:
                         pass
 
-                    # ── CoS Truth Validation (stream path) ──
-                    # Check if Beth fabricated completion claims.
+                    # ── CoS Locked Facts Validation (stream path) ──
                     # Streaming: tokens already sent, so append correction.
                     try:
+                        from apps.ai.cos_fact_statements import (
+                            build_locked_facts as _stream_build_locked,
+                        )
                         from apps.ai.cos_truth_validator import (
-                            validate_response_truth as _cos_validate,
+                            validate_locked_facts as _cos_validate_locked,
                             log_cos_debug_state as _cos_debug,
                         )
                         _cos_debug(self.user)
-                        _corrected, _cos_violations = _cos_validate(
-                            response_text, self.user,
-                            allow_regenerate=False,  # Can't regenerate in stream
+                        _stream_locked = _stream_build_locked(self.user)
+                        _corrected, _cos_violations = _cos_validate_locked(
+                            response_text, _stream_locked, self.user,
+                            allow_regenerate=False,
                         )
                         if _cos_violations:
                             response_text = _corrected
@@ -5995,13 +5988,13 @@ Rules for this response:
                                 'content': response_text,
                             }
                             logger.error(
-                                "COS_TRUTH_GUARDRAIL_STREAM user=%s "
+                                "COS_LOCKED_GUARDRAIL_STREAM user=%s "
                                 "violations=%d domains=%s",
                                 self.user.id, len(_cos_violations),
                                 [v['domain'] for v in _cos_violations],
                             )
                     except Exception:
-                        pass  # Truth validator must never break streaming
+                        pass  # Validator must never break streaming
 
                     # ── Health Intelligence validator (observe-only) ──
                     try:

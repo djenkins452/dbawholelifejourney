@@ -1,0 +1,352 @@
+"""
+Execution Truth Engine — THE single source of completion truth.
+
+ARCHITECTURAL RULE:
+  Every system that needs to know "is X completed today?" MUST call
+  get_execution_truth(user). No exceptions.
+
+  This engine answers ONE question:
+    "What has the user actually completed today?"
+
+  It uses ONLY raw authoritative data:
+    - RoutineLog (routine items)
+    - Task (tasks)
+    - WorkoutSession (workouts)
+    - JournalEntry (journal)
+    - UserReadingProgress (Bible reading plans)
+    - MedicineLog (medications)
+
+  It does NOT use:
+    - Cached state / SAE snapshots
+    - Domain service summaries
+    - Signal engines / streaks / trends
+    - NLP or inference of any kind
+
+CROSS-DOMAIN BRIDGES:
+  Routine items can satisfy other domains. For example:
+    - A routine item named "Prayer Time" → satisfies faith.prayer
+    - A routine item named "Bible Reading" → satisfies faith.bible_reading
+  These bridges live HERE and ONLY here.
+
+CONSUMERS (all must use this engine):
+  - CoS (cos_fact_statements.py)
+  - today_state.py
+  - today_execution.py (domain summaries)
+  - DailyProgressService (dashboard)
+  - Any future completion check
+"""
+
+import logging
+from datetime import date
+from typing import Dict, Optional
+
+from apps.core.utils import get_user_today
+
+logger = logging.getLogger(__name__)
+
+
+# ── Cross-Domain Bridge Configuration ──────────────────────────
+# Routine item names (lowercase) that satisfy faith domain.
+# This is the ONLY place this mapping exists in the entire system.
+FAITH_PRAYER_NAMES = frozenset({
+    'prayer time', 'prayer', 'morning prayer', 'evening prayer',
+})
+FAITH_BIBLE_NAMES = frozenset({
+    'bible reading', 'bible study', 'scripture reading', 'devotional',
+})
+
+
+def get_execution_truth(user, target_date: Optional[date] = None) -> Dict:
+    """
+    THE single source of truth for what the user has completed today.
+
+    Returns:
+        {
+            'date': '2026-03-22',
+            'domains': {
+                'faith': {
+                    'prayer_completed': bool,
+                    'bible_reading_completed': bool,
+                    'prayer_source': str,       # 'task', 'routine', or None
+                    'bible_source': str,         # 'reading_plan', 'routine', or None
+                },
+                'workout': {'completed': bool},
+                'journal': {'completed': bool},
+            },
+            'routines': {
+                'total': int,
+                'completed': int,
+                'fully_complete': bool,
+                'items': {routine_name: {total, completed, fully_complete}},
+                '_raw_items': dict,  # for internal use by consumers
+            },
+            'tasks': {
+                'total': int,
+                'completed': int,
+            },
+            'medications': {
+                'taken': int,
+                'expected': int,
+                'all_taken': bool,
+            },
+        }
+    """
+    if target_date is None:
+        target_date = get_user_today(user)
+
+    truth = {
+        'date': target_date.isoformat(),
+        'domains': {
+            'faith': _check_faith(user, target_date),
+            'workout': _check_workout(user, target_date),
+            'journal': _check_journal(user, target_date),
+        },
+        'routines': _check_routines(user),
+        'tasks': _check_tasks(user, target_date),
+        'medications': _check_medications(user, target_date),
+    }
+
+    # ── Cross-Domain Bridge: Routine → Faith ──
+    # This is the ONLY place this bridge exists.
+    _apply_routine_faith_bridge(truth)
+
+    logger.info(
+        "[EXECUTION TRUTH] user=%s date=%s prayer=%s(src=%s) bible=%s(src=%s) "
+        "workout=%s journal=%s routines=%d/%d tasks=%d/%d meds=%d/%d",
+        user.id, target_date,
+        truth['domains']['faith']['prayer_completed'],
+        truth['domains']['faith'].get('prayer_source'),
+        truth['domains']['faith']['bible_reading_completed'],
+        truth['domains']['faith'].get('bible_source'),
+        truth['domains']['workout']['completed'],
+        truth['domains']['journal']['completed'],
+        truth['routines']['completed'], truth['routines']['total'],
+        truth['tasks']['completed'], truth['tasks']['total'],
+        truth['medications']['taken'], truth['medications']['expected'],
+    )
+
+    return truth
+
+
+# ── Domain Checkers (raw DB queries only) ──────────────────────
+
+
+def _check_faith(user, target_date: date) -> Dict:
+    """
+    Check faith completion from EXPLICIT records only.
+
+    Sources:
+      - UserReadingProgress (Bible reading plan completion)
+      - Task with module='faith' (faith-linked tasks)
+
+    NOTE: Routine bridges are applied AFTER this, in _apply_routine_faith_bridge().
+    """
+    result = {
+        'prayer_completed': False,
+        'bible_reading_completed': False,
+        'prayer_source': None,
+        'bible_source': None,
+    }
+
+    # Bible reading plan completion
+    try:
+        from apps.faith.models import UserReadingPlan, UserReadingProgress
+        active_plans = UserReadingPlan.objects.filter(
+            user=user, plan_status='active',
+        ).exclude(status='deleted')
+        if active_plans.exists():
+            if UserReadingProgress.objects.filter(
+                user_plan__in=active_plans,
+                is_completed=True,
+                completed_at__date=target_date,
+            ).exists():
+                result['bible_reading_completed'] = True
+                result['bible_source'] = 'reading_plan'
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning("execution_truth: bible reading check failed", exc_info=True)
+
+    # Faith-linked task completion (prayer)
+    try:
+        from apps.life.models import Task
+        if Task.objects.filter(
+            user=user,
+            module='faith',
+            completion_status='completed',
+            completed_at__date=target_date,
+        ).exists():
+            result['prayer_completed'] = True
+            result['prayer_source'] = 'task'
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning("execution_truth: faith task check failed", exc_info=True)
+
+    return result
+
+
+def _check_workout(user, target_date: date) -> Dict:
+    """Check workout completion from WorkoutSession."""
+    result = {'completed': False}
+    try:
+        from apps.health.models import WorkoutSession
+        result['completed'] = WorkoutSession.objects.filter(
+            user=user, date=target_date,
+        ).exclude(status='deleted').exists()
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning("execution_truth: workout check failed", exc_info=True)
+    return result
+
+
+def _check_journal(user, target_date: date) -> Dict:
+    """Check journal completion from JournalEntry."""
+    result = {'completed': False}
+    try:
+        from apps.journal.models import JournalEntry
+        result['completed'] = JournalEntry.objects.filter(
+            user=user, entry_date=target_date,
+        ).exists()
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning("execution_truth: journal check failed", exc_info=True)
+    return result
+
+
+def _check_routines(user) -> Dict:
+    """Check routine completion from RoutineLog via _routine_internal."""
+    result = {
+        'total': 0,
+        'completed': 0,
+        'fully_complete': False,
+        'items': {},
+        '_raw_items': {},
+    }
+    try:
+        from apps.life.services._routine_internal import get_todays_routine_items
+        routine_data = get_todays_routine_items(user)
+        routine_completion = routine_data.get('routine_completion', {})
+
+        total = 0
+        completed = 0
+        for routine_id, completion in routine_completion.items():
+            r_total = completion.get('total_count', 0)
+            r_done = completion.get('completed_count', 0)
+            r_name = completion.get('name', str(routine_id))
+            total += r_total
+            completed += r_done
+            result['items'][r_name] = {
+                'total': r_total,
+                'completed': r_done,
+                'fully_complete': r_done >= r_total and r_total > 0,
+            }
+
+        result['total'] = total
+        result['completed'] = completed
+        result['fully_complete'] = completed >= total and total > 0
+        result['_raw_items'] = routine_data.get('items_by_window', {})
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning("execution_truth: routine check failed", exc_info=True)
+    return result
+
+
+def _check_tasks(user, target_date: date) -> Dict:
+    """Check task completion from Task model."""
+    result = {
+        'total': 0,
+        'completed': 0,
+        'completed_today_all': 0,  # all tasks completed today, regardless of due_date
+    }
+    try:
+        from apps.life.models import Task
+
+        # Tasks due today (non-routine)
+        today_tasks = Task.objects.filter(
+            user=user,
+            is_routine=False,
+            due_date=target_date,
+        ).exclude(status='deleted')
+        result['total'] = today_tasks.count()
+        result['completed'] = today_tasks.filter(
+            completion_status='completed',
+        ).count()
+
+        # All tasks completed today (for CoS "tasks completed today" count)
+        result['completed_today_all'] = Task.objects.filter(
+            user=user,
+            completion_status='completed',
+            completed_at__date=target_date,
+        ).count()
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning("execution_truth: task check failed", exc_info=True)
+    return result
+
+
+def _check_medications(user, target_date: date) -> Dict:
+    """Check medication adherence from medicine_utils."""
+    result = {
+        'taken': 0,
+        'expected': 0,
+        'all_taken': False,
+    }
+    try:
+        from apps.health.medicine_utils import calculate_medicine_adherence
+        adherence = calculate_medicine_adherence(user, target_date, target_date)
+        result['expected'] = adherence.get('expected_doses', 0)
+        result['taken'] = adherence.get('taken_doses', 0)
+        result['all_taken'] = (
+            result['taken'] >= result['expected']
+            if result['expected'] > 0
+            else True  # No meds scheduled = satisfied
+        )
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning("execution_truth: medication check failed", exc_info=True)
+    return result
+
+
+# ── Cross-Domain Bridge ─────────────────────────────────────────
+
+
+def _apply_routine_faith_bridge(truth: Dict) -> None:
+    """
+    Bridge routine item completion to faith domain.
+
+    When a routine item named "Prayer Time", "Bible Reading", etc. is
+    completed, propagate that to the faith domain. This is the ONLY
+    place this bridge exists in the entire system.
+
+    Only upgrades False → True, never downgrades True → False.
+    """
+    faith = truth['domains']['faith']
+    raw_items = truth['routines'].get('_raw_items', {})
+    if not raw_items:
+        return
+
+    for _window, items in raw_items.items():
+        for item in items:
+            if not item.get('is_completed'):
+                continue
+            item_name = (item.get('item_name') or '').lower().strip()
+            if item_name in FAITH_PRAYER_NAMES and not faith['prayer_completed']:
+                faith['prayer_completed'] = True
+                faith['prayer_source'] = 'routine'
+                logger.info(
+                    "[EXECUTION TRUTH BRIDGE] routine '%s' → prayer_completed=True",
+                    item.get('item_name'),
+                )
+            elif item_name in FAITH_BIBLE_NAMES and not faith['bible_reading_completed']:
+                faith['bible_reading_completed'] = True
+                faith['bible_source'] = 'routine'
+                logger.info(
+                    "[EXECUTION TRUTH BRIDGE] routine '%s' → bible_reading_completed=True",
+                    item.get('item_name'),
+                )

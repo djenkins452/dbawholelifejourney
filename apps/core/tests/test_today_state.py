@@ -16,11 +16,13 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase, override_settings
 
 from apps.core.services.today_state import (
-    _bridge_routine_to_faith,
     _build_confidence_rollup,
     _classify_domain_states,
     build_today_state,
     format_today_state_injection,
+)
+from apps.core.execution.execution_truth_engine import (
+    _apply_routine_faith_bridge as _bridge_routine_to_faith,
 )
 
 
@@ -36,24 +38,19 @@ def _mock_user(user_today=None):
 class TestBuildTodayState(TestCase):
     """Test build_today_state returns correct structure."""
 
-    @patch('apps.core.services.today_state.get_user_today')
-    @patch('apps.core.services.today_state._build_faith_state')
-    @patch('apps.core.services.today_state._build_health_state')
-    @patch('apps.core.services.today_state._build_journal_state')
-    @patch('apps.core.services.today_state._build_routine_state')
-    @patch('apps.core.services.today_state._build_task_state')
-    @patch('apps.core.services.today_state._build_medication_state')
-    def test_returns_complete_structure(
-        self, mock_med, mock_task, mock_routine, mock_journal,
-        mock_health, mock_faith, mock_today,
-    ):
-        mock_today.return_value = date(2026, 3, 20)
-        mock_faith.return_value = {'prayer_completed': False, 'bible_reading_completed': False, 'confidence': 'high'}
-        mock_health.return_value = {'workout_completed': False, 'medications_taken': False, 'confidence': 'high'}
-        mock_journal.return_value = {'completed': False, 'confidence': 'high'}
-        mock_routine.return_value = {'items': {}, 'total': 0, 'completed': 0, 'fully_complete': False}
-        mock_task.return_value = {'completed': 0, 'total': 0}
-        mock_med.return_value = {'taken': 0, 'expected': 0, 'all_taken': True}
+    @patch('apps.core.execution.execution_truth_engine.get_execution_truth')
+    def test_returns_complete_structure(self, mock_truth):
+        mock_truth.return_value = {
+            'date': '2026-03-20',
+            'domains': {
+                'faith': {'prayer_completed': False, 'bible_reading_completed': False, 'prayer_source': None, 'bible_source': None},
+                'workout': {'completed': False},
+                'journal': {'completed': False},
+            },
+            'routines': {'items': {}, 'total': 0, 'completed': 0, 'fully_complete': False, '_raw_items': {}},
+            'tasks': {'total': 0, 'completed': 0, 'completed_today_all': 0},
+            'medications': {'taken': 0, 'expected': 0, 'all_taken': True},
+        }
 
         user = _mock_user()
         state = build_today_state(user)

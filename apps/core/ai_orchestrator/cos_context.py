@@ -3044,31 +3044,45 @@ def _build_data_state_snapshot(user) -> str:
             "not judgment. Ask what's blocking them if they bring it up."
         )
 
-    # ── Daily Execution Status (FRESH — never from cache) ──
-    # CRITICAL: Build execution contract FRESH on every request to prevent
-    # stale cache from causing Beth to fabricate completions. The SAE cache
-    # can be minutes behind reality. This is the #1 trust issue.
+    # ── Daily Execution Status (FRESH — via Execution Truth Engine) ──
+    # CRITICAL: Uses the Execution Truth Engine as the SINGLE source of truth.
+    # This includes cross-domain bridges (routine "Prayer Time" → faith).
+    # No stale cache. No duplicate logic. One source.
     try:
-        from apps.core.execution.today_execution import build_today_execution
-        _exec_contract = build_today_execution(user)
-        _exec_summaries = _exec_contract.get('summaries', {})
-        _exec_domains = _exec_summaries.get('domains', {})
+        from apps.core.execution.execution_truth_engine import get_execution_truth
+        _truth = get_execution_truth(user)
+        _truth_faith = _truth['domains']['faith']
+        _truth_domains = {
+            'prayer': _truth_faith['prayer_completed'],
+            'bible_reading': _truth_faith['bible_reading_completed'],
+            'workout': _truth['domains']['workout']['completed'],
+            'journal': _truth['domains']['journal']['completed'],
+        }
+        _truth_tasks = _truth['tasks']['completed_today_all']
+        _truth_routines = _truth['routines']
+        _truth_meds = _truth['medications']
     except Exception:
-        _exec_contract = {}
-        _exec_summaries = {}
-        _exec_domains = {}
+        logger.warning("cos_context: execution truth unavailable", exc_info=True)
+        _truth = {}
+        _truth_domains = {
+            'prayer': False, 'bible_reading': False,
+            'workout': False, 'journal': False,
+        }
+        _truth_tasks = 0
+        _truth_routines = {'total': 0, 'completed': 0, 'routines': {}}
+        _truth_meds = {'total': 0, 'taken': 0}
 
     lines.append("")
     lines.append("DAILY EXECUTION STATUS (AUTHORITATIVE — today only, live query):")
     _domain_fields = [
-        ('journal', _exec_domains.get('journal', False)),
-        ('workout', _exec_domains.get('workout', False)),
-        ('bible_reading', _exec_domains.get('bible_reading', False)),
-        ('prayer', _exec_domains.get('prayer', False)),
+        ('journal', _truth_domains.get('journal', False)),
+        ('workout', _truth_domains.get('workout', False)),
+        ('bible_reading', _truth_domains.get('bible_reading', False)),
+        ('prayer', _truth_domains.get('prayer', False)),
     ]
     for domain_name, done in _domain_fields:
         lines.append(f"  {domain_name}: {'DONE' if done else 'NOT DONE'}")
-    lines.append(f"  tasks_completed_today: {_exec_summaries.get('tasks_completed_today', 0)}")
+    lines.append(f"  tasks_completed_today: {_truth_tasks}")
 
     # ── Completion rate + tone gating ──
     # Count total actionable items and completed items to compute a rate.
@@ -3083,21 +3097,17 @@ def _build_data_state_snapshot(user) -> str:
         if _dd:
             _completed_items += 1
 
-    # Routine items
-    _routine_comp = _exec_summaries.get('routines', {})
-    for _rid, _rc in _routine_comp.items():
-        _total_items += _rc.get('total_count', 0)
-        _completed_items += _rc.get('completed_count', 0)
+    # Routine items (from Execution Truth Engine)
+    _total_items += _truth_routines.get('total', 0)
+    _completed_items += _truth_routines.get('completed', 0)
 
-    # Medication items
-    _med_sums = _exec_summaries.get('medications', {})
-    for _wk, _ms in _med_sums.items():
-        _total_items += _ms.get('total', 0)
-        _completed_items += _ms.get('taken', 0)
+    # Medication items (from Execution Truth Engine)
+    _total_items += _truth_meds.get('expected', 0)
+    _completed_items += _truth_meds.get('taken', 0)
 
     # Tasks
-    _total_items += _exec_summaries.get('tasks_completed_today', 0)
-    _completed_items += _exec_summaries.get('tasks_completed_today', 0)
+    _total_items += _truth_tasks
+    _completed_items += _truth_tasks
 
     _completion_rate = round(_completed_items / _total_items * 100) if _total_items > 0 else 0
 
@@ -5687,20 +5697,19 @@ def format_cos_system_injection(context, user_message=None):
     faith = context.get('faith_summary', {})
     if faith and (faith.get('active_prayers', 0) > 0 or faith.get('answered_prayers', 0) > 0):
         lines.append("")
-        # Check faith engagement LIVE (never from SAE cache — trust issue)
+        # Check faith engagement via Execution Truth Engine (includes routine bridge)
         _faith_done_today = False
         _prayer_done_today = False
         _bible_done_today = False
         try:
-            from apps.faith.engagement import get_faith_engagement_details as _get_faith
-            from apps.core.utils import get_user_today as _get_faith_today
+            from apps.core.execution.execution_truth_engine import get_execution_truth as _get_truth
             _faith_user = context.get('_user')
             if _faith_user:
-                _faith_today = _get_faith_today(_faith_user)
-                _faith_details = _get_faith(_faith_user, _faith_today)
-                _bible_done_today = _faith_details.get('reading_completed_today', False)
-                _prayer_done_today = _faith_details.get('faith_task_completed_today', False)
-                _faith_done_today = _faith_details.get('faith_engaged_today', False)
+                _faith_truth = _get_truth(_faith_user)
+                _faith_data = _faith_truth['domains']['faith']
+                _bible_done_today = _faith_data['bible_reading_completed']
+                _prayer_done_today = _faith_data['prayer_completed']
+                _faith_done_today = _bible_done_today or _prayer_done_today
         except Exception:
             pass
 

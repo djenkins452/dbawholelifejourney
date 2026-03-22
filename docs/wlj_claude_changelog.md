@@ -6,6 +6,43 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — CRITICAL FIX: Execution Truth Engine — Single Source of Completion Truth
+
+**Root cause:** UI, CoS, Dashboard, SAE, and validator all computed completion independently using different code paths. The UI had a routine→faith bridge (completing "Prayer Time" routine counts as prayer done), but CoS/engagement.py/DailyProgressService did NOT. This caused Beth to say prayer was NOT done when the UI showed it was done.
+
+**Fix:** Created `apps/core/execution/execution_truth_engine.py` — the ONE place that answers "what has the user completed today?" All consumers now call `get_execution_truth(user)` instead of running their own queries. The routine→faith bridge lives ONLY in the engine.
+
+**Files changed:**
+- `apps/core/execution/execution_truth_engine.py` — NEW: single source of truth for all completion checks
+- `apps/ai/cos_fact_statements.py` — rewired to use engine (was calling today_execution→engagement.py)
+- `apps/core/services/today_state.py` — rewired to use engine (removed duplicate domain builders)
+- `apps/core/execution/today_execution.py` — `_collect_domain_summaries()` now uses engine
+- `apps/core/ai_orchestrator/cos_context.py` — DAILY EXECUTION STATUS + faith context now use engine
+- `apps/dashboard_v2/services/daily_progress_service.py` — `_compute_faith()` uses engine
+- `apps/core/ai_state/state_builder.py` — faith state uses engine
+- `apps/ai/cos_truth_validator.py` — debug state uses engine
+- `apps/ai/state_assessment.py` — faith check uses engine
+- `apps/dashboard/views.py` — `_get_faith_data()` uses engine
+- `apps/faith/services.py` — engagement check uses engine
+- `apps/core/tests/test_today_state.py` — updated imports for bridge function
+
+**Architecture:**
+```
+Database (RoutineLog, Task, WorkoutSession, etc.)
+    → Execution Truth Engine (get_execution_truth)
+        → Includes routine→faith bridge
+        → Returns unified truth dict
+            → CoS (cos_fact_statements.py)
+            → UI (today_state.py)
+            → Dashboard (DailyProgressService)
+            → SAE (state_builder.py)
+            → Validator (cos_truth_validator.py)
+```
+
+**Tests:** 294 tests passed (faith, dashboard, core, CoS truth enforcement)
+
+---
+
 ## 2026-03-22 — CRITICAL FIX: Locked Fact Statements — System Owns Truth, LLM Owns Expression
 
 **Architectural shift: The LLM no longer constructs factual statements. The system does.**

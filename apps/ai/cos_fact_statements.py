@@ -6,9 +6,13 @@ execution status. The LLM receives these statements and MUST use them
 exactly. The LLM does NOT construct factual statements — the system does.
 
 Architecture:
-  Database → Service Layer → Fact Statement (string) → LLM prompt
+  Database → Execution Truth Engine → Fact Statement (string) → LLM prompt
   The LLM adds tone, flow, and coaching AROUND these statements.
   The LLM NEVER rewrites, reinterprets, or overrides them.
+
+CRITICAL: This module uses ONLY the Execution Truth Engine for all
+completion data. It does NOT query models directly. It does NOT call
+faith/engagement.py or today_execution.py. One source of truth.
 """
 import logging
 
@@ -18,6 +22,8 @@ logger = logging.getLogger(__name__)
 def build_locked_facts(user) -> dict:
     """
     Build all locked fact statements for a user's current day.
+
+    Uses the Execution Truth Engine as the SINGLE source of truth.
 
     Returns:
         dict with keys:
@@ -39,37 +45,38 @@ def build_locked_facts(user) -> dict:
         'tasks_done': 0,
     }
 
-    try:
-        from apps.core.execution.today_execution import build_today_execution
-        exec_data = build_today_execution(user)
-        summaries = exec_data.get('summaries', {})
-        domains = summaries.get('domains', {})
-
-        raw['prayer_done'] = domains.get('prayer', False)
-        raw['bible_done'] = domains.get('bible_reading', False)
-        raw['workout_done'] = domains.get('workout', False)
-        raw['journal_done'] = domains.get('journal', False)
-        raw['tasks_done'] = summaries.get('tasks_completed_today', 0)
-
-        for rid, rdata in summaries.get('routines', {}).items():
-            raw['routine_total'] += rdata.get('total_count', 0)
-            raw['routine_done'] += rdata.get('completed_count', 0)
-    except Exception as e:
-        logger.warning("cos_fact_statements: execution data unavailable: %s", e)
-
-    # Build pending routine item names
     pending_names = []
+
     try:
-        from apps.core.execution.today_execution import build_today_execution
-        exec_data = build_today_execution(user)
-        for item in exec_data.get('items', []):
-            if (
-                item.get('source_type') == 'routine_item'
-                and item.get('completion_status') in ('pending', 'overdue')
-            ):
-                pending_names.append(item.get('title', 'Unknown'))
-    except Exception:
-        pass
+        from apps.core.execution.execution_truth_engine import get_execution_truth
+        truth = get_execution_truth(user)
+
+        # Faith — includes routine bridge (handled by engine)
+        faith = truth['domains']['faith']
+        raw['prayer_done'] = faith['prayer_completed']
+        raw['bible_done'] = faith['bible_reading_completed']
+
+        # Workout
+        raw['workout_done'] = truth['domains']['workout']['completed']
+
+        # Journal
+        raw['journal_done'] = truth['domains']['journal']['completed']
+
+        # Tasks
+        raw['tasks_done'] = truth['tasks']['completed_today_all']
+
+        # Routines
+        raw['routine_total'] = truth['routines']['total']
+        raw['routine_done'] = truth['routines']['completed']
+
+        # Collect pending routine item names from raw items
+        for _window, items in truth['routines'].get('_raw_items', {}).items():
+            for item in items:
+                if not item.get('is_completed'):
+                    pending_names.append(item.get('item_name', 'Unknown'))
+
+    except Exception as e:
+        logger.warning("cos_fact_statements: execution truth unavailable: %s", e)
 
     facts = {
         'faith_summary': _build_faith_summary(

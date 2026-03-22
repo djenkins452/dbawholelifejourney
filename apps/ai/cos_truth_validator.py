@@ -67,6 +67,10 @@ _FALSE_PRAISE_PATTERNS = [
     re.compile(r"you(?:'ve| have)\s+(?:already\s+)?knocked\s+(?:out|off)", re.I),
     re.compile(r'solid\s+(?:day|morning|effort|progress)', re.I),
     re.compile(r'wrapped\s+up\s+(?:your|the)\s+(?:morning|routine)', re.I),
+    re.compile(r'strong\s+(?:morning|start|day)', re.I),
+    re.compile(r"you(?:'re| are)\s+(?:off to|having)\s+a\s+(?:great|good|solid)", re.I),
+    re.compile(r'nice\s+(?:work|job|progress)\s+(?:this|so\s+far)', re.I),
+    re.compile(r'well\s+on\s+(?:your|the)\s+way', re.I),
 ]
 
 

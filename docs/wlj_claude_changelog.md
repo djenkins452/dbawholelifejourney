@@ -6,26 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-## 2026-03-22 — FIX: Routine days_of_week not persisting (Sunday revert bug)
+## 2026-03-22 — CRITICAL FIX: CoS Architecture Restructure — FACTS/PATTERNS/CONTEXT Separation
 
-**Root cause:** The inline formset's extra (empty) form had `is_active=True` as its
-model default, but the `is_active` checkbox is conditionally hidden for new items
-(no pk). On POST, the missing checkbox = `False`, triggering `has_changed()` and
-validation on the empty form. Validation failed (required fields empty), making the
-entire formset invalid. The view re-rendered with initial values, reverting the user's
-day selections silently.
+**Problem:** Despite truth anchor fixes, Beth still fabricated completions because 33+ competing signal sections (momentum, streaks, "going well", 7-day trends) overwhelmed the execution truth at the end of a 20K+ token prompt.
 
-**Changes:**
-- `apps/life/forms.py` — Set `initial['is_active'] = False` for new instances in
-  `RoutineScheduleForm.__init__` to prevent false `has_changed()` on extra form
-- `templates/life/routine_form.html` — Use `sform.active_days.value` (bound data on
-  POST, initial on GET) instead of `sform.initial.active_days` for checkbox state;
-  removed duplicate hidden id field
-- `apps/life/tests/test_routine_days_save.py` — 8 regression tests covering day
-  removal, various combinations, and extra form side effects
+**Architectural Fix — Three-Section Prompt Structure:**
+1. **FACTS (TOP, position 0)** — Live DB execution data. Binary truths. Cannot be overridden.
+   - `prayer_completed_today: NO/YES`
+   - `bible_reading_completed_today: NO/YES`
+   - etc.
+   - Explicit rules: "NOTHING in the PATTERNS section below can override these facts"
+2. **PATTERNS (MIDDLE, labeled ADVISORY)** — Engine outputs with explicit warnings:
+   - All signal sections now prefixed: "(ADVISORY — 7-day patterns, NOT today's completion status)"
+   - Momentum section: "WARNING: Momentum is historical. Does NOT indicate today's completion."
+   - Signal interpretation: "'7-day strong' does NOT mean done today. Check FACTS."
+3. **TRUTH ANCHOR (END, protected from truncation)** — Final enforcement block appended AFTER token truncation
 
-**Files:** `apps/life/forms.py`, `templates/life/routine_form.html`,
-`apps/life/tests/test_routine_days_save.py`
+**Additional Changes:**
+- Executive briefing truth rules strengthened to reference FACTS section
+- Post-generation validator: added "strong morning", "nice work so far", "well on your way" patterns
+- Behavioral instructions: "Check FACTS first" added to reasoning hierarchy
+- All 510 tests passing
+
+**Files Modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — FACTS block at top, ADVISORY labels on patterns
+- `apps/ai/executive_briefing.py` — Strengthened truth rules (both briefing types)
+- `apps/ai/cos_truth_validator.py` — Additional false praise patterns
 
 ---
 

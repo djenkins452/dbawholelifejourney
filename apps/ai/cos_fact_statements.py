@@ -47,36 +47,38 @@ def build_locked_facts(user) -> dict:
 
     pending_names = []
 
-    try:
-        from apps.core.execution.execution_truth_engine import get_execution_truth
-        truth = get_execution_truth(user)
+    # HARD CALL — no try/except. If this fails, the caller must know.
+    # A silent failure here means Beth gets all-False data and lies to the user.
+    from apps.core.execution.execution_truth_engine import get_execution_truth
+    truth = get_execution_truth(user)
+    logger.info(
+        "[CoS FACT BUILD] user=%s engine_call=SUCCESS date=%s",
+        user.id, truth.get('date'),
+    )
 
-        # Faith — includes routine bridge (handled by engine)
-        faith = truth['domains']['faith']
-        raw['prayer_done'] = faith['prayer_completed']
-        raw['bible_done'] = faith['bible_reading_completed']
+    # Faith — includes routine bridge (handled by engine)
+    faith = truth['domains']['faith']
+    raw['prayer_done'] = faith['prayer_completed']
+    raw['bible_done'] = faith['bible_reading_completed']
 
-        # Workout
-        raw['workout_done'] = truth['domains']['workout']['completed']
+    # Workout
+    raw['workout_done'] = truth['domains']['workout']['completed']
 
-        # Journal
-        raw['journal_done'] = truth['domains']['journal']['completed']
+    # Journal
+    raw['journal_done'] = truth['domains']['journal']['completed']
 
-        # Tasks
-        raw['tasks_done'] = truth['tasks']['completed_today_all']
+    # Tasks
+    raw['tasks_done'] = truth['tasks']['completed_today_all']
 
-        # Routines
-        raw['routine_total'] = truth['routines']['total']
-        raw['routine_done'] = truth['routines']['completed']
+    # Routines
+    raw['routine_total'] = truth['routines']['total']
+    raw['routine_done'] = truth['routines']['completed']
 
-        # Collect pending routine item names from raw items
-        for _window, items in truth['routines'].get('_raw_items', {}).items():
-            for item in items:
-                if not item.get('is_completed'):
-                    pending_names.append(item.get('item_name', 'Unknown'))
-
-    except Exception as e:
-        logger.warning("cos_fact_statements: execution truth unavailable: %s", e)
+    # Collect pending routine item names from raw items
+    for _window, items in truth['routines'].get('_raw_items', {}).items():
+        for item in items:
+            if not item.get('is_completed'):
+                pending_names.append(item.get('item_name', 'Unknown'))
 
     facts = {
         'faith_summary': _build_faith_summary(

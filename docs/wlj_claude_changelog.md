@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — CRITICAL FIX: CoS Pipeline Reliability — Fail Fast, No Silent Failures
+
+**Root cause:** CoS had multiple layers of silent failure:
+1. `cos_truth_validator.py` used `build_today_execution()` (OLD path without routine→faith bridge) instead of the Execution Truth Engine — so the validator disagreed with the locked facts.
+2. `cos_fact_statements.py` had a broad `except Exception` that swallowed engine failures, defaulting all values to False — causing Beth to report nothing completed.
+3. `cos_context.py` had a `try/except` around locked facts injection that silently skipped facts on failure.
+4. Fallback responses were generic "try again" messages that hid the root cause from both user and logs.
+5. Streaming validator had `except: pass` that silently skipped truth validation.
+
+**Fix:**
+- `cos_truth_validator.py` — switched from `build_today_execution` to `get_execution_truth()` (Execution Truth Engine). Now uses same source as locked facts.
+- `cos_fact_statements.py` — removed `try/except` around engine call. Failures now propagate so callers know immediately.
+- `cos_context.py` — removed `try/except` around locked facts build. Facts are non-negotiable — no prompt should proceed without them.
+- `personal_assistant.py` — fallback responses now use Execution Truth Engine to build fact-based status (no LLM needed). Generic "try again" messages eliminated.
+- Streaming/non-streaming validators now log at ERROR level instead of silently passing.
+
+**Files changed:**
+- `apps/ai/cos_truth_validator.py` — validator now uses Execution Truth Engine (was using old today_execution)
+- `apps/ai/cos_fact_statements.py` — removed broad except, engine failure now propagates
+- `apps/core/ai_orchestrator/cos_context.py` — locked facts build is now fail-fast
+- `apps/ai/personal_assistant.py` — fallback uses real data, validator exceptions logged at ERROR
+
+**Why:** CoS was intermittently returning incorrect or generic responses because failures in the truth pipeline were being silently swallowed at every layer.
+
+---
+
 ## 2026-03-22 — CRITICAL FIX: Execution Truth Engine — Single Source of Completion Truth
 
 **Root cause:** UI, CoS, Dashboard, SAE, and validator all computed completion independently using different code paths. The UI had a routine→faith bridge (completing "Prayer Time" routine counts as prayer done), but CoS/engagement.py/DailyProgressService did NOT. This caused Beth to say prayer was NOT done when the UI showed it was done.

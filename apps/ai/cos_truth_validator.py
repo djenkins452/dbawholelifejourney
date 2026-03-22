@@ -109,14 +109,31 @@ def validate_response_truth(response_text, user, allow_regenerate=True):
     if not response_text:
         return response_text, []
 
-    try:
-        from apps.core.execution.today_execution import build_today_execution
-        exec_contract = build_today_execution(user)
-        exec_summaries = exec_contract.get('summaries', {})
-        exec_domains = exec_summaries.get('domains', {})
-    except Exception as e:
-        logger.warning("CoS truth validator: couldn't get execution data: %s", e)
-        return response_text, []
+    # Use the Execution Truth Engine — the SINGLE source of truth.
+    # Do NOT use build_today_execution() which has a different data path.
+    from apps.core.execution.execution_truth_engine import get_execution_truth
+    truth = get_execution_truth(user)
+    faith = truth['domains']['faith']
+    exec_domains = {
+        'prayer': faith['prayer_completed'],
+        'bible_reading': faith['bible_reading_completed'],
+        'workout': truth['domains']['workout']['completed'],
+        'journal': truth['domains']['journal']['completed'],
+    }
+    # Build exec_summaries shape for _compute_completion_rate
+    exec_summaries = {
+        'domains': exec_domains,
+        'routines': {
+            str(k): {'total_count': v['total'], 'completed_count': v['completed']}
+            for k, v in truth['routines'].get('items', {}).items()
+        },
+        'medications': {
+            'all': {
+                'total': truth['medications']['expected'],
+                'taken': truth['medications']['taken'],
+            },
+        },
+    }
 
     violations = []
 

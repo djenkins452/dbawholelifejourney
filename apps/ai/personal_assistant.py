@@ -762,7 +762,10 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                 "What needs your attention",
                 "What's still on your plate",
                 "What's on your list",
-                # New fallback strings (honest error messages)
+                # New fallback strings (may contain real data but LLM was unavailable)
+                "I'm having trouble connecting to AI right now",
+                "I'm unable to load your status right now",
+                # Legacy fallback strings
                 "I wasn't able to pull your data",
                 "Something went wrong on my end",
                 "I hit a snag pulling your information",
@@ -1395,14 +1398,11 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                         logger.warning(
                             "CHECKIN_FALLBACK_GATE user=%s — LLM returned "
                             "a fallback string for a check-in request. "
-                            "Replacing with honest error. Preview: %s",
+                            "Fallback already contains real data. Preview: %s",
                             self.user.id, (response or '')[:120],
                         )
-                        response = (
-                            "I wasn't able to pull your full status right now. "
-                            "Try asking again — say 'check in' or 'what's left' "
-                            "and I'll get your actual data."
-                        )
+                        # No replacement needed — new fallback already uses
+                        # Execution Truth Engine data, not generic text.
                 elif not response:
                     # ── Intent bypass: skip expensive intent LLM call when
                     # router detects no action signals in the message ──────
@@ -1753,8 +1753,13 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                     response = _validated
             elif _truth_violations:
                 response = _validated
-        except Exception:
-            logger.debug("CoS truth validation skipped", exc_info=True)
+        except Exception as _val_outer_err:
+            # Truth validation failure is CRITICAL — log at error level
+            logger.error(
+                "COS_LOCKED_VALIDATOR_CRASHED user=%s error=%s "
+                "— truth validation could not run on non-stream response",
+                self.user.id, _val_outer_err, exc_info=True,
+            )
 
         # Save assistant response
         msg_type = 'action' if actions_taken else 'text'
@@ -5241,19 +5246,12 @@ Rules for this response:
             # If context building itself failed (returned a string fallback),
             # yield it as a single chunk
             if isinstance(ctx, str):
-                # Quality gate: replace opaque fallback with honest error for check-ins
-                if is_checkin and self._is_fallback_response(ctx):
-                    logger.warning(
-                        "STREAM_CHECKIN_FALLBACK_GATE user=%s — context build "
-                        "returned fallback string for check-in. Replacing with "
-                        "honest error. Preview: %s",
-                        self.user.id, (ctx or '')[:120],
-                    )
-                    ctx = (
-                        "I wasn't able to pull your full status right now. "
-                        "Try asking again — say 'check in' or 'what's left' "
-                        "and I'll get your actual data."
-                    )
+                # Fallback now uses Execution Truth Engine data — no replacement needed
+                logger.warning(
+                    "STREAM_CHECKIN_FALLBACK_GATE user=%s — context build "
+                    "returned fallback string. Preview: %s",
+                    self.user.id, (ctx or '')[:120],
+                )
                 full_text = ctx
                 if assistant_message:
                     assistant_message.content = ctx
@@ -5264,13 +5262,7 @@ Rules for this response:
 
             if not ctx:
                 fallback = self._get_fallback_response(message)
-                # Quality gate: replace opaque fallback for check-ins
-                if is_checkin:
-                    fallback = (
-                        "I wasn't able to pull your full status right now. "
-                        "Try asking again — say 'check in' or 'what's left' "
-                        "and I'll get your actual data."
-                    )
+                # _get_fallback_response now uses Execution Truth Engine data
                 full_text = fallback
                 logger.warning(
                     "STREAM_CTX_FALLBACK user=%s — context build returned "
@@ -5993,8 +5985,13 @@ Rules for this response:
                                 self.user.id, len(_cos_violations),
                                 [v['domain'] for v in _cos_violations],
                             )
-                    except Exception:
-                        pass  # Validator must never break streaming
+                    except Exception as _val_err:
+                        # Log loudly — truth validation failure is critical
+                        logger.error(
+                            "COS_LOCKED_VALIDATOR_CRASHED user=%s error=%s "
+                            "— truth validation could not run on stream response",
+                            self.user.id, _val_err, exc_info=True,
+                        )
 
                     # ── Health Intelligence validator (observe-only) ──
                     try:
@@ -6472,50 +6469,67 @@ Rules for this response:
             pass  # Telemetry must never break the pipeline
 
     def _get_fallback_response(self, message: str) -> str:
-        """Get fallback response when AI is unavailable, matching coaching style."""
-        import random
+        """
+        Fallback when AI is unavailable — uses REAL data from Execution Truth Engine.
 
+        Instead of generic "try again" messages, builds a deterministic,
+        fact-based response from live DB data. No LLM needed. No lies possible.
+        """
         # Check if the message is a personal reflection/sharing (emotional content)
         if self._is_personal_reflection(message):
             return self._get_reflection_response(message)
 
-        # Fallbacks vary by coaching style
-        # Fallback responses are used when the LLM is unreachable or returns
-        # nothing. They must be honest about the limitation — never pretend
-        # to have data. Avoid the prohibited generic phrases from SECTION 8
-        # of COS_PROACTIVE_INTELLIGENCE_PROMPT.
-        fallbacks = {
-            'direct': [
-                "I wasn't able to pull your data just now. Try again in a moment, or tell me specifically what you need and I'll look it up.",
-                "Something went wrong on my end loading your status. Give me another shot — ask me again or tell me what to check on.",
-            ],
-            'gentle': [
-                "I hit a snag pulling your information together. Could you try asking again? I want to give you a real answer, not a generic one.",
-                "I wasn't quite able to load your data this time. Try me again — I want to give you something useful.",
-            ],
-            'supportive': [
-                "I ran into an issue loading your status. Ask me again and I'll get your actual data — tasks, meds, schedule, whatever you need.",
-                "Something didn't connect right on my end. Try again — I want to give you real information, not just a question back.",
-            ],
-        }
+        # Try to build a fact-based response from the Execution Truth Engine
+        try:
+            from apps.ai.cos_fact_statements import build_locked_facts
+            facts = build_locked_facts(self.user)
+            logger.info(
+                "[CoS FALLBACK] user=%s — LLM unavailable, using "
+                "deterministic fact-based response",
+                self.user.id,
+            )
+            parts = [
+                "I'm having trouble connecting to AI right now, but here's "
+                "your actual status from the system:",
+                "",
+                f"Faith: {facts['faith_summary']}",
+                f"Routines: {facts['routine_summary']}",
+                f"Tasks: {facts['task_summary']}",
+                f"Workout: {facts['workout_summary']}",
+                f"Journal: {facts['journal_summary']}",
+                "",
+                facts['overall_summary'],
+            ]
+            return "\n".join(parts)
+        except Exception as e:
+            logger.error(
+                "[CoS FALLBACK FAILED] user=%s — both LLM and Execution "
+                "Truth Engine failed: %s",
+                self.user.id, e, exc_info=True,
+            )
+            return (
+                "I'm unable to load your status right now — both the AI "
+                "and the data engine encountered an error. This has been "
+                "logged. Please try again in a moment."
+            )
 
-        style_fallbacks = fallbacks.get(self.coaching_style, fallbacks['supportive'])
-        return random.choice(style_fallbacks)
-
-    # All known fallback strings — used to detect if a saved message is a fallback.
-    # Must match the strings in _get_fallback_response() exactly.
-    _ALL_FALLBACK_STRINGS = {
-        "I wasn't able to pull your data just now. Try again in a moment, or tell me specifically what you need and I'll look it up.",
-        "Something went wrong on my end loading your status. Give me another shot — ask me again or tell me what to check on.",
-        "I hit a snag pulling your information together. Could you try asking again? I want to give you a real answer, not a generic one.",
-        "I wasn't quite able to load your data this time. Try me again — I want to give you something useful.",
-        "I ran into an issue loading your status. Ask me again and I'll get your actual data — tasks, meds, schedule, whatever you need.",
-        "Something didn't connect right on my end. Try again — I want to give you real information, not just a question back.",
-    }
+    # Fallback detection — the new fallback uses real data, so detect by prefix.
+    _FALLBACK_PREFIXES = (
+        "I'm having trouble connecting to AI right now",
+        "I'm unable to load your status right now",
+        # Legacy strings for backward compat with saved messages
+        "I wasn't able to pull your data",
+        "Something went wrong on my end loading",
+        "I hit a snag pulling your information",
+        "I wasn't quite able to load your data",
+        "I ran into an issue loading your status",
+        "Something didn't connect right on my end",
+    )
 
     def _is_fallback_response(self, text: str) -> bool:
-        """Check if text matches a known fallback response string."""
-        return (text or '').strip() in self._ALL_FALLBACK_STRINGS
+        """Check if text is a fallback response (new or legacy)."""
+        stripped = (text or '').strip()
+        return any(stripped.startswith(prefix) for prefix in self._FALLBACK_PREFIXES)
 
     def _is_personal_reflection(self, message: str) -> bool:
         """

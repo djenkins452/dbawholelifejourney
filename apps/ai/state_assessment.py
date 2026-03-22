@@ -195,21 +195,22 @@ class StateAssessmentMixin:
         return result or {}
 
     def _get_fresh_today_faith(self, today) -> Dict:
-        """Get today-specific faith data (reading plan + task engagement)."""
+        """Get today-specific faith data via Execution Truth Engine."""
         try:
             from apps.faith.models import UserReadingPlan
-            from apps.faith.engagement import get_faith_engagement_details
+            from apps.core.execution.execution_truth_engine import get_execution_truth
 
             active_plans = UserReadingPlan.objects.filter(
                 user=self.user, plan_status='active'
             ).exclude(status='deleted')
 
-            engagement = get_faith_engagement_details(self.user, today)
+            truth = get_execution_truth(self.user, today)
+            faith = truth['domains']['faith']
 
             return {
                 'active_reading_plans': active_plans.count(),
-                'reading_completed_today': engagement['reading_completed_today'],
-                'faith_engaged_today': engagement['faith_engaged_today'],
+                'reading_completed_today': faith['bible_reading_completed'],
+                'faith_engaged_today': faith['prayer_completed'] or faith['bible_reading_completed'],
             }
         except Exception:
             return {}

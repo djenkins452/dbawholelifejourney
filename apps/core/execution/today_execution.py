@@ -291,34 +291,32 @@ def _collect_medication_items(user, user_now, user_today):
 
 
 def _collect_domain_summaries(user, user_today):
-    """Collect binary domain completion (explicit today-truth only)."""
+    """
+    Collect binary domain completion using the Execution Truth Engine.
+
+    CRITICAL: This delegates to the single source of truth. It does NOT
+    query models directly. The engine handles cross-domain bridges
+    (e.g., routine "Prayer Time" → faith.prayer_completed).
+    """
     domains = {}
 
     try:
-        from apps.journal.models import JournalEntry
-        domains['journal'] = JournalEntry.objects.filter(
-            user=user, entry_date=user_today,
-        ).exists()
-    except Exception:
-        domains['journal'] = False
+        from apps.core.execution.execution_truth_engine import get_execution_truth
+        truth = get_execution_truth(user, user_today)
 
-    try:
-        from apps.health.models import WorkoutSession
-        domains['workout'] = WorkoutSession.objects.filter(
-            user=user, date=user_today,
-        ).exclude(status='deleted').exists()
-    except Exception:
-        domains['workout'] = False
+        faith = truth['domains']['faith']
+        domains['prayer'] = faith['prayer_completed']
+        domains['bible_reading'] = faith['bible_reading_completed']
+        domains['faith_engaged'] = faith['prayer_completed'] or faith['bible_reading_completed']
 
-    try:
-        from apps.faith.engagement import get_faith_engagement_details
-        faith = get_faith_engagement_details(user, user_today)
-        domains['bible_reading'] = faith.get('reading_completed_today', False)
-        domains['prayer'] = faith.get('faith_task_completed_today', False)
-        domains['faith_engaged'] = faith.get('faith_engaged_today', False)
+        domains['workout'] = truth['domains']['workout']['completed']
+        domains['journal'] = truth['domains']['journal']['completed']
     except Exception:
+        logger.warning("Domain summaries: execution truth unavailable", exc_info=True)
         domains['bible_reading'] = False
         domains['prayer'] = False
         domains['faith_engaged'] = False
+        domains['workout'] = False
+        domains['journal'] = False
 
     return domains

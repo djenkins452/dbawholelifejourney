@@ -6,12 +6,11 @@ Separates TRUTH (this file) from EXECUTION (today_execution.py) and
 INTERPRETATION (cos_context.py).
 
 ARCHITECTURAL RULES:
-  1. Completion MUST come from deterministic DB records only.
-     NEVER derive from streaks, trends, signals, or aggregates.
+  1. All completion data comes from the Execution Truth Engine.
+     This file does NOT query models directly for completion.
   2. Every domain reports a confidence level so the LLM can
      explain what data is missing and why it matters.
-  3. Reuses existing services — never re-derives calculations.
-  4. No new models or tables — pure computation layer.
+  3. No new models or tables — pure computation layer.
 
 CONSUMERS:
   - CoS context builder: reads today_state as the ONLY source of
@@ -21,9 +20,6 @@ CONSUMERS:
 """
 
 import logging
-from datetime import date
-
-from apps.core.utils import get_user_today
 
 logger = logging.getLogger(__name__)
 
@@ -32,276 +28,60 @@ def build_today_state(user) -> dict:
     """
     Build the authoritative today-state snapshot.
 
-    Returns a deterministic dict of what has actually been completed today,
-    with confidence annotations per domain. This is the ONLY source CoS
-    should use when stating what is done or not done.
+    Delegates ALL completion checks to the Execution Truth Engine.
+    This ensures there is ONE source of truth across the entire system.
 
     Returns:
         dict with 'date', 'domains', 'routines', 'tasks', 'medications',
         and 'data_confidence' keys.
     """
-    user_today = get_user_today(user)
+    from apps.core.execution.execution_truth_engine import get_execution_truth
 
+    truth = get_execution_truth(user)
+
+    # Map engine output to today_state format (preserving the interface
+    # that consumers like format_today_state_injection() expect)
     state = {
-        'date': user_today.isoformat(),
-        'domains': {},
-        'routines': {},
-        'tasks': {},
-        'medications': {},
+        'date': truth['date'],
+        'domains': {
+            'faith': {
+                'prayer_completed': truth['domains']['faith']['prayer_completed'],
+                'bible_reading_completed': truth['domains']['faith']['bible_reading_completed'],
+                'confidence': 'high',
+            },
+            'health': {
+                'workout_completed': truth['domains']['workout']['completed'],
+                'medications_taken': truth['medications']['all_taken'],
+                'medications_detail': {
+                    'taken': truth['medications']['taken'],
+                    'expected': truth['medications']['expected'],
+                },
+                'confidence': 'high',
+            },
+            'journal': {
+                'completed': truth['domains']['journal']['completed'],
+                'confidence': 'high',
+            },
+        },
+        'routines': {
+            'total': truth['routines']['total'],
+            'completed': truth['routines']['completed'],
+            'fully_complete': truth['routines']['fully_complete'],
+            'items': truth['routines']['items'],
+            '_raw_items': truth['routines'].get('_raw_items', {}),
+        },
+        'tasks': {
+            'total': truth['tasks']['total'],
+            'completed': truth['tasks']['completed'],
+        },
+        'medications': truth['medications'],
         'data_confidence': {},
     }
-
-    # ── Faith domain ──
-    state['domains']['faith'] = _build_faith_state(user, user_today)
-
-    # ── Health domain ──
-    state['domains']['health'] = _build_health_state(user, user_today)
-
-    # ── Journal domain ──
-    state['domains']['journal'] = _build_journal_state(user, user_today)
-
-    # ── Routines ──
-    state['routines'] = _build_routine_state(user)
-
-    # ── Tasks ──
-    state['tasks'] = _build_task_state(user, user_today)
-
-    # ── Medications ──
-    state['medications'] = _build_medication_state(user, user_today)
-
-    # ── Bridge: routine items → faith domain ──
-    _bridge_routine_to_faith(state)
 
     # ── Data confidence rollup ──
     state['data_confidence'] = _build_confidence_rollup(state)
 
     return state
-
-
-# ── Domain Builders ─────────────────────────────────────────────
-
-
-def _build_faith_state(user, user_today: date) -> dict:
-    """Deterministic faith completion from DB records."""
-    result = {
-        'prayer_completed': False,
-        'bible_reading_completed': False,
-        'confidence': 'missing',
-    }
-
-    try:
-        from apps.faith.engagement import get_faith_engagement_details
-        faith = get_faith_engagement_details(user, user_today)
-        result['bible_reading_completed'] = faith.get('reading_completed_today', False)
-        result['prayer_completed'] = faith.get('faith_task_completed_today', False)
-        result['confidence'] = 'high'
-    except ImportError:
-        result['confidence'] = 'missing'
-    except Exception:
-        logger.warning("today_state: faith state failed", exc_info=True)
-        result['confidence'] = 'partial'
-
-    return result
-
-
-def _build_health_state(user, user_today: date) -> dict:
-    """Deterministic health completion from DB records."""
-    result = {
-        'workout_completed': False,
-        'medications_taken': False,
-        'confidence': 'missing',
-    }
-
-    # Workout — direct DB check
-    try:
-        from apps.health.models import WorkoutSession
-        result['workout_completed'] = WorkoutSession.objects.filter(
-            user=user, date=user_today,
-        ).exclude(status='deleted').exists()
-    except ImportError:
-        pass
-    except Exception:
-        logger.warning("today_state: workout check failed", exc_info=True)
-
-    # Medications — reuse existing utility
-    try:
-        from apps.health.medicine_utils import calculate_medicine_adherence
-        adherence = calculate_medicine_adherence(user, user_today, user_today)
-        expected = adherence.get('expected_doses', 0)
-        taken = adherence.get('taken_doses', 0)
-        if expected == 0:
-            result['medications_taken'] = True  # No meds scheduled = satisfied
-        else:
-            result['medications_taken'] = taken >= expected
-        result['medications_detail'] = {
-            'taken': taken,
-            'expected': expected,
-        }
-    except ImportError:
-        pass
-    except Exception:
-        logger.warning("today_state: medication check failed", exc_info=True)
-
-    # Confidence based on what we could read
-    result['confidence'] = 'high'
-    return result
-
-
-def _build_journal_state(user, user_today: date) -> dict:
-    """Deterministic journal completion from DB records."""
-    result = {
-        'completed': False,
-        'confidence': 'missing',
-    }
-
-    try:
-        from apps.journal.models import JournalEntry
-        result['completed'] = JournalEntry.objects.filter(
-            user=user, entry_date=user_today,
-        ).exists()
-        result['confidence'] = 'high'
-    except ImportError:
-        result['confidence'] = 'missing'
-    except Exception:
-        logger.warning("today_state: journal check failed", exc_info=True)
-        result['confidence'] = 'partial'
-
-    return result
-
-
-def _build_routine_state(user) -> dict:
-    """Deterministic routine completion from today's routine items."""
-    result = {
-        'items': {},
-        'total': 0,
-        'completed': 0,
-        'fully_complete': False,
-    }
-
-    try:
-        from apps.life.services._routine_internal import get_todays_routine_items
-        routine_data = get_todays_routine_items(user)
-        routine_completion = routine_data.get('routine_completion', {})
-
-        total = 0
-        completed = 0
-
-        for routine_id, completion in routine_completion.items():
-            r_total = completion.get('total_count', 0)
-            r_done = completion.get('completed_count', 0)
-            r_name = completion.get('name', str(routine_id))
-            total += r_total
-            completed += r_done
-            result['items'][r_name] = {
-                'total': r_total,
-                'completed': r_done,
-                'fully_complete': r_done >= r_total and r_total > 0,
-            }
-
-        result['total'] = total
-        result['completed'] = completed
-        result['fully_complete'] = completed >= total and total > 0
-
-        # Store raw item-level data for cross-domain bridging
-        result['_raw_items'] = routine_data.get('items_by_window', {})
-
-    except ImportError:
-        pass
-    except Exception:
-        logger.warning("today_state: routine check failed", exc_info=True)
-
-    return result
-
-
-def _build_task_state(user, user_today: date) -> dict:
-    """Deterministic task completion from DB records."""
-    result = {
-        'completed': 0,
-        'total': 0,
-    }
-
-    try:
-        from apps.life.models import Task
-        today_tasks = Task.objects.filter(
-            user=user,
-            is_routine=False,
-            due_date=user_today,
-        ).exclude(status='deleted')
-
-        result['total'] = today_tasks.count()
-        result['completed'] = today_tasks.filter(
-            completion_status='completed',
-        ).count()
-    except ImportError:
-        pass
-    except Exception:
-        logger.warning("today_state: task check failed", exc_info=True)
-
-    return result
-
-
-def _build_medication_state(user, user_today: date) -> dict:
-    """Deterministic medication state from DB records."""
-    result = {
-        'taken': 0,
-        'expected': 0,
-        'all_taken': False,
-    }
-
-    try:
-        from apps.health.medicine_utils import calculate_medicine_adherence
-        adherence = calculate_medicine_adherence(user, user_today, user_today)
-        result['expected'] = adherence.get('expected_doses', 0)
-        result['taken'] = adherence.get('taken_doses', 0)
-        result['all_taken'] = (
-            result['taken'] >= result['expected']
-            if result['expected'] > 0
-            else True
-        )
-    except ImportError:
-        pass
-    except Exception:
-        logger.warning("today_state: medication state failed", exc_info=True)
-
-    return result
-
-
-# ── Cross-Domain Bridges ──────────────────────────────────────
-
-
-# Routine item names that map to faith domain (case-insensitive)
-_FAITH_PRAYER_NAMES = {'prayer time', 'prayer', 'morning prayer', 'evening prayer'}
-_FAITH_BIBLE_NAMES = {'bible reading', 'bible study', 'scripture reading', 'devotional'}
-
-
-def _bridge_routine_to_faith(state: dict) -> None:
-    """
-    Bridge routine item completion to faith domain.
-
-    When a routine item named "Prayer Time" or "Bible Reading" (etc.) is
-    completed in RoutineLog, propagate that to the faith domain so both
-    views stay consistent. This avoids the split where the routine shows
-    "Prayer Time: DONE" but faith shows "NOT DONE".
-
-    Modifies state in-place. Only upgrades False → True, never downgrades.
-    """
-    faith = state.get('domains', {}).get('faith')
-    if not faith:
-        return
-
-    raw_items = state.get('routines', {}).get('_raw_items', {})
-    if not raw_items:
-        return
-
-    for _window, items in raw_items.items():
-        for item in items:
-            if not item.get('is_completed'):
-                continue
-            item_name = (item.get('item_name') or '').lower().strip()
-            if item_name in _FAITH_PRAYER_NAMES:
-                faith['prayer_completed'] = True
-            elif item_name in _FAITH_BIBLE_NAMES:
-                faith['bible_reading_completed'] = True
 
 
 # ── Confidence Rollup ───────────────────────────────────────────
@@ -320,33 +100,21 @@ def _build_confidence_rollup(state: dict) -> dict:
 
     # Faith
     faith = state.get('domains', {}).get('faith', {})
-    faith_conf = faith.get('confidence', 'missing')
-    if faith_conf == 'high':
-        has_activity = faith.get('prayer_completed') or faith.get('bible_reading_completed')
-        rollup['faith'] = 'present' if has_activity else 'missing'
-    else:
-        rollup['faith'] = faith_conf
+    has_activity = faith.get('prayer_completed') or faith.get('bible_reading_completed')
+    rollup['faith'] = 'present' if has_activity else 'missing'
 
     # Health
     health = state.get('domains', {}).get('health', {})
-    health_conf = health.get('confidence', 'missing')
-    if health_conf == 'high':
-        has_workout = health.get('workout_completed', False)
-        has_meds = health.get('medications_taken', False)
-        if has_workout or has_meds:
-            rollup['health'] = 'present'
-        else:
-            rollup['health'] = 'missing'
+    has_workout = health.get('workout_completed', False)
+    has_meds = health.get('medications_taken', False)
+    if has_workout or has_meds:
+        rollup['health'] = 'present'
     else:
-        rollup['health'] = health_conf
+        rollup['health'] = 'missing'
 
     # Journal
     journal = state.get('domains', {}).get('journal', {})
-    journal_conf = journal.get('confidence', 'missing')
-    if journal_conf == 'high':
-        rollup['journal'] = 'present' if journal.get('completed') else 'missing'
-    else:
-        rollup['journal'] = journal_conf
+    rollup['journal'] = 'present' if journal.get('completed') else 'missing'
 
     # Routines
     routines = state.get('routines', {})

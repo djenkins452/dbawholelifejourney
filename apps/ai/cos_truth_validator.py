@@ -305,39 +305,29 @@ def log_cos_debug_state(user):
         dict with current state for logging
     """
     try:
-        from apps.core.execution.today_execution import build_today_execution
-        from apps.faith.engagement import get_faith_engagement_details
-        from apps.core.utils import get_user_today
+        from apps.core.execution.execution_truth_engine import get_execution_truth
 
-        today = get_user_today(user)
-        exec_contract = build_today_execution(user)
-        exec_domains = exec_contract.get('summaries', {}).get('domains', {})
-        faith_details = get_faith_engagement_details(user, today)
+        truth = get_execution_truth(user)
+        faith = truth['domains']['faith']
 
         state = {
-            'date': str(today),
-            'prayer_today': exec_domains.get('prayer', False),
-            'bible_today': exec_domains.get('bible_reading', False),
-            'journal_today': exec_domains.get('journal', False),
-            'workout_today': exec_domains.get('workout', False),
-            'faith_engaged_today': faith_details.get('faith_engaged_today', False),
-            'reading_completed_today': faith_details.get('reading_completed_today', False),
-            'faith_task_completed_today': faith_details.get('faith_task_completed_today', False),
+            'date': truth['date'],
+            'prayer_today': faith['prayer_completed'],
+            'bible_today': faith['bible_reading_completed'],
+            'journal_today': truth['domains']['journal']['completed'],
+            'workout_today': truth['domains']['workout']['completed'],
+            'faith_engaged_today': faith['prayer_completed'] or faith['bible_reading_completed'],
+            'reading_completed_today': faith['bible_reading_completed'],
+            'faith_task_completed_today': faith['prayer_completed'],
         }
 
         # Routine completion
-        routines = exec_contract.get('summaries', {}).get('routines', {})
-        total_routine_items = 0
-        completed_routine_items = 0
-        for rid, rdata in routines.items():
-            total_routine_items += rdata.get('total_count', 0)
-            completed_routine_items += rdata.get('completed_count', 0)
-        state['routine_items_completed'] = f"{completed_routine_items}/{total_routine_items}"
+        state['routine_items_completed'] = (
+            f"{truth['routines']['completed']}/{truth['routines']['total']}"
+        )
 
         # Tasks
-        state['tasks_completed_today'] = exec_contract.get(
-            'summaries', {},
-        ).get('tasks_completed_today', 0)
+        state['tasks_completed_today'] = truth['tasks']['completed_today_all']
 
         logger.info(
             "[CoS DEBUG] user=%s date=%s prayer_today=%s bible_today=%s "

@@ -226,34 +226,17 @@ class DailyProgressService:
             return 0, {"journaling_done": 0, "journaling_total": 1}
 
     def _compute_faith(self):
-        """Bible reading or prayer activity today."""
+        """
+        Bible reading or prayer activity today.
+
+        Uses the Execution Truth Engine as the SINGLE source of truth.
+        This includes cross-domain bridges (routine "Prayer Time" → faith).
+        """
         try:
-            faith_done = False
-
-            # Check Bible reading progress
-            try:
-                from apps.faith.models import UserReadingProgress
-
-                faith_done = UserReadingProgress.objects.filter(
-                    user=self.user,
-                    is_completed=True,
-                    completed_at__date=self.today,
-                ).exists()
-            except ImportError:
-                pass
-
-            # Check prayer entries
-            if not faith_done:
-                try:
-                    from apps.faith.models import PrayerRequest
-
-                    faith_done = PrayerRequest.objects.filter(
-                        user=self.user,
-                        created_at__date=self.today,
-                    ).exists()
-                except ImportError:
-                    pass
-
+            from apps.core.execution.execution_truth_engine import get_execution_truth
+            truth = get_execution_truth(self.user, self.today)
+            faith = truth['domains']['faith']
+            faith_done = faith['prayer_completed'] or faith['bible_reading_completed']
             score = 100 if faith_done else 0
             return score, {"faith_done": 1 if faith_done else 0, "faith_total": 1}
         except Exception:

@@ -31,7 +31,7 @@ def get_faith_metrics(user) -> dict:
         reading_streak, recent_prayer_titles.
     """
     from apps.core.utils import get_user_today
-    from apps.faith.engagement import get_faith_engagement_details
+    from apps.core.execution.execution_truth_engine import get_execution_truth
 
     today = get_user_today(user)
     month_ago = today - timedelta(days=30)
@@ -39,8 +39,9 @@ def get_faith_metrics(user) -> dict:
     # ── SAE state (primary source for aggregate metrics) ──
     sae_faith = _get_sae_faith(user)
 
-    # ── Today-specific engagement (always fresh) ──
-    engagement = get_faith_engagement_details(user, today)
+    # ── Today-specific engagement via Execution Truth Engine ──
+    truth = get_execution_truth(user, today)
+    faith_truth = truth['domains']['faith']
 
     # ── Direct queries for fields SAE doesn't track ──
     from apps.faith.models import FaithMilestone, PrayerRequest
@@ -62,9 +63,9 @@ def get_faith_metrics(user) -> dict:
         'answered_prayers_month': answered_month,
         'total_prayers': total_prayers,
         'faith_milestones': milestones,
-        # Today-specific (always fresh)
-        'reading_completed_today': engagement.get('reading_completed_today', False),
-        'faith_engaged_today': engagement.get('faith_engaged_today', False),
+        # Today-specific (from Execution Truth Engine — includes routine bridge)
+        'reading_completed_today': faith_truth['bible_reading_completed'],
+        'faith_engaged_today': faith_truth['prayer_completed'] or faith_truth['bible_reading_completed'],
     }
 
 

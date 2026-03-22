@@ -2488,12 +2488,13 @@ def build_daily_execution_status(user):
         state['workout_completed'] = False
 
     try:
-        # Faith: reuse canonical engagement check
-        from apps.faith.engagement import get_faith_engagement_details
-        faith = get_faith_engagement_details(user, user_today)
-        state['bible_reading_completed'] = faith.get('reading_completed_today', False)
-        state['prayer_completed'] = faith.get('faith_task_completed_today', False)
-        state['faith_engaged'] = faith.get('faith_engaged_today', False)
+        # Faith: use Execution Truth Engine (includes routine→faith bridge)
+        from apps.core.execution.execution_truth_engine import get_execution_truth
+        truth = get_execution_truth(user, user_today)
+        faith = truth['domains']['faith']
+        state['bible_reading_completed'] = faith['bible_reading_completed']
+        state['prayer_completed'] = faith['prayer_completed']
+        state['faith_engaged'] = faith['prayer_completed'] or faith['bible_reading_completed']
     except Exception:
         state['bible_reading_completed'] = False
         state['prayer_completed'] = False

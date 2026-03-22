@@ -164,6 +164,99 @@
     </form>
 </div>
 
+<!-- Hidden template for JS-created schedule items (extra=0, no ghost forms) -->
+<template id="schedule-item-template">
+    <div class="schedule-item card mb-4" style="padding: var(--space-4);">
+        <input type="hidden" name="items-__prefix__-id" value="">
+
+        <div class="form-row">
+            <div class="form-group" style="flex: 2;">
+                <label class="form-label">Item Name</label>
+                <input type="text" name="items-__prefix__-name" class="form-input" placeholder="e.g., Prayer time" maxlength="200" required id="id_items-__prefix__-name">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label class="form-label">Priority</label>
+                <select name="items-__prefix__-importance" class="form-select" id="id_items-__prefix__-importance">
+                    <option value="foundational">Foundational</option>
+                    <option value="important">Important</option>
+                    <option value="flexible" selected>Flexible</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label class="form-label">Time</label>
+                <input type="time" name="items-__prefix__-scheduled_time" class="form-input" required id="id_items-__prefix__-scheduled_time">
+            </div>
+            <div class="form-group" style="flex: 0 0 80px;">
+                <label class="form-label">Grace</label>
+                <input type="number" name="items-__prefix__-grace_period_minutes" class="form-input" min="0" style="width: 80px;" value="30" id="id_items-__prefix__-grace_period_minutes">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Days</label>
+            <div class="days-selector">
+                <label class="day-pill"><input type="checkbox" name="items-__prefix__-active_days" value="0" checked><span>Mon</span></label>
+                <label class="day-pill"><input type="checkbox" name="items-__prefix__-active_days" value="1" checked><span>Tue</span></label>
+                <label class="day-pill"><input type="checkbox" name="items-__prefix__-active_days" value="2" checked><span>Wed</span></label>
+                <label class="day-pill"><input type="checkbox" name="items-__prefix__-active_days" value="3" checked><span>Thu</span></label>
+                <label class="day-pill"><input type="checkbox" name="items-__prefix__-active_days" value="4" checked><span>Fri</span></label>
+                <label class="day-pill"><input type="checkbox" name="items-__prefix__-active_days" value="5" checked><span>Sat</span></label>
+                <label class="day-pill"><input type="checkbox" name="items-__prefix__-active_days" value="6" checked><span>Sun</span></label>
+            </div>
+        </div>
+
+        <!-- Maintenance Bridge -->
+        <div class="maintenance-bridge-section" style="margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px dashed var(--color-border);">
+            <label style="display: flex; align-items: center; gap: var(--space-2); min-height: 44px; cursor: pointer;">
+                <input type="checkbox" name="items-__prefix__-creates_maintenance_log" class="maintenance-bridge-toggle" id="id_items-__prefix__-creates_maintenance_log">
+                <span style="font-weight: 500; font-size: var(--font-size-sm);">Creates maintenance log on completion</span>
+            </label>
+            <div class="maintenance-fields" style="display: none; margin-top: var(--space-3);">
+                <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
+                    <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <label class="form-label text-sm">Title</label>
+                        <input type="text" name="items-__prefix__-default_maintenance_title" class="form-input" placeholder="Override title (optional)" maxlength="200" id="id_items-__prefix__-default_maintenance_title">
+                    </div>
+                    <div class="form-group" style="flex: 0 0 140px;">
+                        <label class="form-label text-sm">Type</label>
+                        <select name="items-__prefix__-maintenance_type" class="form-select" id="id_items-__prefix__-maintenance_type">
+                            <option value="repair">Repair</option>
+                            <option value="maintenance" selected>Maintenance</option>
+                            <option value="upgrade">Upgrade</option>
+                            <option value="service">Service Visit</option>
+                            <option value="replacement">Replacement</option>
+                            <option value="inspection">Inspection</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
+                    <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <label class="form-label text-sm">Area</label>
+                        <input type="text" name="items-__prefix__-maintenance_area" class="form-input" placeholder="e.g., HVAC, Jeep, Yard" maxlength="100" id="id_items-__prefix__-maintenance_area">
+                    </div>
+                    <div class="form-group" style="flex: 0 0 120px;">
+                        <label class="form-label text-sm">Follow-up (days)</label>
+                        <input type="number" name="items-__prefix__-follow_up_days" class="form-input" min="1" style="width: 100px;" placeholder="days" id="id_items-__prefix__-follow_up_days">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: var(--space-4);">
+            <div class="form-group" style="margin: 0;">
+                <label style="color: var(--color-error);">
+                    <input type="checkbox" name="items-__prefix__-DELETE" id="id_items-__prefix__-DELETE"> Remove
+                </label>
+            </div>
+            <div class="form-group" style="margin: 0; flex: 0 0 80px;">
+                <label class="form-label text-sm">Order</label>
+                <input type="number" name="items-__prefix__-sort_order" class="form-input" min="0" style="width: 80px;" value="0" id="id_items-__prefix__-sort_order">
+            </div>
+        </div>
+    </div>
+</template>
+
 <style nonce="{{ csp_nonce }}">
 .form-row {
     display: flex;
@@ -218,65 +311,26 @@
     var totalForms = document.getElementById('id_items-TOTAL_FORMS');
     var container = document.getElementById('formset-container');
     var addBtn = document.getElementById('add-item-btn');
+    var tmpl = document.getElementById('schedule-item-template');
 
-    if (addBtn && container && totalForms) {
+    if (addBtn && container && totalForms && tmpl) {
         addBtn.addEventListener('click', function() {
             var count = parseInt(totalForms.value);
-            var items = container.querySelectorAll('.schedule-item');
-            if (items.length === 0) return;
+            var newItem = tmpl.content.firstElementChild.cloneNode(true);
 
-            var template = items[items.length - 1];
-            var newItem = template.cloneNode(true);
-
-            // Update all name/id attributes with new index
+            // Replace __prefix__ placeholder with actual form index
             newItem.querySelectorAll('input, select, textarea').forEach(function(el) {
-                if (el.name) {
-                    el.name = el.name.replace(/-\d+-/, '-' + count + '-');
-                }
-                if (el.id) {
-                    el.id = el.id.replace(/-\d+-/, '-' + count + '-');
-                }
-                // Clear values for new item
-                if (el.type === 'text' || el.type === 'time' || el.type === 'number') {
-                    el.value = '';
-                }
-                if (el.type === 'checkbox') {
-                    // Default: all days checked for new item, uncheck DELETE
-                    if (el.name.indexOf('active_days') > -1) {
-                        el.checked = true;
-                    } else if (el.name.indexOf('DELETE') > -1) {
-                        el.checked = false;
-                    } else if (el.name.indexOf('is_active') > -1) {
-                        el.checked = true;
-                    }
-                }
-                if (el.type === 'hidden' && el.name.indexOf('-id') > -1) {
-                    el.value = '';
-                }
+                if (el.name) el.name = el.name.replace(/__prefix__/g, count);
+                if (el.id) el.id = el.id.replace(/__prefix__/g, count);
             });
             newItem.querySelectorAll('label').forEach(function(lbl) {
-                if (lbl.htmlFor) {
-                    lbl.htmlFor = lbl.htmlFor.replace(/-\d+-/, '-' + count + '-');
-                }
-            });
-
-            // Set default values
-            var graceInput = newItem.querySelector('[name$="-grace_period_minutes"]');
-            if (graceInput) graceInput.value = '30';
-            var orderInput = newItem.querySelector('[name$="-sort_order"]');
-            if (orderInput) orderInput.value = '0';
-
-            // Clear maintenance bridge fields on clone
-            var maintenanceToggle = newItem.querySelector('.maintenance-bridge-toggle');
-            if (maintenanceToggle) maintenanceToggle.checked = false;
-            newItem.querySelectorAll('.maintenance-fields input[type="text"], .maintenance-fields input[type="number"]').forEach(function(el) {
-                el.value = '';
+                if (lbl.htmlFor) lbl.htmlFor = lbl.htmlFor.replace(/__prefix__/g, count);
             });
 
             container.appendChild(newItem);
             totalForms.value = count + 1;
 
-            // Re-init maintenance bridge visibility for cloned item
+            // Init maintenance bridge visibility for new item
             initMaintenanceBridgeToggles(newItem);
 
             // Focus the name field

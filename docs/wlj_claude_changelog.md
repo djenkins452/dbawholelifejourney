@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — HARDENING: Eliminate inline formset fragility (extra=0)
+
+Structural hardening to prevent all `extra>0` formset bugs: ghost forms, false
+`has_changed()`, silent validation failures, and input reversion.
+
+**Changes:**
+- `apps/life/forms.py` — Set `extra=0` on `RoutineScheduleFormSet` (the ONLY
+  inline formset in the codebase). No ghost form is ever rendered.
+- `templates/life/routine_form.html` — Replaced clone-last-item JS with a clean
+  `<template>` element containing a fresh form skeleton. "Add Item" clones from
+  this template, replacing `__prefix__` with the correct index. No stale data,
+  no hidden checkbox mismatches, no false `has_changed()` triggers.
+- Verified maintenance_type `<option>` values match `MaintenanceLog.LOG_TYPE_CHOICES`
+
+**Scope verification:** Only 1 `inlineformset_factory` usage exists in the entire
+codebase. Zero `modelformset_factory` usages. No models, signals, domain logic,
+or CoS behavior modified.
+
+**Tests:** 54 tests pass (36 routine + 18 maintenance bridge)
+
+---
+
 ## 2026-03-22 — FIX: Routine days_of_week not persisting (Sunday revert bug)
 
 **Root cause:** The inline formset's extra (empty) form had `is_active=True` as its

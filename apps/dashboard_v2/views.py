@@ -53,6 +53,14 @@ class DashboardV2View(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["faith_enabled"] = getattr(prefs, "faith_enabled", True)
         context["purpose_enabled"] = getattr(prefs, "purpose_enabled", True)
         context["life_enabled"] = getattr(prefs, "life_enabled", True)
+
+        # 7-day adherence score (replaces momentum dial as primary metric)
+        try:
+            from apps.core.behavior.behavior_score_engine import compute_adherence_summary
+            context["adherence"] = compute_adherence_summary(self.request.user)
+        except Exception:
+            context["adherence"] = None
+
         return context
 
 

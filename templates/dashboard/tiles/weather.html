@@ -30,8 +30,11 @@ Shows current weather conditions and forecast
         </div>
     </div>
     {% else %}
-    <!-- Normal Mode: Compact current + forecast -->
-    <div class="weather-card">
+    <!-- Normal Mode: Compact current + forecast — clickable to Weather.com -->
+    <a href="{{ weather.weather_url|default:'https://weather.com' }}" target="_blank" rel="noopener noreferrer"
+       style="text-decoration: none; color: inherit; display: block;"
+       title="View full forecast">
+    <div class="weather-card" style="cursor: pointer; transition: box-shadow 0.2s;">
         <div class="weather-current">
             <div class="weather-main">
                 <span class="weather-temp-large">{{ weather.current_temp|floatformat:0 }}°</span>
@@ -62,6 +65,7 @@ Shows current weather conditions and forecast
         </div>
         {% endif %}
     </div>
+    </a>
     {% endif %}
 </section>
 {% endif %}

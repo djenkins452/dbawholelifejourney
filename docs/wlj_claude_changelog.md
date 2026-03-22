@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FEATURE: Dynamic Weather Link
+
+**Feature:** Weather card on dashboard now links to Weather.com forecast for user's location. Clicking the card opens full forecast in new tab.
+
+**Logic:** Builds URL from `user.preferences.location_city`. Falls back to "Alcoa, TN" if no location set. International users get city+country format.
+
+**Files:** `apps/dashboard/views.py` (_build_weather_url + weather_url in context), `templates/dashboard/tiles/weather.html` (clickable card)
+
+---
+
 ## 2026-03-21 — FEATURE: Fastest Path (max score impact engine)
 
 **Feature:** Identifies the single action that increases the 7-day adherence score the most. Groups routine blocks and medication windows as single candidates for accurate impact scoring.

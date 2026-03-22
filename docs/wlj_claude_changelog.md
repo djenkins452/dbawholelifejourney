@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — Next-Action Prioritizer: Filter by Expected Flag
+
+**Problem:** The action prioritizer hardcoded workout, journal, and faith as binary actions regardless of whether they were scheduled today. "Log a workout" appeared on days with no workout in the routine.
+
+**Fix:**
+- `_collect_domain_summaries()` now returns both `domains` and `expected` dicts from the Execution Truth Engine
+- `summaries['expected']` flows through `build_today_execution()` → `prioritize_execution_items()`
+- `action_prioritizer.py` binary actions now skip domains where `expected[key] == False`
+- If workout is not in today's routine → it never appears as a candidate → never recommended
+
+**Files changed:** `apps/core/execution/today_execution.py`, `apps/core/decision_engine/action_prioritizer.py`
+
+---
+
 ## 2026-03-22 — CoS Next-Action: Bypass LLM Entirely via Deterministic Router
 
 **Problem:** Even with locked next-action facts, the LLM was expanding the response into paragraphs with medications, faith commentary, and extra suggestions. The LLM was still in the decision path.

@@ -294,16 +294,20 @@ def prioritize_execution_items(execution_items, current_time, summaries=None):
         ws['all_taken'] = ws['taken'] >= ws['total'] and ws['total'] > 0
         medicine_groups.append(ws)
 
-    # Binary actions from summaries
+    # Binary actions from summaries — ONLY include expected domains
     binary_actions = []
     if summaries and summaries.get('domains'):
         domains = summaries['domains']
+        expected = summaries.get('expected', {})
         _binary_map = [
-            ('journal', 'Write in journal', '/journal/'),
-            ('faith_engaged', 'Bible reading', '/faith/reading-plans/'),
-            ('workout', 'Log a workout', '/health/fitness/'),
+            ('journal', 'Write in journal', '/journal/', 'journal'),
+            ('faith_engaged', 'Bible reading', '/faith/reading-plans/', 'faith'),
+            ('workout', 'Log a workout', '/health/fitness/', 'workout'),
         ]
-        for key, title, url in _binary_map:
+        for key, title, url, expected_key in _binary_map:
+            # Skip domains not expected today (e.g., no workout on Sunday)
+            if not expected.get(expected_key, False):
+                continue
             binary_actions.append({
                 'source': key,
                 'title': title,

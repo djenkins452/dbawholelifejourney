@@ -3668,16 +3668,28 @@ class RoutineToMaintenanceView(LifeAccessMixin, View):
 
 
 class RoutineAdherenceView(HelpContextMixin, LifeAccessMixin, TemplateView):
-    """7-day adherence drilldown — shows per-item missed details."""
+    """7-day adherence drilldown — shows raw missed items + grouped summary."""
     template_name = "life/routine_adherence.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         from apps.core.behavior.behavior_score_engine import (
-            compute_adherence_summary, get_missed_items_detail,
+            compute_adherence_summary, get_missed_items_detail, get_missed_items_raw,
         )
         context['adherence'] = compute_adherence_summary(self.request.user)
+        context['missed_raw'] = get_missed_items_raw(self.request.user)
         context['missed_groups'] = get_missed_items_detail(self.request.user)
+
+        # Group raw items by date for template rendering
+        from itertools import groupby
+        from operator import itemgetter
+        grouped = []
+        for date_key, items in groupby(context['missed_raw'], key=itemgetter('date')):
+            grouped.append({
+                'date': date_key,
+                'items': list(items),
+            })
+        context['missed_by_date'] = grouped
         return context
 
 

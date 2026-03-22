@@ -477,3 +477,97 @@ def get_missed_items_detail(user):
     # Sort by total_missed descending
     result = sorted(groups.values(), key=lambda g: g['total_missed'], reverse=True)
     return result
+
+
+def get_missed_items_raw(user):
+    """
+    Get every individual missed/late/skipped occurrence for last 7 days.
+
+    Returns a list of dicts, most recent first, each with:
+        - date: date
+        - routine_name: str
+        - item_name: str
+        - scheduled_time: str or None
+        - status: str ('missed', 'completed_late', 'skipped')
+
+    This is the full raw audit trail — no aggregation.
+    """
+    from apps.core.utils import get_user_today
+    from datetime import timedelta as _td
+
+    today = get_user_today(user)
+    start = today - _td(days=7)
+
+    raw_items = []
+
+    try:
+        from apps.life.models import Routine, RoutineLog
+
+        active_routines = Routine.objects.filter(
+            user=user, is_active=True, status='active',
+        ).prefetch_related('items')
+
+        for routine in active_routines:
+            for schedule in routine.items.filter(is_active=True):
+                # Find all expected dates
+                expected_dates = set()
+                day = start
+                while day <= today:
+                    if schedule.specific_date:
+                        if schedule.specific_date == day:
+                            expected_dates.add(day)
+                    elif schedule.applies_to_day(day.weekday()):
+                        expected_dates.add(day)
+                    day += _td(days=1)
+
+                if not expected_dates:
+                    continue
+
+                # Get all logs for this schedule in range
+                logs = {
+                    log.scheduled_date: log
+                    for log in RoutineLog.objects.filter(
+                        schedule=schedule,
+                        scheduled_date__gte=start,
+                        scheduled_date__lte=today,
+                    )
+                }
+
+                sched_time = (
+                    schedule.scheduled_time.strftime('%H:%M')
+                    if schedule.scheduled_time else None
+                )
+
+                for d in sorted(expected_dates, reverse=True):
+                    log = logs.get(d)
+                    if log is None:
+                        raw_items.append({
+                            'date': d,
+                            'routine_name': routine.name,
+                            'item_name': schedule.name,
+                            'scheduled_time': sched_time,
+                            'status': 'missed',
+                        })
+                    elif log.log_status == 'completed_late':
+                        raw_items.append({
+                            'date': d,
+                            'routine_name': routine.name,
+                            'item_name': schedule.name,
+                            'scheduled_time': sched_time,
+                            'status': 'completed_late',
+                        })
+                    elif log.log_status == 'skipped':
+                        raw_items.append({
+                            'date': d,
+                            'routine_name': routine.name,
+                            'item_name': schedule.name,
+                            'scheduled_time': sched_time,
+                            'status': 'skipped',
+                        })
+                    # completed → not a miss, skip
+    except Exception:
+        logger.debug("Missed items raw: query failed", exc_info=True)
+
+    # Sort by date descending (most recent first)
+    raw_items.sort(key=lambda x: x['date'], reverse=True)
+    return raw_items

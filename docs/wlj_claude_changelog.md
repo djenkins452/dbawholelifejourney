@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — FEATURE: Missed Items Full Visibility (raw audit trail)
+
+**Feature:** Adherence drilldown now shows every individual missed/late/skipped item with date, time, routine name, and status badge. Raw items shown first (grouped by date, most recent first), summary by routine shown below.
+
+**New function:** `get_missed_items_raw(user)` returns per-date entries with: date, routine_name, item_name, scheduled_time, status (missed/completed_late/skipped). No aggregation — full audit trail.
+
+**Template:** Redesigned `routine_adherence.html` — raw items as primary view (date-grouped cards with status badges), grouped summary as secondary section below.
+
+**Files:** `apps/core/behavior/behavior_score_engine.py` (get_missed_items_raw), `apps/life/views.py` (RoutineAdherenceView updated), `templates/life/routine_adherence.html` (rewritten)
+
+---
+
 ## 2026-03-21 — FEATURE: Weather Card on V2 Dashboard
 
 **Feature:** Weather card placed side-by-side with Today's Progress on the V2 dashboard. Clickable, opens Weather.com forecast for user's location.

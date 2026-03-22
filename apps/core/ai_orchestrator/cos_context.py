@@ -4327,20 +4327,22 @@ def format_cos_system_injection(context, user_message=None):
     _locked_facts_block = ""
     _facts_user = context.get('_user')
     if _facts_user:
-        try:
-            from apps.ai.cos_fact_statements import (
-                build_locked_facts,
-                format_locked_facts_block,
-            )
-            _locked_facts = build_locked_facts(_facts_user)
-            _locked_facts_block = format_locked_facts_block(_locked_facts)
-            # Store in context for validator access
-            context['_locked_facts'] = _locked_facts
-        except Exception:
-            logger.warning(
-                "COS_LOCKED_FACTS_FAILED user=%s",
-                context.get('user_id', 'unknown'), exc_info=True,
-            )
+        # NO try/except — locked facts are the foundation of CoS truth.
+        # If this fails, the prompt MUST NOT proceed without facts.
+        from apps.ai.cos_fact_statements import (
+            build_locked_facts,
+            format_locked_facts_block,
+        )
+        _locked_facts = build_locked_facts(_facts_user)
+        _locked_facts_block = format_locked_facts_block(_locked_facts)
+        # Store in context for validator access
+        context['_locked_facts'] = _locked_facts
+        logger.info(
+            "COS_LOCKED_FACTS_OK user=%s prayer=%s bible=%s",
+            context.get('user_id', 'unknown'),
+            _locked_facts['_raw']['prayer_done'],
+            _locked_facts['_raw']['bible_done'],
+        )
 
     if _locked_facts_block:
         lines.append(_locked_facts_block)

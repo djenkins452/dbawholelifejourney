@@ -3008,6 +3008,28 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                         cos_context, user_message=message,
                     )
 
+                    # ── CoS prompt debug logging ──
+                    # Log the last ~500 chars to verify FINAL TRUTH ANCHOR
+                    # is present at the end of the prompt.
+                    if cos_injection:
+                        _tail = cos_injection[-600:] if len(cos_injection) > 600 else cos_injection
+                        _has_anchor = 'FINAL EXECUTION STATUS' in cos_injection
+                        logger.info(
+                            "[CoS PROMPT DEBUG] user=%s path=non_stream "
+                            "len=%d has_truth_anchor=%s "
+                            "context_builder=cos_context.format_cos_system_injection "
+                            "last_500_chars=\n%s",
+                            self.user.id, len(cos_injection),
+                            _has_anchor, _tail,
+                        )
+                        if not _has_anchor:
+                            logger.error(
+                                "COS_TRUTH_ANCHOR_MISSING user=%s — "
+                                "FINAL TRUTH ANCHOR not found in prompt! "
+                                "This means Beth has NO execution truth.",
+                                self.user.id,
+                            )
+
                     # Append operational context AFTER personality layers
                     # so the LLM prioritizes relationship over raw data.
                     append_layers.append(cos_injection)
@@ -4832,6 +4854,23 @@ Rules for this response:
                 cos_injection = format_cos_system_injection(cos_ctx, user_message=message)
                 if cos_injection:
                     system_prompt += "\n\n" + cos_injection
+                    # ── CoS prompt debug logging (stream fast path) ──
+                    _tail = cos_injection[-600:] if len(cos_injection) > 600 else cos_injection
+                    _has_anchor = 'FINAL EXECUTION STATUS' in cos_injection
+                    logger.info(
+                        "[CoS PROMPT DEBUG] user=%s path=stream_fast "
+                        "len=%d has_truth_anchor=%s "
+                        "context_builder=cos_context.format_cos_system_injection "
+                        "last_500_chars=\n%s",
+                        self.user.id, len(cos_injection),
+                        _has_anchor, _tail,
+                    )
+                    if not _has_anchor:
+                        logger.error(
+                            "COS_TRUTH_ANCHOR_MISSING user=%s path=stream_fast — "
+                            "FINAL TRUTH ANCHOR not found in prompt!",
+                            self.user.id,
+                        )
             except Exception:
                 pass
         else:

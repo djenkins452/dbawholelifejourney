@@ -6,6 +6,30 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — CRITICAL FIX: CoS Truth Anchor Pipeline Verification
+
+**Problem:** Previous truth enforcement fix was being bypassed because token budget truncation (enabled by default, `WLJ_BUILDER_TOKEN_LIMITS_ENABLED=True`) cuts from the END of the prompt — exactly where the FINAL TRUTH ANCHOR was placed.
+
+**Root Cause:** `format_cos_system_injection()` appended the truth anchor to `lines[]`, then truncated the result to 8000 tokens by cutting from the end. The truth anchor was the first thing cut.
+
+**Fix:** Restructured to build truth anchor as a SEPARATE string, perform truncation on the main content, then append the truth anchor AFTER truncation. The anchor is now PROTECTED from truncation.
+
+**Added Diagnostic Logging:**
+- `[CoS PROMPT DEBUG]` — logs last 500 chars of prompt + whether truth anchor is present (both streaming and non-streaming paths)
+- `COS_TRUTH_ANCHOR_BUILT` — confirms anchor was built with exact domain values
+- `COS_TRUTH_ANCHOR_MISSING` — ERROR if anchor not found in final prompt
+- `[CoS VALIDATOR RUN]` — PASS/FAIL result for every response
+- `[CoS DEBUG]` — live execution state on every response
+
+**Files Modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — restructured truth anchor to survive truncation
+- `apps/ai/personal_assistant.py` — added prompt debug logging for both paths
+- `apps/ai/cos_truth_validator.py` — added PASS/FAIL logging
+
+**Tests:** 445 tests passing (orchestrator + dashboard + faith + hardening)
+
+---
+
 ## 2026-03-22 — CRITICAL FIX: CoS Truth Enforcement — Eliminate Fabricated Completions
 
 **Problem:** Beth (CoS) was telling users their prayer and Bible reading were completed when they were NOT. This destroyed user trust and system credibility.

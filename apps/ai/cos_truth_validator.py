@@ -149,12 +149,16 @@ def validate_response_truth(response_text, user, allow_regenerate=True):
                 break  # One praise violation is enough
 
     if not violations:
+        logger.info(
+            "[CoS VALIDATOR RUN] user=%s result=PASS — no truth violations",
+            user.id,
+        )
         return response_text, []
 
     # Log violations for monitoring
     domain_names = [v['domain'] for v in violations]
     logger.error(
-        "COS_TRUTH_VIOLATION user=%s domains=%s types=%s — "
+        "[CoS VALIDATOR RUN] user=%s result=FAIL domains=%s types=%s — "
         "Beth fabricated completion or gave false praise. "
         "Execution data contradicts response claims.",
         user.id,

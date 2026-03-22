@@ -6233,11 +6233,19 @@ def format_cos_system_injection(context, user_message=None):
         "is next, then your workout at 6:15. You\\'re in good shape.'"
     )
 
-    # ── FINAL TRUTH ANCHOR (HIGHEST RECENCY WEIGHT — LAST IN PROMPT) ──
-    # This block repeats execution truth at the VERY END of the prompt.
-    # LLMs weight the end of long prompts most heavily. This prevents
-    # streak data, examples, and historical context from overriding
-    # today's actual completion status.
+    # Do NOT append the truth anchor to `lines` — it must survive truncation.
+    # Build it as a separate string and append AFTER token budget enforcement.
+
+    lines.append("")
+    lines.append("")
+
+    result = '\n'.join(lines)
+
+    # ── FINAL TRUTH ANCHOR (built separately — PROTECTED from truncation) ──
+    # This block MUST appear at the very end of the prompt and MUST NOT be
+    # cut by token budget truncation. It is the single source of truth that
+    # the LLM must obey. Built from LIVE execution data every time.
+    _truth_anchor = ""
     _final_user = context.get('_user')
     if _final_user:
         try:
@@ -6248,11 +6256,15 @@ def format_cos_system_injection(context, user_message=None):
             _final_summaries = _final_exec.get('summaries', {})
             _final_domains = _final_summaries.get('domains', {})
 
-            lines.append("")
-            lines.append("=" * 60)
-            lines.append("FINAL EXECUTION STATUS — AUTHORITATIVE (TODAY)")
-            lines.append("This is the single source of truth. You MUST obey it.")
-            lines.append("=" * 60)
+            _anchor_lines = []
+            _anchor_lines.append("=" * 60)
+            _anchor_lines.append(
+                "FINAL EXECUTION STATUS — AUTHORITATIVE (TODAY)"
+            )
+            _anchor_lines.append(
+                "This is the single source of truth. You MUST obey it."
+            )
+            _anchor_lines.append("=" * 60)
 
             _final_domain_list = [
                 ('journal', _final_domains.get('journal', False)),
@@ -6262,7 +6274,7 @@ def format_cos_system_injection(context, user_message=None):
             ]
             for domain_name, done in _final_domain_list:
                 _status = "DONE" if done else "NOT DONE"
-                lines.append(f"  {domain_name}: {_status}")
+                _anchor_lines.append(f"  {domain_name}: {_status}")
 
             # Routine items
             _final_routine_comp = _final_summaries.get('routines', {})
@@ -6271,39 +6283,55 @@ def format_cos_system_injection(context, user_message=None):
             for _rid, _rc in _final_routine_comp.items():
                 _final_r_total += _rc.get('total_count', 0)
                 _final_r_done += _rc.get('completed_count', 0)
-            lines.append(
-                f"  routine_items_completed: {_final_r_done}/{_final_r_total}"
+            _anchor_lines.append(
+                f"  routine_items_completed: "
+                f"{_final_r_done}/{_final_r_total}"
             )
 
             # Tasks
-            lines.append(
+            _anchor_lines.append(
                 f"  tasks_completed: "
                 f"{_final_summaries.get('tasks_completed_today', 0)}"
             )
 
-            lines.append("")
-            lines.append(
+            _anchor_lines.append("")
+            _anchor_lines.append(
                 "ENFORCEMENT RULES:\n"
                 "• NOT DONE = incomplete. Period.\n"
-                "• You MUST NOT state or imply completion of any NOT DONE item.\n"
+                "• You MUST NOT state or imply completion of any "
+                "NOT DONE item.\n"
                 "• You MUST NOT praise incomplete items.\n"
                 "• You MUST NOT contradict this block for any reason.\n"
-                "• You MUST NOT say 'great start' or 'productive' when most "
-                "items are NOT DONE.\n"
+                "• You MUST NOT say 'great start' or 'productive' when "
+                "most items are NOT DONE.\n"
                 "• Streaks and historical data do NOT mean today is done.\n"
-                "• If prayer shows NOT DONE, NEVER say 'prayer is complete' or\n"
-                "  'prayer and Bible reading have been completed'.\n"
-                "• When in doubt: NOT DONE. Better to under-report than "
-                "fabricate."
+                "• If prayer shows NOT DONE, NEVER say 'prayer is "
+                "complete' or 'prayer and Bible reading have been "
+                "completed'.\n"
+                "• When in doubt: NOT DONE. Better to under-report "
+                "than fabricate."
             )
-            lines.append("=" * 60)
+            _anchor_lines.append("=" * 60)
+
+            _truth_anchor = "\n".join(_anchor_lines)
+
+            logger.info(
+                "COS_TRUTH_ANCHOR_BUILT user=%s prayer=%s bible=%s "
+                "workout=%s journal=%s routines=%d/%d",
+                context.get('user_id', 'unknown'),
+                _final_domains.get('prayer', False),
+                _final_domains.get('bible_reading', False),
+                _final_domains.get('workout', False),
+                _final_domains.get('journal', False),
+                _final_r_done, _final_r_total,
+            )
         except Exception:
-            logger.debug("Final truth anchor unavailable", exc_info=True)
-
-    lines.append("")
-    lines.append("")
-
-    result = '\n'.join(lines)
+            logger.warning(
+                "COS_TRUTH_ANCHOR_FAILED user=%s — truth anchor could not "
+                "be built from execution data",
+                context.get('user_id', 'unknown'),
+                exc_info=True,
+            )
 
     # Token budget telemetry — log prompt size for monitoring
     try:
@@ -6312,9 +6340,9 @@ def format_cos_system_injection(context, user_message=None):
     except ImportError:
         approx_tokens = len(result) // 4
 
-    # Phase 7: Per-builder token limit — hard-cap the entire CoS injection
-    # to prevent runaway prompt sizes. The global TokenGovernor (Phase 6)
-    # provides a secondary safety net at the message assembly level.
+    # Phase 7: Per-builder token limit — hard-cap the CoS injection
+    # to prevent runaway prompt sizes. CRITICAL: The truth anchor is
+    # appended AFTER truncation so it is NEVER cut.
     _COS_INJECTION_MAX_TOKENS = 8000
     if getattr(settings, 'WLJ_BUILDER_TOKEN_LIMITS_ENABLED', False):
         if approx_tokens > _COS_INJECTION_MAX_TOKENS:
@@ -6335,6 +6363,12 @@ def format_cos_system_injection(context, user_message=None):
                     approx_tokens = _est_tokens(result)
                 except Exception:
                     approx_tokens = len(result) // 4
+
+    # ── APPEND TRUTH ANCHOR AFTER TRUNCATION (PROTECTED) ──
+    # This is the single most important block in the entire prompt.
+    # It MUST appear at the end, and it MUST NOT be truncated.
+    if _truth_anchor:
+        result = result + "\n\n" + _truth_anchor
 
     if approx_tokens > 8000:
         logger.warning(

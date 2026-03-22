@@ -3129,31 +3129,46 @@ def _build_data_state_snapshot(user) -> str:
     )
     lines.append(f"  {_tone_rule}")
 
-    # ── Persona-rendered example message ──
-    # Give Beth a pre-rendered summary and progress message in the user's
-    # persona style so she matches the user's chosen coaching tone.
+    # ── Persona message block (anchor + flex model) ──
+    # System-generated messages that Beth must use as primary output.
+    # STRICT messages: meaning locked. FLEXIBLE: natural variation OK.
+    # Replaces the old PERSONA EXAMPLE approach.
     try:
-        from apps.cos.services.persona_service import render_message, get_day_status_from_rate
+        from apps.cos.services.persona_service import (
+            build_persona_message_block, get_day_status_from_rate,
+        )
         _persona_day = get_day_status_from_rate(_completion_rate)
+
+        # Get the top action from priorities (if available) for next_action
+        _top_action_title = ''
+        try:
+            # _exec_contract is the fresh execution data built above
+            from apps.core.decision_engine.action_prioritizer import prioritize_execution_items
+            from apps.core.utils import get_user_now as _pgu
+            _p_now = _pgu(user).time()
+            _p_items = _exec_contract.get('items', [])
+            _p_summaries = _exec_contract.get('summaries', {})
+            _p_priorities = prioritize_execution_items(
+                _p_items, _p_now, summaries=_p_summaries,
+            )
+            if _p_priorities:
+                _top_action_title = _p_priorities[0]['title']
+        except Exception:
+            pass
+
         _persona_ctx = {
             'completed': _completed_items,
             'total': _total_items,
             'completion_rate': _completion_rate,
+            'action': _top_action_title or 'your next item',
+            'duration': 15,
         }
-        _persona_summary = render_message(
-            user, 'day_summary', _persona_ctx, _persona_day
+        _persona_block = build_persona_message_block(
+            user, _persona_ctx, _persona_day,
         )
-        _persona_progress = render_message(
-            user, 'progress_update', _persona_ctx, _persona_day
-        )
-        if _persona_summary:
-            lines.append(f"  PERSONA EXAMPLE (day summary): \"{_persona_summary}\"")
-        if _persona_progress:
-            lines.append(f"  PERSONA EXAMPLE (progress): \"{_persona_progress}\"")
-        lines.append(
-            "  Use these examples as a tone guide. Match the style, "
-            "but adapt the wording to the conversation."
-        )
+        if _persona_block:
+            lines.append("")
+            lines.append(_persona_block)
     except Exception:
         pass
 

@@ -28,6 +28,12 @@ MESSAGE_TYPES = {
 # ── Day status levels ──
 DAY_STATUSES = {'low', 'partial', 'strong'}
 
+# ── Strict vs flexible message types ──
+# STRICT: meaning must be preserved exactly — only light wording adjustments
+# FLEXIBLE: natural variation allowed, meaning preserved loosely
+STRICT_TYPES = {'next_action', 'progress_update', 'day_summary'}
+FLEXIBLE_TYPES = {'nudge', 'empty_state'}
+
 # ── Hardcoded fallback templates (always available) ──
 _FALLBACK_TEMPLATES = {
     'next_action': {
@@ -142,6 +148,66 @@ def get_day_status_from_rate(completion_rate):
     elif completion_rate >= 40:
         return 'partial'
     return 'low'
+
+
+def build_persona_message_block(user, context, day_status):
+    """
+    Build the full structured persona message block for CoS injection.
+
+    Returns a formatted string with all rendered messages and their
+    strict/flexible flags, plus usage rules. This replaces the old
+    PERSONA EXAMPLE approach with anchored messages.
+
+    Args:
+        user: Django User instance
+        context: dict — template variables (action, duration, completed, total, etc.)
+        day_status: str — 'low', 'partial', or 'strong'
+
+    Returns:
+        str — formatted block for system prompt injection, or empty string
+    """
+    lines = []
+    any_rendered = False
+
+    for msg_type in ('next_action', 'progress_update', 'day_summary', 'nudge', 'empty_state'):
+        rendered = render_message(user, msg_type, context, day_status)
+        if not rendered:
+            continue
+        strict = msg_type in STRICT_TYPES
+        flag = 'STRICT' if strict else 'FLEXIBLE'
+        lines.append(f"  {msg_type} [{flag}]: \"{rendered}\"")
+        any_rendered = True
+
+    if not any_rendered:
+        return ''
+
+    header = [
+        "PERSONA MESSAGES (system-generated — use these as your primary output):",
+        f"  day_status: {day_status.upper()}",
+    ]
+
+    rules = [
+        "",
+        "MESSAGE USAGE RULES:",
+        "  STRICT messages: preserve meaning exactly. You may lightly adjust",
+        "  wording for natural tone but MUST NOT change action, priority,",
+        "  completion status, or day status. FLEXIBLE messages: natural",
+        "  variation allowed, meaning preserved loosely.",
+        "",
+        "  NOT allowed: changing the action, introducing alternatives,",
+        "  softening urgency in LOW state, adding untracked activity,",
+        "  describing the day positively when status is LOW.",
+    ]
+
+    if day_status == 'low':
+        rules.append("")
+        rules.append(
+            "  LOW STATE ENFORCEMENT: You MUST lead with the next_action message."
+            " You MUST be directive. Do NOT provide multiple options, soften"
+            " urgency, or describe the day positively."
+        )
+
+    return '\n'.join(header + lines + rules)
 
 
 class _SafeFormatDict(dict):

@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — ENHANCEMENT: Persona Delivery Guardrails (anchor + flex model)
+
+**Problem:** Beth received persona "examples" and could drift — reinterpreting meaning, softening urgency, or adding fabricated activity.
+
+**Fix:** Replaced PERSONA EXAMPLE approach with structured message blocks that anchor Beth's output:
+- STRICT messages (next_action, progress_update, day_summary): meaning locked, only light wording adjustments
+- FLEXIBLE messages (nudge, empty_state): natural variation allowed
+- LOW STATE ENFORCEMENT: Beth MUST lead with next_action, be directive, no positive language, no options
+
+**How it works:** `build_persona_message_block()` renders all 5 message types with strict/flexible flags and injects usage rules directly into the CoS context. Beth sees:
+```
+next_action [STRICT]: "Start with Prayer. Take 5 minutes right now."
+day_summary [STRICT]: "You're at 0% today. Pick one thing and start there."
+LOW STATE ENFORCEMENT: You MUST lead with the next_action message...
+```
+
+**Files:** `apps/cos/services/persona_service.py`, `apps/core/ai_orchestrator/cos_context.py`
+
+---
+
 ## 2026-03-21 — FEATURE: Persona Template System (config-driven, scalable)
 
 **Feature:** Config-driven message rendering that controls Beth's tone based on coaching style × day status.

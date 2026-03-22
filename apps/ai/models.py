@@ -76,6 +76,15 @@ class CoachingStyle(models.Model):
     prompt_instructions = models.TextField(
         help_text="Full AI prompt instructions for this coaching style"
     )
+    message_templates = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Persona message templates keyed by message_type → day_status. "
+            "E.g. {\"next_action\": {\"low\": \"Start with {action}.\", ...}, "
+            "\"day_summary\": {\"strong\": \"Great work today.\", ...}}"
+        ),
+    )
     is_active = models.BooleanField(
         default=True,
         help_text="Whether this style is available for users to select"

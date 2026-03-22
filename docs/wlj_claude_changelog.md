@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FEATURE: 7-Day Adherence Score (replace momentum narrative)
+
+**Feature:** Concrete 7-day adherence score with delta and gap analysis, replacing vague "momentum" language in Beth's context.
+
+**Components:**
+1. `compute_adherence_summary(user)` — returns score (0-100), delta from yesterday, direction (up/down/flat), top gap ("Missed 3 workouts this week"), strongest/weakest domain, and total expected/completed counts
+2. CoS injection: `7-DAY ADHERENCE: 64% ↑ (+12 from yesterday)` with top gap and weakest domain
+3. Dashboard V2: `adherence` dict available in template context for UI rendering
+4. Beth directive: "Say 'you completed X of Y this week' not 'your momentum is...'"
+
+**Architecture:** Pure function built on existing `compute_behavior_score()` — two calls (today's 7-day window + yesterday's) for delta. No new models, no DB writes.
+
+**Files:** `apps/core/behavior/behavior_score_engine.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/dashboard_v2/views.py`
+
+---
+
 ## 2026-03-21 — FEATURE: Routine "Completed As Scheduled" (late logging fix)
 
 **Problem:** Users who complete routine items on time but log them later get penalized with "completed_late" status, creating false negatives in streaks and scoring.

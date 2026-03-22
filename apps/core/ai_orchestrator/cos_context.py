@@ -3172,6 +3172,36 @@ def _build_data_state_snapshot(user) -> str:
     except Exception:
         pass
 
+    # ── 7-Day Adherence Score ──
+    # Replaces momentum narrative with concrete adherence data.
+    # Beth uses this for behavioral guidance instead of vague "momentum" language.
+    try:
+        from apps.core.behavior.behavior_score_engine import compute_adherence_summary
+        _adh = compute_adherence_summary(user)
+        if _adh.get('score') is not None:
+            _delta_arrow = {'up': '\u2191', 'down': '\u2193', 'flat': '\u2192'}.get(
+                _adh['delta_direction'], ''
+            )
+            lines.append("")
+            lines.append(
+                f"7-DAY ADHERENCE: {_adh['score']:.0f}% {_delta_arrow} "
+                f"({'+' if _adh['delta'] > 0 else ''}{_adh['delta']} from yesterday)"
+            )
+            lines.append(
+                f"  {_adh['total_completed']}/{_adh['total_expected']} actions completed this week"
+            )
+            if _adh.get('top_gap'):
+                lines.append(f"  Top gap: {_adh['top_gap']}")
+            if _adh.get('weakest'):
+                lines.append(f"  Weakest domain: {_adh['weakest']}")
+            lines.append(
+                "Use adherence data for behavioral guidance. "
+                "Say 'you completed X of Y this week' not 'your momentum is...' "
+                "Reference the top gap when suggesting next actions."
+            )
+    except Exception:
+        logger.debug("Adherence summary unavailable", exc_info=True)
+
     # ── Execution data availability gate ──
     # If execution module has no data, DO NOT infer or fall back to other modules.
     # This prevents parallel truth drift between execution contract and legacy SAE modules.

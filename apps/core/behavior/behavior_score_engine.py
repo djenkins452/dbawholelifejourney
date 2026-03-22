@@ -152,3 +152,84 @@ def compute_behavior_score_7d(user):
     today = get_user_today(user)
     start = today - timedelta(days=7)
     return compute_behavior_score(user, start, today)
+
+
+def compute_adherence_summary(user):
+    """
+    Compute a complete 7-day adherence summary with delta and gap analysis.
+
+    Returns:
+        dict: {
+            'score': float (0-100) or None,
+            'delta': int — change from yesterday's 7-day score,
+            'delta_direction': str — 'up', 'down', or 'flat',
+            'top_gap': str or None — human-readable top limiter,
+            'domains': list — per-domain behavior outputs,
+            'strongest': str or None,
+            'weakest': str or None,
+            'total_expected': int,
+            'total_completed': int,
+        }
+    """
+    from apps.core.utils import get_user_today
+    today = get_user_today(user)
+
+    # Today's 7-day score
+    current = compute_behavior_score(user, today - timedelta(days=7), today)
+
+    # Yesterday's 7-day score (for delta)
+    yesterday = today - timedelta(days=1)
+    previous = compute_behavior_score(user, yesterday - timedelta(days=7), yesterday)
+
+    current_score = current.get('score')
+    previous_score = previous.get('score')
+
+    # Delta
+    if current_score is not None and previous_score is not None:
+        delta = round(current_score - previous_score)
+        if delta > 0:
+            delta_direction = 'up'
+        elif delta < 0:
+            delta_direction = 'down'
+        else:
+            delta_direction = 'flat'
+    else:
+        delta = 0
+        delta_direction = 'flat'
+
+    # Gap analysis — find the biggest miss across domains
+    top_gap = None
+    max_missed = 0
+    total_expected = 0
+    total_completed = 0
+
+    _domain_labels = {
+        'medication': 'medication doses',
+        'workout': 'workouts',
+        'routine': 'routine items',
+    }
+
+    for d in current.get('domains', []):
+        expected = d.get('expected', 0)
+        completed = d.get('completed', 0)
+        late = d.get('late', 0)
+        missed = d.get('missed', 0)
+        total_expected += expected
+        total_completed += completed + late
+
+        if missed > max_missed:
+            max_missed = missed
+            domain_label = _domain_labels.get(d['domain'], d['domain'])
+            top_gap = f"Missed {missed} {domain_label} this week"
+
+    return {
+        'score': current_score,
+        'delta': delta,
+        'delta_direction': delta_direction,
+        'top_gap': top_gap,
+        'domains': current.get('domains', []),
+        'strongest': current.get('strongest_domain'),
+        'weakest': current.get('weakest_domain'),
+        'total_expected': total_expected,
+        'total_completed': total_completed,
+    }

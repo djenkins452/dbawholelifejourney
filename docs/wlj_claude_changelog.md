@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — Execution Truth Engine: Expectation Awareness (Phase 1.5)
+
+**Root cause:** The engine correctly tracked what was COMPLETED but had no concept of what was EXPECTED today. All domains (workout, journal, faith) were hardcoded as always expected. This caused "Workout is not yet completed" on days where no workout was scheduled.
+
+**Fix:** Added `expected` flag to all domains in the Execution Truth Engine:
+- Expectations derived from today's routine items (name-based mapping to domains)
+- Active Bible reading plans auto-set bible_expected=True
+- Faith tasks due today auto-set prayer_expected=True
+- Fact statements now have 3 states: "complete", "not yet completed", "not scheduled today"
+- Overall summary and completion rate only count expected domains
+- Validator completion rate calculation updated — no false praise flags for non-expected domains
+
+**Files changed:**
+- `apps/core/execution/execution_truth_engine.py` — added `_derive_expectations()`, domain name sets for workout/journal, expected flags in all domain outputs
+- `apps/ai/cos_fact_statements.py` — all builders now respect expected flags, 3-state output
+- `apps/ai/cos_truth_validator.py` — completion rate only counts expected domains, debug state includes expected flags
+- `apps/ai/tests/test_cos_truth_enforcement.py` — 12 new tests for expectation awareness
+
+**Why:** Without expectation awareness, Beth was telling users items were "not completed" when those items weren't even on their schedule — eroding trust.
+
+---
+
 ## 2026-03-22 — CRITICAL FIX: CoS Pipeline Reliability — Fail Fast, No Silent Failures
 
 **Root cause:** CoS had multiple layers of silent failure:

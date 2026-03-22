@@ -5,8 +5,9 @@ ARCHITECTURAL RULE:
   Every system that needs to know "is X completed today?" MUST call
   get_execution_truth(user). No exceptions.
 
-  This engine answers ONE question:
-    "What has the user actually completed today?"
+  This engine answers TWO questions:
+    1. "What is expected of the user today?" (from routines + config)
+    2. "What has the user actually completed today?" (from execution logs)
 
   It uses ONLY raw authoritative data:
     - RoutineLog (routine items)
@@ -27,6 +28,12 @@ CROSS-DOMAIN BRIDGES:
     - A routine item named "Prayer Time" → satisfies faith.prayer
     - A routine item named "Bible Reading" → satisfies faith.bible_reading
   These bridges live HERE and ONLY here.
+
+EXPECTATION RULES:
+  A domain is "expected" today if:
+    - It has a routine item scheduled for today, OR
+    - It has an active plan/config (e.g., Bible reading plan)
+  If a domain is NOT expected, CoS must not report it as pending.
 
 CONSUMERS (all must use this engine):
   - CoS (cos_fact_statements.py)
@@ -55,23 +62,42 @@ FAITH_BIBLE_NAMES = frozenset({
     'bible reading', 'bible study', 'scripture reading', 'devotional',
 })
 
+# Routine item names that map to workout domain
+WORKOUT_NAMES = frozenset({
+    'workout', 'exercise', 'gym', 'training', 'run', 'running',
+    'morning workout', 'evening workout', 'cardio', 'strength training',
+    'yoga', 'stretching', 'walk', 'walking', 'hike', 'hiking',
+    'swim', 'swimming', 'cycling', 'bike', 'fitness',
+})
+
+# Routine item names that map to journal domain
+JOURNAL_NAMES = frozenset({
+    'journal', 'journaling', 'journal entry', 'daily journal',
+    'morning journal', 'evening journal', 'reflection', 'daily reflection',
+    'gratitude journal', 'gratitude',
+})
+
 
 def get_execution_truth(user, target_date: Optional[date] = None) -> Dict:
     """
-    THE single source of truth for what the user has completed today.
+    THE single source of truth for what the user has completed today
+    AND what is expected today.
 
     Returns:
         {
             'date': '2026-03-22',
             'domains': {
                 'faith': {
+                    'expected': bool,
+                    'prayer_expected': bool,
+                    'bible_expected': bool,
                     'prayer_completed': bool,
                     'bible_reading_completed': bool,
                     'prayer_source': str,       # 'task', 'routine', or None
                     'bible_source': str,         # 'reading_plan', 'routine', or None
                 },
-                'workout': {'completed': bool},
-                'journal': {'completed': bool},
+                'workout': {'expected': bool, 'completed': bool},
+                'journal': {'expected': bool, 'completed': bool},
             },
             'routines': {
                 'total': int,
@@ -94,14 +120,20 @@ def get_execution_truth(user, target_date: Optional[date] = None) -> Dict:
     if target_date is None:
         target_date = get_user_today(user)
 
+    # Build routines first — we need them for expectation detection
+    routines = _check_routines(user)
+
+    # Derive domain expectations from today's routine items
+    expectations = _derive_expectations(user, target_date, routines)
+
     truth = {
         'date': target_date.isoformat(),
         'domains': {
-            'faith': _check_faith(user, target_date),
-            'workout': _check_workout(user, target_date),
-            'journal': _check_journal(user, target_date),
+            'faith': _check_faith(user, target_date, expectations),
+            'workout': _check_workout(user, target_date, expectations),
+            'journal': _check_journal(user, target_date, expectations),
         },
-        'routines': _check_routines(user),
+        'routines': routines,
         'tasks': _check_tasks(user, target_date),
         'medications': _check_medications(user, target_date),
     }
@@ -111,15 +143,21 @@ def get_execution_truth(user, target_date: Optional[date] = None) -> Dict:
     _apply_routine_faith_bridge(truth)
 
     logger.info(
-        "[EXECUTION TRUTH] user=%s date=%s prayer=%s(src=%s) bible=%s(src=%s) "
-        "workout=%s journal=%s routines=%d/%d tasks=%d/%d meds=%d/%d",
+        "[EXECUTION TRUTH] user=%s date=%s "
+        "prayer=%s(exp=%s,src=%s) bible=%s(exp=%s,src=%s) "
+        "workout=%s(exp=%s) journal=%s(exp=%s) "
+        "routines=%d/%d tasks=%d/%d meds=%d/%d",
         user.id, target_date,
         truth['domains']['faith']['prayer_completed'],
+        truth['domains']['faith']['prayer_expected'],
         truth['domains']['faith'].get('prayer_source'),
         truth['domains']['faith']['bible_reading_completed'],
+        truth['domains']['faith']['bible_expected'],
         truth['domains']['faith'].get('bible_source'),
         truth['domains']['workout']['completed'],
+        truth['domains']['workout']['expected'],
         truth['domains']['journal']['completed'],
+        truth['domains']['journal']['expected'],
         truth['routines']['completed'], truth['routines']['total'],
         truth['tasks']['completed'], truth['tasks']['total'],
         truth['medications']['taken'], truth['medications']['expected'],
@@ -128,10 +166,89 @@ def get_execution_truth(user, target_date: Optional[date] = None) -> Dict:
     return truth
 
 
+# ── Expectation Derivation ────────────────────────────────────────
+
+
+def _derive_expectations(user, target_date: date, routines: Dict) -> Dict:
+    """
+    Determine what domains are expected today based on:
+    1. Today's routine items (name-based mapping)
+    2. Active configurations (e.g., Bible reading plans)
+
+    Returns dict with expected flags for each domain.
+    """
+    expectations = {
+        'prayer_expected': False,
+        'bible_expected': False,
+        'workout_expected': False,
+        'journal_expected': False,
+    }
+
+    # Scan today's routine items for domain-mapped names
+    raw_items = routines.get('_raw_items', {})
+    for _window, items in raw_items.items():
+        for item in items:
+            item_name = (item.get('item_name') or '').lower().strip()
+            if item_name in FAITH_PRAYER_NAMES:
+                expectations['prayer_expected'] = True
+            if item_name in FAITH_BIBLE_NAMES:
+                expectations['bible_expected'] = True
+            if item_name in WORKOUT_NAMES:
+                expectations['workout_expected'] = True
+            if item_name in JOURNAL_NAMES:
+                expectations['journal_expected'] = True
+
+    # Bible reading plan = bible expected (regardless of routine)
+    try:
+        from apps.faith.models import UserReadingPlan
+        if UserReadingPlan.objects.filter(
+            user=user, plan_status='active',
+        ).exclude(status='deleted').exists():
+            expectations['bible_expected'] = True
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning(
+            "execution_truth: bible plan check failed", exc_info=True,
+        )
+
+    # Faith tasks due today = prayer expected
+    try:
+        from apps.life.models import Task
+        if Task.objects.filter(
+            user=user,
+            module='faith',
+            due_date=target_date,
+            is_routine=False,
+        ).exclude(status='deleted').exclude(
+            completion_status='completed',
+        ).exists():
+            expectations['prayer_expected'] = True
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning(
+            "execution_truth: faith task expectation check failed",
+            exc_info=True,
+        )
+
+    logger.info(
+        "[EXECUTION TRUTH EXPECTATIONS] user=%s date=%s "
+        "prayer_exp=%s bible_exp=%s workout_exp=%s journal_exp=%s",
+        user.id, target_date,
+        expectations['prayer_expected'],
+        expectations['bible_expected'],
+        expectations['workout_expected'],
+        expectations['journal_expected'],
+    )
+
+    return expectations
+
+
 # ── Domain Checkers (raw DB queries only) ──────────────────────
 
 
-def _check_faith(user, target_date: date) -> Dict:
+def _check_faith(user, target_date: date, expectations: Dict) -> Dict:
     """
     Check faith completion from EXPLICIT records only.
 
@@ -142,6 +259,12 @@ def _check_faith(user, target_date: date) -> Dict:
     NOTE: Routine bridges are applied AFTER this, in _apply_routine_faith_bridge().
     """
     result = {
+        'expected': (
+            expectations.get('prayer_expected', False)
+            or expectations.get('bible_expected', False)
+        ),
+        'prayer_expected': expectations.get('prayer_expected', False),
+        'bible_expected': expectations.get('bible_expected', False),
         'prayer_completed': False,
         'bible_reading_completed': False,
         'prayer_source': None,
@@ -165,7 +288,9 @@ def _check_faith(user, target_date: date) -> Dict:
     except ImportError:
         pass
     except Exception:
-        logger.warning("execution_truth: bible reading check failed", exc_info=True)
+        logger.warning(
+            "execution_truth: bible reading check failed", exc_info=True,
+        )
 
     # Faith-linked task completion (prayer)
     try:
@@ -181,14 +306,19 @@ def _check_faith(user, target_date: date) -> Dict:
     except ImportError:
         pass
     except Exception:
-        logger.warning("execution_truth: faith task check failed", exc_info=True)
+        logger.warning(
+            "execution_truth: faith task check failed", exc_info=True,
+        )
 
     return result
 
 
-def _check_workout(user, target_date: date) -> Dict:
+def _check_workout(user, target_date: date, expectations: Dict) -> Dict:
     """Check workout completion from WorkoutSession."""
-    result = {'completed': False}
+    result = {
+        'expected': expectations.get('workout_expected', False),
+        'completed': False,
+    }
     try:
         from apps.health.models import WorkoutSession
         result['completed'] = WorkoutSession.objects.filter(
@@ -197,13 +327,19 @@ def _check_workout(user, target_date: date) -> Dict:
     except ImportError:
         pass
     except Exception:
-        logger.warning("execution_truth: workout check failed", exc_info=True)
+        logger.warning(
+            "execution_truth: workout check failed", exc_info=True,
+        )
+    # If completed but not expected, it's a bonus — still mark completed
     return result
 
 
-def _check_journal(user, target_date: date) -> Dict:
+def _check_journal(user, target_date: date, expectations: Dict) -> Dict:
     """Check journal completion from JournalEntry."""
-    result = {'completed': False}
+    result = {
+        'expected': expectations.get('journal_expected', False),
+        'completed': False,
+    }
     try:
         from apps.journal.models import JournalEntry
         result['completed'] = JournalEntry.objects.filter(
@@ -212,7 +348,9 @@ def _check_journal(user, target_date: date) -> Dict:
     except ImportError:
         pass
     except Exception:
-        logger.warning("execution_truth: journal check failed", exc_info=True)
+        logger.warning(
+            "execution_truth: journal check failed", exc_info=True,
+        )
     return result
 
 
@@ -251,7 +389,9 @@ def _check_routines(user) -> Dict:
     except ImportError:
         pass
     except Exception:
-        logger.warning("execution_truth: routine check failed", exc_info=True)
+        logger.warning(
+            "execution_truth: routine check failed", exc_info=True,
+        )
     return result
 
 
@@ -260,7 +400,7 @@ def _check_tasks(user, target_date: date) -> Dict:
     result = {
         'total': 0,
         'completed': 0,
-        'completed_today_all': 0,  # all tasks completed today, regardless of due_date
+        'completed_today_all': 0,
     }
     try:
         from apps.life.models import Task
@@ -285,7 +425,9 @@ def _check_tasks(user, target_date: date) -> Dict:
     except ImportError:
         pass
     except Exception:
-        logger.warning("execution_truth: task check failed", exc_info=True)
+        logger.warning(
+            "execution_truth: task check failed", exc_info=True,
+        )
     return result
 
 
@@ -309,7 +451,9 @@ def _check_medications(user, target_date: date) -> Dict:
     except ImportError:
         pass
     except Exception:
-        logger.warning("execution_truth: medication check failed", exc_info=True)
+        logger.warning(
+            "execution_truth: medication check failed", exc_info=True,
+        )
     return result
 
 
@@ -340,13 +484,18 @@ def _apply_routine_faith_bridge(truth: Dict) -> None:
                 faith['prayer_completed'] = True
                 faith['prayer_source'] = 'routine'
                 logger.info(
-                    "[EXECUTION TRUTH BRIDGE] routine '%s' → prayer_completed=True",
+                    "[EXECUTION TRUTH BRIDGE] routine '%s' → "
+                    "prayer_completed=True",
                     item.get('item_name'),
                 )
-            elif item_name in FAITH_BIBLE_NAMES and not faith['bible_reading_completed']:
+            elif (
+                item_name in FAITH_BIBLE_NAMES
+                and not faith['bible_reading_completed']
+            ):
                 faith['bible_reading_completed'] = True
                 faith['bible_source'] = 'routine'
                 logger.info(
-                    "[EXECUTION TRUTH BRIDGE] routine '%s' → bible_reading_completed=True",
+                    "[EXECUTION TRUTH BRIDGE] routine '%s' → "
+                    "bible_reading_completed=True",
                     item.get('item_name'),
                 )

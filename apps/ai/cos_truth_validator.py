@@ -110,7 +110,6 @@ def validate_response_truth(response_text, user, allow_regenerate=True):
         return response_text, []
 
     # Use the Execution Truth Engine — the SINGLE source of truth.
-    # Do NOT use build_today_execution() which has a different data path.
     from apps.core.execution.execution_truth_engine import get_execution_truth
     truth = get_execution_truth(user)
     faith = truth['domains']['faith']
@@ -120,9 +119,17 @@ def validate_response_truth(response_text, user, allow_regenerate=True):
         'workout': truth['domains']['workout']['completed'],
         'journal': truth['domains']['journal']['completed'],
     }
+    # Track which domains are expected today
+    exec_expected = {
+        'prayer': faith.get('prayer_expected', False),
+        'bible_reading': faith.get('bible_expected', False),
+        'workout': truth['domains']['workout'].get('expected', False),
+        'journal': truth['domains']['journal'].get('expected', False),
+    }
     # Build exec_summaries shape for _compute_completion_rate
     exec_summaries = {
         'domains': exec_domains,
+        'expected': exec_expected,
         'routines': {
             str(k): {'total_count': v['total'], 'completed_count': v['completed']}
             for k, v in truth['routines'].get('items', {}).items()
@@ -285,16 +292,19 @@ def build_strict_regeneration_prompt(violations, exec_domains):
 
 
 def _compute_completion_rate(exec_summaries, exec_domains):
-    """Compute completion rate from execution data."""
+    """Compute completion rate from execution data — only expected domains."""
     total = 0
     completed = 0
 
-    # Domain completions
+    # Domain completions — only count expected domains
+    exec_expected = exec_summaries.get('expected', {})
     for domain, done in exec_domains.items():
         if domain in ('journal', 'workout', 'bible_reading', 'prayer'):
-            total += 1
-            if done:
-                completed += 1
+            # Only count if expected or already done
+            if exec_expected.get(domain, False) or done:
+                total += 1
+                if done:
+                    completed += 1
 
     # Routine items
     routines = exec_summaries.get('routines', {})
@@ -330,12 +340,13 @@ def log_cos_debug_state(user):
         state = {
             'date': truth['date'],
             'prayer_today': faith['prayer_completed'],
+            'prayer_expected': faith.get('prayer_expected', False),
             'bible_today': faith['bible_reading_completed'],
+            'bible_expected': faith.get('bible_expected', False),
             'journal_today': truth['domains']['journal']['completed'],
+            'journal_expected': truth['domains']['journal'].get('expected', False),
             'workout_today': truth['domains']['workout']['completed'],
-            'faith_engaged_today': faith['prayer_completed'] or faith['bible_reading_completed'],
-            'reading_completed_today': faith['bible_reading_completed'],
-            'faith_task_completed_today': faith['prayer_completed'],
+            'workout_expected': truth['domains']['workout'].get('expected', False),
         }
 
         # Routine completion
@@ -347,15 +358,16 @@ def log_cos_debug_state(user):
         state['tasks_completed_today'] = truth['tasks']['completed_today_all']
 
         logger.info(
-            "[CoS DEBUG] user=%s date=%s prayer_today=%s bible_today=%s "
-            "journal_today=%s workout_today=%s "
+            "[CoS DEBUG] user=%s date=%s "
+            "prayer=%s(exp=%s) bible=%s(exp=%s) "
+            "journal=%s(exp=%s) workout=%s(exp=%s) "
             "routine_items=%s tasks_completed=%s",
             user.id,
             state['date'],
-            state['prayer_today'],
-            state['bible_today'],
-            state['journal_today'],
-            state['workout_today'],
+            state['prayer_today'], state['prayer_expected'],
+            state['bible_today'], state['bible_expected'],
+            state['journal_today'], state['journal_expected'],
+            state['workout_today'], state['workout_expected'],
             state['routine_items_completed'],
             state['tasks_completed_today'],
         )
@@ -509,14 +521,23 @@ def build_locked_regeneration_prompt(locked_facts):
 
 
 def _compute_completion_rate_from_raw(raw):
-    """Compute completion rate from raw fact data."""
-    total = 4  # prayer, bible, workout, journal
-    done = sum([
-        raw.get('prayer_done', False),
-        raw.get('bible_done', False),
-        raw.get('workout_done', False),
-        raw.get('journal_done', False),
-    ])
+    """Compute completion rate from raw fact data — only expected domains."""
+    total = 0
+    done = 0
+
+    # Only count domains that are expected today
+    _domain_pairs = [
+        ('prayer_expected', 'prayer_done'),
+        ('bible_expected', 'bible_done'),
+        ('workout_expected', 'workout_done'),
+        ('journal_expected', 'journal_done'),
+    ]
+    for exp_key, done_key in _domain_pairs:
+        if raw.get(exp_key, False) or raw.get(done_key, False):
+            total += 1
+            if raw.get(done_key, False):
+                done += 1
+
     total += raw.get('routine_total', 0)
     done += raw.get('routine_done', 0)
     if total == 0:

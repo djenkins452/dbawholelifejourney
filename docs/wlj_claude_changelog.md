@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FEATURE: Adherence Score on V2 Dashboard
+
+**Feature:** 7-day adherence score now displayed as the primary metric on the V2 dashboard, replacing momentum gauges as the top-level view.
+
+**UI structure:**
+- Large score with color coding (green ≥75%, amber ≥40%, red <40%)
+- Delta indicator (↑ +12 or ↓ -5) from yesterday's 7-day score
+- Progress bar
+- Completed count: "45/70 actions completed this week"
+- Gap explanation: "Missed 3 routine items this week"
+- Best Move card: "Morning Routine → 74%" with accent highlight
+
+**Goal momentum kept** as collapsible `<details>` section below for users who want per-goal breakdown.
+
+**Files:** `templates/dashboard_v2/home.html`, `templates/dashboard_v2/partials/adherence_card.html` (new)
+
+---
+
 ## 2026-03-21 — FEATURE: Dynamic Weather Link
 
 **Feature:** Weather card on dashboard now links to Weather.com forecast for user's location. Clicking the card opens full forecast in new tab.

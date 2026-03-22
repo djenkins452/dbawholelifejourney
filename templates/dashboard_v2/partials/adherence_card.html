@@ -1,0 +1,87 @@
+{# 7-Day Adherence Score Card — replaces momentum dial as primary metric #}
+{# Usage: {% include "dashboard_v2/partials/adherence_card.html" with adherence=adherence %} #}
+
+{% if adherence.score != None %}
+<section class="v2-section">
+    <div class="v2-adherence-card" style="
+        background: var(--color-surface);
+        border-radius: var(--radius-lg, 12px);
+        padding: var(--space-5) var(--space-6);
+        border: 1px solid var(--color-border);
+    ">
+        {# Score + Delta row #}
+        <div style="display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-2);">
+            <span style="font-size: 2.5rem; font-weight: 700; line-height: 1;
+                {% if adherence.score >= 75 %}color: var(--color-success);
+                {% elif adherence.score >= 40 %}color: var(--color-warning, #e67e22);
+                {% else %}color: var(--color-error);{% endif %}
+            ">{{ adherence.score|floatformat:0 }}%</span>
+            {% if adherence.delta != 0 %}
+            <span style="font-size: var(--font-size-sm); font-weight: 600;
+                {% if adherence.delta_direction == 'up' %}color: var(--color-success);
+                {% elif adherence.delta_direction == 'down' %}color: var(--color-error);
+                {% else %}color: var(--color-text-muted);{% endif %}
+            ">{% if adherence.delta > 0 %}&#x2191; +{{ adherence.delta }}{% elif adherence.delta < 0 %}&#x2193; {{ adherence.delta }}{% endif %}</span>
+            {% endif %}
+            <span style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-left: auto;">7-day adherence</span>
+        </div>
+
+        {# Progress bar #}
+        <div style="background: var(--color-border); border-radius: 4px; height: 8px; margin-bottom: var(--space-4); overflow: hidden;">
+            <div style="
+                height: 100%; border-radius: 4px; transition: width 0.5s ease;
+                width: {{ adherence.score|floatformat:0 }}%;
+                {% if adherence.score >= 75 %}background: var(--color-success);
+                {% elif adherence.score >= 40 %}background: var(--color-warning, #e67e22);
+                {% else %}background: var(--color-error);{% endif %}
+            "></div>
+        </div>
+
+        {# Completed count #}
+        <div style="font-size: var(--font-size-sm); color: var(--color-text-secondary, var(--color-text-muted)); margin-bottom: var(--space-2);">
+            {{ adherence.total_completed }}/{{ adherence.total_expected }} actions completed this week
+        </div>
+
+        {# Gap explanation #}
+        {% if adherence.top_gap %}
+        <div style="font-size: var(--font-size-sm); color: var(--color-text-muted);">
+            {{ adherence.top_gap }}
+        </div>
+        {% endif %}
+
+        {# Best move card #}
+        {% if adherence.fastest_path %}
+        <div style="
+            margin-top: var(--space-4);
+            padding: var(--space-3) var(--space-4);
+            background: var(--color-surface-raised, var(--color-bg));
+            border-radius: var(--radius-md, 8px);
+            border-left: 3px solid var(--color-accent);
+        ">
+            <div style="font-size: var(--font-size-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--space-1);">Best Move</div>
+            <div style="font-weight: 600; font-size: var(--font-size-sm);">
+                {{ adherence.fastest_path.action }}
+                <span style="color: var(--color-success); font-weight: 500;">
+                    &#x2192; {{ adherence.fastest_path.projected_score }}%
+                </span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% else %}
+{# No adherence data yet #}
+<section class="v2-section">
+    <div style="
+        background: var(--color-surface);
+        border-radius: var(--radius-lg, 12px);
+        padding: var(--space-5) var(--space-6);
+        border: 1px solid var(--color-border);
+        text-align: center;
+    ">
+        <div style="font-size: var(--font-size-sm); color: var(--color-text-muted);">
+            Adherence score builds as you complete routines and tasks.
+        </div>
+    </div>
+</section>
+{% endif %}

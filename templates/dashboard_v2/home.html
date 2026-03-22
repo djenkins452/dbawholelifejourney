@@ -15,15 +15,22 @@
         <p class="v2-date">{{ current_date|date:"l, F j, Y" }}</p>
     </div>
 
-    <!-- Section 1: Goal Momentum Gauges (critical path, inline) -->
+    <!-- Section 1: 7-Day Adherence Score (replaces momentum gauges) -->
+    {% if adherence %}
+    {% include "dashboard_v2/partials/adherence_card.html" with adherence=adherence %}
+    {% endif %}
+
+    <!-- Goal Momentum (kept as secondary, collapsed by default) -->
     {% if goal_momentum %}
-    <section class="v2-section v2-momentum-section">
-        <h2 class="v2-section-title">Goal Momentum</h2>
-        <div class="v2-momentum-strip">
-            {% for goal in goal_momentum %}
-                {% include "dashboard_v2/partials/momentum_gauge.html" with goal=goal %}
-            {% endfor %}
-        </div>
+    <section class="v2-section v2-momentum-section" style="margin-top: 0;">
+        <details>
+            <summary class="v2-section-title" style="cursor: pointer; user-select: none; font-size: var(--font-size-sm); color: var(--color-text-muted);">Goal Momentum Details</summary>
+            <div class="v2-momentum-strip" style="margin-top: var(--space-3);">
+                {% for goal in goal_momentum %}
+                    {% include "dashboard_v2/partials/momentum_gauge.html" with goal=goal %}
+                {% endfor %}
+            </div>
+        </details>
     </section>
     {% endif %}
 

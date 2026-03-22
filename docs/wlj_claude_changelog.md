@@ -6,6 +6,35 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — CRITICAL FIX: CoS Architecture Restructure — FACTS/PATTERNS/CONTEXT Separation
+
+**Problem:** Despite truth anchor fixes, Beth still fabricated completions because 33+ competing signal sections (momentum, streaks, "going well", 7-day trends) overwhelmed the execution truth at the end of a 20K+ token prompt.
+
+**Architectural Fix — Three-Section Prompt Structure:**
+1. **FACTS (TOP, position 0)** — Live DB execution data. Binary truths. Cannot be overridden.
+   - `prayer_completed_today: NO/YES`
+   - `bible_reading_completed_today: NO/YES`
+   - etc.
+   - Explicit rules: "NOTHING in the PATTERNS section below can override these facts"
+2. **PATTERNS (MIDDLE, labeled ADVISORY)** — Engine outputs with explicit warnings:
+   - All signal sections now prefixed: "(ADVISORY — 7-day patterns, NOT today's completion status)"
+   - Momentum section: "WARNING: Momentum is historical. Does NOT indicate today's completion."
+   - Signal interpretation: "'7-day strong' does NOT mean done today. Check FACTS."
+3. **TRUTH ANCHOR (END, protected from truncation)** — Final enforcement block appended AFTER token truncation
+
+**Additional Changes:**
+- Executive briefing truth rules strengthened to reference FACTS section
+- Post-generation validator: added "strong morning", "nice work so far", "well on your way" patterns
+- Behavioral instructions: "Check FACTS first" added to reasoning hierarchy
+- All 510 tests passing
+
+**Files Modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — FACTS block at top, ADVISORY labels on patterns
+- `apps/ai/executive_briefing.py` — Strengthened truth rules (both briefing types)
+- `apps/ai/cos_truth_validator.py` — Additional false praise patterns
+
+---
+
 ## 2026-03-22 — CRITICAL FIX: CoS Truth Anchor Pipeline Verification
 
 **Problem:** Previous truth enforcement fix was being bypassed because token budget truncation (enabled by default, `WLJ_BUILDER_TOKEN_LIMITS_ENABLED=True`) cuts from the END of the prompt — exactly where the FINAL TRUTH ANCHOR was placed.

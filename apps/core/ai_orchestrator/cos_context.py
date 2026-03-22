@@ -3782,17 +3782,18 @@ def _format_signal_interpretation_summary(context):
     needs_attention.reverse()
 
     lines = []
-    if strong:
-        lines.append(f"Going well: {', '.join(strong)}")
-    if moderate:
-        lines.append(f"Mixed: {', '.join(moderate)}")
-    if needs_attention:
-        lines.append(f"Needs attention: {', '.join(needs_attention)}")
     lines.append(
-        "INSIGHT LANGUAGE RULE: For 'low confidence' items, use suggestive "
-        "language ('it looks like there may be...') NOT definitive ('there's a "
-        "pattern where...'). For weak items (< 40%), suggest rather than "
-        "correct: 'Staying consistent this week will help keep things steady.'"
+        "(ADVISORY — these are 7-day patterns, NOT today's completion status)"
+    )
+    if strong:
+        lines.append(f"7-day strong: {', '.join(strong)}")
+    if moderate:
+        lines.append(f"7-day mixed: {', '.join(moderate)}")
+    if needs_attention:
+        lines.append(f"7-day needs attention: {', '.join(needs_attention)}")
+    lines.append(
+        "WARNING: '7-day strong' does NOT mean done today. "
+        "Check FACTS section for today's actual completion."
     )
     # (no closing label)
 
@@ -3849,6 +3850,9 @@ def _format_momentum_interpretation(context):
             stable.append(entry)
 
     lines = []
+    lines.append(
+        "(ADVISORY — 7-day momentum trends, NOT today's status)"
+    )
 
     if rising:
         parts = []
@@ -3857,14 +3861,14 @@ def _format_momentum_interpretation(context):
             if e.get('vs_week'):
                 desc += f' — {e["vs_week"]}'
             parts.append(desc)
-        lines.append(f"Rising momentum: {', '.join(parts)}")
+        lines.append(f"7-day rising: {', '.join(parts)}")
 
     if stable:
         parts = []
         for e in stable:
             desc = f'"{e["title"]}" ({e["level"]})'
             parts.append(desc)
-        lines.append(f"Stable momentum: {', '.join(parts)}")
+        lines.append(f"7-day stable: {', '.join(parts)}")
 
     if falling:
         parts = []
@@ -3875,12 +3879,11 @@ def _format_momentum_interpretation(context):
             if e['drivers']:
                 desc += f' [{"; ".join(e["drivers"][:2])}]'
             parts.append(desc)
-        lines.append(f"Declining momentum: {', '.join(parts)}")
+        lines.append(f"7-day declining: {', '.join(parts)}")
 
-    # Add interpretation directive
     lines.append(
-        "Interpret momentum as trajectory: describe consistency, recovery, "
-        "or drift — never expose raw scores."
+        "WARNING: Momentum is historical. It does NOT indicate today's "
+        "completion. Check FACTS for today."
     )
     # (no closing label)
 
@@ -4304,6 +4307,94 @@ def format_cos_system_injection(context, user_message=None):
             pass  # Guard must never break formatting
 
     lines = []
+
+    # ══════════════════════════════════════════════════════════════
+    # SECTION 1: FACTS (AUTHORITATIVE — MUST BE OBEYED)
+    # These come directly from the database and represent real
+    # execution. They are binary truths. They cannot be overridden.
+    # They are not suggestions or signals.
+    # ══════════════════════════════════════════════════════════════
+    _facts_user = context.get('_user')
+    _facts_exec_domains = {}
+    _facts_routines_done = 0
+    _facts_routines_total = 0
+    _facts_tasks_completed = 0
+    if _facts_user:
+        try:
+            from apps.core.execution.today_execution import (
+                build_today_execution as _facts_build_exec,
+            )
+            _facts_exec = _facts_build_exec(_facts_user)
+            _facts_summaries = _facts_exec.get('summaries', {})
+            _facts_exec_domains = _facts_summaries.get('domains', {})
+            for _rid, _rc in _facts_summaries.get('routines', {}).items():
+                _facts_routines_total += _rc.get('total_count', 0)
+                _facts_routines_done += _rc.get('completed_count', 0)
+            _facts_tasks_completed = _facts_summaries.get(
+                'tasks_completed_today', 0,
+            )
+        except Exception:
+            logger.warning(
+                "COS_FACTS_BUILD_FAILED user=%s",
+                context.get('user_id', 'unknown'), exc_info=True,
+            )
+
+    lines.append("=" * 60)
+    lines.append("FACTS — AUTHORITATIVE (DO NOT OVERRIDE)")
+    lines.append(
+        "These come directly from the database. They are binary truths."
+    )
+    lines.append(
+        "You MUST reflect these facts exactly. You MUST NOT contradict them."
+    )
+    lines.append("=" * 60)
+    lines.append(
+        f"  prayer_completed_today: "
+        f"{'YES' if _facts_exec_domains.get('prayer') else 'NO'}"
+    )
+    lines.append(
+        f"  bible_reading_completed_today: "
+        f"{'YES' if _facts_exec_domains.get('bible_reading') else 'NO'}"
+    )
+    lines.append(
+        f"  workout_completed_today: "
+        f"{'YES' if _facts_exec_domains.get('workout') else 'NO'}"
+    )
+    lines.append(
+        f"  journal_completed_today: "
+        f"{'YES' if _facts_exec_domains.get('journal') else 'NO'}"
+    )
+    lines.append(
+        f"  routine_items_completed: "
+        f"{_facts_routines_done}/{_facts_routines_total}"
+    )
+    lines.append(f"  tasks_completed_today: {_facts_tasks_completed}")
+    lines.append("")
+    lines.append(
+        "RULES FOR FACTS:\n"
+        "• If a fact shows NO, you MUST NOT say it is done, complete, "
+        "or finished.\n"
+        "• If a fact shows NO, you MUST NOT praise it or imply progress.\n"
+        "• If a fact shows NO, you MUST NOT say 'great start' or "
+        "'productive morning'.\n"
+        "• Streaks, patterns, signals, and trends do NOT change facts.\n"
+        "• A 30-day streak with prayer_completed_today: NO means prayer "
+        "is NOT done today.\n"
+        "• NOTHING in the PATTERNS section below can override these facts."
+    )
+    lines.append("=" * 60)
+    lines.append("")
+
+    # ══════════════════════════════════════════════════════════════
+    # SECTION 2: PATTERNS (ENGINE OUTPUT — ADVISORY ONLY)
+    # These come from intelligence engines. They guide prioritization
+    # and coaching. They MUST NOT contradict the FACTS above.
+    # ══════════════════════════════════════════════════════════════
+    lines.append(
+        "--- PATTERNS & SIGNALS (advisory — do NOT use for completion "
+        "claims) ---"
+    )
+    lines.append("")
 
     # ── CoS SITUATION AWARENESS (highest priority) ──
     # Pre-computed by scheduled task every 15 minutes. This is the
@@ -6122,10 +6213,19 @@ def format_cos_system_injection(context, user_message=None):
         "reporter, a dashboard, or a command engine. You guide clearly and stay "
         "out of the way when things are on track.\n"
         "\n"
+        "YOUR ROLE WITH FACTS vs PATTERNS:\n"
+        "• FACTS (top of this context) = what IS true today. Obey them.\n"
+        "• PATTERNS (middle sections) = advisory guidance. Use for "
+        "prioritization.\n"
+        "• Your job = determine HOW to say it, not WHAT is true.\n"
+        "• If PATTERNS say 'momentum rising' but FACTS say prayer: NO, "
+        "prayer is NOT done.\n"
+        "\n"
         "HOW TO THINK (in this order, every time):\n"
-        "1. What is the user doing RIGHT NOW?\n"
-        "2. What comes NEXT?\n"
-        "3. Does anything actually need correction?\n"
+        "1. Check FACTS: what is actually done/not done today?\n"
+        "2. What is the user doing RIGHT NOW?\n"
+        "3. What comes NEXT?\n"
+        "4. Does anything actually need correction?\n"
         "If everything is on track, say so briefly and move on.\n"
         "\n"
         "HOW TO RESPOND:\n"

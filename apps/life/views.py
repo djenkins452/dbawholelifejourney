@@ -3569,8 +3569,14 @@ class RoutineToggleView(LifeAccessMixin, View):
             routine__user=request.user,
         )
 
+        # completion_mode: 'scheduled' (on time), 'late' (now), or absent (auto)
+        completion_mode = request.POST.get('completion_mode') or None
+
         from .services.routine_helpers import toggle_routine_completion
-        result = toggle_routine_completion(request.user, schedule, target_date)
+        result = toggle_routine_completion(
+            request.user, schedule, target_date,
+            completion_mode=completion_mode,
+        )
 
         # Rebuild SAE execution state so CoS sees updated routine completion
         _invalidate_routine_caches(request.user)
@@ -3580,6 +3586,7 @@ class RoutineToggleView(LifeAccessMixin, View):
             'schedule_id': int(schedule_id),
             'status': result['status'],
             'is_completed': result['is_completed'],
+            'completed_as_scheduled': result.get('completed_as_scheduled', False),
         }
 
         # Include maintenance bridge config when item is completed and bridge

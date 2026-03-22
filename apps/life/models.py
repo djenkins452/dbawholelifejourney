@@ -2662,6 +2662,13 @@ class RoutineLog(UserOwnedModel):
         default=False,
         help_text="True when maintenance was logged from this completion",
     )
+    completed_as_scheduled = models.BooleanField(
+        default=False,
+        help_text=(
+            "User asserts completion happened at the scheduled time, "
+            "even if logged later. Treated as on-time for scoring/streaks."
+        ),
+    )
 
     @property
     def effective_time(self):

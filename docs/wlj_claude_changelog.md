@@ -6,6 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FEATURE: Routine "Completed As Scheduled" (late logging fix)
+
+**Problem:** Users who complete routine items on time but log them later get penalized with "completed_late" status, creating false negatives in streaks and scoring.
+
+**Solution:**
+1. **New field:** `RoutineLog.completed_as_scheduled` (BooleanField) — user asserts on-time completion
+2. **Completion mode:** Toggle helper accepts `completion_mode` param: 'scheduled' (on-time), 'late', or None (auto-detect)
+3. **UI prompt:** When checking off an item 15+ min past its scheduled time, a prompt appears: "Did you complete this on time?" with [On Time] [Late] [Cancel] buttons
+4. **Scoring:** `domain_routine.py` now treats `completed_as_scheduled=True` items as on-time, even if `log_status='completed_late'`
+5. **Backfill:** Existing `completed` logs → `completed_as_scheduled=True`; `completed_late` → `False`
+
+**Files:**
+- `apps/life/models.py` — new field
+- `apps/life/services/routine_helpers.py` — completion_mode param in toggle
+- `apps/life/views.py` — passes completion_mode from POST + returns in response
+- `apps/core/behavior/domain_routine.py` — scoring respects completed_as_scheduled
+- `templates/life/routine_list.html` — completion mode prompt UI
+- `apps/life/migrations/0043_*`, `0044_*` — field + backfill
+
+**Tests:** 29/29 pass
+
+---
+
 ## 2026-03-21 — ENHANCEMENT: Persona Delivery Guardrails (anchor + flex model)
 
 **Problem:** Beth received persona "examples" and could drift — reinterpreting meaning, softening urgency, or adding fabricated activity.

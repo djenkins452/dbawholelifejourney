@@ -66,8 +66,16 @@ def calculate_routine_behavior_output(user, start_date, end_date):
         scheduled_date__gte=start_date,
         scheduled_date__lte=end_date,
     )
-    completed = logs.filter(log_status="completed").count()
-    late = logs.filter(log_status="completed_late").count()
+    # Items where user asserted on-time completion count as completed,
+    # even if log_status is 'completed_late' (late logging ≠ late doing)
+    _on_time_by_status = logs.filter(log_status="completed").count()
+    _as_scheduled_override = logs.filter(
+        log_status="completed_late", completed_as_scheduled=True,
+    ).count()
+    completed = _on_time_by_status + _as_scheduled_override
+    late = logs.filter(
+        log_status="completed_late", completed_as_scheduled=False,
+    ).count()
     skipped = logs.filter(log_status="skipped").count()
     # Rescheduled items that were never completed count as missed
     rescheduled = logs.filter(log_status="rescheduled").count()

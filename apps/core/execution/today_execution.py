@@ -83,7 +83,7 @@ def build_today_execution(user):
 
     # ── Domain summaries (explicit today-truth only) ──
     try:
-        summaries['domains'] = _collect_domain_summaries(user, user_today)
+        summaries['domains'], summaries['expected'] = _collect_domain_summaries(user, user_today)
     except Exception:
         logger.warning("Execution contract: domain summary failed", exc_info=True)
 
@@ -292,13 +292,18 @@ def _collect_medication_items(user, user_now, user_today):
 
 def _collect_domain_summaries(user, user_today):
     """
-    Collect binary domain completion using the Execution Truth Engine.
+    Collect binary domain completion AND expected flags using the
+    Execution Truth Engine.
 
     CRITICAL: This delegates to the single source of truth. It does NOT
     query models directly. The engine handles cross-domain bridges
     (e.g., routine "Prayer Time" → faith.prayer_completed).
+
+    Returns:
+        (domains_dict, expected_dict) — completion status and expectation flags.
     """
     domains = {}
+    expected = {}
 
     try:
         from apps.core.execution.execution_truth_engine import get_execution_truth
@@ -311,6 +316,11 @@ def _collect_domain_summaries(user, user_today):
 
         domains['workout'] = truth['domains']['workout']['completed']
         domains['journal'] = truth['domains']['journal']['completed']
+
+        # Expected flags — only expected domains get included in prioritizer
+        expected['faith'] = faith.get('prayer_expected', False) or faith.get('bible_expected', False)
+        expected['workout'] = truth['domains']['workout'].get('expected', False)
+        expected['journal'] = truth['domains']['journal'].get('expected', False)
     except Exception:
         logger.warning("Domain summaries: execution truth unavailable", exc_info=True)
         domains['bible_reading'] = False
@@ -319,4 +329,4 @@ def _collect_domain_summaries(user, user_today):
         domains['workout'] = False
         domains['journal'] = False
 
-    return domains
+    return domains, expected

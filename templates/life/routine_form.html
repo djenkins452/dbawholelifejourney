@@ -61,9 +61,6 @@
             <div id="formset-container">
             {% for sform in formset %}
                 <div class="schedule-item card mb-4" style="padding: var(--space-4);">
-                    {% if sform.instance.pk %}
-                    <input type="hidden" name="{{ sform.prefix }}-id" value="{{ sform.instance.pk }}">
-                    {% endif %}
                     {{ sform.id }}
 
                     <div class="form-row">
@@ -89,14 +86,16 @@
                     <div class="form-group">
                         <label class="form-label">Days</label>
                         <div class="days-selector">
+                            {% with current_days=sform.active_days.value %}
                             {% for value, label in sform.active_days.field.choices %}
                             <label class="day-pill">
                                 <input type="checkbox" name="{{ sform.prefix }}-active_days"
                                        value="{{ value }}"
-                                       {% if value in sform.initial.active_days or value|stringformat:"s" in sform.initial.active_days %}checked{% endif %}>
+                                       {% if value in current_days or value|stringformat:"s" in current_days %}checked{% endif %}>
                                 <span>{{ label }}</span>
                             </label>
                             {% endfor %}
+                            {% endwith %}
                         </div>
                     </div>
 

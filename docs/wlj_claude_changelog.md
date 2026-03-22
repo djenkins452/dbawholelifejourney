@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FEATURE: Weather Card on V2 Dashboard
+
+**Feature:** Weather card placed side-by-side with Today's Progress on the V2 dashboard. Clickable, opens Weather.com forecast for user's location.
+
+**Changes:**
+- V2 DashboardView loads weather data from weather_service using user's location_city
+- Weather card placed in a 2-column grid next to Today's Progress (stacks on mobile)
+- Reuses existing `dashboard/tiles/weather.html` partial (already has clickable link)
+
+**Files:** `apps/dashboard_v2/views.py`, `templates/dashboard_v2/home.html`
+
+---
+
 ## 2026-03-21 — FEATURE: Domain Adherence Dials (replace momentum gauges)
 
 **Feature:** All domain dials now use the same 7-day adherence model as the global score. Each dial shows score %, delta, completed count, and single-line gap. Momentum gauges removed from default view.

@@ -6,6 +6,51 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — HARDENING: Eliminate inline formset fragility (extra=0)
+
+Structural hardening to prevent all `extra>0` formset bugs: ghost forms, false
+`has_changed()`, silent validation failures, and input reversion.
+
+**Changes:**
+- `apps/life/forms.py` — Set `extra=0` on `RoutineScheduleFormSet` (the ONLY
+  inline formset in the codebase). No ghost form is ever rendered.
+- `templates/life/routine_form.html` — Replaced clone-last-item JS with a clean
+  `<template>` element containing a fresh form skeleton. "Add Item" clones from
+  this template, replacing `__prefix__` with the correct index. No stale data,
+  no hidden checkbox mismatches, no false `has_changed()` triggers.
+- Verified maintenance_type `<option>` values match `MaintenanceLog.LOG_TYPE_CHOICES`
+
+**Scope verification:** Only 1 `inlineformset_factory` usage exists in the entire
+codebase. Zero `modelformset_factory` usages. No models, signals, domain logic,
+or CoS behavior modified.
+
+**Tests:** 54 tests pass (36 routine + 18 maintenance bridge)
+
+---
+
+## 2026-03-22 — FIX: Routine days_of_week not persisting (Sunday revert bug)
+
+**Root cause:** The inline formset's extra (empty) form had `is_active=True` as its
+model default, but the `is_active` checkbox is conditionally hidden for new items
+(no pk). On POST, the missing checkbox = `False`, triggering `has_changed()` and
+validation on the empty form. Validation failed (required fields empty), making the
+entire formset invalid. The view re-rendered with initial values, reverting the user's
+day selections silently.
+
+**Changes:**
+- `apps/life/forms.py` — Set `initial['is_active'] = False` for new instances in
+  `RoutineScheduleForm.__init__` to prevent false `has_changed()` on extra form
+- `templates/life/routine_form.html` — Use `sform.active_days.value` (bound data on
+  POST, initial on GET) instead of `sform.initial.active_days` for checkbox state;
+  removed duplicate hidden id field
+- `apps/life/tests/test_routine_days_save.py` — 8 regression tests covering day
+  removal, various combinations, and extra form side effects
+
+**Files:** `apps/life/forms.py`, `templates/life/routine_form.html`,
+`apps/life/tests/test_routine_days_save.py`
+
+---
+
 ## 2026-03-22 — CRITICAL FIX: CoS Architecture Restructure — FACTS/PATTERNS/CONTEXT Separation
 
 **Problem:** Despite truth anchor fixes, Beth still fabricated completions because 33+ competing signal sections (momentum, streaks, "going well", 7-day trends) overwhelmed the execution truth at the end of a 20K+ token prompt.

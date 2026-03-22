@@ -283,7 +283,7 @@ RoutineScheduleFormSet = inlineformset_factory(
     Routine,
     RoutineSchedule,
     form=RoutineScheduleForm,
-    extra=1,
+    extra=0,
     can_delete=True,
     min_num=0,
     validate_min=False,

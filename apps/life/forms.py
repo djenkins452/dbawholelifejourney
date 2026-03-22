@@ -261,6 +261,10 @@ class RoutineScheduleForm(forms.ModelForm):
         elif not self.instance.pk:
             # Default: all days selected for new items
             self.initial['active_days'] = ['0', '1', '2', '3', '4', '5', '6']
+            # is_active checkbox is not rendered for new items (only during edit),
+            # so POSTed value will be False. Match initial to avoid has_changed()
+            # false positive that triggers validation on the empty extra form.
+            self.initial['is_active'] = False
 
     def save(self, commit=True):
         instance = super().save(commit=False)

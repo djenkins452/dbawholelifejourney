@@ -6,6 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — FIX: Routine days_of_week not persisting (Sunday revert bug)
+
+**Root cause:** The inline formset's extra (empty) form had `is_active=True` as its
+model default, but the `is_active` checkbox is conditionally hidden for new items
+(no pk). On POST, the missing checkbox = `False`, triggering `has_changed()` and
+validation on the empty form. Validation failed (required fields empty), making the
+entire formset invalid. The view re-rendered with initial values, reverting the user's
+day selections silently.
+
+**Changes:**
+- `apps/life/forms.py` — Set `initial['is_active'] = False` for new instances in
+  `RoutineScheduleForm.__init__` to prevent false `has_changed()` on extra form
+- `templates/life/routine_form.html` — Use `sform.active_days.value` (bound data on
+  POST, initial on GET) instead of `sform.initial.active_days` for checkbox state;
+  removed duplicate hidden id field
+- `apps/life/tests/test_routine_days_save.py` — 8 regression tests covering day
+  removal, various combinations, and extra form side effects
+
+**Files:** `apps/life/forms.py`, `templates/life/routine_form.html`,
+`apps/life/tests/test_routine_days_save.py`
+
+---
+
 ## 2026-03-22 — CRITICAL FIX: CoS Truth Anchor Pipeline Verification
 
 **Problem:** Previous truth enforcement fix was being bypassed because token budget truncation (enabled by default, `WLJ_BUILDER_TOKEN_LIMITS_ENABLED=True`) cuts from the END of the prompt — exactly where the FINAL TRUTH ANCHOR was placed.

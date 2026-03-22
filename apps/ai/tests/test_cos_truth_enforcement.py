@@ -49,34 +49,32 @@ class CosTruthPromptStructureTest(TestCase):
         context = build_cos_context(self.user)
         return format_cos_system_injection(context)
 
-    def test_facts_block_at_top(self):
-        """FACTS block must be the first section in the prompt."""
+    def test_locked_facts_at_top(self):
+        """LOCKED FACT STATEMENTS must be the first section in the prompt."""
         injection = self._build_cos_injection()
-        facts_pos = injection.find('FACTS — AUTHORITATIVE')
-        self.assertGreater(facts_pos, -1, "FACTS block not found in prompt")
-        # Must be in the first 200 chars
+        facts_pos = injection.find('LOCKED FACT STATEMENTS')
+        self.assertGreater(
+            facts_pos, -1,
+            "LOCKED FACT STATEMENTS not found in prompt",
+        )
         self.assertLess(
             facts_pos, 200,
-            f"FACTS block at position {facts_pos} — should be near top"
+            f"LOCKED FACTS at position {facts_pos} — should be near top",
         )
 
-    def test_facts_show_not_done(self):
-        """With no completions, all FACTS must show NO."""
+    def test_locked_facts_contain_status(self):
+        """With no completions, locked facts must show 'not yet completed'."""
         injection = self._build_cos_injection()
-        self.assertIn('prayer_completed_today: NO', injection)
-        self.assertIn('bible_reading_completed_today: NO', injection)
-        self.assertIn('workout_completed_today: NO', injection)
-        self.assertIn('journal_completed_today: NO', injection)
+        self.assertIn('Bible reading is not yet completed.', injection)
+        self.assertIn('Prayer is not yet completed.', injection)
+        self.assertIn('Workout is not yet completed.', injection)
+        self.assertIn('No journal entry yet today.', injection)
 
-    def test_facts_rules_present(self):
-        """FACTS section must contain enforcement rules."""
+    def test_locked_facts_rules_present(self):
+        """Locked facts must contain enforcement rules."""
         injection = self._build_cos_injection()
         self.assertIn(
-            'MUST NOT say it is done, complete, or finished',
-            injection,
-        )
-        self.assertIn(
-            'NOTHING in the PATTERNS section below can override',
+            'MUST NOT change their wording, meaning, or completion status',
             injection,
         )
 
@@ -88,32 +86,32 @@ class CosTruthPromptStructureTest(TestCase):
             injection,
         )
 
-    def test_final_truth_anchor_present(self):
-        """FINAL TRUTH ANCHOR must be at the end of the prompt."""
+    def test_locked_facts_anchor_at_end(self):
+        """Locked facts must be repeated at the end (protected from truncation)."""
         injection = self._build_cos_injection()
-        anchor_pos = injection.find('FINAL EXECUTION STATUS')
+        # The locked facts block should appear twice (top and bottom)
+        first = injection.find('LOCKED FACT STATEMENTS')
+        second = injection.find('LOCKED FACT STATEMENTS', first + 100)
         self.assertGreater(
-            anchor_pos, -1,
-            "FINAL TRUTH ANCHOR not found in prompt"
+            second, -1,
+            "Locked facts not repeated at end of prompt",
         )
-        # Must be in the last 20% of the prompt
         total_len = len(injection)
         self.assertGreater(
-            anchor_pos / total_len, 0.8,
-            f"FINAL TRUTH ANCHOR at {anchor_pos/total_len:.0%} — "
-            f"should be near end"
+            second / total_len, 0.8,
+            f"End locked facts at {second/total_len:.0%} — should be near end",
         )
 
-    def test_facts_before_patterns(self):
-        """FACTS must appear before PATTERNS in the prompt."""
+    def test_locked_facts_before_patterns(self):
+        """LOCKED FACTS must appear before PATTERNS in the prompt."""
         injection = self._build_cos_injection()
-        facts_pos = injection.find('FACTS — AUTHORITATIVE')
+        facts_pos = injection.find('LOCKED FACT STATEMENTS')
         patterns_pos = injection.find('PATTERNS & SIGNALS')
         self.assertGreater(facts_pos, -1)
         self.assertGreater(patterns_pos, -1)
         self.assertLess(
             facts_pos, patterns_pos,
-            "FACTS must come before PATTERNS in prompt"
+            "LOCKED FACTS must come before PATTERNS in prompt",
         )
 
     def test_no_streak_data_in_prompt(self):
@@ -142,6 +140,35 @@ class CosTruthValidatorTest(TestCase):
             terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
         )
 
+    def _build_locked_facts_nothing_done(self):
+        """Build locked facts: nothing completed today."""
+        from apps.ai.cos_fact_statements import (
+            _build_faith_summary,
+            _build_routine_summary,
+            _build_task_summary,
+            _build_workout_summary,
+            _build_journal_summary,
+            _build_overall_summary,
+        )
+        raw = {
+            'prayer_done': False,
+            'bible_done': False,
+            'workout_done': False,
+            'journal_done': False,
+            'routine_done': 0,
+            'routine_total': 5,
+            'tasks_done': 0,
+        }
+        return {
+            'faith_summary': _build_faith_summary(False, False),
+            'routine_summary': _build_routine_summary(0, 5, []),
+            'task_summary': _build_task_summary(0),
+            'workout_summary': _build_workout_summary(False),
+            'journal_summary': _build_journal_summary(False),
+            'overall_summary': _build_overall_summary(raw),
+            '_raw': raw,
+        }
+
     def _mock_execution(self):
         """Mock execution data: nothing completed today."""
         return {
@@ -159,18 +186,17 @@ class CosTruthValidatorTest(TestCase):
             }
         }
 
-    @patch('apps.core.execution.today_execution.build_today_execution', autospec=True)
-    def test_case_1_fabricated_completion_rejected(self, mock_exec):
+    def test_case_1_fabricated_completion_rejected(self):
         """TEST CASE 1: Response claiming prayer is done must be rejected."""
-        mock_exec.return_value = self._mock_execution()
-        from apps.ai.cos_truth_validator import validate_response_truth
+        from apps.ai.cos_truth_validator import validate_locked_facts
+        locked = self._build_locked_facts_nothing_done()
 
         bad_response = (
             "Great start to your morning! Your prayer and Bible reading "
             "have been completed. Now let's focus on your workout."
         )
-        result, violations = validate_response_truth(
-            bad_response, self.user, allow_regenerate=True,
+        result, violations = validate_locked_facts(
+            bad_response, locked, self.user, allow_regenerate=True,
         )
         self.assertTrue(
             len(violations) > 0,
@@ -180,65 +206,61 @@ class CosTruthValidatorTest(TestCase):
         self.assertIn('prayer', domains)
         self.assertIn('bible_reading', domains)
 
-    @patch('apps.core.execution.today_execution.build_today_execution', autospec=True)
-    def test_case_2_false_praise_rejected(self, mock_exec):
+    def test_case_2_false_praise_rejected(self):
         """TEST CASE 2: 'Great start' with nothing done must be rejected."""
-        mock_exec.return_value = self._mock_execution()
-        from apps.ai.cos_truth_validator import validate_response_truth
+        from apps.ai.cos_truth_validator import validate_locked_facts
+        locked = self._build_locked_facts_nothing_done()
 
         bad_response = (
             "You're off to a great start this morning! Keep the momentum "
             "going."
         )
-        result, violations = validate_response_truth(
-            bad_response, self.user, allow_regenerate=True,
+        result, violations = validate_locked_facts(
+            bad_response, locked, self.user, allow_regenerate=True,
         )
         self.assertTrue(
             len(violations) > 0,
             f"Validator PASSED false praise: {bad_response}"
         )
 
-    @patch('apps.core.execution.today_execution.build_today_execution', autospec=True)
-    def test_case_3_honest_response_passes(self, mock_exec):
+    def test_case_3_honest_response_passes(self):
         """TEST CASE 3: Honest 'nothing done' response must PASS."""
-        mock_exec.return_value = self._mock_execution()
-        from apps.ai.cos_truth_validator import validate_response_truth
+        from apps.ai.cos_truth_validator import validate_locked_facts
+        locked = self._build_locked_facts_nothing_done()
 
         good_response = (
             "Nothing from your morning routine has been completed yet. "
             "Let's start with one item — prayer would be a good first step."
         )
-        result, violations = validate_response_truth(
-            good_response, self.user, allow_regenerate=True,
+        result, violations = validate_locked_facts(
+            good_response, locked, self.user, allow_regenerate=True,
         )
         self.assertEqual(
             len(violations), 0,
             f"Validator REJECTED an honest response: {violations}"
         )
 
-    @patch('apps.core.execution.today_execution.build_today_execution', autospec=True)
-    def test_case_4_direct_no_answer_passes(self, mock_exec):
+    def test_case_4_direct_no_answer_passes(self):
         """TEST CASE 4: Direct 'No' to completion question must PASS."""
-        mock_exec.return_value = self._mock_execution()
-        from apps.ai.cos_truth_validator import validate_response_truth
+        from apps.ai.cos_truth_validator import validate_locked_facts
+        locked = self._build_locked_facts_nothing_done()
 
         good_response = (
             "No, neither prayer nor Bible reading are completed today. "
             "Would you like to start with prayer?"
         )
-        result, violations = validate_response_truth(
-            good_response, self.user, allow_regenerate=True,
+        result, violations = validate_locked_facts(
+            good_response, locked, self.user, allow_regenerate=True,
         )
         self.assertEqual(
             len(violations), 0,
             f"Validator REJECTED an honest 'No' answer: {violations}"
         )
 
-    @patch('apps.core.execution.today_execution.build_today_execution', autospec=True)
-    def test_case_5_positive_reframe_without_lying_passes(self, mock_exec):
+    def test_case_5_positive_reframe_without_lying_passes(self):
         """TEST CASE 5: Positive reframe without fabrication must PASS."""
-        mock_exec.return_value = self._mock_execution()
-        from apps.ai.cos_truth_validator import validate_response_truth
+        from apps.ai.cos_truth_validator import validate_locked_facts
+        locked = self._build_locked_facts_nothing_done()
 
         good_response = (
             "Your morning routine hasn't started yet, but you've got the "
@@ -246,44 +268,41 @@ class CosTruthValidatorTest(TestCase):
             "you're ready to move. Start with prayer — that sets the tone "
             "for everything else."
         )
-        result, violations = validate_response_truth(
-            good_response, self.user, allow_regenerate=True,
+        result, violations = validate_locked_facts(
+            good_response, locked, self.user, allow_regenerate=True,
         )
         self.assertEqual(
             len(violations), 0,
             f"Validator REJECTED a positive-but-honest reframe: {violations}"
         )
 
-    @patch('apps.core.execution.today_execution.build_today_execution', autospec=True)
-    def test_case_6_strong_morning_rejected(self, mock_exec):
+    def test_case_6_strong_morning_rejected(self):
         """TEST CASE 6: 'Strong morning' with nothing done must be rejected."""
-        mock_exec.return_value = self._mock_execution()
-        from apps.ai.cos_truth_validator import validate_response_truth
+        from apps.ai.cos_truth_validator import validate_locked_facts
+        locked = self._build_locked_facts_nothing_done()
 
         bad_response = (
             "Strong morning so far! You've been consistent this week."
         )
-        result, violations = validate_response_truth(
-            bad_response, self.user, allow_regenerate=True,
+        result, violations = validate_locked_facts(
+            bad_response, locked, self.user, allow_regenerate=True,
         )
         self.assertTrue(
             len(violations) > 0,
-            f"Validator PASSED 'strong morning' with nothing done: "
-            f"{bad_response}"
+            f"Validator PASSED 'strong morning' with nothing done"
         )
 
-    @patch('apps.core.execution.today_execution.build_today_execution', autospec=True)
-    def test_case_7_workout_done_claim_rejected(self, mock_exec):
+    def test_case_7_workout_done_claim_rejected(self):
         """TEST CASE 7: Claiming workout is done when not must be rejected."""
-        mock_exec.return_value = self._mock_execution()
-        from apps.ai.cos_truth_validator import validate_response_truth
+        from apps.ai.cos_truth_validator import validate_locked_facts
+        locked = self._build_locked_facts_nothing_done()
 
         bad_response = (
             "Your workout is done for the day. Nice work getting that in "
             "early."
         )
-        result, violations = validate_response_truth(
-            bad_response, self.user, allow_regenerate=True,
+        result, violations = validate_locked_facts(
+            bad_response, locked, self.user, allow_regenerate=True,
         )
         self.assertTrue(
             len(violations) > 0,
@@ -292,23 +311,23 @@ class CosTruthValidatorTest(TestCase):
         domains = [v['domain'] for v in violations]
         self.assertIn('workout', domains)
 
-    @patch('apps.core.execution.today_execution.build_today_execution', autospec=True)
-    def test_case_8_completed_domain_passes(self, mock_exec):
+    def test_case_8_completed_domain_passes(self):
         """TEST CASE 8: Claiming done for actually-done domain must PASS."""
-        exec_data = self._mock_execution()
-        exec_data['summaries']['domains']['prayer'] = True
-        mock_exec.return_value = exec_data
-        from apps.ai.cos_truth_validator import validate_response_truth
+        from apps.ai.cos_truth_validator import validate_locked_facts
+        locked = self._build_locked_facts_nothing_done()
+        # Override: prayer IS done
+        locked['_raw']['prayer_done'] = True
+        locked['faith_summary'] = (
+            "Bible reading is not yet completed. Prayer is complete."
+        )
 
         good_response = (
             "Prayer is done for the day. Bible reading is still pending — "
             "want to start that next?"
         )
-        result, violations = validate_response_truth(
-            good_response, self.user, allow_regenerate=True,
+        result, violations = validate_locked_facts(
+            good_response, locked, self.user, allow_regenerate=True,
         )
-        # Should NOT flag prayer (it IS done), should NOT flag bible
-        # (response says "pending")
         prayer_violations = [
             v for v in violations if v['domain'] == 'prayer'
         ]

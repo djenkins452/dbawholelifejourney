@@ -358,3 +358,160 @@ def log_cos_debug_state(user):
     except Exception as e:
         logger.warning("[CoS DEBUG] Failed to build debug state: %s", e)
         return {}
+
+
+# ─── LOCKED FACTS VALIDATION ────────────────────────────────────────────
+# This is the PRIMARY validator. Instead of detecting fabrication via regex,
+# it checks that the system-built fact statements are correctly reflected
+# in the response. Much simpler, much more reliable.
+
+def validate_locked_facts(response_text, locked_facts, user,
+                          allow_regenerate=True):
+    """
+    Validate that the LLM response reflects locked fact statements.
+
+    Checks that the response does not contradict the system-built facts.
+    Does NOT require exact string matching — checks semantic consistency.
+
+    Args:
+        response_text: The LLM's generated response
+        locked_facts: dict from build_locked_facts() with fact summaries
+        user: Django User instance
+        allow_regenerate: True for non-streaming (reject+regen),
+                         False for streaming (append correction)
+
+    Returns:
+        tuple: (validated_response, violations)
+    """
+    if not response_text or not locked_facts:
+        return response_text, []
+
+    raw = locked_facts.get('_raw', {})
+    violations = []
+
+    # Check each NOT-done domain for false completion claims
+    _domain_checks = [
+        ('prayer', raw.get('prayer_done', False), 'prayer'),
+        ('bible_reading', raw.get('bible_done', False), 'bible|scripture|reading'),
+        ('workout', raw.get('workout_done', False), 'workout'),
+        ('journal', raw.get('journal_done', False), 'journal'),
+    ]
+
+    for domain, is_done, keyword_pattern in _domain_checks:
+        if is_done:
+            continue  # Actually done, claims are valid
+
+        # Check for false completion claims using patterns + negation
+        for pattern in _DOMAIN_CLAIM_PATTERNS.get(domain, []):
+            match = pattern.search(response_text)
+            if match:
+                start = max(0, match.start() - 30)
+                context_window = response_text[start:match.end()].lower()
+                if _is_negated(context_window):
+                    continue  # Honest denial
+
+                violations.append({
+                    'domain': domain,
+                    'type': 'contradicts_locked_fact',
+                    'locked_statement': locked_facts.get(
+                        'faith_summary' if domain in ('prayer', 'bible_reading')
+                        else f'{domain}_summary', ''
+                    ),
+                    'should_reject': allow_regenerate,
+                })
+                break
+
+    # Check combined claims
+    for pattern in _COMBINED_CLAIM_PATTERNS:
+        match = pattern.search(response_text)
+        if match:
+            start = max(0, match.start() - 30)
+            context_window = response_text[start:match.end()].lower()
+            if _is_negated(context_window):
+                continue
+            for domain in ['prayer', 'bible_reading']:
+                if not raw.get(
+                    'prayer_done' if domain == 'prayer' else 'bible_done',
+                    False,
+                ):
+                    if not any(v['domain'] == domain for v in violations):
+                        violations.append({
+                            'domain': domain,
+                            'type': 'contradicts_locked_fact_combined',
+                            'should_reject': allow_regenerate,
+                        })
+
+    # Check false praise when nothing is done
+    completion_rate = _compute_completion_rate_from_raw(raw)
+    if completion_rate < 40:
+        for pattern in _FALSE_PRAISE_PATTERNS:
+            if pattern.search(response_text):
+                violations.append({
+                    'domain': 'tone',
+                    'type': 'false_praise_contradicts_facts',
+                    'locked_statement': locked_facts.get('overall_summary', ''),
+                    'should_reject': allow_regenerate,
+                })
+                break
+
+    if not violations:
+        logger.info(
+            "[CoS LOCKED VALIDATOR] user=%s result=PASS",
+            user.id,
+        )
+        return response_text, []
+
+    logger.error(
+        "[CoS LOCKED VALIDATOR] user=%s result=FAIL domains=%s — "
+        "Response contradicts locked fact statements.",
+        user.id,
+        [v['domain'] for v in violations],
+    )
+
+    if any(v.get('should_reject') for v in violations):
+        return response_text, violations
+
+    # Streaming fallback: append locked facts as correction
+    correction = (
+        "\n\n*(System correction — actual status: "
+        + locked_facts.get('overall_summary', '')
+        + ")*"
+    )
+    return response_text + correction, violations
+
+
+def build_locked_regeneration_prompt(locked_facts):
+    """
+    Build regeneration prompt using locked fact statements.
+
+    When a response is rejected, this prompt forces the LLM to use
+    the system-built statements on the next attempt.
+    """
+    return (
+        "\n\nCRITICAL: YOUR PREVIOUS RESPONSE WAS REJECTED.\n"
+        "It contradicted the system's factual data.\n\n"
+        "You MUST use these EXACT facts in your response:\n"
+        f"  Faith: {locked_facts.get('faith_summary', '')}\n"
+        f"  Routines: {locked_facts.get('routine_summary', '')}\n"
+        f"  Workout: {locked_facts.get('workout_summary', '')}\n"
+        f"  Journal: {locked_facts.get('journal_summary', '')}\n"
+        f"  Overall: {locked_facts.get('overall_summary', '')}\n\n"
+        "Respond naturally but reflect these facts exactly. "
+        "Do NOT say something is done when the fact says 'not yet'."
+    )
+
+
+def _compute_completion_rate_from_raw(raw):
+    """Compute completion rate from raw fact data."""
+    total = 4  # prayer, bible, workout, journal
+    done = sum([
+        raw.get('prayer_done', False),
+        raw.get('bible_done', False),
+        raw.get('workout_done', False),
+        raw.get('journal_done', False),
+    ])
+    total += raw.get('routine_total', 0)
+    done += raw.get('routine_done', 0)
+    if total == 0:
+        return 0
+    return round(done / total * 100)

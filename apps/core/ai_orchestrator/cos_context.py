@@ -4309,80 +4309,31 @@ def format_cos_system_injection(context, user_message=None):
     lines = []
 
     # ══════════════════════════════════════════════════════════════
-    # SECTION 1: FACTS (AUTHORITATIVE — MUST BE OBEYED)
-    # These come directly from the database and represent real
-    # execution. They are binary truths. They cannot be overridden.
-    # They are not suggestions or signals.
+    # SECTION 1: LOCKED FACT STATEMENTS (SYSTEM-GENERATED)
+    # The system builds these human-readable statements from live DB.
+    # The LLM MUST use them exactly. The LLM does NOT construct facts.
     # ══════════════════════════════════════════════════════════════
+    _locked_facts = None
+    _locked_facts_block = ""
     _facts_user = context.get('_user')
-    _facts_exec_domains = {}
-    _facts_routines_done = 0
-    _facts_routines_total = 0
-    _facts_tasks_completed = 0
     if _facts_user:
         try:
-            from apps.core.execution.today_execution import (
-                build_today_execution as _facts_build_exec,
+            from apps.ai.cos_fact_statements import (
+                build_locked_facts,
+                format_locked_facts_block,
             )
-            _facts_exec = _facts_build_exec(_facts_user)
-            _facts_summaries = _facts_exec.get('summaries', {})
-            _facts_exec_domains = _facts_summaries.get('domains', {})
-            for _rid, _rc in _facts_summaries.get('routines', {}).items():
-                _facts_routines_total += _rc.get('total_count', 0)
-                _facts_routines_done += _rc.get('completed_count', 0)
-            _facts_tasks_completed = _facts_summaries.get(
-                'tasks_completed_today', 0,
-            )
+            _locked_facts = build_locked_facts(_facts_user)
+            _locked_facts_block = format_locked_facts_block(_locked_facts)
+            # Store in context for validator access
+            context['_locked_facts'] = _locked_facts
         except Exception:
             logger.warning(
-                "COS_FACTS_BUILD_FAILED user=%s",
+                "COS_LOCKED_FACTS_FAILED user=%s",
                 context.get('user_id', 'unknown'), exc_info=True,
             )
 
-    lines.append("=" * 60)
-    lines.append("FACTS — AUTHORITATIVE (DO NOT OVERRIDE)")
-    lines.append(
-        "These come directly from the database. They are binary truths."
-    )
-    lines.append(
-        "You MUST reflect these facts exactly. You MUST NOT contradict them."
-    )
-    lines.append("=" * 60)
-    lines.append(
-        f"  prayer_completed_today: "
-        f"{'YES' if _facts_exec_domains.get('prayer') else 'NO'}"
-    )
-    lines.append(
-        f"  bible_reading_completed_today: "
-        f"{'YES' if _facts_exec_domains.get('bible_reading') else 'NO'}"
-    )
-    lines.append(
-        f"  workout_completed_today: "
-        f"{'YES' if _facts_exec_domains.get('workout') else 'NO'}"
-    )
-    lines.append(
-        f"  journal_completed_today: "
-        f"{'YES' if _facts_exec_domains.get('journal') else 'NO'}"
-    )
-    lines.append(
-        f"  routine_items_completed: "
-        f"{_facts_routines_done}/{_facts_routines_total}"
-    )
-    lines.append(f"  tasks_completed_today: {_facts_tasks_completed}")
-    lines.append("")
-    lines.append(
-        "RULES FOR FACTS:\n"
-        "• If a fact shows NO, you MUST NOT say it is done, complete, "
-        "or finished.\n"
-        "• If a fact shows NO, you MUST NOT praise it or imply progress.\n"
-        "• If a fact shows NO, you MUST NOT say 'great start' or "
-        "'productive morning'.\n"
-        "• Streaks, patterns, signals, and trends do NOT change facts.\n"
-        "• A 30-day streak with prayer_completed_today: NO means prayer "
-        "is NOT done today.\n"
-        "• NOTHING in the PATTERNS section below can override these facts."
-    )
-    lines.append("=" * 60)
+    if _locked_facts_block:
+        lines.append(_locked_facts_block)
     lines.append("")
 
     # ══════════════════════════════════════════════════════════════
@@ -6341,97 +6292,21 @@ def format_cos_system_injection(context, user_message=None):
 
     result = '\n'.join(lines)
 
-    # ── FINAL TRUTH ANCHOR (built separately — PROTECTED from truncation) ──
-    # This block MUST appear at the very end of the prompt and MUST NOT be
-    # cut by token budget truncation. It is the single source of truth that
-    # the LLM must obey. Built from LIVE execution data every time.
+    # ── LOCKED FACTS ANCHOR (built separately — PROTECTED from truncation) ──
+    # This repeats the locked fact statements at the very end of the prompt.
+    # Protected from token truncation. Uses the same system-built statements.
     _truth_anchor = ""
-    _final_user = context.get('_user')
-    if _final_user:
-        try:
-            from apps.core.execution.today_execution import (
-                build_today_execution as _final_build_exec,
-            )
-            _final_exec = _final_build_exec(_final_user)
-            _final_summaries = _final_exec.get('summaries', {})
-            _final_domains = _final_summaries.get('domains', {})
-
-            _anchor_lines = []
-            _anchor_lines.append("=" * 60)
-            _anchor_lines.append(
-                "FINAL EXECUTION STATUS — AUTHORITATIVE (TODAY)"
-            )
-            _anchor_lines.append(
-                "This is the single source of truth. You MUST obey it."
-            )
-            _anchor_lines.append("=" * 60)
-
-            _final_domain_list = [
-                ('journal', _final_domains.get('journal', False)),
-                ('workout', _final_domains.get('workout', False)),
-                ('bible_reading', _final_domains.get('bible_reading', False)),
-                ('prayer', _final_domains.get('prayer', False)),
-            ]
-            for domain_name, done in _final_domain_list:
-                _status = "DONE" if done else "NOT DONE"
-                _anchor_lines.append(f"  {domain_name}: {_status}")
-
-            # Routine items
-            _final_routine_comp = _final_summaries.get('routines', {})
-            _final_r_total = 0
-            _final_r_done = 0
-            for _rid, _rc in _final_routine_comp.items():
-                _final_r_total += _rc.get('total_count', 0)
-                _final_r_done += _rc.get('completed_count', 0)
-            _anchor_lines.append(
-                f"  routine_items_completed: "
-                f"{_final_r_done}/{_final_r_total}"
-            )
-
-            # Tasks
-            _anchor_lines.append(
-                f"  tasks_completed: "
-                f"{_final_summaries.get('tasks_completed_today', 0)}"
-            )
-
-            _anchor_lines.append("")
-            _anchor_lines.append(
-                "ENFORCEMENT RULES:\n"
-                "• NOT DONE = incomplete. Period.\n"
-                "• You MUST NOT state or imply completion of any "
-                "NOT DONE item.\n"
-                "• You MUST NOT praise incomplete items.\n"
-                "• You MUST NOT contradict this block for any reason.\n"
-                "• You MUST NOT say 'great start' or 'productive' when "
-                "most items are NOT DONE.\n"
-                "• Streaks and historical data do NOT mean today is done.\n"
-                "• If prayer shows NOT DONE, NEVER say 'prayer is "
-                "complete' or 'prayer and Bible reading have been "
-                "completed'.\n"
-                "• When in doubt: NOT DONE. Better to under-report "
-                "than fabricate."
-            )
-            _anchor_lines.append("=" * 60)
-
-            _truth_anchor = "\n".join(_anchor_lines)
-
-            logger.info(
-                "COS_TRUTH_ANCHOR_BUILT user=%s prayer=%s bible=%s "
-                "workout=%s journal=%s routines=%d/%d",
-                context.get('user_id', 'unknown'),
-                _final_domains.get('prayer', False),
-                _final_domains.get('bible_reading', False),
-                _final_domains.get('workout', False),
-                _final_domains.get('journal', False),
-                _final_r_done, _final_r_total,
-            )
-        except Exception:
-            logger.warning(
-                "COS_TRUTH_ANCHOR_FAILED user=%s — truth anchor could not "
-                "be built from execution data",
-                context.get('user_id', 'unknown'),
-                exc_info=True,
-            )
+    if _locked_facts_block:
+        _truth_anchor = (
+            "\n" + _locked_facts_block
+            + "\nREMINDER: The locked statements above are FINAL. "
+            "Your response MUST reflect them exactly."
+        )
+        logger.info(
+            "COS_LOCKED_FACTS_ANCHOR user=%s — locked facts appended "
+            "at end of prompt (protected from truncation)",
+            context.get('user_id', 'unknown'),
+        )
 
     # Token budget telemetry — log prompt size for monitoring
     try:

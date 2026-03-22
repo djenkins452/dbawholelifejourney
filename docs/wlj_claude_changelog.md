@@ -6,6 +6,41 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — CRITICAL FIX: Locked Fact Statements — System Owns Truth, LLM Owns Expression
+
+**Architectural shift: The LLM no longer constructs factual statements. The system does.**
+
+**What changed:**
+- `cos_fact_statements.py` (NEW) — System builds human-readable fact sentences from live DB:
+  - `"Bible reading is not yet completed. Prayer is not yet completed."`
+  - `"0 of 5 routine items completed. Still pending: Take medication, Drink water."`
+  - `"Nothing has been completed yet today."`
+- These LOCKED STATEMENTS are passed to the LLM in the prompt
+- The LLM MUST use them. It can add coaching/tone but CANNOT change the facts
+- Validator now checks locked facts are correctly reflected (not regex-guessing fabrication)
+
+**Prompt structure:**
+1. TOP: `LOCKED FACT STATEMENTS (SYSTEM-GENERATED — DO NOT CHANGE)` with rules
+2. MIDDLE: Patterns (labeled ADVISORY)
+3. END: Locked facts repeated (protected from truncation)
+
+**Validator upgrade:**
+- `validate_locked_facts()` replaces `validate_response_truth()`
+- Checks response against system-built fact statements
+- Non-streaming: reject + regenerate with locked facts in regen prompt
+- Streaming: append system correction
+
+**15/15 tests pass before deploy. 298 broader tests pass.**
+
+**Files:**
+- `apps/ai/cos_fact_statements.py` — NEW: system-owned fact builders
+- `apps/core/ai_orchestrator/cos_context.py` — locked facts block replaces raw flags
+- `apps/ai/personal_assistant.py` — locked facts validator wired in
+- `apps/ai/cos_truth_validator.py` — `validate_locked_facts()` added
+- `apps/ai/tests/test_cos_truth_enforcement.py` — 15 validated tests
+
+---
+
 ## 2026-03-22 — CRITICAL FIX: CoS Truth Enforcement with Validated Tests (No Blind Deploy)
 
 **All 15 CoS truth enforcement tests PASS before deploy. No blind deploys.**

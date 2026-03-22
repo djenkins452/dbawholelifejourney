@@ -42,29 +42,35 @@
             {{ adherence.total_completed }}/{{ adherence.total_expected }} actions completed this week
         </div>
 
-        {# Gap explanation #}
-        {% if adherence.top_gap %}
-        <div style="font-size: var(--font-size-sm); color: var(--color-text-muted);">
-            {{ adherence.top_gap }}
-        </div>
-        {% endif %}
-
-        {# Best move card #}
-        {% if adherence.fastest_path %}
+        {# What to Improve block — gap + best move together #}
+        {% if adherence.top_gap or adherence.fastest_path %}
         <div style="
             margin-top: var(--space-4);
-            padding: var(--space-3) var(--space-4);
+            padding: var(--space-4);
             background: var(--color-surface-raised, var(--color-bg));
             border-radius: var(--radius-md, 8px);
-            border-left: 3px solid var(--color-accent);
+            border-left: 3px solid {% if adherence.score < 40 %}var(--color-error){% else %}var(--color-accent){% endif %};
         ">
-            <div style="font-size: var(--font-size-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--space-1);">Best Move</div>
-            <div style="font-weight: 600; font-size: var(--font-size-sm);">
-                {{ adherence.fastest_path.action }}
-                <span style="color: var(--color-success); font-weight: 500;">
-                    &#x2192; {{ adherence.fastest_path.projected_score }}%
-                </span>
+            {% if adherence.top_gap %}
+            <a href="{% url 'life:routine_adherence' %}" style="text-decoration: none; color: inherit;">
+                <div style="font-size: var(--font-size-sm); color: var(--color-text-muted); margin-bottom: {% if adherence.fastest_path %}var(--space-3){% else %}0{% endif %}; display: flex; align-items: center; gap: var(--space-2);">
+                    <span>{{ adherence.top_gap }}</span>
+                    <span style="font-size: var(--font-size-xs); opacity: 0.6;">&#x2192; details</span>
+                </div>
+            </a>
+            {% endif %}
+
+            {% if adherence.fastest_path %}
+            <div>
+                <div style="font-size: var(--font-size-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--space-1);">Best Move</div>
+                <div style="font-weight: 600; font-size: var(--font-size-base);">
+                    {{ adherence.fastest_path.action }}
+                    <span style="color: var(--color-success); font-weight: 600;">
+                        &#x2192; {{ adherence.fastest_path.projected_score }}%
+                    </span>
+                </div>
             </div>
+            {% endif %}
         </div>
         {% endif %}
     </div>

@@ -339,3 +339,106 @@ def _compute_fastest_path(user, today, current_score, total_expected, total_comp
         'projected_score': projected,
         'source': best['source'],
     }
+
+
+def get_missed_items_detail(user):
+    """
+    Get per-item missed details for the last 7 days, grouped by parent.
+
+    Returns:
+        list[dict]: [
+            {
+                'group': str — routine name or domain label,
+                'items': [
+                    {'name': str, 'missed': int, 'total': int}
+                ],
+                'total_missed': int,
+            },
+            ...
+        ]
+    Sorted by total_missed descending (worst first).
+    """
+    from apps.core.utils import get_user_today
+    from datetime import timedelta as _td
+
+    today = get_user_today(user)
+    start = today - _td(days=7)
+
+    groups = {}
+
+    # ── Routine items ──
+    try:
+        from apps.life.models import Routine, RoutineSchedule, RoutineLog
+
+        active_routines = Routine.objects.filter(
+            user=user, is_active=True, status='active',
+        ).prefetch_related('items')
+
+        for routine in active_routines:
+            for schedule in routine.items.filter(is_active=True):
+                # Count expected days in range
+                expected = 0
+                day = start
+                while day <= today:
+                    if schedule.specific_date:
+                        if schedule.specific_date == day:
+                            expected += 1
+                    elif schedule.applies_to_day(day.weekday()):
+                        expected += 1
+                    day += _td(days=1)
+
+                if expected == 0:
+                    continue
+
+                # Count completions
+                completed = RoutineLog.objects.filter(
+                    schedule=schedule,
+                    scheduled_date__gte=start,
+                    scheduled_date__lte=today,
+                    log_status__in=('completed', 'completed_late'),
+                ).count()
+
+                missed = max(0, expected - completed)
+                if missed > 0:
+                    group_name = routine.name
+                    if group_name not in groups:
+                        groups[group_name] = {
+                            'group': group_name,
+                            'items': [],
+                            'total_missed': 0,
+                        }
+                    groups[group_name]['items'].append({
+                        'name': schedule.name,
+                        'missed': missed,
+                        'total': expected,
+                    })
+                    groups[group_name]['total_missed'] += missed
+    except Exception:
+        logger.debug("Missed items: routine query failed", exc_info=True)
+
+    # ── Workouts ──
+    try:
+        from apps.health.models import WorkoutSession
+        from apps.core.ai_state.state_engine import get_module_state
+
+        health_state = get_module_state(user, 'health') or {}
+        workout_days = health_state.get('workout_days_per_week', 0)
+        if workout_days > 0:
+            actual = WorkoutSession.objects.filter(
+                user=user,
+                date__gte=start,
+                date__lte=today,
+            ).exclude(status='deleted').count()
+            missed = max(0, workout_days - actual)
+            if missed > 0:
+                groups['Workouts'] = {
+                    'group': 'Workouts',
+                    'items': [{'name': 'Workout', 'missed': missed, 'total': workout_days}],
+                    'total_missed': missed,
+                }
+    except Exception:
+        logger.debug("Missed items: workout query failed", exc_info=True)
+
+    # Sort by total_missed descending
+    result = sorted(groups.values(), key=lambda g: g['total_missed'], reverse=True)
+    return result

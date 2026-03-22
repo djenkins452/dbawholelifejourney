@@ -6,6 +6,23 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-21 — FEATURE: Missed Items Drilldown + "What to Improve" Block
+
+**Features:**
+1. **Missed items detail:** `get_missed_items_detail(user)` returns per-item missed counts grouped by routine/domain for last 7 days
+2. **Drilldown view:** `/life/routines/adherence/` shows score summary + grouped missed items with counts
+3. **Clickable gap text:** "Missed 3 routine items this week → details" links to drilldown page
+4. **Enhanced improvement block:** Gap + Best Move combined in a single highlighted card with accent border (red when score <40%, accent otherwise)
+
+**Files:**
+- `apps/core/behavior/behavior_score_engine.py` — `get_missed_items_detail()`
+- `apps/life/views.py` — `RoutineAdherenceView`
+- `apps/life/urls.py` — `routine_adherence` URL
+- `templates/life/routine_adherence.html` — drilldown page
+- `templates/dashboard_v2/partials/adherence_card.html` — enhanced improvement block
+
+---
+
 ## 2026-03-21 — FEATURE: Adherence Score on V2 Dashboard
 
 **Feature:** 7-day adherence score now displayed as the primary metric on the V2 dashboard, replacing momentum gauges as the top-level view.

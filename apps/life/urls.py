@@ -30,6 +30,7 @@ from .views import (
     RoutineCompleteToggleView,
     RoutineMigrationView,
     RoutineToMaintenanceView,
+    RoutineAdherenceView,
     # Calendar & Events
     CalendarView,
     EventCreateView,
@@ -151,6 +152,7 @@ urlpatterns = [
     path("routines/<int:routine_id>/toggle-complete/", RoutineCompleteToggleView.as_view(), name="routine_complete_toggle"),
     path("routines/migrate/", RoutineMigrationView.as_view(), name="routine_migration"),
     path("routines/<int:schedule_id>/to-maintenance/", RoutineToMaintenanceView.as_view(), name="routine_to_maintenance"),
+    path("routines/adherence/", RoutineAdherenceView.as_view(), name="routine_adherence"),
 
     # Calendar & Events
     path("calendar/", CalendarView.as_view(), name="calendar"),

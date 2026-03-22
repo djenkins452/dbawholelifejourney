@@ -3072,6 +3072,16 @@ def _build_data_state_snapshot(user) -> str:
         _truth_routines = {'total': 0, 'completed': 0, 'routines': {}}
         _truth_meds = {'total': 0, 'taken': 0}
 
+    # Build expected flags from truth engine
+    _truth_expected = {}
+    if _truth:
+        _truth_expected = {
+            'prayer': _truth['domains']['faith'].get('prayer_expected', False),
+            'bible_reading': _truth['domains']['faith'].get('bible_expected', False),
+            'workout': _truth['domains']['workout'].get('expected', False),
+            'journal': _truth['domains']['journal'].get('expected', False),
+        }
+
     lines.append("")
     lines.append("DAILY EXECUTION STATUS (AUTHORITATIVE — today only, live query):")
     _domain_fields = [
@@ -3081,21 +3091,29 @@ def _build_data_state_snapshot(user) -> str:
         ('prayer', _truth_domains.get('prayer', False)),
     ]
     for domain_name, done in _domain_fields:
-        lines.append(f"  {domain_name}: {'DONE' if done else 'NOT DONE'}")
+        expected = _truth_expected.get(domain_name, False)
+        if done:
+            lines.append(f"  {domain_name}: DONE")
+        elif expected:
+            lines.append(f"  {domain_name}: NOT DONE")
+        else:
+            lines.append(f"  {domain_name}: NOT SCHEDULED")
     lines.append(f"  tasks_completed_today: {_truth_tasks}")
 
     # ── Completion rate + tone gating ──
     # Count total actionable items and completed items to compute a rate.
     # This gates Beth's summary tone so she can't say "productive day"
-    # when completion is 25%.
+    # when completion is 25%. Only counts EXPECTED domains.
     _total_items = 0
     _completed_items = 0
 
-    # Domain completions
+    # Domain completions — only expected domains count
     for _dn, _dd in _domain_fields:
-        _total_items += 1
-        if _dd:
-            _completed_items += 1
+        _is_expected = _truth_expected.get(_dn, False) or _dd
+        if _is_expected:
+            _total_items += 1
+            if _dd:
+                _completed_items += 1
 
     # Routine items (from Execution Truth Engine)
     _total_items += _truth_routines.get('total', 0)
@@ -3982,7 +4000,7 @@ _MIN_SIGNAL_SAMPLE = 3
 
 # Domains to check for confidence + consistency
 _BEHAVIORAL_DOMAINS = {
-    'health': {'label': 'Health', 'signal_types': ('health_activity',)},
+    'health': {'label': 'Workout', 'signal_types': ('health_activity',)},
     'faith': {'label': 'Faith', 'signal_types': ('faith_practice',)},
     'routines': {'label': 'Routines', 'signal_types': ()},
     'finance': {'label': 'Finance', 'signal_types': ('finance_tracking',)},

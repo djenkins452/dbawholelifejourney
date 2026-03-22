@@ -3070,6 +3070,65 @@ def _build_data_state_snapshot(user) -> str:
         lines.append(f"  {domain_name}: {'DONE' if done else 'NOT DONE'}")
     lines.append(f"  tasks_completed_today: {_exec_summaries.get('tasks_completed_today', 0)}")
 
+    # ── Completion rate + tone gating ──
+    # Count total actionable items and completed items to compute a rate.
+    # This gates Beth's summary tone so she can't say "productive day"
+    # when completion is 25%.
+    _total_items = 0
+    _completed_items = 0
+
+    # Domain completions
+    for _dn, _dd in _domain_fields:
+        _total_items += 1
+        if _dd:
+            _completed_items += 1
+
+    # Routine items
+    _routine_comp = _exec_summaries.get('routines', {})
+    for _rid, _rc in _routine_comp.items():
+        _total_items += _rc.get('total_count', 0)
+        _completed_items += _rc.get('completed_count', 0)
+
+    # Medication items
+    _med_sums = _exec_summaries.get('medications', {})
+    for _wk, _ms in _med_sums.items():
+        _total_items += _ms.get('total', 0)
+        _completed_items += _ms.get('taken', 0)
+
+    # Tasks
+    _total_items += _exec_summaries.get('tasks_completed_today', 0)
+    _completed_items += _exec_summaries.get('tasks_completed_today', 0)
+
+    _completion_rate = round(_completed_items / _total_items * 100) if _total_items > 0 else 0
+
+    if _completion_rate >= 75:
+        _day_status = 'STRONG'
+        _tone_rule = (
+            "DAY STATUS: STRONG — positive summary language is allowed. "
+            "You may affirm the day."
+        )
+    elif _completion_rate >= 40:
+        _day_status = 'PARTIAL'
+        _tone_rule = (
+            "DAY STATUS: PARTIAL — acknowledge progress but encourage finishing. "
+            "Do NOT call it a 'productive day' or 'solid day'. "
+            "Say something like: 'Good progress — a few items left to close out.'"
+        )
+    else:
+        _day_status = 'LOW'
+        _tone_rule = (
+            "DAY STATUS: LOW — do NOT use any positive summary language. "
+            "No 'productive day', 'solid effort', 'wrapped up', or 'great job'. "
+            "Focus on recovery: 'There's still time' or 'Let's reset with one key action.' "
+            "If nothing is completed, say: 'Nothing completed yet — what's the first move?'"
+        )
+
+    lines.append(
+        f"  completion_rate: {_completed_items}/{_total_items} "
+        f"({_completion_rate}%) — {_day_status}"
+    )
+    lines.append(f"  {_tone_rule}")
+
     # ── Execution data availability gate ──
     # If execution module has no data, DO NOT infer or fall back to other modules.
     # This prevents parallel truth drift between execution contract and legacy SAE modules.

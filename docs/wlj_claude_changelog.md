@@ -6,6 +6,31 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — CoS Mid-Response State Revalidation
+
+**What:** Fixed edge case where CoS responds with stale completion status because an item was completed during LLM generation. Now a final revalidation step runs before saving the response.
+
+**How it works:**
+1. LLM generates response using initial truth snapshot
+2. Before saving, `revalidate_response()` re-fetches current execution truth
+3. If any item the response describes as "not yet completed" / "still pending" is now actually done, appends: `(Update: Prayer has been completed since this response was generated.)`
+4. Original LLM text is **never modified** — only appended to
+
+**Safety:**
+- Fail-open: if revalidation fails, original response returned unchanged
+- No architecture changes, no caching, no events
+- Same data source as Today Engine (execution truth)
+- Runs between state guard and save — one lightweight check
+
+**Files:**
+- `apps/ai/cos_state_revalidator.py` — NEW: `revalidate_response()`
+- `apps/ai/personal_assistant.py` — wired into send_message (1 line)
+- `apps/ai/tests/test_cos_state_revalidator.py` — NEW: 10 tests
+
+**Test results:** 179/179 pass.
+
+---
+
 ## 2026-03-23 — Today Engine Patch: Foundation Filter + Time Boundary Correction
 
 **What:** Fixed overdue misclassification caused by seconds precision. Items scheduled at the current minute (e.g., 7:00 AM at 7:00:32 AM) were incorrectly marked overdue because `user_now` had non-zero seconds.

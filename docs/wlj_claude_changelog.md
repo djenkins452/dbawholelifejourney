@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Complete ALL Gospel Reading Plans (System-Wide Fix)
+
+**What:** Audit revealed 3 of 4 Gospel plans were incomplete — Matthew stopped at ch 21 (missing 22-28), Luke stopped at ch 17 (missing 18-24), John stopped at ch 20 (missing 21). All plans now cover their complete books with full three-tier commentary.
+
+**Root Cause:** Same class of failure as Mark — incomplete plan authoring combined with early-return bug in loaders that skipped day creation if templates already existed.
+
+**Changes:**
+- Matthew: 28→36 days (added 8 days covering chapters 22-28: controversies, Olivet Discourse, Passion, Resurrection, Great Commission)
+- Luke: 24→32 days (added 8 days covering chapters 18-24: Zacchaeus, triumphal entry, Passion, Emmaus road, Ascension)
+- John: 21→22 days (added 1 day covering chapter 21: miraculous catch, Peter's restoration)
+- Data migration (`0020_complete_all_gospel_plans.py`) backfills all plans and creates UserReadingProgress for active plans
+- 7 new integrity tests validating gap detection, duration matching, loader idempotency, and progress creation
+- Removed all early-return bugs from Matthew, Luke, John loaders (Mark was fixed earlier)
+
+**Architectural enforcement:** `validate_day_integrity()` runs post-creation in loader, tested by `ReadingPlanIntegrityTests`
+
+**Files:** `apps/faith/management/commands/load_gospel_plans.py`, `apps/faith/migrations/0020_complete_all_gospel_plans.py`, `apps/faith/tests/test_reading_plans.py`, `docs/wlj_claude_changelog.md`
+
+---
+
 ## 2026-03-23 — Complete Journey Through Mark Reading Plan
 
 **What:** The Mark reading plan was missing chapters 14-16 (Passion, Crucifixion, Resurrection). Only 16 days were defined covering Mark 1-13. Added 3 new days with full three-tier commentary to complete the entire book.

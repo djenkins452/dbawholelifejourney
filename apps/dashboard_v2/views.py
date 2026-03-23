@@ -463,8 +463,8 @@ class ComplianceDetailView(LoginRequiredMixin, TemplateView):
 
         svc = ComplianceService(self.request.user)
 
-        # Ensure events are fresh
-        svc.evaluate_week()
+        # Ensure events are fresh (cached — won't recompute every request)
+        svc.ensure_evaluated()
 
         # Get rollup summary for header
         rollup = svc.get_rollup(bucket)

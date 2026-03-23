@@ -1,40 +1,47 @@
 """
-Reconciliation Engine — resolves duplicate obligations after event generation.
+Reconciliation Engine — generic obligation-aware dedupe across ALL domains.
 
 Architecture:
-    adapters generate raw events → reconcile() groups by obligation → one
-    score-bearing event per obligation → rollups read only is_primary=True.
+    adapters generate raw events → reconcile() groups by obligation_key →
+    one score-bearing event per obligation → rollups read only is_primary=True.
 
-The reconciler runs in-memory on event dicts BEFORE persistence, assigning
-obligation_key, is_primary, and suppression_reason fields. This keeps the
-write path as a single bulk_create with no post-hoc updates.
+The reconciler runs in-memory on event dicts BEFORE persistence.
 
-Obligation Key Strategy:
-    - workout + routine linkage:
-        key = "workout:{user_id}:{date}" for both the WorkoutSchedule event
-        and any RoutineSchedule event whose name is in WORKOUT_NAMES
-    - journal + routine linkage:
-        key = "journal:{user_id}:{date}"
-    - faith + routine linkage:
-        key = "faith_prayer:{user_id}:{date}" / "faith_bible:{user_id}:{date}"
-    - all others: empty string (no grouping)
+Obligation Key Format:
+    {obligation_type}:{user_id}:{date}:{obligation_identity}
 
-Reconciliation Rules:
+    Examples:
+    - workout:42:2026-03-23:sched_7       (WorkoutSchedule #7)
+    - journal:42:2026-03-23:daily          (daily journal obligation)
+    - faith_prayer:42:2026-03-23:sched_15  (RoutineSchedule #15)
+    - faith_bible:42:2026-03-23:plan_3     (UserReadingPlan #3)
+    - medication:42:2026-03-23:sched_8_0800 (MedicineSchedule #8 at 08:00)
+
+Identity Assignment Strategy:
+    Each domain adapter emits obligation_type + obligation_identity.
+    Routine items that bridge to another domain (workout, journal, faith)
+    get that domain's obligation_type + a matching identity so they group
+    together with the native domain event.
+
+    The name-matching (WORKOUT_NAMES, JOURNAL_NAMES, FAITH_*_NAMES) is
+    used ONCE at key-assignment time to classify routine items, then the
+    RoutineSchedule.id becomes the stable identity for the routine side.
+
+Reconciliation Rules (domain-agnostic):
     1. Group events by obligation_key (non-empty keys only)
-    2. Within each group, pick the best outcome as primary (precedence below)
-    3. Suppress siblings with clear reason
-    4. If no completion exists in group, pick the domain-native event as primary
-    5. Conservative: empty key = no reconciliation
-
-Final Status Precedence (best → worst):
-    completed > completed_late > skipped > rescheduled > overdue > missed
+    2. Pick best outcome as primary (status precedence)
+    3. Prefer the native-domain event as primary (workout > routine, etc.)
+    4. Suppress siblings with typed suppression reason
+    5. If completion exists, override sibling misses to reflect linked completion
+    6. Conservative: empty key = no reconciliation
 """
 
 import logging
 from collections import defaultdict
 
 from apps.dashboard_v2.compliance.constants import (
-    BUCKET_ROUTINE,
+    DOMAIN_FAITH,
+    DOMAIN_JOURNAL,
     DOMAIN_ROUTINE,
     DOMAIN_WORKOUT,
     FINAL_COMPLETED,
@@ -43,7 +50,11 @@ from apps.dashboard_v2.compliance.constants import (
     FINAL_OVERDUE,
     FINAL_RESCHEDULED,
     FINAL_SKIPPED,
-    SUPPRESSED_BY_LINKED_WORKOUT,
+    OBLIGATION_FAITH_BIBLE,
+    OBLIGATION_FAITH_PRAYER,
+    OBLIGATION_JOURNAL,
+    OBLIGATION_SUPPRESSION_MAP,
+    OBLIGATION_WORKOUT,
     SUPPRESSED_DUPLICATE,
 )
 
@@ -59,27 +70,23 @@ _STATUS_PRECEDENCE = {
     FINAL_MISSED: 5,
 }
 
+# Domain priority for choosing primary event within a group (native > bridge)
+_DOMAIN_PRIORITY = {
+    DOMAIN_WORKOUT: 0,
+    DOMAIN_JOURNAL: 0,
+    DOMAIN_FAITH: 0,
+    DOMAIN_ROUTINE: 1,  # Routine is the bridge — prefer native domain
+}
+
 
 def reconcile_events(event_dicts, user):
     """
     Run obligation reconciliation on a list of ComplianceEvent dicts.
 
-    Modifies dicts in-place, adding:
-        - obligation_key
-        - is_primary
-        - suppression_reason
-
-    Args:
-        event_dicts: list of dicts ready for ComplianceEvent(**d)
-        user: User instance (for obligation key generation)
-
-    Returns:
-        The same list, modified in-place.
+    Modifies dicts in-place. Returns the same list.
     """
-    # Step 1: Assign obligation keys
     _assign_obligation_keys(event_dicts, user)
 
-    # Step 2: Group by obligation_key and reconcile
     groups = defaultdict(list)
     for ev in event_dicts:
         key = ev.get("obligation_key", "")
@@ -88,7 +95,6 @@ def reconcile_events(event_dicts, user):
 
     for key, group in groups.items():
         if len(group) < 2:
-            # Single event in group — nothing to reconcile
             continue
         _reconcile_group(group)
 
@@ -97,10 +103,18 @@ def reconcile_events(event_dicts, user):
 
 def _assign_obligation_keys(event_dicts, user):
     """
-    Assign deterministic obligation_key to events that may represent
-    the same real-world commitment.
+    Assign obligation_type, obligation_identity, and obligation_key
+    to each event dict.
+
+    Strategy:
+    - Native domain events (workout, journal, faith, medication, task)
+      get their own obligation type + stable ID.
+    - Routine items that bridge to another domain get THAT domain's
+      obligation type so they group together for reconciliation.
     """
     from apps.core.execution.execution_truth_engine import (
+        FAITH_BIBLE_NAMES,
+        FAITH_PRAYER_NAMES,
         JOURNAL_NAMES,
         WORKOUT_NAMES,
     )
@@ -108,48 +122,87 @@ def _assign_obligation_keys(event_dicts, user):
     user_id = user.id
 
     for ev in event_dicts:
-        # Default: no grouping
+        ev.setdefault("obligation_type", "")
+        ev.setdefault("obligation_identity", "")
         ev.setdefault("obligation_key", "")
         ev.setdefault("is_primary", True)
         ev.setdefault("suppression_reason", "")
 
         domain = ev.get("domain", "")
         event_date = ev.get("event_date")
-
         if not event_date:
             continue
 
         date_str = str(event_date)
+        item_id = ev.get("item_id")
 
-        # ── Workout domain events get a workout obligation key ──
+        # ── Native domain identity assignment ──
+
         if domain == DOMAIN_WORKOUT:
-            ev["obligation_key"] = f"workout:{user_id}:{date_str}"
+            ev["obligation_type"] = OBLIGATION_WORKOUT
+            # WorkoutSchedule has unique_together(plan, day_of_week), so
+            # there's at most one workout obligation per day. Use "daily"
+            # as identity to match routine workout items for that day.
+            ev["obligation_identity"] = "daily"
 
-        # ── Routine items that represent workouts get the same key ──
+        elif domain == DOMAIN_JOURNAL:
+            ev["obligation_type"] = OBLIGATION_JOURNAL
+            ev["obligation_identity"] = "daily"
+
+        elif domain == DOMAIN_FAITH:
+            item_type = ev.get("item_type", "")
+            if item_type == "PrayerRoutine":
+                ev["obligation_type"] = OBLIGATION_FAITH_PRAYER
+                ev["obligation_identity"] = "daily"
+            elif item_type == "BibleReading":
+                ev["obligation_type"] = OBLIGATION_FAITH_BIBLE
+                ev["obligation_identity"] = "daily"
+
         elif domain == DOMAIN_ROUTINE:
-            item_label = ev.get("item_label", "")
-            # Strip time suffix: "Chest Workout (5:30 AM)" → "Chest Workout"
-            raw_name = item_label.split("(")[0].strip()
+            # Check if this routine item bridges to another domain
+            raw_name = _extract_raw_name(ev.get("item_label", ""))
+            name_lower = raw_name.lower()
 
-            if raw_name.lower() in WORKOUT_NAMES:
-                ev["obligation_key"] = f"workout:{user_id}:{date_str}"
+            if name_lower in WORKOUT_NAMES:
+                ev["obligation_type"] = OBLIGATION_WORKOUT
+                ev["obligation_identity"] = "daily"
+
+            elif name_lower in JOURNAL_NAMES:
+                ev["obligation_type"] = OBLIGATION_JOURNAL
+                ev["obligation_identity"] = "daily"
+
+            elif name_lower in FAITH_PRAYER_NAMES:
+                ev["obligation_type"] = OBLIGATION_FAITH_PRAYER
+                ev["obligation_identity"] = "daily"
+
+            elif name_lower in FAITH_BIBLE_NAMES:
+                ev["obligation_type"] = OBLIGATION_FAITH_BIBLE
+                ev["obligation_identity"] = "daily"
+
+        # Build composite key
+        if ev["obligation_type"] and ev["obligation_identity"]:
+            ev["obligation_key"] = (
+                f"{ev['obligation_type']}:{user_id}:{date_str}:"
+                f"{ev['obligation_identity']}"
+            )
+
+
+def _extract_raw_name(label):
+    """Strip time suffix from label: 'Workout (5:30 AM)' → 'Workout'."""
+    return label.split("(")[0].strip()
 
 
 def _reconcile_group(group):
     """
-    Given a group of events sharing an obligation_key, determine which
-    is score-bearing and suppress the rest.
+    Given events sharing an obligation_key, determine which is score-bearing.
 
-    Strategy:
-    1. Find the best outcome (by precedence)
-    2. Prefer the domain-native event as primary when outcomes tie
-    3. Suppress all others with clear reason
+    Domain-agnostic: uses obligation_type for suppression reason mapping.
     """
-    # Sort by: best final_status first, then prefer workout domain (native)
+    obligation_type = group[0].get("obligation_type", "")
+
     def sort_key(ev):
         status_rank = _STATUS_PRECEDENCE.get(ev.get("final_status", ""), 99)
-        # Prefer workout-domain event as primary (it's the "real" completion)
-        domain_rank = 0 if ev.get("domain") == DOMAIN_WORKOUT else 1
+        domain_rank = _DOMAIN_PRIORITY.get(ev.get("domain", ""), 2)
         return (status_rank, domain_rank)
 
     group.sort(key=sort_key)
@@ -161,17 +214,20 @@ def _reconcile_group(group):
     best_status = primary.get("final_status")
     best_is_positive = best_status in (FINAL_COMPLETED, FINAL_COMPLETED_LATE)
 
+    # Get the typed suppression reason for this obligation domain
+    linked_suppression = OBLIGATION_SUPPRESSION_MAP.get(
+        obligation_type, SUPPRESSED_DUPLICATE
+    )
+
     for ev in group[1:]:
         ev["is_primary"] = False
-
-        # Determine suppression reason
         ev_status = ev.get("final_status")
+
         if best_is_positive and ev_status in (FINAL_MISSED, FINAL_OVERDUE):
-            # The key case: workout completed but routine item missed
-            ev["suppression_reason"] = SUPPRESSED_BY_LINKED_WORKOUT
-            # Override the final_status to reflect the linked completion
+            # Linked completion satisfies the missed sibling
+            ev["suppression_reason"] = linked_suppression
             ev["final_status"] = best_status
-            ev["reason_code"] = "satisfied_by_linked_workout"
+            ev["reason_code"] = "satisfied_by_linked"
             ev["reason_detail"] = {
                 **ev.get("reason_detail", {}),
                 "satisfied_by_domain": primary.get("domain"),

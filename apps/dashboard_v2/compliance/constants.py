@@ -137,11 +137,17 @@ REASON_CODE_CHOICES = [
     (REASON_ASSERTED_ON_TIME, "User asserted on-time completion"),
 ]
 
+REASON_SATISFIED_BY_LINKED = "satisfied_by_linked"
 REASON_SATISFIED_BY_WORKOUT = "satisfied_by_linked_workout"
+REASON_SATISFIED_BY_JOURNAL = "satisfied_by_linked_journal"
+REASON_SATISFIED_BY_FAITH = "satisfied_by_linked_faith"
 REASON_DUPLICATE_OBLIGATION = "duplicate_obligation"
 
 REASON_CODE_CHOICES += [
+    (REASON_SATISFIED_BY_LINKED, "Satisfied by linked activity"),
     (REASON_SATISFIED_BY_WORKOUT, "Satisfied by linked workout completion"),
+    (REASON_SATISFIED_BY_JOURNAL, "Satisfied by linked journal entry"),
+    (REASON_SATISFIED_BY_FAITH, "Satisfied by linked faith activity"),
     (REASON_DUPLICATE_OBLIGATION, "Duplicate obligation — not counted separately"),
 ]
 
@@ -149,15 +155,39 @@ REASON_LABELS = dict(REASON_CODE_CHOICES)
 
 # ── Score Suppression Reasons ────────────────────────────────────
 
+SUPPRESSED_BY_LINKED = "satisfied_by_linked"
 SUPPRESSED_BY_LINKED_WORKOUT = "satisfied_by_linked_workout"
+SUPPRESSED_BY_LINKED_JOURNAL = "satisfied_by_linked_journal"
+SUPPRESSED_BY_LINKED_FAITH = "satisfied_by_linked_faith"
 SUPPRESSED_DUPLICATE = "duplicate_obligation"
 
 SUPPRESSION_REASON_CHOICES = [
+    (SUPPRESSED_BY_LINKED, "Satisfied by linked activity"),
     (SUPPRESSED_BY_LINKED_WORKOUT, "Satisfied by linked workout completion"),
+    (SUPPRESSED_BY_LINKED_JOURNAL, "Satisfied by linked journal entry"),
+    (SUPPRESSED_BY_LINKED_FAITH, "Satisfied by linked faith activity"),
     (SUPPRESSED_DUPLICATE, "Duplicate obligation — not counted separately"),
 ]
 
 SUPPRESSION_LABELS = dict(SUPPRESSION_REASON_CHOICES)
+
+# ── Obligation Types ─────────────────────────────────────────────
+
+OBLIGATION_WORKOUT = "workout"
+OBLIGATION_JOURNAL = "journal"
+OBLIGATION_FAITH_PRAYER = "faith_prayer"
+OBLIGATION_FAITH_BIBLE = "faith_bible"
+OBLIGATION_MEDICATION = "medication"
+OBLIGATION_TASK = "task"
+OBLIGATION_ROUTINE = "routine"
+
+# Map obligation_type → suppression reason for linked-activity suppression
+OBLIGATION_SUPPRESSION_MAP = {
+    OBLIGATION_WORKOUT: SUPPRESSED_BY_LINKED_WORKOUT,
+    OBLIGATION_JOURNAL: SUPPRESSED_BY_LINKED_JOURNAL,
+    OBLIGATION_FAITH_PRAYER: SUPPRESSED_BY_LINKED_FAITH,
+    OBLIGATION_FAITH_BIBLE: SUPPRESSED_BY_LINKED_FAITH,
+}
 
 # ── Human-readable Final Status Labels ───────────────────────────
 

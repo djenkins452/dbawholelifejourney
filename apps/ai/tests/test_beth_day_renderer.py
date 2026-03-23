@@ -78,20 +78,21 @@ def _fixed_now(hour, minute):
 
 def _make_normalized_item(name, time_str=None, item_time=None,
                           is_completed=False, is_foundational=False, source="task"):
-    """Build a normalized item dict matching the unified format."""
+    """Build a normalized item dict matching the Today Engine format."""
     return {
+        "id": f"{source}:{name}",
         "name": name,
+        "scheduled_time": item_time,
         "time_str": time_str,
-        "item_time": item_time,
-        "is_completed": is_completed,
-        "is_foundational": is_foundational,
+        "completed": is_completed,
+        "priority": "foundational" if is_foundational else "flexible",
         "source": source,
     }
 
 
 # Patch paths for task + calendar collectors (return empty by default)
-_P_TASKS = "apps.ai.beth_day_renderer._collect_task_items"
-_P_CAL = "apps.ai.beth_day_renderer._collect_calendar_items"
+_P_TASKS = "apps.core.today.today_engine._collect_task_items"
+_P_CAL = "apps.core.today.today_engine._collect_calendar_items"
 
 
 # ---------------------------------------------------------------------------
@@ -393,17 +394,25 @@ class TestChronologicalOrdering(SimpleTestCase):
 
     def test_same_time_stability(self):
         now = _fixed_now(7, 0)
-        items = [(now.replace(hour=6), "B"), (now.replace(hour=6), "A")]
+        t = now.replace(hour=6)
+        items = [
+            {"sort_time": t, "label": "B", "item": {}},
+            {"sort_time": t, "label": "A", "item": {}},
+        ]
         for _ in range(10):
             result = _sort_by_time(items)
-            self.assertEqual(result[0][1], "B")
-            self.assertEqual(result[1][1], "A")
+            self.assertEqual(result[0]["label"], "B")  # stable: B first
+            self.assertEqual(result[1]["label"], "A")
 
     def test_sort_helper_ascending(self):
         now = _fixed_now(6, 0)
-        items = [(now.replace(hour=9), "C"), (now.replace(hour=5), "A"), (now.replace(hour=7), "B")]
+        items = [
+            {"sort_time": now.replace(hour=9), "label": "C", "item": {}},
+            {"sort_time": now.replace(hour=5), "label": "A", "item": {}},
+            {"sort_time": now.replace(hour=7), "label": "B", "item": {}},
+        ]
         result = _sort_by_time(items)
-        self.assertEqual([label for _, label in result], ["A", "B", "C"])
+        self.assertEqual([e["label"] for e in result], ["A", "B", "C"])
 
 
 # ---------------------------------------------------------------------------

@@ -19,7 +19,6 @@ RULES:
 """
 
 import logging
-from datetime import datetime, timedelta
 
 from django.utils import timezone
 
@@ -85,166 +84,48 @@ _SAFE_FALLBACK = (
     "Next: Start with your next planned item."
 )
 
-# Only show upcoming items within this window from now
-UPCOMING_WINDOW_MINUTES = 90
+# Re-export for backward compat with tests
+from apps.core.today.today_engine import COMING_UP_WINDOW_MINUTES as UPCOMING_WINDOW_MINUTES  # noqa: F401, E402
 
 # Banned words — if any appear in output, validation fails
 _BANNED_WORDS = frozenset({"items", "tasks", "routines"})
 
 
 def _render_checkin_from_truth(user, phase: str = "morning") -> str:
-    """Core renderer — builds check-in from execution truth.
+    """Core renderer — builds check-in from Today Engine.
 
-    Rules:
-    - Completed: each real completed item on its own line, or "None"
-    - Upcoming: only time-bound items within UPCOMING_WINDOW_MINUTES, or "None"
-    - No aggregation, no counts, no grouping
+    Uses the same unified dataset as the day renderer.
+    Shows: Completed, Upcoming (coming_up bucket), Next action.
     """
-    from apps.ai.cos_fact_statements import build_locked_facts
-    from apps.core.execution.execution_truth_engine import get_execution_truth
+    from apps.core.today.today_engine import get_today_context
 
-    facts = build_locked_facts(user)
-    raw = facts.get("_raw", {})
-    truth = get_execution_truth(user)
-
+    ctx = get_today_context(user)
     label = _PHASE_LABELS.get(phase, "Check-in")
 
-    # -- Completed: individual named items only --
-    completed = _get_completed_items(raw, truth)
-    completed_text = (
-        "\n".join(f"• {name}" for name in completed)
-        if completed
-        else "• None"
-    )
+    def _fmt(bucket):
+        if not bucket:
+            return "• None"
+        return "\n".join(f"• {entry['label']}" for entry in bucket)
 
-    # -- Upcoming: time-bound items within window only --
-    upcoming = _get_upcoming_items(truth, user)
-    upcoming_text = (
-        "\n".join(f"• {name}" for name in upcoming)
-        if upcoming
-        else "• None"
-    )
-
-    # -- Next action (from system, not inferred) --
-    next_action = facts.get("next_action", "")
-    if not next_action or next_action == "Unable to determine.":
-        next_action = "Check your schedule for the next planned item."
-
-    # -- Build output --
     lines = [
         label,
         "",
         "Completed:",
-        completed_text,
+        _fmt(ctx["completed"]),
         "",
         "Upcoming:",
-        upcoming_text,
+        _fmt(ctx["coming_up"]),
         "",
-        f"Next: {next_action}",
+        f"Next: {ctx['next']}",
     ]
 
     output = "\n".join(lines)
-
-    # -- Validation: ensure no aggregation leaked through --
     _validate_output(output)
-
     return output
 
 
-def _get_completed_items(raw: dict, truth: dict) -> list:
-    """Extract individually named completed items from execution truth.
-
-    Returns a list of human-readable item names. No counts, no grouping.
-    """
-    completed = []
-
-    # Domain completions (from raw facts)
-    if raw.get("prayer_done"):
-        completed.append("Prayer")
-    if raw.get("bible_done"):
-        completed.append("Bible reading")
-    if raw.get("workout_done"):
-        completed.append("Workout")
-    if raw.get("journal_done"):
-        completed.append("Journal entry")
-
-    # Individual completed routine items (by name, not count)
-    raw_items = truth.get("routines", {}).get("_raw_items", {})
-    for _window, items in raw_items.items():
-        for item in items:
-            if item.get("is_completed"):
-                name = item.get("item_name", "").strip()
-                if name and name not in completed:
-                    completed.append(name)
-
-    return completed
-
-
-def _get_upcoming_items(truth: dict, user) -> list:
-    """Extract time-bound upcoming items within the UPCOMING_WINDOW_MINUTES window.
-
-    Only includes items that:
-    - Have a scheduled_time
-    - Are NOT completed
-    - Fall within [now, now + window]
-
-    Returns formatted strings like "Workout (6:15 AM)".
-    """
-    from apps.core.utils import get_user_now
-
-    try:
-        user_now = get_user_now(user)
-    except Exception:
-        user_now = timezone.localtime()
-
-    window_end = user_now + timedelta(minutes=UPCOMING_WINDOW_MINUTES)
-    upcoming = []
-
-    # Routine items with scheduled times
-    raw_items = truth.get("routines", {}).get("_raw_items", {})
-    for _window, items in raw_items.items():
-        for item in items:
-            if item.get("is_completed"):
-                continue
-
-            scheduled_str = item.get("scheduled_time")
-            if not scheduled_str:
-                continue
-
-            # Parse the time string (e.g., "6:15 AM") against today
-            item_time = _parse_time_today(scheduled_str, user_now)
-            if item_time is None:
-                continue
-
-            if user_now <= item_time <= window_end:
-                name = item.get("item_name", "").strip()
-                if name:
-                    upcoming.append(f"{name} ({scheduled_str})")
-
-    return upcoming
-
-
-def _parse_time_today(time_str: str, now) -> datetime:
-    """Parse a time string like '6:15 AM' into a datetime for today.
-
-    Returns None if parsing fails.
-    """
-    try:
-        parsed = datetime.strptime(time_str.strip(), "%I:%M %p")
-        return now.replace(
-            hour=parsed.hour, minute=parsed.minute,
-            second=0, microsecond=0,
-        )
-    except (ValueError, AttributeError):
-        return None
-
-
 def _validate_output(output: str):
-    """Validate that output contains no aggregation language.
-
-    Logs a warning if banned words are found. Does NOT block output
-    (fail-open for safety) but makes violations visible in logs.
-    """
+    """Validate that output contains no aggregation language."""
     output_lower = output.lower()
     for word in _BANNED_WORDS:
         if word in output_lower:

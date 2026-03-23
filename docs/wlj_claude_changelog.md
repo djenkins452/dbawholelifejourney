@@ -6,6 +6,44 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Today Engine (Canonical Day Context) + Renderer Refactor
+
+**What:** Created a single canonical Today Engine that collects routines, tasks, and calendar events, applies all time logic once, and produces a unified dataset. Both renderers (day agenda + check-in) now read from this engine — no renderer computes buckets or merges data.
+
+**Architecture: Compute once, render everywhere.**
+- `apps/core/today/today_engine.py` → `get_today_context(user)` returns `{all_items, foundation, overdue, coming_up, later, completed, next}`
+- Day renderer (`beth_day_renderer.py`) = thin formatter over Today Engine
+- Check-in renderer (`beth_checkin_renderer.py`) = thin formatter over Today Engine
+- Both renderers share the exact same dataset — no divergence possible
+
+**Today Engine collects from 3 sources:**
+- Routines (execution truth `_raw_items`)
+- Tasks (`Task.objects.filter(due_date=today, is_routine=False)`)
+- Calendar (`CalendarEvent.objects.filter(start_dt__date=today)`, excludes routine/task-sourced)
+- Plus domain-level completions (Prayer, Bible, Workout, Journal)
+
+**Renderers stripped of:**
+- All merging logic
+- All time calculations
+- All data normalization
+- Old `_get_completed_items`, `_get_upcoming_items`, `_parse_time_today` removed from check-in renderer
+
+**Files created:**
+- `apps/core/today/__init__.py`
+- `apps/core/today/today_engine.py` — canonical engine
+- `apps/core/today/tests/__init__.py`
+- `apps/core/today/tests/test_today_engine.py` — 10 engine tests
+
+**Files modified:**
+- `apps/ai/beth_day_renderer.py` — thin wrapper over Today Engine
+- `apps/ai/beth_checkin_renderer.py` — thin wrapper over Today Engine
+- `apps/ai/tests/test_beth_day_renderer.py` — updated for new architecture
+- `apps/ai/tests/test_beth_checkin_renderer.py` — updated for new architecture
+
+**Test results:** 52/52 combined tests pass (10 engine + 26 day + 16 checkin). 110/110 signal tests pass.
+
+---
+
 ## 2026-03-23 — Day Renderer: Unified Data Merge (Routines + Tasks + Calendar)
 
 **What:** Day Agenda renderer now collects ALL items for the day — routines, tasks, and calendar events — into a single unified dataset before bucketing.

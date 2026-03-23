@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — Phase 4 Signal Feedback: Confirmation + Learning Loop
+
+**What:** Introduced a controlled feedback loop that captures explicit user confirmation/rejection of behavioral signals detected by the Phase 2/3 signal pipeline. The system only learns from direct yes/no responses — no inference, no guessing.
+
+**Changes:**
+- **New model:** `SignalFeedback` (`apps/core/signals/models.py`) — stores user, signal_type, domain, item, fingerprint, response (yes/no), source
+- **New service:** `feedback_service.py` with `record_signal_feedback()` — validates response, generates fingerprint, stores feedback record
+- **Execution bridge:** When response is "yes" AND signal type is `possible_completion`, triggers completion via existing `toggle_routine_completion()` service — never writes to models directly
+- **Signal→routine mapping:** Maps signal items (prayer, workout, etc.) to routine schedule names for completion routing
+- **Tests:** 17 test cases covering valid/invalid responses, fingerprint generation, completion bridge, signal type gating, and idempotency
+- **Migration:** `core.0121_signalfeedback`
+
+**Architecture:**
+- Phase 1 = Truth, Phase 2 = Awareness, Phase 3 = Exposure, **Phase 4 = Learning (input only)**
+- Data collection only — no confidence adjustments, no signal suppression, no scoring
+- Multiple responses allowed (no dedup yet — future phases)
+
+**Files:**
+- `apps/core/signals/models.py` (new)
+- `apps/core/signals/feedback_service.py` (new)
+- `apps/core/signals/tests/test_signal_feedback.py` (new)
+- `apps/core/models.py` (import registration)
+- `apps/core/migrations/0121_signalfeedback.py` (new)
+
+---
+
 ## 2026-03-22 — V2 Homepage Weather/Progress Card Borders
 - Added bordered card styling to the Today's Progress and Weather sections on the V2 homepage
 - Matches the card border style from the original dashboard

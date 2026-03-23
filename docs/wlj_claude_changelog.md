@@ -6,6 +6,49 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — Phase 5.1 + UI + Insights (Adaptive Hardening → Confirmation UI → Observability)
+
+**What:** Three-part enhancement: hardened adaptive tuning, added 1-click feedback UI with API, and built read-only insight layer for transparency into what the system is learning.
+
+### Part 1 — Phase 5.1 Hardening
+- **Suppression floor:** Requires both `no_count >= 3` AND `no_ratio >= 0.75` — prevents over-suppression from sparse data
+- **Reinforcement cap:** Priority boost capped at `ADAPTIVE_MAX_PRIORITY_BOOST = 1.0` — prevents cross-type dominance
+- **Recency window:** Only feedback within `FEEDBACK_WINDOW_DAYS = 30` is considered — keeps behavior current
+- 3 new test cases for floor, cap, and window constants
+
+### Part 2 — UI Confirmation Layer
+- **API endpoint:** `POST /api/signals/feedback/` accepts `{fingerprint, response, type, domain, item, source}`, calls `record_signal_feedback()`, returns `{status: "ok"}`
+- **Presenter output extended:** Each suggestion now includes `fingerprint` (32-char SHA256), `ui: {show: true, actions: ["yes", "no"]}` for frontend rendering
+- **Frontend cards:** HTMX-loaded "Quick Confirmations" section on V2 dashboard with Yes/No buttons, optimistic removal on click, auto-removes section when empty
+- **CSP compliant:** All JS via `addEventListener()` delegation, no inline handlers
+- 11 new test cases: endpoint validation, auth, feedback recording, completion attempt, insights structure
+
+### Part 3 — Insight Layer
+- **Service:** `apps/core/signals/insight_service.py` — `get_signal_insights(user)` returns `{reinforced, suppressed, neutral}` with same thresholds/window as presenter
+- **API endpoint:** `GET /api/signals/insights/` returns categorized feedback stats
+- **UI:** HTMX-loaded "Signal Insights" panel on V2 dashboard showing reinforced/suppressed/learning categories with yes/no counts
+- 9 new test cases: categorization, ratios, 30-day filter, empty state, multi-domain, labels
+
+**Files:**
+- `apps/core/signals/signal_presenter.py` — 5.1 hardening + fingerprint gen + ui payload
+- `apps/core/signals/views.py` — NEW: feedback + insights API views
+- `apps/core/signals/urls.py` — NEW: `/api/signals/` routes
+- `apps/core/signals/insight_service.py` — NEW: read-only insight service
+- `apps/core/signals/tests/test_signal_presenter.py` — 10 new tests (94 total)
+- `apps/core/signals/tests/test_signal_views.py` — NEW: 12 API endpoint tests
+- `apps/core/signals/tests/test_insight_service.py` — NEW: 11 insight tests
+- `apps/dashboard_v2/views.py` — suggestions + signal insights section views
+- `apps/dashboard_v2/urls.py` — 2 new section routes
+- `templates/dashboard_v2/home.html` — HTMX containers + feedback JS handler
+- `templates/dashboard_v2/sections/suggestions.html` — NEW: suggestion cards
+- `templates/dashboard_v2/sections/signal_insights.html` — NEW: insight panel
+- `static/css/dashboard_v2.css` — suggestion card + insight panel styles
+- `config/urls.py` — wired `/api/signals/`
+
+**Test results:** 208/208 signal tests pass. No migrations needed.
+
+---
+
 ## 2026-03-22 — Phase 5: Adaptive Signal Tuning
 
 **What:** Added a lightweight adaptive layer to the Signal Presenter that uses Phase 4 SignalFeedback data to reinforce high-value signals and suppress low-value ones. Conservative, rule-based — no aggressive behavior changes.

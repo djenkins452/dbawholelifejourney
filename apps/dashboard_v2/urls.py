@@ -39,6 +39,18 @@ urlpatterns = [
         views.ActionCenterSectionView.as_view(),
         name="section_next_action",
     ),
+    # Signal suggestion cards (HTMX lazy-load)
+    path(
+        "sections/suggestions/",
+        views.SuggestionsSectionView.as_view(),
+        name="section_suggestions",
+    ),
+    # Signal insights panel (HTMX lazy-load)
+    path(
+        "sections/signal-insights/",
+        views.SignalInsightsSectionView.as_view(),
+        name="section_signal_insights",
+    ),
     # Inline action endpoints
     path(
         "actions/task/<int:pk>/toggle/",

@@ -28,7 +28,7 @@ Consumers: Beth (conversational AI), optional UI suggestion cards.
 """
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional
 
 from django.db.models import Count, Q
@@ -119,6 +119,12 @@ ADAPTIVE_REINFORCED_MIN_CONFIDENCE = 0.75
 
 # Priority boost for reinforced signals (subtracted from type priority)
 ADAPTIVE_PRIORITY_BOOST = 0.5
+
+# Maximum priority boost — cannot exceed one level bump (Phase 5.1)
+ADAPTIVE_MAX_PRIORITY_BOOST = 1.0
+
+# Recency window — only consider feedback within this many days (Phase 5.1)
+FEEDBACK_WINDOW_DAYS = 30
 
 # Signal types eligible for adaptation
 ADAPTIVE_SIGNAL_TYPES = frozenset({POSSIBLE_COMPLETION})
@@ -226,9 +232,12 @@ def _get_feedback_stats(user, signals: List[Dict]) -> Dict[tuple, Dict]:
         q_filter |= Q(signal_type=signal_type, domain=domain, item=item or "")
 
     try:
+        # Phase 5.1: Recency window — only consider recent feedback
+        window_start = timezone.now() - timedelta(days=FEEDBACK_WINDOW_DAYS)
+
         stats_qs = (
             SignalFeedback.objects
-            .filter(q_filter, user=user)
+            .filter(q_filter, user=user, created_at__gte=window_start)
             .values("signal_type", "domain", "item")
             .annotate(
                 yes_count=Count("id", filter=Q(response="yes")),
@@ -279,12 +288,13 @@ def _apply_adaptive_rules(signal: Dict, stats: Dict) -> Optional[Dict]:
     no_ratio = feedback["no"] / total
 
     # LOW-VALUE SUPPRESSION: consistently rejected → suppress
-    if no_ratio >= ADAPTIVE_SUPPRESS_RATIO:
+    # Phase 5.1: Suppression floor — require both ratio AND absolute count
+    if feedback["no"] >= ADAPTIVE_MIN_FEEDBACK and no_ratio >= ADAPTIVE_SUPPRESS_RATIO:
         logger.info(
             "[ADAPTIVE] Suppressing signal type=%s domain=%s item=%s "
-            "(no_ratio=%.2f, total=%d)",
+            "(no_ratio=%.2f, no_count=%d, total=%d)",
             signal_type, signal.get("domain"), signal.get("item"),
-            no_ratio, total,
+            no_ratio, feedback["no"], total,
         )
         return None
 
@@ -293,8 +303,9 @@ def _apply_adaptive_rules(signal: Dict, stats: Dict) -> Optional[Dict]:
         modified = dict(signal)
         # Allow through at lower confidence floor
         modified["_adaptive_min_confidence"] = ADAPTIVE_REINFORCED_MIN_CONFIDENCE
-        # Slight priority boost (used in sort key)
-        modified["_adaptive_priority_boost"] = ADAPTIVE_PRIORITY_BOOST
+        # Phase 5.1: Cap priority boost to prevent dominance
+        boost = min(ADAPTIVE_PRIORITY_BOOST, ADAPTIVE_MAX_PRIORITY_BOOST)
+        modified["_adaptive_priority_boost"] = boost
         logger.info(
             "[ADAPTIVE] Reinforcing signal type=%s domain=%s item=%s "
             "(yes_ratio=%.2f, total=%d)",
@@ -530,11 +541,35 @@ def _build_question(signal: Dict) -> str:
     return q_template.format(label=label)
 
 
+def _generate_signal_fingerprint(signal: Dict) -> str:
+    """Generate a deterministic fingerprint for a signal.
+
+    Uses the same logic as feedback_service._generate_fingerprint
+    so fingerprints match between presenter output and feedback records.
+    """
+    import hashlib
+
+    signal_type = (signal.get("type") or "unknown").strip().lower()
+    domain = (signal.get("domain") or "unknown").strip().lower()
+    item = (signal.get("item") or "unknown").strip().lower()
+
+    ts = signal.get("timestamp")
+    if ts and hasattr(ts, "date"):
+        date_str = ts.date().isoformat()
+    elif ts and hasattr(ts, "isoformat"):
+        date_str = ts.isoformat()[:10]
+    else:
+        date_str = timezone.localdate().isoformat()
+
+    raw = f"{signal_type}:{domain}:{item}:{date_str}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:32]
+
+
 def _normalize_presented_output(signals: List[Dict]) -> List[Dict]:
     """Convert filtered signals into the final presentation format.
 
     Each suggestion includes the original signal metadata plus
-    message, question, and priority fields.
+    message, question, priority, fingerprint, and ui fields.
     """
     suggestions = []
     for i, sig in enumerate(signals):
@@ -552,10 +587,15 @@ def _normalize_presented_output(signals: List[Dict]) -> List[Dict]:
             "source": sig.get("source", ""),
             "text": sig.get("text", ""),
             "timestamp": ts_str,
+            "fingerprint": _generate_signal_fingerprint(sig),
             "message": _build_message(sig),
             "question": _build_question(sig),
             "priority": i + 1,
             "adaptive": sig.get("_adaptive_priority_boost", 0) > 0,
+            "ui": {
+                "show": True,
+                "actions": ["yes", "no"],
+            },
         }
         suggestions.append(suggestion)
     return suggestions

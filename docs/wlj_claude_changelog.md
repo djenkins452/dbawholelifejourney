@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Today Engine Patch: Foundation Filter + Time Boundary Correction
+
+**What:** Fixed overdue misclassification caused by seconds precision. Items scheduled at the current minute (e.g., 7:00 AM at 7:00:32 AM) were incorrectly marked overdue because `user_now` had non-zero seconds.
+
+**Fix:** Normalize `user_now` to minute boundary (`second=0, microsecond=0`) before all time comparisons. Foundation filter already correct (strict `== "foundational"`).
+
+**6 new boundary tests:** 6:59→overdue, 7:00→not overdue, 7:00:45→not overdue (seconds normalized), 7:00→coming up, 7:15→coming up, non-foundational excluded from foundation.
+
+**Files:** `apps/core/today/today_engine.py`, `apps/core/today/tests/test_today_engine.py` (16 total)
+
+**Test results:** 169/169 pass.
+
+---
+
 ## 2026-03-23 — Today Engine (Canonical Day Context) + Renderer Refactor
 
 **What:** Created a single canonical Today Engine that collects routines, tasks, and calendar events, applies all time logic once, and produces a unified dataset. Both renderers (day agenda + check-in) now read from this engine — no renderer computes buckets or merges data.

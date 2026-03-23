@@ -250,3 +250,154 @@ class TestNextAction(SimpleTestCase):
         ctx = get_today_context(MagicMock(id=1))
 
         self.assertEqual(ctx["next"], "Start with Workout.")
+
+
+# ---------------------------------------------------------------------------
+# Boundary tests (Foundation filter + Overdue/Coming up time precision)
+# ---------------------------------------------------------------------------
+
+
+class TestFoundationStrictFilter(SimpleTestCase):
+    """Only items with priority == 'foundational' appear in Foundation."""
+
+    @patch(_P_CAL, return_value=[])
+    @patch(_P_TASKS)
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_non_foundational_excluded(self, mock_facts, mock_truth, mock_now, mock_tasks, _c):
+        mock_now.return_value = _fixed_now(5, 0)
+        mock_facts.return_value = _make_locked_facts()
+        mock_truth.return_value = _make_truth({
+            "morning": [
+                _make_routine_item("Prayer", "6:00 AM", importance="foundational"),
+                _make_routine_item("Shower", "5:30 AM", importance="flexible"),
+            ]
+        })
+        # Task with no foundational flag
+        mock_tasks.return_value = [
+            _norm_item("Pool work", "8:00 AM",
+                       _fixed_now(8, 0), priority="flexible"),
+        ]
+
+        ctx = get_today_context(MagicMock(id=1))
+
+        f_labels = [e["label"] for e in ctx["foundation"]]
+        self.assertIn("Prayer (6:00 AM)", f_labels)
+        self.assertNotIn("Shower (5:30 AM)", f_labels)
+        self.assertNotIn("Pool work (8:00 AM)", f_labels)
+
+    @patch(_P_CAL, return_value=[])
+    @patch(_P_TASKS)
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_foundational_task_included(self, mock_facts, mock_truth, mock_now, mock_tasks, _c):
+        """Tasks explicitly marked foundational DO appear in Foundation."""
+        mock_now.return_value = _fixed_now(5, 0)
+        mock_facts.return_value = _make_locked_facts()
+        mock_truth.return_value = _make_truth()
+        mock_tasks.return_value = [
+            _norm_item("Critical task", "9:00 AM",
+                       _fixed_now(9, 0), priority="foundational"),
+        ]
+
+        ctx = get_today_context(MagicMock(id=1))
+
+        f_labels = [e["label"] for e in ctx["foundation"]]
+        self.assertIn("Critical task (9:00 AM)", f_labels)
+
+
+class TestOverdueBoundary(SimpleTestCase):
+    """Items at exactly current time are NOT overdue."""
+
+    @patch(_P_CAL, return_value=[])
+    @patch(_P_TASKS, return_value=[])
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_one_minute_before_is_overdue(self, mock_facts, mock_truth, mock_now, _t, _c):
+        """6:59 AM at 7:00 AM → overdue."""
+        mock_now.return_value = _fixed_now(7, 0)
+        mock_facts.return_value = _make_locked_facts()
+        mock_truth.return_value = _make_truth({
+            "morning": [_make_routine_item("A", "6:59 AM")]
+        })
+
+        ctx = get_today_context(MagicMock(id=1))
+
+        self.assertIn("A (6:59 AM)", [e["label"] for e in ctx["overdue"]])
+
+    @patch(_P_CAL, return_value=[])
+    @patch(_P_TASKS, return_value=[])
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_exact_time_not_overdue(self, mock_facts, mock_truth, mock_now, _t, _c):
+        """7:00 AM at 7:00 AM → NOT overdue."""
+        mock_now.return_value = _fixed_now(7, 0)
+        mock_facts.return_value = _make_locked_facts()
+        mock_truth.return_value = _make_truth({
+            "morning": [_make_routine_item("A", "7:00 AM")]
+        })
+
+        ctx = get_today_context(MagicMock(id=1))
+
+        self.assertNotIn("A (7:00 AM)", [e["label"] for e in ctx["overdue"]])
+
+    @patch(_P_CAL, return_value=[])
+    @patch(_P_TASKS, return_value=[])
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_exact_time_with_seconds_not_overdue(self, mock_facts, mock_truth, mock_now, _t, _c):
+        """7:00 AM at 7:00:45 AM → NOT overdue (seconds normalized)."""
+        # Simulate real-world: now has non-zero seconds
+        now_with_seconds = _fixed_now(7, 0).replace(second=45)
+        mock_now.return_value = now_with_seconds
+        mock_facts.return_value = _make_locked_facts()
+        mock_truth.return_value = _make_truth({
+            "morning": [_make_routine_item("A", "7:00 AM")]
+        })
+
+        ctx = get_today_context(MagicMock(id=1))
+
+        self.assertNotIn("A (7:00 AM)", [e["label"] for e in ctx["overdue"]])
+
+
+class TestComingUpInclusion(SimpleTestCase):
+    """Items at exactly current time appear in Coming up."""
+
+    @patch(_P_CAL, return_value=[])
+    @patch(_P_TASKS, return_value=[])
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_exact_time_in_coming_up(self, mock_facts, mock_truth, mock_now, _t, _c):
+        """7:00 AM at 7:00 AM → coming up."""
+        mock_now.return_value = _fixed_now(7, 0)
+        mock_facts.return_value = _make_locked_facts()
+        mock_truth.return_value = _make_truth({
+            "morning": [_make_routine_item("A", "7:00 AM")]
+        })
+
+        ctx = get_today_context(MagicMock(id=1))
+
+        self.assertIn("A (7:00 AM)", [e["label"] for e in ctx["coming_up"]])
+
+    @patch(_P_CAL, return_value=[])
+    @patch(_P_TASKS, return_value=[])
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_15_minutes_later_in_coming_up(self, mock_facts, mock_truth, mock_now, _t, _c):
+        """7:15 AM at 7:00 AM → coming up."""
+        mock_now.return_value = _fixed_now(7, 0)
+        mock_facts.return_value = _make_locked_facts()
+        mock_truth.return_value = _make_truth({
+            "morning": [_make_routine_item("A", "7:15 AM")]
+        })
+
+        ctx = get_today_context(MagicMock(id=1))
+
+        self.assertIn("A (7:15 AM)", [e["label"] for e in ctx["coming_up"]])

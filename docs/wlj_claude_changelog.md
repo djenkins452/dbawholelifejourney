@@ -6,6 +6,37 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — Beth Response Contract Enforcement (Status Queries)
+
+**What:** Implemented a strict, deterministic response contract for Beth when answering "What's left today?" and similar status queries. Beth no longer uses the LLM for these queries — responses are rendered directly from execution truth.
+
+**Architecture:**
+- New deterministic route in the router (Phase 0a, runs before all other routes)
+- `is_status_query()` detects ~50 status query phrasings with coaching exclusions
+- `build_status_response()` renders a 3-section template directly from execution truth
+- Both streaming and non-streaming paths handled (shared router)
+
+**Response Contract:**
+- Section 1 — STATE: Remaining items (expected=True, completed=False) with micro labels
+- Section 2 — COMPLETED: Done items (omitted if empty)
+- Section 3 — NEXT: Locked next action from decision engine (verbatim, no modification)
+- No coaching, no explanations, no encouragement, no reordering, no drift
+
+**Features:**
+- Micro labels: (important), (overdue), (time-critical), time display (e.g., "10 PM")
+- Domain deduplication: routine items like "Prayer Time" don't double-count with domain "Prayer"
+- Fallback: if today_execution fails, builds from raw locked facts only
+- Edge cases: "everything complete" and "only time-based items" handled
+
+**Files:**
+- `apps/ai/beth_status_renderer.py` — status query detection + deterministic renderer (270 lines)
+- `apps/ai/deterministic_router.py` — new `_try_status_query_route` (Phase 0a)
+- `apps/ai/tests/test_beth_status_renderer.py` — 44 tests covering detection, structure, contract enforcement, edge cases, micro labels, deduplication, and router integration
+
+**Why:** Beth was producing inconsistent, drift-prone responses for status queries. This enforces a strict rendering contract: Beth reads truth, formats output, nothing else.
+
+---
+
 ## 2026-03-22 — Phase 3: Signal Presenter (Controlled Exposure Layer)
 
 **What:** Implemented the Controlled Exposure Layer that transforms raw Phase 2 signals into safe, user-facing suggestions for Beth and UI consumption.

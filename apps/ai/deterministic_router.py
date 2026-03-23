@@ -230,7 +230,14 @@ def classify_and_route(message, user, cos_context_cache=None):
     t_start = time.monotonic()
     msg_lower = message.lower()
 
-    # ── Phase 0: Locked next-action (bypasses LLM entirely) ───────
+    # ── Phase 0a: Today status query (bypasses LLM entirely) ──────
+    result = _try_status_query_route(msg_lower, user)
+    if result is not None:
+        result.elapsed_ms = (time.monotonic() - t_start) * 1000
+        _log_route_decision(result, user, message)
+        return result
+
+    # ── Phase 0b: Locked next-action (bypasses LLM entirely) ──────
     result = _try_next_action_route(msg_lower, user)
     if result is not None:
         result.elapsed_ms = (time.monotonic() - t_start) * 1000
@@ -370,6 +377,41 @@ def _try_next_action_route(msg_lower, user):
     except Exception as e:
         logger.warning(
             "Next-action route failed: %s", e, exc_info=True,
+        )
+    return None
+
+
+# =============================================================================
+# Status Query Route — "What's left today?" (bypasses LLM entirely)
+# =============================================================================
+
+def _try_status_query_route(msg_lower, user):
+    """Try the today-status deterministic route.
+
+    Produces a strict, contract-enforced response for "what's left today?"
+    type queries. No LLM involvement. See beth_status_renderer.py.
+    """
+    try:
+        from apps.ai.beth_status_renderer import is_status_query, build_status_response
+    except ImportError:
+        return None
+
+    if not is_status_query(msg_lower):
+        return None
+
+    try:
+        response = build_status_response(user)
+        if response:
+            return RouteResult(
+                category=RouteCategory.DETERMINISTIC_DATA,
+                response=response,
+                route_name='status_query',
+                domain='execution',
+                is_terminal=True,
+            )
+    except Exception as e:
+        logger.warning(
+            "Status query route failed: %s", e, exc_info=True,
         )
     return None
 

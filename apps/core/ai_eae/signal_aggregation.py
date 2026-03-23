@@ -74,9 +74,17 @@ class SignalAggregationService:
         Compute all signal types for a user for a date.
 
         Returns list of upserted SignalSnapshot records.
-        Skips signals with no data (returns fewer than 10 if some are empty).
+        Every base signal type produces a daily snapshot (zero-fill for no activity).
+        Each snapshot includes expected (bool) and state (enum) from the ETE.
         """
+        from apps.core.execution.expected_map import (
+            get_expected_map, SIGNAL_EXPECTED_KEYS,
+        )
+
         results = []
+
+        # Get expected map from Execution Truth Engine (single call)
+        expected_map = get_expected_map(user, date)
 
         signal_computers = [
             SignalAggregationService._compute_health_activity,
@@ -93,7 +101,7 @@ class SignalAggregationService:
 
         for computer in signal_computers:
             try:
-                snapshot = computer(user, date)
+                snapshot = computer(user, date, expected_map)
                 if snapshot:
                     results.append(snapshot)
             except Exception as e:
@@ -103,9 +111,8 @@ class SignalAggregationService:
                     exc_info=True,
                 )
 
-        # Fill zero-activity snapshots for expected signal types that weren't
-        # produced. This keeps signal freshness current ("no activity today"
-        # is itself a valid data point) and prevents false drought alerts.
+        # Zero-fill: guarantee daily coverage for all base signal types.
+        # Uses expected_map to set correct state (missed vs not_expected).
         produced_types = {s.signal_type for s in results}
         _ZERO_FILL_TYPES = [
             'health_activity', 'health_biometrics', 'medication_adherence',
@@ -115,12 +122,17 @@ class SignalAggregationService:
         for sig_type in _ZERO_FILL_TYPES:
             if sig_type not in produced_types:
                 try:
+                    expected_key = SIGNAL_EXPECTED_KEYS.get(sig_type, '')
+                    is_expected = expected_map.get(expected_key, False)
+                    state = 'missed' if is_expected else 'not_expected'
                     snapshot = SignalAggregationService._upsert_snapshot(
                         user, date, sig_type,
                         score=0.0,
                         confidence=1.0,
                         signal_class='verified_action',
                         source_signals={'source': 'zero_fill', 'reason': 'no_activity'},
+                        expected=is_expected,
+                        state=state,
                     )
                     results.append(snapshot)
                 except Exception as e:
@@ -154,7 +166,8 @@ class SignalAggregationService:
 
     @staticmethod
     def _upsert_snapshot(user, date, signal_type, score, confidence,
-                         signal_class, source_signals):
+                         signal_class, source_signals,
+                         expected=True, state=''):
         """Create or update a SignalSnapshot record."""
         snapshot, created = SignalSnapshot.objects.update_or_create(
             user=user,
@@ -166,12 +179,14 @@ class SignalAggregationService:
                 'score': max(0.0, min(1.0, score)),  # Clamp to 0-1
                 'confidence': max(0.0, min(1.0, confidence)),
                 'source_signals': source_signals,
+                'expected': expected,
+                'state': state,
             },
         )
         action = "Created" if created else "Updated"
         logger.debug(
-            "%s signal %s for user %s on %s: score=%.2f class=%s",
-            action, signal_type, user.pk, date, score, signal_class,
+            "%s signal %s for user %s on %s: score=%.2f state=%s expected=%s",
+            action, signal_type, user.pk, date, score, state, expected,
         )
         return snapshot
 
@@ -180,13 +195,15 @@ class SignalAggregationService:
     # ──────────────────────────────────────────────────────────
 
     @staticmethod
-    def _compute_health_activity(user, date):
+    def _compute_health_activity(user, date, expected_map):
         """
         Physical activity level.
         Sources: WorkoutSession, Steps.
         Normalization: 0.5 = 20 min exercise, 1.0 = 45+ min.
         """
         from apps.health.models import WorkoutSession
+
+        is_expected = expected_map.get('workout', False)
 
         sessions = WorkoutSession.objects.filter(
             user=user, date=date, completed_at__isnull=False,
@@ -195,15 +212,18 @@ class SignalAggregationService:
         session_count = sessions.count()
 
         if session_count == 0 and total_minutes == 0:
-            return None  # No data — skip
+            return None  # Zero-fill will handle with correct expected/state
 
         # Normalize: 0 min=0.0, 20 min=0.5, 45 min=1.0
         if total_minutes >= 45:
             score = 1.0
+            state = 'completed'
         elif total_minutes >= 20:
             score = 0.5 + (total_minutes - 20) * 0.5 / 25
+            state = 'partial'
         else:
             score = total_minutes * 0.5 / 20
+            state = 'partial'
 
         return SignalAggregationService._upsert_snapshot(
             user, date, 'health_activity',
@@ -214,10 +234,12 @@ class SignalAggregationService:
                 'workout_sessions': session_count,
                 'total_minutes': total_minutes,
             },
+            expected=is_expected,
+            state=state,
         )
 
     @staticmethod
-    def _compute_health_biometrics(user, date):
+    def _compute_health_biometrics(user, date, expected_map):
         """
         Vital sign stability.
         Sources: Weight, Glucose, BP, Sleep.
@@ -227,6 +249,7 @@ class SignalAggregationService:
             WeightEntry, GlucoseEntry, BloodPressureEntry, SleepEntry,
         )
 
+        is_expected = expected_map.get('biometrics', False)
         sub_scores = []
         source_data = {}
 
@@ -235,8 +258,6 @@ class SignalAggregationService:
             user=user, recorded_at__date=date,
         ).first()
         if weight:
-            # Simple: any weight logged = 0.8 (baseline presence score)
-            # Full normalization (vs goal weight) deferred to when user weight goals exist
             sub_scores.append(0.8)
             source_data['weight'] = float(weight.value)
 
@@ -245,7 +266,6 @@ class SignalAggregationService:
             user=user, recorded_at__date=date,
         )
         if glucose_entries.exists():
-            # Average glucose value
             avg_val = sum(float(g.value) for g in glucose_entries) / glucose_entries.count()
             if avg_val <= 100:
                 g_score = 1.0
@@ -288,9 +308,10 @@ class SignalAggregationService:
             source_data['sleep_hours'] = round(hours, 1)
 
         if not sub_scores:
-            return None  # No biometric data
+            return None  # Zero-fill will handle
 
         score = sum(sub_scores) / len(sub_scores)
+        state = 'completed' if score >= 0.7 else 'partial'
 
         return SignalAggregationService._upsert_snapshot(
             user, date, 'health_biometrics',
@@ -298,16 +319,20 @@ class SignalAggregationService:
             confidence=1.0,
             signal_class='verified_measurement',
             source_signals=source_data,
+            expected=is_expected,
+            state=state,
         )
 
     @staticmethod
-    def _compute_medication_adherence(user, date):
+    def _compute_medication_adherence(user, date, expected_map):
         """
         Medication compliance.
         Sources: MedicineLog vs MedicineSchedule.
         Normalization: taken_count / scheduled_count.
         """
         from apps.health.models import MedicineLog, MedicineSchedule
+
+        is_expected = expected_map.get('medication', False)
 
         # Get all active schedules for this user
         active_schedules = MedicineSchedule.objects.filter(
@@ -321,7 +346,7 @@ class SignalAggregationService:
         scheduled_count = len(applicable)
 
         if scheduled_count == 0:
-            return None  # No meds scheduled today
+            return None  # Zero-fill will handle
 
         # Count taken logs
         logs = MedicineLog.objects.filter(
@@ -335,6 +360,13 @@ class SignalAggregationService:
         effective_taken = taken + (late * 0.8)
         score = min(1.0, effective_taken / scheduled_count)
 
+        if score >= 1.0:
+            state = 'completed'
+        elif score > 0:
+            state = 'partial'
+        else:
+            state = 'missed'
+
         return SignalAggregationService._upsert_snapshot(
             user, date, 'medication_adherence',
             score=score,
@@ -346,10 +378,12 @@ class SignalAggregationService:
                 'late': late,
                 'score': round(score, 2),
             },
+            expected=is_expected,
+            state=state,
         )
 
     @staticmethod
-    def _compute_faith_practice(user, date):
+    def _compute_faith_practice(user, date, expected_map):
         """
         Spiritual discipline engagement.
         Sources: UserReadingProgress, faith HabitEntries.
@@ -357,6 +391,7 @@ class SignalAggregationService:
         from apps.faith.models import UserReadingProgress
         from apps.purpose.models import HabitEntry
 
+        is_expected = expected_map.get('faith', False)
         sub_scores = []
         source_data = {}
 
@@ -396,9 +431,16 @@ class SignalAggregationService:
             }
 
         if not sub_scores:
-            return None
+            return None  # Zero-fill will handle
 
         score = sum(sub_scores) / len(sub_scores)
+
+        if score >= 1.0:
+            state = 'completed'
+        elif score > 0:
+            state = 'partial'
+        else:
+            state = 'missed'
 
         return SignalAggregationService._upsert_snapshot(
             user, date, 'faith_practice',
@@ -406,15 +448,19 @@ class SignalAggregationService:
             confidence=1.0,
             signal_class='verified_action',
             source_signals=source_data,
+            expected=is_expected,
+            state=state,
         )
 
     @staticmethod
-    def _compute_mental_reflection(user, date):
+    def _compute_mental_reflection(user, date, expected_map):
         """
         Introspective activity.
         Sources: JournalEntry.
         """
         from apps.journal.models import JournalEntry
+
+        is_expected = expected_map.get('journal', False)
 
         entries = JournalEntry.objects.filter(
             user=user,
@@ -422,7 +468,7 @@ class SignalAggregationService:
         )
 
         if not entries.exists():
-            return None
+            return None  # Zero-fill will handle
 
         # Score based on entry substance
         best_score = 0.0
@@ -448,6 +494,7 @@ class SignalAggregationService:
             best_score = max(best_score, entry_score)
 
         source_data['best_score'] = round(best_score, 2)
+        state = 'completed' if best_score >= 0.7 else 'partial'
 
         return SignalAggregationService._upsert_snapshot(
             user, date, 'mental_reflection',
@@ -455,15 +502,19 @@ class SignalAggregationService:
             confidence=1.0,
             signal_class='verified_action',
             source_signals=source_data,
+            expected=is_expected,
+            state=state,
         )
 
     @staticmethod
-    def _compute_cognitive_fitness(user, date):
+    def _compute_cognitive_fitness(user, date, expected_map):
         """
         Brain training engagement.
         Sources: GameSession.
         """
         from apps.brain_training.models import GameSession
+
+        is_expected = expected_map.get('brain_training', False)
 
         sessions = GameSession.objects.filter(
             user=user,
@@ -473,13 +524,15 @@ class SignalAggregationService:
 
         count = sessions.count()
         if count == 0:
-            return None
+            return None  # Zero-fill will handle
 
         # 1 session = 0.5, 2+ = 1.0
         if count >= 2:
             score = 1.0
+            state = 'completed'
         else:
             score = 0.5
+            state = 'partial'
 
         return SignalAggregationService._upsert_snapshot(
             user, date, 'cognitive_fitness',
@@ -487,15 +540,19 @@ class SignalAggregationService:
             confidence=1.0,
             signal_class='verified_action',
             source_signals={'sessions_completed': count},
+            expected=is_expected,
+            state=state,
         )
 
     @staticmethod
-    def _compute_productivity_progress(user, date):
+    def _compute_productivity_progress(user, date, expected_map):
         """
         Task and project execution.
         Sources: Task completions vs due tasks.
         """
         from apps.life.models import Task
+
+        is_expected = expected_map.get('tasks', False)
 
         # Tasks due today
         due_today = Task.objects.filter(
@@ -512,13 +569,21 @@ class SignalAggregationService:
         ).count()
 
         if due_count == 0 and completed_today == 0:
-            return None  # No productivity data
+            return None  # Zero-fill will handle
 
         if due_count == 0:
             # Nothing was due but something was completed — proactive work
             score = 0.8
+            state = 'completed'
+        elif completed_today >= due_count:
+            score = 1.0
+            state = 'completed'
+        elif completed_today > 0:
+            score = completed_today / due_count
+            state = 'partial'
         else:
-            score = min(1.0, completed_today / due_count)
+            score = 0.0
+            state = 'missed'
 
         return SignalAggregationService._upsert_snapshot(
             user, date, 'productivity_progress',
@@ -529,6 +594,8 @@ class SignalAggregationService:
                 'due_today': due_count,
                 'completed_today': completed_today,
             },
+            expected=is_expected,
+            state=state,
         )
 
     # ──────────────────────────────────────────────────────────
@@ -536,7 +603,7 @@ class SignalAggregationService:
     # ──────────────────────────────────────────────────────────
 
     @staticmethod
-    def _compute_nutrition_compliance(user, date):
+    def _compute_nutrition_compliance(user, date, expected_map):
         """
         Dietary adherence and tracking compliance.
         Sources: FoodEntry, WaterEntry, FastingWindow.
@@ -544,6 +611,7 @@ class SignalAggregationService:
         """
         from apps.health.models import FoodEntry, WaterEntry, FastingWindow
 
+        is_expected = expected_map.get('nutrition', False)
         sub_scores = []
         source_data = {}
 
@@ -613,9 +681,10 @@ class SignalAggregationService:
                 source_data['fasting_met_target'] = False
 
         if not sub_scores:
-            return None  # No nutrition data today
+            return None  # Zero-fill will handle
 
         score = sum(sub_scores) / len(sub_scores)
+        state = 'completed' if score >= 0.7 else 'partial'
 
         return SignalAggregationService._upsert_snapshot(
             user, date, 'nutrition_compliance',
@@ -623,10 +692,12 @@ class SignalAggregationService:
             confidence=1.0,
             signal_class='verified_action',
             source_signals=source_data,
+            expected=is_expected,
+            state=state,
         )
 
     @staticmethod
-    def _compute_relational_engagement(user, date):
+    def _compute_relational_engagement(user, date, expected_map):
         """
         Social and relationship activity.
         Sources: RelationshipInteraction.
@@ -637,13 +708,15 @@ class SignalAggregationService:
         except ImportError:
             return None  # Relationships app not available
 
+        is_expected = expected_map.get('relationships', False)
+
         interactions = RelationshipInteraction.objects.filter(
             user=user,
             interaction_date=date,
         )
         interaction_count = interactions.count()
         if interaction_count == 0:
-            return None  # No relational activity — sparse signal
+            return None  # Zero-fill will handle
 
         # Distinct people interacted with
         distinct_people = interactions.values('person').distinct().count()
@@ -651,10 +724,13 @@ class SignalAggregationService:
         # Normalize: 1 interaction = 0.5, 2+ distinct people = 1.0
         if distinct_people >= 2:
             score = 1.0
+            state = 'completed'
         elif interaction_count >= 2:
             score = 0.7
+            state = 'partial'
         else:
             score = 0.5
+            state = 'partial'
 
         return SignalAggregationService._upsert_snapshot(
             user, date, 'relational_engagement',
@@ -665,23 +741,18 @@ class SignalAggregationService:
                 'interaction_count': interaction_count,
                 'distinct_people': distinct_people,
             },
+            expected=is_expected,
+            state=state,
         )
 
     @staticmethod
-    def _compute_financial_health(user, date):
+    def _compute_financial_health(user, date, expected_map):
         """
         Financial behavior signals — STUB.
 
         Finance module is coming_soon. This computer returns None until
-        deterministic financial data sources exist. Per signal taxonomy rules,
-        missing data = no row, not zero.
+        deterministic financial data sources exist.
         """
-        # Phase 4: Intentional stub. Finance module is not yet mature enough
-        # to produce deterministic signals. When the finance data pipeline
-        # is implemented, this method should derive from:
-        # - Transaction logging
-        # - Budget adherence
-        # - FinancialGoal progress
         return None
 
     # ──────────────────────────────────────────────────────────
@@ -767,6 +838,8 @@ class SignalAggregationService:
                             for js in signals
                         ],
                     },
+                    expected=True,
+                    state='completed',
                 )
                 existing_results.append(snapshot)
 

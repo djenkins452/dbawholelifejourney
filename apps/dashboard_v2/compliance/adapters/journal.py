@@ -2,6 +2,11 @@
 Journal domain adapter — evaluates JournalEntry existence against
 routine-based expectations.
 
+Truth hierarchy (WLJ architecture):
+1. JournalEntry (raw data) — single source of truth for completion
+2. JournalSignal (derived) — NOT used for completion (used for trends/mood)
+3. Absence of entry → MISSED
+
 Expected logic: User has a routine item with a name in the journal name set
 (from execution_truth_engine). If no journal routine exists, journaling is
 not expected and no events are created.
@@ -17,8 +22,8 @@ from apps.dashboard_v2.compliance.constants import (
     DOMAIN_JOURNAL,
     FINAL_COMPLETED,
     FINAL_MISSED,
-    REASON_ENTRY_EXISTS,
-    REASON_NO_ENTRY,
+    REASON_COMPLETED_VIA_JOURNAL,
+    REASON_NOT_COMPLETED,
     SOURCE_JOURNAL_ENTRY,
 )
 
@@ -89,7 +94,7 @@ def evaluate_journal(user, start_date, end_date):
                 "source_system": SOURCE_JOURNAL_ENTRY,
                 "actual_status": ACTUAL_COMPLETED if has_entry else ACTUAL_NONE,
                 "final_status": FINAL_COMPLETED if has_entry else FINAL_MISSED,
-                "reason_code": REASON_ENTRY_EXISTS if has_entry else REASON_NO_ENTRY,
+                "reason_code": REASON_COMPLETED_VIA_JOURNAL if has_entry else REASON_NOT_COMPLETED,
                 "reason_detail": {},
             })
 

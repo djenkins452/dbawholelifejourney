@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Align Journal Compliance with JournalEntry as Single Source of Truth
+
+**What:** V2 Compliance journal adapter now uses `REASON_COMPLETED_VIA_JOURNAL` ("Completed via journal entry") and `REASON_NOT_COMPLETED` ("Not completed") reason codes, replacing the generic `REASON_ENTRY_EXISTS`/`REASON_NO_ENTRY` codes. The adapter already used JournalEntry as raw truth — this change aligns the labels with the workout adapter pattern.
+
+**Why:** Consistency with WLJ truth hierarchy labeling. The adapter was already architecturally correct (checked JournalEntry directly, not signals), but the reason codes were generic shared codes. Domain-specific codes improve UI clarity.
+
+**Key changes:**
+- `apps/dashboard_v2/compliance/constants.py` — Added `REASON_COMPLETED_VIA_JOURNAL` ("Completed via journal entry")
+- `apps/dashboard_v2/compliance/adapters/journal.py` — Updated docstring with truth hierarchy, switched to journal-specific reason codes
+- `apps/dashboard_v2/compliance/tests/test_compliance.py` — Added `JournalAdapterTest` with 5 tests: entry exists, no entry, multiple entries same day, no routine, unscheduled day
+- `apps/dashboard_v2/migrations/0010_alter_complianceevent_reason_code.py` — Migration for new reason_code choice
+
+**Files:** `apps/dashboard_v2/compliance/adapters/journal.py`, `apps/dashboard_v2/compliance/constants.py`, `apps/dashboard_v2/compliance/tests/test_compliance.py`, `apps/dashboard_v2/migrations/0010_alter_complianceevent_reason_code.py`
+
+---
+
 ## 2026-03-23 — WorkoutSession Takes Absolute Precedence in V2 Compliance
 
 **What:** WorkoutSession with `completed_at` now takes absolute precedence over any WorkoutScheduleLog status in V2 Compliance, including "skipped" logs.

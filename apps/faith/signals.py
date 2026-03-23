@@ -39,6 +39,42 @@ def handle_reading_plan_saved(sender, instance, **kwargs):
         )
 
 
+@receiver(post_save, sender='faith.UserReadingProgress')
+def handle_reading_progress_saved(sender, instance, **kwargs):
+    """
+    When a UserReadingProgress is marked complete, auto-complete matching
+    Bible/faith RoutineSchedule items for today.
+
+    Uses the same auto_complete_routine_schedules pattern as workout.
+    Idempotent — safe to call from both signal and view.
+    """
+    if not instance.is_completed:
+        return  # Not completed yet
+
+    try:
+        user = instance.user_plan.user
+    except Exception:
+        return
+
+    try:
+        from apps.life.services.routine_helpers import auto_complete_routine_schedules
+        auto_complete_routine_schedules(
+            user, 'bible', 'bible',
+            completion_time=instance.completed_at,
+            source_object_id=instance.pk,
+        )
+        auto_complete_routine_schedules(
+            user, 'faith', 'faith',
+            completion_time=instance.completed_at,
+            source_object_id=instance.pk,
+        )
+    except Exception as e:
+        logger.warning(
+            "Failed to auto-complete routine for Bible reading %s: %s",
+            instance.pk, e, exc_info=True,
+        )
+
+
 @receiver(post_delete, sender='faith.UserReadingPlan')
 def handle_reading_plan_deleted(sender, instance, **kwargs):
     """When a UserReadingPlan is deleted, remove its calendar events."""

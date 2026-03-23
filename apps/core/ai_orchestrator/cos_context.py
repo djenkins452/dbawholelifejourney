@@ -3274,6 +3274,7 @@ def _build_data_state_snapshot(user) -> str:
                 lines.append(f"  {_rname}: {_status}")
 
         # Routine item detail (so Beth sees exactly which items are done/missed/pending)
+        # Activity-type items include source context (e.g., which workout fulfilled it)
         _exec_items = _exec_contract.get('items', [])
         _routine_items_for_prompt = [i for i in _exec_items if i.get('source_type') == 'routine_item']
         if _routine_items_for_prompt:
@@ -3283,6 +3284,10 @@ def _build_data_state_snapshot(user) -> str:
                 _ri_parent = ri.get('parent_title', '')
                 _ri_resched = ri.get('rescheduled_time')
                 _ri_resched_count = ri.get('reschedule_count', 0) or 0
+                _ri_source = ri.get('completion_source')
+                _ri_routine_type = ri.get('routine_type', 'binary')
+                _ri_via = ri.get('completion_via_label')
+
                 if _ri_resched and _ri_status == 'RESCHEDULED':
                     _count_note = (
                         f" (moved {_ri_resched_count}x today)"
@@ -3291,6 +3296,19 @@ def _build_data_state_snapshot(user) -> str:
                     lines.append(
                         f"    [RESCHEDULED \u2192 {ri.get('scheduled_time', '')}{_count_note}] "
                         f"{ri.get('title', '')} ({_ri_parent})"
+                    )
+                elif _ri_source and _ri_source != 'manual' and _ri_status in ('DONE', 'COMPLETED', 'COMPLETED_LATE'):
+                    # Activity-completed: show source context for Beth reasoning
+                    _late_note = " (late)" if 'LATE' in _ri_status else ""
+                    _via_detail = f" — {_ri_via}" if _ri_via else ""
+                    lines.append(
+                        f"    [DONE{_late_note}] {ri.get('title', '')} ({_ri_parent}){_via_detail}"
+                    )
+                elif _ri_routine_type == 'activity' and _ri_status in ('PENDING', 'NOT DONE', 'OVERDUE'):
+                    # Activity routine not yet fulfilled — note it's waiting for real data
+                    lines.append(
+                        f"    [{_ri_status}] {ri.get('title', '')} ({_ri_parent}) "
+                        f"— awaiting {ri.get('activity_type', 'activity')} log"
                     )
                 else:
                     lines.append(f"    [{_ri_status}] {ri.get('title', '')} ({_ri_parent})")
@@ -3375,6 +3393,19 @@ def _build_data_state_snapshot(user) -> str:
         "    suggestion, or open item — even if it was completed days ago.\n"
         "  • If routine/medication data says 'syncing' or 'being rebuilt', DO NOT\n"
         "    guess or infer status. Say 'still syncing' and move on.\n"
+        "\n"
+        "ACTIVITY-TYPE ROUTINE INTERPRETATION:\n"
+        "  • Some routine items are activity-driven (e.g., workout, journal, faith).\n"
+        "  • When an activity routine shows [DONE] with a 'via' label, reference the\n"
+        "    actual activity: 'You completed your Back + Arms workout at 6:42 AM'\n"
+        "    — NOT 'You checked off your Workout routine item'.\n"
+        "  • For on-time activity completions: acknowledge the achievement naturally.\n"
+        "  • For late activity completions: 'You still got your workout in, but later\n"
+        "    than planned' — supportive, not punishing.\n"
+        "  • For pending activity items: say 'No workout logged yet' or 'Workout still\n"
+        "    pending' — NOT 'You haven't checked the box'. These are data-driven.\n"
+        "  • NEVER mention 'checking off' or 'toggling' an activity routine. The user\n"
+        "    completes these by doing the activity, not by clicking a checkbox.\n"
         "\n"
         "ROUTINE COMPLETION RULE:\n"
         "  • A routine is ONLY complete when the status above says 'COMPLETE (all items done)'.\n"

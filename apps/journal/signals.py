@@ -69,6 +69,18 @@ def extract_people_from_journal(sender, instance, created, **kwargs):
     except Exception as e:
         logger.warning("Journal people extraction failed: %s", e)
 
+    # --- Auto-complete matching RoutineSchedule items ---
+    # When a journal entry is created, auto-complete today's journal-type routine items.
+    try:
+        from apps.life.services.routine_helpers import auto_complete_routine_schedules
+        auto_complete_routine_schedules(
+            user, 'journal', 'journal',
+            completion_time=instance.created_at,
+            source_object_id=instance.pk,
+        )
+    except Exception as e:
+        logger.warning("Journal routine auto-complete failed: %s", e)
+
     # --- Behavioral signal extraction (async primary, sync fallback) ---
     _dispatch_signal_extraction(instance)
 

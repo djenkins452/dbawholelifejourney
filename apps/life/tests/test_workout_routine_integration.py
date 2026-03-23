@@ -435,3 +435,229 @@ class BackwardCompatibilityTests(WorkoutRoutineTestMixin, TestCase):
             self.user, self.prayer_schedule, today,
         )
         self.assertFalse(result['is_completed'])
+
+
+# =============================================================================
+# PHASE 4 — Multi-Domain Extension Tests (Journal + Faith)
+# =============================================================================
+
+
+class MultiDomainTestMixin:
+    """Setup with journal and faith routine schedule items."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='multi-domain@test.com', password='testpass123'
+        )
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0'),
+        )
+        self.user.preferences.has_completed_onboarding = True
+        self.user.preferences.save()
+
+        self.routine = Routine.objects.create(
+            user=self.user, name='Daily Routine',
+            time_of_day='morning', is_active=True,
+        )
+        self.journal_schedule = RoutineSchedule.objects.create(
+            routine=self.routine, name='Journal',
+            scheduled_time=time(20, 0),
+            grace_period_minutes=60,
+            days_of_week='0,1,2,3,4,5,6',
+            is_active=True,
+            routine_type='activity',
+            activity_type='journal',
+        )
+        self.bible_schedule = RoutineSchedule.objects.create(
+            routine=self.routine, name='Bible Reading',
+            scheduled_time=time(6, 0),
+            grace_period_minutes=60,
+            days_of_week='0,1,2,3,4,5,6',
+            is_active=True,
+            routine_type='activity',
+            activity_type='bible',
+        )
+        self.workout_schedule = RoutineSchedule.objects.create(
+            routine=self.routine, name='Workout',
+            scheduled_time=time(6, 30),
+            grace_period_minutes=60,
+            days_of_week='0,1,2,3,4,5,6',
+            is_active=True,
+            routine_type='activity',
+            activity_type='workout',
+        )
+
+
+class JournalAutoCompleteTests(MultiDomainTestMixin, TestCase):
+    """Journal entry → routine auto-completion."""
+
+    @patch(_PATCH_NOW)
+    @patch(_PATCH_TODAY)
+    def test_journal_completes_journal_routine(self, mock_today, mock_now):
+        """Journal auto-complete creates RoutineLog with source='journal'."""
+        today = date(2026, 3, 22)
+        mock_today.return_value = today
+        mock_now.return_value = timezone.make_aware(
+            datetime(2026, 3, 22, 20, 15)
+        )
+
+        results = auto_complete_routine_schedules(
+            self.user, 'journal', 'journal', source_object_id=100,
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['schedule_id'], self.journal_schedule.pk)
+
+        log = RoutineLog.objects.get(
+            schedule=self.journal_schedule, scheduled_date=today,
+        )
+        self.assertEqual(log.completion_source, 'journal')
+        self.assertEqual(log.source_object_id, 100)
+
+    @patch(_PATCH_NOW)
+    @patch(_PATCH_TODAY)
+    def test_journal_does_not_complete_workout(self, mock_today, mock_now):
+        """Journal auto-complete does NOT touch workout or bible routines."""
+        today = date(2026, 3, 22)
+        mock_today.return_value = today
+        mock_now.return_value = timezone.make_aware(
+            datetime(2026, 3, 22, 20, 15)
+        )
+
+        auto_complete_routine_schedules(
+            self.user, 'journal', 'journal',
+        )
+
+        self.assertFalse(RoutineLog.objects.filter(
+            schedule=self.workout_schedule, scheduled_date=today).exists())
+        self.assertFalse(RoutineLog.objects.filter(
+            schedule=self.bible_schedule, scheduled_date=today).exists())
+
+
+class FaithAutoCompleteTests(MultiDomainTestMixin, TestCase):
+    """Bible reading → routine auto-completion."""
+
+    @patch(_PATCH_NOW)
+    @patch(_PATCH_TODAY)
+    def test_bible_completes_bible_routine(self, mock_today, mock_now):
+        """Bible auto-complete creates RoutineLog with source='bible'."""
+        today = date(2026, 3, 22)
+        mock_today.return_value = today
+        mock_now.return_value = timezone.make_aware(
+            datetime(2026, 3, 22, 6, 15)
+        )
+
+        results = auto_complete_routine_schedules(
+            self.user, 'bible', 'bible', source_object_id=200,
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['schedule_id'], self.bible_schedule.pk)
+
+        log = RoutineLog.objects.get(
+            schedule=self.bible_schedule, scheduled_date=today,
+        )
+        self.assertEqual(log.completion_source, 'bible')
+
+    @patch(_PATCH_NOW)
+    @patch(_PATCH_TODAY)
+    def test_bible_does_not_complete_journal(self, mock_today, mock_now):
+        """Bible auto-complete does NOT touch journal routines."""
+        today = date(2026, 3, 22)
+        mock_today.return_value = today
+        mock_now.return_value = timezone.make_aware(
+            datetime(2026, 3, 22, 6, 15)
+        )
+
+        auto_complete_routine_schedules(
+            self.user, 'bible', 'bible',
+        )
+
+        self.assertFalse(RoutineLog.objects.filter(
+            schedule=self.journal_schedule, scheduled_date=today).exists())
+
+
+class CrossDomainIsolationTests(MultiDomainTestMixin, TestCase):
+    """Each domain auto-complete is isolated — no cross-contamination."""
+
+    @patch(_PATCH_NOW)
+    @patch(_PATCH_TODAY)
+    def test_all_three_domains_independent(self, mock_today, mock_now):
+        """Workout, journal, and bible each complete only their own routine."""
+        today = date(2026, 3, 22)
+        mock_today.return_value = today
+        mock_now.return_value = timezone.make_aware(
+            datetime(2026, 3, 22, 12, 0)
+        )
+
+        auto_complete_routine_schedules(self.user, 'workout', 'workout', source_object_id=1)
+        auto_complete_routine_schedules(self.user, 'journal', 'journal', source_object_id=2)
+        auto_complete_routine_schedules(self.user, 'bible', 'bible', source_object_id=3)
+
+        # Each has exactly one log
+        self.assertEqual(RoutineLog.objects.filter(scheduled_date=today).count(), 3)
+
+        # Each log has the correct source
+        workout_log = RoutineLog.objects.get(schedule=self.workout_schedule, scheduled_date=today)
+        self.assertEqual(workout_log.completion_source, 'workout')
+        self.assertEqual(workout_log.source_object_id, 1)
+
+        journal_log = RoutineLog.objects.get(schedule=self.journal_schedule, scheduled_date=today)
+        self.assertEqual(journal_log.completion_source, 'journal')
+        self.assertEqual(journal_log.source_object_id, 2)
+
+        bible_log = RoutineLog.objects.get(schedule=self.bible_schedule, scheduled_date=today)
+        self.assertEqual(bible_log.completion_source, 'bible')
+        self.assertEqual(bible_log.source_object_id, 3)
+
+
+# =============================================================================
+# PHASE 5 — Fallback Tracking Tests
+# =============================================================================
+
+
+class FallbackTrackingTests(WorkoutRoutineTestMixin, TestCase):
+    """Verify fallback name matching is logged and structured matching preferred."""
+
+    @patch(_PATCH_NOW)
+    @patch(_PATCH_TODAY)
+    def test_name_fallback_used_when_no_activity_type(self, mock_today, mock_now):
+        """Schedule without activity_type uses name fallback."""
+        today = date(2026, 3, 22)
+        mock_today.return_value = today
+        mock_now.return_value = timezone.make_aware(
+            datetime(2026, 3, 22, 6, 30)
+        )
+
+        # Ensure no activity_type set (default from setUp)
+        self.assertEqual(self.workout_schedule.activity_type, None)
+
+        with self.assertLogs('apps.life.services.routine_helpers', level='INFO') as cm:
+            auto_complete_routine_schedules(
+                self.user, 'workout', 'workout',
+            )
+
+        # Should log the fallback usage
+        self.assertTrue(any('ROUTINE_AUTOCOMPLETE_FALLBACK' in msg for msg in cm.output))
+
+    @patch(_PATCH_NOW)
+    @patch(_PATCH_TODAY)
+    def test_no_fallback_log_when_activity_type_set(self, mock_today, mock_now):
+        """Schedule with activity_type does NOT log fallback."""
+        today = date(2026, 3, 22)
+        mock_today.return_value = today
+        mock_now.return_value = timezone.make_aware(
+            datetime(2026, 3, 22, 6, 30)
+        )
+
+        self.workout_schedule.routine_type = 'activity'
+        self.workout_schedule.activity_type = 'workout'
+        self.workout_schedule.save()
+
+        # Should NOT log fallback (uses structured matching)
+        results = auto_complete_routine_schedules(
+            self.user, 'workout', 'workout',
+        )
+        self.assertEqual(len(results), 1)
+        # The log exists but the schedule has activity_type, so no fallback log

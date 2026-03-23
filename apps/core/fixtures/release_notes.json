@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 168,
+    "fields": {
+      "title": "Routines: Journal & Bible Auto-Complete",
+      "description": "Routine items now auto-complete across all activity types! Journaling and Bible reading join workouts in automatically marking your routine items as done when you log the actual activity. Your routine view shows exactly what completed each item \u2014 like \"Completed via Back + Arms at 6:42 AM\" for workouts, or \"Completed via Journal Entry at 8:15 PM\" for journaling. Beth now references your actual activities instead of generic completion flags.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-23",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-23T03:00:00Z",
+      "updated_at": "2026-03-23T03:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 167,
     "fields": {
       "title": "Routines: Auto-Complete from Workouts",

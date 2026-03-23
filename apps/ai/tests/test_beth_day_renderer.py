@@ -24,6 +24,7 @@ from apps.ai.beth_day_renderer import (
     _BANNED_WORDS,
     _SAFE_FALLBACK,
     _collect_all_items,
+    _sort_by_time,
     render_day_agenda,
 )
 
@@ -371,3 +372,140 @@ class TestSections(SimpleTestCase):
         self.assertIn("Later today:", output)
         self.assertIn("Completed:", output)
         self.assertIn("Next:", output)
+
+
+# ---------------------------------------------------------------------------
+# Chronological ordering tests
+# ---------------------------------------------------------------------------
+
+
+class TestChronologicalOrdering(SimpleTestCase):
+    """All sections must be strictly time-ordered (earliest → latest)."""
+
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_overdue_ordering(self, mock_facts, mock_truth, mock_now):
+        """Overdue items: 5:00 AM → 5:15 AM → 5:30 AM."""
+        mock_now.return_value = _fixed_now(7, 0)
+        mock_facts.return_value = _make_locked_facts()
+        mock_truth.return_value = _make_truth({
+            "morning": [
+                _make_item("C", "5:30 AM"),
+                _make_item("A", "5:00 AM"),
+                _make_item("B", "5:15 AM"),
+            ]
+        })
+
+        user = MagicMock()
+        user.id = 1
+        output = render_day_agenda(user)
+
+        overdue_section = output.split("Overdue now:")[1].split("Coming up")[0]
+        pos_a = overdue_section.index("A (5:00 AM)")
+        pos_b = overdue_section.index("B (5:15 AM)")
+        pos_c = overdue_section.index("C (5:30 AM)")
+        self.assertLess(pos_a, pos_b)
+        self.assertLess(pos_b, pos_c)
+
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_foundation_ordering(self, mock_facts, mock_truth, mock_now):
+        """Foundation items follow time order."""
+        mock_now.return_value = _fixed_now(5, 0)
+        mock_facts.return_value = _make_locked_facts()
+        mock_truth.return_value = _make_truth({
+            "morning": [
+                _make_item("Later Prayer", "8:00 AM", importance="foundational"),
+                _make_item("Early Devotional", "5:30 AM", importance="foundational"),
+            ]
+        })
+
+        user = MagicMock()
+        user.id = 1
+        output = render_day_agenda(user)
+
+        foundation_section = output.split("Foundation:")[1].split("Overdue")[0]
+        pos_early = foundation_section.index("Early Devotional")
+        pos_later = foundation_section.index("Later Prayer")
+        self.assertLess(pos_early, pos_later)
+
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_mixed_insertion_order(self, mock_facts, mock_truth, mock_now):
+        """Items inserted in random order must still render sorted."""
+        mock_now.return_value = _fixed_now(5, 0)
+        mock_facts.return_value = _make_locked_facts()
+        mock_truth.return_value = _make_truth({
+            "morning": [
+                _make_item("D", "11:00 AM"),
+                _make_item("A", "6:00 AM"),
+                _make_item("C", "9:00 AM"),
+                _make_item("B", "7:30 AM"),
+            ]
+        })
+
+        user = MagicMock()
+        user.id = 1
+        output = render_day_agenda(user)
+
+        # All are in "Coming up" or "Later" — check full output ordering
+        pos_a = output.index("A (6:00 AM)")
+        pos_b = output.index("B (7:30 AM)")
+        pos_c = output.index("C (9:00 AM)")
+        pos_d = output.index("D (11:00 AM)")
+        self.assertLess(pos_a, pos_b)
+        self.assertLess(pos_b, pos_c)
+        self.assertLess(pos_c, pos_d)
+
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_completed_items_time_ordered(self, mock_facts, mock_truth, mock_now):
+        """Completed items with times are sorted chronologically."""
+        mock_now.return_value = _fixed_now(10, 0)
+        mock_facts.return_value = _make_locked_facts()
+        mock_truth.return_value = _make_truth({
+            "morning": [
+                _make_item("Late", "8:00 AM", is_completed=True),
+                _make_item("Early", "5:30 AM", is_completed=True),
+                _make_item("Mid", "6:45 AM", is_completed=True),
+            ]
+        })
+
+        user = MagicMock()
+        user.id = 1
+        output = render_day_agenda(user)
+
+        completed_section = output.split("Completed:")[1].split("Next:")[0]
+        pos_early = completed_section.index("Early")
+        pos_mid = completed_section.index("Mid")
+        pos_late = completed_section.index("Late")
+        self.assertLess(pos_early, pos_mid)
+        self.assertLess(pos_mid, pos_late)
+
+    def test_same_time_stability(self):
+        """Items with identical times maintain stable order across runs."""
+        now = _fixed_now(7, 0)
+        items = [
+            (now.replace(hour=6), "B"),
+            (now.replace(hour=6), "A"),
+        ]
+        # Run multiple times — order must be stable
+        for _ in range(10):
+            result = _sort_by_time(items)
+            self.assertEqual(result[0][1], "B")  # B was first, stays first
+            self.assertEqual(result[1][1], "A")
+
+    def test_sort_helper_ascending(self):
+        """_sort_by_time produces ascending order."""
+        now = _fixed_now(6, 0)
+        items = [
+            (now.replace(hour=9), "C"),
+            (now.replace(hour=5), "A"),
+            (now.replace(hour=7), "B"),
+        ]
+        result = _sort_by_time(items)
+        self.assertEqual([label for _, label in result], ["A", "B", "C"])

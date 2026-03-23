@@ -87,14 +87,18 @@ def _render_day_from_truth(user) -> str:
     # Collect all routine items with parsed times
     all_items = _collect_all_items(truth, user_now)
 
-    # Partition into buckets
-    foundation = []
-    overdue = []
-    coming_up = []
-    later = []
-    completed = []
+    # Partition into buckets — all store (sort_time, label) tuples
+    # sort_time = item_time if available, else datetime.max (sorts last)
+    _TIME_MAX = user_now.replace(hour=23, minute=59, second=59)
+    foundation = []   # (sort_time, label)
+    overdue = []      # (sort_time, label)
+    coming_up = []    # (sort_time, label)
+    later = []        # (sort_time, label)
+    completed = []    # (sort_time, label)
 
     seen_in_bucket = set()  # track (name, time_str) to prevent dupes
+    seen_completed = set()
+    seen_foundation = set()
 
     for item in all_items:
         name = item["name"]
@@ -102,19 +106,22 @@ def _render_day_from_truth(user) -> str:
         item_time = item["item_time"]  # datetime or None
         is_completed = item["is_completed"]
         is_foundational = item["is_foundational"]
+        sort_time = item_time or _TIME_MAX
+
+        label = f"{name} ({time_str})" if time_str else name
 
         # Completed items go to completed section
         if is_completed:
-            label = f"{name} ({time_str})" if time_str else name
-            if label not in completed:
-                completed.append(label)
+            if label not in seen_completed:
+                seen_completed.add(label)
+                completed.append((sort_time, label))
             continue
 
         # Foundation section (always, regardless of time bucket)
         if is_foundational:
-            f_label = f"{name} ({time_str})" if time_str else name
-            if f_label not in foundation:
-                foundation.append(f_label)
+            if label not in seen_foundation:
+                seen_foundation.add(label)
+                foundation.append((sort_time, label))
 
         # Time bucket assignment (only if scheduled_time exists)
         if item_time is None:
@@ -125,8 +132,6 @@ def _render_day_from_truth(user) -> str:
             continue
         seen_in_bucket.add(bucket_key)
 
-        label = f"{name} ({time_str})"
-
         if item_time < user_now:
             overdue.append((item_time, label))
         elif item_time <= window_end:
@@ -134,25 +139,22 @@ def _render_day_from_truth(user) -> str:
         else:
             later.append((item_time, label))
 
-    # Sort each bucket by time ascending
-    overdue.sort(key=lambda x: x[0])
-    coming_up.sort(key=lambda x: x[0])
-    later.sort(key=lambda x: x[0])
+    # Sort ALL sections by time ascending (chronological)
+    foundation = _sort_by_time(foundation)
+    overdue = _sort_by_time(overdue)
+    coming_up = _sort_by_time(coming_up)
+    later = _sort_by_time(later)
+    completed = _sort_by_time(completed)
 
     # Also add domain-level completed items (Prayer, Bible, etc.)
     raw = facts.get("_raw", {})
-    _add_domain_completed(raw, completed)
+    _add_domain_completed(raw, completed, seen_completed)
 
-    # Build output sections
-    def _fmt_bucket(items_with_time):
-        if not items_with_time:
+    # Unified formatter — all sections are (sort_time, label) tuples
+    def _fmt(bucket):
+        if not bucket:
             return "• None"
-        return "\n".join(f"• {label}" for _, label in items_with_time)
-
-    def _fmt_list(items):
-        if not items:
-            return "• None"
-        return "\n".join(f"• {item}" for item in items)
+        return "\n".join(f"• {label}" for _, label in bucket)
 
     # Next action (from system, no modification)
     next_action = facts.get("next_action", "")
@@ -163,19 +165,19 @@ def _render_day_from_truth(user) -> str:
         "Today",
         "",
         "Foundation:",
-        _fmt_list(foundation),
+        _fmt(foundation),
         "",
         "Overdue now:",
-        _fmt_bucket(overdue),
+        _fmt(overdue),
         "",
         "Coming up next:",
-        _fmt_bucket(coming_up),
+        _fmt(coming_up),
         "",
         "Later today:",
-        _fmt_bucket(later),
+        _fmt(later),
         "",
         "Completed:",
-        _fmt_list(completed),
+        _fmt(completed),
         "",
         f"Next: {next_action}",
     ]
@@ -224,16 +226,30 @@ def _collect_all_items(truth: dict, user_now) -> list:
     return items
 
 
-def _add_domain_completed(raw: dict, completed: list):
-    """Add domain-level completed items (Prayer, Bible, etc.) if not already listed."""
-    if raw.get("prayer_done") and "Prayer" not in completed:
-        completed.append("Prayer")
-    if raw.get("bible_done") and "Bible reading" not in completed:
-        completed.append("Bible reading")
-    if raw.get("workout_done") and "Workout" not in completed:
-        completed.append("Workout")
-    if raw.get("journal_done") and "Journal entry" not in completed:
-        completed.append("Journal entry")
+def _sort_by_time(items):
+    """Sort (sort_time, label) tuples by time ascending.
+
+    Python's sort is stable — items with identical times keep their
+    relative insertion order.
+    """
+    return sorted(items, key=lambda x: x[0])
+
+
+def _add_domain_completed(raw: dict, completed: list, seen: set):
+    """Add domain-level completed items (Prayer, Bible, etc.) if not already listed.
+
+    These don't have specific times, so they sort last within Completed.
+    """
+    _TIME_MAX = datetime.max
+    for done_key, label in [
+        ("prayer_done", "Prayer"),
+        ("bible_done", "Bible reading"),
+        ("workout_done", "Workout"),
+        ("journal_done", "Journal entry"),
+    ]:
+        if raw.get(done_key) and label not in seen:
+            seen.add(label)
+            completed.append((_TIME_MAX, label))
 
 
 # ---------------------------------------------------------------------------

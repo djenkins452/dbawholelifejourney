@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Day Renderer Patch: Strict Chronological Ordering
+
+**What:** All sections in Day Agenda now render in strict ascending time order. Foundation, Overdue, Coming up, Later, and Completed all sort by `scheduled_time` ASC.
+
+**Changes:**
+- All buckets now store `(sort_time, label)` tuples instead of mixed formats
+- New `_sort_by_time()` helper applied to ALL sections as final step before render
+- Foundation and Completed sections now time-sorted (were insertion-ordered)
+- Items without times sort last within their section
+- Python stable sort preserves relative order for same-time items
+
+**Files:**
+- `apps/ai/beth_day_renderer.py` — unified tuple format, `_sort_by_time()`, updated `_add_domain_completed()`
+- `apps/ai/tests/test_beth_day_renderer.py` — 6 new ordering tests (20 total)
+
+**Test results:** 20/20 day renderer tests, 48/48 combined renderer tests pass.
+
+---
+
 ## 2026-03-23 — Day Agenda Renderer (Foundation + Time-Aware Buckets)
 
 **What:** New deterministic Day Agenda renderer that shows the full day organized by foundation items + time buckets (Overdue / Coming up / Later). No LLM involved.

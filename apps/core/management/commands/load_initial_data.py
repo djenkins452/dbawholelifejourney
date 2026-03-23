@@ -984,7 +984,7 @@ class Command(BaseCommand):
         self._reset_ui_alignment_fixtures(DataLoadConfig, force, verbosity)
         self._reset_beth_decisive_behavior_fixtures(DataLoadConfig, force, verbosity)
 
-        # One-time: Reset release_notes for Routine Execution Truth (PK 169)
+        # One-time: Reset release_notes for Routine Execution Truth + Morning Reconciliation (PKs 169-170)
         self._reset_routine_execution_truth_fixtures(DataLoadConfig, force, verbosity)
 
         # =====================================================================
@@ -6217,7 +6217,7 @@ Tasks are sorted by priority (ascending) then creation date.""",
                 DataLoadConfig, reset_tracker_name,
                 'Reset release_notes for routine execution truth',
                 'command',
-                'One-time reset: added PK 169 for performed_at + timing + medicine-style UX'
+                'One-time reset: added PKs 169-170 for execution truth + morning reconciliation'
             )
 
         except Exception as e:

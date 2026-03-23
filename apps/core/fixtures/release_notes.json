@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 170,
+    "fields": {
+      "title": "Morning Check-In: Yesterday's Routines",
+      "description": "Each morning, your dashboard now shows any routine items from yesterday that weren't marked complete. For each item you can tap 'On Schedule' (did it on time), 'Later' (did it but late), or 'Skip'. This ensures your routine history stays accurate without extra effort \u2014 just answer once in the morning and you're done.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-23",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-23T15:00:00Z",
+      "updated_at": "2026-03-23T15:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 169,
     "fields": {
       "title": "Routines: Smarter Timing & Quick Actions",

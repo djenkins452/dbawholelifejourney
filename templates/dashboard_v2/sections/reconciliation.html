@@ -1,0 +1,104 @@
+{% if reconciliation.show %}
+{% csrf_token %}
+<section class="v2-section v2-reconciliation-section" id="morning-reconciliation">
+    <div class="v2-reconciliation-header">
+        <h2 class="v2-section-title" style="margin: 0;">Yesterday's Check-In</h2>
+        <span class="text-muted" style="font-size: var(--font-size-xs);">{{ reconciliation.yesterday_date }}</span>
+    </div>
+    <p class="v2-reconciliation-intro" style="font-size: var(--font-size-sm); color: var(--color-text-muted); margin: var(--space-2) 0 var(--space-3) 0;">
+        I see a few items not marked complete. Did you complete these?
+    </p>
+    <div class="v2-reconciliation-list">
+        {% for item in reconciliation.items %}
+        <div class="v2-reconciliation-item" data-schedule-id="{{ item.schedule_id }}" id="reconcile-{{ item.schedule_id }}">
+            <div class="v2-reconciliation-item-info">
+                <span class="v2-reconciliation-label">{{ item.label }}</span>
+                {% if item.scheduled_time %}
+                <span class="v2-reconciliation-time">{{ item.scheduled_time }}</span>
+                {% endif %}
+            </div>
+            <div class="v2-reconciliation-actions">
+                <button type="button" class="btn btn-sm btn-primary v2-reconcile-btn" data-response="on_schedule"
+                        data-schedule-id="{{ item.schedule_id }}"
+                        style="font-size: var(--font-size-xs); min-height: 36px; padding: 4px 10px;">On Schedule</button>
+                <button type="button" class="btn btn-sm btn-outline v2-reconcile-btn" data-response="later"
+                        data-schedule-id="{{ item.schedule_id }}"
+                        style="font-size: var(--font-size-xs); min-height: 36px; padding: 4px 10px;">Later</button>
+                <button type="button" class="btn btn-sm btn-ghost v2-reconcile-btn" data-response="skip"
+                        data-schedule-id="{{ item.schedule_id }}"
+                        style="font-size: var(--font-size-xs); min-height: 36px; padding: 4px 10px; color: var(--color-text-muted);">Skip</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<style nonce="{{ csp_nonce }}">
+.v2-reconciliation-section {
+    background: color-mix(in srgb, var(--color-accent, #3b82f6) 5%, var(--color-surface, #fff));
+    border: 1px solid color-mix(in srgb, var(--color-accent, #3b82f6) 20%, var(--color-border, #e5e7eb));
+    border-radius: var(--radius-lg, 0.75rem);
+    padding: var(--space-4, 1rem);
+    margin-bottom: var(--space-4, 1rem);
+}
+.v2-reconciliation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-1, 0.25rem);
+}
+.v2-reconciliation-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2, 0.5rem);
+}
+.v2-reconciliation-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3, 0.75rem);
+    background: var(--color-background, #fff);
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: var(--radius-md, 0.5rem);
+    gap: var(--space-3, 0.75rem);
+    transition: opacity 0.2s ease;
+}
+.v2-reconciliation-item.resolved {
+    opacity: 0.4;
+    pointer-events: none;
+}
+.v2-reconciliation-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+.v2-reconciliation-label {
+    font-weight: 500;
+    font-size: var(--font-size-sm, 0.875rem);
+}
+.v2-reconciliation-time {
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-text-muted);
+}
+.v2-reconciliation-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+@media (max-width: 480px) {
+    .v2-reconciliation-item {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .v2-reconciliation-actions {
+        margin-top: var(--space-2, 0.5rem);
+    }
+    .v2-reconciliation-actions .btn {
+        flex: 1;
+        text-align: center;
+    }
+}
+</style>
+{% endif %}

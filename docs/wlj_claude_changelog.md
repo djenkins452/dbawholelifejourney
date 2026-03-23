@@ -6,6 +6,35 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — Phase 3: Signal Presenter (Controlled Exposure Layer)
+
+**What:** Implemented the Controlled Exposure Layer that transforms raw Phase 2 signals into safe, user-facing suggestions for Beth and UI consumption.
+
+**Architecture:**
+- Sits between Signal Engine (Phase 2) and Beth/UI consumers
+- Read-only: never writes to DB, never marks completions, never alters truth
+- All output language preserves uncertainty (suggestions, never facts)
+
+**Features:**
+- `get_presented_signals(user)` — single public API for Beth and UI
+- Same-day filtering: only surfaces today's signals
+- Truth suppression: hides signals for already-completed items
+- Expectation awareness: suppresses signals for items not expected today
+- Max 2 suggestions at a time to prevent noise
+- Priority ordering: completion > inconsistency > intent > effort
+- Deduplication by (type, domain, item)
+- Message templates for all 4 signal types with uncertainty language
+- Domain+item → truth mapping for faith, health, journal domains
+- Human-friendly item labels (e.g., "Bible reading", "your workout")
+
+**Files created:**
+- `apps/core/signals/signal_presenter.py` — presenter layer (280 lines)
+- `apps/core/signals/tests/test_signal_presenter.py` — 63 tests covering all filtering rules, priority ordering, uncertainty language, truth mapping, empty states, and Beth hook safety
+
+**Why:** Bridge raw signal intelligence to safe user-facing presentation without compromising execution truth. Phase 3 of the Truth → Awareness → Exposure pipeline.
+
+---
+
 ## 2026-03-22 — Phase 2.1 Signal Engine Hardening Patch
 
 **What:** Hardened the Signal Engine for trust, stability, and extensibility.

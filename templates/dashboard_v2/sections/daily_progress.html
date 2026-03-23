@@ -70,6 +70,7 @@
         </div>
         {% endif %}
 
+        {% if daily_progress.workout.total > 0 %}
         <div class="v2-progress-item{% if not daily_progress.workout.done %} v2-progress-incomplete{% endif %}">
             {% if daily_progress.workout.done %}
             <span class="v2-progress-item-label">Workout &#10003;</span>
@@ -84,6 +85,7 @@
                 <div class="v2-progress-bar-fill" style="width: {{ daily_progress.workout.score }}%"></div>
             </div>
         </div>
+        {% endif %}
 
         <div class="v2-progress-item{% if not daily_progress.journaling.done %} v2-progress-incomplete{% endif %}">
             {% if daily_progress.journaling.done %}

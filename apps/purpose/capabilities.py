@@ -9,6 +9,7 @@ registry.register(DomainCapability(
     primary_models=['Goal', 'HabitEntry', 'Intention'],
     context_builders=['_build_plan_and_alignment', '_build_purpose_context'],
     proactive_signals=['goal_deadline_approaching', 'habit_streak_break', 'intention_unchecked'],
+    expected_signal_types=['holistic_momentum'],
     related_domains=['life', 'journal', 'health'],
     feature_flag='features.purpose.enabled',
     url_namespace='purpose',

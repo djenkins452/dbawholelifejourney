@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — Fix Ops Wall P2 Incidents: Signal Drought, Low Diversity, Suppression Storm
+
+**Root Cause:** Three linked P2 incidents on Ops Wall caused by signal pipeline noise:
+1. "mind" legacy domain appearing in signal health (split to journal+brain_training long ago) inflated drought count
+2. Relationships flagged for low diversity despite only registering 1 signal type (expected behavior)
+3. Purpose domain had no `expected_signal_types`, preventing proper signal health tracking
+4. Suppression storm was downstream effect of stale guidance being repeatedly regenerated
+
+**Changes:**
+- `apps/core/ai_observability/ops_telemetry.py` — Added "mind" to legacy domain skip list in `_merge_domain()` (alongside existing "goals" skip)
+- `apps/core/ai_observability/same_engine.py` — `_detect_signal_low_diversity()` now checks domain registry; skips domains with ≤1 registered `expected_signal_types` (diversity=1 is expected, not anomalous)
+- `apps/purpose/capabilities.py` — Added `expected_signal_types=['holistic_momentum']` so purpose domain participates in signal health monitoring
+
+**Impact:** Resolves 2 of 3 P2 incidents directly (low diversity false positive, mind domain noise). Reduces drought domain count. Suppression storm should self-resolve as noise-driven guidance regeneration decreases.
+
+**Tests:** 25 signal health tests + 34 observability tests pass. No migrations needed.
+
+---
+
 ## 2026-03-22 — Next-Action Prioritizer: Filter by Expected Flag
 
 **Problem:** The action prioritizer hardcoded workout, journal, and faith as binary actions regardless of whether they were scheduled today. "Log a workout" appeared on days with no workout in the routine.

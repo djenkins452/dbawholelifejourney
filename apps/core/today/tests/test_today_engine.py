@@ -536,3 +536,95 @@ class TestDomainCompletionDedup(SimpleTestCase):
         # Count entries containing "bible" (case insensitive)
         bible_count = sum(1 for n in completed_names if "bible" in n.lower())
         self.assertEqual(bible_count, 1)
+
+
+class TestFoundationIncludesCompleted(SimpleTestCase):
+    """Foundation shows ALL foundational items — complete + incomplete."""
+
+    @patch(_P_MEDS, return_value=[])
+    @patch(_P_CAL, return_value=[])
+    @patch(_P_TASKS, return_value=[])
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_completed_foundational_in_foundation(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
+        """Completed foundational item still appears in Foundation."""
+        mock_now.return_value = _fixed_now(10, 0)
+        mock_facts.return_value = _make_locked_facts()
+        mock_truth.return_value = _make_truth({
+            "morning": [
+                _make_routine_item("Prayer", "5:30 AM", is_completed=True, importance="foundational"),
+                _make_routine_item("Shower", "6:00 AM", is_completed=False, importance="foundational"),
+            ]
+        })
+
+        ctx = get_today_context(MagicMock(id=1))
+
+        f_labels = [e["label"] for e in ctx["foundation"]]
+        self.assertIn("Prayer (5:30 AM)", f_labels)   # completed but foundational
+        self.assertIn("Shower (6:00 AM)", f_labels)    # incomplete and foundational
+        self.assertEqual(len(f_labels), 2)
+
+    @patch(_P_MEDS, return_value=[])
+    @patch(_P_CAL, return_value=[])
+    @patch(_P_TASKS, return_value=[])
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_completed_foundational_also_in_completed(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
+        """Completed foundational appears in BOTH Foundation and Completed."""
+        mock_now.return_value = _fixed_now(10, 0)
+        mock_facts.return_value = _make_locked_facts()
+        mock_truth.return_value = _make_truth({
+            "morning": [
+                _make_routine_item("Prayer", "5:30 AM", is_completed=True, importance="foundational"),
+            ]
+        })
+
+        ctx = get_today_context(MagicMock(id=1))
+
+        f_labels = [e["label"] for e in ctx["foundation"]]
+        c_labels = [e["label"] for e in ctx["completed"]]
+        self.assertIn("Prayer (5:30 AM)", f_labels)
+        self.assertIn("Prayer (5:30 AM)", c_labels)
+
+
+class TestDomainDedupWithRoutine(SimpleTestCase):
+    """Domain completions suppressed when routine covers same domain."""
+
+    @patch(_P_MEDS, return_value=[])
+    @patch(_P_CAL, return_value=[])
+    @patch(_P_TASKS, return_value=[])
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_prayer_routine_suppresses_domain(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
+        """'Prayer Time' routine exists → 'Prayer' domain NOT added."""
+        mock_now.return_value = _fixed_now(10, 0)
+        mock_facts.return_value = _make_locked_facts(prayer_done=True)
+        mock_truth.return_value = _make_truth({
+            "morning": [_make_routine_item("Prayer Time", "5:30 AM", is_completed=True)]
+        })
+
+        ctx = get_today_context(MagicMock(id=1))
+
+        all_names = [i["name"] for i in ctx["all_items"]]
+        self.assertIn("Prayer Time", all_names)
+        self.assertNotIn("Prayer", all_names)  # domain suppressed
+
+    @patch(_P_MEDS, return_value=[])
+    @patch(_P_CAL, return_value=[])
+    @patch(_P_TASKS, return_value=[])
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_domain_added_when_no_routine(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
+        """No prayer routine → 'Prayer' domain IS added."""
+        mock_now.return_value = _fixed_now(10, 0)
+        mock_facts.return_value = _make_locked_facts(prayer_done=True)
+        mock_truth.return_value = _make_truth()  # no routine items
+
+        ctx = get_today_context(MagicMock(id=1))
+
+        all_names = [i["name"] for i in ctx["all_items"]]
+        self.assertIn("Prayer", all_names)  # domain added since no routine

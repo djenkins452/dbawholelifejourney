@@ -172,6 +172,32 @@
 
 ---
 
+## 2026-03-22 — Signal Engine Phase 2: Expected + State Integration
+
+**Objective:** Eliminate signal ambiguity by integrating Execution Truth Engine expectations into every SignalSnapshot. Previously, score=0.0 could mean "not expected", "missed", or "skipped" — Beth couldn't distinguish.
+
+**Architecture:** `raw data → ETE → expected_map → signal computers → SignalSnapshot`
+
+**Files created:**
+- `apps/core/execution/expected_map.py` — `get_expected_map(user, date)` wraps ETE, returns flat `{workout: bool, journal: bool, faith: bool, medication: bool, tasks: bool, ...}` keyed by signal type
+- `apps/core/ai_eae/migrations/0006_signalsnapshot_expected_state.py` — adds `expected` and `state` fields
+- `apps/core/ai_eae/tests/test_signal_state.py` — 10 tests covering expected map, zero-fill states, completed/partial/missed/not_expected
+
+**Files modified:**
+- `apps/core/ai_eae/models.py` — Added `expected` (BooleanField, default=True) and `state` (CharField: completed/partial/missed/skipped/not_expected, default='' for backward compat)
+- `apps/core/ai_eae/signal_aggregation.py` — All 9 signal computers now accept `expected_map` and set `expected`/`state`. `_upsert_snapshot` stores both new fields. Zero-fill uses expected map: expected+missing→missed, not_expected+missing→not_expected. Journal blending passes expected=True, state=completed.
+
+**Example SignalSnapshot (JSON):**
+```json
+{"signal_type": "health_activity", "score": 0.0, "expected": true, "state": "missed", "confidence": 1.0}
+{"signal_type": "health_activity", "score": 1.0, "expected": true, "state": "completed", "confidence": 1.0}
+{"signal_type": "health_biometrics", "score": 0.0, "expected": false, "state": "not_expected", "confidence": 1.0}
+```
+
+**Backward compat:** `expected` defaults to True, `state` defaults to '' (legacy). Consumers can infer: state='' + score>0 → completed, state='' + score=0 → missed.
+
+---
+
 ## 2026-03-22 — Fix Signal Drought: Zero-Activity Snapshot Fill
 
 **Root Cause:** Signal computers returned `None` on days with no user activity, so no SignalSnapshot was created. Old snapshots stayed stale indefinitely (67h-157h), causing persistent SIGNAL_DROUGHT alerts even though "no activity" is itself valid data.

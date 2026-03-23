@@ -47,8 +47,10 @@ class SignalSnapshot(models.Model):
 
     Key design rules:
     - signal_class is set at creation time and never changes
-    - Missing data = no row (not score=0.0)
+    - Every expected signal type gets a daily snapshot (zero-fill for no activity)
     - One row per (user, date, signal_type) — unique_together enforced
+    - `expected` and `state` are set from the Execution Truth Engine via expected_map
+    - Backward compat: state='' means legacy — infer completed if score>0, else missed
     """
 
     SIGNAL_CLASS_CHOICES = [
@@ -56,6 +58,14 @@ class SignalSnapshot(models.Model):
         ('verified_measurement', 'Verified Measurement'),
         ('inferred_behavior', 'Inferred Behavior'),
         ('derived_pattern', 'Derived Pattern'),
+    ]
+
+    SIGNAL_STATE_CHOICES = [
+        ('completed', 'Completed'),
+        ('partial', 'Partial'),
+        ('missed', 'Missed'),
+        ('skipped', 'Skipped'),
+        ('not_expected', 'Not Expected'),
     ]
 
     user = models.ForeignKey(
@@ -84,6 +94,18 @@ class SignalSnapshot(models.Model):
     )
     confidence = models.FloatField(
         help_text="Confidence in the score 0.0–1.0",
+    )
+    expected = models.BooleanField(
+        default=True,
+        help_text="Whether this signal was expected today (from Execution Truth Engine)",
+    )
+    state = models.CharField(
+        max_length=20,
+        choices=SIGNAL_STATE_CHOICES,
+        default='',
+        blank=True,
+        help_text="Execution state: completed/partial/missed/skipped/not_expected. "
+                  "Empty = legacy (infer from score: score>0 → completed, else missed)",
     )
     source_signals = models.JSONField(
         default=dict,

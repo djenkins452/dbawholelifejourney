@@ -1,5 +1,5 @@
 """
-Phase 4 — Signal Feedback Service
+Phase 4 — Signal Feedback Service (v4.1 — Integrity Hardened)
 
 Public API for recording user feedback on behavioral signals.
 The system ONLY learns when the user explicitly responds yes or no.
@@ -10,11 +10,17 @@ STRICT RULES:
 - No side effects beyond storing feedback + calling existing services
 - Only possible_completion + yes triggers completion
 - All other signal types: record only, no action
+
+v4.1 HARDENING:
+- Idempotency guard via execution truth pre-check
+- Fingerprint normalization (lowercase, strip)
+- Handler abstraction for multi-domain completion
+- Safe execution bridge (4-gate check)
 """
 
 import hashlib
 import logging
-from typing import Optional
+from typing import Callable, Dict, Optional
 
 from django.utils import timezone
 
@@ -27,7 +33,9 @@ def record_signal_feedback(user, signal: dict, response: str) -> Optional[dict]:
     Args:
         user: User instance
         signal: Signal dict from Phase 3 presenter (must have type, domain,
-                item, source fields; fingerprint is generated if missing)
+                item, source fields; fingerprint is generated if missing).
+                The caller MUST pass the exact signal dict that was presented
+                to the user — no guessing based on text alone.
         response: "yes" or "no" (case-insensitive)
 
     Returns:
@@ -35,10 +43,11 @@ def record_signal_feedback(user, signal: dict, response: str) -> Optional[dict]:
 
     Side effects:
         - Stores a SignalFeedback record
-        - If response is "yes" AND signal type is "possible_completion",
+        - If response is "yes" AND signal type is "possible_completion"
+          AND handler exists AND item not already completed,
           triggers completion via existing services
     """
-    # Validate response — only yes/no accepted
+    # Gate 1: Validate response — only yes/no accepted
     response = (response or "").strip().lower()
     if response not in ("yes", "no"):
         logger.debug(
@@ -47,14 +56,14 @@ def record_signal_feedback(user, signal: dict, response: str) -> Optional[dict]:
         )
         return None
 
-    # Extract signal fields
-    signal_type = signal.get("type", "")
-    domain = signal.get("domain", "")
-    item = signal.get("item", "")
-    source = signal.get("source", "")
+    # Extract and normalize signal fields
+    signal_type = (signal.get("type") or "").strip().lower()
+    domain = (signal.get("domain") or "").strip().lower()
+    item = (signal.get("item") or "").strip().lower()
+    source = (signal.get("source") or "").strip().lower()
     fingerprint = signal.get("fingerprint") or _generate_fingerprint(signal)
 
-    # Store feedback record
+    # Store feedback record (always, regardless of completion outcome)
     from apps.core.signals.models import SignalFeedback
 
     feedback = SignalFeedback.objects.create(
@@ -79,24 +88,75 @@ def record_signal_feedback(user, signal: dict, response: str) -> Optional[dict]:
         "completion_triggered": False,
     }
 
-    # Execution bridge: only possible_completion + yes triggers completion
-    if response == "yes" and signal_type == "possible_completion":
-        completion_result = _trigger_completion(user, domain, item)
+    # Gate 2: Only possible_completion triggers completion
+    if signal_type != "possible_completion":
+        return result
+
+    # Gate 3: Only "yes" triggers completion
+    if response != "yes":
+        return result
+
+    # Gate 4: Handler must exist for this domain
+    handler = _get_completion_handler(domain, item)
+    if handler is None:
+        logger.info(
+            "[SIGNAL FEEDBACK] No handler for domain=%s item=%s, "
+            "feedback recorded only",
+            domain, item,
+        )
+        result["completion_detail"] = {
+            "success": False,
+            "reason": "no_handler",
+        }
+        return result
+
+    # Gate 5: Idempotency — check execution truth BEFORE triggering
+    if _is_already_completed(user, domain, item):
+        logger.info(
+            "[SIGNAL FEEDBACK] Already completed (truth check): "
+            "domain=%s item=%s user=%s",
+            domain, item, user.id,
+        )
+        result["completion_triggered"] = True
+        result["completion_detail"] = {
+            "success": True,
+            "reason": "already_completed",
+        }
+        return result
+
+    # All gates passed — trigger completion
+    try:
+        completion_result = handler(user, domain, item)
         result["completion_triggered"] = completion_result.get("success", False)
         result["completion_detail"] = completion_result
+    except Exception:
+        logger.error(
+            "[SIGNAL FEEDBACK] Completion failed: user=%s domain=%s item=%s",
+            user.id, domain, item,
+            exc_info=True,
+        )
+        result["completion_detail"] = {
+            "success": False,
+            "reason": "completion_error",
+        }
 
     return result
 
+
+# ---------------------------------------------------------------------------
+# Fingerprint generation (normalized)
+# ---------------------------------------------------------------------------
 
 def _generate_fingerprint(signal: dict) -> str:
     """Generate a deterministic fingerprint for a signal.
 
     Format: {type}:{domain}:{item}:{date}
+    All fields are normalized (lowercase, stripped) before hashing.
     Uses today's date if no timestamp in signal.
     """
-    signal_type = signal.get("type", "unknown")
-    domain = signal.get("domain", "unknown")
-    item = signal.get("item", "unknown")
+    signal_type = (signal.get("type") or "unknown").strip().lower()
+    domain = (signal.get("domain") or "unknown").strip().lower()
+    item = (signal.get("item") or "unknown").strip().lower()
 
     ts = signal.get("timestamp")
     if ts and hasattr(ts, "date"):
@@ -111,47 +171,37 @@ def _generate_fingerprint(signal: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Execution Bridge — Controlled completion via existing services
+# Idempotency guard via execution truth
 # ---------------------------------------------------------------------------
 
-# Signal item → routine name mapping (mirrors execution_truth_engine bridges)
-_ITEM_TO_ROUTINE_NAMES = {
-    "prayer": {"prayer time", "prayer", "morning prayer", "evening prayer"},
-    "bible_reading": {
-        "bible reading", "bible study", "scripture reading", "devotional",
-    },
-    "workout": {
-        "workout", "exercise", "gym", "training", "morning workout",
-        "evening workout",
-    },
-    "running": {"run", "running"},
-    "walking": {"walk", "walking"},
-    "yoga": {"yoga"},
-    "journal_entry": {
-        "journal", "journaling", "journal entry", "daily journal",
-        "morning journal", "evening journal",
-    },
-}
+def _is_already_completed(user, domain: str, item: str) -> bool:
+    """Check if domain+item is already completed today via execution truth.
 
-
-def _trigger_completion(user, domain: str, item: str) -> dict:
-    """Trigger completion for a confirmed possible_completion signal.
-
-    MUST use existing completion services — never write to models directly.
-    Only called for possible_completion + yes response.
-
-    Returns dict with success bool and detail.
+    Uses the Execution Truth Engine — the single source of truth.
     """
     try:
-        return _complete_via_routine(user, domain, item)
+        from apps.core.execution.execution_truth_engine import get_execution_truth
+        truth = get_execution_truth(user)
+    except ImportError:
+        logger.warning(
+            "[SIGNAL FEEDBACK] Execution truth engine not available"
+        )
+        return False
     except Exception:
         logger.error(
-            "[SIGNAL FEEDBACK] Completion failed: user=%s domain=%s item=%s",
-            user.id, domain, item,
+            "[SIGNAL FEEDBACK] Execution truth check failed",
             exc_info=True,
         )
-        return {"success": False, "reason": "completion_error"}
+        return False
 
+    # Use the presenter's truth-checking logic for consistency
+    from apps.core.signals.signal_presenter import _is_completed_in_truth
+    return _is_completed_in_truth(domain, item, truth)
+
+
+# ---------------------------------------------------------------------------
+# Completion Handler Abstraction
+# ---------------------------------------------------------------------------
 
 def _complete_via_routine(user, domain: str, item: str) -> dict:
     """Find and complete the matching routine item for today.
@@ -185,7 +235,6 @@ def _complete_via_routine(user, domain: str, item: str) -> dict:
         name_lower = schedule.name.lower().strip()
         if name_lower not in candidate_names:
             continue
-        # Check if scheduled for today
         if schedule.specific_date:
             if schedule.specific_date == today:
                 matching_schedule = schedule
@@ -201,23 +250,6 @@ def _complete_via_routine(user, domain: str, item: str) -> dict:
             domain, item, user.id,
         )
         return {"success": False, "reason": "no_matching_schedule"}
-
-    # Check if already completed via existing truth
-    from apps.life.models import RoutineLog
-
-    existing_log = RoutineLog.objects.filter(
-        user=user,
-        schedule=matching_schedule,
-        scheduled_date=today,
-        log_status__in=("completed", "completed_late"),
-    ).exists()
-
-    if existing_log:
-        logger.info(
-            "[SIGNAL FEEDBACK] Already completed: schedule=%s user=%s",
-            matching_schedule.name, user.id,
-        )
-        return {"success": True, "reason": "already_completed"}
 
     # Use the public completion service
     from apps.life.services.routine_helpers import toggle_routine_completion
@@ -238,3 +270,49 @@ def _complete_via_routine(user, domain: str, item: str) -> dict:
         "reason": "completed",
         "schedule_name": matching_schedule.name,
     }
+
+
+# Signal item → routine name mapping (mirrors execution_truth_engine bridges)
+_ITEM_TO_ROUTINE_NAMES = {
+    "prayer": {"prayer time", "prayer", "morning prayer", "evening prayer"},
+    "bible_reading": {
+        "bible reading", "bible study", "scripture reading", "devotional",
+    },
+    "workout": {
+        "workout", "exercise", "gym", "training", "morning workout",
+        "evening workout",
+    },
+    "running": {"run", "running"},
+    "walking": {"walk", "walking"},
+    "yoga": {"yoga"},
+    "journal_entry": {
+        "journal", "journaling", "journal entry", "daily journal",
+        "morning journal", "evening journal",
+    },
+}
+
+# Domain+item → handler mapping
+# Each handler: (user, domain, item) -> dict with "success" key
+# Extensible: add new handlers as domains get completion support.
+# Missing handler = feedback recorded only, no execution.
+_COMPLETION_HANDLERS: Dict[str, Callable] = {
+    # Faith domain — routed through routine completion
+    ("faith", "prayer"): _complete_via_routine,
+    ("faith", "bible_reading"): _complete_via_routine,
+    ("faith", "church"): _complete_via_routine,
+    # Health domain — routed through routine completion
+    ("health", "workout"): _complete_via_routine,
+    ("health", "running"): _complete_via_routine,
+    ("health", "walking"): _complete_via_routine,
+    ("health", "yoga"): _complete_via_routine,
+    # Journal domain — routed through routine completion
+    ("journal", "journal_entry"): _complete_via_routine,
+}
+
+
+def _get_completion_handler(domain: str, item: str) -> Optional[Callable]:
+    """Look up the completion handler for a domain+item pair.
+
+    Returns None if no handler is registered (feedback-only).
+    """
+    return _COMPLETION_HANDLERS.get((domain, item))

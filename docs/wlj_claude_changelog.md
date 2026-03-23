@@ -25,6 +25,31 @@
 ---
 
 ## 2026-03-23 — Complete ALL Gospel Reading Plans (System-Wide Fix)
+## 2026-03-23 — Today Engine: Add Medications + Case-Insensitive Dedup
+
+**What:** Medications are now first-class items in Today Engine. They appear in overdue/coming up/later/completed alongside routines, tasks, and calendar events. Also fixed case-sensitive duplicate detection for domain completions.
+
+**Medication collection (`_collect_medication_items`):**
+- Queries `MedicineSchedule` for active medicines with `is_active=True` and `medicine_status='active'`
+- Filters to schedules that apply today (`applies_to_day()`)
+- Batch-fetches `MedicineLog` to determine taken/not-taken status
+- Normalizes to same item format: `{id, name, scheduled_time, time_str, completed, priority, source}`
+- Priority: `"important"` (medications are always important)
+- No dedup against routines — "Take morning meds" (routine) and "Metformin" (medication) are DIFFERENT items, both appear
+
+**Case-insensitive dedup fix:**
+- `_add_domain_completions()` now uses `.lower()` for name comparison
+- Prevents "Bible Reading" (routine) + "Bible reading" (domain) duplicate
+
+**Files:**
+- `apps/core/today/today_engine.py` — `_collect_medication_items()` + case fix
+- `apps/core/today/tests/test_today_engine.py` — 5 new tests (21 total)
+- `apps/ai/tests/test_beth_day_renderer.py` — updated mocks
+
+**Test results:** 184/184 pass.
+
+---
+
 ## 2026-03-23 — CoS Next Action: Strict Priority with Immediate Return
 
 **What:** Fixed priority evaluation to use immediate return per level instead of building a candidates list. Overdue items are now guaranteed to be selected earliest-first before any other category is even considered.

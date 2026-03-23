@@ -25,6 +25,31 @@
 ---
 
 ## 2026-03-23 — Complete ALL Gospel Reading Plans (System-Wide Fix)
+## 2026-03-23 — CoS Revalidation: Context Comparison (No LLM Text Parsing)
+
+**What:** Replaced LLM text parsing with pure system state comparison for mid-response revalidation. Detection is now based ONLY on execution truth snapshot comparison — never inspects LLM output.
+
+**Before:** `check_state_changed(response, user)` parsed LLM text for pending phrases — fragile, could miss changes.
+**After:** `capture_state_snapshot()` before generation → `has_state_changed(before, after)` after — compares raw completion booleans + counts. Deterministic, 100% reliable.
+
+**Flow:**
+1. Pre-generation: `_pre_gen_snapshot = capture_state_snapshot(user)` — captures `{prayer_done, bible_done, workout_done, journal_done, routine_done, routine_total, tasks_done}`
+2. LLM generates response (unchanged)
+3. Post-generation: `_post_gen_snapshot = capture_state_snapshot(user)`
+4. `has_state_changed(before, after)` → simple dict `!=` comparison
+5. If changed → discard + regenerate with `cos_context_cache=None`
+
+**Deleted:** All LLM text parsing logic (`_PENDING_PHRASES`, `_TRUTH_ITEMS`, response text scanning)
+
+**Files:**
+- `apps/ai/cos_state_revalidator.py` — rewritten: `capture_state_snapshot()` + `has_state_changed()`
+- `apps/ai/personal_assistant.py` — snapshot capture before gen, comparison after
+- `apps/ai/tests/test_cos_state_revalidator.py` — 10 tests for new interface
+
+**Test results:** 179/179 pass.
+
+---
+
 ## 2026-03-23 — CoS State Revalidation: Replace Append with Regeneration
 
 **What:** Changed mid-response state revalidation from appending corrections to full regeneration. CoS now always speaks from current truth — no dual-state messaging.

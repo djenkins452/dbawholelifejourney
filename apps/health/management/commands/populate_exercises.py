@@ -3,7 +3,7 @@ Management command to populate the Exercise library.
 
 Creates default exercises for resistance training and cardio.
 Safe to run multiple times - uses get_or_create, updates movement_type
-on existing exercises.
+and load_type on existing exercises.
 
 Usage: python manage.py populate_exercises
 """
@@ -41,14 +41,35 @@ TIME_EXERCISES = {
     "Plank",
 }
 
+# Movement/skill exercises — no meaningful volume calculation
+MOVEMENT_EXERCISES = {
+    "Mountain Climbers",
+    "Dead Bug",
+    "Bird Dog",
+    "Burpees",
+    "Jumping Jacks",
+    "Box Jumps",
+}
+
 
 def _movement_type(name):
-    """Determine movement_type for an exercise name."""
+    """Determine movement_type for an exercise name (controls UI input fields)."""
     if name in TIME_EXERCISES:
         return "time"
     if name in BODYWEIGHT_EXERCISES:
         return "bodyweight"
     return "weighted"
+
+
+def _load_type(name):
+    """Determine load_type for an exercise name (controls volume calculation)."""
+    if name in TIME_EXERCISES:
+        return "movement"
+    if name in MOVEMENT_EXERCISES:
+        return "movement"
+    if name in BODYWEIGHT_EXERCISES:
+        return "bodyweight"
+    return "external"
 
 
 # Resistance exercises organized by muscle group
@@ -182,23 +203,32 @@ class Command(BaseCommand):
         for muscle_group, exercises in RESISTANCE_EXERCISES.items():
             for name in exercises:
                 mt = _movement_type(name)
+                lt = _load_type(name)
                 exercise, created = Exercise.objects.get_or_create(
                     name=name,
                     defaults={
                         "category": "resistance",
                         "muscle_group": muscle_group,
                         "movement_type": mt,
+                        "load_type": lt,
                         "is_active": True,
                     },
                 )
                 if created:
                     resistance_count += 1
-                    self.stdout.write(f"  + {name} ({muscle_group}, {mt})")
-                elif exercise.movement_type != mt:
-                    exercise.movement_type = mt
-                    exercise.save(update_fields=["movement_type"])
-                    updated_count += 1
-                    self.stdout.write(f"  ~ {name} → {mt}")
+                    self.stdout.write(f"  + {name} ({muscle_group}, {mt}, {lt})")
+                else:
+                    updates = []
+                    if exercise.movement_type != mt:
+                        exercise.movement_type = mt
+                        updates.append("movement_type")
+                    if exercise.load_type != lt:
+                        exercise.load_type = lt
+                        updates.append("load_type")
+                    if updates:
+                        exercise.save(update_fields=updates)
+                        updated_count += 1
+                        self.stdout.write(f"  ~ {name} → {', '.join(updates)}")
 
         # Create cardio exercises
         cardio_count = 0
@@ -229,7 +259,7 @@ class Command(BaseCommand):
 
         if updated_count > 0:
             self.stdout.write(
-                self.style.SUCCESS(f"Updated movement_type on {updated_count} exercises.")
+                self.style.SUCCESS(f"Updated {updated_count} exercises.")
             )
 
         self.stdout.write(f"Total exercises in library: {total_existing}")

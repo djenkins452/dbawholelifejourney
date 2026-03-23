@@ -896,8 +896,9 @@ def build_fitness_state(user):
     for session in recent_sessions:
         for we in session.workout_exercises.all():
             for s in we.sets.all():
-                if s.weight and s.reps:
-                    total_volume += float(s.weight) * s.reps
+                v = s.volume
+                if v is not None:
+                    total_volume += v
                 total_sets += 1
     state["total_volume_7d"] = round(total_volume, 1)
     state["total_sets_7d"] = total_sets
@@ -974,8 +975,9 @@ def build_fitness_state(user):
     for session in prev_sessions:
         for we in session.workout_exercises.all():
             for s in we.sets.all():
-                if s.weight and s.reps:
-                    prev_volume += float(s.weight) * s.reps
+                v = s.volume
+                if v is not None:
+                    prev_volume += v
 
     if prev_volume > 0 and total_volume > 0:
         ratio = total_volume / prev_volume

@@ -72,7 +72,7 @@
                                     <td>{{ entry.date }}</td>
                                     <td>{{ entry.weight }}lbs</td>
                                     <td>{{ entry.reps }}</td>
-                                    <td>{{ entry.volume|floatformat:0 }}</td>
+                                    <td>{% if entry.volume is not None %}{{ entry.volume|floatformat:0 }}{% else %}-{% endif %}</td>
                                 </tr>
                             {% endfor %}
                         </tbody>

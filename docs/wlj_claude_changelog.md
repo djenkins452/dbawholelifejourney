@@ -6,6 +6,36 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Fitness Volume Model Correction (Load Type)
+
+**What:** Added `load_type` field to Exercise model to control volume calculation semantics. Exercises are now classified as external, bodyweight, band, movement, or assisted. Band and movement exercises return `None` volume instead of fabricated bodyweight-based values.
+
+**Why:** The system was incorrectly assigning volume (bodyweight × reps) to exercises like Baseball Bat Swing, Hip Hinge, and Band Pull-Apart — exercises where full bodyweight is not the load. This produced misleading volume data.
+
+**Key changes:**
+- `load_type` field on Exercise with choices: external, bodyweight, assisted, band, movement
+- `load_multiplier` field (future use, not used in calculations yet)
+- `ExerciseSet.volume` property now checks `load_type` — returns `None` for band/movement/assisted
+- All aggregation points (WorkoutExercise, WorkoutSession, fitness_utils, state_builder) handle `None` volumes
+- `save_set_ajax` uses `load_type` instead of `movement_type` for bodyweight auto-population
+- Templates display "-" for `None` volume
+- Data migration classifies existing exercises by load_type
+
+**Files:**
+- `apps/health/models.py` — Added load_type/load_multiplier fields, updated volume property and aggregations
+- `apps/health/migrations/0068_add_load_type_fields.py` — Schema migration
+- `apps/health/migrations/0069_classify_exercise_load_types.py` — Data migration
+- `apps/health/views.py` — Updated save_set_ajax bodyweight auto-population
+- `apps/health/services/fitness_utils.py` — Handle None in volume aggregations
+- `apps/core/ai_state/state_builder.py` — Use volume property instead of inline calc, handle None
+- `apps/health/admin.py` — Added load_type to admin
+- `apps/health/management/commands/populate_exercises.py` — Added load_type support
+- `templates/health/fitness/workout_detail.html` — Handle None volume display
+- `templates/health/fitness/progress.html` — Handle None volume display
+- `apps/health/tests/test_movement_types.py` — Updated volume tests, added band/movement/assisted tests
+
+---
+
 ## 2026-03-23 — WorkoutSession Takes Absolute Precedence in V2 Compliance
 
 **What:** WorkoutSession with `completed_at` now takes absolute precedence over any WorkoutScheduleLog status in V2 Compliance, including "skipped" logs.

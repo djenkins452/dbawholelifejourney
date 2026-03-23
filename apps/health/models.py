@@ -1486,6 +1486,14 @@ class Exercise(models.Model):
         ("time", "Time-Based"),
     ]
 
+    LOAD_TYPE_CHOICES = [
+        ("external", "External Weight"),
+        ("bodyweight", "Bodyweight"),
+        ("assisted", "Assisted"),
+        ("band", "Band Resistance"),
+        ("movement", "Movement / Skill"),
+    ]
+
     name = models.CharField(max_length=100)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
     movement_type = models.CharField(
@@ -1493,6 +1501,17 @@ class Exercise(models.Model):
         choices=MOVEMENT_TYPE_CHOICES,
         default="weighted",
         help_text="Controls input fields: weighted (weight+reps), bodyweight (reps, optional weight), time (duration)",
+    )
+    load_type = models.CharField(
+        max_length=20,
+        choices=LOAD_TYPE_CHOICES,
+        default="external",
+        help_text="Controls volume calculation: external/bodyweight produce volume, others do not",
+    )
+    load_multiplier = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Future: optional scaling factor for load (e.g., 0.4 for partial bodyweight). Not used in calculations yet.",
     )
     muscle_group = models.CharField(
         max_length=50,
@@ -1639,12 +1658,16 @@ class WorkoutSession(UserOwnedModel):
 
     @property
     def total_volume(self):
-        """Total volume (weight x reps) for resistance exercises."""
+        """Total volume for resistance exercises using load_type-aware calculation.
+
+        Skips sets where volume is None (band, movement, assisted exercises).
+        """
         total = 0
         for workout_ex in self.workout_exercises.filter(exercise__category="resistance"):
             for s in workout_ex.sets.all():
-                if s.weight and s.reps:
-                    total += float(s.weight) * s.reps
+                v = s.volume
+                if v is not None:
+                    total += v
         return total
 
 
@@ -1678,8 +1701,14 @@ class WorkoutExercise(models.Model):
 
     @property
     def total_volume(self):
-        """Sum of volume across all non-warmup sets for this exercise."""
-        return sum(s.volume for s in self.sets.filter(is_warmup=False))
+        """Sum of volume across all non-warmup sets for this exercise.
+
+        Skips sets where volume is None (band, movement, assisted exercises).
+        """
+        return sum(
+            v for s in self.sets.filter(is_warmup=False)
+            if (v := s.volume) is not None
+        )
 
 
 class ExerciseSet(models.Model):
@@ -1736,17 +1765,23 @@ class ExerciseSet(models.Model):
 
     @property
     def volume(self):
-        """Calculate volume for this set.
+        """Calculate volume for this set based on exercise load_type.
 
-        Weighted: weight × reps
-        Bodyweight: bodyweight_used × reps (if bodyweight recorded)
-        Time-based: 0 (no volume concept)
+        external: weight × reps (requires explicit weight)
+        bodyweight: weight × reps if added weight, else bodyweight_used × reps
+        band/movement/assisted: None (no meaningful volume)
         """
-        if self.weight and self.reps:
-            return float(self.weight) * self.reps
-        if self.bodyweight_used and self.reps:
-            return float(self.bodyweight_used) * self.reps
-        return 0
+        load_type = self.workout_exercise.exercise.load_type
+        if load_type == "external":
+            return float(self.weight) * self.reps if self.weight and self.reps else 0
+        elif load_type == "bodyweight":
+            if self.weight and self.reps:
+                return float(self.weight) * self.reps
+            if self.bodyweight_used and self.reps:
+                return float(self.bodyweight_used) * self.reps
+            return 0
+        else:  # band, movement, assisted
+            return None
 
 
 class CardioDetails(models.Model):

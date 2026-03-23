@@ -67,10 +67,19 @@ class MovementTypeTestMixin:
         return self.client.login(email=email, password=password)
 
     def create_exercise(self, name="Bench Press", category="resistance",
-                        movement_type="weighted", muscle_group="Chest"):
+                        movement_type="weighted", load_type=None,
+                        muscle_group="Chest"):
+        # Default load_type mirrors movement_type if not specified
+        if load_type is None:
+            if movement_type == "bodyweight":
+                load_type = "bodyweight"
+            elif movement_type == "time":
+                load_type = "movement"
+            else:
+                load_type = "external"
         return Exercise.objects.create(
             name=name, category=category, movement_type=movement_type,
-            muscle_group=muscle_group, is_active=True,
+            load_type=load_type, muscle_group=muscle_group, is_active=True,
         )
 
     def create_workout(self, user, date_val=None):
@@ -106,6 +115,18 @@ class ExerciseClassificationTests(MovementTypeTestMixin, TestCase):
         self.assertIn("weighted", choices)
         self.assertIn("bodyweight", choices)
         self.assertIn("time", choices)
+
+    def test_load_type_choices(self):
+        choices = dict(Exercise.LOAD_TYPE_CHOICES)
+        self.assertIn("external", choices)
+        self.assertIn("bodyweight", choices)
+        self.assertIn("assisted", choices)
+        self.assertIn("band", choices)
+        self.assertIn("movement", choices)
+
+    def test_default_load_type_is_external(self):
+        exercise = self.create_exercise(name="Squat-lt")
+        self.assertEqual(exercise.load_type, "external")
 
     def test_data_migration_classified_pushups(self):
         """Data migration should have set Push-ups as bodyweight."""
@@ -170,8 +191,8 @@ class VolumeCalculationTests(MovementTypeTestMixin, TestCase):
         )
         self.assertEqual(s.volume, 0)
 
-    def test_time_volume_is_zero(self):
-        """Time-based exercises have no volume concept."""
+    def test_time_volume_is_none(self):
+        """Time-based exercises (load_type=movement) return None volume."""
         exercise = self.create_exercise(name="Plank-test", movement_type="time")
         we = WorkoutExercise.objects.create(
             session=self.workout, exercise=exercise, order=0
@@ -179,7 +200,72 @@ class VolumeCalculationTests(MovementTypeTestMixin, TestCase):
         s = ExerciseSet.objects.create(
             workout_exercise=we, set_number=1, duration_seconds=120,
         )
-        self.assertEqual(s.volume, 0)
+        self.assertIsNone(s.volume)
+
+    def test_band_volume_is_none(self):
+        """Band exercises return None volume."""
+        exercise = self.create_exercise(
+            name="Band Pull-Apart", movement_type="bodyweight", load_type="band",
+        )
+        we = WorkoutExercise.objects.create(
+            session=self.workout, exercise=exercise, order=0
+        )
+        s = ExerciseSet.objects.create(
+            workout_exercise=we, set_number=1, reps=15,
+        )
+        self.assertIsNone(s.volume)
+
+    def test_movement_volume_is_none(self):
+        """Movement/skill exercises return None volume."""
+        exercise = self.create_exercise(
+            name="Baseball Bat Swing", movement_type="bodyweight", load_type="movement",
+        )
+        we = WorkoutExercise.objects.create(
+            session=self.workout, exercise=exercise, order=0
+        )
+        s = ExerciseSet.objects.create(
+            workout_exercise=we, set_number=1, reps=10,
+        )
+        self.assertIsNone(s.volume)
+
+    def test_assisted_volume_is_none(self):
+        """Assisted exercises return None volume."""
+        exercise = self.create_exercise(
+            name="Assisted Dip", movement_type="bodyweight", load_type="assisted",
+        )
+        we = WorkoutExercise.objects.create(
+            session=self.workout, exercise=exercise, order=0
+        )
+        s = ExerciseSet.objects.create(
+            workout_exercise=we, set_number=1, reps=12,
+        )
+        self.assertIsNone(s.volume)
+
+    def test_total_volume_skips_none(self):
+        """WorkoutExercise.total_volume excludes None-volume sets."""
+        # External exercise with volume
+        ext_exercise = self.create_exercise(name="Squat-agg")
+        we1 = WorkoutExercise.objects.create(
+            session=self.workout, exercise=ext_exercise, order=0
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=we1, set_number=1,
+            weight=Decimal("100.0"), reps=10,
+        )
+        self.assertAlmostEqual(we1.total_volume, 1000.0)
+
+        # Band exercise with None volume
+        band_exercise = self.create_exercise(
+            name="Band-agg", movement_type="bodyweight", load_type="band",
+        )
+        we2 = WorkoutExercise.objects.create(
+            session=self.workout, exercise=band_exercise, order=1
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=we2, set_number=1, reps=15,
+        )
+        # total_volume should be 0 (all sets are None)
+        self.assertEqual(we2.total_volume, 0)
 
     def test_weighted_with_added_weight_bodyweight(self):
         """Bodyweight exercise with added weight uses weight × reps."""

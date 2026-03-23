@@ -2630,6 +2630,69 @@ def _format_health_intelligence_block(health_intel, context):
     return '\n'.join(lines)
 
 
+_BRIEF_WINDOW_NAMES = {
+    'morning': 'Morning medicines',
+    'mid_morning': 'Mid-morning medicines',
+    'lunch': 'Lunch medicines',
+    'afternoon': 'Afternoon medicines',
+    'evening': 'Evening medicines',
+    'nightly': 'Night medicines',
+}
+
+
+def _group_medications_for_brief(pending_meds, mode='completed'):
+    """Group pending_medications by window_label for the daily scan brief.
+
+    DOMAIN SCOPE: Medical domain ONLY. Does not affect routines, faith, etc.
+
+    Args:
+        pending_meds: list of medication dicts from CoS context (with window_label, status)
+        mode: 'completed' returns (completed_lines, []) or
+              'outstanding' returns ([], outstanding_lines)
+
+    Returns:
+        (completed_lines, outstanding_lines) — lists of display strings.
+    """
+    if not pending_meds:
+        return [], []
+
+    # Group by window_label
+    windows = {}
+    for m in pending_meds:
+        window = m.get('window_label', '') or 'other'
+        if window not in windows:
+            windows[window] = {'total': 0, 'taken': 0, 'overdue': 0, 'meds': []}
+        grp = windows[window]
+        grp['total'] += 1
+        if m.get('status') == 'taken':
+            grp['taken'] += 1
+        if m.get('status') == 'overdue':
+            grp['overdue'] += 1
+        grp['meds'].append(m)
+
+    completed_lines = []
+    outstanding_lines = []
+
+    for window, grp in windows.items():
+        name = _BRIEF_WINDOW_NAMES.get(window, f'{window.title()} medicines')
+        total = grp['total']
+        taken_count = grp['taken']
+
+        if mode == 'completed' and taken_count >= total and total > 0:
+            completed_lines.append(f"{name} — completed ({taken_count}/{total})")
+        elif mode == 'completed' and taken_count > 0:
+            completed_lines.append(f"{name} — {taken_count}/{total} taken")
+        elif mode == 'outstanding':
+            if grp['overdue'] > 0:
+                outstanding_lines.append(
+                    f"{name} OVERDUE ({grp['overdue']}/{total})"
+                )
+            elif taken_count < total and total > 0 and taken_count == 0:
+                outstanding_lines.append(f"{name} — not started")
+
+    return completed_lines, outstanding_lines
+
+
 def _build_daily_scan_brief(context):
     """
     Build a structured daily scan brief for proactive intelligence.
@@ -2657,14 +2720,16 @@ def _build_daily_scan_brief(context):
         if ev.get('actual_status') == 'completed':
             completed_items.append(ev['title'])
 
-    # Medication taken (with names if available)
+    # Medication taken — grouped by window for readability
     med = context.get('medication_adherence_state', {})
     pending_meds = context.get('pending_medications', [])
     taken = med.get('taken_today', 0)
     total_sched = med.get('total_scheduled', 0)
-    taken_names = [m.get('medicine_name', m.get('name', 'Unknown')) for m in pending_meds if m.get('status') == 'taken']
-    if taken_names:
-        completed_items.append(f"Medications: {', '.join(taken_names)}")
+    _med_completed, _med_partial = _group_medications_for_brief(
+        pending_meds, mode='completed',
+    )
+    if _med_completed:
+        completed_items.extend(_med_completed)
     elif taken > 0:
         completed_items.append(f"Medications: {taken}/{total_sched} taken")
 
@@ -2681,12 +2746,12 @@ def _build_daily_scan_brief(context):
         if ev.get('is_overdue'):
             outstanding_items.append(f"{ev['title']} [OVERDUE]")
 
-    # Missed/overdue medication doses (with names)
-    overdue_meds = [m for m in pending_meds if m.get('status') == 'overdue']
-    upcoming_meds = [m for m in pending_meds if m.get('status') == 'upcoming']
-    if overdue_meds:
-        med_names = ', '.join(m.get('medicine_name', m.get('name', 'Unknown')) for m in overdue_meds)
-        outstanding_items.append(f"Medications OVERDUE: {med_names}")
+    # Missed/overdue medication doses — grouped by window
+    _, _med_outstanding = _group_medications_for_brief(
+        pending_meds, mode='outstanding',
+    )
+    if _med_outstanding:
+        outstanding_items.extend(_med_outstanding)
     elif total_sched > 0 and taken < total_sched:
         missed = total_sched - taken
         outstanding_items.append(f"Medications: {missed} dose(s) not yet taken")

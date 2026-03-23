@@ -190,15 +190,25 @@ def build_status_response(user) -> str:
         exec_contract = build_today_execution(user)
         items = exec_contract.get("items", [])
 
+        # Group medication items into summaries (medical domain ONLY)
+        med_remaining, med_completed = _group_medication_items(items)
+
         for item in items:
             title = item.get("title", "")
             if not title:
+                continue
+            # Skip individual medication items — handled by grouped summaries
+            if item.get("source_type") == "medication_dose":
                 continue
             if item.get("completed_today"):
                 completed_items.append(title)
             elif item.get("is_actionable", True):
                 label = title + _format_micro_label(item)
                 remaining_items.append(label)
+
+        # Inject medication group summaries
+        remaining_items.extend(med_remaining)
+        completed_items.extend(med_completed)
 
         # Add domain-level items not covered by execution items
         # (faith, workout, journal are binary domains in summaries)
@@ -345,3 +355,80 @@ def _add_domain_items_from_raw(remaining: list, completed: list, raw: dict):
 def _is_covered(existing_titles: set, keyword: str) -> bool:
     """Check if a domain item is already represented in execution items."""
     return any(keyword in title for title in existing_titles)
+
+
+# ---------------------------------------------------------------------------
+# Medication grouping — summary by window (medical domain ONLY)
+# ---------------------------------------------------------------------------
+
+_WINDOW_DISPLAY_NAMES = {
+    'morning': 'Morning medicines',
+    'mid_morning': 'Mid-morning medicines',
+    'lunch': 'Lunch medicines',
+    'afternoon': 'Afternoon medicines',
+    'evening': 'Evening medicines',
+    'nightly': 'Night medicines',
+    'unscheduled': 'Medicines',
+}
+
+
+def _group_medication_items(items: list) -> tuple:
+    """Group medication execution items by window and produce summary lines.
+
+    Returns (remaining_summaries, completed_summaries) where each is a list
+    of display strings like "Morning medicines — completed on time" or
+    "Evening medicines — partially complete (2/3)".
+
+    DOMAIN SCOPE: Only operates on source_type='medication_dose'.
+    Does NOT touch routines, faith, journal, goals, or any other domain.
+    """
+    # Separate medication items from the rest
+    med_items = [i for i in items if i.get('source_type') == 'medication_dose']
+    if not med_items:
+        return [], []
+
+    # Group by window (execution_group_id)
+    windows = {}
+    for item in med_items:
+        window = item.get('execution_group_id', 'unscheduled')
+        if window not in windows:
+            windows[window] = {
+                'total': 0, 'taken': 0, 'overdue': 0,
+                'meds': [],
+            }
+        grp = windows[window]
+        grp['total'] += 1
+        completed = item.get('completed_today', False)
+        if completed:
+            grp['taken'] += 1
+        if item.get('completion_status') == 'overdue' or item.get('time_status') == 'overdue':
+            grp['overdue'] += 1
+        grp['meds'].append(item)
+
+    remaining = []
+    completed = []
+
+    for window, grp in windows.items():
+        display_name = _WINDOW_DISPLAY_NAMES.get(window, f'{window.title()} medicines')
+        total = grp['total']
+        taken = grp['taken']
+
+        if taken >= total:
+            # All taken — check timing
+            all_on_time = all(
+                m.get('time_status') != 'overdue'
+                for m in grp['meds'] if m.get('completed_today')
+            )
+            timing = "on time" if all_on_time else "late"
+            completed.append(f"{display_name} — completed {timing}")
+        elif taken > 0:
+            # Partial
+            remaining.append(f"{display_name} — partially complete ({taken}/{total})")
+        else:
+            # None taken
+            if grp['overdue'] > 0:
+                remaining.append(f"{display_name} — not completed (overdue)")
+            else:
+                remaining.append(f"{display_name} — pending")
+
+    return remaining, completed

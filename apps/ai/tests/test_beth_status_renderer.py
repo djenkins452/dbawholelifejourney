@@ -20,6 +20,7 @@ from django.test import SimpleTestCase
 from apps.ai.beth_status_renderer import (
     _format_micro_label,
     _format_time,
+    _group_medication_items,
     _is_covered,
     build_status_response,
     is_status_query,
@@ -654,3 +655,214 @@ class TestRouterIntegration(SimpleTestCase):
         result = classify_and_route("should i focus on prayer today", user)
 
         self.assertNotEqual(result.route_name, "status_query")
+
+
+# ---------------------------------------------------------------------------
+# 12. Medication grouping — summary by window
+# ---------------------------------------------------------------------------
+
+
+class TestMedicationGrouping(SimpleTestCase):
+    """Test _group_medication_items groups medications by window."""
+
+    def _make_med_item(self, name, window, completed=False, status='upcoming',
+                       time_status='upcoming'):
+        return {
+            'source_type': 'medication_dose',
+            'title': name,
+            'execution_group_id': window,
+            'completed_today': completed,
+            'completion_status': status,
+            'time_status': time_status,
+            'scheduled_time': '08:00',
+            'is_actionable': not completed,
+        }
+
+    def test_all_completed_on_time(self):
+        """All meds in a window completed → completed summary."""
+        items = [
+            self._make_med_item('Metformin', 'morning', completed=True, status='completed'),
+            self._make_med_item('Lantus', 'morning', completed=True, status='completed'),
+            self._make_med_item('Atorvastatin', 'morning', completed=True, status='completed'),
+        ]
+        remaining, completed = _group_medication_items(items)
+        self.assertEqual(len(remaining), 0)
+        self.assertEqual(len(completed), 1)
+        self.assertIn("Morning medicines", completed[0])
+        self.assertIn("completed on time", completed[0])
+
+    def test_partial_completion(self):
+        """Some meds taken, some not → partial summary in remaining."""
+        items = [
+            self._make_med_item('Metformin', 'morning', completed=True, status='completed'),
+            self._make_med_item('Lantus', 'morning', completed=True, status='completed'),
+            self._make_med_item('Atorvastatin', 'morning', completed=False, status='upcoming'),
+        ]
+        remaining, completed = _group_medication_items(items)
+        self.assertEqual(len(remaining), 1)
+        self.assertEqual(len(completed), 0)
+        self.assertIn("Morning medicines", remaining[0])
+        self.assertIn("partially complete (2/3)", remaining[0])
+
+    def test_none_completed(self):
+        """No meds taken → pending summary."""
+        items = [
+            self._make_med_item('Metformin', 'morning'),
+            self._make_med_item('Lantus', 'morning'),
+        ]
+        remaining, completed = _group_medication_items(items)
+        self.assertEqual(len(remaining), 1)
+        self.assertEqual(len(completed), 0)
+        self.assertIn("Morning medicines", remaining[0])
+        self.assertIn("pending", remaining[0])
+
+    def test_none_completed_overdue(self):
+        """No meds taken and overdue → overdue in remaining."""
+        items = [
+            self._make_med_item('Metformin', 'morning', status='overdue', time_status='overdue'),
+            self._make_med_item('Lantus', 'morning', status='overdue', time_status='overdue'),
+        ]
+        remaining, completed = _group_medication_items(items)
+        self.assertEqual(len(remaining), 1)
+        self.assertIn("overdue", remaining[0])
+
+    def test_multiple_windows(self):
+        """Meds in different windows produce separate summaries."""
+        items = [
+            self._make_med_item('Metformin', 'morning', completed=True, status='completed'),
+            self._make_med_item('Lantus', 'morning', completed=True, status='completed'),
+            self._make_med_item('Melatonin', 'nightly'),
+        ]
+        remaining, completed = _group_medication_items(items)
+        self.assertEqual(len(completed), 1)
+        self.assertIn("Morning medicines", completed[0])
+        self.assertEqual(len(remaining), 1)
+        self.assertIn("Night medicines", remaining[0])
+
+    def test_non_med_items_ignored(self):
+        """Non-medication items are not grouped."""
+        items = [
+            {'source_type': 'routine_item', 'title': 'Prayer Time', 'completed_today': False},
+            {'source_type': 'routine_item', 'title': 'Workout', 'completed_today': False},
+        ]
+        remaining, completed = _group_medication_items(items)
+        self.assertEqual(remaining, [])
+        self.assertEqual(completed, [])
+
+    def test_empty_items(self):
+        """No items → empty lists."""
+        remaining, completed = _group_medication_items([])
+        self.assertEqual(remaining, [])
+        self.assertEqual(completed, [])
+
+    def test_completed_late(self):
+        """All meds completed but some were overdue → 'completed late'."""
+        items = [
+            self._make_med_item('Metformin', 'morning', completed=True, status='completed',
+                                time_status='overdue'),
+            self._make_med_item('Lantus', 'morning', completed=True, status='completed'),
+        ]
+        remaining, completed = _group_medication_items(items)
+        self.assertEqual(len(completed), 1)
+        self.assertIn("completed late", completed[0])
+
+
+class TestMedicationGroupingIntegration(SimpleTestCase):
+    """Integration: medication grouping within build_status_response."""
+
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    @patch("apps.core.execution.today_execution.build_today_execution")
+    def test_medications_shown_as_group(self, mock_exec, mock_facts):
+        """Status response groups medications instead of listing individually."""
+        mock_facts.return_value = {
+            "_raw": {
+                "prayer_done": False, "prayer_expected": True,
+                "bible_done": False, "bible_expected": False,
+                "workout_done": False, "workout_expected": False,
+                "journal_done": False, "journal_expected": False,
+                "routine_done": 0, "routine_total": 0,
+                "tasks_done": 0,
+            },
+            "next_action": "Take your morning medicines.",
+        }
+        mock_exec.return_value = {
+            "items": [
+                {
+                    "source_type": "medication_dose",
+                    "title": "Metformin",
+                    "execution_group_id": "morning",
+                    "completed_today": False,
+                    "is_actionable": True,
+                    "completion_status": "upcoming",
+                    "time_status": "upcoming",
+                    "scheduled_time": "08:00",
+                },
+                {
+                    "source_type": "medication_dose",
+                    "title": "Lantus",
+                    "execution_group_id": "morning",
+                    "completed_today": False,
+                    "is_actionable": True,
+                    "completion_status": "upcoming",
+                    "time_status": "upcoming",
+                    "scheduled_time": "08:00",
+                },
+            ],
+            "summaries": {"domains": {}, "expected": {}},
+        }
+
+        user = MagicMock()
+        user.id = 1
+        response = build_status_response(user)
+
+        # Should show grouped summary, not individual med names
+        self.assertIn("Morning medicines", response)
+        self.assertNotIn("• Metformin", response)
+        self.assertNotIn("• Lantus", response)
+
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    @patch("apps.core.execution.today_execution.build_today_execution")
+    def test_routines_not_grouped_as_meds(self, mock_exec, mock_facts):
+        """Non-medication items (routines, faith) remain individual."""
+        mock_facts.return_value = {
+            "_raw": {
+                "prayer_done": False, "prayer_expected": True,
+                "bible_done": False, "bible_expected": False,
+                "workout_done": False, "workout_expected": True,
+                "journal_done": False, "journal_expected": False,
+                "routine_done": 0, "routine_total": 2,
+                "tasks_done": 0,
+            },
+            "next_action": "Start with Prayer.",
+        }
+        mock_exec.return_value = {
+            "items": [
+                {
+                    "source_type": "routine_item",
+                    "title": "Wake Up",
+                    "completed_today": False,
+                    "is_actionable": True,
+                    "scheduled_time": "06:00",
+                    "importance": "normal",
+                    "time_status": "upcoming",
+                },
+                {
+                    "source_type": "routine_item",
+                    "title": "Shower",
+                    "completed_today": False,
+                    "is_actionable": True,
+                    "scheduled_time": None,
+                    "importance": "normal",
+                    "time_status": "upcoming",
+                },
+            ],
+            "summaries": {"domains": {}, "expected": {}},
+        }
+
+        user = MagicMock()
+        user.id = 1
+        response = build_status_response(user)
+
+        # Routines should still be listed individually
+        self.assertIn("• Wake Up", response)
+        self.assertIn("• Shower", response)

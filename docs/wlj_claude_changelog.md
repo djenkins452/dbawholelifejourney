@@ -6,6 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Medication Summary Grouping (CoS Presentation Layer)
+
+**What:** Beth now presents medications grouped by time window (Morning, Evening, Night) instead of listing each individual medication. Shows summary status like "Morning medicines — completed on time" or "Morning medicines — partially complete (2/3)".
+
+**Why:** Listing every individual medication cluttered the UI and reduced readability. Users take meds together by time window — the presentation should reflect that.
+
+**Scope:** Presentation-layer ONLY. No changes to: Medication model, MedicineLog, execution engine, signal generation, or adherence logic. Only the CoS response formatting was modified.
+
+**Key changes:**
+- `_group_medication_items()` in beth_status_renderer — groups execution items by `execution_group_id` (window label)
+- `build_status_response()` — uses grouped summaries for medication_dose items, skips individual listing
+- `_group_medications_for_brief()` in cos_context — groups pending_medications by `window_label` for daily scan brief
+- Daily scan brief COMPLETED/OUTSTANDING sections now show window-level summaries
+- Non-medication domains (routines, faith, journal, goals) remain individual — medical domain ONLY
+
+**Files:**
+- `apps/ai/beth_status_renderer.py` — Added `_group_medication_items()`, `_WINDOW_DISPLAY_NAMES`; updated `build_status_response()`
+- `apps/core/ai_orchestrator/cos_context.py` — Added `_group_medications_for_brief()`, `_BRIEF_WINDOW_NAMES`; updated `_build_daily_scan_brief()`
+- `apps/ai/tests/test_beth_status_renderer.py` — 17 new tests: unit + integration for grouping
+- `apps/core/ai_orchestrator/tests/test_medication_brief_grouping.py` — 10 new tests for CoS brief grouping
+
+---
+
 ## 2026-03-23 — Routine Execution Truth Fix (performed_at + timing + medicine-style UX)
 
 **What:** Fixed routine tracking to capture when the activity actually happened, not just when the user clicked. Added `performed_at` (actual activity time) and `timing` (on_time/late/early) fields to RoutineLog, keeping `completed_at` as the click timestamp. Mirrors the medicine "Took at Scheduled Time" UX pattern with per-item and section-level bulk action buttons.

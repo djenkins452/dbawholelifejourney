@@ -3587,6 +3587,7 @@ class RoutineToggleView(LifeAccessMixin, View):
             'status': result['status'],
             'is_completed': result['is_completed'],
             'completed_as_scheduled': result.get('completed_as_scheduled', False),
+            'timing': result.get('timing', ''),
         }
 
         # Include maintenance bridge config when item is completed and bridge
@@ -3761,6 +3762,103 @@ class RoutineCompleteToggleView(LifeAccessMixin, View):
             'all_complete': result['all_complete'],
             'completed_count': result['completed_count'],
             'total_count': result['total_count'],
+        })
+
+
+class RoutineBulkActionView(LifeAccessMixin, View):
+    """Section-level bulk actions for routine time windows.
+
+    Mirrors the medicine module's bulk action pattern:
+    - done_at_scheduled: mark all pending items as on_time at their scheduled time
+    - complete_all: evaluate each item individually using grace window
+    - skip_all: skip all pending items
+    """
+
+    def post(self, request, *args, **kwargs):
+        from apps.core.utils import get_user_now, get_user_today
+        from apps.life.models import RoutineLog, RoutineSchedule
+        from apps.life.services.routine_helpers import (
+            _compute_timing_and_performed_at, _get_scheduled_datetime,
+            skip_routine, toggle_routine_completion,
+        )
+
+        window_key = request.POST.get('window_key')
+        action = request.POST.get('action')
+
+        if not window_key or action not in ('done_at_scheduled', 'complete_all', 'skip_all'):
+            return JsonResponse({'success': False, 'error': 'Invalid parameters'}, status=400)
+
+        user = request.user
+        user_today = get_user_today(user)
+        user_now = get_user_now(user)
+        now = timezone.now()
+        weekday = user_today.weekday()
+
+        # Find all active routines in this time window
+        from apps.life.models import Routine
+        routines = Routine.objects.filter(
+            user=user, is_active=True, time_of_day=window_key,
+        ).prefetch_related('items')
+
+        # Collect applicable schedules
+        applicable = []
+        for routine in routines:
+            for item in routine.items.filter(is_active=True):
+                if item.specific_date:
+                    if item.specific_date != user_today:
+                        continue
+                elif not item.applies_to_day(weekday):
+                    continue
+                # Only binary routines — activity routines auto-complete
+                if getattr(item, 'routine_type', 'binary') == 'activity':
+                    continue
+                applicable.append(item)
+
+        # Filter to pending items (no completed log for today)
+        schedule_ids = [item.id for item in applicable]
+        existing_logs = set(
+            RoutineLog.objects.filter(
+                schedule_id__in=schedule_ids,
+                scheduled_date=user_today,
+                log_status__in=('completed', 'completed_late'),
+            ).values_list('schedule_id', flat=True)
+        )
+        pending = [item for item in applicable if item.id not in existing_logs]
+
+        results = []
+        if action == 'done_at_scheduled':
+            for item in pending:
+                result = toggle_routine_completion(
+                    user, item, user_today, completion_mode='scheduled',
+                )
+                results.append({
+                    'schedule_id': item.id, 'status': result['status'],
+                    'timing': result.get('timing', ''),
+                })
+        elif action == 'complete_all':
+            for item in pending:
+                result = toggle_routine_completion(
+                    user, item, user_today, completion_mode=None,
+                )
+                results.append({
+                    'schedule_id': item.id, 'status': result['status'],
+                    'timing': result.get('timing', ''),
+                })
+        elif action == 'skip_all':
+            for item in pending:
+                skip_routine(user, item, user_today)
+                results.append({
+                    'schedule_id': item.id, 'status': 'skipped', 'timing': '',
+                })
+
+        _invalidate_routine_caches(user)
+
+        return JsonResponse({
+            'success': True,
+            'action': action,
+            'window_key': window_key,
+            'results': results,
+            'count': len(results),
         })
 
 

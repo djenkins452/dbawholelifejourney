@@ -153,7 +153,9 @@ def record_signal_from_routine_log(routine_log):
     """
     from datetime import datetime as dt
 
-    if not routine_log.schedule_id or not routine_log.completed_at:
+    if not routine_log.schedule_id:
+        return None
+    if not routine_log.performed_at and not routine_log.completed_at:
         return None
 
     schedule = routine_log.schedule
@@ -174,7 +176,7 @@ def record_signal_from_routine_log(routine_log):
         item_name=schedule.name,
         domain_type="routine",
         scheduled_time=scheduled_dt,
-        actual_time=routine_log.completed_at,
+        actual_time=routine_log.performed_at or routine_log.completed_at,
         date=routine_log.scheduled_date,
         source_model="RoutineLog",
         source_id=routine_log.pk,

@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 169,
+    "fields": {
+      "title": "Routines: Smarter Timing & Quick Actions",
+      "description": "Routine tracking now captures when you actually did an activity, not just when you tapped. New buttons let you mark items as 'Done at Scheduled Time' if you did them on time but logged later \u2014 no more false late marks. Each time section has bulk actions: Done All at Scheduled Time, Complete All, and Skip All. On-time items show green, late items show orange. Your routine signals and insights are now based on actual behavior, not click timing.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-03-23",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-03-23T14:40:00Z",
+      "updated_at": "2026-03-23T14:40:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 168,
     "fields": {
       "title": "Routines: Journal & Bible Auto-Complete",

@@ -32,11 +32,97 @@ Routine-level completion is DERIVED from item logs, never stored:
 """
 
 import logging
+from datetime import datetime as _dt_cls, timedelta as _td
 
 from django.db import transaction
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+def _compute_timing_and_performed_at(user, schedule, user_today, user_now):
+    """Compute performed_at and timing classification for a completion action.
+
+    Uses the user's timezone and the schedule's grace_period_minutes to
+    determine whether the completion is on_time, late, or early.
+
+    Args:
+        user: User instance (for timezone)
+        schedule: RoutineSchedule instance (has scheduled_time, grace_period_minutes)
+        user_today: date in user's timezone
+        user_now: datetime in user's timezone (timezone-aware)
+
+    Returns:
+        tuple: (performed_at: datetime, timing: str)
+    """
+    from apps.core.utils import _get_user_tz
+
+    if not schedule.scheduled_time:
+        # No scheduled time → default to now/on_time
+        return user_now, "on_time"
+
+    user_tz = _get_user_tz(user)
+    sched_dt = timezone.make_aware(
+        _dt_cls.combine(user_today, schedule.scheduled_time), user_tz,
+    )
+    grace = getattr(schedule, 'grace_period_minutes', 0) or 0
+    window_start = sched_dt - _td(minutes=grace)
+    window_end = sched_dt + _td(minutes=grace)
+
+    if window_start <= user_now <= window_end:
+        return sched_dt, "on_time"
+    elif user_now > window_end:
+        return user_now, "late"
+    else:
+        return user_now, "early"
+
+
+def _compute_timing_for_time(user, schedule, user_today, effective_time):
+    """Compute timing classification for a specific effective_time.
+
+    Used by auto-complete to classify an activity's actual timestamp
+    against the schedule's grace window.
+
+    Args:
+        user: User instance (for timezone)
+        schedule: RoutineSchedule instance
+        user_today: date in user's timezone
+        effective_time: datetime (aware) — when the activity actually happened
+
+    Returns:
+        tuple: (performed_at: datetime, timing: str)
+    """
+    from apps.core.utils import _get_user_tz
+
+    if not schedule.scheduled_time:
+        return effective_time, "on_time"
+
+    user_tz = _get_user_tz(user)
+    sched_dt = timezone.make_aware(
+        _dt_cls.combine(user_today, schedule.scheduled_time), user_tz,
+    )
+    grace = getattr(schedule, 'grace_period_minutes', 0) or 0
+    window_start = sched_dt - _td(minutes=grace)
+    window_end = sched_dt + _td(minutes=grace)
+
+    if window_start <= effective_time <= window_end:
+        return effective_time, "on_time"
+    elif effective_time > window_end:
+        return effective_time, "late"
+    else:
+        return effective_time, "early"
+
+
+def _get_scheduled_datetime(user, schedule, user_today):
+    """Build a timezone-aware datetime from schedule.scheduled_time + date."""
+    from apps.core.utils import _get_user_tz
+
+    if not schedule.scheduled_time:
+        return None
+    user_tz = _get_user_tz(user)
+    return timezone.make_aware(
+        _dt_cls.combine(user_today, schedule.scheduled_time), user_tz,
+    )
 
 
 def toggle_routine_completion(user, schedule, target_date, completion_mode=None):
@@ -77,74 +163,112 @@ def toggle_routine_completion(user, schedule, target_date, completion_mode=None)
         schedule=schedule, scheduled_date=target_date,
     ).first()
 
+    from apps.core.utils import get_user_now, get_user_today
+    user_now = get_user_now(user)
+    user_today = get_user_today(user)
+    now = timezone.now()
+
+    # ── Compute performed_at, timing, completion_source based on mode ──
+    if completion_mode == 'scheduled':
+        # "Done at Scheduled Time" — user asserts on-time
+        sched_dt = _get_scheduled_datetime(user, schedule, target_date)
+        performed_at = sched_dt or now
+        timing = RoutineLog.TIMING_ON_TIME
+        log_status = 'completed'
+        as_scheduled = True
+        source = RoutineLog.SOURCE_SCHEDULED_OVERRIDE
+    elif completion_mode == 'late':
+        # User explicitly says completing late
+        performed_at = now
+        timing = RoutineLog.TIMING_LATE
+        log_status = 'completed_late'
+        as_scheduled = False
+        source = RoutineLog.SOURCE_MANUAL
+    else:
+        # Auto-detect from grace window
+        if target_date == user_today and schedule.scheduled_time:
+            performed_at, timing = _compute_timing_and_performed_at(
+                user, schedule, user_today, user_now,
+            )
+            if timing == 'late':
+                log_status = 'completed_late'
+                as_scheduled = False
+            else:
+                log_status = 'completed'
+                as_scheduled = True
+        else:
+            performed_at = now
+            timing = RoutineLog.TIMING_ON_TIME
+            log_status = 'completed'
+            as_scheduled = True
+        source = RoutineLog.SOURCE_MANUAL
+
     if existing_log:
         if existing_log.log_status in ('completed', 'completed_late'):
-            existing_log.delete()
-            return {'status': 'pending', 'is_completed': False,
-                    'completed_as_scheduled': False}
+            if completion_mode == 'scheduled':
+                # Re-click override: overwrite to on_time
+                existing_log.log_status = log_status
+                existing_log.completed_at = now
+                existing_log.completed_as_scheduled = as_scheduled
+                existing_log.performed_at = performed_at
+                existing_log.timing = timing
+                existing_log.completion_source = source
+                existing_log.save(update_fields=[
+                    'log_status', 'completed_at', 'completed_as_scheduled',
+                    'performed_at', 'timing', 'completion_source', 'updated_at',
+                ])
+                return {'status': log_status, 'is_completed': True,
+                        'completed_as_scheduled': as_scheduled, 'timing': timing}
+            else:
+                # Un-check: delete log → pending
+                existing_log.delete()
+                return {'status': 'pending', 'is_completed': False,
+                        'completed_as_scheduled': False, 'timing': ''}
         elif existing_log.log_status == 'skipped':
-            as_scheduled = (completion_mode == 'scheduled')
-            existing_log.log_status = 'completed' if as_scheduled else 'completed'
-            existing_log.completed_at = timezone.now()
+            existing_log.log_status = log_status
+            existing_log.completed_at = now
             existing_log.completed_as_scheduled = as_scheduled
+            existing_log.performed_at = performed_at
+            existing_log.timing = timing
+            existing_log.completion_source = source
             existing_log.save(update_fields=[
-                'log_status', 'completed_at', 'completed_as_scheduled', 'updated_at',
+                'log_status', 'completed_at', 'completed_as_scheduled',
+                'performed_at', 'timing', 'completion_source', 'updated_at',
             ])
-            return {'status': 'completed', 'is_completed': True,
-                    'completed_as_scheduled': as_scheduled}
+            return {'status': log_status, 'is_completed': True,
+                    'completed_as_scheduled': as_scheduled, 'timing': timing}
         elif existing_log.log_status == 'rescheduled':
-            # Completing a rescheduled item — user can assert on-time
-            as_scheduled = (completion_mode == 'scheduled')
-            existing_log.log_status = 'completed' if as_scheduled else 'completed_late'
-            existing_log.completed_at = timezone.now()
+            existing_log.log_status = log_status
+            existing_log.completed_at = now
             existing_log.completed_as_scheduled = as_scheduled
+            existing_log.performed_at = performed_at
+            existing_log.timing = timing
+            existing_log.completion_source = source
             existing_log.save(update_fields=[
-                'log_status', 'completed_at', 'completed_as_scheduled', 'updated_at',
+                'log_status', 'completed_at', 'completed_as_scheduled',
+                'performed_at', 'timing', 'completion_source', 'updated_at',
             ])
             return {
                 'status': existing_log.log_status, 'is_completed': True,
-                'completed_as_scheduled': as_scheduled,
+                'completed_as_scheduled': as_scheduled, 'timing': timing,
             }
         else:
             return {'status': existing_log.log_status, 'is_completed': False,
-                    'completed_as_scheduled': False}
+                    'completed_as_scheduled': False, 'timing': ''}
     else:
-        from apps.core.utils import classify_time_status, get_user_now, get_user_today
-
-        # Determine completion mode
-        if completion_mode == 'scheduled':
-            # User asserts they completed at scheduled time
-            log_status = 'completed'
-            as_scheduled = True
-        elif completion_mode == 'late':
-            # User explicitly says they're completing late
-            log_status = 'completed_late'
-            as_scheduled = False
-        else:
-            # Auto-detect from time (existing behavior)
-            log_status = 'completed'
-            as_scheduled = True
-            user_now = get_user_now(user)
-            user_today = get_user_today(user)
-            if target_date == user_today and schedule.scheduled_time:
-                result = classify_time_status(
-                    user_today, schedule.scheduled_time, user_now,
-                    grace_minutes=getattr(schedule, 'grace_period_minutes', 0) or 0,
-                )
-                if result['status'] == 'overdue':
-                    log_status = 'completed_late'
-                    as_scheduled = False
-
         RoutineLog.objects.create(
             user=user,
             schedule=schedule,
             scheduled_date=target_date,
             log_status=log_status,
-            completed_at=timezone.now(),
+            completed_at=now,
             completed_as_scheduled=as_scheduled,
+            performed_at=performed_at,
+            timing=timing,
+            completion_source=source,
         )
         return {'status': log_status, 'is_completed': True,
-                'completed_as_scheduled': as_scheduled}
+                'completed_as_scheduled': as_scheduled, 'timing': timing}
 
 
 def auto_complete_routine_schedules(user, keyword, source, completion_time=None,
@@ -177,7 +301,7 @@ def auto_complete_routine_schedules(user, keyword, source, completion_time=None,
     """
     from django.db import models as _m
 
-    from apps.core.utils import classify_time_status, get_user_now, get_user_today
+    from apps.core.utils import get_user_now, get_user_today
     from apps.life.models import RoutineLog, RoutineSchedule
 
     user_today = get_user_today(user)
@@ -221,18 +345,13 @@ def auto_complete_routine_schedules(user, keyword, source, completion_time=None,
             )
 
         # ── Timeliness classification ──
-        # Use the same logic as manual toggle (routine_helpers lines 112-124).
-        if schedule.scheduled_time:
-            result = classify_time_status(
-                user_today, schedule.scheduled_time, effective_time,
-                grace_minutes=getattr(schedule, 'grace_period_minutes', 0) or 0,
-            )
-            if result['status'] == 'overdue':
-                log_status = 'completed_late'
-                as_scheduled = False
-            else:
-                log_status = 'completed'
-                as_scheduled = True
+        # Compute timing from activity's actual timestamp vs schedule grace.
+        performed_at, timing = _compute_timing_for_time(
+            user, schedule, user_today, effective_time,
+        )
+        if timing == 'late':
+            log_status = 'completed_late'
+            as_scheduled = False
         else:
             log_status = 'completed'
             as_scheduled = True
@@ -244,6 +363,8 @@ def auto_complete_routine_schedules(user, keyword, source, completion_time=None,
             log_status=log_status,
             completed_at=timezone.now(),
             completed_as_scheduled=as_scheduled,
+            performed_at=performed_at,
+            timing=timing,
             completion_source=source,
             source_object_id=source_object_id,
         )
@@ -315,6 +436,8 @@ def skip_routine(user, schedule, target_date):
             'user': user,
             'log_status': 'skipped',
             'completed_at': None,
+            'performed_at': None,
+            'timing': '',
         },
     )
     return {'status': 'skipped'}
@@ -428,38 +551,52 @@ def toggle_routine_complete(user, routine, target_date):
         return {'all_complete': False, 'completed_count': 0, 'total_count': total}
     else:
         # Check: create completed logs for all items that aren't already completed
+        from apps.core.utils import get_user_now, get_user_today
+        user_now = get_user_now(user)
+        user_today = get_user_today(user)
+
         for item in applicable:
             if item.id in completed_ids:
                 continue  # already completed, leave it
+
+            # Compute timing individually per item
+            performed_at, timing = _compute_timing_and_performed_at(
+                user, item, user_today, user_now,
+            )
+            if timing == 'late':
+                batch_status = 'completed_late'
+                as_scheduled = False
+            else:
+                batch_status = 'completed'
+                as_scheduled = True
+
             existing = existing_logs.get(item.id)
             if existing:
                 # Has a log (skipped, rescheduled, or other) — update to completed
-                # Rescheduled items become completed_late (past original window)
                 if existing.log_status == 'rescheduled':
-                    existing.log_status = 'completed_late'
-                else:
-                    existing.log_status = 'completed'
+                    batch_status = 'completed_late'
+                    as_scheduled = False
+                    performed_at = now
+                    timing = RoutineLog.TIMING_LATE
+                existing.log_status = batch_status
                 existing.completed_at = now
-                existing.save(update_fields=['log_status', 'completed_at', 'updated_at'])
+                existing.completed_as_scheduled = as_scheduled
+                existing.performed_at = performed_at
+                existing.timing = timing
+                existing.save(update_fields=[
+                    'log_status', 'completed_at', 'completed_as_scheduled',
+                    'performed_at', 'timing', 'updated_at',
+                ])
             else:
-                # No log — create completed (or completed_late if past window)
-                from apps.core.utils import classify_time_status, get_user_now, get_user_today
-                batch_status = 'completed'
-                user_now = get_user_now(user)
-                user_today = get_user_today(user)
-                if target_date == user_today and item.scheduled_time:
-                    ts = classify_time_status(
-                        user_today, item.scheduled_time, user_now,
-                        grace_minutes=getattr(item, 'grace_period_minutes', 0) or 0,
-                    )
-                    if ts['status'] == 'overdue':
-                        batch_status = 'completed_late'
                 RoutineLog.objects.create(
                     user=user,
                     schedule=item,
                     scheduled_date=target_date,
                     log_status=batch_status,
                     completed_at=now,
+                    completed_as_scheduled=as_scheduled,
+                    performed_at=performed_at,
+                    timing=timing,
                 )
         return {'all_complete': True, 'completed_count': total, 'total_count': total}
 

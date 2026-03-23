@@ -126,6 +126,16 @@
         align-items: flex-start;
         gap: var(--space-3);
     }
+    .routine-item-actions {
+        flex-wrap: wrap;
+    }
+    .window-bulk-actions {
+        flex-direction: column;
+    }
+    .window-bulk-actions .btn {
+        width: 100%;
+        text-align: center;
+    }
 }
 </style>
 
@@ -168,13 +178,11 @@
     function updateRoutineCheckbox(routineId) {
         var routineCheck = document.querySelector('.routine-complete-checkbox[data-routine-id="' + routineId + '"]');
         if (!routineCheck) return;
-        // Count all item checkboxes for this routine
         var items = document.querySelectorAll('.routine-checkbox[data-routine-id="' + routineId + '"]');
         var total = items.length;
         var completed = 0;
         items.forEach(function(cb) { if (cb.checked) completed++; });
         routineCheck.checked = (total > 0 && completed === total);
-        // Update progress text
         var progress = document.querySelector('.routine-progress[data-routine-id="' + routineId + '"]');
         if (progress) progress.textContent = completed + '/' + total;
     }
@@ -195,39 +203,8 @@
         .catch(function() { checkbox.checked = !checkbox.checked; });
     }
 
-    // Show completion mode prompt for late items
-    function showCompletionModePrompt(checkbox, scheduleId, routineId) {
-        // Remove any existing prompt
-        var existing = document.querySelector('.completion-mode-prompt');
-        if (existing) existing.remove();
-
-        var item = checkbox.closest('.checkbox-item');
-        if (!item) { sendToggle(checkbox, scheduleId, routineId, null); return; }
-
-        var prompt = document.createElement('div');
-        prompt.className = 'completion-mode-prompt';
-        prompt.style.cssText = 'display:flex;gap:8px;padding:8px 12px;background:var(--color-surface-raised,var(--color-surface));border-bottom:1px solid var(--color-border);align-items:center;flex-wrap:wrap;font-size:var(--font-size-sm);';
-        prompt.innerHTML = '<span style="flex:1;min-width:120px;">Did you complete this on time?</span>'
-            + '<button class="btn btn-sm btn-primary cmp-btn" data-mode="scheduled" style="min-height:36px;">On Time</button>'
-            + '<button class="btn btn-sm btn-secondary cmp-btn" data-mode="late" style="min-height:36px;">Late</button>'
-            + '<button class="btn btn-sm btn-ghost cmp-btn" data-mode="cancel" style="min-height:36px;color:var(--color-text-muted);">Cancel</button>';
-
-        item.parentNode.insertBefore(prompt, item.nextSibling);
-
-        prompt.addEventListener('click', function(ev) {
-            var btn = ev.target.closest('.cmp-btn');
-            if (!btn) return;
-            var mode = btn.dataset.mode;
-            prompt.remove();
-            if (mode === 'cancel') {
-                checkbox.checked = false;
-                return;
-            }
-            sendToggle(checkbox, scheduleId, routineId, mode);
-        });
-    }
-
-    // Item-level checkbox toggle
+    // ── Item-level checkbox toggle (Complete button via checkbox) ──
+    // No more completion mode prompt — auto-detect handles timing via grace window.
     document.addEventListener('change', function(e) {
         if (!e.target.classList.contains('routine-checkbox')) return;
 
@@ -235,98 +212,182 @@
         var scheduleId = checkbox.dataset.scheduleId;
         var routineId = checkbox.dataset.routineId;
 
-        // If unchecking (was completed → pending), no prompt needed
         if (!checkbox.checked) {
+            // Unchecking → pending
             sendToggle(checkbox, scheduleId, routineId, null);
-            return;
-        }
-
-        // Check if item's scheduled time has passed (show completion mode prompt)
-        var item = checkbox.closest('.checkbox-item');
-        var timeEl = item ? item.querySelector('.text-muted.text-sm:last-child') : null;
-        var scheduledTimeStr = timeEl ? timeEl.textContent.trim() : '';
-        var showPrompt = false;
-
-        if (scheduledTimeStr && scheduledTimeStr.match(/^\d{1,2}:\d{2}/)) {
-            var parts = scheduledTimeStr.split(':');
-            var schedH = parseInt(parts[0], 10);
-            var schedM = parseInt(parts[1], 10);
-            var now = new Date();
-            var nowMins = now.getHours() * 60 + now.getMinutes();
-            var schedMins = schedH * 60 + schedM;
-            // If current time is more than 15 min past scheduled time, show prompt
-            if (nowMins > schedMins + 15) showPrompt = true;
-        }
-
-        if (showPrompt) {
-            showCompletionModePrompt(checkbox, scheduleId, routineId);
         } else {
-            sendToggle(checkbox, scheduleId, routineId, 'scheduled');
+            // Checking → auto-detect timing via grace window (no prompt needed)
+            sendToggle(checkbox, scheduleId, routineId, null);
         }
     });
 
-    // Handle toggle response (shared by sendToggle)
+    // Handle toggle response (shared by all completion actions)
     function handleToggleResponse(data, checkbox, scheduleId, routineId) {
         if (!data.success) return;
-        var item = checkbox.closest('.checkbox-item');
-        var label = item ? item.querySelector('span[style*="font-weight"]') : null;
+        var item = checkbox ? checkbox.closest('.checkbox-item') : document.querySelector('.checkbox-item[data-item-id="' + scheduleId + '"]');
+        if (!item) return;
+        var label = item.querySelector('span[style*="font-weight"]');
         if (label) {
             label.style.textDecoration = data.is_completed ? 'line-through' : 'none';
             label.style.color = data.is_completed ? 'var(--color-text-muted)' : '';
         }
-        var statusBadge = item ? item.querySelector('.status-badge') : null;
+        // Update checkbox state
+        var cb = item.querySelector('.routine-checkbox');
+        if (cb) cb.checked = data.is_completed;
+
+        // Update status badge with timing awareness
+        var statusBadge = item.querySelector('.status-badge');
         if (statusBadge) {
             if (data.is_completed) {
-                if (data.completed_as_scheduled) {
-                    statusBadge.textContent = 'Done';
-                } else if (data.status === 'completed_late') {
+                if (data.timing === 'late') {
                     statusBadge.textContent = 'Done (Late)';
+                    statusBadge.style.color = 'var(--color-warning, #e67e22)';
                 } else {
                     statusBadge.textContent = 'Done';
+                    statusBadge.style.color = 'var(--color-success)';
                 }
-                statusBadge.style.color = 'var(--color-success)';
+                statusBadge.style.display = '';
+            } else if (data.status === 'skipped') {
+                statusBadge.textContent = 'Skipped';
+                statusBadge.style.color = 'var(--color-text-muted)';
                 statusBadge.style.display = '';
             } else {
                 statusBadge.textContent = '';
                 statusBadge.style.display = 'none';
             }
         }
+
+        // Hide/show action buttons based on state
+        var actionsDiv = item.querySelector('.routine-item-actions');
+        if (actionsDiv) {
+            actionsDiv.style.display = (data.is_completed || data.status === 'skipped') ? 'none' : 'flex';
+        }
+
         // Child→parent: update routine checkbox
         if (routineId) updateRoutineCheckbox(routineId);
 
         // Maintenance bridge prompt
         if (data.is_completed && data.maintenance_config) {
             var mc = data.maintenance_config;
-            var existing = item ? item.parentNode.querySelector('.maint-prompt[data-sid="' + scheduleId + '"]') : null;
+            var existing = item.parentNode.querySelector('.maint-prompt[data-sid="' + scheduleId + '"]');
             if (existing) existing.remove();
-            if (item) {
-                var prompt = document.createElement('div');
-                prompt.className = 'maint-prompt';
-                prompt.dataset.sid = scheduleId;
-                prompt.style.cssText = 'display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-4);background:var(--color-surface-raised,var(--color-surface));border-bottom:1px solid var(--color-border);font-size:var(--font-size-sm);';
-                var txt = document.createElement('span');
-                txt.textContent = 'Log maintenance?';
-                txt.style.flex = '1';
-                prompt.appendChild(txt);
-                var params = 'title=' + encodeURIComponent(mc.title) + '&log_type=' + encodeURIComponent(mc.log_type) + '&area=' + encodeURIComponent(mc.area) + '&source=routine&schedule_id=' + mc.schedule_id;
-                if (mc.follow_up_date) params += '&follow_up_date=' + encodeURIComponent(mc.follow_up_date);
-                var yesBtn = document.createElement('a');
-                yesBtn.href = '{% url "life:maintenance_create" %}?' + params;
-                yesBtn.className = 'btn btn-sm btn-primary';
-                yesBtn.textContent = 'Yes';
-                yesBtn.style.cssText = 'min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;';
-                prompt.appendChild(yesBtn);
-                var noBtn = document.createElement('button');
-                noBtn.type = 'button';
-                noBtn.className = 'btn btn-sm btn-ghost';
-                noBtn.textContent = 'No';
-                noBtn.style.cssText = 'min-width:44px;min-height:44px;';
-                prompt.appendChild(noBtn);
-                item.insertAdjacentElement('afterend', prompt);
-                noBtn.addEventListener('click', function() { prompt.remove(); });
-            }
+            var prompt = document.createElement('div');
+            prompt.className = 'maint-prompt';
+            prompt.dataset.sid = scheduleId;
+            prompt.style.cssText = 'display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-4);background:var(--color-surface-raised,var(--color-surface));border-bottom:1px solid var(--color-border);font-size:var(--font-size-sm);';
+            var txt = document.createElement('span');
+            txt.textContent = 'Log maintenance?';
+            txt.style.flex = '1';
+            prompt.appendChild(txt);
+            var params = 'title=' + encodeURIComponent(mc.title) + '&log_type=' + encodeURIComponent(mc.log_type) + '&area=' + encodeURIComponent(mc.area) + '&source=routine&schedule_id=' + mc.schedule_id;
+            if (mc.follow_up_date) params += '&follow_up_date=' + encodeURIComponent(mc.follow_up_date);
+            var yesBtn = document.createElement('a');
+            yesBtn.href = '{% url "life:maintenance_create" %}?' + params;
+            yesBtn.className = 'btn btn-sm btn-primary';
+            yesBtn.textContent = 'Yes';
+            yesBtn.style.cssText = 'min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;';
+            prompt.appendChild(yesBtn);
+            var noBtn = document.createElement('button');
+            noBtn.type = 'button';
+            noBtn.className = 'btn btn-sm btn-ghost';
+            noBtn.textContent = 'No';
+            noBtn.style.cssText = 'min-width:44px;min-height:44px;';
+            prompt.appendChild(noBtn);
+            item.insertAdjacentElement('afterend', prompt);
+            noBtn.addEventListener('click', function() { prompt.remove(); });
         }
     }
+
+    // ── Per-item "Done at Scheduled Time" button ──
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.routine-done-scheduled-btn');
+        if (!btn) return;
+        e.preventDefault();
+        var scheduleId = btn.dataset.scheduleId;
+        var routineId = btn.dataset.routineId;
+        var item = btn.closest('.checkbox-item');
+        var checkbox = item ? item.querySelector('.routine-checkbox') : null;
+
+        var formData = new FormData();
+        formData.append('schedule_id', scheduleId);
+        formData.append('completion_mode', 'scheduled');
+
+        fetch('{% url "life:routine_toggle" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData,
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) { handleToggleResponse(data, checkbox, scheduleId, routineId); })
+        .catch(function(err) { console.error('Done at scheduled failed:', err); });
+    });
+
+    // ── Per-item "Skip" button ──
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.routine-skip-btn');
+        if (!btn) return;
+        e.preventDefault();
+        var scheduleId = btn.dataset.scheduleId;
+        var routineId = btn.dataset.routineId;
+        var item = btn.closest('.checkbox-item');
+        var checkbox = item ? item.querySelector('.routine-checkbox') : null;
+
+        var formData = new FormData();
+        formData.append('schedule_id', scheduleId);
+
+        fetch('{% url "life:routine_skip" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData,
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            // Update UI to show skipped state
+            handleToggleResponse({
+                success: true, schedule_id: scheduleId, status: 'skipped',
+                is_completed: false, completed_as_scheduled: false, timing: '',
+            }, checkbox, scheduleId, routineId);
+        })
+        .catch(function(err) { console.error('Skip failed:', err); });
+    });
+
+    // ── Section-level bulk action buttons ──
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.routine-bulk-btn');
+        if (!btn) return;
+        e.preventDefault();
+        var windowKey = btn.dataset.window;
+        var action = btn.dataset.action;
+
+        btn.disabled = true;
+        btn.textContent = 'Working...';
+
+        var formData = new FormData();
+        formData.append('window_key', windowKey);
+        formData.append('action', action);
+
+        fetch('{% url "life:routine_bulk_action" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData,
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.success) {
+                // Reload page to reflect all changes cleanly
+                window.location.reload();
+            } else {
+                btn.disabled = false;
+                btn.textContent = btn.dataset.action === 'done_at_scheduled' ? 'Done All at Sched. Time'
+                    : btn.dataset.action === 'complete_all' ? 'Complete All' : 'Skip All';
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            window.location.reload();
+        });
+    });
 
     // Routine-level checkbox toggle (parent→child)
     document.addEventListener('change', function(e) {
@@ -351,6 +412,11 @@
                     if (label) {
                         label.style.textDecoration = data.all_complete ? 'line-through' : 'none';
                         label.style.color = data.all_complete ? 'var(--color-text-muted)' : '';
+                    }
+                    // Hide/show action buttons
+                    var actionsDiv = item ? item.querySelector('.routine-item-actions') : null;
+                    if (actionsDiv) {
+                        actionsDiv.style.display = data.all_complete ? 'none' : 'flex';
                     }
                 });
                 // Update progress

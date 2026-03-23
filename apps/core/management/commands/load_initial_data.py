@@ -984,6 +984,9 @@ class Command(BaseCommand):
         self._reset_ui_alignment_fixtures(DataLoadConfig, force, verbosity)
         self._reset_beth_decisive_behavior_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Routine Execution Truth (PK 169)
+        self._reset_routine_execution_truth_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -6190,3 +6193,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Beth decisive behavior fixtures FAILED: {e}'))
+
+    def _reset_routine_execution_truth_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes with Routine Execution Truth entry (PK 169).
+        """
+        reset_tracker_name = 'reset_routine_execution_truth_2026_03_23'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Routine Execution Truth')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for routine execution truth',
+                'command',
+                'One-time reset: added PK 169 for performed_at + timing + medicine-style UX'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset routine execution truth fixtures FAILED: {e}'))

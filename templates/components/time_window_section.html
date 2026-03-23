@@ -3,7 +3,7 @@
 
 <div class="card mb-4{% if is_current %} time-window-active{% endif %}"
      style="{% if is_current %}border-left: 3px solid var(--color-accent);{% endif %}">
-    <div class="card-header" style="display: flex; align-items: center; justify-content: space-between;">
+    <div class="card-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2);">
         <h3 style="margin: 0; font-size: var(--font-size-base); font-weight: 600;">
             {{ window_name }}
             {% if is_current %}
@@ -15,6 +15,16 @@
         {% endif %}
     </div>
     {% if items %}
+    {# Section-level bulk actions — mirrors medicine home pattern #}
+    <div class="window-bulk-actions" data-window-key="{{ window_key }}"
+         style="display: flex; gap: var(--space-2); padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--color-border); background: var(--color-surface-raised, var(--color-surface)); flex-wrap: wrap;">
+        <button type="button" class="btn btn-sm btn-outline routine-bulk-btn" data-window="{{ window_key }}" data-action="done_at_scheduled"
+                style="font-size: var(--font-size-xs); min-height: 36px;">Done All at Sched. Time</button>
+        <button type="button" class="btn btn-sm btn-primary routine-bulk-btn" data-window="{{ window_key }}" data-action="complete_all"
+                style="font-size: var(--font-size-xs); min-height: 36px;">Complete All</button>
+        <button type="button" class="btn btn-sm btn-ghost routine-bulk-btn" data-window="{{ window_key }}" data-action="skip_all"
+                style="font-size: var(--font-size-xs); min-height: 36px; color: var(--color-text-muted);">Skip All</button>
+    </div>
     <div class="card-body" style="padding: 0;">
         {# Routine-level checkboxes #}
         {% for routine in routines %}
@@ -37,7 +47,7 @@
         {% endfor %}
         {# Individual item checkboxes #}
         {% for item in items %}
-        {% include "components/checkbox_item.html" with item_id=item.schedule_id routine_id=item.routine_id label=item.item_name sublabel=item.routine_name checked=item.is_completed status=item.status time_display=item.scheduled_time completion_source=item.completion_source completion_via_label=item.completion_via_label routine_type=item.routine_type %}
+        {% include "components/checkbox_item.html" with item_id=item.schedule_id routine_id=item.routine_id label=item.item_name sublabel=item.routine_name checked=item.is_completed status=item.status timing=item.timing time_display=item.scheduled_time completion_source=item.completion_source completion_via_label=item.completion_via_label routine_type=item.routine_type %}
         {% endfor %}
     </div>
     {% else %}

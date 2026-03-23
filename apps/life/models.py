@@ -2685,6 +2685,19 @@ class RoutineLog(UserOwnedModel):
         (STATUS_RESCHEDULED, "Rescheduled"),
     ]
 
+    # ── Timing classification ──
+    # Captures whether the activity was performed on time, late, or early
+    # relative to the scheduled time and grace window.
+    TIMING_ON_TIME = "on_time"
+    TIMING_LATE = "late"
+    TIMING_EARLY = "early"
+
+    TIMING_CHOICES = [
+        (TIMING_ON_TIME, "On Time"),
+        (TIMING_LATE, "Late"),
+        (TIMING_EARLY, "Early"),
+    ]
+
     # ── Completion source tracking ──
     # Identifies HOW this log was created — manual toggle, workout session,
     # medicine intake, bible reading, etc.  Combined with source_object_id,
@@ -2694,6 +2707,7 @@ class RoutineLog(UserOwnedModel):
     SOURCE_MEDICINE = "medicine"
     SOURCE_BIBLE = "bible"
     SOURCE_AUTO = "auto"
+    SOURCE_SCHEDULED_OVERRIDE = "scheduled_override"
 
     COMPLETION_SOURCE_CHOICES = [
         (SOURCE_MANUAL, "Manual"),
@@ -2701,6 +2715,7 @@ class RoutineLog(UserOwnedModel):
         (SOURCE_MEDICINE, "Medicine"),
         (SOURCE_BIBLE, "Bible Reading"),
         (SOURCE_AUTO, "Auto"),
+        (SOURCE_SCHEDULED_OVERRIDE, "Scheduled Override"),
     ]
 
     schedule = models.ForeignKey(
@@ -2718,7 +2733,19 @@ class RoutineLog(UserOwnedModel):
     completed_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="When the item was completed (null for skipped)",
+        help_text="When the user clicked complete (click timestamp)",
+    )
+    performed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the activity actually happened (vs completed_at = click time)",
+    )
+    timing = models.CharField(
+        max_length=10,
+        blank=True,
+        default="",
+        choices=TIMING_CHOICES,
+        help_text="Timing classification based on grace window (on_time, late, early)",
     )
     rescheduled_time = models.TimeField(
         null=True,
@@ -2745,7 +2772,7 @@ class RoutineLog(UserOwnedModel):
         ),
     )
     completion_source = models.CharField(
-        max_length=20,
+        max_length=25,
         choices=COMPLETION_SOURCE_CHOICES,
         default=SOURCE_MANUAL,
         help_text="How this log was created: manual toggle, workout session, etc.",
@@ -2760,6 +2787,19 @@ class RoutineLog(UserOwnedModel):
             "WorkoutSession pk=42)."
         ),
     )
+
+    def save(self, **kwargs):
+        """Enforce state/timing/performed_at consistency."""
+        if self.log_status in (self.STATUS_COMPLETED, self.STATUS_COMPLETED_LATE):
+            if self.performed_at is None:
+                # Auto-fill from completed_at for backwards compatibility
+                self.performed_at = self.completed_at
+            if not self.timing and self.performed_at:
+                self.timing = self.TIMING_LATE
+        elif self.log_status in (self.STATUS_SKIPPED, self.STATUS_RESCHEDULED):
+            self.performed_at = None
+            self.timing = ""
+        super().save(**kwargs)
 
     @property
     def effective_time(self):

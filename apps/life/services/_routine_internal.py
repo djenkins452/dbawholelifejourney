@@ -228,6 +228,8 @@ def get_todays_routine_items(user):
                 source_display_time.strftime('%I:%M %p').lstrip('0')
                 if source_display_time else None
             ),
+            # Execution truth
+            'timing': getattr(log, 'timing', '') if log else '',
             # Routine type (Phase 2: binary vs activity)
             'routine_type': getattr(item, 'routine_type', 'binary'),
             'activity_type': getattr(item, 'activity_type', None),

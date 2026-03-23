@@ -1,5 +1,5 @@
 {# Reusable checkbox item row — 44px touch target, CSP-safe #}
-{# Usage: {% include "components/checkbox_item.html" with item_id=id label="Name" sublabel="6:30 AM" checked=True status="completed" %} #}
+{# Usage: {% include "components/checkbox_item.html" with item_id=id label="Name" sublabel="6:30 AM" checked=True status="completed" timing="on_time" %} #}
 
 <div class="checkbox-item" style="display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); min-height: 44px; border-bottom: 1px solid var(--color-border);" data-item-id="{{ item_id }}">
     {% if routine_type == "activity" %}
@@ -34,9 +34,29 @@
         <span class="text-muted text-sm" style="display: block;">{{ sublabel }}</span>
         {% endif %}
     </div>
-    <span class="status-badge" style="font-size: var(--font-size-xs); font-weight: 500; flex-shrink: 0;
-        {% if status == "missed" %}color: var(--color-error);{% elif status == "overdue" %}color: var(--color-warning, #e67e22);{% elif status == "skipped" %}color: var(--color-text-muted);{% elif status == "completed" %}color: var(--color-success);{% elif status == "rescheduled" %}color: var(--color-accent, #3498db);{% else %}display: none;{% endif %}">{% if status == "missed" %}Missed{% elif status == "overdue" %}Late{% elif status == "skipped" %}Skipped{% elif status == "completed" %}Done{% elif status == "rescheduled" %}Rescheduled{% endif %}</span>
+    {# Status badge with timing-aware colors #}
+    <span class="status-badge" data-schedule-id="{{ item_id }}" style="font-size: var(--font-size-xs); font-weight: 500; flex-shrink: 0;
+        {% if status == "missed" %}color: var(--color-error);
+        {% elif status == "overdue" %}color: var(--color-warning, #e67e22);
+        {% elif status == "skipped" %}color: var(--color-text-muted);
+        {% elif status == "completed" and timing == "late" %}color: var(--color-warning, #e67e22);
+        {% elif status == "completed" %}color: var(--color-success);
+        {% elif status == "rescheduled" %}color: var(--color-accent, #3498db);
+        {% else %}display: none;{% endif %}">{% if status == "missed" %}Missed{% elif status == "overdue" %}Late{% elif status == "skipped" %}Skipped{% elif status == "completed" and timing == "late" %}Done (Late){% elif status == "completed" %}Done{% elif status == "rescheduled" %}Rescheduled{% endif %}</span>
     {% if time_display %}
     <span class="text-muted text-sm" style="flex-shrink: 0;">{{ time_display }}</span>
+    {% endif %}
+    {# Per-item action buttons for binary pending items — mirrors medicine UX #}
+    {% if routine_type != "activity" and not checked and status != "skipped" %}
+    <div class="routine-item-actions" style="display: flex; gap: 4px; flex-shrink: 0;">
+        <button type="button" class="btn btn-sm btn-outline routine-done-scheduled-btn"
+                data-schedule-id="{{ item_id }}"
+                {% if routine_id %}data-routine-id="{{ routine_id }}"{% endif %}
+                style="font-size: var(--font-size-xs); padding: 4px 8px; min-height: 36px;">At Sched.</button>
+        <button type="button" class="btn btn-sm btn-ghost routine-skip-btn"
+                data-schedule-id="{{ item_id }}"
+                {% if routine_id %}data-routine-id="{{ routine_id }}"{% endif %}
+                style="font-size: var(--font-size-xs); padding: 4px 8px; min-height: 36px; color: var(--color-text-muted);">Skip</button>
+    </div>
     {% endif %}
 </div>

@@ -248,7 +248,12 @@ class RoutineToggleViewTests(RoutineTestMixin, TestCase):
         self.assertTrue(data['success'])
         self.assertTrue(data['is_completed'])
         log = RoutineLog.objects.get(schedule=schedule, scheduled_date=today)
-        self.assertEqual(log.log_status, 'completed')
+        # Status depends on whether current time is within grace window.
+        # The log should be completed (or completed_late if past grace).
+        self.assertIn(log.log_status, ('completed', 'completed_late'))
+        # performed_at and timing should be set
+        self.assertIsNotNone(log.performed_at)
+        self.assertIn(log.timing, ('on_time', 'late', 'early'))
 
 
 class RoutineSkipViewTests(RoutineTestMixin, TestCase):

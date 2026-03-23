@@ -31,6 +31,7 @@ from .views import (
     RoutineMigrationView,
     RoutineToMaintenanceView,
     RoutineAdherenceView,
+    RoutineBulkActionView,
     # Calendar & Events
     CalendarView,
     EventCreateView,
@@ -153,6 +154,7 @@ urlpatterns = [
     path("routines/migrate/", RoutineMigrationView.as_view(), name="routine_migration"),
     path("routines/<int:schedule_id>/to-maintenance/", RoutineToMaintenanceView.as_view(), name="routine_to_maintenance"),
     path("routines/adherence/", RoutineAdherenceView.as_view(), name="routine_adherence"),
+    path("routines/bulk-action/", RoutineBulkActionView.as_view(), name="routine_bulk_action"),
 
     # Calendar & Events
     path("calendar/", CalendarView.as_view(), name="calendar"),

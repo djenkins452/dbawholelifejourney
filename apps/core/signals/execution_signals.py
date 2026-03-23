@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 @receiver(post_save, sender='life.RoutineLog')
 def record_execution_signal_on_routine_log(sender, instance, **kwargs):
     """Generate ExecutionSignal when a RoutineLog is saved with completion."""
-    if not instance.completed_at:
+    if not instance.completed_at and not instance.performed_at:
         return
     if instance.log_status not in ("completed", "completed_late"):
         return

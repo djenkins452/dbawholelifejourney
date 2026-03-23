@@ -6,6 +6,39 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Routine Execution Truth Fix (performed_at + timing + medicine-style UX)
+
+**What:** Fixed routine tracking to capture when the activity actually happened, not just when the user clicked. Added `performed_at` (actual activity time) and `timing` (on_time/late/early) fields to RoutineLog, keeping `completed_at` as the click timestamp. Mirrors the medicine "Took at Scheduled Time" UX pattern with per-item and section-level bulk action buttons.
+
+**Why:** Completion time = click time caused false "late" and "missed" classifications. Users who did morning routines on time but logged later were incorrectly penalized in signals and CoS.
+
+**Key changes:**
+- `performed_at` (DateTimeField) — when the activity actually happened
+- `timing` (CharField: on_time/late/early) — grace-window-based classification
+- `completion_source` extended with "scheduled_override" for "Done at Scheduled Time" actions
+- Auto-detect timing via grace window on standard Complete
+- "Done at Scheduled Time" button → always on_time at scheduled time
+- Section-level bulk buttons: Done All at Sched. Time, Complete All, Skip All
+- Signal engine now uses `performed_at` (not `completed_at`) for quality computation
+- Data migration backfills existing completed logs with `performed_at=completed_at, timing=late`
+- Model validation ensures state/timing/performed_at consistency
+- 19 new tests covering all execution truth scenarios
+
+**Files:**
+- `apps/life/models.py` — RoutineLog: added performed_at, timing, TIMING_CHOICES, SOURCE_SCHEDULED_OVERRIDE, save() validation
+- `apps/life/migrations/0048_add_routine_execution_truth.py` — Schema migration
+- `apps/life/migrations/0049_populate_routine_execution_truth.py` — Data migration
+- `apps/life/services/routine_helpers.py` — Added _compute_timing_and_performed_at(), _compute_timing_for_time(), _get_scheduled_datetime(); updated all completion paths
+- `apps/life/services/_routine_internal.py` — Pass timing to item entry dict
+- `apps/life/views.py` — Added RoutineBulkActionView, updated RoutineToggleView response
+- `apps/life/urls.py` — Added routine_bulk_action URL
+- `templates/components/checkbox_item.html` — Per-item action buttons, timing-aware badges
+- `templates/components/time_window_section.html` — Section-level bulk action buttons
+- `templates/life/routine_list.html` — Updated JS for new buttons, removed old completion mode prompt
+- `apps/core/signals/execution_quality.py` — Use performed_at for signal actual_time
+- `apps/core/signals/execution_signals.py` — Updated guard check for performed_at
+- `apps/life/tests/test_routine_execution_truth.py` — 19 new tests
+
 ## 2026-03-23 — Execution Quality Signals (Analytical Layer)
 
 **What:** Added ExecutionSignal model — a read-only analytical layer that tracks execution quality (on_target, late, missed_window, missed) for scheduled items. Hooks into RoutineLog, WorkoutSession, JournalEntry, and MedicineLog completion events via Django post_save signals. No side effects — does not affect Today Engine, CoS, completion logic, or UI.

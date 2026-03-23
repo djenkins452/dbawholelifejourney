@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Ops Command Center Read-Model Hardening
+
+**What:** Added per-section error isolation, freshness metadata, and stale carry-forward to the ops stream payload builder. Investigation revealed the read-model architecture already existed (OpsStreamView reads a single cache key with zero DB queries), but the builder itself had no section-level fault tolerance — a single `_get_*()` failure would kill the entire payload.
+
+**Changes:**
+1. **`_build_section()` wrapper** — wraps each section builder call with try/except, timing, and freshness metadata (computed_at, build_ms, stale, degraded, source)
+2. **Stale carry-forward** — when a section fails, previous payload data is carried forward as stale rather than disappearing
+3. **`_section_meta` dict** — per-section health metadata added to payload (backward-compatible, frontend reads top-level fields unchanged)
+4. **`_build_telemetry` dict** — sections_ok/sections_degraded counts, per-section timing breakdown
+5. **9 regression tests** covering error isolation, carry-forward, metadata presence, and telemetry accuracy
+
+**Files:**
+- `apps/core/ai_observability/ops_telemetry.py` — _build_section helper + refactored build_ops_stream_payload
+- `apps/core/ai_observability/tests_payload_builder.py` — new test file (9 tests)
+
+**Impact:** No change to HTTP path performance (already 0 DB queries). Builder resilience: a single section failure no longer takes down the entire ops wall.
+
+---
+
 ## 2026-03-23 — SAE/UAL Engine Performance Optimization
 
 **What:** Ops dashboard showed UAL at 1200-1976ms and SAE at 1200-1400ms per execution with multiple SLOW warnings. Three key bottlenecks fixed:

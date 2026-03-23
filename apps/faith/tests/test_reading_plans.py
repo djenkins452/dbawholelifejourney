@@ -724,3 +724,122 @@ class SaveAssessmentResponseViewTest(ReadingPlanTestMixin, TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+
+
+class ReadingPlanIntegrityTests(ReadingPlanTestMixin, TestCase):
+    """Tests that reading plans maintain structural integrity."""
+
+    def test_validate_day_integrity_valid_plan(self):
+        """A plan with sequential days and matching duration passes."""
+        template = self.create_reading_plan_template(
+            title="Valid Plan", duration_days=5
+        )
+        is_valid, errors = template.validate_day_integrity()
+        self.assertTrue(is_valid)
+        self.assertEqual(errors, [])
+
+    def test_validate_day_integrity_missing_day(self):
+        """A plan with a gap in day numbers fails validation."""
+        template = ReadingPlanTemplate.objects.create(
+            title="Gapped Plan",
+            slug="gapped-plan",
+            description="Test plan with gap",
+            category="topical",
+            difficulty="beginner",
+            duration_days=3,
+            is_active=True,
+        )
+        ReadingPlanDay.objects.create(
+            plan=template, day_number=1, title="Day 1",
+            scripture_references=["Psalm 1:1-6"],
+        )
+        ReadingPlanDay.objects.create(
+            plan=template, day_number=3, title="Day 3",
+            scripture_references=["Psalm 3:1-6"],
+        )
+        is_valid, errors = template.validate_day_integrity()
+        self.assertFalse(is_valid)
+        self.assertTrue(any("Missing" in e for e in errors))
+        self.assertTrue(any("duration_days=3 but 2" in e for e in errors))
+
+    def test_validate_day_integrity_wrong_duration(self):
+        """A plan where duration_days doesn't match actual count fails."""
+        template = self.create_reading_plan_template(
+            title="Wrong Duration", duration_days=5
+        )
+        template.duration_days = 10
+        template.save()
+        is_valid, errors = template.validate_day_integrity()
+        self.assertFalse(is_valid)
+        self.assertTrue(any("duration_days=10 but 5" in e for e in errors))
+
+    def test_gospel_plan_loader_creates_complete_plans(self):
+        """The gospel plan loader creates complete, gap-free plans."""
+        from django.core.management import call_command
+
+        call_command("load_gospel_plans", verbosity=0)
+
+        expected = {
+            "journey-through-matthew": 36,
+            "journey-through-mark": 19,
+            "journey-through-luke": 32,
+            "journey-through-john": 22,
+        }
+        for slug, expected_days in expected.items():
+            template = ReadingPlanTemplate.objects.get(slug=slug)
+            self.assertEqual(
+                template.duration_days, expected_days,
+                f"{slug}: duration_days={template.duration_days}, expected {expected_days}",
+            )
+            is_valid, errors = template.validate_day_integrity()
+            self.assertTrue(
+                is_valid,
+                f"{slug} failed integrity: {errors}",
+            )
+
+    def test_gospel_plan_loader_idempotent(self):
+        """Running the loader twice produces no duplicates or errors."""
+        from django.core.management import call_command
+
+        call_command("load_gospel_plans", verbosity=0)
+        call_command("load_gospel_plans", verbosity=0)
+
+        for slug in ["journey-through-matthew", "journey-through-mark",
+                      "journey-through-luke", "journey-through-john"]:
+            template = ReadingPlanTemplate.objects.get(slug=slug)
+            is_valid, errors = template.validate_day_integrity()
+            self.assertTrue(is_valid, f"{slug} failed after double-load: {errors}")
+
+    def test_start_plan_creates_progress_for_all_days(self):
+        """Starting a plan creates UserReadingProgress for every day."""
+        user = self.create_user()
+        template = self.create_reading_plan_template(
+            title="Progress Test", duration_days=10
+        )
+        self.login_user()
+        self.client.post(
+            reverse("faith:start_reading_plan", kwargs={"slug": template.slug})
+        )
+        user_plan = UserReadingPlan.objects.get(user=user, template=template)
+        progress_count = user_plan.day_completions.count()
+        self.assertEqual(
+            progress_count, 10,
+            f"Expected 10 progress entries, got {progress_count}",
+        )
+
+    def test_progress_percentage_uses_actual_days(self):
+        """Progress percentage is based on actual completion, not hardcoded values."""
+        user = self.create_user()
+        template = self.create_reading_plan_template(
+            title="Percentage Test", duration_days=5
+        )
+        user_plan = self.start_reading_plan(user, template)
+        # Mark 2 of 5 complete
+        days = ReadingPlanDay.objects.filter(plan=template).order_by("day_number")[:2]
+        for day in days:
+            progress = UserReadingProgress.objects.get(
+                user_plan=user_plan, plan_day=day
+            )
+            progress.is_completed = True
+            progress.save()
+        self.assertEqual(user_plan.progress_percentage, 40)  # 2/5 = 40%

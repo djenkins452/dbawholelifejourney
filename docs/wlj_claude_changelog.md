@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Complete ALL Gospel Reading Plans (System-Wide Fix)
+
+**What:** Audit revealed 3 of 4 Gospel plans were incomplete — Matthew stopped at ch 21 (missing 22-28), Luke stopped at ch 17 (missing 18-24), John stopped at ch 20 (missing 21). All plans now cover their complete books with full three-tier commentary.
+
+**Root Cause:** Same class of failure as Mark — incomplete plan authoring combined with early-return bug in loaders that skipped day creation if templates already existed.
+
+**Changes:**
+- Matthew: 28→36 days (added 8 days covering chapters 22-28: controversies, Olivet Discourse, Passion, Resurrection, Great Commission)
+- Luke: 24→32 days (added 8 days covering chapters 18-24: Zacchaeus, triumphal entry, Passion, Emmaus road, Ascension)
+- John: 21→22 days (added 1 day covering chapter 21: miraculous catch, Peter's restoration)
+- Data migration (`0020_complete_all_gospel_plans.py`) backfills all plans and creates UserReadingProgress for active plans
+- 7 new integrity tests validating gap detection, duration matching, loader idempotency, and progress creation
+- Removed all early-return bugs from Matthew, Luke, John loaders (Mark was fixed earlier)
+
+**Architectural enforcement:** `validate_day_integrity()` runs post-creation in loader, tested by `ReadingPlanIntegrityTests`
+
+**Files:** `apps/faith/management/commands/load_gospel_plans.py`, `apps/faith/migrations/0020_complete_all_gospel_plans.py`, `apps/faith/tests/test_reading_plans.py`, `docs/wlj_claude_changelog.md`
+
+---
+
 ## 2026-03-23 — Compliance Hardening: Identity Precision, Structural Linking, Cache Integrity
 
 **What:** Final lockdown of the obligation engine — eliminates fragile string matching, adds structured identity fields, auto-invalidates cache on domain writes, and adds validation safeguards.
@@ -49,6 +69,24 @@
 - `compliance/tests/test_reconciliation.py` — 20 tests covering all scenarios
 - `dashboard_v2/signals.py` — compliance cache invalidation wired into all handlers
 - `dashboard_v2/migrations/0008_obligation_identity.py`
+## 2026-03-23 — Complete Journey Through Mark Reading Plan
+
+**What:** The Mark reading plan was missing chapters 14-16 (Passion, Crucifixion, Resurrection). Only 16 days were defined covering Mark 1-13. Added 3 new days with full three-tier commentary to complete the entire book.
+
+**Root Cause:** Incomplete plan authoring in `load_gospel_plans.py` — the plan stopped at Mark 13:37 and never included the Passion narrative, crucifixion, or resurrection.
+
+**Changes:**
+- `apps/faith/management/commands/load_gospel_plans.py` — Added days 17-19 (Mark 14-16), updated `duration_days` 16→19, updated description, made loader idempotent for existing templates
+- `apps/faith/migrations/0019_complete_mark_plan.py` — Data migration to backfill days in production and create UserReadingProgress for active plans
+- `apps/faith/models.py` — Added `validate_day_integrity()` method to ReadingPlanTemplate for detecting day count mismatches and gaps
+
+**Architectural enforcement:** Added `validate_day_integrity()` to `ReadingPlanTemplate` and post-creation validation in the gospel loader to prevent future incomplete plans.
+
+**Files:** `apps/faith/management/commands/load_gospel_plans.py`, `apps/faith/migrations/0019_complete_mark_plan.py`, `apps/faith/models.py`, `docs/wlj_claude_changelog.md`
+
+---
+
+
 ## 2026-03-23 — Complete Journey Through Mark Reading Plan
 
 **What:** The Mark reading plan was missing chapters 14-16 (Passion, Crucifixion, Resurrection). Only 16 days were defined covering Mark 1-13. Added 3 new days with full three-tier commentary to complete the entire book.
@@ -294,87 +332,6 @@
 - `apps/dashboard_v2/urls.py` — compliance_detail route
 - `templates/dashboard_v2/partials/domain_dial.html` — clickable links
 - `static/css/dashboard_v2.css` — hover styles
-
----
-
-## 2026-03-23 — Day Renderer: Unified Data Merge (Routines + Tasks + Calendar)
-
-**What:** Day Agenda renderer now collects ALL items for the day — routines, tasks, and calendar events — into a single unified dataset before bucketing.
-
-**Data sources:**
-- **Routines:** from execution truth `_raw_items` (existing)
-- **Tasks:** `Task.objects.filter(user=user, due_date=today, is_routine=False)` — includes `scheduled_time`, `commitment_level`, `completion_status`
-- **Calendar:** `CalendarEvent.objects.filter(user=user, start_dt__date=today)` — excludes canceled and routine/task-sourced events (prevents duplication)
-
-**Implementation:**
-- `_collect_all_today_items(user, truth, user_now)` → unified collector
-- `_collect_routine_items()`, `_collect_task_items()`, `_collect_calendar_items()` → per-source collectors
-- All normalize to: `{name, time_str, item_time, is_completed, is_foundational, source}`
-- Merged items flow through identical bucketing logic — no source bias
-- Calendar events sourced from tasks/routines/medicine excluded to prevent duplication
-
-**Files:**
-- `apps/ai/beth_day_renderer.py` — unified collection + per-source collectors
-- `apps/ai/tests/test_beth_day_renderer.py` — 8 new merge tests (26 total)
-
-**Test results:** 26/26 day renderer tests pass.
-
----
-
-## 2026-03-23 — Day Renderer Patch: Strict Chronological Ordering
-
-**What:** All sections in Day Agenda now render in strict ascending time order. Foundation, Overdue, Coming up, Later, and Completed all sort by `scheduled_time` ASC.
-
-**Changes:**
-- All buckets now store `(sort_time, label)` tuples instead of mixed formats
-- New `_sort_by_time()` helper applied to ALL sections as final step before render
-- Foundation and Completed sections now time-sorted (were insertion-ordered)
-- Items without times sort last within their section
-- Python stable sort preserves relative order for same-time items
-
-**Files:**
-- `apps/ai/beth_day_renderer.py` — unified tuple format, `_sort_by_time()`, updated `_add_domain_completed()`
-- `apps/ai/tests/test_beth_day_renderer.py` — 6 new ordering tests (20 total)
-
-**Test results:** 20/20 day renderer tests, 48/48 combined renderer tests pass.
-
----
-
-## 2026-03-23 — Day Agenda Renderer (Foundation + Time-Aware Buckets)
-
-**What:** New deterministic Day Agenda renderer that shows the full day organized by foundation items + time buckets (Overdue / Coming up / Later). No LLM involved.
-
-**Output format:**
-```
-Today
-Foundation: [foundational items]
-Overdue now: [past-due items]
-Coming up next: [within 90 min]
-Later today: [remaining]
-Completed: [done items]
-Next: [system-determined action]
-```
-
-**Key design:**
-- Foundation items appear in BOTH Foundation section AND their time bucket
-- Time buckets: Overdue (< now), Coming up (now → +90min), Later (> +90min)
-- Items without scheduled_time excluded from time buckets
-- Each item once per bucket (deduplication by name+time)
-- Sorting: ascending by time within each bucket
-- No aggregation, no counts, no coaching
-
-**Router integration:**
-- Matches: "my day", "show me my day", "what does my day look like", "today", "day agenda", etc.
-- Terminal route — LLM never called
-- Priority: Phase 0c (after status/next-action, before data routes)
-
-**Files:**
-- `apps/ai/beth_day_renderer.py` — NEW: full day agenda renderer
-- `apps/ai/deterministic_router.py` — day agenda route + patterns
-- `apps/ai/tests/test_beth_day_renderer.py` — NEW: 14 tests
-- `docs/wlj_claude_changelog.md`
-
-**Test results:** 14/14 day renderer tests, 28/28 check-in tests, 110/110 signal tests pass.
 
 ---
 

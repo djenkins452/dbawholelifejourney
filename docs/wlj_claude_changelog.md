@@ -254,6 +254,44 @@
 
 ---
 
+## 2026-03-23 — Day Agenda Renderer (Foundation + Time-Aware Buckets)
+
+**What:** New deterministic Day Agenda renderer that shows the full day organized by foundation items + time buckets (Overdue / Coming up / Later). No LLM involved.
+
+**Output format:**
+```
+Today
+Foundation: [foundational items]
+Overdue now: [past-due items]
+Coming up next: [within 90 min]
+Later today: [remaining]
+Completed: [done items]
+Next: [system-determined action]
+```
+
+**Key design:**
+- Foundation items appear in BOTH Foundation section AND their time bucket
+- Time buckets: Overdue (< now), Coming up (now → +90min), Later (> +90min)
+- Items without scheduled_time excluded from time buckets
+- Each item once per bucket (deduplication by name+time)
+- Sorting: ascending by time within each bucket
+- No aggregation, no counts, no coaching
+
+**Router integration:**
+- Matches: "my day", "show me my day", "what does my day look like", "today", "day agenda", etc.
+- Terminal route — LLM never called
+- Priority: Phase 0c (after status/next-action, before data routes)
+
+**Files:**
+- `apps/ai/beth_day_renderer.py` — NEW: full day agenda renderer
+- `apps/ai/deterministic_router.py` — day agenda route + patterns
+- `apps/ai/tests/test_beth_day_renderer.py` — NEW: 14 tests
+- `docs/wlj_claude_changelog.md`
+
+**Test results:** 14/14 day renderer tests, 28/28 check-in tests, 110/110 signal tests pass.
+
+---
+
 ## 2026-03-23 — Check-in Renderer Patch: Remove Aggregation, Enforce Pure Truth
 
 **What:** Patched the deterministic check-in renderer to eliminate all aggregation, counts, and grouping. Output now shows only individually named items. Upcoming section now only includes time-bound items within a 90-minute window.

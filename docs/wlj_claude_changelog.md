@@ -6,6 +6,31 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — CoS Next Action Engine: Single Item, State-Driven
+
+**What:** Fixed "what should I do next?" to return exactly ONE item selected from Today Engine priority order, instead of multi-step plans.
+
+**Before:** `"Start with Spay Weeds. Then move to Shower."` — multi-item, sequencing language
+**After:** `"Start Shower (5:30 AM)."` — single item, the highest priority from live state
+
+**Priority order (highest → lowest):**
+1. Overdue now (most urgent)
+2. Coming up next (current time window)
+3. Later today
+4. Incomplete foundational items
+
+**Replaced:** `_build_next_action_response()` in `deterministic_router.py` now uses `get_today_context(user)` instead of `build_locked_next_action()`. Selects `candidates[0]` only. No plans, no lists, no "then move to".
+
+**Empty state:** Returns `"You're clear right now."` — not "nothing scheduled" or "no tasks".
+
+**Note:** `build_locked_next_action()` itself is NOT modified (used by locked facts block, renderers). Only the router's terminal response changed.
+
+**Files:** `apps/ai/deterministic_router.py`
+
+**Test results:** 179/179 pass.
+
+---
+
 ## 2026-03-23 — CoS Revalidation: Context Comparison (No LLM Text Parsing)
 
 **What:** Replaced LLM text parsing with pure system state comparison for mid-response revalidation. Detection is now based ONLY on execution truth snapshot comparison — never inspects LLM output.

@@ -1,5 +1,5 @@
 """
-Phase 3+5 — Signal Presenter: Controlled Exposure Layer with Adaptive Tuning
+Phase 3+5+5.2 — Signal Presenter: Controlled Exposure Layer with Adaptive Tuning
 
 Transforms raw Phase 2 signals into safe, user-facing suggestions.
 This is a PRESENTATION layer only — it never writes to the database,
@@ -7,6 +7,10 @@ never marks anything complete, and never alters execution truth.
 
 Phase 5 adds a lightweight adaptive layer that uses SignalFeedback data
 to reinforce high-value signals and suppress low-value ones.
+
+Phase 5.2 adds pattern-level learning that accumulates feedback across days
+using date-free pattern keys (type:domain:item). Pattern rules require more
+data and higher confidence than signal-level rules.
 
 ARCHITECTURAL RULES:
 - Execution Truth Engine remains the only source of truth
@@ -16,13 +20,15 @@ ARCHITECTURAL RULES:
 - Maximum 2 surfaced suggestions at a time
 - Only same-day signals may be surfaced
 - Adaptation applies ONLY to possible_completion signals
-- Adaptation requires minimum 3 feedback records
+- Signal-level adaptation requires minimum 3 feedback records
+- Pattern-level adaptation requires minimum 5 feedback records
 - Adaptation never overrides truth suppression or expectation rules
 - Confidence floor cannot drop below 0.75
+- Signal-level wins over pattern-level on conflict
 
 Pipeline:
     detect_signals(user) → get_execution_truth(user) → filter →
-    adaptive_tuning → prioritization → present
+    signal_tuning → pattern_tuning → prioritization → present
 
 Consumers: Beth (conversational AI), optional UI suggestion cards.
 """
@@ -128,6 +134,22 @@ FEEDBACK_WINDOW_DAYS = 30
 
 # Signal types eligible for adaptation
 ADAPTIVE_SIGNAL_TYPES = frozenset({POSSIBLE_COMPLETION})
+
+# ---------------------------------------------------------------------------
+# Phase 5.2: Pattern-level learning constants
+# ---------------------------------------------------------------------------
+
+# Minimum feedback records before pattern adaptation kicks in (higher than signal)
+PATTERN_MIN_FEEDBACK = 5
+
+# Pattern reinforcement: yes_ratio >= this with total >= PATTERN_MIN_FEEDBACK
+PATTERN_REINFORCE_RATIO = 0.75
+
+# Pattern suppression: no_ratio >= this AND no_count >= PATTERN_MIN_FEEDBACK
+PATTERN_SUPPRESS_RATIO = 0.80
+
+# Priority boost for pattern-reinforced signals (same cap applies)
+PATTERN_PRIORITY_BOOST = 0.3  # smaller than signal-level boost
 
 
 # ---------------------------------------------------------------------------
@@ -260,6 +282,83 @@ def _get_feedback_stats(user, signals: List[Dict]) -> Dict[tuple, Dict]:
         return {}
 
 
+def _get_pattern_key(signal: Dict) -> str:
+    """Generate a date-free pattern key for cross-day learning.
+
+    Format: {type}:{domain}:{normalized_item}
+    No date component — accumulates feedback across days.
+    """
+    signal_type = (signal.get("type") or "").strip().lower()
+    domain = (signal.get("domain") or "").strip().lower()
+    item = (signal.get("item") or "").strip().lower()
+    return f"{signal_type}:{domain}:{item}"
+
+
+def _get_pattern_feedback_stats(user, signals: List[Dict]) -> Dict[str, Dict]:
+    """Batch-fetch pattern-level feedback stats (date-free).
+
+    Returns a dict keyed by pattern_key with values:
+        {"yes": int, "no": int, "total": int}
+
+    Groups by (signal_type, domain, item) across all dates within the
+    recency window. Single aggregated query, no N+1.
+    """
+    try:
+        from apps.core.signals.models import SignalFeedback
+    except ImportError:
+        return {}
+
+    # Collect unique pattern keys for eligible signals
+    pattern_keys = {}  # pattern_key → (signal_type, domain, item)
+    for sig in signals:
+        if sig.get("type") in ADAPTIVE_SIGNAL_TYPES:
+            pk = _get_pattern_key(sig)
+            if pk not in pattern_keys:
+                pattern_keys[pk] = (
+                    (sig.get("type") or "").strip().lower(),
+                    (sig.get("domain") or "").strip().lower(),
+                    (sig.get("item") or "").strip().lower(),
+                )
+
+    if not pattern_keys:
+        return {}
+
+    # Build OR filter for all unique (type, domain, item) combos
+    q_filter = Q()
+    for signal_type, domain, item in pattern_keys.values():
+        q_filter |= Q(signal_type=signal_type, domain=domain, item=item or "")
+
+    try:
+        window_start = timezone.now() - timedelta(days=FEEDBACK_WINDOW_DAYS)
+
+        stats_qs = (
+            SignalFeedback.objects
+            .filter(q_filter, user=user, created_at__gte=window_start)
+            .values("signal_type", "domain", "item")
+            .annotate(
+                yes_count=Count("id", filter=Q(response="yes")),
+                no_count=Count("id", filter=Q(response="no")),
+            )
+        )
+
+        result = {}
+        for row in stats_qs:
+            st = row["signal_type"]
+            dom = row["domain"]
+            itm = row["item"] or ""
+            pk = f"{st}:{dom}:{itm}"
+            yes = row["yes_count"]
+            no = row["no_count"]
+            result[pk] = {"yes": yes, "no": no, "total": yes + no}
+
+        return result
+    except Exception:
+        logger.error(
+            "Signal presenter: failed to fetch pattern stats", exc_info=True,
+        )
+        return {}
+
+
 def _apply_adaptive_rules(signal: Dict, stats: Dict) -> Optional[Dict]:
     """Apply Phase 5 adaptive rules to a single signal.
 
@@ -318,21 +417,120 @@ def _apply_adaptive_rules(signal: Dict, stats: Dict) -> Optional[Dict]:
     return signal
 
 
-def _apply_adaptive_tuning(user, signals: List[Dict]) -> List[Dict]:
-    """Apply adaptive tuning to a list of signals.
+def _apply_pattern_rules(signal: Dict, pattern_stats: Dict) -> Optional[Dict]:
+    """Apply Phase 5.2 pattern-level adaptive rules to a single signal.
 
-    Fetches feedback stats once, then applies rules to each signal.
-    Signals that return None from _apply_adaptive_rules are removed.
+    Pattern rules are slower and more conservative than signal-level rules.
+    They require more data (5 vs 3) and higher suppression confidence (80% vs 75%).
+
+    Returns:
+        - Modified signal dict (pattern reinforced) OR
+        - Original signal dict (neutral / not eligible) OR
+        - None (pattern suppressed)
     """
-    stats = _get_feedback_stats(user, signals)
-    if not stats:
-        return signals
+    signal_type = signal.get("type", "")
+
+    # Only adapt eligible signal types
+    if signal_type not in ADAPTIVE_SIGNAL_TYPES:
+        return signal
+
+    pk = _get_pattern_key(signal)
+    feedback = pattern_stats.get(pk)
+
+    # No feedback or below pattern minimum → no change
+    if not feedback or feedback["total"] < PATTERN_MIN_FEEDBACK:
+        return signal
+
+    total = feedback["total"]
+    yes_ratio = feedback["yes"] / total
+    no_ratio = feedback["no"] / total
+
+    # PATTERN SUPPRESSION: consistently rejected across days
+    if feedback["no"] >= PATTERN_MIN_FEEDBACK and no_ratio >= PATTERN_SUPPRESS_RATIO:
+        logger.info(
+            "[ADAPTIVE PATTERN] Suppressing pattern=%s "
+            "(no_ratio=%.2f, no_count=%d, total=%d)",
+            pk, no_ratio, feedback["no"], total,
+        )
+        return None
+
+    # PATTERN REINFORCEMENT: consistently confirmed across days
+    if yes_ratio >= PATTERN_REINFORCE_RATIO:
+        modified = dict(signal)
+        # Only boost if not already boosted by signal-level rules
+        existing_boost = modified.get("_adaptive_priority_boost", 0)
+        pattern_boost = min(PATTERN_PRIORITY_BOOST, ADAPTIVE_MAX_PRIORITY_BOOST)
+        new_boost = min(existing_boost + pattern_boost, ADAPTIVE_MAX_PRIORITY_BOOST)
+        modified["_adaptive_priority_boost"] = new_boost
+        # Allow slightly earlier surfacing (same floor as signal-level)
+        if "_adaptive_min_confidence" not in modified:
+            modified["_adaptive_min_confidence"] = ADAPTIVE_REINFORCED_MIN_CONFIDENCE
+        modified["_pattern_reinforced"] = True
+        logger.info(
+            "[ADAPTIVE PATTERN] Reinforcing pattern=%s "
+            "(yes_ratio=%.2f, total=%d, boost=%.2f)",
+            pk, yes_ratio, total, new_boost,
+        )
+        return modified
+
+    # NEUTRAL: no change
+    return signal
+
+
+def _apply_adaptive_tuning(user, signals: List[Dict]) -> List[Dict]:
+    """Apply dual-layer adaptive tuning to a list of signals.
+
+    Pipeline:
+        1. Fetch signal-level stats (daily fingerprint)
+        2. Apply signal-level rules (Phase 5)
+        3. Fetch pattern-level stats (date-free)
+        4. Apply pattern-level rules (Phase 5.2)
+        5. On conflict: signal-level wins (more specific)
+
+    Signals that return None from either layer are removed.
+    """
+    # Step 1+2: Signal-level adaptation
+    signal_stats = _get_feedback_stats(user, signals)
+    signal_adapted = []
+    signal_decisions = {}  # track signal-level outcomes
+
+    for sig in signals:
+        key = (_get_pattern_key(sig), "signal")
+        adapted = _apply_adaptive_rules(sig, signal_stats)
+        if adapted is None:
+            # Signal-level suppressed — record decision
+            signal_decisions[_get_pattern_key(sig)] = "suppressed"
+        else:
+            was_reinforced = adapted.get("_adaptive_priority_boost", 0) > 0
+            if was_reinforced:
+                signal_decisions[_get_pattern_key(sig)] = "reinforced"
+            signal_adapted.append(adapted)
+
+    # Step 3+4: Pattern-level adaptation (only on surviving signals)
+    pattern_stats = _get_pattern_feedback_stats(user, signal_adapted)
+    if not pattern_stats:
+        return signal_adapted
 
     result = []
-    for sig in signals:
-        adapted = _apply_adaptive_rules(sig, stats)
-        if adapted is not None:
-            result.append(adapted)
+    for sig in signal_adapted:
+        pk = _get_pattern_key(sig)
+
+        # Conflict resolution: if signal-level already made a decision,
+        # pattern-level should not contradict it
+        sig_decision = signal_decisions.get(pk)
+        if sig_decision == "reinforced":
+            # Signal-level reinforced — pattern can add boost but not suppress
+            adapted = _apply_pattern_rules(sig, pattern_stats)
+            if adapted is None:
+                # Pattern wants to suppress but signal-level reinforced → signal wins
+                result.append(sig)
+            else:
+                result.append(adapted)
+        else:
+            # No signal-level decision — pattern rules apply fully
+            adapted = _apply_pattern_rules(sig, pattern_stats)
+            if adapted is not None:
+                result.append(adapted)
 
     return result
 
@@ -592,6 +790,7 @@ def _normalize_presented_output(signals: List[Dict]) -> List[Dict]:
             "question": _build_question(sig),
             "priority": i + 1,
             "adaptive": sig.get("_adaptive_priority_boost", 0) > 0,
+            "pattern_reinforced": bool(sig.get("_pattern_reinforced", False)),
             "ui": {
                 "show": True,
                 "actions": ["yes", "no"],

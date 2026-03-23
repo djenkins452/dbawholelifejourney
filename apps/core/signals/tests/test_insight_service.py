@@ -154,3 +154,62 @@ class TestSignalInsightService(TestCase):
 
         result = get_signal_insights(self.user)
         self.assertEqual(result["reinforced"][0]["label"], "Bible reading")
+
+    # -- Patterns section (Phase 5.2) --
+
+    def test_patterns_key_in_output(self):
+        """Output always includes patterns key."""
+        result = get_signal_insights(self.user)
+        self.assertIn("patterns", result)
+        self.assertEqual(result["patterns"], [])
+
+    def test_pattern_reinforced_classification(self):
+        """5+ yes → pattern classified as reinforced."""
+        for _ in range(5):
+            self._create_feedback(response="yes")
+
+        result = get_signal_insights(self.user)
+        self.assertEqual(len(result["patterns"]), 1)
+        self.assertEqual(result["patterns"][0]["status"], "reinforced")
+        self.assertEqual(result["patterns"][0]["pattern"], "faith:prayer")
+
+    def test_pattern_suppressed_classification(self):
+        """5+ no at 80%+ → pattern classified as suppressed."""
+        for _ in range(5):
+            self._create_feedback(response="no")
+
+        result = get_signal_insights(self.user)
+        self.assertEqual(len(result["patterns"]), 1)
+        self.assertEqual(result["patterns"][0]["status"], "suppressed")
+
+    def test_pattern_neutral_classification(self):
+        """Mixed feedback at 5+ total → pattern neutral."""
+        for _ in range(3):
+            self._create_feedback(response="yes")
+        for _ in range(3):
+            self._create_feedback(response="no")
+
+        result = get_signal_insights(self.user)
+        self.assertEqual(len(result["patterns"]), 1)
+        self.assertEqual(result["patterns"][0]["status"], "neutral")
+
+    def test_pattern_below_threshold_excluded(self):
+        """< 5 total → no pattern entry."""
+        for _ in range(4):
+            self._create_feedback(response="yes")
+
+        result = get_signal_insights(self.user)
+        self.assertEqual(len(result["patterns"]), 0)
+
+    def test_pattern_ratio_correct(self):
+        """Pattern ratio matches yes/total."""
+        for _ in range(8):
+            self._create_feedback(response="yes")
+        for _ in range(2):
+            self._create_feedback(response="no")
+
+        result = get_signal_insights(self.user)
+        self.assertEqual(len(result["patterns"]), 1)
+        self.assertEqual(result["patterns"][0]["ratio"], 0.8)
+        self.assertEqual(result["patterns"][0]["yes"], 8)
+        self.assertEqual(result["patterns"][0]["no"], 2)

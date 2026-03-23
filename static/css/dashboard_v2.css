@@ -1681,3 +1681,8 @@ a.v2-action-title:hover {
     color: var(--color-text-secondary, #6b7280);
     font-size: 0.8125rem;
 }
+
+.v2-insight-pattern {
+    background: var(--color-info-light, #dbeafe);
+    color: var(--color-info-dark, #1e40af);
+}

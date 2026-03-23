@@ -6,6 +6,49 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Phase 5.2: Pattern-Level Learning
+
+**What:** Extended adaptive learning from per-day signals to cross-day behavioral patterns. The system now recognizes repeated confirmations/rejections across time, enabling slower but more reliable adaptation.
+
+**Architecture:**
+- **Dual-layer pipeline:** signal-level (Phase 5, daily) → pattern-level (Phase 5.2, cross-day)
+- Signal-level wins on conflict (more recent, more specific)
+- Pattern rules are deliberately slower: higher thresholds, more data required
+
+**Pattern Constants (conservative by design):**
+- `PATTERN_MIN_FEEDBACK = 5` (vs 3 for signal-level)
+- `PATTERN_REINFORCE_RATIO = 0.75` (same as signal)
+- `PATTERN_SUPPRESS_RATIO = 0.80` (stricter than signal's 0.75)
+- `PATTERN_PRIORITY_BOOST = 0.3` (smaller than signal's 0.5)
+
+**Implementation:**
+- `_get_pattern_key(signal)` — date-free key: `type:domain:item`
+- `_get_pattern_feedback_stats(user, signals)` — batch query with 30-day window, grouped by pattern key
+- `_apply_pattern_rules(signal, pattern_stats)` — reinforcement, suppression, or neutral
+- `_apply_adaptive_tuning()` rewritten as dual-layer: signal→pattern with conflict resolution
+- Insight service extended with `patterns` section using Phase 5.2 thresholds
+- Signal insights UI shows "Patterns" group with per-pattern status
+
+**Safety guards:**
+- Pattern rules NEVER override truth or expectation filters
+- Pattern boost capped by `ADAPTIVE_MAX_PRIORITY_BOOST` (combined with signal boost)
+- Pattern suppression blocked when signal-level already reinforced
+- Confidence floor never below 0.75
+- Only `possible_completion` signals eligible
+
+**Files:**
+- `apps/core/signals/signal_presenter.py` — pattern constants, key gen, stats query, rules, dual-layer tuning
+- `apps/core/signals/insight_service.py` — `_classify_patterns()`, patterns in output
+- `apps/core/signals/tests/test_signal_presenter.py` — 16 new tests (110 total)
+- `apps/core/signals/tests/test_insight_service.py` — 6 new tests (17 total)
+- `apps/dashboard_v2/views.py` — pass patterns to insight template
+- `templates/dashboard_v2/sections/signal_insights.html` — patterns group
+- `static/css/dashboard_v2.css` — pattern label style
+
+**Test results:** 230/230 signal tests pass. 36/36 dashboard_v2 tests pass. No migrations needed.
+
+---
+
 ## 2026-03-22 — Phase 5.1 + UI + Insights (Adaptive Hardening → Confirmation UI → Observability)
 
 **What:** Three-part enhancement: hardened adaptive tuning, added 1-click feedback UI with API, and built read-only insight layer for transparency into what the system is learning.

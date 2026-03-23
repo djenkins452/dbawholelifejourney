@@ -665,6 +665,114 @@ class WorkoutAdapterTest(TestCase):
         self.assertEqual(events[0]["source_system"], "workout_session")
 
 
+class JournalAdapterTest(TestCase):
+    """Test journal compliance adapter — JournalEntry as single source of truth."""
+
+    def setUp(self):
+        self.user = _create_test_user("journal_test@example.com")
+        self.today = date.today()
+        self.day_of_week = self.today.weekday()
+
+    def _create_journal_routine(self):
+        """Create an active routine with a journal item scheduled for today."""
+        from apps.life.models import Routine, RoutineSchedule
+
+        routine = Routine.objects.create(
+            user=self.user, name="Morning Routine",
+            is_active=True, status="active",
+        )
+        item = RoutineSchedule.objects.create(
+            routine=routine, name="journal",
+            scheduled_time=time(7, 0),
+            days_of_week="0,1,2,3,4,5,6",
+        )
+        return routine, item
+
+    def test_entry_exists_marks_completed(self):
+        """JournalEntry exists for date → COMPLETED."""
+        from apps.journal.models import JournalEntry
+
+        self._create_journal_routine()
+
+        JournalEntry.objects.create(
+            user=self.user, entry_date=self.today,
+            title="Journal", body="Today was good.",
+        )
+
+        from apps.dashboard_v2.compliance.adapters.journal import evaluate_journal
+        events = evaluate_journal(self.user, self.today, self.today)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["final_status"], FINAL_COMPLETED)
+        self.assertEqual(events[0]["reason_code"], "completed_via_journal")
+
+    def test_no_entry_marks_missed(self):
+        """No JournalEntry for date → MISSED."""
+        self._create_journal_routine()
+
+        from apps.dashboard_v2.compliance.adapters.journal import evaluate_journal
+        events = evaluate_journal(self.user, self.today, self.today)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["final_status"], FINAL_MISSED)
+        self.assertEqual(events[0]["reason_code"], "not_completed")
+
+    def test_multiple_entries_same_day_still_completed(self):
+        """Multiple JournalEntry records on same day → still COMPLETED."""
+        from apps.journal.models import JournalEntry
+
+        self._create_journal_routine()
+
+        JournalEntry.objects.create(
+            user=self.user, entry_date=self.today,
+            title="Morning", body="Morning thoughts.",
+        )
+        JournalEntry.objects.create(
+            user=self.user, entry_date=self.today,
+            title="Evening", body="Evening reflection.",
+        )
+
+        from apps.dashboard_v2.compliance.adapters.journal import evaluate_journal
+        events = evaluate_journal(self.user, self.today, self.today)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["final_status"], FINAL_COMPLETED)
+        self.assertEqual(events[0]["reason_code"], "completed_via_journal")
+
+    def test_no_journal_routine_returns_empty(self):
+        """No journal routine item → no events (not expected)."""
+        from apps.dashboard_v2.compliance.adapters.journal import evaluate_journal
+        events = evaluate_journal(self.user, self.today, self.today)
+        self.assertEqual(events, [])
+
+    def test_entry_only_on_scheduled_day(self):
+        """Journal entry on unscheduled day doesn't create events."""
+        from apps.journal.models import JournalEntry
+        from apps.life.models import Routine, RoutineSchedule
+
+        routine = Routine.objects.create(
+            user=self.user, name="Weekday Routine",
+            is_active=True, status="active",
+        )
+        # Only Monday (0)
+        RoutineSchedule.objects.create(
+            routine=routine, name="journal",
+            scheduled_time=time(7, 0),
+            days_of_week="0",
+        )
+
+        # If today is not Monday, no event expected even with an entry
+        if self.day_of_week != 0:
+            JournalEntry.objects.create(
+                user=self.user, entry_date=self.today,
+                title="Note", body="Wrote something.",
+            )
+
+            from apps.dashboard_v2.compliance.adapters.journal import evaluate_journal
+            events = evaluate_journal(self.user, self.today, self.today)
+            self.assertEqual(events, [])
+
+
 class EvaluateAndRollupIntegrationTest(TestCase):
     """Test full flow: evaluate → persist → rollup."""
 

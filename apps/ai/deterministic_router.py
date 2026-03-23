@@ -266,8 +266,8 @@ def classify_and_route(message, user, cos_context_cache=None):
         _log_route_decision(result, user, message)
         return result
 
-    # ── Phase 4: Check-in prefilter ───────────────────────────────
-    result = _try_checkin_prefilter(msg_lower)
+    # ── Phase 4: Check-in — deterministic renderer (terminal) ────
+    result = _try_checkin_prefilter(msg_lower, user=user)
     if result is not None:
         result.elapsed_ms = (time.monotonic() - t_start) * 1000
         _log_route_decision(result, user, message)
@@ -508,18 +508,45 @@ def _try_strict_health_status(msg_lower, cos_context_cache):
 # Check-in Prefilter (existing — migrated here)
 # =============================================================================
 
-def _try_checkin_prefilter(msg_lower):
-    """Detect check-in/status queries that should skip intent recognition."""
+def _try_checkin_prefilter(msg_lower, user=None):
+    """Detect check-in/status queries and return deterministic response.
+
+    Phase 5.2+: Check-in is now TERMINAL — the deterministic renderer
+    produces the response directly. The LLM is never involved in
+    generating state descriptions for check-in flows.
+    """
     from apps.ai.personal_assistant import CHECKIN_PATTERNS
 
     if any(p in msg_lower for p in CHECKIN_PATTERNS):
-        return RouteResult(
-            category=RouteCategory.CHECKIN_PREFILTER,
-            response=None,  # Caller must still call _generate_response()
-            route_name='checkin_prefilter',
-            domain=None,  # Cross-domain
-            is_terminal=False,  # Needs LLM
-        )
+        response = None
+        if user is not None:
+            try:
+                from apps.ai.beth_checkin_renderer import render_checkin_for_time
+                response = render_checkin_for_time(user)
+            except Exception:
+                logger.error(
+                    "[ROUTER] Deterministic check-in renderer failed, "
+                    "falling through to LLM",
+                    exc_info=True,
+                )
+
+        if response:
+            return RouteResult(
+                category=RouteCategory.DETERMINISTIC_DATA,
+                response=response,
+                route_name='deterministic_checkin',
+                domain=None,
+                is_terminal=True,
+            )
+        else:
+            # Fallback: non-terminal if renderer failed
+            return RouteResult(
+                category=RouteCategory.CHECKIN_PREFILTER,
+                response=None,
+                route_name='checkin_prefilter',
+                domain=None,
+                is_terminal=False,
+            )
     return None
 
 

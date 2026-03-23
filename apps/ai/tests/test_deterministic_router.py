@@ -513,28 +513,74 @@ class StrictHealthStatusRouteTests(TestCase):
 
 class CheckinPrefilterRouteTests(TestCase):
 
+    @patch('apps.ai.cos_fact_statements.build_locked_facts')
     @patch('apps.core.ai_state.state_engine.get_module_state')
-    def test_checkin_query_detected(self, mock_gms):
+    def test_checkin_query_detected(self, mock_gms, mock_facts):
         mock_gms.return_value = {}
+        mock_facts.return_value = {
+            'faith_summary': '', 'routine_summary': '', 'task_summary': '',
+            'workout_summary': '', 'journal_summary': '', 'overall_summary': '',
+            'next_action': 'Start with Workout.',
+            '_raw': {
+                'prayer_done': False, 'prayer_expected': False,
+                'bible_done': False, 'bible_expected': False,
+                'workout_done': False, 'workout_expected': False,
+                'journal_done': False, 'journal_expected': False,
+                'routine_done': 0, 'routine_total': 0, 'tasks_done': 0,
+            },
+        }
         user = MagicMock()
+        user.id = 1
         result = classify_and_route("what's left for me today?", user)
-        self.assertEqual(result.category, RouteCategory.CHECKIN_PREFILTER)
-        self.assertFalse(result.is_terminal)
-        self.assertIsNone(result.response)
+        # Now terminal — deterministic renderer handles it
+        self.assertEqual(result.category, RouteCategory.DETERMINISTIC_DATA)
+        self.assertTrue(result.is_terminal)
+        self.assertIsNotNone(result.response)
 
+    @patch('apps.ai.cos_fact_statements.build_locked_facts')
     @patch('apps.core.ai_state.state_engine.get_module_state')
-    def test_status_update_detected(self, mock_gms):
+    def test_status_update_detected(self, mock_gms, mock_facts):
         mock_gms.return_value = {}
+        mock_facts.return_value = {
+            'faith_summary': '', 'routine_summary': '', 'task_summary': '',
+            'workout_summary': '', 'journal_summary': '', 'overall_summary': '',
+            'next_action': 'Start with Workout.',
+            '_raw': {
+                'prayer_done': False, 'prayer_expected': False,
+                'bible_done': False, 'bible_expected': False,
+                'workout_done': False, 'workout_expected': False,
+                'journal_done': False, 'journal_expected': False,
+                'routine_done': 0, 'routine_total': 0, 'tasks_done': 0,
+            },
+        }
         user = MagicMock()
+        user.id = 1
         result = classify_and_route("give me a status update", user)
-        self.assertEqual(result.category, RouteCategory.CHECKIN_PREFILTER)
+        # Now terminal — deterministic renderer handles it
+        self.assertEqual(result.category, RouteCategory.DETERMINISTIC_DATA)
+        self.assertTrue(result.is_terminal)
 
+    @patch('apps.ai.cos_fact_statements.build_locked_facts')
     @patch('apps.core.ai_state.state_engine.get_module_state')
-    def test_briefing_detected(self, mock_gms):
+    def test_briefing_detected(self, mock_gms, mock_facts):
         mock_gms.return_value = {}
+        mock_facts.return_value = {
+            'faith_summary': '', 'routine_summary': '', 'task_summary': '',
+            'workout_summary': '', 'journal_summary': '', 'overall_summary': '',
+            'next_action': 'Start with Workout.',
+            '_raw': {
+                'prayer_done': False, 'prayer_expected': False,
+                'bible_done': False, 'bible_expected': False,
+                'workout_done': False, 'workout_expected': False,
+                'journal_done': False, 'journal_expected': False,
+                'routine_done': 0, 'routine_total': 0, 'tasks_done': 0,
+            },
+        }
         user = MagicMock()
+        user.id = 1
         result = classify_and_route("daily briefing", user)
-        self.assertEqual(result.category, RouteCategory.CHECKIN_PREFILTER)
+        self.assertEqual(result.category, RouteCategory.DETERMINISTIC_DATA)
+        self.assertTrue(result.is_terminal)
 
 
 # ==============================================================================

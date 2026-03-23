@@ -103,6 +103,32 @@ class SignalAggregationService:
                     exc_info=True,
                 )
 
+        # Fill zero-activity snapshots for expected signal types that weren't
+        # produced. This keeps signal freshness current ("no activity today"
+        # is itself a valid data point) and prevents false drought alerts.
+        produced_types = {s.signal_type for s in results}
+        _ZERO_FILL_TYPES = [
+            'health_activity', 'health_biometrics', 'medication_adherence',
+            'nutrition_compliance', 'faith_practice', 'mental_reflection',
+            'cognitive_fitness', 'productivity_progress', 'relational_engagement',
+        ]
+        for sig_type in _ZERO_FILL_TYPES:
+            if sig_type not in produced_types:
+                try:
+                    snapshot = SignalAggregationService._upsert_snapshot(
+                        user, date, sig_type,
+                        score=0.0,
+                        confidence=1.0,
+                        signal_class='verified_action',
+                        source_signals={'source': 'zero_fill', 'reason': 'no_activity'},
+                    )
+                    results.append(snapshot)
+                except Exception as e:
+                    logger.debug(
+                        "Zero-fill snapshot %s failed for user %s: %s",
+                        sig_type, user.pk, e,
+                    )
+
         # Phase 7: Blend journal-inferred signals into existing snapshots
         try:
             SignalAggregationService._blend_journal_signals(user, date, results)

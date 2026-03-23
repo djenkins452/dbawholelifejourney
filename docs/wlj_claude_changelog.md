@@ -78,6 +78,20 @@
 
 ---
 
+## 2026-03-22 — Fix Signal Drought: Zero-Activity Snapshot Fill
+
+**Root Cause:** Signal computers returned `None` on days with no user activity, so no SignalSnapshot was created. Old snapshots stayed stale indefinitely (67h-157h), causing persistent SIGNAL_DROUGHT alerts even though "no activity" is itself valid data.
+
+**Fix:** Added a zero-fill step at the end of `compute_daily_signals()`. After all signal computers run, any expected signal type that wasn't produced gets a `score=0.0, confidence=1.0, signal_class='verified_action'` snapshot with `source_signals={'source': 'zero_fill', 'reason': 'no_activity'}`. This keeps signal freshness current across all 9 base signal types (excludes stubbed `financial_health`).
+
+**Files changed:** `apps/core/ai_eae/signal_aggregation.py`
+
+**Impact:** After next nightly signal computation (4:30 AM UTC), all domains will have fresh snapshots. Signal drought alert should auto-resolve. Signal Health status should move from DEGRADED to HEALTHY.
+
+**Tests:** 253 EAE tests + 25 signal health tests pass.
+
+---
+
 ## 2026-03-22 — Fix Ops Wall P2 Incidents: Signal Drought, Low Diversity, Suppression Storm
 
 **Root Cause:** Three linked P2 incidents on Ops Wall caused by signal pipeline noise:

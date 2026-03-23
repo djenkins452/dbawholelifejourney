@@ -149,16 +149,14 @@ def _format_micro_label(item: dict) -> str:
 
 
 def _format_time(time_str: str) -> str:
-    """Convert HH:MM to 12-hour format."""
+    """Convert HH:MM to 12-hour format. Always includes minutes for consistency."""
     try:
         parts = time_str.split(":")
         hour = int(parts[0])
         minute = int(parts[1]) if len(parts) > 1 else 0
         period = "AM" if hour < 12 else "PM"
         display_hour = hour % 12 or 12
-        if minute:
-            return f"{display_hour}:{minute:02d} {period}"
-        return f"{display_hour} {period}"
+        return f"{display_hour}:{minute:02d} {period}"
     except (ValueError, IndexError):
         return time_str
 
@@ -239,8 +237,10 @@ def build_status_response(user) -> str:
             if c not in seen:
                 seen.add(c)
                 unique.append(c)
-        completed_line = "Completed: " + " • ".join(unique)
-        sections.append(completed_line)
+        completed_lines = ["Completed:"]
+        for c in unique:
+            completed_lines.append(f"• {c}")
+        sections.append("\n".join(completed_lines))
 
     # Section 3 — NEXT (REQUIRED)
     if remaining_items:

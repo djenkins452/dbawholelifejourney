@@ -281,6 +281,55 @@ class TestCompletedItems(SimpleTestCase):
         self.assertIn("Prayer", response)
         self.assertIn("Bible Reading", response)
 
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    @patch("apps.core.execution.today_execution.build_today_execution")
+    def test_completed_uses_bullet_format(self, mock_exec, mock_facts):
+        """Completed section must use bullet-per-line, not inline."""
+        mock_facts.return_value = {
+            "_raw": {
+                "prayer_done": True, "prayer_expected": True,
+                "bible_done": True, "bible_expected": True,
+                "workout_done": False, "workout_expected": True,
+                "journal_done": False, "journal_expected": True,
+                "routine_done": 0, "routine_total": 0,
+                "tasks_done": 0,
+            },
+            "next_action": "Start with Workout.",
+        }
+        mock_exec.return_value = {"items": [], "summaries": {"domains": {}, "expected": {}}}
+
+        user = MagicMock()
+        user.id = 1
+        response = build_status_response(user)
+
+        # Each completed item must be on its own line with bullet
+        self.assertIn("Completed:\n• Prayer\n• Bible Reading", response)
+
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    @patch("apps.core.execution.today_execution.build_today_execution")
+    def test_completed_not_inline(self, mock_exec, mock_facts):
+        """Completed items must NOT be comma-separated or inline."""
+        mock_facts.return_value = {
+            "_raw": {
+                "prayer_done": True, "prayer_expected": True,
+                "bible_done": True, "bible_expected": True,
+                "workout_done": False, "workout_expected": True,
+                "journal_done": False, "journal_expected": True,
+                "routine_done": 0, "routine_total": 0,
+                "tasks_done": 0,
+            },
+            "next_action": "Start with Workout.",
+        }
+        mock_exec.return_value = {"items": [], "summaries": {"domains": {}, "expected": {}}}
+
+        user = MagicMock()
+        user.id = 1
+        response = build_status_response(user)
+
+        # Must NOT have inline bullet separation
+        self.assertNotIn("• Prayer • Bible", response)
+        self.assertNotIn("Prayer, Bible", response)
+
 
 # ---------------------------------------------------------------------------
 # 6. Next action
@@ -405,7 +454,7 @@ class TestEdgeCases(SimpleTestCase):
         response = build_status_response(user)
 
         self.assertIn("Medications", response)
-        self.assertIn("10 PM", response)
+        self.assertIn("10:00 PM", response)
 
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
     @patch("apps.core.execution.today_execution.build_today_execution")
@@ -442,7 +491,7 @@ class TestMicroLabels(SimpleTestCase):
     def test_time_label(self):
         item = {"scheduled_time": "22:00"}
         label = _format_micro_label(item)
-        self.assertIn("10 PM", label)
+        self.assertIn("10:00 PM", label)
         self.assertIn("time-critical", label)
 
     def test_importance_label(self):
@@ -475,22 +524,29 @@ class TestMicroLabels(SimpleTestCase):
 class TestTimeFormatting(SimpleTestCase):
 
     def test_morning(self):
-        self.assertEqual(_format_time("09:00"), "9 AM")
+        self.assertEqual(_format_time("09:00"), "9:00 AM")
 
     def test_afternoon(self):
         self.assertEqual(_format_time("14:30"), "2:30 PM")
 
     def test_midnight(self):
-        self.assertEqual(_format_time("00:00"), "12 AM")
+        self.assertEqual(_format_time("00:00"), "12:00 AM")
 
     def test_noon(self):
-        self.assertEqual(_format_time("12:00"), "12 PM")
+        self.assertEqual(_format_time("12:00"), "12:00 PM")
 
     def test_evening(self):
-        self.assertEqual(_format_time("22:00"), "10 PM")
+        self.assertEqual(_format_time("22:00"), "10:00 PM")
 
     def test_with_minutes(self):
         self.assertEqual(_format_time("08:15"), "8:15 AM")
+
+    def test_always_includes_minutes(self):
+        """All times must include minutes, even on the hour."""
+        self.assertIn(":00", _format_time("09:00"))
+        self.assertIn(":00", _format_time("22:00"))
+        self.assertIn(":00", _format_time("12:00"))
+        self.assertIn(":00", _format_time("00:00"))
 
 
 # ---------------------------------------------------------------------------

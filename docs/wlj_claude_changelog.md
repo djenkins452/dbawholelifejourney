@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — Beth Renderer Hardening (Formatting Consistency)
+
+**What:** Two formatting fixes to the Beth status renderer for consistent output.
+
+**Changes:**
+- **Completed section:** Changed from inline bullets (`Completed: • A • B`) to one-per-line bullets for readability and consistency with the remaining-items section
+- **Time formatting:** Always shows minutes (`10:00 PM` instead of `10 PM`) for visual consistency across all time displays
+
+**Files modified:**
+- `apps/ai/beth_status_renderer.py` — completed section format + `_format_time()` always includes minutes
+- `apps/ai/tests/test_beth_status_renderer.py` — updated time assertions, added 3 new tests (bullet format, no-inline, always-minutes)
+
+**Why:** Formatting consistency prevents visual drift and builds user trust in deterministic output.
+
+---
+
 ## 2026-03-22 — Beth Response Contract Enforcement (Status Queries)
 
 **What:** Implemented a strict, deterministic response contract for Beth when answering "What's left today?" and similar status queries. Beth no longer uses the LLM for these queries — responses are rendered directly from execution truth.

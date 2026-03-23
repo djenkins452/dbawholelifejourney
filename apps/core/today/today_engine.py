@@ -55,6 +55,10 @@ def get_today_context(user) -> dict:
     except Exception:
         user_now = timezone.localtime()
 
+    # Normalize to minute boundary — prevents items scheduled at 7:00 AM
+    # from being marked overdue when now is 7:00:32 AM.
+    user_now = user_now.replace(second=0, microsecond=0)
+
     truth = get_execution_truth(user)
     facts = build_locked_facts(user)
     raw = facts.get("_raw", {})

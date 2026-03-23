@@ -88,6 +88,13 @@
     <!-- Section 3: Action Center (replaces Next Action — critical path, inline) -->
     {% include "dashboard_v2/partials/action_center.html" %}
 
+    <!-- Section 3.5: Signal Suggestions (HTMX lazy-load, only if suggestions exist) -->
+    <div id="signal-suggestions-container"
+         hx-get="{% url 'dashboard_v2:section_suggestions' %}"
+         hx-trigger="load delay:300ms"
+         hx-swap="innerHTML">
+    </div>
+
     <!-- Section 4: Today's Execution (critical path, inline) -->
     <section class="v2-section v2-execution-section">
         <h2 class="v2-section-title">
@@ -119,6 +126,12 @@
              hx-swap="innerHTML">
         </div>
     </section>
+
+    <!-- Section 6.5: Signal Insights (HTMX lazy, only renders if feedback exists) -->
+    <div hx-get="{% url 'dashboard_v2:section_signal_insights' %}"
+         hx-trigger="load delay:1.5s"
+         hx-swap="innerHTML">
+    </div>
 
     <!-- Section 7: Celebration (HTMX lazy, only if ready) -->
     {% if has_celebration %}
@@ -205,6 +218,57 @@ document.addEventListener('DOMContentLoaded', function() {
             panel.classList.toggle('v2-collapsed');
             btn.textContent = panel.classList.contains('v2-collapsed') ? 'Show All' : 'Collapse';
         }
+    });
+
+    // Signal suggestion Yes/No handler
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.v2-suggestion-btn');
+        if (!btn) return;
+        e.preventDefault();
+
+        var card = btn.closest('.v2-suggestion-card');
+        if (!card) return;
+
+        var response = btn.dataset.response;
+        var fingerprint = card.dataset.fingerprint;
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (!csrfToken) return;
+
+        // Optimistically remove the card
+        card.style.opacity = '0.5';
+        card.style.pointerEvents = 'none';
+
+        fetch('/api/signals/feedback/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken.value,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                fingerprint: fingerprint,
+                response: response,
+                type: card.dataset.type || '',
+                domain: card.dataset.domain || '',
+                item: card.dataset.item || '',
+                source: card.dataset.source || ''
+            })
+        }).then(function(r) {
+            if (r.ok) {
+                card.remove();
+                // If no more cards, remove the whole section
+                var container = document.getElementById('signal-suggestions');
+                if (container && container.querySelectorAll('.v2-suggestion-card').length === 0) {
+                    container.remove();
+                }
+            } else {
+                card.style.opacity = '1';
+                card.style.pointerEvents = 'auto';
+            }
+        }).catch(function() {
+            card.style.opacity = '1';
+            card.style.pointerEvents = 'auto';
+        });
     });
 });
 </script>

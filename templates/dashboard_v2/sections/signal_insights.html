@@ -1,0 +1,35 @@
+{% if has_insights %}
+<div class="v2-signal-insights">
+    <h3 class="v2-subsection-title">Signal Insights</h3>
+    {% if reinforced %}
+    <div class="v2-insight-group">
+        <span class="v2-insight-label v2-insight-reinforced">Reinforced</span>
+        <ul class="v2-insight-list">
+            {% for r in reinforced %}
+            <li>{{ r.label }} <span class="v2-insight-stats">({{ r.yes }} yes / {{ r.no }} no)</span></li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    {% if suppressed %}
+    <div class="v2-insight-group">
+        <span class="v2-insight-label v2-insight-suppressed">Suppressed</span>
+        <ul class="v2-insight-list">
+            {% for s in suppressed %}
+            <li>{{ s.label }} <span class="v2-insight-stats">({{ s.yes }} yes / {{ s.no }} no)</span></li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    {% if neutral %}
+    <div class="v2-insight-group">
+        <span class="v2-insight-label v2-insight-neutral">Learning</span>
+        <ul class="v2-insight-list">
+            {% for n in neutral %}
+            <li>{{ n.label }} <span class="v2-insight-stats">({{ n.yes }} yes / {{ n.no }} no)</span></li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+{% endif %}

@@ -131,6 +131,8 @@ urlpatterns = [
     path('notes/', include('apps.notes.urls', namespace='notes')),
     # Dashboard V2 — Life Command Center (experimental)
     path('v2/', include('apps.dashboard_v2.urls', namespace='dashboard_v2')),
+    # Signal Feedback & Insights API
+    path('api/signals/', include('apps.core.signals.urls', namespace='signals')),
     # Owner Financial Command Center (superuser only)
     path('owner/finance/', include('apps.owner_finance.urls', namespace='owner_finance')),
     # Referral link redirect (short URL)

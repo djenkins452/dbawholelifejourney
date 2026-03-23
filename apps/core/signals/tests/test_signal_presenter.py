@@ -33,9 +33,11 @@ from apps.core.signals.signal_engine import (
     POSSIBLE_COMPLETION,
 )
 from apps.core.signals.signal_presenter import (
+    ADAPTIVE_MAX_PRIORITY_BOOST,
     ADAPTIVE_MIN_FEEDBACK,
     ADAPTIVE_REINFORCED_MIN_CONFIDENCE,
     ADAPTIVE_SIGNAL_TYPES,
+    FEEDBACK_WINDOW_DAYS,
     MAX_SUGGESTIONS,
     _apply_adaptive_rules,
     _apply_adaptive_tuning,
@@ -44,6 +46,7 @@ from apps.core.signals.signal_presenter import (
     _deduplicate_suggestions,
     _filter_completed_or_unexpected,
     _filter_same_day,
+    _generate_signal_fingerprint,
     _get_feedback_stats,
     _get_item_label,
     _is_completed_in_truth,
@@ -565,8 +568,8 @@ class TestBethHookSafety(SimpleTestCase):
         suggestion = result["suggestions"][0]
         required_keys = {
             "type", "domain", "item", "confidence", "source",
-            "text", "timestamp", "message", "question", "priority",
-            "adaptive",
+            "text", "timestamp", "fingerprint", "message", "question",
+            "priority", "adaptive", "ui",
         }
         self.assertEqual(set(suggestion.keys()), required_keys)
 
@@ -1099,3 +1102,145 @@ class TestAdaptiveSafety(SimpleTestCase):
         # Internal metadata should NOT leak
         self.assertNotIn("_adaptive_priority_boost", suggestion)
         self.assertNotIn("_adaptive_min_confidence", suggestion)
+
+
+# ---------------------------------------------------------------------------
+# 18. Phase 5.1: Suppression floor (requires absolute count)
+# ---------------------------------------------------------------------------
+
+
+class TestSuppressionFloor(SimpleTestCase):
+    """Suppression requires BOTH ratio >= 0.75 AND no_count >= 3."""
+
+    def test_high_ratio_low_count_not_suppressed(self):
+        """2 no out of 2 total (100% no) but count < 3 → NOT suppressed."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        stats = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 0, "no": 2, "total": 2},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNotNone(result)
+
+    def test_high_ratio_meets_count_suppressed(self):
+        """3 no out of 3 total (100% no) and count >= 3 → suppressed."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        stats = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 0, "no": 3, "total": 3},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNone(result)
+
+    def test_ratio_below_threshold_not_suppressed(self):
+        """2 no out of 3 total (66%) → ratio below 0.75, NOT suppressed."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        stats = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 1, "no": 2, "total": 3},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNotNone(result)
+
+
+# ---------------------------------------------------------------------------
+# 19. Phase 5.1: Reinforcement cap
+# ---------------------------------------------------------------------------
+
+
+class TestReinforcementCap(SimpleTestCase):
+    """Priority boost is capped at ADAPTIVE_MAX_PRIORITY_BOOST."""
+
+    def test_boost_does_not_exceed_cap(self):
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        stats = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 50, "no": 0, "total": 50},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNotNone(result)
+        self.assertLessEqual(
+            result["_adaptive_priority_boost"],
+            ADAPTIVE_MAX_PRIORITY_BOOST,
+        )
+
+    def test_max_boost_constant(self):
+        self.assertEqual(ADAPTIVE_MAX_PRIORITY_BOOST, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# 20. Phase 5.1: Recency window
+# ---------------------------------------------------------------------------
+
+
+class TestRecencyWindow(SimpleTestCase):
+    """Feedback window is 30 days."""
+
+    def test_window_constant(self):
+        self.assertEqual(FEEDBACK_WINDOW_DAYS, 30)
+
+
+# ---------------------------------------------------------------------------
+# 21. Fingerprint and UI payload
+# ---------------------------------------------------------------------------
+
+
+class TestPresenterFingerprint(SimpleTestCase):
+    """Presenter output includes fingerprint and ui payload."""
+
+    @patch("apps.core.signals.signal_presenter._get_feedback_stats")
+    @patch("apps.core.signals.signal_presenter._get_execution_truth")
+    @patch("apps.core.signals.signal_presenter._get_raw_signals")
+    def test_fingerprint_in_output(self, mock_raw, mock_truth, mock_stats):
+        now = timezone.now()
+        mock_raw.return_value = {
+            "signals": [
+                _make_signal(domain="faith", item="prayer",
+                             confidence=0.90, timestamp=now),
+            ]
+        }
+        mock_truth.return_value = _make_truth()
+        mock_stats.return_value = {}
+
+        user = MagicMock()
+        user.id = 1
+        result = get_presented_signals(user)
+
+        suggestion = result["suggestions"][0]
+        self.assertIn("fingerprint", suggestion)
+        self.assertEqual(len(suggestion["fingerprint"]), 32)
+
+    @patch("apps.core.signals.signal_presenter._get_feedback_stats")
+    @patch("apps.core.signals.signal_presenter._get_execution_truth")
+    @patch("apps.core.signals.signal_presenter._get_raw_signals")
+    def test_ui_payload_in_output(self, mock_raw, mock_truth, mock_stats):
+        now = timezone.now()
+        mock_raw.return_value = {
+            "signals": [
+                _make_signal(domain="faith", item="prayer",
+                             confidence=0.90, timestamp=now),
+            ]
+        }
+        mock_truth.return_value = _make_truth()
+        mock_stats.return_value = {}
+
+        user = MagicMock()
+        user.id = 1
+        result = get_presented_signals(user)
+
+        suggestion = result["suggestions"][0]
+        self.assertIn("ui", suggestion)
+        self.assertTrue(suggestion["ui"]["show"])
+        self.assertEqual(suggestion["ui"]["actions"], ["yes", "no"])
+
+    def test_fingerprint_deterministic(self):
+        now = timezone.now()
+        sig = _make_signal(domain="faith", item="prayer", timestamp=now)
+        fp1 = _generate_signal_fingerprint(sig)
+        fp2 = _generate_signal_fingerprint(sig)
+        self.assertEqual(fp1, fp2)
+
+    def test_fingerprint_varies_by_domain(self):
+        now = timezone.now()
+        sig1 = _make_signal(domain="faith", item="prayer", timestamp=now)
+        sig2 = _make_signal(domain="health", item="workout", timestamp=now)
+        self.assertNotEqual(
+            _generate_signal_fingerprint(sig1),
+            _generate_signal_fingerprint(sig2),
+        )

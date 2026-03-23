@@ -1,0 +1,22 @@
+{% if suggestions %}
+<section class="v2-section v2-suggestions-section" id="signal-suggestions">
+    <h2 class="v2-section-title">Quick Confirmations</h2>
+    <div class="v2-suggestions-list">
+        {% for s in suggestions %}
+        <div class="v2-suggestion-card"
+             id="suggestion-{{ s.fingerprint|truncatechars:12 }}"
+             data-fingerprint="{{ s.fingerprint }}"
+             data-type="{{ s.type }}"
+             data-domain="{{ s.domain }}"
+             data-item="{{ s.item }}"
+             data-source="{{ s.source }}">
+            <div class="v2-suggestion-text">{{ s.question }}</div>
+            <div class="v2-suggestion-actions">
+                <button class="v2-suggestion-btn v2-btn-yes" data-response="yes">Yes</button>
+                <button class="v2-suggestion-btn v2-btn-no" data-response="no">No</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}

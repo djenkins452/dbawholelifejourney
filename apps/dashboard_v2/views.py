@@ -151,6 +151,56 @@ class ActionCenterSectionView(LoginRequiredMixin, View):
         return HttpResponse(html)
 
 
+class SuggestionsSectionView(LoginRequiredMixin, View):
+    """HTMX endpoint for signal suggestion cards."""
+
+    def get(self, request):
+        try:
+            from apps.core.signals.signal_presenter import get_presented_signals
+
+            result = get_presented_signals(request.user)
+            suggestions = result.get("suggestions", [])
+        except Exception:
+            logger.error("Suggestions section: presenter failed", exc_info=True)
+            suggestions = []
+
+        html = render_to_string(
+            "dashboard_v2/sections/suggestions.html",
+            {"suggestions": suggestions, "request": request},
+            request=request,
+        )
+        return HttpResponse(html)
+
+
+class SignalInsightsSectionView(LoginRequiredMixin, View):
+    """HTMX endpoint for signal insight panel."""
+
+    def get(self, request):
+        try:
+            from apps.core.signals.insight_service import get_signal_insights
+
+            insights = get_signal_insights(request.user)
+        except Exception:
+            logger.error("Signal insights section failed", exc_info=True)
+            insights = {"reinforced": [], "suppressed": [], "neutral": []}
+
+        has_insights = bool(
+            insights["reinforced"] or insights["suppressed"] or insights["neutral"]
+        )
+        html = render_to_string(
+            "dashboard_v2/sections/signal_insights.html",
+            {
+                "has_insights": has_insights,
+                "reinforced": insights["reinforced"],
+                "suppressed": insights["suppressed"],
+                "neutral": insights["neutral"],
+                "request": request,
+            },
+            request=request,
+        )
+        return HttpResponse(html)
+
+
 # Backward compat alias
 NextActionSectionView = ActionCenterSectionView
 

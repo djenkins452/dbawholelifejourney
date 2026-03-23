@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — Phase 4.1 Signal Feedback Integrity Hardening
+
+**What:** Hardened the Phase 4 feedback system with idempotency guards, fingerprint normalization, handler abstraction, and a 5-gate execution bridge.
+
+**Changes:**
+- **Idempotency guard:** Execution truth pre-check before triggering completion — prevents duplicate actions when user confirms same signal twice
+- **Fingerprint normalization:** All fields (type, domain, item) lowercased and stripped before hashing — "Prayer" and "prayer" now produce identical fingerprints
+- **Field normalization:** DB records store normalized values (lowercase, stripped) for consistent querying
+- **Handler abstraction:** `_COMPLETION_HANDLERS` dict maps `(domain, item)` → handler function — extensible for future domains without modifying core logic
+- **5-gate execution bridge:** Completion only fires when: (1) valid response, (2) possible_completion type, (3) yes response, (4) handler exists, (5) not already completed
+- **Tests expanded:** 31 test cases (up from 17) covering idempotency, normalization, context binding, handler routing, response filtering, and gate validation
+
+**Files:**
+- `apps/core/signals/feedback_service.py` (hardened)
+- `apps/core/signals/tests/test_signal_feedback.py` (expanded)
+
+---
+
 ## 2026-03-22 — Phase 4 Signal Feedback: Confirmation + Learning Loop
 
 **What:** Introduced a controlled feedback loop that captures explicit user confirmation/rejection of behavioral signals detected by the Phase 2/3 signal pipeline. The system only learns from direct yes/no responses — no inference, no guessing.

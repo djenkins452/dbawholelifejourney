@@ -51,6 +51,17 @@ urlpatterns = [
         views.SignalInsightsSectionView.as_view(),
         name="section_signal_insights",
     ),
+    # Morning reconciliation (HTMX lazy-load + POST response)
+    path(
+        "sections/reconciliation/",
+        views.ReconciliationSectionView.as_view(),
+        name="section_reconciliation",
+    ),
+    path(
+        "reconciliation/respond/",
+        views.ReconciliationRespondView.as_view(),
+        name="reconciliation_respond",
+    ),
     # Inline action endpoints
     path(
         "actions/task/<int:pk>/toggle/",

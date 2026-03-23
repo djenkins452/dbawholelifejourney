@@ -208,6 +208,109 @@ class SignalInsightsSectionView(LoginRequiredMixin, View):
 NextActionSectionView = ActionCenterSectionView
 
 
+# ── Morning Reconciliation ──────────────────────────────────────────
+
+
+class ReconciliationSectionView(LoginRequiredMixin, View):
+    """HTMX endpoint for morning reconciliation (yesterday's missing items)."""
+
+    def get(self, request):
+        try:
+            from apps.life.services.morning_reconciliation import (
+                get_reconciliation_context,
+            )
+
+            ctx = get_reconciliation_context(request.user)
+        except Exception:
+            logger.error("Reconciliation section failed", exc_info=True)
+            ctx = {"show": False, "items": [], "yesterday_date": ""}
+
+        html = render_to_string(
+            "dashboard_v2/sections/reconciliation.html",
+            {"reconciliation": ctx, "request": request},
+            request=request,
+        )
+        return HttpResponse(html)
+
+
+class ReconciliationRespondView(LoginRequiredMixin, View):
+    """POST endpoint for reconciliation item responses.
+
+    Accepts: schedule_id, response (on_schedule, later, skip), date (yesterday).
+    Routes through existing execution services — never creates new logic paths.
+    """
+
+    def post(self, request):
+        from datetime import date as _date_cls
+
+        from apps.life.models import RoutineSchedule
+        from apps.life.services.morning_reconciliation import (
+            get_yesterdays_missing_items,
+            mark_reconciliation_shown,
+        )
+
+        schedule_id = request.POST.get("schedule_id")
+        response_type = request.POST.get("response")
+        date_str = request.POST.get("date")
+
+        if not schedule_id or response_type not in ("on_schedule", "later", "skip"):
+            return JsonResponse(
+                {"success": False, "error": "Invalid parameters"}, status=400
+            )
+
+        try:
+            target_date = _date_cls.fromisoformat(date_str) if date_str else None
+        except (ValueError, TypeError):
+            return JsonResponse(
+                {"success": False, "error": "Invalid date"}, status=400
+            )
+
+        if not target_date:
+            from apps.core.utils import get_user_today
+            from datetime import timedelta
+
+            target_date = get_user_today(request.user) - timedelta(days=1)
+
+        schedule = get_object_or_404(
+            RoutineSchedule.objects.select_related("routine"),
+            pk=schedule_id,
+            routine__user=request.user,
+        )
+
+        if response_type == "on_schedule":
+            from apps.life.services.routine_helpers import toggle_routine_completion
+
+            result = toggle_routine_completion(
+                request.user, schedule, target_date,
+                completion_mode="scheduled",
+            )
+        elif response_type == "later":
+            from apps.life.services.routine_helpers import toggle_routine_completion
+
+            result = toggle_routine_completion(
+                request.user, schedule, target_date,
+                completion_mode="late",
+            )
+        elif response_type == "skip":
+            from apps.life.services.routine_helpers import skip_routine
+
+            skip_routine(request.user, schedule, target_date)
+            result = {"status": "skipped"}
+
+        # Check if all items are now resolved — if so, mark reconciliation done
+        remaining = get_yesterdays_missing_items(request.user)
+        if not remaining:
+            mark_reconciliation_shown(request.user)
+
+        return JsonResponse({
+            "success": True,
+            "schedule_id": int(schedule_id),
+            "response": response_type,
+            "status": result.get("status", ""),
+            "remaining": len(remaining),
+        })
+
+
 # ── Action Endpoints ─────────────────────────────────────────────────
 
 

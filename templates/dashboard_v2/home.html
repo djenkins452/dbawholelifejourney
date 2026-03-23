@@ -71,6 +71,13 @@
     </section>
     {% endif %}
 
+    <!-- Morning Reconciliation (HTMX lazy-load, only renders if missing items exist) -->
+    <div id="reconciliation-container"
+         hx-get="{% url 'dashboard_v2:section_reconciliation' %}"
+         hx-trigger="load delay:200ms"
+         hx-swap="innerHTML">
+    </div>
+
     <!-- Section 2: Daily Progress + Weather (side by side) -->
     <div class="v2-progress-weather-row">
         <section class="v2-section v2-progress-section" style="margin-bottom: 0;">
@@ -218,6 +225,48 @@ document.addEventListener('DOMContentLoaded', function() {
             panel.classList.toggle('v2-collapsed');
             btn.textContent = panel.classList.contains('v2-collapsed') ? 'Show All' : 'Collapse';
         }
+    });
+
+    // Morning reconciliation response handler
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.v2-reconcile-btn');
+        if (!btn) return;
+        e.preventDefault();
+
+        var card = btn.closest('.v2-reconciliation-item');
+        if (!card) return;
+
+        var scheduleId = btn.dataset.scheduleId;
+        var response = btn.dataset.response;
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (!csrfToken) return;
+
+        card.classList.add('resolved');
+
+        var formData = new FormData();
+        formData.append('schedule_id', scheduleId);
+        formData.append('response', response);
+
+        fetch('{% url "dashboard_v2:reconciliation_respond" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken.value,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            if (data.success) {
+                card.remove();
+                if (data.remaining === 0) {
+                    var section = document.getElementById('morning-reconciliation');
+                    if (section) section.remove();
+                }
+            } else {
+                card.classList.remove('resolved');
+            }
+        }).catch(function() {
+            card.classList.remove('resolved');
+        });
     });
 
     // Signal suggestion Yes/No handler

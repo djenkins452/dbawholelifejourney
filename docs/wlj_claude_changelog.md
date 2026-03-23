@@ -6,6 +6,31 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Morning Reconciliation (Yesterday's Missing Items)
+
+**What:** Added a morning-only reconciliation layer on the dashboard that identifies routine items from yesterday that were expected but not completed, and lets the user confirm what actually happened with one tap per item. Beth asks once in the morning and records the user's response through existing execution services.
+
+**Why:** Closes "missing truth" gaps where users performed routines but didn't log them. Without this, those items count as missed in signals and CoS, degrading accuracy.
+
+**Key changes:**
+- Morning reconciliation service finds yesterday's unresolved binary routine items
+- HTMX lazy-loaded section on dashboard v2, positioned before daily progress
+- Per-item response buttons: "On Schedule" / "Later" / "Skip"
+- Routes all responses through existing `toggle_routine_completion()` and `skip_routine()`
+- Once-per-day idempotency via cache key (user + date)
+- Morning-only gate (before noon in user timezone)
+- Max 5 items, sorted by scheduled time ascending
+- Activity-based routines excluded (handled by auto-complete signals)
+- 17 new tests covering all scenarios
+
+**Files:**
+- `apps/life/services/morning_reconciliation.py` — Service: get_yesterdays_missing_items(), should_show_reconciliation(), get_reconciliation_context()
+- `apps/dashboard_v2/views.py` — ReconciliationSectionView (HTMX GET), ReconciliationRespondView (POST)
+- `apps/dashboard_v2/urls.py` — Added section_reconciliation and reconciliation_respond URLs
+- `templates/dashboard_v2/sections/reconciliation.html` — Reconciliation UI with per-item buttons
+- `templates/dashboard_v2/home.html` — HTMX lazy-load slot + JS handler for responses
+- `apps/life/tests/test_morning_reconciliation.py` — 17 tests
+
 ## 2026-03-23 — Routine Execution Truth Fix (performed_at + timing + medicine-style UX)
 
 **What:** Fixed routine tracking to capture when the activity actually happened, not just when the user clicked. Added `performed_at` (actual activity time) and `timing` (on_time/late/early) fields to RoutineLog, keeping `completed_at` as the click timestamp. Mirrors the medicine "Took at Scheduled Time" UX pattern with per-item and section-level bulk action buttons.

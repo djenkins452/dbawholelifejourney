@@ -4747,12 +4747,14 @@ def format_cos_system_injection(context, user_message=None):
                 CoSSituationState.MODE_MORNING_ORIENTATION: (
                     "SESSION MODE: MORNING ORIENTATION. "
                     "This is the first interaction today or a significant gap. "
-                    "Deliver the Daily Brief using signal-first structure: "
-                    "1) Describe behavioral signals across domains (strong, moderate, needs attention). "
-                    "2) Interpret momentum trajectory (rising, stable, falling). "
-                    "3) Briefly note operational status (tasks, routines) as supporting evidence. "
-                    "4) Suggest one priority focus with A/B/C options. "
-                    "5) Ask one high-leverage question. "
+                    "Deliver the Daily Brief using DATA-FIRST structure: "
+                    "1) State EXACTLY what is completed and what is pending using the LOCKED FACTS above. "
+                    "Name specific items (prayer, Bible reading, workout, tasks) by their actual status. "
+                    "2) State what is coming up next with times if available. "
+                    "3) State the NEXT ACTION from the locked facts. "
+                    "DO NOT describe 'behavioral signals', 'momentum', or 'trajectory'. "
+                    "DO NOT say things like 'sets a solid tone' or 'keep the momentum'. "
+                    "DO NOT infer or fabricate completion status — use ONLY the locked facts. "
                     "After this message, switch to a lighter conversational mode."
                 ),
                 CoSSituationState.MODE_MIDDAY_CHECKPOINT: (
@@ -4807,12 +4809,13 @@ def format_cos_system_injection(context, user_message=None):
                 lines.append(
                     "SESSION MODE: DAILY ORIENTATION. "
                     "This is the first interaction today or 4+ hours have passed. "
-                    "Deliver the Daily Brief using signal-first structure: "
-                    "1) Describe behavioral signals across domains (strong, moderate, needs attention). "
-                    "2) Interpret momentum trajectory (rising, stable, falling). "
-                    "3) Briefly note operational status (tasks, routines) as supporting evidence. "
-                    "4) Suggest one priority focus with A/B/C options. "
-                    "5) Ask one high-leverage question. "
+                    "Deliver the Daily Brief using DATA-FIRST structure: "
+                    "1) State EXACTLY what is completed and what is pending using the LOCKED FACTS above. "
+                    "Name specific items by their actual status. "
+                    "2) State what is coming up next with times if available. "
+                    "3) State the NEXT ACTION from the locked facts. "
+                    "DO NOT describe 'behavioral signals', 'momentum', or 'trajectory'. "
+                    "DO NOT fabricate completion status — use ONLY the locked facts. "
                     "After this message, switch to LIGHT mode for the rest of the session."
                 )
             else:

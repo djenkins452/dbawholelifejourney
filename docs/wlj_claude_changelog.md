@@ -185,6 +185,47 @@
 
 ---
 
+## 2026-03-23 — CRITICAL: Deterministic Check-in Renderer + State Guard
+
+**What:** Fixed Beth fabricating completion status in morning check-ins. The LLM was generating state descriptions ("You've completed your prayer and Bible reading, which sets a solid tone") instead of reading from execution truth. Now ALL check-in/briefing flows use a deterministic renderer — the LLM is never involved in generating state.
+
+**Root cause:** The morning briefing used `_generate_response(message="briefing")` which went through the full LLM pipeline. The SESSION_MODE: MORNING_ORIENTATION instruction told the LLM to "describe behavioral signals" and "interpret momentum trajectory" — producing generic, often fabricated state descriptions.
+
+**Three-layer fix:**
+
+### 1. Deterministic Check-in Renderer (`apps/ai/beth_checkin_renderer.py` — NEW)
+- `render_morning_checkin(user)` / `render_checkin_for_time(user)` — builds check-in from ONLY execution truth data
+- Output format: `Completed: [items] / Upcoming: [items] / Next: [action]`
+- No coaching, no commentary, no interpretation
+- Fail-closed: returns safe fallback on any error
+
+### 2. Router + Briefing Enforcement
+- `deterministic_router.py`: check-in prefilter now TERMINAL — returns deterministic renderer output directly, LLM never called
+- `personal_assistant.py`: `generate_proactive_briefing()` now uses `render_checkin_for_time()` instead of `_generate_response()` — daily briefings are deterministic
+- State guard: `guard_llm_output()` runs on ALL LLM responses — if output contains state language ("you completed", "keep the momentum"), it's blocked and replaced with deterministic check-in
+
+### 3. SESSION_MODE Rewrite
+- MORNING_ORIENTATION instruction rewritten: DATA-FIRST structure instead of signal-first
+- Explicit bans: "DO NOT describe behavioral signals, momentum, or trajectory"
+- Legacy daily_brief fallback also rewritten with same rules
+
+**State guard patterns blocked:**
+- "you completed" / "you've completed" / "you have done"
+- "keep the momentum" / "sets a solid tone" / "great start"
+- "you still need" / "on your plate" / "your remaining"
+
+**Files:**
+- `apps/ai/beth_checkin_renderer.py` — NEW: deterministic renderer + state guard
+- `apps/ai/deterministic_router.py` — terminal check-in route
+- `apps/ai/personal_assistant.py` — deterministic briefing + state guard on all output
+- `apps/ai/tests/test_beth_checkin_renderer.py` — NEW: 18 tests
+- `apps/ai/tests/test_deterministic_router.py` — updated 3 tests for terminal routes
+- `apps/core/ai_orchestrator/cos_context.py` — data-first session mode instructions
+
+**Test results:** 18/18 renderer tests pass. 110/110 signal tests pass. No migrations needed.
+
+---
+
 ## 2026-03-23 — Phase 5.2: Pattern-Level Learning
 
 **What:** Extended adaptive learning from per-day signals to cross-day behavioral patterns. The system now recognizes repeated confirmations/rejections across time, enabling slower but more reliable adaptation.

@@ -714,79 +714,36 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             # ── v7.1 Part 5: Determine delivery reason ────────────────
             delivery_reason = 'first_open' if is_first_of_day else 'return_after_gap'
 
-            # ── Generate through full CoS pipeline ─────────────────────
-            # "briefing" matches CHECKIN_PATTERNS → triggers full check-in
-            # path in _generate_response() with task/goal/med data injection,
-            # history drop, executive briefing context, and all v4-v6
-            # hallucination protections.
+            # ── Generate deterministic briefing (no LLM) ───────────────
+            # Phase 5.2+: Daily briefings are now rendered deterministically
+            # from execution truth data. The LLM is NOT involved in
+            # generating state descriptions — it fabricates completions.
             logger.info(
-                "v7_BRIEFING_GENERATE user=%s reason=%s",
+                "v7_BRIEFING_GENERATE user=%s reason=%s method=deterministic",
                 self.user.id, delivery_reason,
             )
-            response_text = self._generate_response(
-                message="briefing",
-                conversation=conversation,
-                _defer_briefing_marking=True,  # We handle marking after quality checks
-            )
+            try:
+                from apps.ai.beth_checkin_renderer import render_checkin_for_time
+                response_text = render_checkin_for_time(self.user)
+            except Exception:
+                logger.error(
+                    "v7_BRIEFING_RENDERER_FAIL user=%s — deterministic "
+                    "renderer failed, using safe fallback",
+                    self.user.id, exc_info=True,
+                )
+                from apps.ai.beth_checkin_renderer import _SAFE_FALLBACK
+                response_text = _SAFE_FALLBACK
 
-            # Detect fallback responses — don't save these as briefings.
-            # Because build_executive_briefing() no longer marks
-            # last_briefing_date prematurely, returning None here is
-            # safe — the next message will get a fresh briefing attempt.
-            if not response_text or len(response_text) < 50:
+            if not response_text or len(response_text) < 20:
                 logger.warning(
-                    "v7_BRIEFING_FALLBACK user=%s len=%s — LLM returned "
-                    "short/empty response. Briefing not delivered; will "
-                    "retry on next interaction.",
+                    "v7_BRIEFING_FALLBACK user=%s len=%s — renderer returned "
+                    "short/empty response. Will retry on next interaction.",
                     self.user.id, len(response_text) if response_text else 0,
                 )
                 return None
 
-            # Check for known fallback patterns — only on SHORT responses.
-            # Long responses (200+ chars) contain real briefing data even if
-            # they include a closing phrase like "How can I help you today?".
-            # The executive briefing instruction explicitly asks the LLM to
-            # end with an inviting question, so these phrases are expected in
-            # valid briefings. The gate targets truly generic responses where
-            # the fallback phrase IS the entire response.
-            _fallback_indicators = [
-                # Old generic phrases (LLM-generated or legacy fallbacks)
-                "What do you need to get done",
-                "What's the priority right now",
-                "What's blocking progress",
-                "I'm here to help",
-                "I'm here to assist",
-                "Let's think about what would help",
-                "What can I help you move forward on",
-                "How can I help",
-                "What needs your attention",
-                "What's still on your plate",
-                "What's on your list",
-                # New fallback strings (may contain real data but LLM was unavailable)
-                "I'm having trouble connecting to AI right now",
-                "I'm unable to load your status right now",
-                # Legacy fallback strings
-                "I wasn't able to pull your data",
-                "Something went wrong on my end",
-                "I hit a snag pulling your information",
-                "I ran into an issue loading your status",
-                "Something didn't connect right",
-            ]
-            if len(response_text) < 200 and any(
-                ind in (response_text or '') for ind in _fallback_indicators
-            ):
-                logger.warning(
-                    "v7_BRIEFING_FALLBACK_PATTERN user=%s len=%s — LLM generated "
-                    "a short generic response instead of a data-rich briefing. "
-                    "Briefing not delivered; will retry on next interaction. "
-                    "Preview: %s",
-                    self.user.id, len(response_text),
-                    (response_text or '')[:120],
-                )
-                return None
-
             logger.info(
-                "v7_BRIEFING_ACCEPTED user=%s len=%s",
+                "v7_BRIEFING_ACCEPTED user=%s len=%s method=deterministic",
                 self.user.id, len(response_text),
             )
 
@@ -1760,6 +1717,13 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                 "— truth validation could not run on non-stream response",
                 self.user.id, _val_outer_err, exc_info=True,
             )
+
+        # ── State guard: block LLM-fabricated state descriptions ──
+        try:
+            from apps.ai.beth_checkin_renderer import guard_llm_output
+            response = guard_llm_output(response, self.user)
+        except Exception:
+            pass  # Guard failure must never break chat
 
         # Save assistant response
         msg_type = 'action' if actions_taken else 'text'

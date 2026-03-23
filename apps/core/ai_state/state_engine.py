@@ -88,7 +88,16 @@ def rebuild_user_state(user):
     state_obj, _ = UserState.objects.get_or_create(user=user)
     state = {}
 
+    # Modules that read already-built state from DB (composite builders).
+    # We flush to DB once before these run, then once at the end.
+    composite_modules = {"transformation"}
+
     for module, builder in get_all_builders().items():
+        if module in composite_modules:
+            # Flush accumulated state so composite builder can read it.
+            state_obj.state_data = state
+            state_obj.save()
+
         try:
             state[module] = builder(user)
         except Exception as e:
@@ -98,10 +107,9 @@ def rebuild_user_state(user):
             )
             state[module] = {}
 
-        # Save incrementally so composite builders (e.g. transformation)
-        # can read already-built modules from the database.
-        state_obj.state_data = state
-        state_obj.save()
+    # Final save with complete state.
+    state_obj.state_data = state
+    state_obj.save()
 
     return state
 

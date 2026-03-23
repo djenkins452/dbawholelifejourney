@@ -2333,3 +2333,6 @@ from apps.core.drift.models import (  # noqa: E402, F401
 )
 
 from apps.core.ai_config import AIThresholdConfig  # noqa: E402, F401
+
+# Phase 4 Signal — Feedback loop model
+from apps.core.signals.models import SignalFeedback  # noqa: E402, F401

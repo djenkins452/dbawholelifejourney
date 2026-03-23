@@ -118,6 +118,32 @@ class ComplianceEvent(models.Model):
         help_text="If this event was satisfied by another event",
     )
 
+    # ── Obligation reconciliation ──
+    obligation_key = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text=(
+            "Deterministic key grouping events that represent the same "
+            "real-world obligation. Events sharing a key are reconciled "
+            "so only one is score-bearing."
+        ),
+    )
+    is_primary = models.BooleanField(
+        default=True,
+        help_text=(
+            "True if this event counts toward rollup scoring. "
+            "Suppressed duplicates have is_primary=False."
+        ),
+    )
+    suppression_reason = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="Why this event was suppressed from scoring (empty = not suppressed)",
+    )
+
     # ── Timestamps ──
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -129,6 +155,7 @@ class ComplianceEvent(models.Model):
             models.Index(fields=["user", "scoring_bucket", "event_date"]),
             models.Index(fields=["user", "domain", "event_date"]),
             models.Index(fields=["user", "final_status", "event_date"]),
+            models.Index(fields=["user", "obligation_key"]),
         ]
 
     def __str__(self):
@@ -148,3 +175,14 @@ class ComplianceEvent(models.Model):
         """Human-readable final status."""
         from apps.dashboard_v2.compliance.constants import FINAL_STATUS_LABELS
         return FINAL_STATUS_LABELS.get(self.final_status, self.final_status)
+
+    @property
+    def suppression_label(self):
+        """Human-readable suppression explanation."""
+        from apps.dashboard_v2.compliance.constants import SUPPRESSION_LABELS
+        return SUPPRESSION_LABELS.get(self.suppression_reason, "")
+
+    @property
+    def is_suppressed(self):
+        """True if this event is suppressed from scoring."""
+        return not self.is_primary and bool(self.suppression_reason)

@@ -196,6 +196,27 @@
     color: var(--color-text);
 }
 
+/* Suppressed row */
+.compliance-row.suppressed {
+    opacity: 0.55;
+    border-style: dashed;
+}
+.compliance-suppressed-note {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-style: italic;
+    margin-top: 2px;
+}
+.compliance-linked-badge {
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #f0f0f0;
+    color: #888;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
 /* Empty state */
 .compliance-empty {
     text-align: center;
@@ -293,27 +314,58 @@
                 {{ group.date|date:"l, M j" }}
             </div>
             {% for item in group.items %}
-            <div class="compliance-row" data-detail-id="detail-{{ item.id }}">
+            <div class="compliance-row {% if item.is_suppressed %}suppressed{% endif %}" data-detail-id="detail-{{ item.id }}">
                 <div class="compliance-row-status status-{{ item.final_status }}"></div>
                 <div class="compliance-row-main">
                     <div class="compliance-row-label">{{ item.item_label }}</div>
                     {% if item.expected_at %}
                     <div class="compliance-row-time">{{ item.expected_at|time:"g:i A" }}</div>
                     {% endif %}
+                    {% if item.is_suppressed %}
+                    <div class="compliance-suppressed-note">
+                        {% if item.reason_detail.satisfied_by_label %}
+                            Satisfied by {{ item.reason_detail.satisfied_by_label }} &mdash; not counted separately
+                        {% else %}
+                            Not counted separately (linked obligation)
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
+                {% if item.is_suppressed %}
+                <span class="compliance-linked-badge">Linked</span>
+                {% else %}
                 <div class="compliance-row-badge badge-{{ item.final_status }}">
                     {{ item.final_status_label }}
                 </div>
+                {% endif %}
             </div>
             <div class="compliance-row-detail" id="detail-{{ item.id }}">
                 <div class="compliance-detail-row">
                     <span class="compliance-detail-key">Status</span>
-                    <span class="compliance-detail-value">{{ item.final_status_label }}</span>
+                    <span class="compliance-detail-value">{{ item.final_status_label }}{% if item.is_suppressed %} (not counted separately){% endif %}</span>
                 </div>
                 <div class="compliance-detail-row">
                     <span class="compliance-detail-key">Reason</span>
                     <span class="compliance-detail-value">{{ item.reason_label }}</span>
                 </div>
+                {% if item.is_suppressed and item.suppression_label %}
+                <div class="compliance-detail-row">
+                    <span class="compliance-detail-key">Linked</span>
+                    <span class="compliance-detail-value">{{ item.suppression_label }}</span>
+                </div>
+                {% endif %}
+                {% if item.reason_detail.satisfied_by_label %}
+                <div class="compliance-detail-row">
+                    <span class="compliance-detail-key">Satisfied By</span>
+                    <span class="compliance-detail-value">{{ item.reason_detail.satisfied_by_label }}</span>
+                </div>
+                {% endif %}
+                {% if item.reason_detail.original_status %}
+                <div class="compliance-detail-row">
+                    <span class="compliance-detail-key">Original</span>
+                    <span class="compliance-detail-value">{{ item.reason_detail.original_status|title }}</span>
+                </div>
+                {% endif %}
                 <div class="compliance-detail-row">
                     <span class="compliance-detail-key">Domain</span>
                     <span class="compliance-detail-value">{{ item.domain|title }}</span>

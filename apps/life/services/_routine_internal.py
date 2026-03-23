@@ -121,6 +121,24 @@ def get_todays_routine_items(user):
             else:
                 status = 'pending'
 
+        # Completion source + traceability
+        completion_source = getattr(log, 'completion_source', 'manual') if log else None
+        source_object_id = getattr(log, 'source_object_id', None) if log else None
+
+        # Build completion-via label for activity-driven completions
+        completion_via_label = None
+        if completion_source and completion_source != 'manual':
+            completed_at_str = ''
+            if log and log.completed_at:
+                try:
+                    completed_at_str = f" at {log.completed_at.strftime('%I:%M %p').lstrip('0')}"
+                except Exception:
+                    pass
+            source_label = dict(getattr(
+                log, 'COMPLETION_SOURCE_CHOICES', []
+            )).get(completion_source, completion_source.title())
+            completion_via_label = f"Completed via {source_label}{completed_at_str}"
+
         entry = {
             'routine_id': routine.id,
             'routine_name': routine.name,
@@ -140,6 +158,13 @@ def get_todays_routine_items(user):
             'is_completed': status == 'completed',
             'reschedule_count': reschedule_count,
             'maintenance_logged': getattr(log, 'maintenance_logged', False) if log else False,
+            # Completion source tracking
+            'completion_source': completion_source,
+            'source_object_id': source_object_id,
+            'completion_via_label': completion_via_label,
+            # Routine type (Phase 2: binary vs activity)
+            'routine_type': getattr(item, 'routine_type', 'binary'),
+            'activity_type': getattr(item, 'activity_type', None),
             # Maintenance bridge config
             'creates_maintenance_log': getattr(item, 'creates_maintenance_log', False),
             'maintenance_type': getattr(item, 'maintenance_type', ''),

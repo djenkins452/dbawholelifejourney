@@ -48,6 +48,9 @@ def toggle_routine_completion(user, schedule, target_date, completion_mode=None)
         completed/completed_late → pending (delete log)
         skipped → completed (update)
 
+    Activity-type routines (routine_type='activity') are auto-completed by
+    their data source (e.g., WorkoutSession) and cannot be manually toggled.
+
     Args:
         user: User instance
         schedule: RoutineSchedule instance (must belong to user)
@@ -59,6 +62,15 @@ def toggle_routine_completion(user, schedule, target_date, completion_mode=None)
     Returns:
         dict: {status: str, is_completed: bool, completed_as_scheduled: bool}
     """
+    # Activity-type routines are auto-completed by their data source
+    if getattr(schedule, 'routine_type', 'binary') == 'activity':
+        return {
+            'status': 'activity',
+            'is_completed': False,
+            'completed_as_scheduled': False,
+            'error': 'Activity routines are auto-completed by their data source',
+        }
+
     from apps.life.models import RoutineLog
 
     existing_log = RoutineLog.objects.filter(
@@ -133,6 +145,115 @@ def toggle_routine_completion(user, schedule, target_date, completion_mode=None)
         )
         return {'status': log_status, 'is_completed': True,
                 'completed_as_scheduled': as_scheduled}
+
+
+def auto_complete_routine_schedules(user, keyword, source, completion_time=None,
+                                    source_object_id=None):
+    """
+    Auto-complete matching RoutineSchedule items for today.
+
+    Called from cross-module signals (workout, medicine, bible reading)
+    to mark matching routine items as completed.  First-workout-wins:
+    once a routine is auto-completed for the day, later calls are no-ops.
+
+    Matching priority:
+      1. activity_type field (structured, preferred)
+      2. name__icontains keyword (TEMPORARY FALLBACK — remove once all
+         activity routines are backfilled with activity_type)
+
+    Args:
+        user: User instance
+        keyword: Case-insensitive keyword to match against schedule name
+                 (e.g., "workout"). Used only as fallback.
+        source: str — completion_source value ('workout', 'medicine', etc.)
+        completion_time: datetime (aware) used for timeliness classification.
+                        Prefer workout start time over end time.
+                        Defaults to now if None.
+        source_object_id: int — PK of the source object (e.g., WorkoutSession.pk)
+                         for traceability.
+
+    Returns:
+        list of dicts: [{schedule_id, status, created}] for each matched item
+    """
+    from django.db import models as _m
+
+    from apps.core.utils import classify_time_status, get_user_now, get_user_today
+    from apps.life.models import RoutineLog, RoutineSchedule
+
+    user_today = get_user_today(user)
+    user_now = get_user_now(user)
+    weekday = user_today.weekday()
+
+    # ── Find matching schedules ──
+    # Prefer structured activity_type; fall back to name matching (temporary).
+    matching = RoutineSchedule.objects.filter(
+        routine__user=user,
+        is_active=True,
+    ).filter(
+        _m.Q(activity_type=source)
+        | _m.Q(name__icontains=keyword)  # TEMPORARY FALLBACK — remove when backfill complete
+    ).select_related('routine')
+
+    results = []
+    effective_time = completion_time or user_now
+
+    for schedule in matching:
+        # Day-of-week check
+        if schedule.specific_date:
+            if schedule.specific_date != user_today:
+                continue
+        elif not schedule.applies_to_day(weekday):
+            continue
+
+        # ── First-workout-wins / idempotency ──
+        # If a log already exists for today (manual or auto), skip.
+        if RoutineLog.objects.filter(
+            schedule=schedule, scheduled_date=user_today,
+        ).exists():
+            continue
+
+        # Log when using name-based fallback (not activity_type)
+        if not schedule.activity_type:
+            logger.info(
+                "ROUTINE_AUTOCOMPLETE_FALLBACK schedule=%s matched via name '%s' "
+                "(no activity_type set — temporary fallback)",
+                schedule.pk, schedule.name,
+            )
+
+        # ── Timeliness classification ──
+        # Use the same logic as manual toggle (routine_helpers lines 112-124).
+        if schedule.scheduled_time:
+            result = classify_time_status(
+                user_today, schedule.scheduled_time, effective_time,
+                grace_minutes=getattr(schedule, 'grace_period_minutes', 0) or 0,
+            )
+            if result['status'] == 'overdue':
+                log_status = 'completed_late'
+                as_scheduled = False
+            else:
+                log_status = 'completed'
+                as_scheduled = True
+        else:
+            log_status = 'completed'
+            as_scheduled = True
+
+        RoutineLog.objects.create(
+            user=user,
+            schedule=schedule,
+            scheduled_date=user_today,
+            log_status=log_status,
+            completed_at=timezone.now(),
+            completed_as_scheduled=as_scheduled,
+            completion_source=source,
+            source_object_id=source_object_id,
+        )
+        results.append({
+            'schedule_id': schedule.pk,
+            'status': log_status,
+            'created': True,
+        })
+
+    return results
 
 
 def skip_routine(user, schedule, target_date):

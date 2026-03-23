@@ -191,6 +191,8 @@ class RoutineScheduleForm(forms.ModelForm):
         fields = [
             'name', 'importance', 'scheduled_time', 'grace_period_minutes',
             'is_active', 'sort_order',
+            # Activity type (Phase 2)
+            'routine_type', 'activity_type',
             # Maintenance bridge
             'creates_maintenance_log', 'maintenance_type', 'maintenance_area',
             'default_maintenance_title', 'follow_up_days',
@@ -216,6 +218,13 @@ class RoutineScheduleForm(forms.ModelForm):
                 'class': 'form-input',
                 'min': 0,
                 'style': 'width: 80px;',
+            }),
+            # Activity type widgets
+            'routine_type': forms.Select(attrs={
+                'class': 'form-select routine-type-select',
+            }),
+            'activity_type': forms.Select(attrs={
+                'class': 'form-select activity-type-select',
             }),
             # Maintenance bridge widgets
             'creates_maintenance_log': forms.CheckboxInput(attrs={
@@ -244,6 +253,8 @@ class RoutineScheduleForm(forms.ModelForm):
             'grace_period_minutes': 'Grace (min)',
             'sort_order': 'Order',
             'is_active': 'Active',
+            'routine_type': 'Type',
+            'activity_type': 'Activity Source',
             'creates_maintenance_log': 'Creates maintenance log',
             'maintenance_type': 'Type',
             'maintenance_area': 'Area',

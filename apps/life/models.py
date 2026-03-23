@@ -2517,6 +2517,27 @@ class RoutineSchedule(models.Model):
         ("flexible", "Flexible"),
     ]
 
+    # ── Routine type: binary (manual) vs activity (data-driven) ──
+    ROUTINE_TYPE_BINARY = "binary"
+    ROUTINE_TYPE_ACTIVITY = "activity"
+
+    ROUTINE_TYPE_CHOICES = [
+        (ROUTINE_TYPE_BINARY, "Binary"),        # Manual check/uncheck
+        (ROUTINE_TYPE_ACTIVITY, "Activity"),     # Derives completion from real data
+    ]
+
+    ACTIVITY_TYPE_WORKOUT = "workout"
+    ACTIVITY_TYPE_JOURNAL = "journal"
+    ACTIVITY_TYPE_BIBLE = "bible"
+    ACTIVITY_TYPE_FAITH = "faith"
+
+    ACTIVITY_TYPE_CHOICES = [
+        (ACTIVITY_TYPE_WORKOUT, "Workout"),
+        (ACTIVITY_TYPE_JOURNAL, "Journal"),
+        (ACTIVITY_TYPE_BIBLE, "Bible Reading"),
+        (ACTIVITY_TYPE_FAITH, "Faith"),
+    ]
+
     routine = models.ForeignKey(
         Routine,
         on_delete=models.CASCADE,
@@ -2531,6 +2552,19 @@ class RoutineSchedule(models.Model):
         choices=IMPORTANCE_CHOICES,
         default="flexible",
         help_text="Priority tier: foundational > important > flexible",
+    )
+    routine_type = models.CharField(
+        max_length=20,
+        choices=ROUTINE_TYPE_CHOICES,
+        default=ROUTINE_TYPE_BINARY,
+        help_text="Binary = manual toggle, Activity = derives completion from real data",
+    )
+    activity_type = models.CharField(
+        max_length=20,
+        choices=ACTIVITY_TYPE_CHOICES,
+        null=True,
+        blank=True,
+        help_text="When routine_type=activity, which data source drives completion",
     )
     scheduled_time = models.TimeField(
         help_text="When this item should be done",
@@ -2628,6 +2662,24 @@ class RoutineLog(UserOwnedModel):
         (STATUS_RESCHEDULED, "Rescheduled"),
     ]
 
+    # ── Completion source tracking ──
+    # Identifies HOW this log was created — manual toggle, workout session,
+    # medicine intake, bible reading, etc.  Combined with source_object_id,
+    # provides full traceability back to the originating activity.
+    SOURCE_MANUAL = "manual"
+    SOURCE_WORKOUT = "workout"
+    SOURCE_MEDICINE = "medicine"
+    SOURCE_BIBLE = "bible"
+    SOURCE_AUTO = "auto"
+
+    COMPLETION_SOURCE_CHOICES = [
+        (SOURCE_MANUAL, "Manual"),
+        (SOURCE_WORKOUT, "Workout"),
+        (SOURCE_MEDICINE, "Medicine"),
+        (SOURCE_BIBLE, "Bible Reading"),
+        (SOURCE_AUTO, "Auto"),
+    ]
+
     schedule = models.ForeignKey(
         RoutineSchedule,
         on_delete=models.CASCADE,
@@ -2667,6 +2719,22 @@ class RoutineLog(UserOwnedModel):
         help_text=(
             "User asserts completion happened at the scheduled time, "
             "even if logged later. Treated as on-time for scoring/streaks."
+        ),
+    )
+    completion_source = models.CharField(
+        max_length=20,
+        choices=COMPLETION_SOURCE_CHOICES,
+        default=SOURCE_MANUAL,
+        help_text="How this log was created: manual toggle, workout session, etc.",
+    )
+    source_object_id = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "PK of the source object that triggered this completion. "
+            "Combined with completion_source, provides full traceability "
+            "(e.g., completion_source='workout' + source_object_id=42 → "
+            "WorkoutSession pk=42)."
         ),
     )
 

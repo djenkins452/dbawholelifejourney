@@ -1472,10 +1472,24 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
         fire_intelligence(request.user, "health", workout.id, "log_workout")
 
-        # Auto-complete matching routine task
+        # Auto-complete matching routine task (legacy Task system)
         try:
             from apps.life.services.routine_service import RoutineTaskService
             RoutineTaskService.auto_complete_routine_task(request.user, "Workout")
+        except Exception:
+            pass
+
+        # Auto-complete matching RoutineSchedule items (new Routine system).
+        # Belt-and-suspenders: the post_save signal also calls this, but
+        # calling here ensures it fires even if the view uses .update().
+        # Idempotency in auto_complete_routine_schedules prevents duplicates.
+        try:
+            from apps.life.services.routine_helpers import auto_complete_routine_schedules
+            auto_complete_routine_schedules(
+                request.user, 'workout', 'workout',
+                completion_time=workout.started_at or workout.completed_at,
+                source_object_id=workout.pk,
+            )
         except Exception:
             pass
 

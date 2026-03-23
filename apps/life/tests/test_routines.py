@@ -121,6 +121,7 @@ class RoutineCreateViewTests(RoutineTestMixin, TestCase):
             'items-0-grace_period_minutes': '30',
             'items-0-active_days': ['0', '1', '2', '3', '4'],
             'items-0-sort_order': '0',
+            'items-0-routine_type': 'binary',
         }
         response = self.client.post(reverse('life:routine_create'), data)
         self.assertEqual(response.status_code, 302)
@@ -154,6 +155,7 @@ class RoutineUpdateViewTests(RoutineTestMixin, TestCase):
             'items-0-grace_period_minutes': '15',
             'items-0-active_days': ['0', '1', '2', '3', '4', '5', '6'],
             'items-0-sort_order': '0',
+            'items-0-routine_type': 'binary',
         }
         response = self.client.post(
             reverse('life:routine_update', args=[routine.pk]), data

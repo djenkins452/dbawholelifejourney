@@ -357,14 +357,61 @@ def _is_next_action_query(msg_lower):
 
 
 def _build_next_action_response(user):
-    """Build deterministic next-action response from locked facts."""
-    from apps.ai.cos_fact_statements import build_locked_next_action
-    response = build_locked_next_action(user)
-    logger.info(
-        "[DETERMINISTIC ROUTER] next_action user=%s response=%s",
-        user.id, response,
-    )
-    return response
+    """Build deterministic next-action response from Today Engine.
+
+    Priority order (highest → lowest):
+    1. Overdue now (most urgent)
+    2. Coming up next (current time window)
+    3. Later today
+    4. Incomplete foundational items
+    5. System next action (fallback)
+
+    Returns EXACTLY ONE item. No plans, no lists, no sequencing.
+    """
+    try:
+        from apps.core.today.today_engine import get_today_context
+
+        ctx = get_today_context(user)
+
+        # Build ordered candidate list by priority
+        candidates = []
+
+        # 1. Overdue (highest urgency)
+        for entry in ctx.get("overdue", []):
+            candidates.append(entry["label"])
+
+        # 2. Coming up next
+        for entry in ctx.get("coming_up", []):
+            candidates.append(entry["label"])
+
+        # 3. Later today
+        for entry in ctx.get("later", []):
+            candidates.append(entry["label"])
+
+        # 4. Incomplete foundational items (not already in time buckets)
+        seen = set(candidates)
+        for entry in ctx.get("foundation", []):
+            if entry["label"] not in seen:
+                candidates.append(entry["label"])
+
+        if candidates:
+            selected = candidates[0]
+            response = f"Start {selected}."
+        else:
+            response = "You're clear right now."
+
+        logger.info(
+            "[DETERMINISTIC ROUTER] next_action user=%s selected=%s "
+            "candidates=%d",
+            user.id, candidates[0] if candidates else "none",
+            len(candidates),
+        )
+        return response
+
+    except Exception:
+        # Fallback to locked next action
+        from apps.ai.cos_fact_statements import build_locked_next_action
+        return build_locked_next_action(user)
 
 
 def _try_next_action_route(msg_lower, user):

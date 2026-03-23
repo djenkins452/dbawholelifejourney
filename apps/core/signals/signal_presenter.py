@@ -1,9 +1,12 @@
 """
-Phase 3 — Signal Presenter: Controlled Exposure Layer
+Phase 3+5 — Signal Presenter: Controlled Exposure Layer with Adaptive Tuning
 
 Transforms raw Phase 2 signals into safe, user-facing suggestions.
 This is a PRESENTATION layer only — it never writes to the database,
 never marks anything complete, and never alters execution truth.
+
+Phase 5 adds a lightweight adaptive layer that uses SignalFeedback data
+to reinforce high-value signals and suppress low-value ones.
 
 ARCHITECTURAL RULES:
 - Execution Truth Engine remains the only source of truth
@@ -12,9 +15,14 @@ ARCHITECTURAL RULES:
 - Output language always preserves uncertainty (suggestions, not facts)
 - Maximum 2 surfaced suggestions at a time
 - Only same-day signals may be surfaced
+- Adaptation applies ONLY to possible_completion signals
+- Adaptation requires minimum 3 feedback records
+- Adaptation never overrides truth suppression or expectation rules
+- Confidence floor cannot drop below 0.75
 
 Pipeline:
-    detect_signals(user) → get_execution_truth(user) → filter → present
+    detect_signals(user) → get_execution_truth(user) → filter →
+    adaptive_tuning → prioritization → present
 
 Consumers: Beth (conversational AI), optional UI suggestion cards.
 """
@@ -23,6 +31,7 @@ import logging
 from datetime import date, datetime
 from typing import Dict, List, Optional
 
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from apps.core.signals.signal_engine import (
@@ -95,6 +104,27 @@ MESSAGE_TEMPLATES = {
 
 
 # ---------------------------------------------------------------------------
+# Phase 5: Adaptive tuning constants
+# ---------------------------------------------------------------------------
+
+# Minimum feedback records before adaptation kicks in
+ADAPTIVE_MIN_FEEDBACK = 3
+
+# Threshold ratios for reinforcement / suppression
+ADAPTIVE_REINFORCE_RATIO = 0.75  # yes_count / total >= this → reinforce
+ADAPTIVE_SUPPRESS_RATIO = 0.75   # no_count / total >= this → suppress
+
+# Lowered confidence floor for reinforced signals (normally 0.80)
+ADAPTIVE_REINFORCED_MIN_CONFIDENCE = 0.75
+
+# Priority boost for reinforced signals (subtracted from type priority)
+ADAPTIVE_PRIORITY_BOOST = 0.5
+
+# Signal types eligible for adaptation
+ADAPTIVE_SIGNAL_TYPES = frozenset({POSSIBLE_COMPLETION})
+
+
+# ---------------------------------------------------------------------------
 # Domain+Item → Truth mapping
 # ---------------------------------------------------------------------------
 
@@ -160,6 +190,143 @@ def _is_expected_in_truth(domain: str, item: str, truth: Dict) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Phase 5: Adaptive tuning helpers
+# ---------------------------------------------------------------------------
+
+def _get_feedback_stats(user, signals: List[Dict]) -> Dict[tuple, Dict]:
+    """Batch-fetch feedback stats for all eligible signals.
+
+    Returns a dict keyed by (signal_type, domain, item) with values:
+        {"yes": int, "no": int, "total": int}
+
+    Uses a single aggregated query to avoid N+1.
+    Only queries for signal types in ADAPTIVE_SIGNAL_TYPES.
+    """
+    try:
+        from apps.core.signals.models import SignalFeedback
+    except ImportError:
+        return {}
+
+    # Collect unique (type, domain, item) keys for eligible signals
+    keys = set()
+    for sig in signals:
+        if sig.get("type") in ADAPTIVE_SIGNAL_TYPES:
+            keys.add((
+                sig.get("type", ""),
+                sig.get("domain", ""),
+                sig.get("item", ""),
+            ))
+
+    if not keys:
+        return {}
+
+    # Build a single query with OR conditions for all keys
+    q_filter = Q()
+    for signal_type, domain, item in keys:
+        q_filter |= Q(signal_type=signal_type, domain=domain, item=item or "")
+
+    try:
+        stats_qs = (
+            SignalFeedback.objects
+            .filter(q_filter, user=user)
+            .values("signal_type", "domain", "item")
+            .annotate(
+                yes_count=Count("id", filter=Q(response="yes")),
+                no_count=Count("id", filter=Q(response="no")),
+            )
+        )
+
+        result = {}
+        for row in stats_qs:
+            key = (row["signal_type"], row["domain"], row["item"] or "")
+            yes = row["yes_count"]
+            no = row["no_count"]
+            result[key] = {"yes": yes, "no": no, "total": yes + no}
+
+        return result
+    except Exception:
+        logger.error(
+            "Signal presenter: failed to fetch feedback stats", exc_info=True,
+        )
+        return {}
+
+
+def _apply_adaptive_rules(signal: Dict, stats: Dict) -> Optional[Dict]:
+    """Apply Phase 5 adaptive rules to a single signal.
+
+    Returns:
+        - Modified signal dict (reinforced) OR
+        - Original signal dict (neutral / not eligible) OR
+        - None (suppressed)
+
+    Safety: never overrides truth or expectation filters (those run first).
+    """
+    signal_type = signal.get("type", "")
+
+    # Only adapt eligible signal types
+    if signal_type not in ADAPTIVE_SIGNAL_TYPES:
+        return signal
+
+    key = (signal_type, signal.get("domain", ""), signal.get("item", ""))
+    feedback = stats.get(key)
+
+    # No feedback or below minimum threshold → no change
+    if not feedback or feedback["total"] < ADAPTIVE_MIN_FEEDBACK:
+        return signal
+
+    total = feedback["total"]
+    yes_ratio = feedback["yes"] / total
+    no_ratio = feedback["no"] / total
+
+    # LOW-VALUE SUPPRESSION: consistently rejected → suppress
+    if no_ratio >= ADAPTIVE_SUPPRESS_RATIO:
+        logger.info(
+            "[ADAPTIVE] Suppressing signal type=%s domain=%s item=%s "
+            "(no_ratio=%.2f, total=%d)",
+            signal_type, signal.get("domain"), signal.get("item"),
+            no_ratio, total,
+        )
+        return None
+
+    # HIGH-CONFIDENCE REINFORCEMENT: consistently confirmed → boost
+    if yes_ratio >= ADAPTIVE_REINFORCE_RATIO:
+        modified = dict(signal)
+        # Allow through at lower confidence floor
+        modified["_adaptive_min_confidence"] = ADAPTIVE_REINFORCED_MIN_CONFIDENCE
+        # Slight priority boost (used in sort key)
+        modified["_adaptive_priority_boost"] = ADAPTIVE_PRIORITY_BOOST
+        logger.info(
+            "[ADAPTIVE] Reinforcing signal type=%s domain=%s item=%s "
+            "(yes_ratio=%.2f, total=%d)",
+            signal_type, signal.get("domain"), signal.get("item"),
+            yes_ratio, total,
+        )
+        return modified
+
+    # MIXED / NEUTRAL: no change
+    return signal
+
+
+def _apply_adaptive_tuning(user, signals: List[Dict]) -> List[Dict]:
+    """Apply adaptive tuning to a list of signals.
+
+    Fetches feedback stats once, then applies rules to each signal.
+    Signals that return None from _apply_adaptive_rules are removed.
+    """
+    stats = _get_feedback_stats(user, signals)
+    if not stats:
+        return signals
+
+    result = []
+    for sig in signals:
+        adapted = _apply_adaptive_rules(sig, stats)
+        if adapted is not None:
+            result.append(adapted)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -202,6 +369,10 @@ def get_presented_signals(user) -> Dict:
     # Filter pipeline
     signals = _filter_same_day(signals)
     signals = _filter_completed_or_unexpected(signals, truth)
+
+    # Phase 5: Adaptive tuning (after truth filters, before prioritization)
+    signals = _apply_adaptive_tuning(user, signals)
+
     signals = _deduplicate_suggestions(signals)
     signals = _prioritize_signals(signals)
     signals = signals[:MAX_SUGGESTIONS]
@@ -308,9 +479,15 @@ def _prioritize_signals(signals: List[Dict]) -> List[Dict]:
 
     Priority: possible_completion > inconsistency > intent > effort
     Within same type: higher confidence first, newer timestamp first.
+
+    Phase 5: Reinforced signals get a slight priority boost via
+    _adaptive_priority_boost (subtracted from type priority).
     """
     def sort_key(sig):
         type_priority = SIGNAL_TYPE_PRIORITY.get(sig.get("type"), 99)
+        # Phase 5: apply adaptive boost if present
+        boost = sig.get("_adaptive_priority_boost", 0)
+        type_priority = type_priority - boost
         confidence = -(sig.get("confidence", 0))  # negative for descending
         ts = sig.get("timestamp")
         if isinstance(ts, datetime):
@@ -378,6 +555,7 @@ def _normalize_presented_output(signals: List[Dict]) -> List[Dict]:
             "message": _build_message(sig),
             "question": _build_question(sig),
             "priority": i + 1,
+            "adaptive": sig.get("_adaptive_priority_boost", 0) > 0,
         }
         suggestions.append(suggestion)
     return suggestions

@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — Phase 5: Adaptive Signal Tuning
+
+**What:** Added a lightweight adaptive layer to the Signal Presenter that uses Phase 4 SignalFeedback data to reinforce high-value signals and suppress low-value ones. Conservative, rule-based — no aggressive behavior changes.
+
+**Changes:**
+- **Adaptive helpers:** `_get_feedback_stats()` batch-fetches yes/no counts per (type, domain, item) in a single annotated query — no N+1
+- **Reinforcement rule:** Signals with ≥75% yes responses (min 3 total) get a slight priority boost and lowered confidence floor (0.75 vs 0.80)
+- **Suppression rule:** Signals with ≥75% no responses (min 3 total) are suppressed entirely — never surfaced
+- **Scope enforcement:** Adaptation applies ONLY to `possible_completion` signals — inconsistency, intent, and effort signals remain static
+- **Safety guards:** Truth suppression and expectation filters always run first — adaptive tuning cannot override them. Confidence floor cannot drop below 0.75
+- **Output metadata:** Suggestions include `adaptive: true/false` flag; internal metadata (`_adaptive_*`) never leaks to consumers
+- **Tests:** 24 new test cases covering reinforcement, suppression, neutral/mixed, minimum threshold, scope enforcement, and safety guards (84 total presenter tests)
+
+**Files:**
+- `apps/core/signals/signal_presenter.py` — adaptive helpers + pipeline integration
+- `apps/core/signals/tests/test_signal_presenter.py` — Phase 5 test sections 13-17
+
+**Why:** Users should see fewer irrelevant completion suggestions over time, and important signals should surface more reliably — without sudden behavior changes.
+
+---
+
 ## 2026-03-22 — Phase 4.1 Signal Feedback Integrity Hardening
 
 **What:** Hardened the Phase 4 feedback system with idempotency guards, fingerprint normalization, handler abstraction, and a 5-gate execution bridge.

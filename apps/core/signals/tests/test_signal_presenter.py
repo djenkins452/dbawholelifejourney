@@ -1,4 +1,4 @@
-"""Tests for Phase 3 Signal Presenter — Controlled Exposure Layer.
+"""Tests for Phase 3+5 Signal Presenter — Controlled Exposure Layer + Adaptive Tuning.
 
 Covers:
 1. Same-day filtering
@@ -10,6 +10,14 @@ Covers:
 7. Duplicate protection
 8. Empty results
 9. Beth hook safety (structured output)
+10. Truth mapping helpers
+11. Item labels
+12. Integration: full pipeline
+13. Phase 5: Adaptive reinforcement
+14. Phase 5: Adaptive suppression
+15. Phase 5: Neutral / minimum threshold
+16. Phase 5: Scope enforcement (only possible_completion)
+17. Phase 5: Safety guards
 """
 
 from datetime import datetime, timedelta
@@ -25,12 +33,18 @@ from apps.core.signals.signal_engine import (
     POSSIBLE_COMPLETION,
 )
 from apps.core.signals.signal_presenter import (
+    ADAPTIVE_MIN_FEEDBACK,
+    ADAPTIVE_REINFORCED_MIN_CONFIDENCE,
+    ADAPTIVE_SIGNAL_TYPES,
     MAX_SUGGESTIONS,
+    _apply_adaptive_rules,
+    _apply_adaptive_tuning,
     _build_message,
     _build_question,
     _deduplicate_suggestions,
     _filter_completed_or_unexpected,
     _filter_same_day,
+    _get_feedback_stats,
     _get_item_label,
     _is_completed_in_truth,
     _is_expected_in_truth,
@@ -552,6 +566,7 @@ class TestBethHookSafety(SimpleTestCase):
         required_keys = {
             "type", "domain", "item", "confidence", "source",
             "text", "timestamp", "message", "question", "priority",
+            "adaptive",
         }
         self.assertEqual(set(suggestion.keys()), required_keys)
 
@@ -788,3 +803,299 @@ class TestFullPipeline(SimpleTestCase):
         # So signal gets suppressed — this is the safe behavior
         # (if truth is unavailable, we don't surface potentially wrong suggestions)
         self.assertIsInstance(result["suggestions"], list)
+
+
+# ---------------------------------------------------------------------------
+# 13. Phase 5: Adaptive reinforcement
+# ---------------------------------------------------------------------------
+
+
+class TestAdaptiveReinforcement(SimpleTestCase):
+    """Signals with >= 75% yes responses get reinforced."""
+
+    def test_reinforcement_adds_boost_metadata(self):
+        """3 yes, 0 no → signal gets adaptive boost."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        stats = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 3, "no": 0, "total": 3},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNotNone(result)
+        self.assertGreater(result.get("_adaptive_priority_boost", 0), 0)
+        self.assertEqual(
+            result["_adaptive_min_confidence"],
+            ADAPTIVE_REINFORCED_MIN_CONFIDENCE,
+        )
+
+    def test_reinforcement_at_threshold(self):
+        """Exactly 75% yes → reinforced."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        stats = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 3, "no": 1, "total": 4},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNotNone(result)
+        self.assertGreater(result.get("_adaptive_priority_boost", 0), 0)
+
+    def test_reinforcement_strong_history(self):
+        """10 yes, 1 no → reinforced."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.78)
+        stats = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 10, "no": 1, "total": 11},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNotNone(result)
+        self.assertGreater(result.get("_adaptive_priority_boost", 0), 0)
+
+
+# ---------------------------------------------------------------------------
+# 14. Phase 5: Adaptive suppression
+# ---------------------------------------------------------------------------
+
+
+class TestAdaptiveSuppression(SimpleTestCase):
+    """Signals with >= 75% no responses get suppressed."""
+
+    def test_suppression_removes_signal(self):
+        """0 yes, 3 no → signal suppressed (returns None)."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.90)
+        stats = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 0, "no": 3, "total": 3},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNone(result)
+
+    def test_suppression_at_threshold(self):
+        """Exactly 75% no → suppressed."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.90)
+        stats = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 1, "no": 3, "total": 4},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNone(result)
+
+    def test_suppression_strong_history(self):
+        """1 yes, 10 no → suppressed."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.95)
+        stats = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 1, "no": 10, "total": 11},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNone(result)
+
+    def test_suppressed_signal_removed_from_list(self):
+        """_apply_adaptive_tuning removes suppressed signals from output."""
+        now = timezone.now()
+        signals = [
+            _make_signal(signal_type=POSSIBLE_COMPLETION, domain="faith",
+                         item="prayer", confidence=0.90, timestamp=now),
+        ]
+        stats = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 0, "no": 5, "total": 5},
+        }
+        with patch(
+            "apps.core.signals.signal_presenter._get_feedback_stats",
+            return_value=stats,
+        ):
+            user = MagicMock()
+            result = _apply_adaptive_tuning(user, signals)
+        self.assertEqual(len(result), 0)
+
+
+# ---------------------------------------------------------------------------
+# 15. Phase 5: Neutral / minimum threshold
+# ---------------------------------------------------------------------------
+
+
+class TestAdaptiveNeutral(SimpleTestCase):
+    """Mixed feedback or insufficient data → no adaptation."""
+
+    def test_mixed_feedback_no_change(self):
+        """2 yes, 2 no → signal unchanged."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        stats = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 2, "no": 2, "total": 4},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.get("_adaptive_priority_boost", 0), 0)
+        self.assertNotIn("_adaptive_min_confidence", result)
+
+    def test_below_minimum_threshold_no_change(self):
+        """total < 3 → no adaptation regardless of ratio."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        stats = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 0, "no": 2, "total": 2},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.get("_adaptive_priority_boost", 0), 0)
+
+    def test_single_feedback_no_change(self):
+        """1 total → no adaptation."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        stats = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 1, "no": 0, "total": 1},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.get("_adaptive_priority_boost", 0), 0)
+
+    def test_no_feedback_data_no_change(self):
+        """Signal not in stats → no adaptation."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        stats = {}
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.get("_adaptive_priority_boost", 0), 0)
+
+    def test_empty_stats_passthrough(self):
+        """No stats → all signals pass through unchanged."""
+        now = timezone.now()
+        signals = [
+            _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85, timestamp=now),
+        ]
+        with patch(
+            "apps.core.signals.signal_presenter._get_feedback_stats",
+            return_value={},
+        ):
+            user = MagicMock()
+            result = _apply_adaptive_tuning(user, signals)
+        self.assertEqual(len(result), 1)
+
+
+# ---------------------------------------------------------------------------
+# 16. Phase 5: Scope enforcement (only possible_completion)
+# ---------------------------------------------------------------------------
+
+
+class TestAdaptiveScopeEnforcement(SimpleTestCase):
+    """Adaptive tuning only applies to possible_completion signals."""
+
+    def test_inconsistency_not_adapted(self):
+        sig = _make_signal(signal_type=INCONSISTENCY_SIGNAL, domain="health",
+                           item="workout", confidence=0.85)
+        stats = {
+            (INCONSISTENCY_SIGNAL, "health", "workout"): {"yes": 0, "no": 10, "total": 10},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNotNone(result)  # Not suppressed
+        self.assertEqual(result.get("_adaptive_priority_boost", 0), 0)
+
+    def test_intent_not_adapted(self):
+        sig = _make_signal(signal_type=INTENT_SIGNAL, domain="faith",
+                           item="prayer", confidence=0.85)
+        stats = {
+            (INTENT_SIGNAL, "faith", "prayer"): {"yes": 10, "no": 0, "total": 10},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.get("_adaptive_priority_boost", 0), 0)
+
+    def test_effort_not_adapted(self):
+        sig = _make_signal(signal_type=EFFORT_SIGNAL, domain="health",
+                           item="workout", confidence=0.85)
+        stats = {
+            (EFFORT_SIGNAL, "health", "workout"): {"yes": 0, "no": 10, "total": 10},
+        }
+        result = _apply_adaptive_rules(sig, stats)
+        self.assertIsNotNone(result)  # Not suppressed
+        self.assertEqual(result.get("_adaptive_priority_boost", 0), 0)
+
+    def test_only_possible_completion_in_adaptive_types(self):
+        self.assertEqual(ADAPTIVE_SIGNAL_TYPES, frozenset({POSSIBLE_COMPLETION}))
+
+
+# ---------------------------------------------------------------------------
+# 17. Phase 5: Safety guards
+# ---------------------------------------------------------------------------
+
+
+class TestAdaptiveSafety(SimpleTestCase):
+    """Adaptive tuning cannot override truth or expectation filters."""
+
+    @patch("apps.core.signals.signal_presenter._get_feedback_stats")
+    @patch("apps.core.signals.signal_presenter._get_execution_truth")
+    @patch("apps.core.signals.signal_presenter._get_raw_signals")
+    def test_truth_suppression_overrides_reinforcement(
+        self, mock_raw, mock_truth, mock_stats,
+    ):
+        """Even a reinforced signal is suppressed if truth says completed."""
+        now = timezone.now()
+        mock_raw.return_value = {
+            "signals": [
+                _make_signal(domain="faith", item="prayer",
+                             confidence=0.90, timestamp=now),
+            ]
+        }
+        mock_truth.return_value = _make_truth(prayer_completed=True)
+        # Strong reinforcement — but truth should win
+        mock_stats.return_value = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 10, "no": 0, "total": 10},
+        }
+
+        user = MagicMock()
+        user.id = 1
+        result = get_presented_signals(user)
+        self.assertEqual(len(result["suggestions"]), 0)
+
+    @patch("apps.core.signals.signal_presenter._get_feedback_stats")
+    @patch("apps.core.signals.signal_presenter._get_execution_truth")
+    @patch("apps.core.signals.signal_presenter._get_raw_signals")
+    def test_expectation_suppression_overrides_reinforcement(
+        self, mock_raw, mock_truth, mock_stats,
+    ):
+        """Even a reinforced signal is suppressed if not expected today."""
+        now = timezone.now()
+        mock_raw.return_value = {
+            "signals": [
+                _make_signal(domain="health", item="workout",
+                             confidence=0.90, timestamp=now),
+            ]
+        }
+        mock_truth.return_value = _make_truth(workout_expected=False)
+        mock_stats.return_value = {
+            (POSSIBLE_COMPLETION, "health", "workout"): {"yes": 10, "no": 0, "total": 10},
+        }
+
+        user = MagicMock()
+        user.id = 1
+        result = get_presented_signals(user)
+        self.assertEqual(len(result["suggestions"]), 0)
+
+    def test_confidence_floor_cannot_go_below_075(self):
+        """Reinforced min confidence is exactly 0.75, not lower."""
+        self.assertEqual(ADAPTIVE_REINFORCED_MIN_CONFIDENCE, 0.75)
+
+    def test_min_feedback_is_3(self):
+        """Minimum feedback count for adaptation is 3."""
+        self.assertEqual(ADAPTIVE_MIN_FEEDBACK, 3)
+
+    @patch("apps.core.signals.signal_presenter._get_feedback_stats")
+    @patch("apps.core.signals.signal_presenter._get_execution_truth")
+    @patch("apps.core.signals.signal_presenter._get_raw_signals")
+    def test_adaptive_metadata_in_output(self, mock_raw, mock_truth, mock_stats):
+        """Output includes adaptive=True/False flag but no internal metadata."""
+        now = timezone.now()
+        mock_raw.return_value = {
+            "signals": [
+                _make_signal(domain="faith", item="prayer",
+                             confidence=0.90, timestamp=now),
+            ]
+        }
+        mock_truth.return_value = _make_truth()
+        mock_stats.return_value = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 5, "no": 0, "total": 5},
+        }
+
+        user = MagicMock()
+        user.id = 1
+        result = get_presented_signals(user)
+
+        self.assertEqual(len(result["suggestions"]), 1)
+        suggestion = result["suggestions"][0]
+        self.assertIn("adaptive", suggestion)
+        self.assertTrue(suggestion["adaptive"])
+        # Internal metadata should NOT leak
+        self.assertNotIn("_adaptive_priority_boost", suggestion)
+        self.assertNotIn("_adaptive_min_confidence", suggestion)

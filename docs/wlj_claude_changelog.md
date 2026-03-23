@@ -6,6 +6,50 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Compliance Hardening: Identity Precision, Structural Linking, Cache Integrity
+
+**What:** Final lockdown of the obligation engine — eliminates fragile string matching, adds structured identity fields, auto-invalidates cache on domain writes, and adds validation safeguards.
+
+**H1 — Identity Precision:**
+- Replaced "daily" identity with structured IDs per domain
+- Workout: `ws_{WorkoutSchedule.id}` (supports per-schedule granularity)
+- Medication: `ms_{MedicineSchedule.id}_{time}` (multiple meds same day stay distinct)
+- Task: `task_{Task.id}`
+- Journal: `entry` (one daily)
+- Faith: `prayer` / `bible` (one daily each)
+- Two-pass assignment: native domains first → routine bridge resolution second
+
+**H2 — Structural Linking (RoutineSchedule.obligation_type):**
+- Added `obligation_type` field to RoutineSchedule (choices: workout, journal, faith_prayer, faith_bible)
+- Reconciliation checks structural field FIRST, falls back to name matching (DEPRECATED)
+- Data migration backfills existing routine items from canonical name sets
+- New routine items can set obligation_type explicitly — no name convention needed
+
+**H3 — Cache Auto-Invalidation:**
+- All domain signal handlers now call `invalidate_compliance_cache(user)`
+- Covered: WorkoutSession, MedicineLog, RoutineLog, Task, JournalEntry, PrayerRequest
+- RoutineLog added to life signals (was missing)
+- Best-effort pattern — cache invalidation failure doesn't break domain writes
+
+**H4 — Reconciliation Validation:**
+- Cross-domain collision guard: mixed obligation_types in a group are logged and skipped
+- `COMPLIANCE_DEBUG` setting: when True, logs reconciliation group decisions
+- Debug output shows: group composition, suppression decisions, status transitions
+
+**Files created:**
+- `apps/life/migrations/0045_routine_obligation_type.py`
+- `apps/life/migrations/0046_backfill_obligation_type.py`
+
+**Files modified:**
+- `apps/life/models.py` — RoutineSchedule.obligation_type field
+- `compliance/constants.py` — multi-domain suppression reasons, obligation types
+- `compliance/models.py` — obligation_type, obligation_identity fields
+- `compliance/reconciliation.py` — fully rewritten with two-pass, structural linking, validation
+- `compliance/service.py` — cache layer
+- `compliance/tests/test_reconciliation.py` — 20 tests covering all scenarios
+- `dashboard_v2/signals.py` — compliance cache invalidation wired into all handlers
+- `dashboard_v2/migrations/0008_obligation_identity.py`
+
 ## 2026-03-23 — Compliance Phase 6: Generalized Obligation Engine
 
 **What:** Transformed the patched workout-only reconciliation into a fully generalized, multi-domain obligation engine with structured identity, performance caching, and domain-agnostic reconciliation.

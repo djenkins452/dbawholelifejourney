@@ -21,12 +21,31 @@ def _invalidate_for_user(user_id, sections):
         DashboardV2CacheService.invalidate(user_id, section)
 
 
+def _invalidate_compliance_for_instance(instance):
+    """Invalidate compliance evaluation cache when domain data changes."""
+    user = getattr(instance, "user", None)
+    if not user and hasattr(instance, "user_id"):
+        # Lazy-load user for models that only have user_id
+        try:
+            from django.contrib.auth import get_user_model
+            user = get_user_model().objects.get(pk=instance.user_id)
+        except Exception:
+            return
+    if user:
+        try:
+            from apps.dashboard_v2.compliance.service import invalidate_compliance_cache
+            invalidate_compliance_cache(user)
+        except Exception:
+            pass  # Best-effort
+
+
 # ── Health signals ──────────────────────────────────────────────────
 
 
 def _health_signal_handler(sender, instance, **kwargs):
     if hasattr(instance, "user_id"):
         _invalidate_for_user(instance.user_id, ["momentum", "daily_prog", "state", "execution"])
+        _invalidate_compliance_for_instance(instance)
 
 
 def _connect_health_signals():
@@ -79,14 +98,16 @@ def _connect_purpose_signals():
 def _life_signal_handler(sender, instance, **kwargs):
     if hasattr(instance, "user_id"):
         _invalidate_for_user(instance.user_id, ["momentum", "daily_prog", "execution"])
+        _invalidate_compliance_for_instance(instance)
 
 
 def _connect_life_signals():
     try:
-        from apps.life.models import Task
+        from apps.life.models import RoutineLog, Task
 
-        post_save.connect(_life_signal_handler, sender=Task, weak=False)
-        post_delete.connect(_life_signal_handler, sender=Task, weak=False)
+        for model in [Task, RoutineLog]:
+            post_save.connect(_life_signal_handler, sender=model, weak=False)
+            post_delete.connect(_life_signal_handler, sender=model, weak=False)
     except ImportError:
         logger.debug("Life models not available for dashboard_v2 signals")
 
@@ -97,6 +118,7 @@ def _connect_life_signals():
 def _journal_signal_handler(sender, instance, **kwargs):
     if hasattr(instance, "user_id"):
         _invalidate_for_user(instance.user_id, ["momentum", "daily_prog"])
+        _invalidate_compliance_for_instance(instance)
 
 
 def _connect_journal_signals():
@@ -115,6 +137,7 @@ def _connect_journal_signals():
 def _faith_signal_handler(sender, instance, **kwargs):
     if hasattr(instance, "user_id"):
         _invalidate_for_user(instance.user_id, ["momentum", "daily_prog"])
+        _invalidate_compliance_for_instance(instance)
 
 
 def _connect_faith_signals():

@@ -1550,8 +1550,8 @@ def compute_signal_health():
         if not domain:
             return
         domain = domain.lower()
-        # Skip legacy "goals" domain — standardized to "purpose"
-        if domain == "goals":
+        # Skip legacy domains — standardized names
+        if domain in ("goals", "mind"):
             return
         if domain not in domain_data:
             domain_data[domain] = {

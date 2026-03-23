@@ -544,6 +544,18 @@ def _detect_signal_low_diversity(now, signal_health=None):
         health = signal_health or _compute_signal_health_once()
         domains = health.get("domains", {})
 
+        # Load expected signal types from domain registry to skip domains
+        # where low diversity is expected (only 1 registered signal type).
+        expected_types_by_domain = {}
+        try:
+            from apps.core.domain_registry.registry import registry as domain_registry
+            for dname in domain_registry.get_names():
+                cap = domain_registry.get(dname)
+                if cap and cap.expected_signal_types:
+                    expected_types_by_domain[dname.lower()] = len(cap.expected_signal_types)
+        except Exception:
+            pass
+
         for domain, data in domains.items():
             distinct = data.get("distinct_types_7d", 0)
             volume_7d = data.get("volume_7d", 0)
@@ -551,6 +563,11 @@ def _detect_signal_low_diversity(now, signal_health=None):
 
             # Skip domains that have never produced signals
             if status == "never_active":
+                continue
+
+            # Skip domains that only register 1 expected signal type —
+            # diversity=1 is expected, not anomalous.
+            if expected_types_by_domain.get(domain, 99) <= 1:
                 continue
 
             # Only flag domains with meaningful volume but low diversity

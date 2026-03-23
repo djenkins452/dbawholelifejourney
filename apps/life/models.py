@@ -2621,6 +2621,29 @@ class RoutineSchedule(models.Model):
         help_text="Date of last maintenance log created from this routine item.",
     )
 
+    # ── Obligation bridge config ──
+    # Structural linking: tells the compliance engine what domain this
+    # routine item represents, replacing fragile name-based matching.
+    OBLIGATION_TYPE_CHOICES = [
+        ("", "General (no bridge)"),
+        ("workout", "Workout"),
+        ("journal", "Journal"),
+        ("faith_prayer", "Faith — Prayer"),
+        ("faith_bible", "Faith — Bible Reading"),
+    ]
+    obligation_type = models.CharField(
+        max_length=20,
+        choices=OBLIGATION_TYPE_CHOICES,
+        default="",
+        blank=True,
+        help_text=(
+            "If set, tells the compliance engine this routine item "
+            "represents an obligation in another domain (e.g., a 'Workout' "
+            "routine item bridges to the workout domain). This replaces "
+            "name-based matching."
+        ),
+    )
+
     class Meta:
         ordering = ["sort_order", "scheduled_time"]
 

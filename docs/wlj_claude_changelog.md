@@ -6,6 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — Phase 2 Signal Engine: Behavioral Awareness Detection
+
+**What:** Implemented the Signal Engine — a read-only behavioral awareness system that detects user behavior/intent from unstructured text inputs (journal entries, workout notes).
+
+**Files added:**
+- `apps/core/signals/__init__.py` — module init
+- `apps/core/signals/signal_engine.py` — core detection engine with `detect_signals(user)` API
+- `apps/core/signals/tests/__init__.py` — test module init
+- `apps/core/signals/tests/test_signal_engine.py` — 37 tests covering all signal types
+
+**Signal types:** `possible_completion`, `effort_signal`, `intent_signal`, `inconsistency_signal`
+
+**Key design decisions:**
+- Conservative detection only (confidence floor 0.70, emitted range 0.80–0.95)
+- Pure read-only: no DB writes, no side effects, no coupling to Execution Truth Engine
+- Regex-based pattern matching with domain keyword maps and verb indicators
+- Source weighting: journal > workout_notes
+- Deduplication keeps highest-confidence signal per (type, domain, item)
+
+**Why:** Phase 2 of the intelligence pipeline — awareness layer that answers "what might the user have done?" without affecting execution truth (Phase 1).
+
+---
+
 ## 2026-03-22 — Next-Action Prioritizer: Filter by Expected Flag
 
 **Problem:** The action prioritizer hardcoded workout, journal, and faith as binary actions regardless of whether they were scheduled today. "Log a workout" appeared on days with no workout in the routine.

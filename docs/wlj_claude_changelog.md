@@ -6,6 +6,48 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Activity Routine Phases 2.5–5: UI, Beth, Multi-Domain, Hardening
+
+**Phase 2.5 — Contextual UI Display:**
+- Routine completion now shows actual activity name: "Completed via Back + Arms at 6:42 AM"
+- Batch-fetches WorkoutSession/JournalEntry objects to avoid N+1 queries
+- Uses started_at (preferred) > completed_at for display time
+- Graceful fallback to generic label when source object not found
+- Added source_display_name and source_display_time to entry dict
+
+**Phase 3 — Beth Intelligence Upgrade:**
+- Activity-type routine items in CoS prompt now show source context: `[DONE] Workout (Morning Routine) — Completed via Back + Arms at 6:42 AM`
+- Pending activity items show: `[PENDING] Workout (Morning Routine) — awaiting workout log`
+- New ACTIVITY-TYPE ROUTINE INTERPRETATION rule in execution truth rules
+- Beth references actual workouts, not generic completions
+- Late completions get supportive messaging: "still got your workout in, but later than planned"
+- Passed completion_source, completion_via_label, routine_type, activity_type through execution contract
+
+**Phase 4 — Multi-Domain Extension (Journal + Faith):**
+- JournalEntry post_save signal auto-completes matching journal-type routines
+- UserReadingProgress post_save signal auto-completes bible/faith-type routines
+- Bible reading completion view also calls auto_complete_routine_schedules (belt-and-suspenders)
+- All three domains (workout, journal, faith) use same service function — pattern proven scalable
+- 7 new tests: journal→routine, bible→routine, cross-domain isolation, all-three independence
+
+**Phase 5 — Hardening:**
+- Fallback name matching already logged with ROUTINE_AUTOCOMPLETE_FALLBACK
+- Added get_fallback_usage_metrics() utility: reports % of schedules using name fallback vs activity_type
+- When fallback_pct < 5%, name__icontains can be cleanly removed
+- Tests verify fallback logging when no activity_type set, and no fallback when activity_type present
+
+**Files changed:**
+- `apps/life/services/_routine_internal.py` — Batch-fetch source objects, contextual completion_via_label
+- `apps/life/services/routine_helpers.py` — get_fallback_usage_metrics()
+- `apps/core/ai_orchestrator/cos_context.py` — Activity-type interpretation rules + rich item detail
+- `apps/core/execution/today_execution.py` — Pass through completion_source, routine_type, activity_type
+- `apps/journal/signals.py` — Auto-complete journal-type routines on JournalEntry save
+- `apps/faith/signals.py` — Auto-complete bible/faith routines on UserReadingProgress save
+- `apps/faith/views.py` — Bible reading view calls auto_complete_routine_schedules
+- `apps/life/tests/test_workout_routine_integration.py` — 7 new tests (23 total)
+
+**Tests:** 133 tests pass (routines + fitness + integration).
+
 ## 2026-03-23 — Workout-Routine Auto-Complete (Phase 1 + Phase 2)
 
 **Phase 1 — Auto-Complete:**

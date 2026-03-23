@@ -256,6 +256,41 @@ def auto_complete_routine_schedules(user, keyword, source, completion_time=None,
     return results
 
 
+def get_fallback_usage_metrics():
+    """
+    Report on name-based fallback vs structured activity_type matching.
+
+    Returns dict with counts of:
+      - total_activity_schedules: RoutineSchedules that should use activity_type
+      - with_activity_type: have activity_type set (structured matching)
+      - without_activity_type: rely on name fallback (TEMPORARY)
+      - fallback_pct: percentage using fallback
+
+    When fallback_pct < 5%, the name__icontains fallback can be removed.
+    """
+    from apps.life.models import RoutineSchedule
+
+    # All schedules that match activity-related keywords
+    activity_keywords = ['workout', 'exercise', 'journal', 'bible', 'faith',
+                         'prayer', 'devotional']
+    from django.db import models as _m
+    q = _m.Q()
+    for kw in activity_keywords:
+        q |= _m.Q(name__icontains=kw)
+
+    all_candidates = RoutineSchedule.objects.filter(is_active=True).filter(q)
+    total = all_candidates.count()
+    with_type = all_candidates.exclude(activity_type__isnull=True).exclude(activity_type='').count()
+    without_type = total - with_type
+
+    return {
+        'total_activity_schedules': total,
+        'with_activity_type': with_type,
+        'without_activity_type': without_type,
+        'fallback_pct': round(without_type / total * 100, 1) if total > 0 else 0.0,
+    }
+
+
 def skip_routine(user, schedule, target_date):
     """
     Mark a routine schedule item as skipped for a date.

@@ -224,6 +224,11 @@ def _collect_routine_items(user, user_now, user_today):
                 'execution_group_type': 'routine',
                 'execution_group_id': item.get('routine_id'),
                 'parent_title': item.get('routine_name', ''),
+                # Activity-type + source tracking (Phase 2.5/3)
+                'completion_source': item.get('completion_source'),
+                'completion_via_label': item.get('completion_via_label'),
+                'routine_type': item.get('routine_type', 'binary'),
+                'activity_type': item.get('activity_type'),
             })
 
     return items, routine_summaries

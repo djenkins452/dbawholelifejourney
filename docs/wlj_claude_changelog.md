@@ -25,6 +25,17 @@
 ---
 
 ## 2026-03-23 — Complete ALL Gospel Reading Plans (System-Wide Fix)
+## 2026-03-23 — Today Engine: Foundation Static + Domain Dedup Fix
+
+**Fix 1 — Foundation includes completed items:** Moved foundation check BEFORE the `if is_done: continue` gate. Previously, completed foundational items were skipped entirely because the `continue` prevented reaching the foundation logic. Now completed foundationals appear in BOTH Foundation and Completed.
+
+**Fix 2 — Domain completions suppressed when routine exists:** `_add_domain_completions()` now checks all existing item names (not just completed) using containment matching. "Prayer" is suppressed when "Prayer Time" routine exists. "Bible reading" is suppressed when "Bible Reading" routine exists. Domain items only added when no routine covers that domain.
+
+**Files:** `apps/core/today/today_engine.py`
+**Tests:** 6 new tests (28 total engine). 188/188 pass.
+
+---
+
 ## 2026-03-23 — Today Engine: Add Medications + Case-Insensitive Dedup
 
 **What:** Medications are now first-class items in Today Engine. They appear in overdue/coming up/later/completed alongside routines, tasks, and calendar events. Also fixed case-sensitive duplicate detection for domain completions.

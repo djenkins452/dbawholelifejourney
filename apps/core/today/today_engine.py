@@ -96,18 +96,19 @@ def get_today_context(user) -> dict:
         sort_time = sched or _TIME_MAX
         label = f"{name} ({time_str})" if time_str else name
 
+        # Foundation → ALWAYS included (complete + incomplete)
+        # Must run BEFORE the completed continue to capture done foundationals
+        if is_found:
+            if label not in seen_foundation:
+                seen_foundation.add(label)
+                foundation.append(_bucket_entry(sort_time, label, item))
+
         # Completed → completed section
         if is_done:
             if label not in seen_completed:
                 seen_completed.add(label)
                 completed.append(_bucket_entry(sort_time, label, item))
             continue
-
-        # Foundation → foundation section (AND time bucket below)
-        if is_found:
-            if label not in seen_foundation:
-                seen_foundation.add(label)
-                foundation.append(_bucket_entry(sort_time, label, item))
 
         # Time bucket (only if scheduled_time exists)
         if sched is None:
@@ -369,8 +370,13 @@ def _collect_medication_items(user, user_now) -> list:
 
 
 def _add_domain_completions(raw: dict, all_items: list, user_now=None):
-    """Add domain-level completions (Prayer, Bible, etc.) if not already present."""
-    existing_names = {item["name"].lower() for item in all_items if item["completed"]}
+    """Add domain-level completions (Prayer, Bible, etc.) if not already present.
+
+    Skips adding a domain completion if a routine item already covers it.
+    Uses simple containment matching: "prayer" in "prayer time" → skip.
+    """
+    # All existing item names (lowercase) — both completed and not
+    all_names_lower = {item["name"].lower() for item in all_items}
 
     for done_key, label in [
         ("prayer_done", "Prayer"),
@@ -378,16 +384,29 @@ def _add_domain_completions(raw: dict, all_items: list, user_now=None):
         ("workout_done", "Workout"),
         ("journal_done", "Journal entry"),
     ]:
-        if raw.get(done_key) and label.lower() not in existing_names:
-            all_items.append({
-                "id": f"domain:{label.lower().replace(' ', '_')}",
-                "name": label,
-                "scheduled_time": None,
-                "time_str": None,
-                "completed": True,
-                "priority": None,
-                "source": "domain",
-            })
+        if not raw.get(done_key):
+            continue
+
+        domain_lower = label.lower()
+
+        # Skip if any existing item already represents this domain
+        # (e.g., "prayer" matches "prayer time", "bible reading" matches itself)
+        already_covered = any(
+            domain_lower in existing or existing in domain_lower
+            for existing in all_names_lower
+        )
+        if already_covered:
+            continue
+
+        all_items.append({
+            "id": f"domain:{label.lower().replace(' ', '_')}",
+            "name": label,
+            "scheduled_time": None,
+            "time_str": None,
+            "completed": True,
+            "priority": None,
+            "source": "domain",
+        })
 
 
 # ---------------------------------------------------------------------------

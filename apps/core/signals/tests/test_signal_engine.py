@@ -1,16 +1,20 @@
-"""Tests for Phase 2 Signal Engine — behavioral awareness detection."""
+"""Tests for Phase 2 Signal Engine — behavioral awareness detection.
 
-from datetime import timedelta
+Phase 2.1 additions: timestamp presence, hardened confidence threshold,
+deduplication from repeated text, domain mapping variations, strict filtering.
+"""
+
+from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase
 from django.utils import timezone
 
 from apps.core.signals.signal_engine import (
-    CONFIDENCE_FLOOR,
     EFFORT_SIGNAL,
     INCONSISTENCY_SIGNAL,
     INTENT_SIGNAL,
+    MIN_CONFIDENCE,
     POSSIBLE_COMPLETION,
     _classify_and_score,
     _detect_from_text,
@@ -33,7 +37,7 @@ class TestDetectFromText(SimpleTestCase):
         self.assertEqual(signals[0]["type"], POSSIBLE_COMPLETION)
         self.assertEqual(signals[0]["domain"], "faith")
         self.assertEqual(signals[0]["item"], "prayer")
-        self.assertGreaterEqual(signals[0]["confidence"], CONFIDENCE_FLOOR)
+        self.assertGreaterEqual(signals[0]["confidence"], MIN_CONFIDENCE)
 
     def test_workout_completed(self):
         signals = _detect_from_text("Completed my workout at the gym today", source="journal")
@@ -121,18 +125,16 @@ class TestDetectFromText(SimpleTestCase):
         self.assertEqual(signals[0]["domain"], "faith")
 
     # -----------------------------------------------------------------------
-    # Weak language — should NOT emit signals
+    # Weak language — should NOT emit signals (Phase 2.1 Patch #5)
     # -----------------------------------------------------------------------
     def test_weak_thinking_about(self):
         """'Thinking about' without intent verb should not trigger."""
         signals = _detect_from_text("Thinking about working out", source="journal")
-        # No intent indicator matches ("thinking about" is not in our patterns)
         self.assertEqual(len(signals), 0)
 
     def test_weak_need_to(self):
         """'Need to pray' IS in intent indicators — should emit intent."""
         signals = _detect_from_text("Need to pray more", source="journal")
-        # This has intent indicator "need to" + domain match
         if signals:
             self.assertEqual(signals[0]["type"], INTENT_SIGNAL)
 
@@ -166,10 +168,10 @@ class TestDetectFromText(SimpleTestCase):
         )
 
     # -----------------------------------------------------------------------
-    # Confidence threshold enforcement
+    # Confidence threshold enforcement (Phase 2.1 Patch #1)
     # -----------------------------------------------------------------------
-    def test_all_signals_above_floor(self):
-        """Every emitted signal must meet the confidence floor."""
+    def test_all_signals_above_min_confidence(self):
+        """Every emitted signal must meet MIN_CONFIDENCE (0.75)."""
         texts = [
             "I prayed this morning",
             "Completed my workout",
@@ -182,9 +184,13 @@ class TestDetectFromText(SimpleTestCase):
             for sig in signals:
                 self.assertGreaterEqual(
                     sig["confidence"],
-                    CONFIDENCE_FLOOR,
-                    f"Signal below floor: {sig}",
+                    MIN_CONFIDENCE,
+                    f"Signal below MIN_CONFIDENCE: {sig}",
                 )
+
+    def test_min_confidence_is_075(self):
+        """Verify the hardened threshold constant."""
+        self.assertEqual(MIN_CONFIDENCE, 0.75)
 
     # -----------------------------------------------------------------------
     # Multiple domains in one text
@@ -205,6 +211,79 @@ class TestDetectFromText(SimpleTestCase):
         self.assertTrue(signals[0]["text"].endswith("..."))
         self.assertLessEqual(len(signals[0]["text"]), 210)
 
+    # -----------------------------------------------------------------------
+    # Phase 2.1 Patch #3: Timestamp presence
+    # -----------------------------------------------------------------------
+    def test_signal_has_timestamp(self):
+        """Every emitted signal must include a timezone-aware timestamp."""
+        signals = _detect_from_text("I prayed this morning", source="journal")
+        self.assertEqual(len(signals), 1)
+        self.assertIn("timestamp", signals[0])
+        self.assertIsInstance(signals[0]["timestamp"], datetime)
+
+    def test_all_signal_types_have_timestamp(self):
+        """All four signal types must include timestamp."""
+        cases = [
+            ("Completed my workout at the gym", POSSIBLE_COMPLETION),
+            ("Planning to work out later this evening", INTENT_SIGNAL),
+            ("Tried to work out but ran out of time", EFFORT_SIGNAL),
+            ("Skipped workout today, just too tired", INCONSISTENCY_SIGNAL),
+        ]
+        for text, expected_type in cases:
+            signals = _detect_from_text(text, source="journal")
+            self.assertEqual(len(signals), 1, f"Expected signal for: {text}")
+            self.assertEqual(signals[0]["type"], expected_type)
+            self.assertIn("timestamp", signals[0])
+            self.assertIsInstance(signals[0]["timestamp"], datetime)
+
+    # -----------------------------------------------------------------------
+    # Phase 2.1 Patch #4: Domain mapping variations
+    # -----------------------------------------------------------------------
+    def test_domain_mapping_spent_time_with_god(self):
+        signals = _detect_from_text("Spent time with God this morning", source="journal")
+        self.assertEqual(len(signals), 1)
+        self.assertEqual(signals[0]["domain"], "faith")
+
+    def test_domain_mapping_lifted_weights(self):
+        signals = _detect_from_text("Lifted weights at the gym today", source="journal")
+        self.assertEqual(len(signals), 1)
+        self.assertEqual(signals[0]["domain"], "health")
+        self.assertEqual(signals[0]["item"], "workout")
+
+    def test_domain_mapping_reflection(self):
+        signals = _detect_from_text("Did my reflection and journaling", source="journal")
+        self.assertEqual(len(signals), 1)
+        self.assertEqual(signals[0]["domain"], "journal")
+
+    def test_domain_mapping_training(self):
+        signals = _detect_from_text("Finished my training session", source="journal")
+        self.assertEqual(len(signals), 1)
+        self.assertEqual(signals[0]["domain"], "health")
+
+    # -----------------------------------------------------------------------
+    # Phase 2.1 Patch #5: Strict match quality filtering
+    # -----------------------------------------------------------------------
+    def test_strict_filter_rejects_thinking_about(self):
+        """'thinking about working out' — no verb indicator, must reject."""
+        signals = _detect_from_text("thinking about working out", source="journal")
+        self.assertEqual(len(signals), 0)
+
+    def test_strict_filter_accepts_worked_out(self):
+        """'I worked out this morning' — clear verb + domain, must accept."""
+        signals = _detect_from_text("I worked out this morning", source="journal")
+        self.assertEqual(len(signals), 1)
+        self.assertEqual(signals[0]["type"], POSSIBLE_COMPLETION)
+
+    def test_strict_filter_rejects_vague_mention(self):
+        """'The gym was closed' — domain keyword but no action verb."""
+        signals = _detect_from_text("The gym was closed today", source="journal")
+        self.assertEqual(len(signals), 0)
+
+    def test_strict_filter_rejects_question(self):
+        """'Should I pray?' — domain keyword but question, not action."""
+        signals = _detect_from_text("Should I pray about this?", source="journal")
+        self.assertEqual(len(signals), 0)
+
 
 class TestScoreSignal(SimpleTestCase):
     """Test confidence scoring logic."""
@@ -217,10 +296,9 @@ class TestScoreSignal(SimpleTestCase):
         self.assertGreaterEqual(score, 0.80)
 
     def test_score_capped_at_095(self):
-        # Multi-hit text with journal source should still cap at 0.95
         score = _score_signal(
             "read the bible scripture devotional quiet time spent time with god",
-            "faith", "bible_reading", POSSIBLE_COMPLETION, "journal"
+            "faith", "bible_reading", POSSIBLE_COMPLETION, "journal", phrase_hit=True
         )
         self.assertLessEqual(score, 0.95)
 
@@ -232,14 +310,34 @@ class TestScoreSignal(SimpleTestCase):
         )
         self.assertLess(score_short, score_long)
 
+    def test_phrase_hit_boosts_score(self):
+        """Phrase match should score higher than keyword-only match."""
+        score_keyword = _score_signal(
+            "prayed this morning", "faith", "prayer",
+            POSSIBLE_COMPLETION, "journal", phrase_hit=False
+        )
+        score_phrase = _score_signal(
+            "prayed this morning", "faith", "prayer",
+            POSSIBLE_COMPLETION, "journal", phrase_hit=True
+        )
+        self.assertGreater(score_phrase, score_keyword)
+
+    def test_strong_matches_land_above_080(self):
+        """Strong completion + journal source should score >= 0.80."""
+        score = _score_signal(
+            "completed my workout at the gym", "health", "workout",
+            POSSIBLE_COMPLETION, "journal"
+        )
+        self.assertGreaterEqual(score, 0.80)
+
 
 class TestDeduplicate(SimpleTestCase):
     """Test deduplication keeps highest confidence."""
 
     def test_keeps_highest_confidence(self):
         signals = [
-            {"type": POSSIBLE_COMPLETION, "domain": "faith", "item": "prayer", "confidence": 0.80, "source": "journal", "text": "a"},
-            {"type": POSSIBLE_COMPLETION, "domain": "faith", "item": "prayer", "confidence": 0.90, "source": "journal", "text": "b"},
+            {"type": POSSIBLE_COMPLETION, "domain": "faith", "item": "prayer", "confidence": 0.80, "source": "journal", "text": "a", "timestamp": timezone.now()},
+            {"type": POSSIBLE_COMPLETION, "domain": "faith", "item": "prayer", "confidence": 0.90, "source": "journal", "text": "b", "timestamp": timezone.now()},
         ]
         result = _deduplicate(signals)
         self.assertEqual(len(result), 1)
@@ -247,8 +345,33 @@ class TestDeduplicate(SimpleTestCase):
 
     def test_different_types_kept(self):
         signals = [
-            {"type": POSSIBLE_COMPLETION, "domain": "health", "item": "workout", "confidence": 0.85, "source": "journal", "text": "a"},
-            {"type": INCONSISTENCY_SIGNAL, "domain": "health", "item": "workout", "confidence": 0.80, "source": "journal", "text": "b"},
+            {"type": POSSIBLE_COMPLETION, "domain": "health", "item": "workout", "confidence": 0.85, "source": "journal", "text": "a", "timestamp": timezone.now()},
+            {"type": INCONSISTENCY_SIGNAL, "domain": "health", "item": "workout", "confidence": 0.80, "source": "journal", "text": "b", "timestamp": timezone.now()},
+        ]
+        result = _deduplicate(signals)
+        self.assertEqual(len(result), 2)
+
+    def test_dedup_repeated_action_in_text(self):
+        """Same action mentioned twice across entries → ONE signal only."""
+        now = timezone.now()
+        signals = [
+            {"type": POSSIBLE_COMPLETION, "domain": "faith", "item": "prayer",
+             "confidence": 0.85, "source": "journal", "text": "Prayed this morning", "timestamp": now},
+            {"type": POSSIBLE_COMPLETION, "domain": "faith", "item": "prayer",
+             "confidence": 0.87, "source": "journal", "text": "Also prayed before bed", "timestamp": now},
+        ]
+        result = _deduplicate(signals)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["confidence"], 0.87)
+
+    def test_dedup_different_domains_kept(self):
+        """Signals for different domains should NOT be deduplicated."""
+        now = timezone.now()
+        signals = [
+            {"type": POSSIBLE_COMPLETION, "domain": "faith", "item": "prayer",
+             "confidence": 0.85, "source": "journal", "text": "a", "timestamp": now},
+            {"type": POSSIBLE_COMPLETION, "domain": "health", "item": "workout",
+             "confidence": 0.85, "source": "journal", "text": "b", "timestamp": now},
         ]
         result = _deduplicate(signals)
         self.assertEqual(len(result), 2)
@@ -259,7 +382,8 @@ class TestNormalizeOutput(SimpleTestCase):
 
     def test_output_structure(self):
         signals = [
-            {"type": POSSIBLE_COMPLETION, "domain": "faith", "item": "prayer", "confidence": 0.80, "source": "journal", "text": "a"},
+            {"type": POSSIBLE_COMPLETION, "domain": "faith", "item": "prayer",
+             "confidence": 0.80, "source": "journal", "text": "a", "timestamp": timezone.now()},
         ]
         result = _normalize_output(signals)
         self.assertIn("signals", result)
@@ -270,9 +394,12 @@ class TestNormalizeOutput(SimpleTestCase):
         self.assertEqual(result, {"signals": []})
 
     def test_sorted_by_confidence(self):
+        now = timezone.now()
         signals = [
-            {"type": POSSIBLE_COMPLETION, "domain": "faith", "item": "prayer", "confidence": 0.80, "source": "journal", "text": "a"},
-            {"type": POSSIBLE_COMPLETION, "domain": "health", "item": "workout", "confidence": 0.90, "source": "journal", "text": "b"},
+            {"type": POSSIBLE_COMPLETION, "domain": "faith", "item": "prayer",
+             "confidence": 0.80, "source": "journal", "text": "a", "timestamp": now},
+            {"type": POSSIBLE_COMPLETION, "domain": "health", "item": "workout",
+             "confidence": 0.90, "source": "journal", "text": "b", "timestamp": now},
         ]
         result = _normalize_output(signals)
         self.assertEqual(result["signals"][0]["confidence"], 0.90)
@@ -285,13 +412,16 @@ class TestDetectSignalsIntegration(SimpleTestCase):
     @patch("apps.core.signals.signal_engine._extract_workout_signals")
     @patch("apps.core.signals.signal_engine._extract_journal_signals")
     def test_combines_sources(self, mock_journal, mock_workout):
+        now = timezone.now()
         mock_journal.return_value = [
             {"type": POSSIBLE_COMPLETION, "domain": "faith", "item": "prayer",
-             "confidence": 0.85, "source": "journal", "text": "Prayed this morning"},
+             "confidence": 0.85, "source": "journal", "text": "Prayed this morning",
+             "timestamp": now},
         ]
         mock_workout.return_value = [
             {"type": POSSIBLE_COMPLETION, "domain": "health", "item": "workout",
-             "confidence": 0.82, "source": "workout_notes", "text": "Good session"},
+             "confidence": 0.82, "source": "workout_notes", "text": "Good session",
+             "timestamp": now},
         ]
 
         user = MagicMock()
@@ -316,13 +446,16 @@ class TestDetectSignalsIntegration(SimpleTestCase):
     @patch("apps.core.signals.signal_engine._extract_journal_signals")
     def test_deduplicates_across_sources(self, mock_journal, mock_workout):
         """Same signal from both sources keeps the higher confidence one."""
+        now = timezone.now()
         mock_journal.return_value = [
             {"type": POSSIBLE_COMPLETION, "domain": "faith", "item": "prayer",
-             "confidence": 0.85, "source": "journal", "text": "Prayed"},
+             "confidence": 0.85, "source": "journal", "text": "Prayed",
+             "timestamp": now},
         ]
         mock_workout.return_value = [
             {"type": POSSIBLE_COMPLETION, "domain": "faith", "item": "prayer",
-             "confidence": 0.80, "source": "workout_notes", "text": "Prayed in notes"},
+             "confidence": 0.80, "source": "workout_notes", "text": "Prayed in notes",
+             "timestamp": now},
         ]
 
         user = MagicMock()
@@ -340,7 +473,6 @@ class TestDetectSignalsIntegration(SimpleTestCase):
         user = MagicMock()
         detect_signals(user, lookback_hours=48)
 
-        # Verify cutoff was passed (check the second arg to the extractors)
         call_args = mock_journal.call_args
         cutoff = call_args[0][1]
         expected_min = timezone.now() - timedelta(hours=49)
@@ -353,15 +485,39 @@ class TestReadOnlyGuarantee(SimpleTestCase):
 
     def test_no_save_calls(self):
         """_detect_from_text is pure — no model instances, no saves."""
-        # This is a structural test: _detect_from_text only returns dicts
         signals = _detect_from_text("Completed my workout and prayed", source="journal")
         for sig in signals:
             self.assertIsInstance(sig, dict)
             self.assertNotIn("save", dir(sig))
 
     def test_output_contract_keys(self):
-        """Every signal must have exactly the required keys."""
-        required_keys = {"type", "domain", "item", "confidence", "source", "text"}
+        """Every signal must have exactly the required keys (including timestamp)."""
+        required_keys = {"type", "domain", "item", "confidence", "source", "text", "timestamp"}
         signals = _detect_from_text("I prayed this morning", source="journal")
         for sig in signals:
             self.assertEqual(set(sig.keys()), required_keys)
+
+
+class TestConfidenceFiltering(SimpleTestCase):
+    """Phase 2.1 Patch #1: Confidence threshold hardening tests."""
+
+    def test_weak_phrase_no_signal(self):
+        """Weak/ambiguous phrases must NOT produce signals."""
+        weak_phrases = [
+            "Prayer is nice",
+            "I like the gym",
+            "Workout clothes are ready",
+            "Bible on the shelf",
+        ]
+        for phrase in weak_phrases:
+            signals = _detect_from_text(phrase, source="journal")
+            self.assertEqual(
+                len(signals), 0,
+                f"Weak phrase should not emit signal: {phrase!r}",
+            )
+
+    def test_short_text_may_be_penalized_below_threshold(self):
+        """Very short text (< 15 chars) gets penalized and may drop below threshold."""
+        # "gym" alone has no verb indicator → should not emit
+        signals = _detect_from_text("gym", source="journal")
+        self.assertEqual(len(signals), 0)

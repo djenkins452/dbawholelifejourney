@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — Phase 2.1 Signal Engine Hardening Patch
+
+**What:** Hardened the Signal Engine for trust, stability, and extensibility.
+
+**Changes:**
+- **Confidence threshold:** Raised from 0.70 to 0.75 (`MIN_CONFIDENCE`), tuned base scores so strong matches land 0.80–0.95
+- **Timestamps:** Every signal now includes `timestamp` (Django timezone-aware) for Phase 3 filtering
+- **Centralized domain mapping:** Restructured `DOMAIN_KEYWORDS` with phrase-first matching (multi-word phrases checked before single keywords)
+- **Phrase-hit bonus:** Multi-word matches get +0.03 confidence boost
+- **Strict filtering:** Domain keyword alone without verb indicator is rejected; added tests for vague mentions, questions, and thinking-about phrasing
+- **Scoring retuned:** Base scores raised (completion: 0.82, inconsistency: 0.80, effort/intent: 0.78), short-text penalty increased to -0.12
+
+**Files modified:**
+- `apps/core/signals/signal_engine.py` — all 5 patch items
+- `apps/core/signals/tests/test_signal_engine.py` — expanded from 37 to 54 tests
+
+**Why:** Reduce false positives, eliminate duplicates, and prepare output contract for Phase 3 integration.
+
+---
+
 ## 2026-03-22 — Phase 2 Signal Engine: Behavioral Awareness Detection
 
 **What:** Implemented the Signal Engine — a read-only behavioral awareness system that detects user behavior/intent from unstructured text inputs (journal entries, workout notes).

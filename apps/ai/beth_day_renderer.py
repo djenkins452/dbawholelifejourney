@@ -6,9 +6,14 @@ The LLM is NOT involved. Every item is a real named item from
 execution truth.
 
 DATA SOURCES (exclusively):
-- Execution Truth Engine (get_execution_truth)
+- Execution Truth Engine (get_execution_truth) — routines
+- Task model (due_date=today, non-routine) — tasks
+- CalendarEvent model (start_dt=today, non-canceled) — calendar
 - Locked Next Action (build_locked_next_action)
 - Current time (timezone-aware, for bucket assignment)
+
+All sources are normalized into a unified item format before bucketing.
+No source receives preferential treatment.
 
 RULES:
 - NO aggregation (no counts, no grouping, no "X items")
@@ -84,8 +89,8 @@ def _render_day_from_truth(user) -> str:
 
     window_end = user_now + timedelta(minutes=COMING_UP_WINDOW_MINUTES)
 
-    # Collect all routine items with parsed times
-    all_items = _collect_all_items(truth, user_now)
+    # Collect ALL items for today: routines + tasks + calendar
+    all_items = _collect_all_today_items(user, truth, user_now)
 
     # Partition into buckets — all store (sort_time, label) tuples
     # sort_time = item_time if available, else datetime.max (sorts last)
@@ -191,13 +196,24 @@ def _render_day_from_truth(user) -> str:
 # Item collection
 # ---------------------------------------------------------------------------
 
-def _collect_all_items(truth: dict, user_now) -> list:
-    """Collect all routine items from execution truth with parsed times.
+def _collect_all_today_items(user, truth: dict, user_now) -> list:
+    """Collect ALL items for today: routines + tasks + calendar events.
 
-    Returns list of dicts:
+    Returns a unified list of normalized dicts:
         {"name": str, "time_str": str|None, "item_time": datetime|None,
-         "is_completed": bool, "is_foundational": bool}
+         "is_completed": bool, "is_foundational": bool, "source": str}
+
+    All sources flow through the same bucketing logic — no source bias.
     """
+    items = []
+    items.extend(_collect_routine_items(truth, user_now))
+    items.extend(_collect_task_items(user, user_now))
+    items.extend(_collect_calendar_items(user, user_now))
+    return items
+
+
+def _collect_routine_items(truth: dict, user_now) -> list:
+    """Collect routine items from execution truth."""
     items = []
     raw_items = truth.get("routines", {}).get("_raw_items", {})
 
@@ -213,15 +229,122 @@ def _collect_all_items(truth: dict, user_now) -> list:
                 item_time = _parse_time_today(time_str, user_now)
 
             importance = (item.get("importance") or "flexible").lower()
-            is_foundational = importance == "foundational"
 
             items.append({
                 "name": name,
                 "time_str": time_str,
                 "item_time": item_time,
                 "is_completed": bool(item.get("is_completed")),
-                "is_foundational": is_foundational,
+                "is_foundational": importance == "foundational",
+                "source": "routine",
             })
+
+    return items
+
+
+def _collect_task_items(user, user_now) -> list:
+    """Collect tasks due today from the Task model.
+
+    Only includes non-routine tasks with a due_date of today.
+    Tasks with scheduled_time get time-bucketed; others are excluded
+    from time buckets (same rule as routines).
+    """
+    items = []
+    try:
+        from apps.life.models import Task
+
+        today = user_now.date() if hasattr(user_now, 'date') else user_now
+        today_tasks = (
+            Task.objects
+            .filter(user=user, due_date=today, is_routine=False)
+            .exclude(status='deleted')
+        )
+
+        for task in today_tasks:
+            time_str = None
+            item_time = None
+            if task.scheduled_time:
+                item_time = user_now.replace(
+                    hour=task.scheduled_time.hour,
+                    minute=task.scheduled_time.minute,
+                    second=0, microsecond=0,
+                )
+                time_str = task.scheduled_time.strftime("%I:%M %p").lstrip("0")
+
+            commitment = (
+                getattr(task, "commitment_level", "") or "flexible"
+            ).lower()
+
+            items.append({
+                "name": (task.title or "").strip(),
+                "time_str": time_str,
+                "item_time": item_time,
+                "is_completed": task.completion_status == "completed",
+                "is_foundational": commitment == "foundational",
+                "source": "task",
+            })
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning("[DAY RENDERER] Task collection failed", exc_info=True)
+
+    return items
+
+
+def _collect_calendar_items(user, user_now) -> list:
+    """Collect calendar events for today.
+
+    Only includes non-canceled events whose start_dt falls today.
+    Excludes events sourced from routines/tasks to prevent duplication
+    (those are already collected from their primary source).
+    """
+    items = []
+    try:
+        from apps.calendar_engine.models import CalendarEvent
+
+        today = user_now.date() if hasattr(user_now, 'date') else user_now
+        # Exclude sources that are already collected via routines/tasks
+        _EXCLUDED_SOURCES = {
+            CalendarEvent.SOURCE_TASK,
+            CalendarEvent.SOURCE_FAITH_ROUTINE,
+            CalendarEvent.SOURCE_WORKOUT_SCHEDULE,
+            CalendarEvent.SOURCE_MEDICINE_SCHEDULE,
+        }
+
+        events = (
+            CalendarEvent.objects
+            .filter(user=user, start_dt__date=today)
+            .exclude(status=CalendarEvent.STATUS_CANCELED)
+            .exclude(source_type__in=_EXCLUDED_SOURCES)
+        )
+
+        for event in events:
+            item_time = event.start_dt
+            if timezone.is_aware(item_time):
+                item_time = timezone.localtime(item_time)
+
+            time_str = item_time.strftime("%I:%M %p").lstrip("0")
+
+            commitment = (
+                getattr(event, "commitment_level", "") or "important"
+            ).lower()
+
+            items.append({
+                "name": (event.title or "").strip(),
+                "time_str": time_str,
+                "item_time": item_time.replace(
+                    second=0, microsecond=0,
+                ),
+                "is_completed": event.status == CalendarEvent.STATUS_COMPLETED,
+                "is_foundational": commitment == "foundational",
+                "source": "calendar",
+            })
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning(
+            "[DAY RENDERER] Calendar collection failed", exc_info=True,
+        )
 
     return items
 

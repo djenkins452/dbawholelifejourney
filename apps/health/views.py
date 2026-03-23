@@ -2219,8 +2219,8 @@ def save_set_ajax(request):
             except (ValueError, TypeError):
                 return JsonResponse({"error": f"Invalid duration value: {duration_seconds}"}, status=400)
 
-        # For bodyweight exercises, auto-fetch user's latest weight
-        if movement_type == "bodyweight" and parsed_reps and not parsed_weight:
+        # For bodyweight load_type exercises, auto-fetch user's latest weight
+        if exercise.load_type == "bodyweight" and parsed_reps and not parsed_weight:
             try:
                 latest_weight = WeightEntry.objects.filter(
                     user=user

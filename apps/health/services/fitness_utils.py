@@ -62,7 +62,9 @@ def get_weekly_volume(user, week_start_date):
     set_count = 0
     for s in sets.select_related("workout_exercise__exercise"):
         set_count += 1
-        total_volume += s.volume
+        v = s.volume
+        if v is not None:
+            total_volume += v
 
     return {
         "total_volume": round(total_volume, 1),
@@ -111,7 +113,9 @@ def get_exercise_volume_history(user, exercise, weeks=8):
         set_count = 0
         for s in sets:
             set_count += 1
-            volume += s.volume
+            v = s.volume
+            if v is not None:
+                volume += v
 
         history.append({
             "week_start": week_start,

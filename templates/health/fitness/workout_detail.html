@@ -160,7 +160,7 @@
                                             </td>
                                             <td>{{ set.weight|default:"-" }}{% if set.weight %} lbs{% endif %}</td>
                                             <td>{{ set.reps|default:"-" }}</td>
-                                            <td>{{ set.volume|floatformat:0 }}</td>
+                                            <td>{% if set.volume is not None %}{{ set.volume|floatformat:0 }}{% else %}-{% endif %}</td>
                                         </tr>
                                     {% endfor %}
                                 </tbody>

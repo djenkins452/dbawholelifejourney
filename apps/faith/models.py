@@ -417,6 +417,36 @@ class ReadingPlanTemplate(models.Model):
     def __str__(self):
         return self.title
 
+    def validate_day_integrity(self):
+        """
+        Validate that duration_days matches actual ReadingPlanDay count
+        and that day_numbers are sequential with no gaps.
+
+        Returns (is_valid, errors) tuple.
+        """
+        errors = []
+        day_numbers = list(
+            self.days.values_list("day_number", flat=True).order_by("day_number")
+        )
+        actual_count = len(day_numbers)
+
+        if actual_count != self.duration_days:
+            errors.append(
+                f"duration_days={self.duration_days} but {actual_count} "
+                f"ReadingPlanDay records exist"
+            )
+
+        expected = list(range(1, actual_count + 1))
+        if day_numbers != expected:
+            missing = set(expected) - set(day_numbers)
+            if missing:
+                errors.append(f"Missing day_numbers: {sorted(missing)}")
+            duplicates = [d for d in day_numbers if day_numbers.count(d) > 1]
+            if duplicates:
+                errors.append(f"Duplicate day_numbers: {sorted(set(duplicates))}")
+
+        return (len(errors) == 0, errors)
+
 
 class ReadingPlanDay(models.Model):
     """

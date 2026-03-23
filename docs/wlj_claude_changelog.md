@@ -6,6 +6,23 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Complete Journey Through Mark Reading Plan
+
+**What:** The Mark reading plan was missing chapters 14-16 (Passion, Crucifixion, Resurrection). Only 16 days were defined covering Mark 1-13. Added 3 new days with full three-tier commentary to complete the entire book.
+
+**Root Cause:** Incomplete plan authoring in `load_gospel_plans.py` — the plan stopped at Mark 13:37 and never included the Passion narrative, crucifixion, or resurrection.
+
+**Changes:**
+- `apps/faith/management/commands/load_gospel_plans.py` — Added days 17-19 (Mark 14-16), updated `duration_days` 16→19, updated description, made loader idempotent for existing templates
+- `apps/faith/migrations/0019_complete_mark_plan.py` — Data migration to backfill days in production and create UserReadingProgress for active plans
+- `apps/faith/models.py` — Added `validate_day_integrity()` method to ReadingPlanTemplate for detecting day count mismatches and gaps
+
+**Architectural enforcement:** Added `validate_day_integrity()` to `ReadingPlanTemplate` and post-creation validation in the gospel loader to prevent future incomplete plans.
+
+**Files:** `apps/faith/management/commands/load_gospel_plans.py`, `apps/faith/migrations/0019_complete_mark_plan.py`, `apps/faith/models.py`, `docs/wlj_claude_changelog.md`
+
+---
+
 ## 2026-03-23 — Compliance Phase 6: Generalized Obligation Engine
 
 **What:** Transformed the patched workout-only reconciliation into a fully generalized, multi-domain obligation engine with structured identity, performance caching, and domain-agnostic reconciliation.

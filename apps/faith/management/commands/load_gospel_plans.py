@@ -39,6 +39,17 @@ class Command(BaseCommand):
         john = self._create_john_plan()
         self.stdout.write(f"  Created: {john.title} ({john.duration_days} days)")
 
+        # Validate integrity of all gospel plans
+        for plan in [matthew, mark, luke, john]:
+            is_valid, errors = plan.validate_day_integrity()
+            if not is_valid:
+                for error in errors:
+                    self.stderr.write(
+                        self.style.ERROR(f"  INTEGRITY ERROR [{plan.title}]: {error}")
+                    )
+            else:
+                self.stdout.write(f"  Validated: {plan.title} — {plan.duration_days} days, no gaps")
+
         self.stdout.write(self.style.SUCCESS("Gospel reading plans loaded successfully!"))
 
     def _create_matthew_plan(self):
@@ -62,10 +73,7 @@ class Command(BaseCommand):
             }
         )
 
-        if not created:
-            # Plan exists, skip day creation
-            return template
-
+        # Always process days — get_or_create is safe for existing records
         # Matthew reading plan days
         days = [
             {
@@ -373,10 +381,10 @@ class Command(BaseCommand):
             slug="journey-through-mark",
             defaults={
                 "title": "Journey Through Mark",
-                "description": "A 16-day journey through the Gospel of Mark, the shortest and most action-packed Gospel. Mark portrays Jesus as the powerful Servant who acts decisively. Written for a Roman audience, it emphasizes what Jesus did more than what He said.",
+                "description": "A 19-day journey through the complete Gospel of Mark, the shortest and most action-packed Gospel. Mark portrays Jesus as the powerful Servant who acts decisively. Written for a Roman audience, it emphasizes what Jesus did more than what He said.",
                 "category": "book",
                 "difficulty": "beginner",
-                "duration_days": 16,
+                "duration_days": 19,
                 "topics": ["gospel", "mark", "servant", "action", "miracles", "jesus"],
                 "source": "The Four Gospels",
                 "source_abbreviation": "Gospels",
@@ -389,7 +397,17 @@ class Command(BaseCommand):
         )
 
         if not created:
-            return template
+            # Update duration_days and description if plan was extended
+            updated_fields = []
+            if template.duration_days != 19:
+                template.duration_days = 19
+                updated_fields.append("duration_days")
+            new_desc = "A 19-day journey through the complete Gospel of Mark, the shortest and most action-packed Gospel. Mark portrays Jesus as the powerful Servant who acts decisively. Written for a Roman audience, it emphasizes what Jesus did more than what He said."
+            if template.description != new_desc:
+                template.description = new_desc
+                updated_fields.append("description")
+            if updated_fields:
+                template.save(update_fields=updated_fields)
 
         days = [
             {
@@ -551,6 +569,36 @@ class Command(BaseCommand):
                 "commentary_intermediate": "Mark 13 (the 'Olivet Discourse') addresses both the temple's destruction (70 AD) and the end times. The temple's massive stones (some 40 feet long, 12 feet high) seemed indestructible. 'Birth pains' (ōdines) is apocalyptic imagery—the old age dying to birth the new. The 'abomination of desolation' (Daniel 9:27, 11:31) likely references a desecrating event in the temple. 'Let the reader understand' may be Mark's note to readers about prophetic interpretation. The cosmic imagery (sun, moon, stars) draws on Isaiah 13:10, 34:4—theophanic language for God's intervention. The fig tree parable teaches discernment of signs, not date-setting. Even Jesus in His humanity didn't know the day—emphasizing mystery and the call to watchfulness. The doorkeeper illustration calls for constant readiness.",
                 "commentary_advanced": "The discourse's interpretation is debated: preterist (fulfilled in 70 AD), futurist (yet to come), or both (near/far horizons). 'These things' (tauta, 13:4, 29, 30) and 'that day' (ekeinēs tēs hēmeras, 13:32) may distinguish near and far events. The 'abomination' (bdelygma tēs erēmōseōs) in Daniel refers to Antiochus IV's altar; here possibly to Roman standards in the temple or a future figure. 'Son of Man coming with clouds' quotes Daniel 7:13-14—vindication and authority. 'This generation' (hē genea hautē, 13:30) could mean Jesus' contemporaries, the human race, or the generation seeing final signs. Jesus' ignorance (oude ho huios, 13:32) reflects His kenotic humanity; some early manuscripts omit this. The four watches (evening, midnight, rooster-crow, dawn) structure the Passion narrative. 'Grēgoreo' (stay awake/watch) becomes a key virtue—the disciples will fail in Gethsemane.",
                 "reflection_prompt": "Jesus emphasized readiness over date-setting. 'Be on guard! Be alert!' If you knew Jesus was returning this week, what would you do differently? Why not live that way now?",
+            },
+            {
+                "day_number": 17,
+                "title": "The Servant Anointed and Betrayed",
+                "scripture_references": ["Mark 14:1-72"],
+                "context_summary": "The Passion narrative begins. A woman anoints Jesus at Bethany while Judas plots betrayal. Jesus shares the Last Supper with His disciples, institutes the Lord's Supper, and predicts Peter's denial. In Gethsemane, He agonizes in prayer, is arrested, and stands trial before the Sanhedrin. Peter denies Him three times.",
+                "commentary_beginner": "Two days before Passover, religious leaders plotted to arrest Jesus secretly. At dinner in Bethany, a woman poured expensive perfume on Jesus' head. Some were angry at the 'waste,' but Jesus said she was preparing His body for burial—'She has done a beautiful thing.' Judas went to the chief priests to betray Jesus. On Passover, Jesus sent disciples to prepare a room. During supper, He said, 'One of you will betray me.' They were sad, asking 'Surely not I?' He took bread, broke it: 'This is my body.' Then the cup: 'This is my blood of the covenant, poured out for many.' He told Peter, 'Before the rooster crows twice, you will deny me three times.' In Gethsemane, Jesus was deeply distressed: 'Father, take this cup from me. Yet not what I will, but what you will.' The disciples kept falling asleep. Judas arrived with an armed crowd and betrayed Jesus with a kiss. Everyone fled. Before the high priest, witnesses gave false testimony. Jesus finally declared, 'I am' the Christ. They condemned Him. Outside, Peter denied Jesus three times—and wept.",
+                "commentary_intermediate": "Mark 14 weaves contrasting responses to Jesus: the woman's extravagant devotion versus Judas' calculated betrayal. The 300 denarii value equals a year's wages—her act is prophetic, preparing for burial. The Last Supper's 'blood of the covenant' echoes Exodus 24:8 (Sinai covenant) with 'poured out for many' from Isaiah 53:12 (the Suffering Servant). Gethsemane ('oil press') is fitting for crushing anguish. 'Abba, Father' reveals intimate relationship amid crisis. Jesus asks for the cup's removal—a genuine human struggle, not theatrical. The three prayers mirror three denials. The young man fleeing naked (14:51-52) is unique to Mark—possibly Mark himself. Before the Sanhedrin, Jesus' 'I am' (egō eimi) is His clearest self-identification, combining Messiah (Psalm 110:1) and Son of Man (Daniel 7:13). Peter's denial fulfills Jesus' prediction exactly—the rooster's second crow triggers his breakdown.",
+                "commentary_advanced": "The anointing pericope frames the Passion between devotion and betrayal. The woman's act fulfills a prophetic/royal function (cf. 1 Sam 16:13), though Jesus reinterprets it as burial preparation. Mark's 'wherever the gospel is preached' (14:9) breaks the narrative frame—a post-Easter perspective embedded in the story. The Last Supper's covenant theology is debated: new covenant (Jer 31:31-34) or renewed Sinai covenant? 'For many' (hyper pollōn) is Semitic inclusive language ('for all'). Gethsemane's 'the hour' (hē hōra) and 'the cup' (to potērion) are loaded theological terms—the appointed time and God's wrath/judgment. 'Abba' (14:36) is Aramaic preserved in Greek text—rare in prayer, suggesting authentic Jesus tradition. The naked young man (neaniskos, 14:51-52) has generated theories: Mark's signature, baptismal symbolism, or contrast with the 'young man' (neaniskos) at the tomb (16:5) who is clothed in white. The Sanhedrin trial's historicity is debated—nighttime trial violates Mishnaic rules, though those rules may be later codifications. Jesus' 'I am' (egō eimi) combined with 'you will see' merges present claim with future vindication. Peter's tears (eklain) represent the failure of human resolve without divine empowerment—a theme Mark's audience would recognize from their own persecutions.",
+                "reflection_prompt": "In Gethsemane, Jesus modeled honest prayer: telling God what He wanted, yet surrendering to God's will. How do you balance honesty and surrender in your own prayers during difficult times?",
+            },
+            {
+                "day_number": 18,
+                "title": "The Servant Crucified",
+                "scripture_references": ["Mark 15:1-47"],
+                "context_summary": "Jesus stands trial before Pilate, is mocked by soldiers, and is crucified at Golgotha. Darkness covers the land. Jesus cries out and dies. The temple curtain tears from top to bottom. A Roman centurion declares, 'Truly this man was the Son of God!' Joseph of Arimathea buries Jesus in a tomb.",
+                "commentary_beginner": "Early morning, the Jewish leaders handed Jesus to Pilate, the Roman governor. Pilate asked, 'Are you the King of the Jews?' Jesus answered, 'You say so.' The crowd chose to release Barabbas (a murderer) instead of Jesus. Soldiers mocked Jesus with a purple robe and crown of thorns: 'Hail, King of the Jews!' They forced Simon of Cyrene to carry Jesus' cross to Golgotha ('Place of the Skull'). They crucified Him at 9 AM. The sign read: 'The King of the Jews.' Two robbers hung beside Him. People mocked: 'Save yourself! Come down from the cross!' At noon, darkness covered everything for three hours. At 3 PM, Jesus cried out, 'My God, my God, why have you forsaken me?' With a loud cry, He died. The temple curtain ripped from top to bottom! A centurion watching said, 'Surely this man was the Son of God!' Women who had followed Jesus watched from a distance. Joseph of Arimathea asked Pilate for the body and laid Jesus in a rock-cut tomb, rolling a stone over the entrance.",
+                "commentary_intermediate": "Mark's crucifixion account is stark and unflinching. The Barabbas episode is ironic: the innocent dies so the guilty goes free—a substitutionary picture. The soldiers' mockery unwittingly proclaims truth: purple robe and crown = actual kingship. Simon of Cyrene (father of Alexander and Rufus, known to Mark's community—Romans 16:13?) represents the call to take up one's cross (8:34). The three-hour darkness echoes Amos 8:9 and Exodus 10:22—divine judgment and cosmic significance. Jesus' cry (Psalm 22:1) is not despair but lament—Psalm 22 moves from forsakenness to vindication and universal praise. The torn curtain (from top to bottom—God's action) signals open access to God's presence. The centurion's confession is the climax of Mark's Christology: a Gentile soldier, seeing how Jesus died, makes the confession the disciples never could. The women's presence preserves witness continuity. Joseph's bold act (tolmēsas) risks defilement and political consequences.",
+                "commentary_advanced": "Mark's Passion narrative follows a three-hour structure: crucifixion at the third hour (9 AM), darkness at the sixth (noon), death at the ninth (3 PM). This may reflect liturgical time-keeping for early Christian worship. The Barabbas scene's textual tradition is complex—some manuscripts name him 'Jesus Barabbas,' heightening the irony: 'Jesus, son of the father' vs. Jesus, the actual Son of the Father. The centurion's 'Son of God' (huios theou) forms an inclusio with Mark 1:1. Without the article ('a son of God' vs 'the Son of God'), it's ambiguous in Greek—but Mark's readers know the full meaning. The cry of dereliction (Elōi, Elōi, lema sabachthani) is Aramaic/Hebrew, the most authentic of all passion sayings. The bystanders' confusion with Elijah (Ēlian) may be wordplay or genuine misunderstanding. The torn curtain (katapetasma, either inner or outer) symbolizes the end of temple mediation. Mark's crucifixion strips away all human glory—no repentant thief (Luke), no 'It is finished' (John), no earthquake saints (Matthew). Just abandonment, darkness, a cry, and death. This is Mark's theology of the cross in its rawest form. The burial by Joseph (a council member—the same council that condemned Jesus) introduces ambiguity: was he a secret disciple or simply performing pious duty? Mark says 'waiting for the kingdom of God' (prosdechomenos tēn basileian), leaving readers to decide.",
+                "reflection_prompt": "The centurion recognized who Jesus was by watching how He died. What does it mean that Jesus' identity was most clearly revealed not in miracles or teaching, but in suffering? How does this shape your understanding of strength and weakness?",
+            },
+            {
+                "day_number": 19,
+                "title": "The Servant Risen",
+                "scripture_references": ["Mark 16:1-20"],
+                "context_summary": "On Sunday morning, three women go to anoint Jesus' body. They find the stone rolled away and a young man in white who announces: 'He has risen! He is not here.' The longer ending records Jesus' appearances and His final commission: 'Go into all the world and preach the gospel to all creation.'",
+                "commentary_beginner": "When the Sabbath was over, Mary Magdalene, Mary the mother of James, and Salome bought spices to anoint Jesus' body. Very early Sunday morning, they went to the tomb, wondering, 'Who will roll away the stone?' But it was already rolled back! Inside, a young man in a white robe said, 'Don't be alarmed. You are looking for Jesus who was crucified. He has risen! He is not here. See the place where they laid Him. Go, tell His disciples and Peter that He is going ahead of you to Galilee.' The women fled, trembling and amazed. [The longer ending adds:] Jesus appeared first to Mary Magdalene, then to two disciples walking in the country, then to the eleven as they ate. He said, 'Go into all the world and preach the gospel to all creation. Whoever believes and is baptized will be saved.' After speaking, Jesus was taken up into heaven and sat at the right hand of God. The disciples went out and preached everywhere, and the Lord worked with them, confirming the message with signs.",
+                "commentary_intermediate": "Mark's resurrection account is striking in its brevity. The women's spice-buying assumes no resurrection expectation—this is raw grief meeting divine surprise. The 'young man' (neaniskos) in white echoes the young man who fled naked at Jesus' arrest (14:51-52)—now clothed, present at the empty tomb. 'And Peter' is a personal restoration message—the denier is not forgotten. The original ending at 16:8 ('they said nothing to anyone, for they were afraid') is shocking: fear, silence, and incompleteness. This may be deliberate—Mark invites the reader to complete the story through their own response to the risen Christ. The longer ending (16:9-20), likely added later, harmonizes with the other Gospels: appearances to Mary Magdalene, two disciples, and the eleven. The Great Commission ('Go into all the world') universalizes the gospel beyond Jewish boundaries. The signs (casting out demons, speaking in tongues, handling serpents, healing the sick) reflect early church experience in Acts.",
+                "commentary_advanced": "The ending of Mark is the most debated textual problem in the New Testament. The earliest manuscripts (Sinaiticus, Vaticanus) end at 16:8 with 'ephobounto gar' ('for they were afraid')—ending a Greek sentence (and an entire Gospel) with 'gar' is grammatically unusual but not unprecedented. Three main positions exist: (1) Mark intentionally ended at 16:8, creating an open ending that forces reader response; (2) the original ending was lost; (3) Mark was interrupted before finishing. The longer ending (16:9-20) is absent from the best manuscripts and differs in vocabulary and style, but was known by the 2nd century (Irenaeus quotes 16:19). It may preserve authentic early tradition even if not original to Mark. The 'young man' (neaniskos) clothed in a white robe (stolēn leukēn) has generated extensive scholarly discussion—angel, baptismal symbol, or literary device? His message contains the core kerygma: crucified, risen, going before you. 'Going ahead to Galilee' (proagei hymas) recalls 14:28 and represents return to the place of calling and mission—not Jerusalem (Luke/John) but Galilee where discipleship began. The women's silence (16:8) creates the 'messianic secret's' final paradox: the greatest secret (resurrection) produces the greatest silence. Yet Mark's Gospel exists—someone told. The reader knows the ending because they hold it in their hands. Mark's abrupt close is arguably the most brilliant literary ending in antiquity—it transforms every reader from spectator to participant.",
+                "reflection_prompt": "The angel's message included 'and Peter'—a personal invitation to the one who had failed most publicly. What does it mean to you that the risen Jesus specifically sought out the one who denied Him? Is there an area of failure where you need to hear your name called?",
             }
         ]
 
@@ -592,9 +640,7 @@ class Command(BaseCommand):
             }
         )
 
-        if not created:
-            return template
-
+        # Always process days — get_or_create is safe for existing records
         days = [
             {
                 "day_number": 1,
@@ -876,9 +922,7 @@ class Command(BaseCommand):
             }
         )
 
-        if not created:
-            return template
-
+        # Always process days — get_or_create is safe for existing records
         days = [
             {
                 "day_number": 1,

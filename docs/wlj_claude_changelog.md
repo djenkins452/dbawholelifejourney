@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — WorkoutSession Takes Absolute Precedence in V2 Compliance
+
+**What:** WorkoutSession with `completed_at` now takes absolute precedence over any WorkoutScheduleLog status in V2 Compliance, including "skipped" logs.
+
+**Why:** Previous implementation checked WorkoutScheduleLog first, so a "skipped" log could override a completed WorkoutSession. Per WLJ truth hierarchy, raw data (WorkoutSession) must always win over derived state (WorkoutScheduleLog).
+
+**Key changes:**
+- `apps/dashboard_v2/compliance/adapters/workout.py` — Inverted priority in `_build_workout_event()`: session checked first, log only used when no completed session exists
+- `apps/dashboard_v2/compliance/tests/test_compliance.py` — Added `test_completed_session_overrides_skipped_log` and `test_completed_session_overrides_late_log`; updated existing tests to match new priority
+
+**Files:** `apps/dashboard_v2/compliance/adapters/workout.py`, `apps/dashboard_v2/compliance/tests/test_compliance.py`
+
+---
+
 ## 2026-03-23 — Fix V2 Compliance Workout "Missed" False Positives
 
 **What:** V2 Compliance dashboard now checks WorkoutSession (raw truth) as the primary source for workout completion, instead of relying solely on WorkoutScheduleLog (derived bridge record).

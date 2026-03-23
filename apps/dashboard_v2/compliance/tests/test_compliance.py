@@ -493,8 +493,33 @@ class WorkoutAdapterTest(TestCase):
         self.assertEqual(events[0]["final_status"], FINAL_MISSED)
         self.assertEqual(events[0]["reason_code"], "not_completed")
 
-    def test_schedule_log_still_used_when_present(self):
-        """WorkoutScheduleLog exists → use existing log-based logic."""
+    def test_schedule_log_used_when_no_completed_session(self):
+        """WorkoutScheduleLog is used when no completed WorkoutSession exists."""
+        from django.utils import timezone
+
+        from apps.health.models import WorkoutScheduleLog
+
+        plan, schedule, template = self._create_plan_with_schedule()
+
+        # Create a completed_late log directly (no completed session)
+        WorkoutScheduleLog.objects.create(
+            user=self.user, schedule=schedule,
+            scheduled_date=self.today,
+            log_status="completed_late",
+            completed_at=timezone.now(),
+        )
+
+        from apps.dashboard_v2.compliance.adapters.workout import evaluate_workout
+        events = evaluate_workout(self.user, self.today, self.today)
+
+        self.assertEqual(len(events), 1)
+        # Log-based status used as fallback
+        self.assertEqual(events[0]["final_status"], FINAL_COMPLETED_LATE)
+        self.assertEqual(events[0]["reason_code"], "after_grace")
+        self.assertEqual(events[0]["source_system"], "workout_schedule_log")
+
+    def test_completed_session_overrides_late_log(self):
+        """Completed WorkoutSession overrides a completed_late log."""
         from django.utils import timezone
 
         from apps.health.models import WorkoutScheduleLog, WorkoutSession
@@ -506,8 +531,7 @@ class WorkoutAdapterTest(TestCase):
             name="Chest Day", from_template=template,
             completed_at=timezone.now(),
         )
-        # The post_save signal may have already created a log — update it
-        # to completed_late to verify the adapter uses log status over session
+        # Signal may create a log — force it to completed_late
         WorkoutScheduleLog.objects.update_or_create(
             schedule=schedule,
             scheduled_date=self.today,
@@ -523,10 +547,10 @@ class WorkoutAdapterTest(TestCase):
         events = evaluate_workout(self.user, self.today, self.today)
 
         self.assertEqual(len(events), 1)
-        # Should use the log's more specific status (completed_late)
-        self.assertEqual(events[0]["final_status"], FINAL_COMPLETED_LATE)
-        self.assertEqual(events[0]["reason_code"], "after_grace")
-        self.assertEqual(events[0]["source_system"], "workout_schedule_log")
+        # Session takes absolute precedence — COMPLETED, not COMPLETED_LATE
+        self.assertEqual(events[0]["final_status"], FINAL_COMPLETED)
+        self.assertEqual(events[0]["reason_code"], "completed_via_session")
+        self.assertEqual(events[0]["source_system"], "workout_session")
 
     def test_no_session_no_log_marks_missed(self):
         """No WorkoutSession and no WorkoutScheduleLog → MISSED."""
@@ -590,15 +614,13 @@ class WorkoutAdapterTest(TestCase):
         self.assertEqual(events[0]["final_status"], FINAL_COMPLETED)
         self.assertEqual(events[0]["reason_code"], "completed_via_session")
 
-    def test_skipped_log_takes_precedence_over_session(self):
-        """WorkoutScheduleLog with skipped status takes precedence."""
-        from django.utils import timezone
-
+    def test_skipped_log_used_when_no_completed_session(self):
+        """WorkoutScheduleLog with skipped status used when no session exists."""
         from apps.health.models import WorkoutScheduleLog
 
         plan, schedule, template = self._create_plan_with_schedule()
 
-        # Create skip log directly (no session needed for skip)
+        # Create skip log directly (no completed session)
         WorkoutScheduleLog.objects.create(
             user=self.user, schedule=schedule,
             scheduled_date=self.today,
@@ -611,6 +633,36 @@ class WorkoutAdapterTest(TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["final_status"], FINAL_SKIPPED)
         self.assertEqual(events[0]["reason_code"], "explicit_skip")
+
+    def test_completed_session_overrides_skipped_log(self):
+        """Completed WorkoutSession overrides a skipped WorkoutScheduleLog."""
+        from django.utils import timezone
+
+        from apps.health.models import WorkoutScheduleLog, WorkoutSession
+
+        plan, schedule, template = self._create_plan_with_schedule()
+
+        # Skip log exists
+        WorkoutScheduleLog.objects.create(
+            user=self.user, schedule=schedule,
+            scheduled_date=self.today,
+            log_status="skipped",
+        )
+        # But user also completed a workout session
+        WorkoutSession.objects.create(
+            user=self.user, date=self.today,
+            name="Chest Day",
+            completed_at=timezone.now(),
+        )
+
+        from apps.dashboard_v2.compliance.adapters.workout import evaluate_workout
+        events = evaluate_workout(self.user, self.today, self.today)
+
+        self.assertEqual(len(events), 1)
+        # Session with completed_at takes absolute precedence
+        self.assertEqual(events[0]["final_status"], FINAL_COMPLETED)
+        self.assertEqual(events[0]["reason_code"], "completed_via_session")
+        self.assertEqual(events[0]["source_system"], "workout_session")
 
 
 class EvaluateAndRollupIntegrationTest(TestCase):

@@ -129,9 +129,9 @@ def evaluate_workout(user, start_date, end_date):
 def _build_workout_event(user, day, schedule_entry, label, log, session_id):
     """Build a single ComplianceEvent dict for one workout day.
 
-    Priority:
-    1. WorkoutScheduleLog with valid status (has timeliness + skip info)
-    2. WorkoutSession with completed_at (raw truth fallback)
+    Priority (absolute):
+    1. WorkoutSession with completed_at → ALWAYS COMPLETED (raw truth wins)
+    2. WorkoutScheduleLog (only when no completed session exists)
     3. Neither → MISSED
     """
     base = {
@@ -146,8 +146,19 @@ def _build_workout_event(user, day, schedule_entry, label, log, session_id):
         "expected": True,
     }
 
-    # ── Path 1: WorkoutScheduleLog exists (derived bridge with timeliness) ──
-    if log:
+    # ── Path 1: Completed WorkoutSession exists → ALWAYS COMPLETED ──
+    # Raw truth takes absolute precedence over any derived state.
+    if session_id:
+        base["source_system"] = SOURCE_WORKOUT_SESSION
+        base.update({
+            "actual_status": ACTUAL_COMPLETED,
+            "final_status": FINAL_COMPLETED,
+            "reason_code": REASON_COMPLETED_VIA_SESSION,
+            "reason_detail": {"session_id": session_id},
+        })
+
+    # ── Path 2: No completed session — use WorkoutScheduleLog if present ──
+    elif log:
         base["source_system"] = SOURCE_WORKOUT_SCHEDULE_LOG
         if log.log_status == "completed":
             base.update({
@@ -171,34 +182,14 @@ def _build_workout_event(user, day, schedule_entry, label, log, session_id):
                 "reason_detail": {"log_id": log.id},
             })
         else:
-            # Unknown log status — check raw truth before declaring missed
-            if session_id:
-                base["source_system"] = SOURCE_WORKOUT_SESSION
-                base.update({
-                    "actual_status": ACTUAL_COMPLETED,
-                    "final_status": FINAL_COMPLETED,
-                    "reason_code": REASON_COMPLETED_VIA_SESSION,
-                    "reason_detail": {"session_id": session_id},
-                })
-            else:
-                base.update({
-                    "actual_status": ACTUAL_NONE,
-                    "final_status": FINAL_MISSED,
-                    "reason_code": REASON_NOT_COMPLETED,
-                    "reason_detail": {},
-                })
+            base.update({
+                "actual_status": ACTUAL_NONE,
+                "final_status": FINAL_MISSED,
+                "reason_code": REASON_NOT_COMPLETED,
+                "reason_detail": {},
+            })
 
-    # ── Path 2: No log, but completed WorkoutSession exists (raw truth) ──
-    elif session_id:
-        base["source_system"] = SOURCE_WORKOUT_SESSION
-        base.update({
-            "actual_status": ACTUAL_COMPLETED,
-            "final_status": FINAL_COMPLETED,
-            "reason_code": REASON_COMPLETED_VIA_SESSION,
-            "reason_detail": {"session_id": session_id},
-        })
-
-    # ── Path 3: Neither log nor session → genuinely missed ──
+    # ── Path 3: Neither session nor log → genuinely missed ──
     else:
         base["source_system"] = SOURCE_WORKOUT_SCHEDULE
         base.update({

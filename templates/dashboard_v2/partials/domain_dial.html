@@ -1,16 +1,19 @@
 {# Domain Adherence Dial — compact card showing 7-day adherence per domain #}
 {# Usage: {% include "dashboard_v2/partials/domain_dial.html" with domain=ds domain_key="routine" %} #}
 
+{% load dashboard_v2_tags %}
+
+<a href="{% url 'dashboard_v2:compliance_detail' bucket=domain_key|compliance_bucket %}"
+   style="text-decoration: none; color: inherit; display: block; flex: 1; min-width: 140px; max-width: 200px;">
 <div style="
-    flex: 1;
-    min-width: 140px;
-    max-width: 200px;
     background: var(--color-surface);
     border-radius: var(--radius-md, 8px);
     padding: var(--space-4);
     border: 1px solid var(--color-border);
     text-align: center;
-">
+    cursor: pointer;
+    transition: box-shadow 0.15s, border-color 0.15s;
+" class="compliance-dial-card">
     {# Domain label #}
     <div style="font-size: var(--font-size-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--space-2);">
         {{ domain.label }}
@@ -54,3 +57,4 @@
     </div>
     {% endif %}
 </div>
+</a>

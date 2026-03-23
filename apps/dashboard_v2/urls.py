@@ -81,4 +81,10 @@ urlpatterns = [
         views.CelebrationDismissView.as_view(),
         name="celebration_dismiss",
     ),
+    # Compliance drill-down
+    path(
+        "compliance/<str:bucket>/",
+        views.ComplianceDetailView.as_view(),
+        name="compliance_detail",
+    ),
 ]

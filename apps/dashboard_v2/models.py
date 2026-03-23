@@ -1,16 +1,18 @@
 """
 Dashboard V2 — Life Command Center Models
 
-Three models that support the dashboard_v2 intelligence layer:
+Four models that support the dashboard_v2 intelligence layer:
 - GoalMomentumSnapshot: Nightly persisted momentum scores per goal
 - PreparedCelebration: System-detected celebration events
 - DailyProgressSnapshot: Daily execution completeness tracking
+- ComplianceEvent: Canonical audit trail for tracked commitments
 """
 
 from django.db import models
 from django.utils import timezone
 
 from apps.core.models import UserOwnedModel
+from apps.dashboard_v2.compliance.models import ComplianceEvent  # noqa: F401
 
 
 class GoalMomentumSnapshot(UserOwnedModel):

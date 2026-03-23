@@ -1330,6 +1330,12 @@ a.v2-action-title:hover {
     font-weight: 400;
 }
 
+/* Compliance dial hover */
+.compliance-dial-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    border-color: var(--color-accent, #3b82f6) !important;
+}
+
 /* =============================================================================
    WEATHER WIDGET (V2)
    ============================================================================= */

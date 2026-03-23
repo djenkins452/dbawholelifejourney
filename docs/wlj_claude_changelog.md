@@ -6,6 +6,67 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — Compliance Audit System (Phases 1-4)
+
+**What:** Universal compliance audit architecture enabling drill-down from any V2 compliance card to see exactly what was counted, when, for which item, and why.
+
+**Architecture:**
+- `raw data → domain adapters → ComplianceEvent rows → rollup service → cards / detail UI`
+- Single canonical model replaces scattered aggregate logic
+- Every row answers: "what was expected, what happened, and why it was counted this way"
+
+**Phase 1 — Foundation:**
+- `ComplianceEvent` model with full status chain: actual_status → final_status + reason_code
+- 7 final statuses: completed, completed_late, skipped, missed, overdue, rescheduled, not_expected
+- 18 reason codes for explainability (on_time, no_log, after_grace, explicit_skip, etc.)
+- 6 scoring buckets mapping to V2 cards
+
+**Phase 2 — Domain Adapters:**
+- Medication: reads Medicine/MedicineSchedule/MedicineLog, handles taken/late/skipped/missed
+- Workout: reads WorkoutPlan/WorkoutSchedule/WorkoutScheduleLog, respects rest days
+- Routine: reads Routine/RoutineSchedule/RoutineLog, handles completed_as_scheduled override
+- Task: handles due today, overdue, skipped; excludes routine tasks and no-due-date tasks
+- Journal: checks routine-based expectations against JournalEntry existence
+- Faith: evaluates prayer (routine bridge) and Bible reading (plan + routine bridge)
+
+**Phase 3 — Rollup Engine:**
+- `ComplianceService` with evaluate_week(), get_rollup(), get_detail(), get_all_rollups()
+- Skipped excluded from denominator (intentional non-takes)
+- Completion % = (completed + late) / (expected - skipped)
+- Atomic replace: delete old events + bulk_create fresh on each evaluation
+
+**Phase 4 — Drill-Down UI:**
+- `/v2/compliance/<bucket>/` detail view with full audit trail
+- Grouped by date, expandable rows showing reason codes + source systems
+- Status filter pills (all/missed/late/skipped/overdue/completed)
+- Domain dials now clickable — link to compliance detail page
+- Color-coded status indicators and badges
+
+**Files Created:**
+- `apps/dashboard_v2/compliance/__init__.py`
+- `apps/dashboard_v2/compliance/constants.py`
+- `apps/dashboard_v2/compliance/models.py`
+- `apps/dashboard_v2/compliance/service.py`
+- `apps/dashboard_v2/compliance/adapters/__init__.py`
+- `apps/dashboard_v2/compliance/adapters/medication.py`
+- `apps/dashboard_v2/compliance/adapters/workout.py`
+- `apps/dashboard_v2/compliance/adapters/routine.py`
+- `apps/dashboard_v2/compliance/adapters/task.py`
+- `apps/dashboard_v2/compliance/adapters/journal.py`
+- `apps/dashboard_v2/compliance/adapters/faith.py`
+- `apps/dashboard_v2/compliance/tests/__init__.py`
+- `apps/dashboard_v2/compliance/tests/test_compliance.py`
+- `apps/dashboard_v2/templatetags/__init__.py`
+- `apps/dashboard_v2/templatetags/dashboard_v2_tags.py`
+- `apps/dashboard_v2/migrations/0006_compliance_event.py`
+- `templates/dashboard_v2/compliance/detail.html`
+
+**Files Modified:**
+- `apps/dashboard_v2/models.py` — import ComplianceEvent
+- `apps/dashboard_v2/views.py` — ComplianceDetailView
+- `apps/dashboard_v2/urls.py` — compliance_detail route
+- `templates/dashboard_v2/partials/domain_dial.html` — clickable links
+- `static/css/dashboard_v2.css` — hover styles
 ## 2026-03-22 — Phase 5: Adaptive Signal Tuning
 
 **What:** Added a lightweight adaptive layer to the Signal Presenter that uses Phase 4 SignalFeedback data to reinforce high-value signals and suppress low-value ones. Conservative, rule-based — no aggressive behavior changes.

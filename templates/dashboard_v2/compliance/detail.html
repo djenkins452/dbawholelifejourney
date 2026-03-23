@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ bucket_label }} — Compliance Detail{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/dashboard_v2.css' %}">
+<style nonce="{{ csp_nonce }}">
+/* ── Compliance Detail ─────────────────────────────────────────── */
+.compliance-detail {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: var(--space-4) var(--space-4) var(--space-8);
+}
+.compliance-header {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg, 12px);
+    padding: var(--space-5) var(--space-6);
+    margin-bottom: var(--space-4);
+}
+.compliance-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-3);
+}
+.compliance-back {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-decoration: none;
+}
+.compliance-back:hover {
+    color: var(--color-text);
+}
+.compliance-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+.compliance-stats {
+    display: flex;
+    gap: var(--space-5);
+    flex-wrap: wrap;
+}
+.compliance-stat {
+    text-align: center;
+}
+.compliance-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.compliance-stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.stat-success { color: var(--color-success); }
+.stat-warning { color: var(--color-warning, #e67e22); }
+.stat-error { color: var(--color-error); }
+.stat-muted { color: var(--color-text-muted); }
+
+/* Filters */
+.compliance-filters {
+    display: flex;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+    flex-wrap: wrap;
+}
+.compliance-filter-btn {
+    padding: 6px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    background: var(--color-surface);
+    color: var(--color-text-secondary, var(--color-text-muted));
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s;
+}
+.compliance-filter-btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+.compliance-filter-btn.active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: #fff;
+}
+
+/* Date groups */
+.compliance-date-group {
+    margin-bottom: var(--space-4);
+}
+.compliance-date-header {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: var(--space-2);
+}
+
+/* Event rows */
+.compliance-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px);
+    margin-bottom: var(--space-2);
+    cursor: pointer;
+    transition: box-shadow 0.15s;
+}
+.compliance-row:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.compliance-row-status {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.status-completed { background: var(--color-success); }
+.status-completed_late { background: var(--color-warning, #e67e22); }
+.status-skipped { background: var(--color-text-muted); }
+.status-missed { background: var(--color-error); }
+.status-overdue { background: #dc2626; }
+.status-rescheduled { background: #6366f1; }
+.status-not_expected { background: var(--color-border); }
+
+.compliance-row-main {
+    flex: 1;
+    min-width: 0;
+}
+.compliance-row-label {
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.compliance-row-time {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+.compliance-row-badge {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.badge-completed { background: #dcfce7; color: #166534; }
+.badge-completed_late { background: #fef3c7; color: #92400e; }
+.badge-skipped { background: #f3f4f6; color: #6b7280; }
+.badge-missed { background: #fee2e2; color: #991b1b; }
+.badge-overdue { background: #fee2e2; color: #991b1b; }
+.badge-rescheduled { background: #e0e7ff; color: #3730a3; }
+
+/* Expandable detail */
+.compliance-row-detail {
+    display: none;
+    padding: var(--space-3) var(--space-4) var(--space-3) calc(var(--space-4) + 22px);
+    background: var(--color-surface-raised, var(--color-bg));
+    border: 1px solid var(--color-border);
+    border-top: none;
+    border-radius: 0 0 var(--radius-md, 8px) var(--radius-md, 8px);
+    margin-top: -var(--space-2);
+    margin-bottom: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary, var(--color-text-muted));
+}
+.compliance-row-detail.expanded {
+    display: block;
+}
+.compliance-detail-row {
+    display: flex;
+    gap: var(--space-2);
+    padding: 3px 0;
+}
+.compliance-detail-key {
+    font-weight: 500;
+    color: var(--color-text-muted);
+    min-width: 100px;
+}
+.compliance-detail-value {
+    color: var(--color-text);
+}
+
+/* Empty state */
+.compliance-empty {
+    text-align: center;
+    padding: var(--space-8);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+    .compliance-detail {
+        padding: var(--space-3);
+    }
+    .compliance-header {
+        padding: var(--space-4);
+    }
+    .compliance-stats {
+        gap: var(--space-3);
+    }
+    .compliance-row {
+        padding: var(--space-2) var(--space-3);
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="compliance-detail">
+    {# Header with summary stats #}
+    <div class="compliance-header">
+        <div class="compliance-header-top">
+            <a href="{% url 'dashboard_v2:home' %}" class="compliance-back">&larr; Back to Dashboard</a>
+        </div>
+        <h1 class="compliance-title">{{ bucket_label }}</h1>
+
+        {% if rollup %}
+        <div class="compliance-stats" style="margin-top: var(--space-3);">
+            <div class="compliance-stat">
+                <div class="compliance-stat-value {% if rollup.completion_pct >= 75 %}stat-success{% elif rollup.completion_pct >= 40 %}stat-warning{% else %}stat-error{% endif %}">
+                    {{ rollup.completion_pct }}%
+                </div>
+                <div class="compliance-stat-label">Completion</div>
+            </div>
+            <div class="compliance-stat">
+                <div class="compliance-stat-value stat-success">{{ rollup.completed }}</div>
+                <div class="compliance-stat-label">Completed</div>
+            </div>
+            {% if rollup.completed_late > 0 %}
+            <div class="compliance-stat">
+                <div class="compliance-stat-value stat-warning">{{ rollup.completed_late }}</div>
+                <div class="compliance-stat-label">Late</div>
+            </div>
+            {% endif %}
+            {% if rollup.missed > 0 %}
+            <div class="compliance-stat">
+                <div class="compliance-stat-value stat-error">{{ rollup.missed }}</div>
+                <div class="compliance-stat-label">Missed</div>
+            </div>
+            {% endif %}
+            {% if rollup.overdue > 0 %}
+            <div class="compliance-stat">
+                <div class="compliance-stat-value stat-error">{{ rollup.overdue }}</div>
+                <div class="compliance-stat-label">Overdue</div>
+            </div>
+            {% endif %}
+            {% if rollup.skipped > 0 %}
+            <div class="compliance-stat">
+                <div class="compliance-stat-value stat-muted">{{ rollup.skipped }}</div>
+                <div class="compliance-stat-label">Skipped</div>
+            </div>
+            {% endif %}
+            <div class="compliance-stat">
+                <div class="compliance-stat-value stat-muted">{{ rollup.expected }}</div>
+                <div class="compliance-stat-label">Expected</div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {# Status filters #}
+    <div class="compliance-filters">
+        {% for value, label in status_options %}
+        <a href="?{% if value != 'all' %}status={{ value }}{% endif %}"
+           class="compliance-filter-btn {% if status_filter == value %}active{% endif %}">
+            {{ label }}
+        </a>
+        {% endfor %}
+    </div>
+
+    {# Detail rows grouped by date #}
+    {% if detail_groups %}
+        {% for group in detail_groups %}
+        <div class="compliance-date-group">
+            <div class="compliance-date-header">
+                {{ group.date|date:"l, M j" }}
+            </div>
+            {% for item in group.items %}
+            <div class="compliance-row" data-detail-id="detail-{{ item.id }}">
+                <div class="compliance-row-status status-{{ item.final_status }}"></div>
+                <div class="compliance-row-main">
+                    <div class="compliance-row-label">{{ item.item_label }}</div>
+                    {% if item.expected_at %}
+                    <div class="compliance-row-time">{{ item.expected_at|time:"g:i A" }}</div>
+                    {% endif %}
+                </div>
+                <div class="compliance-row-badge badge-{{ item.final_status }}">
+                    {{ item.final_status_label }}
+                </div>
+            </div>
+            <div class="compliance-row-detail" id="detail-{{ item.id }}">
+                <div class="compliance-detail-row">
+                    <span class="compliance-detail-key">Status</span>
+                    <span class="compliance-detail-value">{{ item.final_status_label }}</span>
+                </div>
+                <div class="compliance-detail-row">
+                    <span class="compliance-detail-key">Reason</span>
+                    <span class="compliance-detail-value">{{ item.reason_label }}</span>
+                </div>
+                <div class="compliance-detail-row">
+                    <span class="compliance-detail-key">Domain</span>
+                    <span class="compliance-detail-value">{{ item.domain|title }}</span>
+                </div>
+                <div class="compliance-detail-row">
+                    <span class="compliance-detail-key">Source</span>
+                    <span class="compliance-detail-value">{{ item.source_system }}</span>
+                </div>
+                {% if item.reason_detail.grace_minutes %}
+                <div class="compliance-detail-row">
+                    <span class="compliance-detail-key">Grace Period</span>
+                    <span class="compliance-detail-value">{{ item.reason_detail.grace_minutes }} min</span>
+                </div>
+                {% endif %}
+                {% if item.reason_detail.original_due_date %}
+                <div class="compliance-detail-row">
+                    <span class="compliance-detail-key">Original Due</span>
+                    <span class="compliance-detail-value">{{ item.reason_detail.original_due_date }}</span>
+                </div>
+                {% endif %}
+                {% if item.reason_detail.routine_name %}
+                <div class="compliance-detail-row">
+                    <span class="compliance-detail-key">Routine</span>
+                    <span class="compliance-detail-value">{{ item.reason_detail.routine_name }}</span>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="compliance-empty">
+            {% if status_filter != "all" %}
+                No {{ status_filter }} items found for this week.
+            {% else %}
+                No compliance data available for this week.
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    // Toggle detail expansion
+    document.addEventListener('click', function(e) {
+        var row = e.target.closest('.compliance-row');
+        if (!row) return;
+        var detailId = row.dataset.detailId;
+        if (!detailId) return;
+        var detail = document.getElementById(detailId);
+        if (!detail) return;
+        detail.classList.toggle('expanded');
+    });
+});
+</script>
+{% endblock %}

@@ -435,3 +435,60 @@ class CelebrationDismissView(LoginRequiredMixin, View):
         )
         celebration.dismiss()
         return HttpResponse("")
+
+
+# ── Compliance Drill-Down ───────────────────────────────────────────
+
+
+class ComplianceDetailView(LoginRequiredMixin, TemplateView):
+    """
+    Drill-down view for a compliance card.
+
+    Shows itemized audit rows grouped by date, with status explanations.
+    Triggered via HTMX when clicking a compliance card on V2.
+    """
+
+    template_name = "dashboard_v2/compliance/detail.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        bucket = self.kwargs.get("bucket", "")
+        status_filter = self.request.GET.get("status")
+
+        from apps.dashboard_v2.compliance.constants import (
+            SCORING_BUCKET_CHOICES,
+            FINAL_STATUS_CHOICES,
+        )
+        from apps.dashboard_v2.compliance.service import ComplianceService
+
+        svc = ComplianceService(self.request.user)
+
+        # Ensure events are fresh
+        svc.evaluate_week()
+
+        # Get rollup summary for header
+        rollup = svc.get_rollup(bucket)
+
+        # Get detail rows
+        detail_groups = svc.get_detail(bucket, status_filter=status_filter)
+
+        # Bucket label
+        bucket_labels = dict(SCORING_BUCKET_CHOICES)
+        bucket_label = bucket_labels.get(bucket, bucket)
+
+        context.update({
+            "bucket": bucket,
+            "bucket_label": bucket_label,
+            "rollup": rollup,
+            "detail_groups": detail_groups,
+            "status_filter": status_filter or "all",
+            "status_options": [
+                ("all", "All"),
+                ("missed", "Missed"),
+                ("completed_late", "Late"),
+                ("skipped", "Skipped"),
+                ("overdue", "Overdue"),
+                ("completed", "Completed"),
+            ],
+        })
+        return context

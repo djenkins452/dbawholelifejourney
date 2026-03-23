@@ -1727,11 +1727,33 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
 
         # ── Mid-response state revalidation ──
         # If state changed DURING LLM generation (user completed an item
-        # via another tab/device), append a correction so the response
-        # doesn't present stale completion status.
+        # via another tab/device), DISCARD the stale response and
+        # REGENERATE from current truth. CoS must always speak from
+        # current state — no appended corrections, no dual-state.
         try:
-            from apps.ai.cos_state_revalidator import revalidate_response
-            response = revalidate_response(response, self.user)
+            from apps.ai.cos_state_revalidator import check_state_changed
+            if check_state_changed(response, self.user):
+                logger.info(
+                    "COS_STATE_REGEN user=%s — state changed during "
+                    "generation, regenerating with fresh context",
+                    self.user.id,
+                )
+                try:
+                    response = self._generate_response(
+                        message, conversation,
+                        page_context=page_context,
+                        cos_context_cache=None,  # force fresh context
+                        all_images=all_images,
+                        route_result=_route_result,
+                        _ltrace=_ltrace,
+                    )
+                except Exception as _regen_err:
+                    logger.error(
+                        "COS_STATE_REGEN_FAILED user=%s error=%s "
+                        "— keeping original response",
+                        self.user.id, _regen_err,
+                    )
+                    # Keep original response — fail-open
         except Exception:
             pass  # Revalidation failure must never break chat
 

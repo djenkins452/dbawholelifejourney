@@ -93,6 +93,7 @@ def _make_normalized_item(name, time_str=None, item_time=None,
 # Patch paths for task + calendar collectors (return empty by default)
 _P_TASKS = "apps.core.today.today_engine._collect_task_items"
 _P_CAL = "apps.core.today.today_engine._collect_calendar_items"
+_P_MEDS = "apps.core.today.today_engine._collect_medication_items"
 
 
 # ---------------------------------------------------------------------------
@@ -102,12 +103,13 @@ _P_CAL = "apps.core.today.today_engine._collect_calendar_items"
 
 class TestDayAgendaEmpty(SimpleTestCase):
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS, return_value=[])
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_empty_state(self, mock_facts, mock_truth, mock_now, _t, _c):
+    def test_empty_state(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
         mock_facts.return_value = _make_locked_facts()
         mock_truth.return_value = _make_truth()
         mock_now.return_value = _fixed_now(6, 0)
@@ -124,12 +126,13 @@ class TestDayAgendaEmpty(SimpleTestCase):
 
 class TestOverdueDetection(SimpleTestCase):
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS, return_value=[])
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_overdue_item(self, mock_facts, mock_truth, mock_now, _t, _c):
+    def test_overdue_item(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
         mock_now.return_value = _fixed_now(7, 0)
         mock_facts.return_value = _make_locked_facts()
         mock_truth.return_value = _make_truth({
@@ -142,12 +145,13 @@ class TestOverdueDetection(SimpleTestCase):
 
 class TestComingUpWindow(SimpleTestCase):
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS, return_value=[])
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_within_window(self, mock_facts, mock_truth, mock_now, _t, _c):
+    def test_within_window(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
         mock_now.return_value = _fixed_now(5, 44)
         mock_facts.return_value = _make_locked_facts()
         mock_truth.return_value = _make_truth({
@@ -157,12 +161,13 @@ class TestComingUpWindow(SimpleTestCase):
         output = render_day_agenda(user)
         self.assertIn("Coming up next:\n• Workout (6:15 AM)", output)
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS, return_value=[])
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_outside_window_goes_to_later(self, mock_facts, mock_truth, mock_now, _t, _c):
+    def test_outside_window_goes_to_later(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
         mock_now.return_value = _fixed_now(5, 44)
         mock_facts.return_value = _make_locked_facts()
         mock_truth.return_value = _make_truth({
@@ -178,12 +183,13 @@ class TestComingUpWindow(SimpleTestCase):
 
 class TestFoundationItems(SimpleTestCase):
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS, return_value=[])
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_foundation_in_both_sections(self, mock_facts, mock_truth, mock_now, _t, _c):
+    def test_foundation_in_both_sections(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
         mock_now.return_value = _fixed_now(5, 44)
         mock_facts.return_value = _make_locked_facts()
         mock_truth.return_value = _make_truth({
@@ -202,12 +208,13 @@ class TestNoDuplication(SimpleTestCase):
         items = _collect_routine_items({"routines": {"_raw_items": raw_items}}, now)
         self.assertEqual(len(items), 2)  # raw collection doesn't dedup
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS, return_value=[])
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_no_duplicate_in_bucket(self, mock_facts, mock_truth, mock_now, _t, _c):
+    def test_no_duplicate_in_bucket(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
         mock_now.return_value = _fixed_now(7, 0)
         mock_facts.return_value = _make_locked_facts()
         mock_truth.return_value = _make_truth({
@@ -221,12 +228,13 @@ class TestNoDuplication(SimpleTestCase):
 
 class TestCompletedItems(SimpleTestCase):
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS, return_value=[])
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_completed_by_name(self, mock_facts, mock_truth, mock_now, _t, _c):
+    def test_completed_by_name(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
         mock_now.return_value = _fixed_now(8, 0)
         mock_facts.return_value = _make_locked_facts(prayer_done=True)
         mock_truth.return_value = _make_truth({
@@ -241,12 +249,13 @@ class TestCompletedItems(SimpleTestCase):
         self.assertIn("• Devotional", output)
         self.assertIn("• Prayer", output)
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS, return_value=[])
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_completed_not_in_time_buckets(self, mock_facts, mock_truth, mock_now, _t, _c):
+    def test_completed_not_in_time_buckets(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
         mock_now.return_value = _fixed_now(8, 0)
         mock_facts.return_value = _make_locked_facts()
         mock_truth.return_value = _make_truth({
@@ -260,12 +269,13 @@ class TestCompletedItems(SimpleTestCase):
 
 class TestNoAggregation(SimpleTestCase):
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS, return_value=[])
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_no_banned_words(self, mock_facts, mock_truth, mock_now, _t, _c):
+    def test_no_banned_words(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
         mock_now.return_value = _fixed_now(6, 0)
         mock_facts.return_value = _make_locked_facts(prayer_done=True, workout_done=True)
         mock_truth.return_value = _make_truth({
@@ -284,12 +294,13 @@ class TestNoAggregation(SimpleTestCase):
 
 class TestNoNarrativeLanguage(SimpleTestCase):
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS, return_value=[])
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_no_coaching(self, mock_facts, mock_truth, mock_now, _t, _c):
+    def test_no_coaching(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
         mock_now.return_value = _fixed_now(6, 0)
         mock_facts.return_value = _make_locked_facts()
         mock_truth.return_value = _make_truth()
@@ -312,12 +323,13 @@ class TestFailClosed(SimpleTestCase):
 
 class TestSections(SimpleTestCase):
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS, return_value=[])
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_all_sections(self, mock_facts, mock_truth, mock_now, _t, _c):
+    def test_all_sections(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
         mock_now.return_value = _fixed_now(6, 0)
         mock_facts.return_value = _make_locked_facts()
         mock_truth.return_value = _make_truth()
@@ -335,12 +347,13 @@ class TestSections(SimpleTestCase):
 
 class TestChronologicalOrdering(SimpleTestCase):
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS, return_value=[])
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_overdue_ordering(self, mock_facts, mock_truth, mock_now, _t, _c):
+    def test_overdue_ordering(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
         mock_now.return_value = _fixed_now(7, 0)
         mock_facts.return_value = _make_locked_facts()
         mock_truth.return_value = _make_truth({
@@ -352,12 +365,13 @@ class TestChronologicalOrdering(SimpleTestCase):
         self.assertLess(overdue.index("A (5:00 AM)"), overdue.index("B (5:15 AM)"))
         self.assertLess(overdue.index("B (5:15 AM)"), overdue.index("C (5:30 AM)"))
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS, return_value=[])
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_foundation_ordering(self, mock_facts, mock_truth, mock_now, _t, _c):
+    def test_foundation_ordering(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
         mock_now.return_value = _fixed_now(5, 0)
         mock_facts.return_value = _make_locked_facts()
         mock_truth.return_value = _make_truth({
@@ -371,12 +385,13 @@ class TestChronologicalOrdering(SimpleTestCase):
         foundation = output.split("Foundation:")[1].split("Overdue")[0]
         self.assertLess(foundation.index("Early Devotional"), foundation.index("Later Prayer"))
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS, return_value=[])
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_completed_items_time_ordered(self, mock_facts, mock_truth, mock_now, _t, _c):
+    def test_completed_items_time_ordered(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
         mock_now.return_value = _fixed_now(10, 0)
         mock_facts.return_value = _make_locked_facts()
         mock_truth.return_value = _make_truth({
@@ -423,12 +438,13 @@ class TestChronologicalOrdering(SimpleTestCase):
 class TestUnifiedDataMerge(SimpleTestCase):
     """Tasks and calendar events merge with routines into unified buckets."""
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS)
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_routine_plus_task_both_appear(self, mock_facts, mock_truth, mock_now, mock_tasks, _c):
+    def test_routine_plus_task_both_appear(self, mock_facts, mock_truth, mock_now, mock_tasks, _c, _m):
         """Routine + task → both appear in output."""
         now = _fixed_now(5, 0)
         mock_now.return_value = now
@@ -447,12 +463,13 @@ class TestUnifiedDataMerge(SimpleTestCase):
         self.assertIn("Shower (5:30 AM)", output)
         self.assertIn("Blood work request (9:00 AM)", output)
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS)
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_overdue_task(self, mock_facts, mock_truth, mock_now, mock_tasks, _c):
+    def test_overdue_task(self, mock_facts, mock_truth, mock_now, mock_tasks, _c, _m):
         """Task at 5:15 AM when now is 7:00 AM → appears in Overdue."""
         now = _fixed_now(7, 0)
         mock_now.return_value = now
@@ -469,12 +486,13 @@ class TestUnifiedDataMerge(SimpleTestCase):
         overdue = output.split("Overdue now:")[1].split("Coming up")[0]
         self.assertIn("Call doctor (5:15 AM)", overdue)
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS)
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_later_includes_task_and_routine(self, mock_facts, mock_truth, mock_now, mock_tasks, _c):
+    def test_later_includes_task_and_routine(self, mock_facts, mock_truth, mock_now, mock_tasks, _c, _m):
         """Both task and routine appear in Later today."""
         now = _fixed_now(5, 0)
         mock_now.return_value = now
@@ -494,12 +512,13 @@ class TestUnifiedDataMerge(SimpleTestCase):
         self.assertIn("Devotional (9:00 AM)", later)
         self.assertIn("Submit report (10:00 AM)", later)
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL)
     @patch(_P_TASKS)
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_calendar_event_in_coming_up(self, mock_facts, mock_truth, mock_now, mock_tasks, mock_cal):
+    def test_calendar_event_in_coming_up(self, mock_facts, mock_truth, mock_now, mock_tasks, mock_cal, _m):
         """Calendar event within window appears in Coming up."""
         now = _fixed_now(8, 0)
         mock_now.return_value = now
@@ -517,12 +536,13 @@ class TestUnifiedDataMerge(SimpleTestCase):
         coming = output.split("Coming up next:")[1].split("Later today:")[0]
         self.assertIn("Team standup (9:00 AM)", coming)
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS)
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_no_cross_source_duplication(self, mock_facts, mock_truth, mock_now, mock_tasks, _c):
+    def test_no_cross_source_duplication(self, mock_facts, mock_truth, mock_now, mock_tasks, _c, _m):
         """Same-named item from different sources appears once per bucket."""
         now = _fixed_now(5, 0)
         mock_now.return_value = now
@@ -542,12 +562,13 @@ class TestUnifiedDataMerge(SimpleTestCase):
         coming = output.split("Coming up next:")[1].split("Later today:")[0]
         self.assertEqual(coming.count("Workout"), 1)
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS)
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_ordering_preserved_after_merge(self, mock_facts, mock_truth, mock_now, mock_tasks, _c):
+    def test_ordering_preserved_after_merge(self, mock_facts, mock_truth, mock_now, mock_tasks, _c, _m):
         """All items sorted by time regardless of source."""
         now = _fixed_now(5, 0)
         mock_now.return_value = now
@@ -572,12 +593,13 @@ class TestUnifiedDataMerge(SimpleTestCase):
         self.assertLess(pos_a, pos_b)
         self.assertLess(pos_b, pos_c)
 
+    @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
     @patch(_P_TASKS)
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_completed_task_in_completed_section(self, mock_facts, mock_truth, mock_now, mock_tasks, _c):
+    def test_completed_task_in_completed_section(self, mock_facts, mock_truth, mock_now, mock_tasks, _c, _m):
         """Completed task appears in Completed, not time buckets."""
         now = _fixed_now(10, 0)
         mock_now.return_value = now

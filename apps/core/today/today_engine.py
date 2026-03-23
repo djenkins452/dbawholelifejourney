@@ -70,6 +70,7 @@ def get_today_context(user) -> dict:
     all_items.extend(_collect_routine_items(truth, user_now))
     all_items.extend(_collect_task_items(user, user_now))
     all_items.extend(_collect_calendar_items(user, user_now))
+    all_items.extend(_collect_medication_items(user, user_now))
 
     # Add domain-level completions that aren't already in routine items
     _add_domain_completions(raw, all_items)
@@ -295,9 +296,81 @@ def _collect_calendar_items(user, user_now) -> list:
     return items
 
 
+def _collect_medication_items(user, user_now) -> list:
+    """Collect scheduled medication doses for today.
+
+    Queries MedicineSchedule for active medicines scheduled today,
+    checks MedicineLog for completion status. Normalizes to the
+    same item structure as routines/tasks/calendar.
+    """
+    items = []
+    try:
+        from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+
+        today = user_now.date() if hasattr(user_now, "date") else user_now
+        day_of_week = today.weekday()  # 0=Monday, 6=Sunday
+
+        # Get all active schedules for active medicines
+        schedules = (
+            MedicineSchedule.objects
+            .filter(
+                medicine__user=user,
+                medicine__medicine_status=Medicine.STATUS_ACTIVE,
+                is_active=True,
+            )
+            .select_related("medicine")
+        )
+
+        # Filter to schedules that apply today
+        today_schedules = [s for s in schedules if s.applies_to_day(day_of_week)]
+
+        if not today_schedules:
+            return items
+
+        # Batch-fetch logs for today to determine completion
+        schedule_ids = [s.id for s in today_schedules]
+        taken_schedule_ids = set(
+            MedicineLog.objects
+            .filter(
+                user=user,
+                schedule_id__in=schedule_ids,
+                scheduled_date=today,
+                log_status__in=["taken", "late"],
+            )
+            .values_list("schedule_id", flat=True)
+        )
+
+        for schedule in today_schedules:
+            sched = user_now.replace(
+                hour=schedule.scheduled_time.hour,
+                minute=schedule.scheduled_time.minute,
+                second=0, microsecond=0,
+            )
+            time_str = schedule.scheduled_time.strftime("%I:%M %p").lstrip("0")
+            med_name = schedule.medicine.name
+            is_taken = schedule.id in taken_schedule_ids
+
+            items.append({
+                "id": f"medication:{schedule.id}",
+                "name": med_name,
+                "scheduled_time": sched,
+                "time_str": time_str,
+                "completed": is_taken,
+                "priority": "important",  # medications are always important
+                "source": "medication",
+            })
+
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning("[TODAY ENGINE] Medication collection failed", exc_info=True)
+
+    return items
+
+
 def _add_domain_completions(raw: dict, all_items: list, user_now=None):
     """Add domain-level completions (Prayer, Bible, etc.) if not already present."""
-    existing_names = {item["name"] for item in all_items if item["completed"]}
+    existing_names = {item["name"].lower() for item in all_items if item["completed"]}
 
     for done_key, label in [
         ("prayer_done", "Prayer"),
@@ -305,7 +378,7 @@ def _add_domain_completions(raw: dict, all_items: list, user_now=None):
         ("workout_done", "Workout"),
         ("journal_done", "Journal entry"),
     ]:
-        if raw.get(done_key) and label not in existing_names:
+        if raw.get(done_key) and label.lower() not in existing_names:
             all_items.append({
                 "id": f"domain:{label.lower().replace(' ', '_')}",
                 "name": label,

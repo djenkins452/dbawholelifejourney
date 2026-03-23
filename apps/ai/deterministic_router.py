@@ -244,6 +244,13 @@ def classify_and_route(message, user, cos_context_cache=None):
         _log_route_decision(result, user, message)
         return result
 
+    # ── Phase 0c: Day agenda (deterministic, terminal) ───────────
+    result = _try_day_agenda_route(msg_lower, user)
+    if result is not None:
+        result.elapsed_ms = (time.monotonic() - t_start) * 1000
+        _log_route_decision(result, user, message)
+        return result
+
     # ── Phase 1: Deterministic data routes (new L2 paths) ─────────
     if _is_data_routes_enabled():
         result = _try_deterministic_data_routes(msg_lower, user)
@@ -507,6 +514,61 @@ def _try_strict_health_status(msg_lower, cos_context_cache):
 # =============================================================================
 # Check-in Prefilter (existing — migrated here)
 # =============================================================================
+
+# Day agenda patterns — high-priority deterministic route
+_DAY_AGENDA_PATTERNS = frozenset([
+    "my day", "show me my day", "what does my day look like",
+    "how does my day look", "what's my day look like",
+    "whats my day look like", "day agenda", "today's agenda",
+    "todays agenda", "show my agenda", "what's on today",
+    "whats on today", "run down my day", "rundown my day",
+    "walk me through my day", "what do i have today",
+])
+
+# "today" alone is too broad — only match if it's the entire message
+# or clearly asking about the day overview
+_DAY_AGENDA_EXACT = frozenset(["today", "today?"])
+
+
+def _try_day_agenda_route(msg_lower, user=None):
+    """Detect day agenda requests and return deterministic response.
+
+    Terminal route — the LLM is never called for day overview.
+    """
+    msg_stripped = msg_lower.strip().rstrip('?!.')
+
+    is_day_request = (
+        any(p in msg_lower for p in _DAY_AGENDA_PATTERNS)
+        or msg_stripped in _DAY_AGENDA_EXACT
+    )
+
+    if not is_day_request:
+        return None
+
+    if user is None:
+        return None
+
+    try:
+        from apps.ai.beth_day_renderer import render_day_agenda
+        response = render_day_agenda(user)
+    except Exception:
+        logger.error(
+            "[ROUTER] Day agenda renderer failed",
+            exc_info=True,
+        )
+        response = None
+
+    if response:
+        return RouteResult(
+            category=RouteCategory.DETERMINISTIC_DATA,
+            response=response,
+            route_name='deterministic_day_agenda',
+            domain=None,
+            is_terminal=True,
+        )
+
+    return None
+
 
 def _try_checkin_prefilter(msg_lower, user=None):
     """Detect check-in/status queries and return deterministic response.

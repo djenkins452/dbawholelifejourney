@@ -99,6 +99,24 @@
                         </div>
                     </div>
 
+                    <!-- Activity Type (Phase 2: binary vs activity-driven) -->
+                    <div class="activity-type-section" style="margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px dashed var(--color-border);">
+                        <div style="display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: end;">
+                            <div class="form-group" style="flex: 0 0 160px;">
+                                <label class="form-label text-sm">Completion Type</label>
+                                {{ sform.routine_type }}
+                            </div>
+                            <div class="form-group activity-type-field" style="flex: 0 0 180px; display: none;">
+                                <label class="form-label text-sm">Activity Source</label>
+                                {{ sform.activity_type }}
+                            </div>
+                        </div>
+                        <p class="text-muted text-sm" style="margin-top: var(--space-1);">
+                            <strong>Binary:</strong> manual check/uncheck.
+                            <strong>Activity:</strong> auto-completed when you log the activity (e.g., workout).
+                        </p>
+                    </div>
+
                     <!-- Maintenance Bridge -->
                     <div class="maintenance-bridge-section" style="margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px dashed var(--color-border);">
                         <label style="display: flex; align-items: center; gap: var(--space-2); min-height: 44px; cursor: pointer;">
@@ -203,6 +221,33 @@
                 <label class="day-pill"><input type="checkbox" name="items-__prefix__-active_days" value="5" checked><span>Sat</span></label>
                 <label class="day-pill"><input type="checkbox" name="items-__prefix__-active_days" value="6" checked><span>Sun</span></label>
             </div>
+        </div>
+
+        <!-- Activity Type (Phase 2: binary vs activity-driven) -->
+        <div class="activity-type-section" style="margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px dashed var(--color-border);">
+            <div style="display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: end;">
+                <div class="form-group" style="flex: 0 0 160px;">
+                    <label class="form-label text-sm">Completion Type</label>
+                    <select name="items-__prefix__-routine_type" class="form-select routine-type-select" id="id_items-__prefix__-routine_type">
+                        <option value="binary" selected>Binary</option>
+                        <option value="activity">Activity</option>
+                    </select>
+                </div>
+                <div class="form-group activity-type-field" style="flex: 0 0 180px; display: none;">
+                    <label class="form-label text-sm">Activity Source</label>
+                    <select name="items-__prefix__-activity_type" class="form-select activity-type-select" id="id_items-__prefix__-activity_type">
+                        <option value="">---------</option>
+                        <option value="workout">Workout</option>
+                        <option value="journal">Journal</option>
+                        <option value="bible">Bible Reading</option>
+                        <option value="faith">Faith</option>
+                    </select>
+                </div>
+            </div>
+            <p class="text-muted text-sm" style="margin-top: var(--space-1);">
+                <strong>Binary:</strong> manual check/uncheck.
+                <strong>Activity:</strong> auto-completed when you log the activity.
+            </p>
         </div>
 
         <!-- Maintenance Bridge -->
@@ -330,14 +375,31 @@
             container.appendChild(newItem);
             totalForms.value = count + 1;
 
-            // Init maintenance bridge visibility for new item
+            // Init toggles for new item
             initMaintenanceBridgeToggles(newItem);
+            initActivityTypeToggles(newItem);
 
             // Focus the name field
             var nameInput = newItem.querySelector('[name$="-name"]');
             if (nameInput) nameInput.focus();
         });
     }
+
+    // Activity type: show/hide activity_type dropdown based on routine_type
+    function initActivityTypeToggles(scope) {
+        var root = scope || document;
+        root.querySelectorAll('.routine-type-select').forEach(function(select) {
+            var section = select.closest('.activity-type-section');
+            var activityField = section ? section.querySelector('.activity-type-field') : null;
+            if (!activityField) return;
+            function updateVisibility() {
+                activityField.style.display = select.value === 'activity' ? 'block' : 'none';
+            }
+            updateVisibility();
+            select.addEventListener('change', updateVisibility);
+        });
+    }
+    initActivityTypeToggles();
 
     // Maintenance bridge: show/hide fields based on checkbox
     function initMaintenanceBridgeToggles(scope) {

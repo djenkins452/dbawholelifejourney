@@ -37,7 +37,7 @@
         {% endfor %}
         {# Individual item checkboxes #}
         {% for item in items %}
-        {% include "components/checkbox_item.html" with item_id=item.schedule_id routine_id=item.routine_id label=item.item_name sublabel=item.routine_name checked=item.is_completed status=item.status time_display=item.scheduled_time %}
+        {% include "components/checkbox_item.html" with item_id=item.schedule_id routine_id=item.routine_id label=item.item_name sublabel=item.routine_name checked=item.is_completed status=item.status time_display=item.scheduled_time completion_source=item.completion_source completion_via_label=item.completion_via_label routine_type=item.routine_type %}
         {% endfor %}
     </div>
     {% else %}

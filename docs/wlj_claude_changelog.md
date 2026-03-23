@@ -6,6 +6,43 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Workout-Routine Auto-Complete (Phase 1 + Phase 2)
+
+**Phase 1 — Auto-Complete:**
+- Logging a WorkoutSession now auto-completes matching RoutineSchedule items for the day
+- Added `completion_source` field to RoutineLog (manual/workout/medicine/bible/auto)
+- Added `source_object_id` field to RoutineLog for traceability back to the exact WorkoutSession
+- First-workout-wins: once a routine is auto-completed, later workouts are no-ops
+- Manual completions are never overridden by auto-completion
+- Uses `started_at` (preferred) > `completed_at` > now for timeliness classification
+- Hooked into both WorkoutSession post_save signal and WorkoutCreateView (belt-and-suspenders)
+- UI shows "Completed via Workout at [time]" for auto-completed items
+
+**Phase 2 — Workout-First Architecture:**
+- Added `routine_type` (binary/activity) and `activity_type` (workout/journal/bible/faith) to RoutineSchedule
+- Activity-type routines use structured `activity_type` matching (preferred) with name-based fallback (temporary)
+- Activity-type routines block manual toggle — auto-completed by data source only
+- UI renders activity routines as status indicators (non-interactive) instead of checkboxes
+- Backfill migration converts existing "Workout" schedule items to activity_type='workout'
+- Routine form updated with Completion Type and Activity Source dropdowns (JS toggle)
+
+**Files changed:**
+- `apps/life/models.py` — RoutineLog: completion_source + source_object_id; RoutineSchedule: routine_type + activity_type
+- `apps/life/services/routine_helpers.py` — auto_complete_routine_schedules(), toggle guard for activity routines
+- `apps/life/services/_routine_internal.py` — completion_source, routine_type, activity_type in entry dict
+- `apps/health/signals.py` — Restructured signal: Block 1 (WorkoutScheduleLog) + Block 2 (routine auto-complete)
+- `apps/health/views.py` — Added auto_complete_routine_schedules call in WorkoutCreateView
+- `apps/life/forms.py` — Added routine_type/activity_type to RoutineScheduleForm
+- `templates/components/checkbox_item.html` — Activity-type rendering + completion_via_label
+- `templates/components/time_window_section.html` — Pass new fields through
+- `templates/life/routine_form.html` — Activity type section + JS toggle
+- `apps/life/migrations/0045_workout_routine_integration.py` — Schema migration
+- `apps/life/migrations/0046_backfill_workout_routine_types.py` — Data backfill
+- `apps/life/tests/test_workout_routine_integration.py` — 16 new integration tests
+- `apps/life/tests/test_routines.py`, `test_routine_days_save.py` — Updated for new form fields
+
+**Tests:** 52 routine tests pass, 74 fitness tests pass.
+
 ## 2026-03-22 — Compliance Audit System (Phases 1-4)
 
 **What:** Universal compliance audit architecture enabling drill-down from any V2 compliance card to see exactly what was counted, when, for which item, and why.

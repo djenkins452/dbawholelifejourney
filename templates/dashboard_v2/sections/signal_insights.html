@@ -31,5 +31,15 @@
         </ul>
     </div>
     {% endif %}
+    {% if patterns %}
+    <div class="v2-insight-group" style="margin-top: var(--space-3, 0.75rem); padding-top: var(--space-3, 0.75rem); border-top: 1px solid var(--color-border, #e5e7eb);">
+        <span class="v2-insight-label v2-insight-pattern">Patterns</span>
+        <ul class="v2-insight-list">
+            {% for p in patterns %}
+            <li>{{ p.label }} <span class="v2-insight-stats">({{ p.yes }} yes / {{ p.no }} no · {{ p.status }})</span></li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
 </div>
 {% endif %}

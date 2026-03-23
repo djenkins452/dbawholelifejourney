@@ -39,8 +39,13 @@ from apps.core.signals.signal_presenter import (
     ADAPTIVE_SIGNAL_TYPES,
     FEEDBACK_WINDOW_DAYS,
     MAX_SUGGESTIONS,
+    PATTERN_MIN_FEEDBACK,
+    PATTERN_PRIORITY_BOOST,
+    PATTERN_REINFORCE_RATIO,
+    PATTERN_SUPPRESS_RATIO,
     _apply_adaptive_rules,
     _apply_adaptive_tuning,
+    _apply_pattern_rules,
     _build_message,
     _build_question,
     _deduplicate_suggestions,
@@ -49,6 +54,7 @@ from apps.core.signals.signal_presenter import (
     _generate_signal_fingerprint,
     _get_feedback_stats,
     _get_item_label,
+    _get_pattern_key,
     _is_completed_in_truth,
     _is_expected_in_truth,
     _normalize_presented_output,
@@ -569,7 +575,7 @@ class TestBethHookSafety(SimpleTestCase):
         required_keys = {
             "type", "domain", "item", "confidence", "source",
             "text", "timestamp", "fingerprint", "message", "question",
-            "priority", "adaptive", "ui",
+            "priority", "adaptive", "pattern_reinforced", "ui",
         }
         self.assertEqual(set(suggestion.keys()), required_keys)
 
@@ -1244,3 +1250,285 @@ class TestPresenterFingerprint(SimpleTestCase):
             _generate_signal_fingerprint(sig1),
             _generate_signal_fingerprint(sig2),
         )
+
+
+# ---------------------------------------------------------------------------
+# 22. Phase 5.2: Pattern key generation
+# ---------------------------------------------------------------------------
+
+
+class TestPatternKey(SimpleTestCase):
+    """Pattern key is date-free: type:domain:item."""
+
+    def test_pattern_key_format(self):
+        sig = _make_signal(domain="faith", item="prayer")
+        pk = _get_pattern_key(sig)
+        self.assertEqual(pk, "possible_completion:faith:prayer")
+
+    def test_pattern_key_no_date(self):
+        """Same signal on different days produces same pattern key."""
+        now = timezone.now()
+        yesterday = now - timedelta(days=1)
+        sig1 = _make_signal(domain="faith", item="prayer", timestamp=now)
+        sig2 = _make_signal(domain="faith", item="prayer", timestamp=yesterday)
+        self.assertEqual(_get_pattern_key(sig1), _get_pattern_key(sig2))
+
+    def test_pattern_key_different_items(self):
+        sig1 = _make_signal(domain="faith", item="prayer")
+        sig2 = _make_signal(domain="faith", item="bible_reading")
+        self.assertNotEqual(_get_pattern_key(sig1), _get_pattern_key(sig2))
+
+
+# ---------------------------------------------------------------------------
+# 23. Phase 5.2: Pattern reinforcement
+# ---------------------------------------------------------------------------
+
+
+class TestPatternReinforcement(SimpleTestCase):
+    """Pattern-level reinforcement with higher thresholds."""
+
+    def test_pattern_reinforcement_with_5_yes(self):
+        """5+ yes → pattern reinforced."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        pattern_stats = {
+            "possible_completion:faith:prayer": {"yes": 5, "no": 0, "total": 5},
+        }
+        result = _apply_pattern_rules(sig, pattern_stats)
+        self.assertIsNotNone(result)
+        self.assertTrue(result.get("_pattern_reinforced", False))
+        self.assertGreater(result.get("_adaptive_priority_boost", 0), 0)
+
+    def test_pattern_reinforcement_boost_capped(self):
+        """Pattern boost combined with signal boost doesn't exceed cap."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        sig["_adaptive_priority_boost"] = 0.5  # signal-level boost already applied
+        pattern_stats = {
+            "possible_completion:faith:prayer": {"yes": 10, "no": 0, "total": 10},
+        }
+        result = _apply_pattern_rules(sig, pattern_stats)
+        self.assertIsNotNone(result)
+        self.assertLessEqual(
+            result["_adaptive_priority_boost"],
+            ADAPTIVE_MAX_PRIORITY_BOOST,
+        )
+
+    def test_pattern_constants(self):
+        self.assertEqual(PATTERN_MIN_FEEDBACK, 5)
+        self.assertEqual(PATTERN_REINFORCE_RATIO, 0.75)
+        self.assertEqual(PATTERN_SUPPRESS_RATIO, 0.80)
+        self.assertLess(PATTERN_PRIORITY_BOOST, 0.5)  # smaller than signal boost
+
+
+# ---------------------------------------------------------------------------
+# 24. Phase 5.2: Pattern suppression
+# ---------------------------------------------------------------------------
+
+
+class TestPatternSuppression(SimpleTestCase):
+    """Pattern-level suppression requires higher confidence (80%)."""
+
+    def test_pattern_suppressed_with_5_no(self):
+        """5+ no at 80%+ → pattern suppressed."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        pattern_stats = {
+            "possible_completion:faith:prayer": {"yes": 0, "no": 5, "total": 5},
+        }
+        result = _apply_pattern_rules(sig, pattern_stats)
+        self.assertIsNone(result)
+
+    def test_pattern_not_suppressed_at_75_percent(self):
+        """75% no but below 80% → NOT pattern suppressed (stricter than signal)."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        # 3 no / 4 total = 75% — meets signal threshold but not pattern threshold
+        pattern_stats = {
+            "possible_completion:faith:prayer": {"yes": 2, "no": 8, "total": 10},
+        }
+        result = _apply_pattern_rules(sig, pattern_stats)
+        # 8/10 = 80%, exactly at threshold
+        self.assertIsNone(result)
+
+    def test_pattern_not_suppressed_below_min_count(self):
+        """Below PATTERN_MIN_FEEDBACK → no effect."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        pattern_stats = {
+            "possible_completion:faith:prayer": {"yes": 0, "no": 4, "total": 4},
+        }
+        result = _apply_pattern_rules(sig, pattern_stats)
+        self.assertIsNotNone(result)  # Not suppressed — below threshold
+
+
+# ---------------------------------------------------------------------------
+# 25. Phase 5.2: Pattern threshold enforcement
+# ---------------------------------------------------------------------------
+
+
+class TestPatternThresholdEnforcement(SimpleTestCase):
+    """Pattern rules require minimum 5 records (vs 3 for signal)."""
+
+    def test_no_pattern_effect_below_5(self):
+        """< 5 total → pattern rules don't apply."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        pattern_stats = {
+            "possible_completion:faith:prayer": {"yes": 4, "no": 0, "total": 4},
+        }
+        result = _apply_pattern_rules(sig, pattern_stats)
+        self.assertIsNotNone(result)
+        # No pattern reinforcement flag
+        self.assertFalse(result.get("_pattern_reinforced", False))
+
+    def test_no_pattern_effect_when_missing(self):
+        """Missing pattern key → no effect."""
+        sig = _make_signal(signal_type=POSSIBLE_COMPLETION, confidence=0.85)
+        result = _apply_pattern_rules(sig, {})
+        self.assertIsNotNone(result)
+        self.assertFalse(result.get("_pattern_reinforced", False))
+
+
+# ---------------------------------------------------------------------------
+# 26. Phase 5.2: Conflict resolution (signal wins)
+# ---------------------------------------------------------------------------
+
+
+class TestPatternConflictResolution(SimpleTestCase):
+    """Signal-level decisions take priority over pattern-level."""
+
+    @patch("apps.core.signals.signal_presenter._get_pattern_feedback_stats")
+    @patch("apps.core.signals.signal_presenter._get_feedback_stats")
+    def test_signal_reinforced_pattern_suppressed_signal_wins(
+        self, mock_signal_stats, mock_pattern_stats,
+    ):
+        """Signal-level reinforced + pattern-level suppressed → signal wins (kept)."""
+        sig = _make_signal(
+            signal_type=POSSIBLE_COMPLETION, confidence=0.85,
+            domain="faith", item="prayer",
+        )
+        # Signal-level: reinforced (3 yes, 0 no)
+        mock_signal_stats.return_value = {
+            (POSSIBLE_COMPLETION, "faith", "prayer"): {"yes": 3, "no": 0, "total": 3},
+        }
+        # Pattern-level: suppressed (0 yes, 10 no)
+        mock_pattern_stats.return_value = {
+            "possible_completion:faith:prayer": {"yes": 0, "no": 10, "total": 10},
+        }
+
+        user = MagicMock()
+        result = _apply_adaptive_tuning(user, [sig])
+
+        # Signal should survive — signal-level wins
+        self.assertEqual(len(result), 1)
+
+    @patch("apps.core.signals.signal_presenter._get_pattern_feedback_stats")
+    @patch("apps.core.signals.signal_presenter._get_feedback_stats")
+    def test_signal_neutral_pattern_suppressed_pattern_wins(
+        self, mock_signal_stats, mock_pattern_stats,
+    ):
+        """Signal-level neutral + pattern-level suppressed → pattern wins (suppressed)."""
+        sig = _make_signal(
+            signal_type=POSSIBLE_COMPLETION, confidence=0.85,
+            domain="faith", item="prayer",
+        )
+        # Signal-level: no data (neutral)
+        mock_signal_stats.return_value = {}
+        # Pattern-level: suppressed (0 yes, 5 no)
+        mock_pattern_stats.return_value = {
+            "possible_completion:faith:prayer": {"yes": 0, "no": 5, "total": 5},
+        }
+
+        user = MagicMock()
+        result = _apply_adaptive_tuning(user, [sig])
+
+        # Pattern suppression applies when signal is neutral
+        self.assertEqual(len(result), 0)
+
+
+# ---------------------------------------------------------------------------
+# 27. Phase 5.2: Pattern independence from truth/expectation filters
+# ---------------------------------------------------------------------------
+
+
+class TestPatternIndependence(SimpleTestCase):
+    """Pattern logic does NOT affect truth or expectation filtering."""
+
+    def test_pattern_does_not_affect_non_completion_types(self):
+        """Pattern rules skip non-possible_completion signals."""
+        sig = _make_signal(
+            signal_type=INCONSISTENCY_SIGNAL, confidence=0.85,
+            domain="faith", item="prayer",
+        )
+        pattern_stats = {
+            "inconsistency_signal:faith:prayer": {"yes": 10, "no": 0, "total": 10},
+        }
+        result = _apply_pattern_rules(sig, pattern_stats)
+        # Should return signal unchanged, no pattern reinforcement
+        self.assertIsNotNone(result)
+        self.assertFalse(result.get("_pattern_reinforced", False))
+
+    @patch("apps.core.signals.signal_presenter._get_pattern_feedback_stats")
+    @patch("apps.core.signals.signal_presenter._get_feedback_stats")
+    @patch("apps.core.signals.signal_presenter._get_execution_truth")
+    @patch("apps.core.signals.signal_presenter._get_raw_signals")
+    def test_truth_filter_runs_before_pattern(
+        self, mock_raw, mock_truth, mock_signal_stats, mock_pattern_stats,
+    ):
+        """Truth suppression happens before pattern rules can see the signal."""
+        now = timezone.now()
+        mock_raw.return_value = {
+            "signals": [
+                _make_signal(
+                    domain="faith", item="prayer",
+                    confidence=0.90, timestamp=now,
+                ),
+            ]
+        }
+        # Mark prayer as completed in truth → should be filtered out
+        mock_truth.return_value = _make_truth(prayer_completed=True)
+        # Pattern would reinforce — but signal never reaches pattern layer
+        mock_pattern_stats.return_value = {
+            "possible_completion:faith:prayer": {"yes": 20, "no": 0, "total": 20},
+        }
+        mock_signal_stats.return_value = {}
+
+        user = MagicMock()
+        user.id = 1
+        result = get_presented_signals(user)
+
+        # Should be empty — truth filter removes before pattern can boost
+        self.assertEqual(len(result["suggestions"]), 0)
+
+
+# ---------------------------------------------------------------------------
+# 28. Phase 5.2: Pattern output in presenter
+# ---------------------------------------------------------------------------
+
+
+class TestPatternPresenterOutput(SimpleTestCase):
+    """Presenter output includes pattern_reinforced flag."""
+
+    @patch("apps.core.signals.signal_presenter._get_pattern_feedback_stats")
+    @patch("apps.core.signals.signal_presenter._get_feedback_stats")
+    @patch("apps.core.signals.signal_presenter._get_execution_truth")
+    @patch("apps.core.signals.signal_presenter._get_raw_signals")
+    def test_pattern_reinforced_flag_in_output(
+        self, mock_raw, mock_truth, mock_signal_stats, mock_pattern_stats,
+    ):
+        now = timezone.now()
+        mock_raw.return_value = {
+            "signals": [
+                _make_signal(domain="faith", item="prayer",
+                             confidence=0.90, timestamp=now),
+            ]
+        }
+        mock_truth.return_value = _make_truth()
+        mock_signal_stats.return_value = {}
+        mock_pattern_stats.return_value = {
+            "possible_completion:faith:prayer": {"yes": 8, "no": 1, "total": 9},
+        }
+
+        user = MagicMock()
+        user.id = 1
+        result = get_presented_signals(user)
+
+        self.assertEqual(len(result["suggestions"]), 1)
+        suggestion = result["suggestions"][0]
+        self.assertIn("pattern_reinforced", suggestion)
+        self.assertTrue(suggestion["pattern_reinforced"])

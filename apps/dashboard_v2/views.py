@@ -182,10 +182,12 @@ class SignalInsightsSectionView(LoginRequiredMixin, View):
             insights = get_signal_insights(request.user)
         except Exception:
             logger.error("Signal insights section failed", exc_info=True)
-            insights = {"reinforced": [], "suppressed": [], "neutral": []}
+            insights = {"reinforced": [], "suppressed": [], "neutral": [], "patterns": []}
 
+        patterns = insights.get("patterns", [])
         has_insights = bool(
-            insights["reinforced"] or insights["suppressed"] or insights["neutral"]
+            insights["reinforced"] or insights["suppressed"]
+            or insights["neutral"] or patterns
         )
         html = render_to_string(
             "dashboard_v2/sections/signal_insights.html",
@@ -194,6 +196,7 @@ class SignalInsightsSectionView(LoginRequiredMixin, View):
                 "reinforced": insights["reinforced"],
                 "suppressed": insights["suppressed"],
                 "neutral": insights["neutral"],
+                "patterns": patterns,
                 "request": request,
             },
             request=request,

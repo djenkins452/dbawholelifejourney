@@ -283,10 +283,6 @@ def build_locked_next_action(user) -> str:
         top = priorities[0]['title']
         result = f"Start with {top}."
 
-        if len(priorities) >= 2:
-            second = priorities[1]['title']
-            result += f" Then move to {second}."
-
         logger.info(
             "[CoS LOCKED NEXT ACTION] user=%s top=%s total_pending=%d",
             user.id, top, len(priorities),

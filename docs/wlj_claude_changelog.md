@@ -6,6 +6,12 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — V2 Homepage Weather/Progress Card Borders
+- Added bordered card styling to the Today's Progress and Weather sections on the V2 homepage
+- Matches the card border style from the original dashboard
+- Removed duplicate inner border from weather card when inside the V2 row
+- **Files:** `templates/dashboard_v2/home.html`
+
 ## 2026-03-22 — Beth Renderer Hardening (Formatting Consistency)
 
 **What:** Two formatting fixes to the Beth status renderer for consistent output.

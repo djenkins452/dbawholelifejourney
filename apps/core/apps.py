@@ -36,3 +36,5 @@ class CoreConfig(AppConfig):
         enhance_number_inputs()
         # Register domain event subscribers for intelligence pipeline
         import apps.core.events.subscribers  # noqa: F401
+        # Register execution quality signal handlers
+        import apps.core.signals.execution_signals  # noqa: F401

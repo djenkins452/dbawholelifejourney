@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Execution Quality Signals (Analytical Layer)
+
+**What:** Added ExecutionSignal model — a read-only analytical layer that tracks execution quality (on_target, late, missed_window, missed) for scheduled items. Hooks into RoutineLog, WorkoutSession, JournalEntry, and MedicineLog completion events via Django post_save signals. No side effects — does not affect Today Engine, CoS, completion logic, or UI.
+
+**Quality windows:** on_target ≤15min, late ≤2hr, missed_window >2hr completed, missed = not completed past 2hr.
+
+**Files:**
+- `apps/core/signals/models.py` — ExecutionSignal model with unique constraint per (user, item, domain, date)
+- `apps/core/signals/execution_quality.py` — Quality computation + signal generation from each completion model
+- `apps/core/signals/execution_signals.py` — Django post_save signal handlers for all 4 completion models
+- `apps/core/apps.py` — Registered execution signal handlers
+- `apps/core/migrations/0122_add_execution_signal.py` — Migration
+- `apps/core/signals/tests/test_execution_quality.py` — 24 tests covering computation, generation, idempotency, edge cases
+
+---
+
 ## 2026-03-23 — SAE/UAL Engine Performance Optimization
 
 **What:** Ops dashboard showed UAL at 1200-1976ms and SAE at 1200-1400ms per execution with multiple SLOW warnings. Three key bottlenecks fixed:

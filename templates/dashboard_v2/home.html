@@ -12,6 +12,17 @@
     gap: var(--space-4);
     align-items: start;
 }
+.v2-progress-weather-row > .v2-section {
+    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: var(--radius-lg, 0.75rem);
+    padding: var(--space-4, 1rem);
+}
+.v2-progress-weather-row > .v2-section .weather-card {
+    border: none;
+    padding: 0;
+    border-radius: 0;
+}
 @media (max-width: 768px) {
     .v2-progress-weather-row {
         grid-template-columns: 1fr;

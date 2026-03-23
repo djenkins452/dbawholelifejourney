@@ -34,6 +34,44 @@ logger = logging.getLogger(__name__)
 
 
 # =========================================================================
+# SECTION BUILDER WRAPPER — Error isolation + freshness metadata
+# =========================================================================
+
+
+def _build_section(name, fn, *args, **kwargs):
+    """Wrap a section builder call with error isolation and freshness metadata.
+
+    Returns (data, meta) tuple. If the builder fails, data is None and
+    meta.degraded is True. The caller can then carry forward stale data
+    from a previous payload.
+    """
+    start = time.monotonic()
+    try:
+        data = fn(*args, **kwargs)
+        build_ms = round((time.monotonic() - start) * 1000)
+        meta = {
+            "source": name,
+            "computed_at": timezone.now().isoformat(),
+            "build_ms": build_ms,
+            "stale": False,
+            "degraded": data is None,
+        }
+        return data, meta
+    except Exception as e:
+        build_ms = round((time.monotonic() - start) * 1000)
+        logger.warning("Ops section '%s' failed: %s", name, e, exc_info=True)
+        meta = {
+            "source": name,
+            "computed_at": timezone.now().isoformat(),
+            "build_ms": build_ms,
+            "stale": True,
+            "degraded": True,
+            "error": str(e),
+        }
+        return None, meta
+
+
+# =========================================================================
 # HELPER FUNCTIONS
 # =========================================================================
 
@@ -2463,6 +2501,15 @@ def build_ops_stream_payload():
     Called by the SAME cycle (background worker). Gathers all telemetry
     from individual helpers and caches the assembled payload.
 
+    Each section is wrapped in _build_section() for error isolation: if a
+    single section fails, the rest of the payload is still built and cached.
+    Failed sections carry forward stale data from the previous payload.
+
+    The payload includes:
+    - Top-level fields: raw data (backward-compatible with frontend)
+    - _section_meta: per-section freshness/health metadata
+    - _build_telemetry: overall build performance summary
+
     Returns:
         dict: The full payload dict (also cached for OpsStreamView).
     """
@@ -2475,114 +2522,87 @@ def build_ops_stream_payload():
 
     build_start = time.monotonic()
     now = timezone.now()
+
+    # Load previous payload for stale carry-forward on section failures.
+    previous = django_cache.get(OPS_STREAM_CACHE_KEY) or {}
+
+    # Pre-fetch shared dependencies (used by engine_cards).
     cadence_config = get_cadence_config()
     heartbeats = get_latest_heartbeats()
 
-    # Engine cards
-    engine_cards = _build_engine_cards(ALL_ENGINES, cadence_config, heartbeats, now)
+    # ── Build all sections with error isolation ────────────────────
+    sections = {}
+    section_meta = {}
 
-    # SAME narrative (latest)
-    narrative = _get_latest_narrative()
+    def _section(name, fn, *args, **kwargs):
+        """Build a section, carry forward stale data on failure."""
+        data, meta = _build_section(name, fn, *args, **kwargs)
+        if data is None and name in previous and previous[name] is not None:
+            # Carry forward previous data as stale.
+            data = previous[name]
+            meta["stale"] = True
+            meta["degraded"] = False
+            meta["carry_forward"] = True
+        sections[name] = data
+        section_meta[name] = meta
 
-    # Active anomalies (watchlist)
-    anomalies = _get_active_anomalies()
+    _section("engine_cards", _build_engine_cards, ALL_ENGINES, cadence_config, heartbeats, now)
+    _section("narrative", _get_latest_narrative)
+    _section("anomalies", _get_active_anomalies)
+    _section("feed", get_recent_feed, since=None, limit=50, engine_filter=None)
+    _section("integrity", _get_latest_integrity)
+    _section("scheduler_heartbeats", _get_scheduler_heartbeats)
+    _section("eae_telemetry", _get_eae_ops_telemetry, now)
+    _section("scheduler_health", _get_scheduler_health)
+    _section("celery_health", _get_celery_health)
+    _section("learning_health", _get_learning_health, now)
+    _section("health_intelligence", _get_health_intelligence_telemetry, now)
+    _section("coas_health", _get_coas_health)
+    _section("aafr", _get_aafr_metrics)
+    _section("complexity", _get_complexity_score)
+    _section("domain_events", _get_domain_event_telemetry)
+    _section("chat_latency", _get_chat_latency_telemetry, now)
+    _section("pipeline_health", _get_intelligence_pipeline_health, now)
+    _section("signal_health", _get_signal_health)
+    _section("validator_health", _get_validator_health)
+    _section("cos_performance", _get_cos_performance)
+    _section("api_health", _get_api_health_telemetry, now)
+    _section("email_intelligence", _get_email_intelligence_telemetry)
 
-    # Feed events — fixed 5-minute window (not request-specific)
-    feed = get_recent_feed(since=None, limit=50, engine_filter=None)
-
-    # System posture from narrative
+    # ── Derive posture from narrative ──────────────────────────────
+    narrative = sections.get("narrative")
     posture = narrative.get("posture", "OK") if narrative else "OK"
 
-    # System Integrity Index (latest snapshot)
-    integrity = _get_latest_integrity()
-
-    # Scheduler heartbeats (ISE + SAME)
-    scheduler_heartbeats = _get_scheduler_heartbeats()
-
-    # EAE telemetry
-    eae_telemetry = _get_eae_ops_telemetry(now)
-
-    # APScheduler health
-    scheduler_health = _get_scheduler_health()
-
-    # Celery execution layer health
-    celery_health = _get_celery_health()
-
-    # Persistent learning health
-    learning_health = _get_learning_health(now)
-
-    # Health Intelligence Engine telemetry
-    health_intelligence = _get_health_intelligence_telemetry(now)
-
-    # COAS health scores
-    coas_health = _get_coas_health()
-
-    # AI Action Failure Rate metrics
-    aafr = _get_aafr_metrics()
-
-    # System Complexity Score
-    complexity = _get_complexity_score()
-
-    # Domain event bus telemetry
-    domain_events = _get_domain_event_telemetry()
-
-    # Chat latency telemetry
-    chat_latency = _get_chat_latency_telemetry(now)
-
-    # Intelligence Pipeline Health
-    pipeline_health = _get_intelligence_pipeline_health(now)
-
-    # Signal Health (cached by SAME cycle)
-    signal_health = _get_signal_health()
-
-    # Validator Gate Health (cached by SAME cycle)
-    validator_health = _get_validator_health()
-
-    # CoS Performance (cached by SAME cycle)
-    cos_performance = _get_cos_performance()
-
-    # API Health
-    api_health = _get_api_health_telemetry(now)
-
-    # Email Intelligence Pipeline telemetry (Phase 6B.5)
-    email_intelligence = _get_email_intelligence_telemetry()
-
+    # ── Build telemetry summary ────────────────────────────────────
     build_time_ms = round((time.monotonic() - build_start) * 1000)
+    sections_ok = sum(1 for m in section_meta.values() if not m.get("degraded"))
+    sections_degraded = sum(1 for m in section_meta.values() if m.get("degraded"))
 
+    # ── Assemble payload (flat top-level for frontend compat) ──────
     payload = {
         "server_time": now.isoformat(),
         "posture": posture,
-        "engine_cards": engine_cards,
-        "narrative": narrative,
-        "anomalies": anomalies,
-        "feed": feed,
-        "integrity": integrity,
-        "scheduler_heartbeats": scheduler_heartbeats,
-        "scheduler_health": scheduler_health,
-        "celery_health": celery_health,
-        "eae_telemetry": eae_telemetry,
-        "learning_health": learning_health,
-        "health_intelligence": health_intelligence,
-        "coas_health": coas_health,
-        "aafr": aafr,
-        "complexity": complexity,
-        "domain_events": domain_events,
-        "chat_latency": chat_latency,
-        "pipeline_health": pipeline_health,
-        "signal_health": signal_health,
-        "validator_health": validator_health,
-        "cos_performance": cos_performance,
-        "api_health": api_health,
-        "email_intelligence": email_intelligence,
+        **sections,
         "ops_stream_build_time_ms": build_time_ms,
         "next_since": now.isoformat(),
+        "_section_meta": section_meta,
+        "_build_telemetry": {
+            "total_ms": build_time_ms,
+            "sections_ok": sections_ok,
+            "sections_degraded": sections_degraded,
+            "section_timings": {
+                name: meta["build_ms"] for name, meta in section_meta.items()
+            },
+        },
     }
 
     # Cache payload for OpsStreamView to read
     django_cache.set(OPS_STREAM_CACHE_KEY, payload, timeout=OPS_STREAM_CACHE_TTL)
     logger.info(
-        "Ops stream payload built and cached (%d keys, %dms)",
-        len(payload),
+        "Ops stream payload built and cached (%d sections, %d ok, %d degraded, %dms)",
+        len(section_meta),
+        sections_ok,
+        sections_degraded,
         build_time_ms,
     )
 

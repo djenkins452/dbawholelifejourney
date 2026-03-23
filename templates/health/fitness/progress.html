@@ -28,8 +28,14 @@
         </div>
         <div class="stat-card">
             <span class="stat-value">{{ total_volume_30d|default:0 }}</span>
-            <span class="stat-label">Total Volume (lbs)</span>
+            <span class="stat-label">Strength Load (lbs)</span>
         </div>
+        {% if total_movement_work_30d %}
+        <div class="stat-card">
+            <span class="stat-value">{{ total_movement_work_30d }}</span>
+            <span class="stat-label">Movement Work (reps)</span>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Exercise Selection -->

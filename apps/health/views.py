@@ -1935,6 +1935,8 @@ class ProgressView(LoginRequiredMixin, TemplateView):
         )
         total_volume = sum(w.total_volume for w in workouts)
         context["total_volume_30d"] = round(total_volume)
+        total_movement_work = sum(w.total_movement_work for w in workouts)
+        context["total_movement_work_30d"] = total_movement_work
 
         # Get unique exercises the user has done
         exercise_ids = (

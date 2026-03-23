@@ -892,6 +892,7 @@ def build_fitness_state(user):
         completed_at__isnull=False,
     ).prefetch_related('workout_exercises__sets')
     total_volume = 0
+    total_movement_work = 0
     total_sets = 0
     for session in recent_sessions:
         for we in session.workout_exercises.all():
@@ -899,8 +900,12 @@ def build_fitness_state(user):
                 v = s.volume
                 if v is not None:
                     total_volume += v
+                mw = s.movement_work
+                if mw is not None:
+                    total_movement_work += mw
                 total_sets += 1
     state["total_volume_7d"] = round(total_volume, 1)
+    state["movement_work_7d"] = total_movement_work
     state["total_sets_7d"] = total_sets
 
     # ── Workout aggregates (7d) for CoS context ──────────────────
@@ -972,12 +977,16 @@ def build_fitness_state(user):
         status="active",
     ).prefetch_related('workout_exercises__sets')
     prev_volume = 0
+    prev_movement_work = 0
     for session in prev_sessions:
         for we in session.workout_exercises.all():
             for s in we.sets.all():
                 v = s.volume
                 if v is not None:
                     prev_volume += v
+                mw = s.movement_work
+                if mw is not None:
+                    prev_movement_work += mw
 
     if prev_volume > 0 and total_volume > 0:
         ratio = total_volume / prev_volume

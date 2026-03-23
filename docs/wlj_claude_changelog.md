@@ -6,6 +6,32 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Fitness Dual-Signal Model (Strength Load + Movement Work)
+
+**What:** Workouts now produce two independent effort signals: Strength Load (volume from load exercises) and Movement Work (reps from non-load exercises). These are never combined — different units, different meaning.
+
+**Why:** After fixing volume to return None for band/movement exercises, workouts with significant movement work (bands, drills, mobility) appeared underrepresented. A workout with bench press + band pull-aparts + hip hinges only showed bench press contribution.
+
+**Key changes:**
+- `ExerciseSet.movement_work` property — returns reps for band/movement/assisted, None for external/bodyweight
+- `WorkoutExercise.total_movement_work` / `WorkoutSession.total_movement_work` — aggregation properties
+- `get_weekly_volume()` now returns `movement_work` alongside `total_volume`
+- `_build_fitness_state()` now produces `movement_work_7d` in state dict
+- Templates show "Strength Load (lbs)" and "Movement Work (reps)" as separate stat cards
+- Progress page shows 30d movement work total
+
+**Files:**
+- `apps/health/models.py` — Added movement_work property and aggregation methods
+- `apps/health/services/fitness_utils.py` — Added movement_work to weekly volume return
+- `apps/core/ai_state/state_builder.py` — Added movement_work_7d to fitness state
+- `apps/health/views.py` — Added total_movement_work_30d to progress context
+- `templates/health/fitness/workout_detail.html` — Dual-signal summary display
+- `templates/health/fitness/workout_list.html` — Movement work in workout list
+- `templates/health/fitness/progress.html` — Movement work in 30d stats
+- `apps/health/tests/test_movement_types.py` — 11 new tests for dual-signal model
+
+---
+
 ## 2026-03-23 — Align Journal Compliance with JournalEntry as Single Source of Truth
 
 **What:** V2 Compliance journal adapter now uses `REASON_COMPLETED_VIA_JOURNAL` ("Completed via journal entry") and `REASON_NOT_COMPLETED` ("Not completed") reason codes, replacing the generic `REASON_ENTRY_EXISTS`/`REASON_NO_ENTRY` codes. The adapter already used JournalEntry as raw truth — this change aligns the labels with the workout adapter pattern.

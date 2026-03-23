@@ -69,7 +69,10 @@
                                                 <span>&bull; {{ workout.total_sets }} sets</span>
                                             {% endif %}
                                             {% if workout.total_volume %}
-                                                <span>&bull; {{ workout.total_volume|floatformat:0 }} lbs volume</span>
+                                                <span>&bull; {{ workout.total_volume|floatformat:0 }} lbs</span>
+                                            {% endif %}
+                                            {% if workout.total_movement_work %}
+                                                <span>&bull; {{ workout.total_movement_work }} reps movement</span>
                                             {% endif %}
                                         {% endif %}
                                     </div>

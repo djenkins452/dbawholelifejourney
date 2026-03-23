@@ -6,6 +6,43 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Compliance Phase 5: Reconciliation + Dedupe Hardening
+
+**Root cause fixed:** Workout completion + linked routine item counted independently, causing 1 completed + 1 missed for a single real-world obligation.
+
+**Reconciliation design:**
+- `obligation_key` field: deterministic key grouping events representing the same real-world commitment (e.g., `workout:{user_id}:{date}`)
+- `is_primary` field: only True events count in rollups
+- `suppression_reason` field: explains why a non-primary event was suppressed
+- Reconciliation runs in-memory on event dicts BEFORE persistence (no post-hoc updates)
+
+**Obligation key strategy:**
+- Routine items whose name is in `WORKOUT_NAMES` (from execution_truth_engine) get the same obligation key as the workout schedule event for that day
+- Extensible: same pattern ready for journal↔routine, faith↔routine, maintenance↔routine
+
+**Rollup changes:**
+- `get_rollup()` now filters `is_primary=True` — suppressed duplicates excluded from both numerator and denominator
+- Skipped treatment unchanged (excluded from denominator)
+
+**UI changes:**
+- Suppressed events shown with dashed border + 55% opacity
+- "Linked" badge replaces status badge
+- Inline note: "Satisfied by [workout name] — not counted separately"
+- Expandable detail shows: original status, satisfied-by label, suppression reason
+
+**Files created:**
+- `apps/dashboard_v2/compliance/reconciliation.py`
+- `apps/dashboard_v2/compliance/tests/test_reconciliation.py`
+- `apps/dashboard_v2/migrations/0007_obligation_reconciliation.py`
+
+**Files modified:**
+- `apps/dashboard_v2/compliance/constants.py` — suppression reason codes
+- `apps/dashboard_v2/compliance/models.py` — obligation_key, is_primary, suppression_reason fields
+- `apps/dashboard_v2/compliance/service.py` — reconciliation in pipeline, is_primary in rollup
+- `templates/dashboard_v2/compliance/detail.html` — suppression UI
+
+**Tests:** 9 new regression tests covering all dedupe scenarios (29 total pass)
+
 ## 2026-03-22 — Compliance Audit System (Phases 1-4)
 
 **What:** Universal compliance audit architecture enabling drill-down from any V2 compliance card to see exactly what was counted, when, for which item, and why.

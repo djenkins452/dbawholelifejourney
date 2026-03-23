@@ -1,13 +1,14 @@
 """
-Compliance Event Service — orchestrates evaluation, persistence, and rollup.
+Compliance Event Service — orchestrates evaluation, reconciliation, and rollup.
 
-This is the primary API for the compliance audit system.
+Pipeline:
+    adapters → raw events → reconcile() → persist → rollup / detail queries
 
 Usage:
     from apps.dashboard_v2.compliance.service import ComplianceService
 
     svc = ComplianceService(user)
-    svc.evaluate_week()                          # Generate events for this week
+    svc.evaluate_week()                          # Generate + reconcile events
     summary = svc.get_rollup("medication_doses")  # Get card summary
     detail = svc.get_detail("medication_doses")   # Get drill-down rows
 """
@@ -23,24 +24,19 @@ from apps.dashboard_v2.compliance.adapters import evaluate_all_domains
 from apps.dashboard_v2.compliance.constants import (
     FINAL_COMPLETED,
     FINAL_COMPLETED_LATE,
-    FINAL_EXCLUDED_FROM_DENOMINATOR,
     FINAL_MISSED,
-    FINAL_NEGATIVE,
-    FINAL_NOT_EXPECTED,
     FINAL_OVERDUE,
-    FINAL_POSITIVE,
     FINAL_SKIPPED,
-    FINAL_STATUS_LABELS,
-    REASON_LABELS,
     SCORING_BUCKETS,
 )
 from apps.dashboard_v2.compliance.models import ComplianceEvent
+from apps.dashboard_v2.compliance.reconciliation import reconcile_events
 
 logger = logging.getLogger(__name__)
 
 
 class ComplianceService:
-    """Orchestrates compliance event generation, rollup, and querying."""
+    """Orchestrates compliance event generation, reconciliation, rollup, and querying."""
 
     def __init__(self, user):
         self.user = user
@@ -54,36 +50,34 @@ class ComplianceService:
 
     def evaluate_week(self):
         """
-        Generate compliance events for the current 7-day window.
+        Generate and reconcile compliance events for the current 7-day window.
 
-        Deletes existing events for the window and replaces with fresh evaluation.
-        This ensures the data is always current.
+        Pipeline: adapters → reconcile → persist
         """
         start_date, end_date = self.get_week_range()
         return self.evaluate_range(start_date, end_date)
 
     def evaluate_range(self, start_date, end_date):
         """
-        Generate compliance events for a date range.
+        Generate, reconcile, and persist compliance events for a date range.
 
-        Replaces existing events for the same user/date range.
         Returns count of events created.
         """
+        # Step 1: Generate raw events from all domain adapters
         event_dicts = evaluate_all_domains(self.user, start_date, end_date)
 
+        # Step 2: Reconcile — assign obligation keys, suppress duplicates
+        reconcile_events(event_dicts, self.user)
+
+        # Step 3: Persist atomically
         with transaction.atomic():
-            # Clear old events for this range
             ComplianceEvent.objects.filter(
                 user=self.user,
                 event_date__gte=start_date,
                 event_date__lte=end_date,
             ).delete()
 
-            # Bulk create new events
-            events = []
-            for d in event_dicts:
-                events.append(ComplianceEvent(**d))
-
+            events = [ComplianceEvent(**d) for d in event_dicts]
             if events:
                 ComplianceEvent.objects.bulk_create(events)
 
@@ -93,18 +87,8 @@ class ComplianceService:
         """
         Get summary counts for a scoring bucket.
 
-        Returns:
-            {
-                'bucket': str,
-                'expected': int,
-                'completed': int,
-                'completed_late': int,
-                'skipped': int,
-                'missed': int,
-                'overdue': int,
-                'completion_pct': float,
-                'missed_label': str,  # e.g., "Missed 3 medication doses"
-            }
+        Only counts score-bearing events (is_primary=True).
+        Suppressed duplicates are excluded from both numerator and denominator.
         """
         if start_date is None or end_date is None:
             start_date, end_date = self.get_week_range()
@@ -115,6 +99,7 @@ class ComplianceService:
             event_date__gte=start_date,
             event_date__lte=end_date,
             expected=True,
+            is_primary=True,  # Only score-bearing events
         )
 
         counts = qs.aggregate(
@@ -168,13 +153,8 @@ class ComplianceService:
         """
         Get detailed event rows for drill-down UI.
 
-        Args:
-            scoring_bucket: Which card to drill into
-            start_date, end_date: Date range (default: this week)
-            status_filter: Optional final_status to filter by (e.g., 'missed')
-
-        Returns:
-            List of dicts grouped by date, ready for template rendering.
+        Returns all events (both primary and suppressed) so the user can
+        see linked evidence. Suppressed events are clearly marked.
         """
         if start_date is None or end_date is None:
             start_date, end_date = self.get_week_range()
@@ -212,7 +192,11 @@ class ComplianceService:
                 "reason_label": event.reason_label,
                 "source_system": event.source_system,
                 "reason_detail": event.reason_detail or {},
+                "is_primary": event.is_primary,
+                "is_suppressed": event.is_suppressed,
+                "suppression_reason": event.suppression_reason,
+                "suppression_label": event.suppression_label,
+                "obligation_key": event.obligation_key,
             })
 
-        # Return as sorted list (newest first)
         return sorted(grouped.values(), key=lambda x: x["date"], reverse=True)

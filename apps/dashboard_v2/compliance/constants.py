@@ -137,7 +137,27 @@ REASON_CODE_CHOICES = [
     (REASON_ASSERTED_ON_TIME, "User asserted on-time completion"),
 ]
 
+REASON_SATISFIED_BY_WORKOUT = "satisfied_by_linked_workout"
+REASON_DUPLICATE_OBLIGATION = "duplicate_obligation"
+
+REASON_CODE_CHOICES += [
+    (REASON_SATISFIED_BY_WORKOUT, "Satisfied by linked workout completion"),
+    (REASON_DUPLICATE_OBLIGATION, "Duplicate obligation — not counted separately"),
+]
+
 REASON_LABELS = dict(REASON_CODE_CHOICES)
+
+# ── Score Suppression Reasons ────────────────────────────────────
+
+SUPPRESSED_BY_LINKED_WORKOUT = "satisfied_by_linked_workout"
+SUPPRESSED_DUPLICATE = "duplicate_obligation"
+
+SUPPRESSION_REASON_CHOICES = [
+    (SUPPRESSED_BY_LINKED_WORKOUT, "Satisfied by linked workout completion"),
+    (SUPPRESSED_DUPLICATE, "Duplicate obligation — not counted separately"),
+]
+
+SUPPRESSION_LABELS = dict(SUPPRESSION_REASON_CHOICES)
 
 # ── Human-readable Final Status Labels ───────────────────────────
 

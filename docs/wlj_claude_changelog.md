@@ -6,6 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — CoS Next Action: Strict Priority with Immediate Return
+
+**What:** Fixed priority evaluation to use immediate return per level instead of building a candidates list. Overdue items are now guaranteed to be selected earliest-first before any other category is even considered.
+
+**Before (candidates list):** Built one flat list from all categories, picked `[0]`. If Today Engine sort had any issue, wrong item could be selected.
+
+**After (immediate return per priority):**
+```
+if overdue: sort → return overdue[0] → DONE
+if coming_up: sort → return coming_up[0] → DONE
+if later: sort → return later[0] → DONE
+if foundation: return foundation[0] → DONE
+return "You're clear right now."
+```
+
+Each priority level sorts defensively and returns immediately. Lower priorities are never even evaluated if a higher one has items.
+
+**Files:** `apps/ai/deterministic_router.py` — `_build_next_action_response()`
+
+**Test results:** 179/179 pass.
+
+---
+
 ## 2026-03-23 — CoS Next Action Engine: Single Item, State-Driven
 
 **What:** Fixed "what should I do next?" to return exactly ONE item selected from Today Engine priority order, instead of multi-step plans.

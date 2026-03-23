@@ -359,12 +359,12 @@ def _is_next_action_query(msg_lower):
 def _build_next_action_response(user):
     """Build deterministic next-action response from Today Engine.
 
-    Priority order (highest → lowest):
-    1. Overdue now (most urgent)
-    2. Coming up next (current time window)
-    3. Later today
-    4. Incomplete foundational items
-    5. System next action (fallback)
+    STRICT priority — evaluated in order, returns IMMEDIATELY on first match:
+    1. Overdue now → earliest by time
+    2. Coming up next → earliest by time
+    3. Later today → earliest by time
+    4. Incomplete foundational (not in time buckets) → earliest by time
+    5. Empty → "You're clear right now."
 
     Returns EXACTLY ONE item. No plans, no lists, no sequencing.
     """
@@ -373,43 +373,60 @@ def _build_next_action_response(user):
 
         ctx = get_today_context(user)
 
-        # Build ordered candidate list by priority
-        candidates = []
+        # PRIORITY 1: Overdue — return FIRST (earliest) immediately
+        overdue = ctx.get("overdue", [])
+        if overdue:
+            # Already sorted by sort_time ASC from Today Engine,
+            # but enforce defensive sort for absolute correctness
+            overdue = sorted(overdue, key=lambda e: e["sort_time"])
+            selected = overdue[0]["label"]
+            logger.info(
+                "[NEXT ACTION] user=%s OVERDUE selected=%s from=%d",
+                user.id, selected, len(overdue),
+            )
+            return f"Start {selected}."
 
-        # 1. Overdue (highest urgency)
-        for entry in ctx.get("overdue", []):
-            candidates.append(entry["label"])
+        # PRIORITY 2: Coming up next — return FIRST immediately
+        coming_up = ctx.get("coming_up", [])
+        if coming_up:
+            coming_up = sorted(coming_up, key=lambda e: e["sort_time"])
+            selected = coming_up[0]["label"]
+            logger.info(
+                "[NEXT ACTION] user=%s COMING_UP selected=%s from=%d",
+                user.id, selected, len(coming_up),
+            )
+            return f"Start {selected}."
 
-        # 2. Coming up next
-        for entry in ctx.get("coming_up", []):
-            candidates.append(entry["label"])
+        # PRIORITY 3: Later today — return FIRST immediately
+        later = ctx.get("later", [])
+        if later:
+            later = sorted(later, key=lambda e: e["sort_time"])
+            selected = later[0]["label"]
+            logger.info(
+                "[NEXT ACTION] user=%s LATER selected=%s from=%d",
+                user.id, selected, len(later),
+            )
+            return f"Start {selected}."
 
-        # 3. Later today
-        for entry in ctx.get("later", []):
-            candidates.append(entry["label"])
+        # PRIORITY 4: Incomplete foundational (no scheduled time)
+        foundation = ctx.get("foundation", [])
+        if foundation:
+            selected = foundation[0]["label"]
+            logger.info(
+                "[NEXT ACTION] user=%s FOUNDATION selected=%s",
+                user.id, selected,
+            )
+            return f"Start {selected}."
 
-        # 4. Incomplete foundational items (not already in time buckets)
-        seen = set(candidates)
-        for entry in ctx.get("foundation", []):
-            if entry["label"] not in seen:
-                candidates.append(entry["label"])
-
-        if candidates:
-            selected = candidates[0]
-            response = f"Start {selected}."
-        else:
-            response = "You're clear right now."
-
-        logger.info(
-            "[DETERMINISTIC ROUTER] next_action user=%s selected=%s "
-            "candidates=%d",
-            user.id, candidates[0] if candidates else "none",
-            len(candidates),
-        )
-        return response
+        # PRIORITY 5: Nothing actionable
+        logger.info("[NEXT ACTION] user=%s ALL_CLEAR", user.id)
+        return "You're clear right now."
 
     except Exception:
-        # Fallback to locked next action
+        logger.warning(
+            "[NEXT ACTION] Failed for user=%s, falling back",
+            user.id, exc_info=True,
+        )
         from apps.ai.cos_fact_statements import build_locked_next_action
         return build_locked_next_action(user)
 

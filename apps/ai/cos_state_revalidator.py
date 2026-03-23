@@ -3,19 +3,15 @@ CoS Mid-Response State Revalidator
 
 Checks if execution truth changed DURING LLM response generation.
 If the response references items as pending/not-completed that are
-now actually completed (or vice versa), appends a correction.
+now actually completed, signals that regeneration is needed.
 
 This is a PRECISION PATCH — it does not change architecture, caching,
-prompt construction, or LLM call structure. It runs once, right before
-the response is saved, and either returns the response unchanged or
-appends a factual correction line.
+prompt construction, or LLM call structure.
 
-RULES:
-- Never blocks the response
-- Never modifies the LLM's original text (only appends)
-- Only corrects completion status mismatches
-- Uses the same data source as Today Engine (execution truth)
-- Fail-open: if revalidation fails, return original response
+BEHAVIOR:
+- If state changed: caller DISCARDS original response and REGENERATES
+- No appended corrections — CoS always speaks from current truth only
+- Fail-open: if revalidation fails, original response is kept
 """
 
 import logging
@@ -48,14 +44,16 @@ _TRUTH_ITEMS = {
 }
 
 
-def revalidate_response(response: str, user) -> str:
-    """Check if any item the LLM describes as pending is now completed.
+def check_state_changed(response: str, user) -> bool:
+    """Check if any item the LLM describes as pending is now actually completed.
 
-    If a mismatch is found, appends a correction line.
-    Returns the original response if no corrections needed.
+    Returns True if the response contains stale state that requires
+    regeneration. Returns False if the response is current.
+
+    Fail-open: returns False on any error (no regeneration triggered).
     """
     if not response:
-        return response
+        return False
 
     try:
         from apps.ai.cos_fact_statements import build_locked_facts
@@ -63,45 +61,29 @@ def revalidate_response(response: str, user) -> str:
         current_facts = build_locked_facts(user)
         raw = current_facts.get("_raw", {})
     except Exception:
-        # Can't validate — return original
-        return response
+        # Can't validate — assume no change
+        return False
 
     response_lower = response.lower()
-    corrections = []
 
     for truth_key, item_names in _TRUTH_ITEMS.items():
         is_done = raw.get(truth_key, False)
         if not is_done:
-            continue  # Item isn't completed — no possible stale-pending error
+            continue  # Item isn't completed — no stale-pending possible
 
         # Check if the response describes this item as pending
         for name in item_names:
             if name not in response_lower:
                 continue
 
-            # Check if any pending phrase appears near the item name
             for phrase in _PENDING_PHRASES:
-                if phrase in response_lower and name in response_lower:
-                    # The response says this item is pending, but truth says done
-                    display_name = name.title()
-                    corrections.append(display_name)
-                    break
-            if corrections and corrections[-1] == name.title():
-                break  # Already found a correction for this truth key
+                if phrase in response_lower:
+                    logger.info(
+                        "[STATE REVALIDATOR] Stale state detected: "
+                        "user=%s item=%s is now completed but response "
+                        "says pending — regeneration needed",
+                        user.id, truth_key,
+                    )
+                    return True
 
-    if not corrections:
-        return response
-
-    # Deduplicate
-    corrections = list(dict.fromkeys(corrections))
-
-    # Append correction — factual, no coaching
-    correction_text = ", ".join(corrections)
-    note = f"\n\n(Update: {correction_text} has been completed since this response was generated.)"
-
-    logger.info(
-        "[STATE REVALIDATOR] Appended correction for user=%s: %s",
-        user.id, corrections,
-    )
-
-    return response + note
+    return False

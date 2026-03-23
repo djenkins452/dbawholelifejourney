@@ -25,6 +25,28 @@
 ---
 
 ## 2026-03-23 — Complete ALL Gospel Reading Plans (System-Wide Fix)
+## 2026-03-23 — CoS State Revalidation: Replace Append with Regeneration
+
+**What:** Changed mid-response state revalidation from appending corrections to full regeneration. CoS now always speaks from current truth — no dual-state messaging.
+
+**Before:** `"Prayer is not complete... (Update: Prayer is now complete)"` — confusing, dual-state
+**After:** Response discarded, regenerated with fresh context — clean, single truth
+
+**Change:**
+- `check_state_changed(response, user)` returns `True/False` (was `revalidate_response` which appended text)
+- If `True`: calls `_generate_response()` with `cos_context_cache=None` (forces fresh context rebuild) — same pattern as the locked facts reject+regen at line 1687
+- If regeneration fails: fail-open, keeps original response
+- No appended corrections, no dual-state, no references to prior state
+
+**Files:**
+- `apps/ai/cos_state_revalidator.py` — rewritten: `check_state_changed()` replaces `revalidate_response()`
+- `apps/ai/personal_assistant.py` — regeneration block replaces append block
+- `apps/ai/tests/test_cos_state_revalidator.py` — 8 tests for new interface
+
+**Test results:** 177/177 pass.
+
+---
+
 ## 2026-03-23 — CoS Mid-Response State Revalidation
 
 **What:** Fixed edge case where CoS responds with stale completion status because an item was completed during LLM generation. Now a final revalidation step runs before saving the response.

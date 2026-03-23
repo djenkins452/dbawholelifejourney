@@ -185,6 +185,25 @@
 
 ---
 
+## 2026-03-23 — Check-in Renderer Patch: Remove Aggregation, Enforce Pure Truth
+
+**What:** Patched the deterministic check-in renderer to eliminate all aggregation, counts, and grouping. Output now shows only individually named items. Upcoming section now only includes time-bound items within a 90-minute window.
+
+**Changes:**
+- **Completed section:** Lists each completed item by actual name (Prayer, Bible reading, Shower, Devotional) — never "X routines" or "X tasks"
+- **Upcoming section:** Only shows items with `scheduled_time` within 90 minutes of now — no more dumping all pending items
+- **Empty states:** Both sections show `• None` when empty (not "All clear")
+- **Validation:** Output checked for banned words ("items", "tasks", "routines") — violations logged
+- **Data source:** Now reads individual routine items from `_raw_items` in execution truth, not aggregated counts
+
+**Files:**
+- `apps/ai/beth_checkin_renderer.py` — rewritten `_render_checkin_from_truth()`, new `_get_completed_items()`, `_get_upcoming_items()`, `_parse_time_today()`, `_validate_output()`
+- `apps/ai/tests/test_beth_checkin_renderer.py` — 28 tests (rewritten for new behavior)
+
+**Test results:** 28/28 renderer tests pass. 110/110 signal tests pass.
+
+---
+
 ## 2026-03-23 — CRITICAL: Deterministic Check-in Renderer + State Guard
 
 **What:** Fixed Beth fabricating completion status in morning check-ins. The LLM was generating state descriptions ("You've completed your prayer and Bible reading, which sets a solid tone") instead of reading from execution truth. Now ALL check-in/briefing flows use a deterministic renderer — the LLM is never involved in generating state.

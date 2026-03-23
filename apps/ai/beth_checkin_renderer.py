@@ -1,22 +1,25 @@
 """
-Deterministic Check-in Renderer — Phase 5.2+ Safety Layer
+Deterministic Check-in Renderer — Pure Truth Layer
 
 Renders morning/midday/evening check-ins using ONLY deterministic data.
 The LLM is NOT involved in generating any state description.
 
 DATA SOURCES (exclusively):
 - Execution Truth Engine (via cos_fact_statements.build_locked_facts)
+- Execution Truth raw routine items (individual named items)
 - Locked Next Action (via cos_fact_statements.build_locked_next_action)
-- Current time (for upcoming items)
+- Current time (for upcoming window filter)
 
-NO:
-- LLM generation of state
-- Coaching or commentary
-- Interpretation or inferred priorities
+RULES:
+- NO aggregation (no counts, no grouping, no "X items")
+- NO coaching or commentary
+- NO interpretation or inferred priorities
+- Every bullet = one real named item
+- Upcoming = only time-bound items within 90 minutes
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.utils import timezone
 
@@ -78,21 +81,84 @@ _PHASE_LABELS = {
 _SAFE_FALLBACK = (
     "Morning Check-in\n\n"
     "Completed:\n• None\n\n"
+    "Upcoming:\n• None\n\n"
     "Next: Start with your next planned item."
 )
 
+# Only show upcoming items within this window from now
+UPCOMING_WINDOW_MINUTES = 90
+
+# Banned words — if any appear in output, validation fails
+_BANNED_WORDS = frozenset({"items", "tasks", "routines"})
+
 
 def _render_checkin_from_truth(user, phase: str = "morning") -> str:
-    """Core renderer — builds check-in from execution truth."""
+    """Core renderer — builds check-in from execution truth.
+
+    Rules:
+    - Completed: each real completed item on its own line, or "None"
+    - Upcoming: only time-bound items within UPCOMING_WINDOW_MINUTES, or "None"
+    - No aggregation, no counts, no grouping
+    """
     from apps.ai.cos_fact_statements import build_locked_facts
+    from apps.core.execution.execution_truth_engine import get_execution_truth
 
     facts = build_locked_facts(user)
     raw = facts.get("_raw", {})
+    truth = get_execution_truth(user)
 
     label = _PHASE_LABELS.get(phase, "Check-in")
 
-    # -- Completed items --
+    # -- Completed: individual named items only --
+    completed = _get_completed_items(raw, truth)
+    completed_text = (
+        "\n".join(f"• {name}" for name in completed)
+        if completed
+        else "• None"
+    )
+
+    # -- Upcoming: time-bound items within window only --
+    upcoming = _get_upcoming_items(truth, user)
+    upcoming_text = (
+        "\n".join(f"• {name}" for name in upcoming)
+        if upcoming
+        else "• None"
+    )
+
+    # -- Next action (from system, not inferred) --
+    next_action = facts.get("next_action", "")
+    if not next_action or next_action == "Unable to determine.":
+        next_action = "Check your schedule for the next planned item."
+
+    # -- Build output --
+    lines = [
+        label,
+        "",
+        "Completed:",
+        completed_text,
+        "",
+        "Upcoming:",
+        upcoming_text,
+        "",
+        f"Next: {next_action}",
+    ]
+
+    output = "\n".join(lines)
+
+    # -- Validation: ensure no aggregation leaked through --
+    _validate_output(output)
+
+    return output
+
+
+def _get_completed_items(raw: dict, truth: dict) -> list:
+    """Extract individually named completed items from execution truth.
+
+    Returns a list of human-readable item names. No counts, no grouping.
+    """
     completed = []
+
+    # Domain completions (from raw facts)
     if raw.get("prayer_done"):
         completed.append("Prayer")
     if raw.get("bible_done"):
@@ -102,69 +168,90 @@ def _render_checkin_from_truth(user, phase: str = "morning") -> str:
     if raw.get("journal_done"):
         completed.append("Journal entry")
 
-    routine_done = raw.get("routine_done", 0)
-    routine_total = raw.get("routine_total", 0)
-    tasks_done = raw.get("tasks_done", 0)
+    # Individual completed routine items (by name, not count)
+    raw_items = truth.get("routines", {}).get("_raw_items", {})
+    for _window, items in raw_items.items():
+        for item in items:
+            if item.get("is_completed"):
+                name = item.get("item_name", "").strip()
+                if name and name not in completed:
+                    completed.append(name)
 
-    if routine_done > 0:
-        completed.append(f"{routine_done} of {routine_total} routines")
-    if tasks_done > 0:
-        completed.append(
-            f"{tasks_done} task{'s' if tasks_done != 1 else ''}"
-        )
+    return completed
 
-    completed_text = (
-        "\n".join(f"• {item}" for item in completed)
-        if completed
-        else "• None"
-    )
 
-    # -- Upcoming / Still pending --
+def _get_upcoming_items(truth: dict, user) -> list:
+    """Extract time-bound upcoming items within the UPCOMING_WINDOW_MINUTES window.
+
+    Only includes items that:
+    - Have a scheduled_time
+    - Are NOT completed
+    - Fall within [now, now + window]
+
+    Returns formatted strings like "Workout (6:15 AM)".
+    """
+    from apps.core.utils import get_user_now
+
+    try:
+        user_now = get_user_now(user)
+    except Exception:
+        user_now = timezone.localtime()
+
+    window_end = user_now + timedelta(minutes=UPCOMING_WINDOW_MINUTES)
     upcoming = []
-    if raw.get("workout_expected") and not raw.get("workout_done"):
-        upcoming.append("Workout")
-    if raw.get("bible_expected") and not raw.get("bible_done"):
-        upcoming.append("Bible reading")
-    if raw.get("prayer_expected") and not raw.get("prayer_done"):
-        upcoming.append("Prayer")
-    if raw.get("journal_expected") and not raw.get("journal_done"):
-        upcoming.append("Journal entry")
 
-    # Pending routines
-    pending_routines = routine_total - routine_done
-    if pending_routines > 0:
-        upcoming.append(
-            f"{pending_routines} routine item{'s' if pending_routines != 1 else ''}"
+    # Routine items with scheduled times
+    raw_items = truth.get("routines", {}).get("_raw_items", {})
+    for _window, items in raw_items.items():
+        for item in items:
+            if item.get("is_completed"):
+                continue
+
+            scheduled_str = item.get("scheduled_time")
+            if not scheduled_str:
+                continue
+
+            # Parse the time string (e.g., "6:15 AM") against today
+            item_time = _parse_time_today(scheduled_str, user_now)
+            if item_time is None:
+                continue
+
+            if user_now <= item_time <= window_end:
+                name = item.get("item_name", "").strip()
+                if name:
+                    upcoming.append(f"{name} ({scheduled_str})")
+
+    return upcoming
+
+
+def _parse_time_today(time_str: str, now) -> datetime:
+    """Parse a time string like '6:15 AM' into a datetime for today.
+
+    Returns None if parsing fails.
+    """
+    try:
+        parsed = datetime.strptime(time_str.strip(), "%I:%M %p")
+        return now.replace(
+            hour=parsed.hour, minute=parsed.minute,
+            second=0, microsecond=0,
         )
+    except (ValueError, AttributeError):
+        return None
 
-    upcoming_text = (
-        "\n".join(f"• {item}" for item in upcoming)
-        if upcoming
-        else "• All clear"
-    )
 
-    # -- Next action --
-    next_action = facts.get("next_action", "")
-    if not next_action or next_action == "Unable to determine.":
-        if upcoming:
-            next_action = f"Start with {upcoming[0]}."
-        else:
-            next_action = "All items are complete — nothing pending."
+def _validate_output(output: str):
+    """Validate that output contains no aggregation language.
 
-    # -- Build output --
-    lines = [
-        label,
-        "",
-        "Completed:",
-        completed_text,
-        "",
-        "Upcoming:" if phase == "morning" else "Still pending:",
-        upcoming_text,
-        "",
-        f"Next: {next_action}",
-    ]
-
-    return "\n".join(lines)
+    Logs a warning if banned words are found. Does NOT block output
+    (fail-open for safety) but makes violations visible in logs.
+    """
+    output_lower = output.lower()
+    for word in _BANNED_WORDS:
+        if word in output_lower:
+            logger.warning(
+                "[CHECKIN RENDERER] VALIDATION: banned word '%s' found in output",
+                word,
+            )
 
 
 # ---------------------------------------------------------------------------

@@ -890,7 +890,7 @@ def build_fitness_state(user):
     recent_sessions = WorkoutSession.objects.filter(
         user=user, date__gte=cutoff_7d.date(), status="active",
         completed_at__isnull=False,
-    )
+    ).prefetch_related('workout_exercises__sets')
     total_volume = 0
     total_sets = 0
     for session in recent_sessions:
@@ -969,7 +969,7 @@ def build_fitness_state(user):
         date__gte=prev_7d_start.date(),
         date__lt=cutoff_7d.date(),
         status="active",
-    )
+    ).prefetch_related('workout_exercises__sets')
     prev_volume = 0
     for session in prev_sessions:
         for we in session.workout_exercises.all():
@@ -1680,29 +1680,29 @@ def build_task_state(user):
         # 7-day window for consistency score
         seven_days_ago = now - timedelta(days=7)
 
-        nn_completed_7d = Task.objects.filter(
+        nn_agg = Task.objects.filter(
             user=user,
             commitment_level='foundational',
-            completion_status='completed',
-            completed_at__gte=seven_days_ago,
-        ).count()
-
-        nn_skipped_7d = Task.objects.filter(
-            user=user,
-            commitment_level='foundational',
-            completion_status='skipped',
-            last_skipped_at__gte=seven_days_ago,
-        ).count()
+        ).aggregate(
+            completed_7d=Count('id', filter=Q(
+                completion_status='completed',
+                completed_at__gte=seven_days_ago,
+            )),
+            skipped_7d=Count('id', filter=Q(
+                completion_status='skipped',
+                last_skipped_at__gte=seven_days_ago,
+            )),
+            active_pending=Count('id', filter=Q(
+                status='active',
+                completion_status='pending',
+            )),
+        )
+        nn_completed_7d = nn_agg['completed_7d']
+        nn_skipped_7d = nn_agg['skipped_7d']
+        nn_total = nn_agg['active_pending']
 
         total_acted = nn_completed_7d + nn_skipped_7d
         consistency = round(nn_completed_7d / total_acted, 2) if total_acted > 0 else 0.0
-
-        nn_total = Task.objects.filter(
-            user=user,
-            commitment_level='foundational',
-            status='active',
-            completion_status='pending',
-        ).count()
 
         state['task_commitment_summary'] = {
             'foundational_total': nn_total,

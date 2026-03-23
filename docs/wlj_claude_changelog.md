@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — SAE/UAL Engine Performance Optimization
+
+**What:** Ops dashboard showed UAL at 1200-1976ms and SAE at 1200-1400ms per execution with multiple SLOW warnings. Three key bottlenecks fixed:
+
+1. **Fitness state builder N+1 queries** — Triple-nested loops without `prefetch_related` caused 40-50+ queries per run (current + previous 7-day periods). Fixed with `.prefetch_related('workout_exercises__sets')` reducing to ~6 queries total.
+
+2. **SAE incremental saves** — Full rebuild saved to DB after every module builder (24 writes). Changed to save only before composite builders (transformation) and once at the end (2 writes instead of 24).
+
+3. **Task state builder redundant counts** — Three separate `.count()` queries for foundational task metrics consolidated into single `.aggregate()` with conditional `Count` filters.
+
+**Files:**
+- `apps/core/ai_state/state_builder.py` — prefetch_related on workout queries, aggregate task counts
+- `apps/core/ai_state/state_engine.py` — batched SAE saves
+
+**Estimated impact:** ~400-600ms reduction per SAE/UAL cycle (~30-40% improvement).
+
+---
+
 ## 2026-03-23 — Complete ALL Gospel Reading Plans (System-Wide Fix)
 
 **What:** Audit revealed 3 of 4 Gospel plans were incomplete — Matthew stopped at ch 21 (missing 22-28), Luke stopped at ch 17 (missing 18-24), John stopped at ch 20 (missing 21). All plans now cover their complete books with full three-tier commentary.

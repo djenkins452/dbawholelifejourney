@@ -297,6 +297,30 @@
 
 ---
 
+## 2026-03-23 — Day Renderer: Unified Data Merge (Routines + Tasks + Calendar)
+
+**What:** Day Agenda renderer now collects ALL items for the day — routines, tasks, and calendar events — into a single unified dataset before bucketing.
+
+**Data sources:**
+- **Routines:** from execution truth `_raw_items` (existing)
+- **Tasks:** `Task.objects.filter(user=user, due_date=today, is_routine=False)` — includes `scheduled_time`, `commitment_level`, `completion_status`
+- **Calendar:** `CalendarEvent.objects.filter(user=user, start_dt__date=today)` — excludes canceled and routine/task-sourced events (prevents duplication)
+
+**Implementation:**
+- `_collect_all_today_items(user, truth, user_now)` → unified collector
+- `_collect_routine_items()`, `_collect_task_items()`, `_collect_calendar_items()` → per-source collectors
+- All normalize to: `{name, time_str, item_time, is_completed, is_foundational, source}`
+- Merged items flow through identical bucketing logic — no source bias
+- Calendar events sourced from tasks/routines/medicine excluded to prevent duplication
+
+**Files:**
+- `apps/ai/beth_day_renderer.py` — unified collection + per-source collectors
+- `apps/ai/tests/test_beth_day_renderer.py` — 8 new merge tests (26 total)
+
+**Test results:** 26/26 day renderer tests pass.
+
+---
+
 ## 2026-03-23 — Day Renderer Patch: Strict Chronological Ordering
 
 **What:** All sections in Day Agenda now render in strict ascending time order. Foundation, Overdue, Coming up, Later, and Completed all sort by `scheduled_time` ASC.

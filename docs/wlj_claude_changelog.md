@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — V2 Daily Progress Dynamic Scoring & Weather Widget Parity
+
+### Dynamic Progress Scoring
+- Overall score now dynamically redistributes weights among components that are actually due today
+- Workout checks the user's WorkoutSchedule — rest days excluded from scoring
+- Components with nothing due (total=0) have their weight proportionally redistributed
+- Previously: rest days capped score at 85% even with everything else complete
+- **Files:** `apps/dashboard_v2/services/daily_progress_service.py`, `templates/dashboard_v2/sections/daily_progress.html`
+
+### Weather Widget V2 Parity
+- Added all weather CSS styles to `dashboard_v2.css` (were only in `dashboard.css`, causing unstyled weather on V2)
+- Both Progress and Weather boxes now match height (`align-items: stretch`)
+- Forecast row pushed to bottom of weather card for visual alignment
+- **Files:** `static/css/dashboard_v2.css`, `templates/dashboard_v2/home.html`
+
 ## 2026-03-22 — V2 Homepage Weather/Progress Card Borders
 - Added bordered card styling to the Today's Progress and Weather sections on the V2 homepage
 - Matches the card border style from the original dashboard

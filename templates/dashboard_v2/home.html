@@ -9,19 +9,33 @@
 .v2-progress-weather-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: var(--space-4);
-    align-items: start;
+    gap: var(--space-4, 1rem);
+    align-items: stretch;
 }
 .v2-progress-weather-row > .v2-section {
     background: var(--color-surface, #fff);
     border: 1px solid var(--color-border, #e5e7eb);
     border-radius: var(--radius-lg, 0.75rem);
     padding: var(--space-4, 1rem);
+    display: flex;
+    flex-direction: column;
+}
+.v2-progress-weather-row > .v2-section .weather-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 .v2-progress-weather-row > .v2-section .weather-card {
     border: none;
     padding: 0;
     border-radius: 0;
+    background: transparent;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+.v2-progress-weather-row > .v2-section .weather-forecast {
+    margin-top: auto;
 }
 @media (max-width: 768px) {
     .v2-progress-weather-row {

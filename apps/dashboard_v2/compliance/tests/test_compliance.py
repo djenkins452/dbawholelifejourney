@@ -419,6 +419,200 @@ class ComplianceDetailTest(TestCase):
         self.assertEqual(missed_detail[0]["items"][0]["item_label"], "Missed Med")
 
 
+class WorkoutAdapterTest(TestCase):
+    """Test workout compliance adapter — WorkoutSession as single source of truth."""
+
+    def setUp(self):
+        self.user = _create_test_user("workout_test@example.com")
+        self.today = date.today()
+        # Ensure today is a weekday we can schedule on
+        self.day_of_week = self.today.weekday()
+
+    def _create_plan_with_schedule(self):
+        """Create an active workout plan with a schedule entry for today."""
+        from apps.health.models import (
+            WorkoutPlan,
+            WorkoutSchedule,
+            WorkoutTemplate,
+        )
+
+        template = WorkoutTemplate.objects.create(
+            user=self.user, name="Chest Day",
+        )
+        plan = WorkoutPlan.objects.create(
+            user=self.user, name="Test Plan",
+            is_active=True, status="active",
+        )
+        schedule = WorkoutSchedule.objects.create(
+            plan=plan, day_of_week=self.day_of_week,
+            template=template, preferred_time=time(17, 0),
+            is_rest_day=False,
+        )
+        return plan, schedule, template
+
+    def test_completed_session_marks_completed(self):
+        """WorkoutSession with completed_at → COMPLETED (raw truth)."""
+        from django.utils import timezone
+
+        from apps.health.models import WorkoutSession
+
+        plan, schedule, template = self._create_plan_with_schedule()
+
+        # Create a completed workout session (no template link needed)
+        WorkoutSession.objects.create(
+            user=self.user, date=self.today,
+            name="Chest Day",
+            completed_at=timezone.now(),
+        )
+
+        from apps.dashboard_v2.compliance.adapters.workout import evaluate_workout
+        events = evaluate_workout(self.user, self.today, self.today)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["final_status"], FINAL_COMPLETED)
+        self.assertEqual(events[0]["reason_code"], "completed_via_session")
+        self.assertEqual(events[0]["source_system"], "workout_session")
+
+    def test_session_without_completed_at_marks_missed(self):
+        """WorkoutSession exists but completed_at is NULL → MISSED."""
+        from apps.health.models import WorkoutSession
+
+        plan, schedule, template = self._create_plan_with_schedule()
+
+        # Create an incomplete workout session
+        WorkoutSession.objects.create(
+            user=self.user, date=self.today,
+            name="Chest Day",
+            completed_at=None,
+        )
+
+        from apps.dashboard_v2.compliance.adapters.workout import evaluate_workout
+        events = evaluate_workout(self.user, self.today, self.today)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["final_status"], FINAL_MISSED)
+        self.assertEqual(events[0]["reason_code"], "not_completed")
+
+    def test_schedule_log_still_used_when_present(self):
+        """WorkoutScheduleLog exists → use existing log-based logic."""
+        from django.utils import timezone
+
+        from apps.health.models import WorkoutScheduleLog, WorkoutSession
+
+        plan, schedule, template = self._create_plan_with_schedule()
+
+        session = WorkoutSession.objects.create(
+            user=self.user, date=self.today,
+            name="Chest Day", from_template=template,
+            completed_at=timezone.now(),
+        )
+        # The post_save signal may have already created a log — update it
+        # to completed_late to verify the adapter uses log status over session
+        WorkoutScheduleLog.objects.update_or_create(
+            schedule=schedule,
+            scheduled_date=self.today,
+            defaults={
+                "user": self.user,
+                "log_status": "completed_late",
+                "session": session,
+                "completed_at": timezone.now(),
+            },
+        )
+
+        from apps.dashboard_v2.compliance.adapters.workout import evaluate_workout
+        events = evaluate_workout(self.user, self.today, self.today)
+
+        self.assertEqual(len(events), 1)
+        # Should use the log's more specific status (completed_late)
+        self.assertEqual(events[0]["final_status"], FINAL_COMPLETED_LATE)
+        self.assertEqual(events[0]["reason_code"], "after_grace")
+        self.assertEqual(events[0]["source_system"], "workout_schedule_log")
+
+    def test_no_session_no_log_marks_missed(self):
+        """No WorkoutSession and no WorkoutScheduleLog → MISSED."""
+        plan, schedule, template = self._create_plan_with_schedule()
+
+        from apps.dashboard_v2.compliance.adapters.workout import evaluate_workout
+        events = evaluate_workout(self.user, self.today, self.today)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["final_status"], FINAL_MISSED)
+        self.assertEqual(events[0]["reason_code"], "not_completed")
+        self.assertEqual(events[0]["source_system"], "workout_schedule")
+
+    def test_no_active_plan_returns_empty(self):
+        """No active workout plan → no events."""
+        from apps.dashboard_v2.compliance.adapters.workout import evaluate_workout
+        events = evaluate_workout(self.user, self.today, self.today)
+        self.assertEqual(events, [])
+
+    def test_rest_day_not_counted(self):
+        """Rest day schedule entries are excluded."""
+        from apps.health.models import WorkoutPlan, WorkoutSchedule, WorkoutTemplate
+
+        template = WorkoutTemplate.objects.create(
+            user=self.user, name="Rest",
+        )
+        plan = WorkoutPlan.objects.create(
+            user=self.user, name="Test Plan",
+            is_active=True, status="active",
+        )
+        WorkoutSchedule.objects.create(
+            plan=plan, day_of_week=self.day_of_week,
+            template=template, is_rest_day=True,
+        )
+
+        from apps.dashboard_v2.compliance.adapters.workout import evaluate_workout
+        events = evaluate_workout(self.user, self.today, self.today)
+        self.assertEqual(events, [])
+
+    def test_ad_hoc_session_satisfies_schedule(self):
+        """Ad-hoc workout (no template) with completed_at satisfies schedule."""
+        from django.utils import timezone
+
+        from apps.health.models import WorkoutSession
+
+        plan, schedule, template = self._create_plan_with_schedule()
+
+        # Ad-hoc workout — no from_template
+        WorkoutSession.objects.create(
+            user=self.user, date=self.today,
+            name="Quick Workout",
+            completed_at=timezone.now(),
+            from_template=None,
+        )
+
+        from apps.dashboard_v2.compliance.adapters.workout import evaluate_workout
+        events = evaluate_workout(self.user, self.today, self.today)
+
+        self.assertEqual(len(events), 1)
+        # Should be completed via session fallback
+        self.assertEqual(events[0]["final_status"], FINAL_COMPLETED)
+        self.assertEqual(events[0]["reason_code"], "completed_via_session")
+
+    def test_skipped_log_takes_precedence_over_session(self):
+        """WorkoutScheduleLog with skipped status takes precedence."""
+        from django.utils import timezone
+
+        from apps.health.models import WorkoutScheduleLog
+
+        plan, schedule, template = self._create_plan_with_schedule()
+
+        # Create skip log directly (no session needed for skip)
+        WorkoutScheduleLog.objects.create(
+            user=self.user, schedule=schedule,
+            scheduled_date=self.today,
+            log_status="skipped",
+        )
+
+        from apps.dashboard_v2.compliance.adapters.workout import evaluate_workout
+        events = evaluate_workout(self.user, self.today, self.today)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["final_status"], FINAL_SKIPPED)
+        self.assertEqual(events[0]["reason_code"], "explicit_skip")
+
+
 class EvaluateAndRollupIntegrationTest(TestCase):
     """Test full flow: evaluate → persist → rollup."""
 

@@ -1,6 +1,11 @@
 """
-Workout domain adapter — evaluates WorkoutPlan/WorkoutSchedule/WorkoutScheduleLog
+Workout domain adapter — evaluates WorkoutPlan/WorkoutSchedule/WorkoutSession
 into canonical ComplianceEvent rows.
+
+Truth hierarchy (WLJ architecture):
+1. WorkoutSession (raw data) — checked FIRST as single source of truth
+2. WorkoutScheduleLog (derived bridge) — fallback for timeliness/skip info
+3. Absence of both → MISSED
 """
 
 import logging
@@ -19,12 +24,14 @@ from apps.dashboard_v2.compliance.constants import (
     FINAL_NOT_EXPECTED,
     FINAL_SKIPPED,
     REASON_AFTER_GRACE,
+    REASON_COMPLETED_VIA_SESSION,
     REASON_EXPLICIT_SKIP,
-    REASON_NO_LOG,
+    REASON_NOT_COMPLETED,
     REASON_ON_TIME,
     REASON_REST_DAY,
     SOURCE_WORKOUT_SCHEDULE,
     SOURCE_WORKOUT_SCHEDULE_LOG,
+    SOURCE_WORKOUT_SESSION,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,9 +45,16 @@ def evaluate_workout(user, start_date, end_date):
     Produce ComplianceEvent dicts for workout domain.
 
     One event per expected workout day (non-rest schedule entries).
+
+    Checks WorkoutSession (raw truth) first, then falls back to
+    WorkoutScheduleLog (derived bridge) for timeliness and skip info.
     """
     try:
-        from apps.health.models import WorkoutPlan, WorkoutScheduleLog
+        from apps.health.models import (
+            WorkoutPlan,
+            WorkoutScheduleLog,
+            WorkoutSession,
+        )
 
         active_plan = WorkoutPlan.objects.filter(
             user=user, is_active=True, status="active",
@@ -53,7 +67,7 @@ def evaluate_workout(user, start_date, end_date):
         if not schedule_entries:
             return []
 
-        # Build lookup of schedule logs
+        # Build lookup of schedule logs (derived bridge)
         log_qs = WorkoutScheduleLog.objects.filter(
             user=user,
             scheduled_date__gte=start_date,
@@ -64,6 +78,20 @@ def evaluate_workout(user, start_date, end_date):
         for log in log_qs:
             key = (log.schedule_id, log.scheduled_date)
             log_map[key] = log
+
+        # Build lookup of completed WorkoutSessions by date (raw truth)
+        # A session with completed_at set = workout definitively happened.
+        session_qs = WorkoutSession.objects.filter(
+            user=user,
+            date__gte=start_date,
+            date__lte=end_date,
+            completed_at__isnull=False,
+        ).values_list("date", "id")
+        # Map date → first completed session id
+        session_map = {}
+        for session_date, session_id in session_qs:
+            if session_date not in session_map:
+                session_map[session_date] = session_id
 
         events = []
         day = start_date
@@ -83,8 +111,11 @@ def evaluate_workout(user, start_date, end_date):
 
                 key = (entry.id, day)
                 log = log_map.get(key)
+                session_id = session_map.get(day)
 
-                event = _build_workout_event(user, day, entry, label, log)
+                event = _build_workout_event(
+                    user, day, entry, label, log, session_id,
+                )
                 events.append(event)
 
             day += timedelta(days=1)
@@ -95,8 +126,14 @@ def evaluate_workout(user, start_date, end_date):
         return []
 
 
-def _build_workout_event(user, day, schedule_entry, label, log):
-    """Build a single ComplianceEvent dict for one workout day."""
+def _build_workout_event(user, day, schedule_entry, label, log, session_id):
+    """Build a single ComplianceEvent dict for one workout day.
+
+    Priority:
+    1. WorkoutScheduleLog with valid status (has timeliness + skip info)
+    2. WorkoutSession with completed_at (raw truth fallback)
+    3. Neither → MISSED
+    """
     base = {
         "user": user,
         "event_date": day,
@@ -107,10 +144,11 @@ def _build_workout_event(user, day, schedule_entry, label, log):
         "item_label": label,
         "expected_at": schedule_entry.preferred_time,
         "expected": True,
-        "source_system": SOURCE_WORKOUT_SCHEDULE_LOG if log else SOURCE_WORKOUT_SCHEDULE,
     }
 
+    # ── Path 1: WorkoutScheduleLog exists (derived bridge with timeliness) ──
     if log:
+        base["source_system"] = SOURCE_WORKOUT_SCHEDULE_LOG
         if log.log_status == "completed":
             base.update({
                 "actual_status": ACTUAL_COMPLETED,
@@ -133,17 +171,40 @@ def _build_workout_event(user, day, schedule_entry, label, log):
                 "reason_detail": {"log_id": log.id},
             })
         else:
-            base.update({
-                "actual_status": ACTUAL_NONE,
-                "final_status": FINAL_MISSED,
-                "reason_code": REASON_NO_LOG,
-                "reason_detail": {},
-            })
+            # Unknown log status — check raw truth before declaring missed
+            if session_id:
+                base["source_system"] = SOURCE_WORKOUT_SESSION
+                base.update({
+                    "actual_status": ACTUAL_COMPLETED,
+                    "final_status": FINAL_COMPLETED,
+                    "reason_code": REASON_COMPLETED_VIA_SESSION,
+                    "reason_detail": {"session_id": session_id},
+                })
+            else:
+                base.update({
+                    "actual_status": ACTUAL_NONE,
+                    "final_status": FINAL_MISSED,
+                    "reason_code": REASON_NOT_COMPLETED,
+                    "reason_detail": {},
+                })
+
+    # ── Path 2: No log, but completed WorkoutSession exists (raw truth) ──
+    elif session_id:
+        base["source_system"] = SOURCE_WORKOUT_SESSION
+        base.update({
+            "actual_status": ACTUAL_COMPLETED,
+            "final_status": FINAL_COMPLETED,
+            "reason_code": REASON_COMPLETED_VIA_SESSION,
+            "reason_detail": {"session_id": session_id},
+        })
+
+    # ── Path 3: Neither log nor session → genuinely missed ──
     else:
+        base["source_system"] = SOURCE_WORKOUT_SCHEDULE
         base.update({
             "actual_status": ACTUAL_NONE,
             "final_status": FINAL_MISSED,
-            "reason_code": REASON_NO_LOG,
+            "reason_code": REASON_NOT_COMPLETED,
             "reason_detail": {},
         })
 

@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Fix V2 Compliance Workout "Missed" False Positives
+
+**What:** V2 Compliance dashboard now checks WorkoutSession (raw truth) as the primary source for workout completion, instead of relying solely on WorkoutScheduleLog (derived bridge record).
+
+**Why:** WorkoutScheduleLog creation has 5 preconditions in the post_save signal (completed_at set, from_template set, active plan, exactly 1 matching schedule, no existing log). When any precondition fails silently, the compliance adapter saw no log and declared "missed" — even when a valid completed WorkoutSession existed. This violated the WLJ truth hierarchy (raw data > derived state).
+
+**Root cause:** The workout adapter at `apps/dashboard_v2/compliance/adapters/workout.py` only queried `WorkoutScheduleLog`. Ad-hoc workouts (no template), workouts without explicit "Complete" action, and template mismatches all produced false "missed" statuses.
+
+**Key changes:**
+- `apps/dashboard_v2/compliance/adapters/workout.py` — Added WorkoutSession query as primary truth check; WorkoutScheduleLog used as fallback for timeliness/skip info
+- `apps/dashboard_v2/compliance/constants.py` — Added `REASON_COMPLETED_VIA_SESSION` ("Completed via workout") and `REASON_NOT_COMPLETED` ("Not completed") reason codes
+- `apps/dashboard_v2/compliance/tests/test_compliance.py` — Added 8 tests: completed session, incomplete session, log precedence, no data, rest day, ad-hoc workout, skipped log precedence
+- `apps/dashboard_v2/migrations/0009_alter_complianceevent_reason_code.py` — Migration for new reason_code choices
+
+**Architecture:** Aligns V2 with WLJ truth hierarchy — Raw Data (WorkoutSession) → Derived State (WorkoutScheduleLog) → CoS. No new systems introduced; existing adapter modified.
+
+**Files:** `apps/dashboard_v2/compliance/adapters/workout.py`, `apps/dashboard_v2/compliance/constants.py`, `apps/dashboard_v2/compliance/tests/test_compliance.py`, `apps/dashboard_v2/migrations/0009_alter_complianceevent_reason_code.py`
+
+---
+
 ## 2026-03-23 — Medication Summary Grouping (CoS Presentation Layer)
 
 **What:** Beth now presents medications grouped by time window (Morning, Evening, Night) instead of listing each individual medication. Shows summary status like "Morning medicines — completed on time" or "Morning medicines — partially complete (2/3)".

@@ -115,6 +115,8 @@ REASON_NO_PLAN = "no_plan"
 REASON_ENTRY_EXISTS = "entry_exists"
 REASON_NO_ENTRY = "no_entry"
 REASON_ASSERTED_ON_TIME = "asserted_on_time"
+REASON_COMPLETED_VIA_SESSION = "completed_via_session"
+REASON_NOT_COMPLETED = "not_completed"
 
 REASON_CODE_CHOICES = [
     (REASON_ON_TIME, "Completed within grace period"),
@@ -135,6 +137,8 @@ REASON_CODE_CHOICES = [
     (REASON_ENTRY_EXISTS, "Entry logged for this date"),
     (REASON_NO_ENTRY, "No entry found for this date"),
     (REASON_ASSERTED_ON_TIME, "User asserted on-time completion"),
+    (REASON_COMPLETED_VIA_SESSION, "Completed via workout"),
+    (REASON_NOT_COMPLETED, "Not completed"),
 ]
 
 REASON_SATISFIED_BY_LINKED = "satisfied_by_linked"

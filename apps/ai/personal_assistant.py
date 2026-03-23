@@ -1110,6 +1110,15 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                 return {'response': _ecc_closure_response or ''}
             # ── End hard short-circuit ────────────────────────────
 
+            # ── Capture pre-generation state snapshot for revalidation ──
+            # Used later to detect if execution truth changed during response
+            # generation. Lightweight: only the raw completion booleans.
+            try:
+                from apps.ai.cos_state_revalidator import capture_state_snapshot
+                _pre_gen_snapshot = capture_state_snapshot(self.user)
+            except Exception:
+                _pre_gen_snapshot = None
+
             # User-affirmed completion check ("I already did it") — must run
             # BEFORE proactive confirmation to avoid CRUD execution when user
             # only wants to suppress reminders. See affirmation_detector.py.
@@ -1725,35 +1734,38 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         except Exception:
             pass  # Guard failure must never break chat
 
-        # ── Mid-response state revalidation ──
-        # If state changed DURING LLM generation (user completed an item
-        # via another tab/device), DISCARD the stale response and
-        # REGENERATE from current truth. CoS must always speak from
-        # current state — no appended corrections, no dual-state.
+        # ── Mid-response state revalidation (context comparison) ──
+        # Compares pre-generation state snapshot with current truth.
+        # If ANY completion status changed, DISCARD stale response and
+        # REGENERATE. No LLM text parsing — purely system state comparison.
         try:
-            from apps.ai.cos_state_revalidator import check_state_changed
-            if check_state_changed(response, self.user):
-                logger.info(
-                    "COS_STATE_REGEN user=%s — state changed during "
-                    "generation, regenerating with fresh context",
-                    self.user.id,
+            if _pre_gen_snapshot is not None:
+                from apps.ai.cos_state_revalidator import (
+                    capture_state_snapshot, has_state_changed,
                 )
-                try:
-                    response = self._generate_response(
-                        message, conversation,
-                        page_context=page_context,
-                        cos_context_cache=None,  # force fresh context
-                        all_images=all_images,
-                        route_result=_route_result,
-                        _ltrace=_ltrace,
+                _post_gen_snapshot = capture_state_snapshot(self.user)
+                if has_state_changed(_pre_gen_snapshot, _post_gen_snapshot):
+                    logger.info(
+                        "COS_STATE_REGEN user=%s — execution truth changed "
+                        "during generation, regenerating with fresh context",
+                        self.user.id,
                     )
-                except Exception as _regen_err:
-                    logger.error(
-                        "COS_STATE_REGEN_FAILED user=%s error=%s "
-                        "— keeping original response",
-                        self.user.id, _regen_err,
-                    )
-                    # Keep original response — fail-open
+                    try:
+                        response = self._generate_response(
+                            message, conversation,
+                            page_context=page_context,
+                            cos_context_cache=None,  # force fresh context
+                            all_images=all_images,
+                            route_result=_route_result,
+                            _ltrace=_ltrace,
+                        )
+                    except Exception as _regen_err:
+                        logger.error(
+                            "COS_STATE_REGEN_FAILED user=%s error=%s "
+                            "— keeping original response",
+                            self.user.id, _regen_err,
+                        )
+                        # Keep original response — fail-open
         except Exception:
             pass  # Revalidation failure must never break chat
 

@@ -1,19 +1,23 @@
-"""Tests for CoS mid-response state revalidator.
+"""Tests for CoS mid-response state revalidator — context comparison.
 
 Covers:
-1. No state change when response matches current truth
-2. State change detected when item now completed but response says pending
-3. No false positive when truth says not completed
-4. Multiple stale items → still returns True (one is enough)
-5. Fail-open: returns False on error
-6. Empty/None response → False
+1. Snapshot captures completion state correctly
+2. Identical snapshots → no change
+3. Changed completion → change detected
+4. Changed routine count → change detected
+5. Changed task count → change detected
+6. None snapshot → no change (fail-open)
+7. Capture failure → returns None
 """
 
 from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 
-from apps.ai.cos_state_revalidator import check_state_changed
+from apps.ai.cos_state_revalidator import (
+    capture_state_snapshot,
+    has_state_changed,
+)
 
 
 def _make_raw(**overrides):
@@ -22,7 +26,7 @@ def _make_raw(**overrides):
         "workout_done": False, "journal_done": False,
         "prayer_expected": False, "bible_expected": False,
         "workout_expected": False, "journal_expected": False,
-        "routine_done": 0, "routine_total": 0, "tasks_done": 0,
+        "routine_done": 0, "routine_total": 5, "tasks_done": 0,
     }
     raw.update(overrides)
     return {
@@ -32,86 +36,96 @@ def _make_raw(**overrides):
     }
 
 
-class TestNoStateChange(SimpleTestCase):
-    """Returns False when response is current."""
+class TestCaptureSnapshot(SimpleTestCase):
+    """Snapshot captures the right fields."""
 
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_false_when_truth_matches(self, mock_facts):
-        """Item still pending in truth AND response → no change."""
-        mock_facts.return_value = _make_raw(prayer_done=False)
+    def test_captures_completion_fields(self, mock_facts):
+        mock_facts.return_value = _make_raw(
+            prayer_done=True, workout_done=False,
+            routine_done=3, routine_total=5, tasks_done=2,
+        )
         user = MagicMock(); user.id = 1
 
-        result = check_state_changed(
-            "Prayer is not yet completed.", user,
-        )
-        self.assertFalse(result)
+        snap = capture_state_snapshot(user)
 
-    @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_false_when_response_doesnt_mention_pending(self, mock_facts):
-        """Item is done, response doesn't describe it as pending → no change."""
-        mock_facts.return_value = _make_raw(prayer_done=True)
-        user = MagicMock(); user.id = 1
+        self.assertIsNotNone(snap)
+        self.assertTrue(snap["prayer_done"])
+        self.assertFalse(snap["workout_done"])
+        self.assertEqual(snap["routine_done"], 3)
+        self.assertEqual(snap["tasks_done"], 2)
 
-        result = check_state_changed(
-            "Great, your prayer is complete. What's next?", user,
-        )
-        self.assertFalse(result)
-
-    @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_false_when_no_items_mentioned(self, mock_facts):
-        mock_facts.return_value = _make_raw(prayer_done=True)
-        user = MagicMock(); user.id = 1
-
-        result = check_state_changed(
-            "How can I help you today?", user,
-        )
-        self.assertFalse(result)
-
-
-class TestStateChangeDetected(SimpleTestCase):
-    """Returns True when response is stale."""
-
-    @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_prayer_now_completed(self, mock_facts):
-        """Response says prayer pending, truth says done → True."""
-        mock_facts.return_value = _make_raw(prayer_done=True)
-        user = MagicMock(); user.id = 1
-
-        result = check_state_changed(
-            "Prayer is not yet completed.", user,
-        )
-        self.assertTrue(result)
-
-    @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_workout_now_completed(self, mock_facts):
-        mock_facts.return_value = _make_raw(workout_done=True)
-        user = MagicMock(); user.id = 1
-
-        result = check_state_changed(
-            "Your workout is still pending.", user,
-        )
-        self.assertTrue(result)
-
-    @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_bible_now_completed(self, mock_facts):
-        mock_facts.return_value = _make_raw(bible_done=True)
-        user = MagicMock(); user.id = 1
-
-        result = check_state_changed(
-            "Bible reading hasn't been completed yet.", user,
-        )
-        self.assertTrue(result)
-
-
-class TestFailOpen(SimpleTestCase):
-
-    def test_error_returns_false(self):
+    def test_capture_failure_returns_none(self):
         user = MagicMock(); user.id = 1
         with patch("apps.ai.cos_fact_statements.build_locked_facts",
                     side_effect=Exception("DB down")):
-            self.assertFalse(check_state_changed("Some response", user))
+            snap = capture_state_snapshot(user)
+        self.assertIsNone(snap)
 
-    def test_empty_response(self):
-        user = MagicMock(); user.id = 1
-        self.assertFalse(check_state_changed("", user))
-        self.assertFalse(check_state_changed(None, user))
+
+class TestHasStateChanged(SimpleTestCase):
+    """Pure dict comparison — no LLM text involved."""
+
+    def test_identical_snapshots_no_change(self):
+        snap = {
+            "prayer_done": False, "bible_done": False,
+            "workout_done": False, "journal_done": False,
+            "routine_done": 0, "routine_total": 5, "tasks_done": 0,
+        }
+        self.assertFalse(has_state_changed(snap, dict(snap)))
+
+    def test_prayer_completed_detected(self):
+        before = {
+            "prayer_done": False, "bible_done": False,
+            "workout_done": False, "journal_done": False,
+            "routine_done": 0, "routine_total": 5, "tasks_done": 0,
+        }
+        after = dict(before)
+        after["prayer_done"] = True
+
+        self.assertTrue(has_state_changed(before, after))
+
+    def test_routine_count_changed_detected(self):
+        before = {
+            "prayer_done": False, "bible_done": False,
+            "workout_done": False, "journal_done": False,
+            "routine_done": 2, "routine_total": 5, "tasks_done": 0,
+        }
+        after = dict(before)
+        after["routine_done"] = 3
+
+        self.assertTrue(has_state_changed(before, after))
+
+    def test_task_count_changed_detected(self):
+        before = {
+            "prayer_done": False, "bible_done": False,
+            "workout_done": False, "journal_done": False,
+            "routine_done": 0, "routine_total": 5, "tasks_done": 1,
+        }
+        after = dict(before)
+        after["tasks_done"] = 2
+
+        self.assertTrue(has_state_changed(before, after))
+
+    def test_none_before_no_change(self):
+        after = {"prayer_done": True}
+        self.assertFalse(has_state_changed(None, after))
+
+    def test_none_after_no_change(self):
+        before = {"prayer_done": False}
+        self.assertFalse(has_state_changed(before, None))
+
+    def test_both_none_no_change(self):
+        self.assertFalse(has_state_changed(None, None))
+
+    def test_multiple_changes_detected(self):
+        before = {
+            "prayer_done": False, "bible_done": False,
+            "workout_done": False, "journal_done": False,
+            "routine_done": 0, "routine_total": 5, "tasks_done": 0,
+        }
+        after = dict(before)
+        after["prayer_done"] = True
+        after["workout_done"] = True
+
+        self.assertTrue(has_state_changed(before, after))

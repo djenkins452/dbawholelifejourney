@@ -122,10 +122,18 @@
                 <span class="stat-value">{{ workout.total_sets }}</span>
                 <span class="stat-label">Sets</span>
             </div>
+            {% if workout.total_volume %}
             <div class="summary-stat">
                 <span class="stat-value">{{ workout.total_volume|floatformat:0 }}</span>
-                <span class="stat-label">Total Volume (lbs)</span>
+                <span class="stat-label">Strength Load (lbs)</span>
             </div>
+            {% endif %}
+            {% if workout.total_movement_work %}
+            <div class="summary-stat">
+                <span class="stat-value">{{ workout.total_movement_work }}</span>
+                <span class="stat-label">Movement Work (reps)</span>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Exercises -->

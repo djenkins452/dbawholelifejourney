@@ -303,6 +303,146 @@ class VolumeCalculationTests(MovementTypeTestMixin, TestCase):
 
 
 # =============================================================================
+# 2b. Movement Work (Dual-Signal Model)
+# =============================================================================
+
+class MovementWorkTests(MovementTypeTestMixin, TestCase):
+    """Test ExerciseSet.movement_work property and aggregation."""
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.workout = self.create_workout(self.user)
+
+    def test_band_movement_work(self):
+        """Band exercises return reps as movement_work."""
+        exercise = self.create_exercise(
+            name="Band-mw", movement_type="bodyweight", load_type="band",
+        )
+        we = WorkoutExercise.objects.create(
+            session=self.workout, exercise=exercise, order=0
+        )
+        s = ExerciseSet.objects.create(
+            workout_exercise=we, set_number=1, reps=15,
+        )
+        self.assertEqual(s.movement_work, 15)
+        self.assertIsNone(s.volume)
+
+    def test_movement_drill_movement_work(self):
+        """Movement exercises return reps as movement_work."""
+        exercise = self.create_exercise(
+            name="Swing-mw", movement_type="bodyweight", load_type="movement",
+        )
+        we = WorkoutExercise.objects.create(
+            session=self.workout, exercise=exercise, order=0
+        )
+        s = ExerciseSet.objects.create(
+            workout_exercise=we, set_number=1, reps=10,
+        )
+        self.assertEqual(s.movement_work, 10)
+
+    def test_external_has_no_movement_work(self):
+        """External weight exercises return None for movement_work."""
+        exercise = self.create_exercise(name="Bench-mw")
+        we = WorkoutExercise.objects.create(
+            session=self.workout, exercise=exercise, order=0
+        )
+        s = ExerciseSet.objects.create(
+            workout_exercise=we, set_number=1,
+            weight=Decimal("135.0"), reps=10,
+        )
+        self.assertIsNone(s.movement_work)
+        self.assertAlmostEqual(s.volume, 1350.0)
+
+    def test_bodyweight_has_no_movement_work(self):
+        """Bodyweight exercises return None for movement_work."""
+        exercise = self.create_exercise(
+            name="Pushup-mw", movement_type="bodyweight",
+        )
+        we = WorkoutExercise.objects.create(
+            session=self.workout, exercise=exercise, order=0
+        )
+        s = ExerciseSet.objects.create(
+            workout_exercise=we, set_number=1, reps=20,
+            bodyweight_used=Decimal("180.0"),
+        )
+        self.assertIsNone(s.movement_work)
+
+    def test_total_movement_work_property(self):
+        """WorkoutExercise.total_movement_work sums movement reps."""
+        exercise = self.create_exercise(
+            name="Band-total", movement_type="bodyweight", load_type="band",
+        )
+        we = WorkoutExercise.objects.create(
+            session=self.workout, exercise=exercise, order=0
+        )
+        ExerciseSet.objects.create(workout_exercise=we, set_number=1, reps=15)
+        ExerciseSet.objects.create(workout_exercise=we, set_number=2, reps=15)
+        ExerciseSet.objects.create(
+            workout_exercise=we, set_number=3, reps=10, is_warmup=True
+        )
+        # Only non-warmup: 15 + 15 = 30
+        self.assertEqual(we.total_movement_work, 30)
+
+    def test_session_total_movement_work(self):
+        """WorkoutSession.total_movement_work sums across all movement exercises."""
+        band = self.create_exercise(
+            name="Band-sess", movement_type="bodyweight", load_type="band",
+        )
+        drill = self.create_exercise(
+            name="Drill-sess", movement_type="bodyweight", load_type="movement",
+        )
+        we1 = WorkoutExercise.objects.create(
+            session=self.workout, exercise=band, order=0
+        )
+        we2 = WorkoutExercise.objects.create(
+            session=self.workout, exercise=drill, order=1
+        )
+        ExerciseSet.objects.create(workout_exercise=we1, set_number=1, reps=20)
+        ExerciseSet.objects.create(workout_exercise=we2, set_number=1, reps=10)
+        self.assertEqual(self.workout.total_movement_work, 30)
+
+    def test_mixed_workout_dual_signals(self):
+        """Mixed workout produces both strength_load and movement_work."""
+        # Strength exercise
+        bench = self.create_exercise(name="Bench-dual")
+        we1 = WorkoutExercise.objects.create(
+            session=self.workout, exercise=bench, order=0
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=we1, set_number=1,
+            weight=Decimal("100.0"), reps=10,
+        )
+
+        # Movement exercise
+        band = self.create_exercise(
+            name="Band-dual", movement_type="bodyweight", load_type="band",
+        )
+        we2 = WorkoutExercise.objects.create(
+            session=self.workout, exercise=band, order=1
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=we2, set_number=1, reps=15,
+        )
+
+        self.assertAlmostEqual(self.workout.total_volume, 1000.0)
+        self.assertEqual(self.workout.total_movement_work, 15)
+
+    def test_movement_only_workout(self):
+        """Movement-only workout: strength_load=0, movement_work>0."""
+        band = self.create_exercise(
+            name="Band-only", movement_type="bodyweight", load_type="band",
+        )
+        we = WorkoutExercise.objects.create(
+            session=self.workout, exercise=band, order=0
+        )
+        ExerciseSet.objects.create(workout_exercise=we, set_number=1, reps=20)
+        ExerciseSet.objects.create(workout_exercise=we, set_number=2, reps=20)
+
+        self.assertEqual(self.workout.total_volume, 0)
+        self.assertEqual(self.workout.total_movement_work, 40)
+
+
+# =============================================================================
 # 3-5. save_set_ajax Tests
 # =============================================================================
 
@@ -753,8 +893,47 @@ class FitnessUtilsTests(MovementTypeTestMixin, TestCase):
 
         result = get_weekly_volume(self.user, monday)
         self.assertAlmostEqual(result["total_volume"], 2250.0)
+        self.assertEqual(result["movement_work"], 0)
         self.assertEqual(result["set_count"], 2)
         self.assertEqual(result["workout_count"], 1)
+
+    def test_get_weekly_volume_with_movement_work(self):
+        """get_weekly_volume includes movement_work for band/movement exercises."""
+        from apps.health.services.fitness_utils import get_weekly_volume
+
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+
+        workout = WorkoutSession.objects.create(
+            user=self.user, date=monday, name="Mixed",
+            started_at=timezone.now(),
+            completed_at=timezone.now(),
+        )
+        # Strength exercise
+        squat = self.create_exercise(name="Squat-mw")
+        we1 = WorkoutExercise.objects.create(
+            session=workout, exercise=squat, order=0
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=we1, set_number=1,
+            weight=Decimal("100.0"), reps=10,
+        )
+
+        # Movement exercise
+        band = self.create_exercise(
+            name="Band-mw-util", movement_type="bodyweight", load_type="band",
+        )
+        we2 = WorkoutExercise.objects.create(
+            session=workout, exercise=band, order=1
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=we2, set_number=1, reps=20,
+        )
+
+        result = get_weekly_volume(self.user, monday)
+        self.assertAlmostEqual(result["total_volume"], 1000.0)
+        self.assertEqual(result["movement_work"], 20)
+        self.assertEqual(result["set_count"], 2)
 
     def test_get_longest_hold(self):
         """Get longest hold for a time-based exercise."""

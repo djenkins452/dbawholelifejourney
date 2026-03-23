@@ -59,15 +59,20 @@ def get_weekly_volume(user, week_start_date):
     )
 
     total_volume = 0.0
+    total_movement_work = 0
     set_count = 0
     for s in sets.select_related("workout_exercise__exercise"):
         set_count += 1
         v = s.volume
         if v is not None:
             total_volume += v
+        mw = s.movement_work
+        if mw is not None:
+            total_movement_work += mw
 
     return {
         "total_volume": round(total_volume, 1),
+        "movement_work": total_movement_work,
         "set_count": set_count,
         "workout_count": workouts.count(),
     }

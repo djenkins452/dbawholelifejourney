@@ -1670,6 +1670,17 @@ class WorkoutSession(UserOwnedModel):
                     total += v
         return total
 
+    @property
+    def total_movement_work(self):
+        """Total reps from non-load exercises (band, movement, assisted)."""
+        total = 0
+        for workout_ex in self.workout_exercises.filter(exercise__category="resistance"):
+            for s in workout_ex.sets.all():
+                r = s.movement_work
+                if r is not None:
+                    total += r
+        return total
+
 
 class WorkoutExercise(models.Model):
     """
@@ -1708,6 +1719,17 @@ class WorkoutExercise(models.Model):
         return sum(
             v for s in self.sets.filter(is_warmup=False)
             if (v := s.volume) is not None
+        )
+
+    @property
+    def total_movement_work(self):
+        """Sum of reps across all non-warmup sets for movement exercises.
+
+        Returns 0 for load-based exercises (volume handles those).
+        """
+        return sum(
+            r for s in self.sets.filter(is_warmup=False)
+            if (r := s.movement_work) is not None
         )
 
 
@@ -1782,6 +1804,17 @@ class ExerciseSet(models.Model):
             return 0
         else:  # band, movement, assisted
             return None
+
+    @property
+    def movement_work(self):
+        """Reps for non-load exercises (band, movement, assisted).
+
+        Returns reps as integer for movement exercises, None for load exercises.
+        """
+        load_type = self.workout_exercise.exercise.load_type
+        if load_type in ("band", "movement", "assisted"):
+            return self.reps or 0
+        return None
 
 
 class CardioDetails(models.Model):

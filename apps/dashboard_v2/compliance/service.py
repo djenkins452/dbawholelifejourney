@@ -4,11 +4,16 @@ Compliance Event Service — orchestrates evaluation, reconciliation, and rollup
 Pipeline:
     adapters → raw events → reconcile() → persist → rollup / detail queries
 
+Caching:
+    evaluate_week() results are cached for 2 minutes per user.
+    Cache is invalidated on domain-level writes (workout log, routine log, etc.)
+    via invalidate_compliance_cache(user).
+
 Usage:
     from apps.dashboard_v2.compliance.service import ComplianceService
 
     svc = ComplianceService(user)
-    svc.evaluate_week()                          # Generate + reconcile events
+    svc.ensure_evaluated()                       # Evaluate if stale
     summary = svc.get_rollup("medication_doses")  # Get card summary
     detail = svc.get_detail("medication_doses")   # Get drill-down rows
 """
@@ -16,6 +21,7 @@ Usage:
 import logging
 from datetime import timedelta
 
+from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Count, Q
 
@@ -34,6 +40,28 @@ from apps.dashboard_v2.compliance.reconciliation import reconcile_events
 
 logger = logging.getLogger(__name__)
 
+# Cache TTL: 2 minutes — short enough to stay fresh, long enough to
+# avoid recomputing on every drill-down page load.
+_CACHE_TTL = 120
+_CACHE_PREFIX = "compliance:evaluated"
+
+
+def _cache_key(user_id, week_start):
+    return f"{_CACHE_PREFIX}:{user_id}:{week_start}"
+
+
+def invalidate_compliance_cache(user):
+    """
+    Invalidate compliance cache for a user. Call this when domain data changes
+    (new workout log, routine completion, medicine log, etc.).
+    """
+    try:
+        today = get_user_today(user)
+        week_start = today - timedelta(days=6)
+        cache.delete(_cache_key(user.id, week_start))
+    except Exception:
+        pass  # Cache invalidation is best-effort
+
 
 class ComplianceService:
     """Orchestrates compliance event generation, reconciliation, rollup, and querying."""
@@ -48,14 +76,31 @@ class ComplianceService:
         start_date = end_date - timedelta(days=6)
         return start_date, end_date
 
-    def evaluate_week(self):
+    def ensure_evaluated(self):
         """
-        Generate and reconcile compliance events for the current 7-day window.
+        Evaluate the current week if not already cached.
 
-        Pipeline: adapters → reconcile → persist
+        This is the recommended entry point — avoids redundant recomputation.
         """
         start_date, end_date = self.get_week_range()
-        return self.evaluate_range(start_date, end_date)
+        key = _cache_key(self.user.id, start_date)
+
+        if cache.get(key):
+            return  # Already fresh
+
+        self.evaluate_range(start_date, end_date)
+        cache.set(key, True, _CACHE_TTL)
+
+    def evaluate_week(self):
+        """
+        Force-evaluate compliance events for the current 7-day window.
+
+        Bypasses cache. Use ensure_evaluated() for normal reads.
+        """
+        start_date, end_date = self.get_week_range()
+        count = self.evaluate_range(start_date, end_date)
+        cache.set(_cache_key(self.user.id, start_date), True, _CACHE_TTL)
+        return count
 
     def evaluate_range(self, start_date, end_date):
         """
@@ -63,13 +108,9 @@ class ComplianceService:
 
         Returns count of events created.
         """
-        # Step 1: Generate raw events from all domain adapters
         event_dicts = evaluate_all_domains(self.user, start_date, end_date)
-
-        # Step 2: Reconcile — assign obligation keys, suppress duplicates
         reconcile_events(event_dicts, self.user)
 
-        # Step 3: Persist atomically
         with transaction.atomic():
             ComplianceEvent.objects.filter(
                 user=self.user,
@@ -88,7 +129,6 @@ class ComplianceService:
         Get summary counts for a scoring bucket.
 
         Only counts score-bearing events (is_primary=True).
-        Suppressed duplicates are excluded from both numerator and denominator.
         """
         if start_date is None or end_date is None:
             start_date, end_date = self.get_week_range()
@@ -99,7 +139,7 @@ class ComplianceService:
             event_date__gte=start_date,
             event_date__lte=end_date,
             expected=True,
-            is_primary=True,  # Only score-bearing events
+            is_primary=True,
         )
 
         counts = qs.aggregate(
@@ -118,13 +158,10 @@ class ComplianceService:
         missed = counts["missed"]
         overdue = counts["overdue"]
 
-        # Denominator: expected minus skipped (skipped are intentional)
         denominator = expected - skipped
         numerator = completed + completed_late
-
         completion_pct = round((numerator / denominator) * 100) if denominator > 0 else 100
 
-        # Build missed label
         total_negative = missed + overdue
         bucket_label = scoring_bucket.replace("_", " ").title()
         missed_label = f"Missed {total_negative} {bucket_label.lower()}" if total_negative > 0 else None
@@ -153,8 +190,8 @@ class ComplianceService:
         """
         Get detailed event rows for drill-down UI.
 
-        Returns all events (both primary and suppressed) so the user can
-        see linked evidence. Suppressed events are clearly marked.
+        Returns all events (primary + suppressed) for full audit trail.
+        Suppressed events are clearly marked.
         """
         if start_date is None or end_date is None:
             start_date, end_date = self.get_week_range()
@@ -165,20 +202,16 @@ class ComplianceService:
             event_date__gte=start_date,
             event_date__lte=end_date,
             expected=True,
-        ).order_by("-event_date", "expected_at", "item_label")
+        ).order_by("-event_date", "-is_primary", "expected_at", "item_label")
 
         if status_filter:
             qs = qs.filter(final_status=status_filter)
 
-        # Group by date
         grouped = {}
         for event in qs:
             date_key = event.event_date
             if date_key not in grouped:
-                grouped[date_key] = {
-                    "date": date_key,
-                    "items": [],
-                }
+                grouped[date_key] = {"date": date_key, "items": []}
             grouped[date_key]["items"].append({
                 "id": event.id,
                 "domain": event.domain,

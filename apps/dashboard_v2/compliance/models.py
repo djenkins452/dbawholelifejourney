@@ -119,15 +119,33 @@ class ComplianceEvent(models.Model):
     )
 
     # ── Obligation reconciliation ──
+    obligation_type = models.CharField(
+        max_length=30,
+        blank=True,
+        default="",
+        help_text=(
+            "Obligation category: workout, journal, faith_prayer, faith_bible, "
+            "medication, task. Events with the same type+identity+date are one obligation."
+        ),
+    )
+    obligation_identity = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text=(
+            "Stable identifier within obligation_type. "
+            "e.g., WorkoutSchedule PK, MedicineSchedule PK, Task PK. "
+            "Combined with type+user+date to form obligation_key."
+        ),
+    )
     obligation_key = models.CharField(
         max_length=200,
         blank=True,
         default="",
         db_index=True,
         help_text=(
-            "Deterministic key grouping events that represent the same "
-            "real-world obligation. Events sharing a key are reconciled "
-            "so only one is score-bearing."
+            "Deterministic key: {type}:{user_id}:{date}:{identity}. "
+            "Events sharing a key are reconciled so only one is score-bearing."
         ),
     )
     is_primary = models.BooleanField(

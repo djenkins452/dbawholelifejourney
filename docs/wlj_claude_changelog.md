@@ -6,6 +6,58 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Compliance Phase 6: Generalized Obligation Engine
+
+**What:** Transformed the patched workout-only reconciliation into a fully generalized, multi-domain obligation engine with structured identity, performance caching, and domain-agnostic reconciliation.
+
+**Phase 6A — Obligation Identity Framework:**
+- Added `obligation_type` and `obligation_identity` fields to ComplianceEvent
+- Obligation key format: `{type}:{user_id}:{date}:{identity}`
+- Domains: workout, journal, faith_prayer, faith_bible, medication, task, routine
+- Workout uses daily identity (WorkoutSchedule has unique_together per day)
+- Journal uses "daily" identity
+- Faith uses "daily" identity for prayer and Bible reading
+
+**Phase 6B — Generic Reconciliation Engine:**
+- Removed all workout-specific hardcoding from reconciliation
+- `_reconcile_group()` is fully domain-agnostic — uses obligation_type for suppression reason mapping
+- Status precedence: completed > completed_late > skipped > rescheduled > overdue > missed
+- Domain priority: native domain (workout/journal/faith) preferred over routine bridge
+
+**Phase 6C — Multi-Domain Reconciliation:**
+- Journal ↔ Routine: journal entry satisfies routine "Journal" item
+- Faith ↔ Routine: prayer/Bible reading satisfies routine "Prayer Time"/"Bible Reading" items
+- Workout ↔ Routine: unchanged but now uses generic engine
+- Tasks: no cross-domain linkage (conservative — correct behavior)
+- Suppression reasons: satisfied_by_linked_workout, _journal, _faith
+
+**Phase 6D — Rollup Hardening:**
+- Rollup unchanged (already filters is_primary=True from Phase 5)
+- Validated: no double counting, no over-collapsing
+
+**Phase 6E — Performance Cache:**
+- `ensure_evaluated()` method — evaluates only if not cached (2-min TTL)
+- `invalidate_compliance_cache(user)` — call on domain data changes
+- ComplianceDetailView uses ensure_evaluated() instead of evaluate_week()
+- No recomputation on every drill-down page load
+
+**Phase 6F — UI Enhancement:**
+- Detail rows sorted by primary status (primary events first within groups)
+- No template changes needed — suppression UI from Phase 5 works generically
+
+**Files created:**
+- `apps/dashboard_v2/migrations/0008_obligation_identity.py`
+
+**Files modified:**
+- `compliance/constants.py` — obligation types, multi-domain suppression reasons
+- `compliance/models.py` — obligation_type, obligation_identity fields
+- `compliance/reconciliation.py` — fully rewritten, domain-agnostic
+- `compliance/service.py` — cache layer, ensure_evaluated()
+- `compliance/tests/test_reconciliation.py` — 17 tests (36 total pass)
+- `views.py` — use ensure_evaluated()
+
+**Tests:** 36 total pass (14 Phase 4 + 5 Phase 5 + 17 Phase 6)
+
 ## 2026-03-23 — Compliance Phase 5: Reconciliation + Dedupe Hardening
 
 **Root cause fixed:** Workout completion + linked routine item counted independently, causing 1 completed + 1 missed for a single real-world obligation.

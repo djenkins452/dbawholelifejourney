@@ -6,6 +6,56 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-22 — Signal Engine Phase 2.1: Skipped + Confidence Integration
+
+**Objective:** Complete signal layer integrity by wiring true `skipped` state from explicit evidence and replacing placeholder `confidence=1.0` with deterministic rules.
+
+**Files created:**
+- `apps/core/ai_eae/signal_confidence.py` — Centralized confidence rules: EXPLICIT(1.0), DERIVED(0.8), ABSENCE(0.6), NOT_EXPECTED(0.9). Single function `confidence_for_state(state, has_explicit_evidence)`.
+
+**Files modified:**
+- `apps/core/ai_eae/signal_aggregation.py` — All 9 signal computers now use `confidence_for_state()`. Three computers wire explicit skip evidence:
+  - `_compute_health_activity`: checks `WorkoutScheduleLog.log_status='skipped'`
+  - `_compute_medication_adherence`: checks `MedicineLog.log_status='skipped'` (also fixed pre-existing bug: was querying `status=` instead of `log_status=`)
+  - `_compute_productivity_progress`: checks `Task.completion_status='skipped'`
+  - Zero-fill uses `CONFIDENCE_ABSENCE(0.6)` for missed, `CONFIDENCE_NOT_EXPECTED(0.9)` for not_expected
+- `apps/core/ai_eae/tests/test_signal_state.py` — Added 8 new tests (21 total): confidence rules, skip wiring, confidence in snapshots
+
+**Skip sources wired by domain:**
+| Signal Type | Skip Source | Model Field |
+|-------------|------------|-------------|
+| health_activity | WorkoutScheduleLog | `log_status='skipped'` |
+| medication_adherence | MedicineLog | `log_status='skipped'` |
+| productivity_progress | Task | `completion_status='skipped'` |
+| All others | No skip concept | Left as completed/partial/missed/not_expected |
+
+**Confidence rules:**
+| State | Confidence | Rationale |
+|-------|-----------|-----------|
+| completed (explicit log) | 1.0 | Direct structured evidence |
+| skipped (explicit log) | 1.0 | Direct structured evidence |
+| completed (aggregated) | 0.8 | Computed from multiple records |
+| partial | 0.8 | Derived from partial evidence |
+| not_expected | 0.9 | ETE expectation is reliable but derived |
+| missed (zero-fill) | 0.6 | Absence of evidence, not evidence of absence |
+
+**Example snapshots:**
+```json
+{"signal_type": "health_activity", "score": 0.0, "state": "skipped", "expected": true, "confidence": 1.0}
+{"signal_type": "health_activity", "score": 0.0, "state": "missed", "expected": true, "confidence": 0.6}
+{"signal_type": "health_biometrics", "score": 0.0, "state": "not_expected", "expected": false, "confidence": 0.9}
+{"signal_type": "health_activity", "score": 1.0, "state": "completed", "expected": true, "confidence": 1.0}
+{"signal_type": "health_activity", "score": 0.37, "state": "partial", "expected": true, "confidence": 0.8}
+```
+
+**Tests:** 21/21 pass. Full EAE suite (253 tests) interrupted by PG resource crash (unrelated).
+
+**Limitations:** Domains without explicit skip models (faith, journal, brain_training, nutrition, biometrics, relationships) only support completed/partial/missed/not_expected. Skip support will follow when those domains add skip tracking.
+
+**Bug fix:** MedicineLog signal computer was querying `status=` (soft-delete field) instead of `log_status=`. Fixed.
+
+---
+
 ## 2026-03-22 — Signal Engine Phase 2: Expected + State Integration
 
 **Objective:** Eliminate signal ambiguity by integrating Execution Truth Engine expectations into every SignalSnapshot. Previously, score=0.0 could mean "not expected", "missed", or "skipped" — Beth couldn't distinguish.

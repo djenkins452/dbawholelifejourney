@@ -16,6 +16,13 @@ Part of the WLJ Architecture Evolution — Layer 3 (Signals).
 import logging
 
 from apps.core.ai_eae.models import SignalSnapshot
+from apps.core.ai_eae.signal_confidence import (
+    confidence_for_state,
+    CONFIDENCE_EXPLICIT,
+    CONFIDENCE_DERIVED,
+    CONFIDENCE_ABSENCE,
+    CONFIDENCE_NOT_EXPECTED,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +135,7 @@ class SignalAggregationService:
                     snapshot = SignalAggregationService._upsert_snapshot(
                         user, date, sig_type,
                         score=0.0,
-                        confidence=1.0,
+                        confidence=confidence_for_state(state),
                         signal_class='verified_action',
                         source_signals={'source': 'zero_fill', 'reason': 'no_activity'},
                         expected=is_expected,
@@ -198,7 +205,7 @@ class SignalAggregationService:
     def _compute_health_activity(user, date, expected_map):
         """
         Physical activity level.
-        Sources: WorkoutSession, Steps.
+        Sources: WorkoutSession, WorkoutScheduleLog (for skip evidence).
         Normalization: 0.5 = 20 min exercise, 1.0 = 45+ min.
         """
         from apps.health.models import WorkoutSession
@@ -212,7 +219,28 @@ class SignalAggregationService:
         session_count = sessions.count()
 
         if session_count == 0 and total_minutes == 0:
-            return None  # Zero-fill will handle with correct expected/state
+            # Check for explicit skip via WorkoutScheduleLog
+            try:
+                from apps.health.models import WorkoutScheduleLog
+                skip_count = WorkoutScheduleLog.objects.filter(
+                    user=user, scheduled_date=date, log_status='skipped',
+                ).count()
+                if skip_count > 0 and is_expected:
+                    return SignalAggregationService._upsert_snapshot(
+                        user, date, 'health_activity',
+                        score=0.0,
+                        confidence=confidence_for_state('skipped'),
+                        signal_class='verified_action',
+                        source_signals={
+                            'source': 'workout_schedule_log',
+                            'skipped_count': skip_count,
+                        },
+                        expected=True,
+                        state='skipped',
+                    )
+            except ImportError:
+                pass
+            return None  # Zero-fill will handle
 
         # Normalize: 0 min=0.0, 20 min=0.5, 45 min=1.0
         if total_minutes >= 45:
@@ -228,7 +256,7 @@ class SignalAggregationService:
         return SignalAggregationService._upsert_snapshot(
             user, date, 'health_activity',
             score=score,
-            confidence=1.0,
+            confidence=confidence_for_state(state),
             signal_class='verified_action',
             source_signals={
                 'workout_sessions': session_count,
@@ -316,7 +344,7 @@ class SignalAggregationService:
         return SignalAggregationService._upsert_snapshot(
             user, date, 'health_biometrics',
             score=score,
-            confidence=1.0,
+            confidence=confidence_for_state(state),
             signal_class='verified_measurement',
             source_signals=source_data,
             expected=is_expected,
@@ -353,16 +381,24 @@ class SignalAggregationService:
             user=user,
             scheduled_date=date,
         )
-        taken = logs.filter(status='taken').count()
-        late = logs.filter(status='late').count()
+        taken = logs.filter(log_status='taken').count()
+        late = logs.filter(log_status='late').count()
+        skipped = logs.filter(log_status='skipped').count()
 
         # Late doses count at 80% credit
         effective_taken = taken + (late * 0.8)
         score = min(1.0, effective_taken / scheduled_count)
 
+        # Determine state — skipped beats missed when ALL doses are skipped
         if score >= 1.0:
             state = 'completed'
         elif score > 0:
+            state = 'partial'
+        elif skipped > 0 and (taken + late) == 0:
+            # All doses explicitly skipped, none taken
+            state = 'skipped'
+        elif skipped > 0:
+            # Some skipped, some not taken — partial at best
             state = 'partial'
         else:
             state = 'missed'
@@ -370,12 +406,13 @@ class SignalAggregationService:
         return SignalAggregationService._upsert_snapshot(
             user, date, 'medication_adherence',
             score=score,
-            confidence=1.0,
+            confidence=confidence_for_state(state),
             signal_class='verified_action',
             source_signals={
                 'scheduled': scheduled_count,
                 'taken': taken,
                 'late': late,
+                'skipped': skipped,
                 'score': round(score, 2),
             },
             expected=is_expected,
@@ -445,7 +482,7 @@ class SignalAggregationService:
         return SignalAggregationService._upsert_snapshot(
             user, date, 'faith_practice',
             score=score,
-            confidence=1.0,
+            confidence=confidence_for_state(state),
             signal_class='verified_action',
             source_signals=source_data,
             expected=is_expected,
@@ -499,7 +536,7 @@ class SignalAggregationService:
         return SignalAggregationService._upsert_snapshot(
             user, date, 'mental_reflection',
             score=best_score,
-            confidence=1.0,
+            confidence=confidence_for_state(state),
             signal_class='verified_action',
             source_signals=source_data,
             expected=is_expected,
@@ -537,7 +574,7 @@ class SignalAggregationService:
         return SignalAggregationService._upsert_snapshot(
             user, date, 'cognitive_fitness',
             score=score,
-            confidence=1.0,
+            confidence=confidence_for_state(state),
             signal_class='verified_action',
             source_signals={'sessions_completed': count},
             expected=is_expected,
@@ -568,6 +605,10 @@ class SignalAggregationService:
             completion_status='completed',
         ).count()
 
+        # Count explicitly skipped tasks due today
+        skipped_today = due_today.filter(completion_status='skipped').count()
+        completed_due = due_today.filter(completion_status='completed').count()
+
         if due_count == 0 and completed_today == 0:
             return None  # Zero-fill will handle
 
@@ -578,9 +619,13 @@ class SignalAggregationService:
         elif completed_today >= due_count:
             score = 1.0
             state = 'completed'
-        elif completed_today > 0:
-            score = completed_today / due_count
+        elif completed_today > 0 or completed_due > 0:
+            score = max(completed_today, completed_due) / due_count
             state = 'partial'
+        elif skipped_today > 0 and completed_due == 0:
+            # All due tasks skipped, none completed
+            score = 0.0
+            state = 'skipped'
         else:
             score = 0.0
             state = 'missed'
@@ -588,11 +633,12 @@ class SignalAggregationService:
         return SignalAggregationService._upsert_snapshot(
             user, date, 'productivity_progress',
             score=score,
-            confidence=1.0,
+            confidence=confidence_for_state(state),
             signal_class='verified_action',
             source_signals={
                 'due_today': due_count,
                 'completed_today': completed_today,
+                'skipped_today': skipped_today,
             },
             expected=is_expected,
             state=state,
@@ -689,7 +735,7 @@ class SignalAggregationService:
         return SignalAggregationService._upsert_snapshot(
             user, date, 'nutrition_compliance',
             score=score,
-            confidence=1.0,
+            confidence=confidence_for_state(state),
             signal_class='verified_action',
             source_signals=source_data,
             expected=is_expected,
@@ -735,7 +781,7 @@ class SignalAggregationService:
         return SignalAggregationService._upsert_snapshot(
             user, date, 'relational_engagement',
             score=score,
-            confidence=1.0,
+            confidence=confidence_for_state(state),
             signal_class='verified_action',
             source_signals={
                 'interaction_count': interaction_count,
@@ -840,7 +886,7 @@ class SignalAggregationService:
                     },
                     expected=True,
                     state='completed',
-                )
+                )  # Journal-inferred: confidence already discounted via JOURNAL_CONFIDENCE_DISCOUNT
                 existing_results.append(snapshot)
 
     # ──────────────────────────────────────────────────────────

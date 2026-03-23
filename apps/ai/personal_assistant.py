@@ -1725,6 +1725,16 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         except Exception:
             pass  # Guard failure must never break chat
 
+        # ── Mid-response state revalidation ──
+        # If state changed DURING LLM generation (user completed an item
+        # via another tab/device), append a correction so the response
+        # doesn't present stale completion status.
+        try:
+            from apps.ai.cos_state_revalidator import revalidate_response
+            response = revalidate_response(response, self.user)
+        except Exception:
+            pass  # Revalidation failure must never break chat
+
         # Save assistant response
         msg_type = 'action' if actions_taken else 'text'
         AssistantMessage.objects.create(

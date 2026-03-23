@@ -1,15 +1,16 @@
 """
 Daily Progress Service — tracks daily execution completeness.
 
-Computes component scores from existing services:
-- Routines (25%): Task.is_routine completion rate
-- Medicine (20%): medicine_utils.calculate_medicine_adherence_rate()
-- Tasks (20%): Non-routine task completion rate
-- Workout (15%): WorkoutSession logged today
-- Journaling (10%): JournalEntry logged today
-- Faith (10%): Bible reading / prayer activity today
+Computes component scores dynamically based on what's actually due today:
+- Routines: Task.is_routine completion rate (only if routines exist today)
+- Medicine: medicine_utils adherence (only if doses scheduled today)
+- Tasks: Non-routine task completion (only if tasks due today)
+- Workout: WorkoutSession (only if scheduled in active workout plan)
+- Journaling: JournalEntry logged today
+- Faith: Bible reading / prayer activity today
 
-Updated incrementally via signal-triggered recompute.
+Weights are redistributed proportionally when a component has nothing due,
+so the score reflects completion of what's actually expected.
 """
 
 import logging
@@ -18,8 +19,8 @@ from apps.core.utils import get_user_today
 
 logger = logging.getLogger(__name__)
 
-# Component weights (sum to 100)
-WEIGHTS = {
+# Base weights — redistributed proportionally among active components
+BASE_WEIGHTS = {
     "routines": 25,
     "medicine": 20,
     "tasks": 20,
@@ -77,6 +78,7 @@ class DailyProgressService:
         """
         Full recompute of today's progress.
         Uses existing services — never re-derives calculations.
+        Weights are redistributed among components that are actually due today.
         """
         from apps.dashboard_v2.models import DailyProgressSnapshot
 
@@ -89,48 +91,44 @@ class DailyProgressService:
 
         components = {}
 
-        # 1. Routines
-        routines_score, routines_data = self._compute_routines()
-        snapshot.routines_score = routines_score
-        components.update(routines_data)
+        # Compute all component scores
+        scores = {}
+        compute_methods = {
+            "routines": self._compute_routines,
+            "medicine": self._compute_medicine,
+            "tasks": self._compute_tasks,
+            "workout": self._compute_workout,
+            "journaling": self._compute_journaling,
+            "faith": self._compute_faith,
+        }
 
-        # 2. Medicine
-        medicine_score, medicine_data = self._compute_medicine()
-        snapshot.medicine_score = medicine_score
-        components.update(medicine_data)
+        for key, method in compute_methods.items():
+            score, data = method()
+            scores[key] = score
+            components.update(data)
+            setattr(snapshot, f"{key}_score", score)
 
-        # 3. Tasks (non-routine)
-        tasks_score, tasks_data = self._compute_tasks()
-        snapshot.tasks_score = tasks_score
-        components.update(tasks_data)
+        # Determine which components are active (have something due today).
+        # Components with total == 0 are excluded from weighting so their
+        # weight is redistributed proportionally to active components.
+        active_weights = {}
+        for key, base_weight in BASE_WEIGHTS.items():
+            total = components.get(f"{key}_total", 0)
+            if total > 0:
+                active_weights[key] = base_weight
 
-        # 4. Workout
-        workout_score, workout_data = self._compute_workout()
-        snapshot.workout_score = workout_score
-        components.update(workout_data)
-
-        # 5. Journaling
-        journaling_score, journaling_data = self._compute_journaling()
-        snapshot.journaling_score = journaling_score
-        components.update(journaling_data)
-
-        # 6. Faith
-        faith_score, faith_data = self._compute_faith()
-        snapshot.faith_score = faith_score
-        components.update(faith_data)
-
-        # Overall weighted score
-        snapshot.overall_score = round(
-            (
-                routines_score * WEIGHTS["routines"]
-                + medicine_score * WEIGHTS["medicine"]
-                + tasks_score * WEIGHTS["tasks"]
-                + workout_score * WEIGHTS["workout"]
-                + journaling_score * WEIGHTS["journaling"]
-                + faith_score * WEIGHTS["faith"]
+        # Calculate overall score with redistributed weights
+        if active_weights:
+            weight_sum = sum(active_weights.values())
+            weighted_total = sum(
+                scores[key] * (weight / weight_sum * 100)
+                for key, weight in active_weights.items()
             )
-            / 100
-        )
+            snapshot.overall_score = round(weighted_total / 100)
+        else:
+            # Nothing due today — 100% by default
+            snapshot.overall_score = 100
+
         snapshot.components = components
         snapshot.save()
 
@@ -148,7 +146,7 @@ class DailyProgressService:
             total = routines.count()
             done = routines.filter(completion_status="completed").count()
 
-            score = round((done / total) * 100) if total > 0 else 100  # No routines = full score
+            score = round((done / total) * 100) if total > 0 else 100
             return score, {"routines_done": done, "routines_total": total}
         except Exception:
             logger.error("Routine computation failed", exc_info=True)
@@ -162,7 +160,7 @@ class DailyProgressService:
             result = calculate_medicine_adherence(self.user, self.today, self.today)
             rate = result.get("adherence_rate")
             if rate is None:
-                return 100, {"medicine_done": 0, "medicine_total": 0}  # No medicines = full score
+                return 100, {"medicine_done": 0, "medicine_total": 0}
             return round(rate), {
                 "medicine_done": result.get("taken_doses", 0),
                 "medicine_total": result.get("expected_doses", 0),
@@ -186,7 +184,7 @@ class DailyProgressService:
             done = tasks.filter(completion_status="completed").count()
 
             if total == 0:
-                return 100, {"tasks_done": 0, "tasks_total": 0}  # No tasks due = full score
+                return 100, {"tasks_done": 0, "tasks_total": 0}
             score = round((done / total) * 100)
             return score, {"tasks_done": done, "tasks_total": total}
         except Exception:
@@ -194,9 +192,23 @@ class DailyProgressService:
             return 0, {"tasks_done": 0, "tasks_total": 0}
 
     def _compute_workout(self):
-        """Whether a workout was logged today."""
+        """Whether a workout was logged today, respecting the user's schedule."""
         try:
-            from apps.health.models import WorkoutSession
+            from apps.health.models import WorkoutPlan, WorkoutSession
+
+            # Check if today is a scheduled workout day
+            day_of_week = self.today.weekday()  # 0=Monday, 6=Sunday
+            active_plan = (
+                WorkoutPlan.objects.filter(user=self.user, is_active=True).first()
+            )
+
+            if active_plan:
+                schedule_entry = active_plan.schedule_entries.filter(
+                    day_of_week=day_of_week
+                ).first()
+                # Rest day or no entry for today — no workout expected
+                if not schedule_entry or schedule_entry.is_rest_day:
+                    return 100, {"workout_done": 0, "workout_total": 0}
 
             done = WorkoutSession.objects.filter(
                 user=self.user,

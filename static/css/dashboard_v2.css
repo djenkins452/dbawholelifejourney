@@ -1329,3 +1329,205 @@ a.v2-action-title:hover {
     color: var(--color-text-secondary, #6b7280);
     font-weight: 400;
 }
+
+/* =============================================================================
+   WEATHER WIDGET (V2)
+   ============================================================================= */
+
+.weather-section {
+    /* margin-bottom removed - grid gap handles spacing */
+}
+
+/* Normal Weather Card */
+.weather-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    overflow: hidden;
+}
+
+.weather-current {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.weather-main {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.weather-temp-large {
+    font-size: 2.5rem;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--color-text);
+}
+
+.weather-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.weather-condition {
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+    font-weight: 500;
+}
+
+.weather-location {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.weather-stats {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.weather-stat {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+/* Forecast Row */
+.weather-forecast {
+    display: flex;
+    justify-content: space-around;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.weather-forecast-day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: 60px;
+}
+
+.forecast-day-name {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.forecast-temps {
+    display: flex;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+}
+
+.forecast-high {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.forecast-low {
+    color: var(--color-text-muted);
+}
+
+.forecast-precip {
+    font-size: var(--font-size-xs);
+}
+
+/* Weather Alert Card */
+.weather-section.weather-alert .weather-alert-card {
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--color-warning, #f59e0b) 15%, var(--color-surface)) 0%,
+        var(--color-surface) 100%);
+    border: 2px solid var(--color-warning, #f59e0b);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.weather-alert-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.weather-alert-icon {
+    color: var(--color-warning, #f59e0b);
+    display: flex;
+    align-items: center;
+}
+
+.weather-alert-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-warning, #f59e0b);
+}
+
+.weather-alert-messages {
+    margin-bottom: var(--space-3);
+}
+
+.weather-alert-message {
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    color: var(--color-text);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-warning, #f59e0b) 20%, transparent);
+}
+
+.weather-alert-message:last-child {
+    border-bottom: none;
+}
+
+.weather-current-compact {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.weather-current-compact .weather-temp {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+/* Weather Mobile Responsive */
+@media (max-width: 480px) {
+    .weather-card {
+        padding: var(--space-3);
+    }
+
+    .weather-temp-large {
+        font-size: 2rem;
+    }
+
+    .weather-current {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .weather-stats {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .weather-forecast {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .weather-forecast-day {
+        flex: 1;
+        min-width: 70px;
+    }
+
+    .weather-alert-card {
+        padding: var(--space-3);
+    }
+}

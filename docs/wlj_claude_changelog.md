@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: Limit API to MLB + NCAA Basketball Only
+
+- **Change:** Disabled NHL, MLS, NBA API sync to conserve free-plan calls (100/day)
+  - Active: MLB (baseball host), NCAA Basketball (basketball host) — 2 sport hosts
+  - Disabled: NBA, NHL, MLS — `_SPORT_HOSTS` set to None, provider returns empty
+  - Existing DB data for disabled leagues preserved (records from prior syncs remain)
+- **Impact:** Sync time 22s → 4.7s, API calls per sync ~6 (down from ~30)
+- **To re-enable later:** Set hosts back to their URLs in `_SPORT_HOSTS` dict
+- Files: apps/sports/services/providers/api_sports_provider.py
+
 ## 2026-03-24 — Sports: Stale Standings Detection — Season Labels
 
 - **Feature:** Records from previous seasons now clearly labeled in UI

@@ -29,24 +29,22 @@ from apps.sports.services.provider_adapter import (
 logger = logging.getLogger(__name__)
 
 # API-Sports host mapping per league
-# Each sport has its own subdomain
+# ACTIVE: Only MLB, NCAA Basketball synced via API
+# NHL, MLS, NBA disabled to conserve free-plan API calls
 _SPORT_HOSTS = {
     "mlb": "v1.baseball.api-sports.io",
-    "nba": "v1.basketball.api-sports.io",
-    "nhl": "v1.hockey.api-sports.io",
-    "mls": "v3.football.api-sports.io",
-    # NCAA
     "ncaab": "v1.basketball.api-sports.io",  # NCAA Basketball
-    "ncaaf": None,      # No API-Sports coverage for college football
-    "ncaabb": None,     # No reliable college baseball API
+    # Disabled — not synced via API (conserve calls)
+    "nba": None,
+    "nhl": None,
+    "mls": None,
+    "ncaaf": None,      # No API-Sports coverage
+    "ncaabb": None,     # No API-Sports coverage
 }
 
 # API-Sports league IDs (their internal identifiers)
 _LEAGUE_IDS = {
     "mlb": 1,       # MLB (regular season)
-    "nba": 12,      # NBA (standard league)
-    "nhl": 57,      # NHL
-    "mls": 253,     # MLS (football/soccer API)
     "ncaab": 116,   # NCAA Basketball
 }
 
@@ -54,9 +52,6 @@ _LEAGUE_IDS = {
 # (e.g., Spring Training games count as MLB)
 _GAME_LEAGUE_IDS = {
     "mlb": {1, 71},     # MLB + Spring Training
-    "nba": {12},
-    "nhl": {57},
-    "mls": {253},
     "ncaab": {116},
 }
 
@@ -64,9 +59,6 @@ _GAME_LEAGUE_IDS = {
 # API-Sports free tier lags on current season; we auto-detect
 _SEASON_CANDIDATES = {
     "mlb": [2026, 2025, 2024],
-    "nba": ["2025-2026", "2024-2025", "2023-2024"],
-    "nhl": [2026, 2025, 2024],
-    "mls": [2026, 2025, 2024],
     "ncaab": ["2025-2026", "2024-2025", "2023-2024"],
 }
 

@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: Seed Realistic Game Events (111 games across 6 leagues)
+
+- **Feature:** New `seed_game_events` management command creates realistic upcoming and completed games
+  - 89 upcoming games across next 5 days (MLB 27, NCAA BB 21, NBA 13, NHL 12, MLS 10, NCAA BK 6)
+  - 22 completed games with scores for "Last Result" display (MLB 6, NCAA BB 5, NBA 4, NCAA BK 4, NHL 3)
+  - NFL/NCAAF skipped (offseason — no fake games)
+  - Real venues, realistic game times by timezone (ET/CT/PT)
+  - Idempotent via get_or_create on home_team + away_team + start_time
+  - `--clear` flag to wipe and regenerate
+  - SQL version at `scripts/seed_game_events.sql` for DBeaver
+  - Added to Procfile startup chain for production deploy
+- Files: apps/sports/management/commands/seed_game_events.py, scripts/seed_game_events.sql, Procfile
+
 ## 2026-03-24 — iOS: Fix HealthKit Authorization Hang After BP Support Added
 
 - **Root cause:** `HKCorrelationType.correlationType(forIdentifier: .bloodPressure)` in the `readTypes` authorization set causes `HKHealthStore.requestAuthorization()` to hang indefinitely on certain iOS versions. The system authorization callback never fires when a correlation type is present in the `read` set.

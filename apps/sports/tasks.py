@@ -5,12 +5,13 @@ All sports processing happens in background workers.
 NO external API calls or heavy queries on request paths.
 
 Tasks:
+- sync_games_from_provider: Raw data sync (standings, games, pitchers)
 - compute_sports_signals: Generate signals + populate caches for all sports-enabled users
-- sync_games: Fetch game updates from provider (future — currently no-op with fixture provider)
 """
 import logging
 import time
 
+from celery import shared_task
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
@@ -188,20 +189,22 @@ def _build_summaries_from_signals(user, signals, now):
     return sorted(team_data.values(), key=lambda x: x["priority"])
 
 
+@shared_task(
+    name="sports.sync_games_from_provider",
+    max_retries=2,
+    default_retry_delay=30,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
 def sync_games_from_provider():
     """
-    Fetch game updates from the configured sports data provider.
+    Background task: Sync sports data from the configured provider.
 
-    Currently a no-op with FixtureSportsProvider.
-    Future: will call provider.fetch_games() and upsert GameEvent records.
+    Fetches standings (team records) and game events (schedule, scores, pitchers)
+    for all leagues with active followers. Idempotent — safe on every tick.
+
+    Raw sync only: no streak computation, no urgency, no signals.
+    Those are handled by compute_sports_signals().
     """
-    from apps.sports.services.provider_adapter import get_provider
-
-    provider = get_provider()
-    if provider.provider_name() == "fixture":
-        logger.debug("Sports sync: fixture provider — no external fetch needed")
-        return {"status": "skipped", "reason": "fixture_provider"}
-
-    # Future: implement real provider sync
-    logger.info("Sports sync: fetching from %s", provider.provider_name())
-    return {"status": "ok"}
+    from apps.sports.services.sync_service import sync_sports_data
+    return sync_sports_data()

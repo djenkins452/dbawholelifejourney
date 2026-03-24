@@ -1081,6 +1081,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.core.tasks.run_ise_cycle_task",
         "schedule": 300.0,  # Every 5 minutes — primary ISE trigger
     },
+    "sports-sync-every-600-seconds": {
+        "task": "sports.sync_games_from_provider",
+        "schedule": 600.0,  # Every 10 minutes — raw data sync (standings, games, pitchers)
+    },
     "cos-keepalive-every-30-seconds": {
         "task": "apps.ai.tasks.cos_keepalive_task",
         "schedule": 30.0,  # Keep CoS context warm for active users

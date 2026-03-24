@@ -33,11 +33,13 @@ class NormalizedGame:
     __slots__ = (
         "external_id", "home_team_external_id", "away_team_external_id",
         "start_time", "status", "home_score", "away_score", "venue",
+        "home_probable_pitcher", "away_probable_pitcher",
     )
 
     def __init__(
         self, external_id, home_team_external_id, away_team_external_id,
         start_time, status="scheduled", home_score=None, away_score=None, venue="",
+        home_probable_pitcher="", away_probable_pitcher="",
     ):
         self.external_id = external_id
         self.home_team_external_id = home_team_external_id
@@ -47,6 +49,8 @@ class NormalizedGame:
         self.home_score = home_score
         self.away_score = away_score
         self.venue = venue
+        self.home_probable_pitcher = home_probable_pitcher
+        self.away_probable_pitcher = away_probable_pitcher
 
 
 class NormalizedStanding:

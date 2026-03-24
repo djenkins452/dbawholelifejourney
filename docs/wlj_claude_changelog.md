@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: API Sync Service + Celery Beat Integration
+
+- **Sync service** (`apps/sports/services/sync_service.py`):
+  - `sync_sports_data()` — fetches from provider adapter, upserts Team records + GameEvents
+  - Syncs standings (wins/losses), games (schedule/scores/pitchers), per league
+  - Only syncs leagues with active followers (no wasted API calls)
+  - Idempotent: matches by external_id, updates only changed fields
+  - Invalidates user caches when games update
+  - Records sync health telemetry for observability
+- **Celery Beat**: `sports-sync-every-600-seconds` — runs every 10 minutes
+- **Provider adapter**: Extended `NormalizedGame` with `home_probable_pitcher`, `away_probable_pitcher`
+- **Task**: `sync_games_from_provider` now a proper `@shared_task` calling sync service
+- **Test fix**: Fixed flaky `test_game_today_signal` — was time-of-day dependent (failed after 8 PM UTC when +4h crossed midnight)
+- Files: apps/sports/services/sync_service.py, apps/sports/services/provider_adapter.py, apps/sports/tasks.py, config/settings.py, apps/sports/tests/test_signals.py
+
 ## 2026-03-24 — Sports: Lean Context Model — Record, Streak, Pitcher
 
 - **Models:**

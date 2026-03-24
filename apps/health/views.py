@@ -470,13 +470,15 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         try:
             from apps.core.ai_state.state_engine import get_module_state
             from apps.core.utils import get_user_now
+            from apps.core.signals.health_signals import build_health_signals
             from apps.health.services.health_priority_service import build_health_priority_summary
 
             health_state = get_module_state(user, "health") or {}
             medicine_state = get_module_state(user, "medicine") or {}
             user_now = get_user_now(user)
+            signals = build_health_signals(health_state, medicine_state, user_now)
             context["health_summary"] = build_health_priority_summary(
-                health_state, medicine_state, user_now
+                health_state, medicine_state, user_now, signals=signals
             )
         except Exception:
             pass

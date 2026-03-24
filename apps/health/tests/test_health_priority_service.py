@@ -592,3 +592,144 @@ class TestNoDuplicateCategories(TestCase):
         result = build_health_priority_summary(health, {}, now)
         vitals = [i for i in result["items"] if i["category"] == "vitals"]
         self.assertEqual(len(vitals), 1)
+
+
+# ── Phase C: Signal → Summary Integration ───────────────────────────────────
+
+class TestSignalIntegration(TestCase):
+    """Signal injection into summary."""
+
+    def test_concerning_signal_injected(self):
+        """A 'poor' signal appears in summary."""
+        now = _now()
+        health = _health_state(
+            bp_systolic=115, bp_diastolic=75, last_bp_entry=_fresh(now),
+        )
+        signals = [
+            {"key": "activity_momentum", "state": "low", "trend": "declining",
+             "value": 1500, "insight": "Activity levels are trending down this week"},
+        ]
+        result = build_health_priority_summary(health, {}, now, signals=signals)
+        signal_items = [i for i in result["items"] if i["key"].startswith("signal_")]
+        self.assertEqual(len(signal_items), 1)
+        self.assertEqual(signal_items[0]["key"], "signal_activity_momentum")
+        self.assertIn("trending down", signal_items[0]["message"])
+
+    def test_stable_signal_not_injected(self):
+        """A 'strong' signal should NOT appear in summary."""
+        now = _now()
+        signals = [
+            {"key": "sleep_recovery", "state": "strong", "trend": "stable",
+             "value": 7.5, "insight": "Sleep has been strong this week"},
+        ]
+        result = build_health_priority_summary({}, {}, now, signals=signals)
+        signal_items = [i for i in result["items"] if i["key"].startswith("signal_")]
+        self.assertEqual(len(signal_items), 0)
+
+    def test_signal_does_not_duplicate_existing_item(self):
+        """If activity_low already in summary, activity_momentum signal skipped."""
+        now = _now()
+        health = _health_state(steps_avg_7d=2000, steps_entries_7d=5)
+        signals = [
+            {"key": "activity_momentum", "state": "low", "trend": "declining",
+             "value": 2000, "insight": "Activity levels are trending down this week"},
+        ]
+        result = build_health_priority_summary(health, {}, now, signals=signals)
+        signal_items = [i for i in result["items"] if i["key"].startswith("signal_")]
+        self.assertEqual(len(signal_items), 0)
+
+    def test_signal_after_medications(self):
+        """Signal injected at index 1 when meds are at index 0."""
+        now = _now()
+        health = _health_state(
+            bp_systolic=115, bp_diastolic=75, last_bp_entry=_fresh(now),
+        )
+        meds = _medicine_state(
+            active_count=2,
+            _contract={"alerts": {
+                "overdue": [{"medicine_name": "Aspirin"}],
+                "missed": [], "needs_refill": [],
+            }},
+        )
+        signals = [
+            {"key": "sleep_recovery", "state": "poor", "trend": "declining",
+             "value": 4.5, "insight": "Sleep has been short this week"},
+        ]
+        result = build_health_priority_summary(health, meds, now, signals=signals)
+        # Meds still first
+        self.assertEqual(result["items"][0]["key"], "medications_overdue")
+        # Signal at index 1
+        self.assertEqual(result["items"][1]["key"], "signal_sleep_recovery")
+
+    def test_max_one_signal(self):
+        """Only ONE signal injected even if multiple are concerning."""
+        now = _now()
+        signals = [
+            {"key": "med_adherence", "state": "poor", "trend": "declining",
+             "value": 0.55, "insight": "Medication adherence has been declining"},
+            {"key": "cardio_stability", "state": "unstable",
+             "value": 2, "insight": "Multiple vital signs need attention"},
+            {"key": "sleep_recovery", "state": "poor", "trend": "declining",
+             "value": 4.5, "insight": "Sleep has been short this week"},
+        ]
+        result = build_health_priority_summary({}, {}, now, signals=signals)
+        signal_items = [i for i in result["items"] if i["key"].startswith("signal_")]
+        self.assertLessEqual(len(signal_items), 1)
+
+    def test_max_4_items_with_signal(self):
+        """Signal counts toward max 4."""
+        now = _now()
+        health = _health_state(
+            bp_systolic=155, bp_diastolic=95, last_bp_entry=_fresh(now),
+            sleep_avg_duration_7d=300, sleep_entries_7d=5,
+            last_sleep_entry=now.date().isoformat(),
+            steps_avg_7d=2000, steps_entries_7d=5,
+        )
+        meds = _medicine_state(
+            active_count=1,
+            _contract={"alerts": {
+                "overdue": [{"medicine_name": "X"}],
+                "missed": [], "needs_refill": [],
+            }},
+        )
+        signals = [
+            {"key": "cardio_stability", "state": "watch",
+             "value": 1, "insight": "One vital sign is outside the normal range"},
+        ]
+        result = build_health_priority_summary(health, meds, now, signals=signals)
+        self.assertLessEqual(len(result["items"]), 4)
+
+    def test_no_signals_backward_compatible(self):
+        """Without signals param, summary works as before."""
+        now = _now()
+        health = _health_state(
+            bp_systolic=115, bp_diastolic=75, last_bp_entry=_fresh(now),
+        )
+        result = build_health_priority_summary(health, {}, now)
+        self.assertTrue(len(result["items"]) >= 1)
+        signal_items = [i for i in result["items"] if i["key"].startswith("signal_")]
+        self.assertEqual(len(signal_items), 0)
+
+    def test_signal_priority_order(self):
+        """med_adherence chosen over sleep_recovery when both concern."""
+        signals = [
+            {"key": "sleep_recovery", "state": "poor", "trend": "declining",
+             "value": 4.5, "insight": "Sleep has been short"},
+            {"key": "med_adherence", "state": "poor", "trend": "declining",
+             "value": 0.55, "insight": "Medication adherence declining"},
+        ]
+        result = build_health_priority_summary({}, {}, _now(), signals=signals)
+        signal_items = [i for i in result["items"] if i["key"].startswith("signal_")]
+        self.assertEqual(len(signal_items), 1)
+        self.assertEqual(signal_items[0]["key"], "signal_med_adherence")
+
+    def test_unstable_cardio_gets_high_priority(self):
+        """Unstable cardio signal maps to HIGH priority."""
+        signals = [
+            {"key": "cardio_stability", "state": "unstable",
+             "value": 2, "insight": "Multiple vital signs need attention"},
+        ]
+        result = build_health_priority_summary({}, {}, _now(), signals=signals)
+        signal_items = [i for i in result["items"] if i["key"].startswith("signal_")]
+        self.assertEqual(len(signal_items), 1)
+        self.assertEqual(signal_items[0]["priority"], "high")

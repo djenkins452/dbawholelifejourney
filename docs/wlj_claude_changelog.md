@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Phase C: Signal → Summary Integration
+
+- **Feature:** Health signals now inform the priority summary. Max ONE signal injected per summary.
+- **Selection rules:** Signal must be in a concern state (poor/declining/unstable/low/watch). Priority order: med_adherence > cardio_stability > activity_momentum > sleep_recovery.
+- **Dedup:** Signal skipped if its meaning overlaps with an existing summary item (e.g., activity_momentum skipped if activity_low already present).
+- **Injection position:** After medications if meds exist, otherwise at index 0. Counts toward max 4 items.
+- **Priority mapping:** unstable → HIGH, poor/declining/watch/low → MEDIUM.
+- **Backward compatible:** `signals` param defaults to None; existing callers unaffected.
+- **View updated:** `HealthHomeView` now calls `build_health_signals()` and passes result to summary builder.
+- **Tests:** 45 → 54 (9 new signal integration tests). Total: 84 tests across summary + signals.
+- Files: `apps/health/services/health_priority_service.py`, `apps/health/views.py`, `apps/health/tests/test_health_priority_service.py`
+
 ## 2026-03-24 — Phase A Final + Phase B Health Signals
 
 **Phase A (final hardening):**

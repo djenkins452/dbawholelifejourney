@@ -6,6 +6,31 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Health Summary Hardening Pass
+
+- **FIX 1 — Medication dominance:** Overdue medications are now forced to index 0 via post-generation enforcement step. Cannot be displaced by sort order.
+- **FIX 2 — Minimum items:** Summary targets min 2 items when multiple signals exist. Single-signal case still allowed. Min-fill respects category dedup.
+- **FIX 3 — Headline:** Added `headline` and `priority_level` to output contract. HIGH="Health needs attention", MEDIUM="A few things to keep in mind", LOW="Health looks stable".
+- **FIX 4 — Activity signal:** "Activity is low so far today" only used when `today_steps` exists AND `current_dt.hour >= 14`. Otherwise "Activity has been low lately".
+- **FIX 5 — Tone:** "is normal" → "looks good" (BP, SpO2). "is in range" → "is in a healthy range" (glucose). Consistent calm coaching tone.
+- **FIX 6 — Balance:** Phase 4 adds a positive/reassurance item if room exists and data supports it. Respects category dedup. No false positives injected.
+- **Tests:** 29 → 45 tests. New coverage: medication dominance, minimum items, headline per priority, activity today vs lately, tone assertions, balanced output.
+- Files: `apps/health/services/health_priority_service.py`, `apps/health/tests/test_health_priority_service.py`, `templates/health/home.html`
+
+## 2026-03-24 — Health Summary + Priority Layer ("Right Now" block)
+
+- **Feature:** Deterministic health priority summary service that converts canonical state into a short ordered "what matters right now" summary (max 4 items, ordered by importance)
+- **Architecture:** Pure function — no DB queries, no LLM, reads pre-built SAE state only. Sits between canonical state and UI. Does not modify Beth/CoS.
+- **Priority rules:**
+  - HIGH: overdue medications, BP crisis (>=180/120), severe glucose (<54 or >250 mg/dL), SpO2 <90%
+  - MEDIUM: elevated BP (140-179/90-119), short sleep (<6h avg), low adherence (<70%), elevated HR (>100 bpm), low activity (<3000 steps avg)
+  - LOW: normal BP, strong sleep, meds on track, glucose in range, good activity, normal SpO2
+- **Freshness gating:** BP suppressed if >7 days, sleep if >3 days, HR/glucose/SpO2 if >7 days. Medications always current (today's schedule). Steps gated by entries count.
+- **Message discipline:** No "so far today" (steps is 7d avg). No "right now" without freshness proof. Uses "lately" for 7d averages.
+- **UI:** Compact "Right Now" block on Physical Health page with colored priority dots (red/amber/green). Calm, not alarmist.
+- **Tests:** 29 focused unit tests covering all priority levels, freshness gating, ordering, flags, category dedup, max items, empty state
+- Files: `apps/health/services/health_priority_service.py` (new), `apps/health/tests/test_health_priority_service.py` (new), `apps/health/views.py`, `templates/health/home.html`
+
 ## 2026-03-24 — Sports: Game Urgency Badges (LIVE / STARTING SOON / TODAY)
 
 - **Feature:** My Teams hub now highlights games by urgency level

@@ -26,7 +26,7 @@
     {% if health_summary.items %}
     <!-- Health Right Now -->
     <div class="health-right-now" data-testid="health-right-now">
-        <h2 class="right-now-title">Right Now</h2>
+        <h2 class="right-now-title">{{ health_summary.headline|default:"Right Now" }}</h2>
         <div class="right-now-items">
             {% for item in health_summary.items %}
             <div class="right-now-item priority-{{ item.priority }}">

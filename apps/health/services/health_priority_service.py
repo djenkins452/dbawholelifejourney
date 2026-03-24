@@ -18,9 +18,11 @@ Public API:
 
 Rules:
     - Pure function: no DB queries, no user object, no cache writes, no LLM
-    - Max 4 items, ordered by importance
+    - Min 2, max 4 items (unless truly fewer signals exist)
     - Freshness-gated: stale metrics are suppressed
-    - Message discipline: no "right now" without freshness proof
+    - Message discipline: no "right now" / "so far today" without proof
+    - Medication overdue always dominates (forced to index 0)
+    - Balanced: includes at least one positive if room and data support it
 """
 
 from datetime import datetime, timedelta
@@ -38,6 +40,15 @@ LOW = "low"
 _PRIORITY_ORDER = {HIGH: 0, MEDIUM: 1, LOW: 2}
 
 MAX_ITEMS = 4
+MIN_ITEMS = 2
+
+# ── Headlines ────────────────────────────────────────────────────────────────
+
+_HEADLINES = {
+    HIGH: "Health needs attention",
+    MEDIUM: "A few things to keep in mind",
+    LOW: "Health looks stable",
+}
 
 # ── Freshness thresholds ────────────────────────────────────────────────────
 
@@ -164,7 +175,7 @@ def _eval_blood_pressure(health_state, current_dt):
     # LOW: normal
     if sys < 120 and dia < 80:
         return [_item("bp_normal", LOW, "vitals",
-                       "Blood pressure is normal", "heart")]
+                       "Blood pressure looks good", "heart")]
 
     # Elevated (120-139 / 80-89) — no item (not concerning enough, not reassuring)
     return []
@@ -190,8 +201,11 @@ def _eval_sleep(health_state, current_dt):
     return []  # 6-7 hours — acceptable, no item
 
 
-def _eval_steps(health_state):
-    """Evaluate activity. Freshness implicit from 7d window."""
+def _eval_steps(health_state, current_dt):
+    """Evaluate activity. Freshness implicit from 7d window.
+
+    Uses today_steps + current hour to decide "so far today" vs "lately".
+    """
     entries = health_state.get("steps_entries_7d", 0)
     if entries == 0:
         return []
@@ -200,9 +214,16 @@ def _eval_steps(health_state):
     if avg is None:
         return []
 
+    # Check for same-day step data
+    today_steps = health_state.get("today_steps")
+    has_today_context = today_steps is not None and current_dt is not None
+
     if avg < 3000:
-        return [_item("activity_low", MEDIUM, "fitness",
-                       "Activity has been low lately", "shoe")]
+        if has_today_context and today_steps < 3000 and current_dt.hour >= 14:
+            msg = "Activity is low so far today"
+        else:
+            msg = "Activity has been low lately"
+        return [_item("activity_low", MEDIUM, "fitness", msg, "shoe")]
 
     if avg >= 7500:
         return [_item("activity_on_track", LOW, "fitness",
@@ -234,12 +255,12 @@ def _eval_glucose(health_state, current_dt):
     # MEDIUM: moderate concern
     if mg_dl < 70 or mg_dl > 180:
         return [_item("glucose_concern", MEDIUM, "vitals",
-                       "Blood sugar is outside normal range", "drop")]
+                       "Blood sugar is outside the healthy range", "drop")]
 
     # LOW: in range
     if 70 <= mg_dl <= 140:
         return [_item("glucose_normal", LOW, "vitals",
-                       "Blood sugar is in range", "drop")]
+                       "Blood sugar is in a healthy range", "drop")]
 
     return []  # 140-180 — slightly elevated, no item
 
@@ -259,7 +280,7 @@ def _eval_blood_oxygen(health_state, current_dt):
 
     if spo2 >= 95:
         return [_item("spo2_normal", LOW, "vitals",
-                       "Blood oxygen is normal", "lungs")]
+                       "Blood oxygen looks good", "lungs")]
 
     return []  # 90-95 — borderline, no item
 
@@ -292,17 +313,17 @@ def build_health_priority_summary(health_state, medicine_state, current_dt):
         current_dt: user's current local aware datetime
 
     Returns:
-        dict with items (max 4), flags, generated_at
+        dict with headline, items (min 2 / max 4), flags, generated_at
     """
     health_state = health_state or {}
     medicine_state = medicine_state or {}
 
-    # Collect all candidate items
+    # Collect all candidate items from evaluators
     candidates = []
     candidates.extend(_eval_medications(medicine_state))
     candidates.extend(_eval_blood_pressure(health_state, current_dt))
     candidates.extend(_eval_sleep(health_state, current_dt))
-    candidates.extend(_eval_steps(health_state))
+    candidates.extend(_eval_steps(health_state, current_dt))
     candidates.extend(_eval_glucose(health_state, current_dt))
     candidates.extend(_eval_blood_oxygen(health_state, current_dt))
     candidates.extend(_eval_heart_rate(health_state, current_dt))
@@ -310,30 +331,79 @@ def build_health_priority_summary(health_state, medicine_state, current_dt):
     # Sort by priority (HIGH=0, MEDIUM=1, LOW=2)
     candidates.sort(key=lambda x: _PRIORITY_ORDER.get(x["priority"], 99))
 
-    # Deduplicate categories (keep first per category, unless both HIGH)
+    # ── Phase 1: Select with category dedup ──
     seen_categories = {}
     selected = []
+    overflow = []  # items skipped by dedup, available for min-fill
+
     for item in candidates:
+        if len(selected) >= MAX_ITEMS:
+            break
         cat = item["category"]
         if cat in seen_categories:
             # Allow duplicate category only if both are HIGH
             if item["priority"] == HIGH and seen_categories[cat] == HIGH:
                 selected.append(item)
-                if len(selected) >= MAX_ITEMS:
-                    break
+            else:
+                overflow.append(item)
             continue
         seen_categories[cat] = item["priority"]
         selected.append(item)
-        if len(selected) >= MAX_ITEMS:
-            break
 
-    # Build flags from selected items
-    priorities = {item["priority"] for item in selected}
-    categories = {item["category"] for item in selected}
+    # ── Phase 2: Enforce medication dominance ──
+    # If overdue meds exist, they MUST be item[0] regardless of sort order
+    overdue_items = [i for i in selected if i["key"] == "medications_overdue"]
+    if overdue_items:
+        # Remove from current position, insert at 0
+        selected = [i for i in selected if i["key"] != "medications_overdue"]
+        selected.insert(0, overdue_items[0])
+
+    # ── Phase 3: Enforce minimum items (2) ──
+    # If we have only 1 item, try to fill from overflow (deduped-out items)
+    # Only allow overflow items from different categories (preserve dedup)
+    if len(selected) < MIN_ITEMS and len(candidates) >= MIN_ITEMS:
+        selected_cats = {i["category"] for i in selected}
+        for item in overflow:
+            if (item["key"] not in {s["key"] for s in selected}
+                    and item["category"] not in selected_cats):
+                selected.append(item)
+                selected_cats.add(item["category"])
+                if len(selected) >= MIN_ITEMS:
+                    break
+
+    # ── Phase 4: Ensure balance — include a positive if room + data ──
+    has_positive = any(i["priority"] == LOW for i in selected)
+    if not has_positive and len(selected) < MAX_ITEMS:
+        selected_cats = {i["category"] for i in selected}
+        low_candidates = [
+            c for c in candidates
+            if c["priority"] == LOW
+            and c["key"] not in {s["key"] for s in selected}
+            and c["category"] not in selected_cats
+        ]
+        if low_candidates:
+            selected.append(low_candidates[0])
+
+    # Final trim to MAX_ITEMS
+    selected = selected[:MAX_ITEMS]
+
+    # ── Derive summary-level priority and headline ──
+    if any(i["priority"] == HIGH for i in selected):
+        priority_level = HIGH
+    elif any(i["priority"] == MEDIUM for i in selected):
+        priority_level = MEDIUM
+    elif selected:
+        priority_level = LOW
+    else:
+        priority_level = LOW
+
+    headline = _HEADLINES.get(priority_level, _HEADLINES[LOW])
+
+    # ── Build flags ──
     keys = {item["key"] for item in selected}
 
     flags = {
-        "has_urgent": HIGH in priorities,
+        "has_urgent": any(i["priority"] == HIGH for i in selected),
         "has_medication_risk": any(
             k in keys for k in ("medications_overdue", "medication_adherence_low")
         ),
@@ -347,6 +417,8 @@ def build_health_priority_summary(health_state, medicine_state, current_dt):
     }
 
     return {
+        "headline": headline,
+        "priority_level": priority_level,
         "items": selected,
         "flags": flags,
         "generated_at": current_dt.isoformat() if current_dt else None,

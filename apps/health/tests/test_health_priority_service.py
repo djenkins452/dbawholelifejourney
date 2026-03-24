@@ -10,6 +10,10 @@ from django.utils import timezone
 from apps.health.services.health_priority_service import (
     build_health_priority_summary,
     MAX_ITEMS,
+    MIN_ITEMS,
+    HIGH,
+    MEDIUM,
+    LOW,
 )
 
 
@@ -17,8 +21,14 @@ def _now():
     return timezone.now()
 
 
+def _fresh(dt=None, hours_ago=1):
+    """Return a fresh ISO timestamp relative to dt (default: now)."""
+    base = dt or _now()
+    return (base - timedelta(hours=hours_ago)).isoformat()
+
+
 def _health_state(**overrides):
-    """Build a minimal health state dict with sensible defaults."""
+    """Build a minimal health state dict."""
     base = {}
     base.update(overrides)
     return base
@@ -42,7 +52,7 @@ def _medicine_state(**overrides):
     return base
 
 
-class TestHealthPrioritySummaryContract(TestCase):
+class TestContract(TestCase):
     """Verify the output contract shape."""
 
     def test_empty_state_returns_valid_contract(self):
@@ -50,6 +60,8 @@ class TestHealthPrioritySummaryContract(TestCase):
         self.assertIn("items", result)
         self.assertIn("flags", result)
         self.assertIn("generated_at", result)
+        self.assertIn("headline", result)
+        self.assertIn("priority_level", result)
         self.assertIsInstance(result["items"], list)
         self.assertIsInstance(result["flags"], dict)
 
@@ -64,25 +76,269 @@ class TestHealthPrioritySummaryContract(TestCase):
     def test_max_four_items(self):
         """Even with many signals, max 4 items."""
         now = _now()
-        fresh = (now - timedelta(hours=1)).isoformat()
         health = _health_state(
-            bp_systolic=190, bp_diastolic=130, last_bp_entry=fresh,
-            sleep_avg_duration_7d=300, sleep_entries_7d=5, last_sleep_entry=now.date().isoformat(),
+            bp_systolic=190, bp_diastolic=130, last_bp_entry=_fresh(now),
+            sleep_avg_duration_7d=300, sleep_entries_7d=5,
+            last_sleep_entry=now.date().isoformat(),
             steps_avg_7d=1000, steps_entries_7d=5,
-            latest_glucose=40, latest_glucose_unit="mg/dL", last_glucose_entry=fresh,
-            latest_blood_oxygen=85, last_blood_oxygen_entry=fresh,
-            latest_heart_rate=110, last_heart_rate_entry=fresh,
+            latest_glucose=40, latest_glucose_unit="mg/dL",
+            last_glucose_entry=_fresh(now),
+            latest_blood_oxygen=85, last_blood_oxygen_entry=_fresh(now),
+            latest_heart_rate=110, last_heart_rate_entry=_fresh(now),
         )
         meds = _medicine_state(
             active_count=3, expected_today=3,
-            _contract={"alerts": {"overdue": [{"medicine_name": "Med1"}], "missed": [], "needs_refill": []}},
+            _contract={"alerts": {
+                "overdue": [{"medicine_name": "Med1"}],
+                "missed": [], "needs_refill": [],
+            }},
         )
         result = build_health_priority_summary(health, meds, now)
         self.assertLessEqual(len(result["items"]), MAX_ITEMS)
 
 
+# ── FIX 1: Medication dominance ─────────────────────────────────────────────
+
+class TestMedicationDominance(TestCase):
+    """Overdue medications MUST always be item[0]."""
+
+    def test_overdue_meds_always_first(self):
+        now = _now()
+        health = _health_state(
+            bp_systolic=190, bp_diastolic=130, last_bp_entry=_fresh(now),
+            latest_blood_oxygen=85, last_blood_oxygen_entry=_fresh(now),
+        )
+        meds = _medicine_state(
+            active_count=2,
+            _contract={"alerts": {
+                "overdue": [{"medicine_name": "Aspirin"}],
+                "missed": [], "needs_refill": [],
+            }},
+        )
+        result = build_health_priority_summary(health, meds, now)
+        self.assertEqual(result["items"][0]["key"], "medications_overdue")
+
+    def test_overdue_forces_high_priority_level(self):
+        meds = _medicine_state(
+            active_count=1,
+            _contract={"alerts": {
+                "overdue": [{"medicine_name": "X"}],
+                "missed": [], "needs_refill": [],
+            }},
+        )
+        result = build_health_priority_summary({}, meds, _now())
+        self.assertEqual(result["priority_level"], HIGH)
+        self.assertTrue(result["flags"]["has_medication_risk"])
+
+    def test_overdue_count_in_message(self):
+        meds = _medicine_state(
+            active_count=3,
+            _contract={"alerts": {
+                "overdue": [
+                    {"medicine_name": "A"},
+                    {"medicine_name": "B"},
+                    {"medicine_name": "C"},
+                ],
+                "missed": [], "needs_refill": [],
+            }},
+        )
+        result = build_health_priority_summary({}, meds, _now())
+        self.assertIn("3 medications overdue", result["items"][0]["message"])
+
+
+# ── FIX 2: Minimum item count ───────────────────────────────────────────────
+
+class TestMinimumItems(TestCase):
+    """Summary should have at least 2 items when possible."""
+
+    def test_single_signal_gets_filled_if_others_available(self):
+        """Overdue meds + BP available = should get 2+ items."""
+        now = _now()
+        health = _health_state(
+            bp_systolic=115, bp_diastolic=75, last_bp_entry=_fresh(now),
+        )
+        meds = _medicine_state(
+            active_count=1,
+            _contract={"alerts": {
+                "overdue": [{"medicine_name": "X"}],
+                "missed": [], "needs_refill": [],
+            }},
+        )
+        result = build_health_priority_summary(health, meds, now)
+        self.assertGreaterEqual(len(result["items"]), MIN_ITEMS)
+
+    def test_truly_single_signal_allowed(self):
+        """If only one signal exists in total, 1 item is OK."""
+        meds = _medicine_state(
+            active_count=1,
+            _contract={"alerts": {
+                "overdue": [{"medicine_name": "X"}],
+                "missed": [], "needs_refill": [],
+            }},
+        )
+        result = build_health_priority_summary({}, meds, _now())
+        self.assertEqual(len(result["items"]), 1)
+
+
+# ── FIX 3: Headline ─────────────────────────────────────────────────────────
+
+class TestHeadline(TestCase):
+    """Headline must always be present and match priority level."""
+
+    def test_high_headline(self):
+        meds = _medicine_state(
+            active_count=1,
+            _contract={"alerts": {
+                "overdue": [{"medicine_name": "X"}],
+                "missed": [], "needs_refill": [],
+            }},
+        )
+        result = build_health_priority_summary({}, meds, _now())
+        self.assertEqual(result["headline"], "Health needs attention")
+
+    def test_medium_headline(self):
+        now = _now()
+        health = _health_state(
+            sleep_avg_duration_7d=300, sleep_entries_7d=5,
+            last_sleep_entry=now.date().isoformat(),
+        )
+        result = build_health_priority_summary(health, {}, now)
+        self.assertEqual(result["headline"], "A few things to keep in mind")
+
+    def test_low_headline(self):
+        now = _now()
+        health = _health_state(
+            bp_systolic=115, bp_diastolic=75, last_bp_entry=_fresh(now),
+        )
+        result = build_health_priority_summary(health, {}, now)
+        self.assertEqual(result["headline"], "Health looks stable")
+
+    def test_empty_headline(self):
+        result = build_health_priority_summary({}, {}, _now())
+        self.assertEqual(result["headline"], "Health looks stable")
+
+
+# ── FIX 4: Activity signal correction ───────────────────────────────────────
+
+class TestActivitySignal(TestCase):
+    """Activity message must match available data."""
+
+    def test_today_steps_with_afternoon_context(self):
+        """With today_steps + hour >= 14, use 'so far today'."""
+        now = _now().replace(hour=15, minute=0, second=0)
+        health = _health_state(
+            steps_avg_7d=2000, steps_entries_7d=5,
+            today_steps=1500,
+        )
+        result = build_health_priority_summary(health, {}, now)
+        items = [i for i in result["items"] if i["key"] == "activity_low"]
+        self.assertEqual(len(items), 1)
+        self.assertIn("so far today", items[0]["message"])
+
+    def test_no_today_steps_uses_lately(self):
+        """Without today_steps, use 'lately'."""
+        health = _health_state(steps_avg_7d=2000, steps_entries_7d=5)
+        result = build_health_priority_summary(health, {}, _now())
+        items = [i for i in result["items"] if i["key"] == "activity_low"]
+        self.assertEqual(len(items), 1)
+        self.assertIn("lately", items[0]["message"])
+
+    def test_morning_with_today_steps_uses_lately(self):
+        """Even with today_steps, morning hour < 14 uses 'lately'."""
+        now = _now().replace(hour=9, minute=0, second=0)
+        health = _health_state(
+            steps_avg_7d=2000, steps_entries_7d=5,
+            today_steps=500,
+        )
+        result = build_health_priority_summary(health, {}, now)
+        items = [i for i in result["items"] if i["key"] == "activity_low"]
+        self.assertEqual(len(items), 1)
+        self.assertIn("lately", items[0]["message"])
+
+
+# ── FIX 5: Tone standardization ─────────────────────────────────────────────
+
+class TestTone(TestCase):
+    """Messages use coaching tone, not clinical."""
+
+    def test_bp_normal_says_looks_good(self):
+        now = _now()
+        health = _health_state(
+            bp_systolic=115, bp_diastolic=75, last_bp_entry=_fresh(now),
+        )
+        result = build_health_priority_summary(health, {}, now)
+        items = [i for i in result["items"] if i["key"] == "bp_normal"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["message"], "Blood pressure looks good")
+
+    def test_spo2_normal_says_looks_good(self):
+        now = _now()
+        health = _health_state(
+            latest_blood_oxygen=98, last_blood_oxygen_entry=_fresh(now),
+        )
+        result = build_health_priority_summary(health, {}, now)
+        items = [i for i in result["items"] if i["key"] == "spo2_normal"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["message"], "Blood oxygen looks good")
+
+    def test_glucose_in_range_says_healthy_range(self):
+        now = _now()
+        health = _health_state(
+            latest_glucose=100, latest_glucose_unit="mg/dL",
+            last_glucose_entry=_fresh(now),
+        )
+        result = build_health_priority_summary(health, {}, now)
+        items = [i for i in result["items"] if i["key"] == "glucose_normal"]
+        self.assertEqual(len(items), 1)
+        self.assertIn("healthy range", items[0]["message"])
+
+    def test_no_message_contains_is_normal(self):
+        """No message should use the clinical phrase 'is normal'."""
+        now = _now()
+        health = _health_state(
+            bp_systolic=115, bp_diastolic=75, last_bp_entry=_fresh(now),
+            latest_blood_oxygen=98, last_blood_oxygen_entry=_fresh(now),
+            latest_glucose=100, latest_glucose_unit="mg/dL",
+            last_glucose_entry=_fresh(now),
+        )
+        result = build_health_priority_summary(health, {}, now)
+        for item in result["items"]:
+            self.assertNotIn("is normal", item["message"])
+
+
+# ── FIX 6: Balanced output ──────────────────────────────────────────────────
+
+class TestBalancedOutput(TestCase):
+    """Summary should include a positive if room and data exist."""
+
+    def test_positive_added_when_room_exists(self):
+        """Medium concern + available positive = include positive."""
+        now = _now()
+        health = _health_state(
+            sleep_avg_duration_7d=300, sleep_entries_7d=5,
+            last_sleep_entry=now.date().isoformat(),
+            bp_systolic=115, bp_diastolic=75, last_bp_entry=_fresh(now),
+        )
+        result = build_health_priority_summary(health, {}, now)
+        has_positive = any(i["priority"] == LOW for i in result["items"])
+        self.assertTrue(has_positive)
+
+    def test_no_false_positives_injected(self):
+        """Don't inject positive if no positive data exists."""
+        now = _now()
+        health = _health_state(
+            sleep_avg_duration_7d=300, sleep_entries_7d=5,
+            last_sleep_entry=now.date().isoformat(),
+        )
+        result = build_health_priority_summary(health, {}, now)
+        # Only sleep_short should exist — no positive data available
+        positives = [i for i in result["items"] if i["priority"] == LOW]
+        self.assertEqual(len(positives), 0)
+
+
+# ── Original tests (preserved) ──────────────────────────────────────────────
+
 class TestMedications(TestCase):
-    """Medication priority tests."""
 
     def test_overdue_meds_are_high_priority(self):
         meds = _medicine_state(
@@ -96,7 +352,6 @@ class TestMedications(TestCase):
             }},
         )
         result = build_health_priority_summary({}, meds, _now())
-        self.assertEqual(len(result["items"]), 1)
         item = result["items"][0]
         self.assertEqual(item["priority"], "high")
         self.assertEqual(item["key"], "medications_overdue")
@@ -132,25 +387,11 @@ class TestMedications(TestCase):
 
 
 class TestBloodPressure(TestCase):
-    """Blood pressure priority tests."""
-
-    def test_normal_bp_fresh_is_low(self):
-        now = _now()
-        health = _health_state(
-            bp_systolic=115, bp_diastolic=75,
-            last_bp_entry=(now - timedelta(hours=2)).isoformat(),
-        )
-        result = build_health_priority_summary(health, {}, now)
-        items = [i for i in result["items"] if i["key"] == "bp_normal"]
-        self.assertEqual(len(items), 1)
-        self.assertEqual(items[0]["priority"], "low")
-        self.assertEqual(items[0]["message"], "Blood pressure is normal")
 
     def test_crisis_bp_is_high(self):
         now = _now()
         health = _health_state(
-            bp_systolic=185, bp_diastolic=125,
-            last_bp_entry=(now - timedelta(hours=1)).isoformat(),
+            bp_systolic=185, bp_diastolic=125, last_bp_entry=_fresh(now),
         )
         result = build_health_priority_summary(health, {}, now)
         items = [i for i in result["items"] if i["key"] == "bp_crisis"]
@@ -170,8 +411,7 @@ class TestBloodPressure(TestCase):
     def test_elevated_bp_is_medium(self):
         now = _now()
         health = _health_state(
-            bp_systolic=155, bp_diastolic=95,
-            last_bp_entry=(now - timedelta(hours=3)).isoformat(),
+            bp_systolic=155, bp_diastolic=95, last_bp_entry=_fresh(now),
         )
         result = build_health_priority_summary(health, {}, now)
         items = [i for i in result["items"] if i["key"] == "bp_elevated"]
@@ -180,7 +420,6 @@ class TestBloodPressure(TestCase):
 
 
 class TestSleep(TestCase):
-    """Sleep priority tests."""
 
     def test_strong_sleep_fresh_is_low(self):
         now = _now()
@@ -216,14 +455,12 @@ class TestSleep(TestCase):
 
 
 class TestSteps(TestCase):
-    """Activity priority tests."""
 
     def test_low_steps_is_medium(self):
         health = _health_state(steps_avg_7d=2000, steps_entries_7d=5)
         result = build_health_priority_summary(health, {}, _now())
         items = [i for i in result["items"] if i["key"] == "activity_low"]
         self.assertEqual(len(items), 1)
-        self.assertEqual(items[0]["message"], "Activity has been low lately")
 
     def test_good_steps_is_low(self):
         health = _health_state(steps_avg_7d=9000, steps_entries_7d=6)
@@ -239,34 +476,23 @@ class TestSteps(TestCase):
 
 
 class TestGlucose(TestCase):
-    """Glucose priority tests."""
 
     def test_severe_low_glucose_is_high(self):
         now = _now()
         health = _health_state(
             latest_glucose=45, latest_glucose_unit="mg/dL",
-            last_glucose_entry=(now - timedelta(hours=1)).isoformat(),
+            last_glucose_entry=_fresh(now),
         )
         result = build_health_priority_summary(health, {}, now)
         items = [i for i in result["items"] if i["key"] == "glucose_severe"]
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["priority"], "high")
 
-    def test_in_range_glucose_is_low(self):
-        now = _now()
-        health = _health_state(
-            latest_glucose=100, latest_glucose_unit="mg/dL",
-            last_glucose_entry=(now - timedelta(hours=2)).isoformat(),
-        )
-        result = build_health_priority_summary(health, {}, now)
-        items = [i for i in result["items"] if i["key"] == "glucose_normal"]
-        self.assertEqual(len(items), 1)
-
     def test_mmol_conversion(self):
         now = _now()
         health = _health_state(
             latest_glucose=2.5, latest_glucose_unit="mmol/L",  # = 45 mg/dL
-            last_glucose_entry=(now - timedelta(hours=1)).isoformat(),
+            last_glucose_entry=_fresh(now),
         )
         result = build_health_priority_summary(health, {}, now)
         items = [i for i in result["items"] if i["key"] == "glucose_severe"]
@@ -277,8 +503,7 @@ class TestBloodOxygen(TestCase):
     def test_low_spo2_is_high(self):
         now = _now()
         health = _health_state(
-            latest_blood_oxygen=87,
-            last_blood_oxygen_entry=(now - timedelta(hours=1)).isoformat(),
+            latest_blood_oxygen=87, last_blood_oxygen_entry=_fresh(now),
         )
         result = build_health_priority_summary(health, {}, now)
         items = [i for i in result["items"] if i["key"] == "spo2_low"]
@@ -288,8 +513,7 @@ class TestBloodOxygen(TestCase):
     def test_normal_spo2_is_low(self):
         now = _now()
         health = _health_state(
-            latest_blood_oxygen=98,
-            last_blood_oxygen_entry=(now - timedelta(hours=1)).isoformat(),
+            latest_blood_oxygen=98, last_blood_oxygen_entry=_fresh(now),
         )
         result = build_health_priority_summary(health, {}, now)
         items = [i for i in result["items"] if i["key"] == "spo2_normal"]
@@ -300,8 +524,7 @@ class TestHeartRate(TestCase):
     def test_elevated_hr_is_medium(self):
         now = _now()
         health = _health_state(
-            latest_heart_rate=110,
-            last_heart_rate_entry=(now - timedelta(hours=1)).isoformat(),
+            latest_heart_rate=110, last_heart_rate_entry=_fresh(now),
         )
         result = build_health_priority_summary(health, {}, now)
         items = [i for i in result["items"] if i["key"] == "hr_elevated"]
@@ -310,13 +533,10 @@ class TestHeartRate(TestCase):
 
 
 class TestOrdering(TestCase):
-    """Verify items are ordered by priority."""
-
     def test_high_before_medium_before_low(self):
         now = _now()
-        fresh = (now - timedelta(hours=1)).isoformat()
         health = _health_state(
-            bp_systolic=115, bp_diastolic=75, last_bp_entry=fresh,
+            bp_systolic=115, bp_diastolic=75, last_bp_entry=_fresh(now),
             sleep_avg_duration_7d=300, sleep_entries_7d=5,
             last_sleep_entry=now.date().isoformat(),
         )
@@ -329,7 +549,6 @@ class TestOrdering(TestCase):
         )
         result = build_health_priority_summary(health, meds, now)
         priorities = [i["priority"] for i in result["items"]]
-        # HIGH should come first
         self.assertEqual(priorities[0], "high")
 
 
@@ -348,8 +567,7 @@ class TestFlags(TestCase):
     def test_positive_flag_set(self):
         now = _now()
         health = _health_state(
-            bp_systolic=115, bp_diastolic=75,
-            last_bp_entry=(now - timedelta(hours=1)).isoformat(),
+            bp_systolic=115, bp_diastolic=75, last_bp_entry=_fresh(now),
         )
         result = build_health_priority_summary(health, {}, now)
         self.assertTrue(result["flags"]["has_positive"])
@@ -364,10 +582,10 @@ class TestNoDuplicateCategories(TestCase):
     def test_only_one_vitals_item_when_not_both_high(self):
         """BP (low) and glucose (low) are both vitals — only first kept."""
         now = _now()
-        fresh = (now - timedelta(hours=1)).isoformat()
         health = _health_state(
-            bp_systolic=115, bp_diastolic=75, last_bp_entry=fresh,
-            latest_glucose=100, latest_glucose_unit="mg/dL", last_glucose_entry=fresh,
+            bp_systolic=115, bp_diastolic=75, last_bp_entry=_fresh(now),
+            latest_glucose=100, latest_glucose_unit="mg/dL",
+            last_glucose_entry=_fresh(now),
         )
         result = build_health_priority_summary(health, {}, now)
         vitals = [i for i in result["items"] if i["category"] == "vitals"]

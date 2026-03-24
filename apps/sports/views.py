@@ -7,6 +7,7 @@ optionally enriches with cached GameEvent data when available.
 """
 import logging
 from collections import OrderedDict
+from datetime import timedelta
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
@@ -124,6 +125,17 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
             if next_game:
                 opponent = next_game.get_opponent(team)
                 is_home = next_game.home_team_id == team.id
+
+                # Compute urgency level for badges/highlighting
+                if next_game.status == GameEvent.STATUS_LIVE:
+                    urgency = "live"
+                elif next_game.start_time <= now + timedelta(hours=1):
+                    urgency = "starting_soon"
+                elif next_game.start_time.date() == now.date():
+                    urgency = "today"
+                else:
+                    urgency = "upcoming"
+
                 team_info["next_game"] = {
                     "opponent": str(opponent) if opponent else "TBD",
                     "start_time": next_game.start_time,
@@ -131,6 +143,7 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
                     "is_home": is_home,
                     "status": next_game.status,
                     "score": next_game.get_score_display() if next_game.is_live else "",
+                    "urgency": urgency,
                 }
 
             if last_game:

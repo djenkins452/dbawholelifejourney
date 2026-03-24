@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: Game Urgency Badges (LIVE / STARTING SOON / TODAY)
+
+- **Feature:** My Teams hub now highlights games by urgency level
+  - LIVE: red pulsing badge + red border + subtle red background
+  - STARTING SOON (within 1 hour): orange badge + orange border
+  - TODAY: amber badge + amber-tinted row
+  - Future games: no badge, plain row
+  - Urgency computed in view (not template) from GameEvent start_time vs now
+  - TODAY/STARTING SOON show simplified time (just "7:10 PM"), future games show full date
+- Files: apps/sports/views.py, apps/sports/templates/sports/my_teams.html
+
 ## 2026-03-24 — Sports: Seed Realistic Game Events (111 games across 6 leagues)
 
 - **Feature:** New `seed_game_events` management command creates realistic upcoming and completed games

@@ -85,6 +85,18 @@
     .team-row--live {
         border-color: #ef4444;
         border-width: 2px;
+        background: rgba(239, 68, 68, 0.04);
+    }
+
+    .team-row--starting_soon {
+        border-color: #f97316;
+        border-width: 2px;
+        background: rgba(249, 115, 22, 0.04);
+    }
+
+    .team-row--today {
+        border-color: #f59e0b;
+        background: rgba(245, 158, 11, 0.03);
     }
 
     .team-info {
@@ -141,15 +153,14 @@
         animation: pulse-live 2s infinite;
     }
 
-    .status-badge--home {
-        background: var(--color-surface-alt, var(--color-border));
-        color: var(--color-text-muted);
+    .status-badge--starting_soon {
+        background: #f97316;
+        color: white;
     }
 
-    .status-badge--away {
-        background: transparent;
-        color: var(--color-text-muted);
-        border: 1px solid var(--color-border);
+    .status-badge--today {
+        background: #f59e0b;
+        color: white;
     }
 
     @keyframes pulse-live {
@@ -249,7 +260,7 @@
 
         <div class="team-list">
             {% for item in league_data.teams %}
-            <div class="team-row {% if item.next_game.status == 'live' %}team-row--live{% endif %}">
+            <div class="team-row {% if item.next_game.urgency == 'live' %}team-row--live{% elif item.next_game.urgency == 'starting_soon' %}team-row--starting_soon{% elif item.next_game.urgency == 'today' %}team-row--today{% endif %}">
                 <div class="team-info">
                     <div class="team-name">
                         {% if item.follow.priority == 1 %}<span class="priority-dot"></span>{% endif %}
@@ -257,10 +268,19 @@
                     </div>
                     <div class="team-game-info">
                         {% if item.next_game %}
-                            {% if item.next_game.status == "live" %}
+                            {% if item.next_game.urgency == "live" %}
                                 <span class="status-badge status-badge--live">LIVE</span>
                                 vs {{ item.next_game.opponent }}
                                 {% if item.next_game.score %} &middot; {{ item.next_game.score }}{% endif %}
+                            {% elif item.next_game.urgency == "starting_soon" %}
+                                <span class="status-badge status-badge--starting_soon">STARTING SOON</span>
+                                {% if item.next_game.is_home %}Home{% else %}Away{% endif %} vs {{ item.next_game.opponent }}
+                                &middot; <span class="game-time">{{ item.next_game.start_time|date:"g:i A" }}</span>
+                            {% elif item.next_game.urgency == "today" %}
+                                <span class="status-badge status-badge--today">TODAY</span>
+                                {% if item.next_game.is_home %}Home{% else %}Away{% endif %} vs {{ item.next_game.opponent }}
+                                &middot; <span class="game-time">{{ item.next_game.start_time|date:"g:i A" }}</span>
+                                {% if item.next_game.venue %} &middot; {{ item.next_game.venue }}{% endif %}
                             {% else %}
                                 {% if item.next_game.is_home %}Home{% else %}Away{% endif %} vs {{ item.next_game.opponent }}
                                 &middot; <span class="game-time">{{ item.next_game.start_time|date:"D, M j · g:i A" }}</span>

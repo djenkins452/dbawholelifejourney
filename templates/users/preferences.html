@@ -342,6 +342,23 @@
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
+
+                        <div class="toggle-option">
+                            <div class="toggle-info">
+                                <div class="module-header">
+                                    <span class="module-icon">🏈</span>
+                                    <h4>Sports</h4>
+                                    <span class="module-status status-active" data-module-status="sports_enabled">Active</span>
+                                </div>
+                                <p class="text-muted text-sm">
+                                    Track your favorite teams, get game-day signals, and let Beth factor sports events into your schedule.
+                                </p>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" name="sports_enabled" {% if form.sports_enabled.value %}checked{% endif %}>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
                     </div>
 
                     <!-- Coming Soon Modules -->
@@ -3563,7 +3580,7 @@ document.getElementById('preferences-form').addEventListener('submit', function(
 
 // Update modules count badge
 function updateModulesCount() {
-    const moduleCheckboxes = document.querySelectorAll('input[name="journal_enabled"], input[name="faith_enabled"], input[name="health_enabled"], input[name="life_enabled"], input[name="purpose_enabled"], input[name="finances_enabled"], input[name="capture_enabled"]');
+    const moduleCheckboxes = document.querySelectorAll('input[name="journal_enabled"], input[name="faith_enabled"], input[name="health_enabled"], input[name="life_enabled"], input[name="purpose_enabled"], input[name="finances_enabled"], input[name="capture_enabled"], input[name="sports_enabled"]');
     let count = 0;
     moduleCheckboxes.forEach(cb => { if (cb.checked) count++; });
     const countEl = document.getElementById('modules-enabled-count');

@@ -473,6 +473,7 @@ class PreferencesForm(forms.ModelForm):
             "capture_enabled",
             "relationships_enabled",
             "habits_enabled",
+            "sports_enabled",
             # AI
             "ai_enabled",
             "ai_data_consent",
@@ -579,6 +580,9 @@ class PreferencesForm(forms.ModelForm):
                 "class": "form-checkbox",
             }),
             "habits_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "sports_enabled": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
             }),
             "ai_enabled": forms.CheckboxInput(attrs={

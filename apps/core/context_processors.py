@@ -118,6 +118,7 @@ def theme_context(request):
         'capture_enabled': _module_defaults.get('capture', True),
         'documents_enabled': _module_defaults.get('documents', True),
         'meals_enabled': _module_defaults.get('meals', True),
+        'sports_enabled': _module_defaults.get('sports', False),
         # AI flags - defaults
         'ai_enabled': False,
         'ai_data_consent': False,
@@ -163,6 +164,7 @@ def theme_context(request):
             context['capture_enabled'] = is_module_enabled(request.user, 'capture')
             context['documents_enabled'] = is_module_enabled(request.user, 'documents')
             context['meals_enabled'] = is_module_enabled(request.user, 'meals')
+            context['sports_enabled'] = is_module_enabled(request.user, 'sports')
             # AI toggles
             context['ai_enabled'] = prefs.ai_enabled
             context['ai_data_consent'] = prefs.ai_data_consent

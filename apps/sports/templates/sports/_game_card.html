@@ -1,42 +1,34 @@
-{# Game card partial — used in urgency sections #}
-<div class="game-card {% if card_class %}game-card--{{ card_class }}{% endif %}">
-    <div class="card-top">
-        <span class="card-league">{{ item.team.league.abbreviation }}</span>
-        {% if item.next_game.urgency == "live" %}
-            <span class="card-badge card-badge--live">LIVE</span>
-        {% elif item.next_game.urgency == "starting_soon" %}
-            <span class="card-badge card-badge--soon">SOON</span>
-        {% elif item.next_game.urgency == "today" %}
-            <span class="card-badge card-badge--today">TODAY</span>
+{# Game feed item — used in urgency sections #}
+<div class="game-item {% if urgency == 'live' %}game-item--live{% elif urgency == 'soon' %}game-item--soon{% elif urgency == 'today' %}game-item--today{% endif %}">
+    <div class="item-main">
+        <div class="item-team">{{ item.team.full_name }}</div>
+        <div class="item-matchup">
+            {% if item.next_game.is_home %}vs{% else %}@{% endif %}
+            <strong>{{ item.next_game.opponent }}</strong>
+        </div>
+        {% if item.pitcher %}
+        <div class="item-sub">SP: {{ item.pitcher }}</div>
+        {% elif item.next_game.venue %}
+        <div class="item-sub">{{ item.next_game.venue }}</div>
         {% endif %}
     </div>
-
-    <div class="card-team-name">
-        {{ item.team.full_name }}
-    </div>
-
-    {% if item.record or item.streak %}
-    <div class="card-record">
-        {% if item.record %}{{ item.record }}{% endif %}{% if item.record and item.streak %} &middot; {% endif %}{% if item.streak %}<span class="card-streak card-streak--{{ item.streak.0 }}">{{ item.streak }}</span>{% endif %}
-    </div>
-    {% endif %}
-
-    <div class="card-context">
-        {% if item.next_game.urgency == "live" %}
-            vs {{ item.next_game.opponent }}
-            {% if item.next_game.score %}
-            <div class="card-score">{{ item.next_game.score }}</div>
-            {% endif %}
-        {% elif item.next_game.urgency == "starting_soon" %}
-            <span class="card-context-muted">vs</span> {{ item.next_game.opponent }} <span class="card-context-muted">&middot;</span> <strong>{{ item.next_game.start_time|date:"g:i A" }}</strong>
-        {% elif item.next_game.urgency == "today" %}
-            <span class="card-context-muted">vs</span> {{ item.next_game.opponent }} <span class="card-context-muted">&middot;</span> {{ item.next_game.start_time|date:"g:i A" }}
+    <div class="item-right">
+        {% if urgency == "live" and item.next_game.score %}
+            <div class="item-score">{{ item.next_game.score }}</div>
+            <span class="item-badge item-badge--live">LIVE</span>
+        {% elif urgency == "live" %}
+            <span class="item-badge item-badge--live">LIVE</span>
+        {% elif urgency == "soon" %}
+            <div class="item-time">{{ item.next_game.start_time|date:"g:i A" }}</div>
+            <span class="item-badge item-badge--soon">SOON</span>
+        {% elif urgency == "today" %}
+            <div class="item-time">{{ item.next_game.start_time|date:"g:i A" }}</div>
+            <span class="item-badge item-badge--today">TODAY</span>
         {% else %}
-            <span class="card-context-muted">{{ item.next_game.start_time|date:"D" }} vs</span> {{ item.next_game.opponent }} <span class="card-context-muted">&middot;</span> {{ item.next_game.start_time|date:"g:i A" }}
+            <div class="item-time">{{ item.next_game.start_time|date:"D g:i A" }}</div>
+        {% endif %}
+        {% if item.record %}
+        <div class="item-record">{{ item.record }}{% if item.streak %} &middot; <span class="streak--{{ item.streak.0 }}">{{ item.streak }}</span>{% endif %}</div>
         {% endif %}
     </div>
-
-    {% if item.pitcher %}
-    <div class="card-pitcher">SP: {{ item.pitcher }}</div>
-    {% endif %}
 </div>

@@ -38,7 +38,7 @@ def remove_emotional_domain(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('users', '0078_remove_notes_module'),
+        ('users', '0080_add_sports_module_definition'),
     ]
 
     operations = [

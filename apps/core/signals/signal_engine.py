@@ -131,6 +131,25 @@ DOMAIN_KEYWORDS = {
             "goal_work": [r"\bgoal\b", r"\bmission\b", r"\bpurpose\b"],
         },
     },
+    "sports": {
+        "phrases": [
+            r"\bwatch(?:ed|ing)? the game\b",
+            r"\bteam (?:won|lost|played)\b",
+            r"\bgame (?:tonight|today|tomorrow)\b",
+        ],
+        "keywords": [
+            r"\bgame\b",
+            r"\bplayoff\b",
+            r"\btournament\b",
+            r"\bfootball\b",
+            r"\bbasketball\b",
+            r"\bbaseball\b",
+        ],
+        "items": {
+            "watching": [r"\bwatch(?:ed|ing)?\b", r"\bgame\b", r"\bplayoff\b"],
+            "result": [r"\bwon\b", r"\blost\b", r"\bbeat\b", r"\bscor(?:e|ed|ing)\b"],
+        },
+    },
 }
 
 # ---------------------------------------------------------------------------

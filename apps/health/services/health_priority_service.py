@@ -46,7 +46,7 @@ MIN_ITEMS = 2
 
 _HEADLINES = {
     HIGH: "Health needs attention",
-    MEDIUM: "A few things to keep in mind",
+    MEDIUM: "A few things need attention",
     LOW: "Health looks stable",
 }
 
@@ -219,7 +219,7 @@ def _eval_steps(health_state, current_dt):
     has_today_context = today_steps is not None and current_dt is not None
 
     if avg < 3000:
-        if has_today_context and today_steps < 3000 and current_dt.hour >= 14:
+        if has_today_context and today_steps < 3000 and current_dt.hour >= 12:
             msg = "Activity is low so far today"
         else:
             msg = "Activity has been low lately"
@@ -278,11 +278,9 @@ def _eval_blood_oxygen(health_state, current_dt):
         return [_item("spo2_low", HIGH, "vitals",
                        "Blood oxygen is low", "lungs")]
 
-    if spo2 >= 95:
-        return [_item("spo2_normal", LOW, "vitals",
-                       "Blood oxygen looks good", "lungs")]
-
-    return []  # 90-95 — borderline, no item
+    # SpO2 >= 95 is normal for nearly everyone — too trivial for a summary slot.
+    # Only surface SpO2 when it's actually concerning.
+    return []
 
 
 def _eval_heart_rate(health_state, current_dt):

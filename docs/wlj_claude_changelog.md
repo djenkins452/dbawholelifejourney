@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Phase A Final + Phase B Health Signals
+
+**Phase A (final hardening):**
+- **A1:** MEDIUM headline → "A few things need attention" (was "to keep in mind")
+- **A2:** Activity "so far today" threshold lowered from hour >= 14 to hour >= 12
+- **A3:** SpO2 normal suppressed from positive pool (trivial for most users; only surfaces when < 90)
+- Phase A is now LOCKED.
+
+**Phase B (health signal layer):**
+- **New file:** `apps/core/signals/health_signals.py` — deterministic trend/pattern signals from canonical state
+- **Architecture:** raw data → canonical state → signals (this) → summary/Beth/nudges
+- **4 signals implemented:**
+  1. `med_adherence` — state: strong/moderate/poor, trend: improving/declining/stable/unknown
+  2. `sleep_recovery` — state: strong/moderate/poor, trend from prior 7d (when available)
+  3. `activity_momentum` — state: strong/moderate/low, trend from prior 7d
+  4. `cardio_stability` — combines BP + glucose + HR → stable/watch/unstable
+- **Trend detection:** Uses prior-period data when available (`adherence_prior_7d`, `sleep_avg_duration_prior_7d`, `steps_avg_prior_7d`). Returns `unknown` when prior data not in canonical state.
+- **Freshness gating:** Cardio stability reuses `_is_fresh()` from priority service for BP/glucose/HR
+- **Pure function:** No DB queries, no user object, no caching, no LLM
+- **Tests:** 30 tests covering all 4 signals, edge cases, missing data, trend detection, determinism
+- Files: `apps/core/signals/health_signals.py` (new), `apps/core/signals/tests/test_health_signals.py` (new), `apps/health/services/health_priority_service.py`, `apps/health/tests/test_health_priority_service.py`, `templates/health/home.html`
+
 ## 2026-03-24 — Health Summary Hardening Pass
 
 - **FIX 1 — Medication dominance:** Overdue medications are now forced to index 0 via post-generation enforcement step. Cannot be displaced by sort order.

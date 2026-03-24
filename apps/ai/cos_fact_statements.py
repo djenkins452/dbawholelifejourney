@@ -49,6 +49,9 @@ def build_locked_facts(user) -> dict:
         'routine_done': 0,
         'routine_total': 0,
         'tasks_done': 0,
+        'meds_taken': 0,
+        'meds_expected': 0,
+        'meds_all_taken': True,  # True when none scheduled (vacuous truth)
     }
 
     pending_names = []
@@ -84,6 +87,12 @@ def build_locked_facts(user) -> dict:
     raw['routine_total'] = truth['routines']['total']
     raw['routine_done'] = truth['routines']['completed']
 
+    # Medications
+    meds = truth.get('medications', {})
+    raw['meds_taken'] = meds.get('taken', 0)
+    raw['meds_expected'] = meds.get('expected', 0)
+    raw['meds_all_taken'] = meds.get('all_taken', True)
+
     # Collect pending routine item names from raw items
     for _window, items in truth['routines'].get('_raw_items', {}).items():
         for item in items:
@@ -98,6 +107,7 @@ def build_locked_facts(user) -> dict:
         'task_summary': _build_task_summary(raw['tasks_done']),
         'workout_summary': _build_workout_summary(raw),
         'journal_summary': _build_journal_summary(raw),
+        'medication_summary': _build_medication_summary(raw),
         'overall_summary': _build_overall_summary(raw),
         'next_action': build_locked_next_action(user),
         '_raw': raw,
@@ -105,13 +115,15 @@ def build_locked_facts(user) -> dict:
 
     logger.info(
         "[CoS LOCKED FACTS] user=%s prayer=%s(exp=%s) bible=%s(exp=%s) "
-        "workout=%s(exp=%s) journal=%s(exp=%s) routines=%d/%d tasks=%d",
+        "workout=%s(exp=%s) journal=%s(exp=%s) routines=%d/%d tasks=%d "
+        "meds=%d/%d(all_taken=%s)",
         user.id,
         raw['prayer_done'], raw['prayer_expected'],
         raw['bible_done'], raw['bible_expected'],
         raw['workout_done'], raw['workout_expected'],
         raw['journal_done'], raw['journal_expected'],
         raw['routine_done'], raw['routine_total'], raw['tasks_done'],
+        raw['meds_taken'], raw['meds_expected'], raw['meds_all_taken'],
     )
 
     return facts
@@ -187,6 +199,29 @@ def _build_journal_summary(raw):
         return "No journal entry scheduled today."
 
 
+def _build_medication_summary(raw):
+    """Build locked medication fact statement."""
+    expected = raw['meds_expected']
+    taken = raw['meds_taken']
+
+    if expected == 0:
+        return "No medications scheduled today."
+
+    if taken >= expected:
+        return f"All {expected} medication doses taken."
+
+    remaining = expected - taken
+    if taken == 0:
+        return (
+            f"0 of {expected} medication doses taken. "
+            f"{remaining} doses remaining."
+        )
+    return (
+        f"{taken} of {expected} medication doses taken. "
+        f"{remaining} doses remaining."
+    )
+
+
 def _build_overall_summary(raw):
     """Build locked overall day summary — only counts expected domains."""
     # Count only EXPECTED domains
@@ -232,6 +267,7 @@ def _build_overall_summary(raw):
         total_done == total_expected
         and total_expected > 0
         and raw['routine_done'] >= raw['routine_total']
+        and raw['meds_all_taken']
     ):
         return "All daily items are complete."
 
@@ -314,6 +350,7 @@ def format_locked_facts_block(facts) -> str:
         f"  Tasks: {facts['task_summary']}",
         f"  Workout: {facts['workout_summary']}",
         f"  Journal: {facts['journal_summary']}",
+        f"  Medications: {facts['medication_summary']}",
         f"  Overall: {facts['overall_summary']}",
         "",
         f"  NEXT ACTION: {facts.get('next_action', 'Unable to determine.')}",

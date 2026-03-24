@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: My Teams Hub Now Shows Followed Teams
+
+- **Feature:** Rebuilt My Teams hub (`/sports/`) to display followed teams grouped by league
+  - Teams shown with league badge (NFL, NBA, etc.) and team name
+  - Next game info displayed when GameEvent data exists (opponent, date/time, venue, home/away)
+  - "No upcoming games" fallback when no GameEvent data available
+  - Last result (W/L/T with score) shown when completed games exist
+  - Empty state with "Select Teams" CTA when no teams followed
+  - Primary team indicator (accent dot) for priority-1 follows
+  - Live game highlight with pulsing LIVE badge
+  - Module-disabled redirect to preferences still enforced
+- **Root cause of blank page:** Previous hub relied entirely on signal-derived cache (`get_user_sports_summary`) which requires GameEvent records to generate signals. With no live API provider, GameEvent table is empty → signals empty → cache empty → blank page.
+- **Fix:** View now queries UserTeamFollow directly (lightweight, indexed) and enriches with GameEvent data when available. Works with or without game data.
+- Files: apps/sports/views.py, apps/sports/templates/sports/my_teams.html
+
 ## 2026-03-24 — Wire Sports Data Seed into load_initial_data
 
 - **Fix:** Added `load_sports_data` to `COMMAND_LOADERS` in `load_initial_data.py` so sports reference data (5 sports, 8 leagues, 258 teams) is populated on production deploy via the standard data loading pipeline.

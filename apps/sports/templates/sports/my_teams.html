@@ -12,174 +12,210 @@
     }
 
     .sports-header {
-        text-align: center;
-        margin-bottom: var(--space-6);
-        padding: var(--space-4) 0;
-    }
-
-    .sports-title {
-        font-size: 1.75rem;
-        font-weight: 600;
-        color: var(--color-text);
-        margin-bottom: 0.5rem;
-    }
-
-    .sports-subtitle {
-        font-size: 0.9rem;
-        color: var(--color-text-muted);
-        letter-spacing: 0.05em;
-    }
-
-    .sports-actions {
-        text-align: center;
-        margin-bottom: var(--space-6);
-    }
-
-    .teams-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-        gap: var(--space-4);
-    }
-
-    @media (max-width: 480px) {
-        .teams-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    .team-card {
-        background: var(--color-surface);
-        border-radius: var(--radius-lg);
-        padding: var(--space-5);
-        border: 1px solid var(--color-border);
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-3);
-    }
-
-    .team-card--live {
-        border-color: var(--color-accent);
-        border-width: 2px;
-    }
-
-    .team-card-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
+        margin-bottom: var(--space-5);
+        padding-bottom: var(--space-3);
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .sports-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--color-text);
+        margin: 0;
+    }
+
+    .manage-link {
+        font-size: 0.875rem;
+        color: var(--color-accent);
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    /* League sections */
+    .league-section {
+        margin-bottom: var(--space-5);
+    }
+
+    .league-header {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        margin-bottom: var(--space-3);
+        padding-bottom: var(--space-2);
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .league-badge {
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 3px 10px;
+        border-radius: var(--radius-sm);
+        background: var(--color-accent);
+        color: white;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .league-name {
+        font-size: 0.85rem;
+        color: var(--color-text-muted);
+    }
+
+    /* Team rows */
+    .team-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+
+    .team-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--space-3) var(--space-4);
+        background: var(--color-surface);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--color-border);
+        gap: var(--space-3);
+    }
+
+    .team-row--live {
+        border-color: #ef4444;
+        border-width: 2px;
+    }
+
+    .team-info {
+        flex: 1;
+        min-width: 0;
     }
 
     .team-name {
-        font-size: 1.1rem;
+        font-size: 1rem;
         font-weight: 600;
         color: var(--color-text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
-    .team-league {
-        font-size: 0.75rem;
-        color: var(--color-text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    .team-priority {
-        font-size: 0.7rem;
-        padding: 2px 8px;
-        border-radius: var(--radius-sm);
-        background: var(--color-surface-alt, var(--color-border));
-        color: var(--color-text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    .team-priority--primary {
+    .team-name .priority-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
         background: var(--color-accent);
-        color: white;
+        margin-right: 4px;
+        vertical-align: middle;
     }
 
-    .team-status-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
-        font-size: 0.75rem;
-        padding: 2px 8px;
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    .team-status-badge--live {
-        background: #ef4444;
-        color: white;
-    }
-
-    .team-status-badge--today {
-        background: #f59e0b;
-        color: white;
-    }
-
-    .team-status-badge--starting_soon {
-        background: #f97316;
-        color: white;
-    }
-
-    .team-status-badge--upcoming {
-        background: var(--color-surface-alt, var(--color-border));
+    .team-game-info {
+        font-size: 0.825rem;
         color: var(--color-text-muted);
+        margin-top: 2px;
+        line-height: 1.4;
     }
 
-    .team-detail {
-        font-size: 0.875rem;
-        color: var(--color-text-muted);
-        line-height: 1.5;
-    }
-
-    .team-detail-label {
-        font-size: 0.7rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--color-text-muted);
-        margin-bottom: 0.25rem;
-    }
-
-    .team-detail-value {
+    .team-game-info .game-time {
         color: var(--color-text);
         font-weight: 500;
     }
 
-    .team-result {
-        display: flex;
-        align-items: center;
-        gap: var(--space-2);
+    /* Status badges */
+    .status-badge {
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: var(--radius-sm);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+        flex-shrink: 0;
     }
 
-    .result-badge {
+    .status-badge--live {
+        background: #ef4444;
+        color: white;
+        animation: pulse-live 2s infinite;
+    }
+
+    .status-badge--home {
+        background: var(--color-surface-alt, var(--color-border));
+        color: var(--color-text-muted);
+    }
+
+    .status-badge--away {
+        background: transparent;
+        color: var(--color-text-muted);
+        border: 1px solid var(--color-border);
+    }
+
+    @keyframes pulse-live {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+
+    /* Last result */
+    .last-result {
+        display: flex;
+        align-items: center;
+        gap: var(--space-1);
+        flex-shrink: 0;
+    }
+
+    .result-tag {
+        font-size: 0.75rem;
         font-weight: 700;
-        font-size: 0.875rem;
         padding: 1px 6px;
         border-radius: var(--radius-sm);
     }
 
-    .result-badge--W {
-        color: #22c55e;
-    }
+    .result-tag--W { color: #22c55e; }
+    .result-tag--L { color: #ef4444; }
+    .result-tag--T { color: var(--color-text-muted); }
 
-    .result-badge--L {
-        color: #ef4444;
-    }
-
-    .result-badge--T {
+    .result-score {
+        font-size: 0.75rem;
         color: var(--color-text-muted);
     }
 
+    /* Empty state */
     .empty-state {
         text-align: center;
-        padding: var(--space-8);
+        padding: var(--space-8) var(--space-4);
         color: var(--color-text-muted);
     }
 
-    .empty-state svg {
+    .empty-state h2 {
+        font-size: 1.1rem;
+        color: var(--color-text);
+        margin: var(--space-3) 0 var(--space-2);
+    }
+
+    .empty-state p {
+        font-size: 0.9rem;
         margin-bottom: var(--space-4);
+    }
+
+    .btn-select-teams {
+        display: inline-block;
+        padding: 10px 24px;
+        background: var(--color-accent);
+        color: white;
+        border-radius: var(--radius-md);
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+        .sports-hub { padding: var(--space-3); }
+        .team-row { flex-wrap: wrap; padding: var(--space-3); }
+        .team-info { width: 100%; }
+        .last-result { margin-top: var(--space-1); }
     }
 </style>
 {% endblock %}
@@ -188,78 +224,65 @@
 <div class="sports-hub" data-testid="sports-hub">
     <header class="sports-header">
         <h1 class="sports-title">My Teams</h1>
-        <p class="sports-subtitle">Game-day awareness & team tracking</p>
+        <a href="{% url 'sports:team_select' %}" class="manage-link">Manage Teams</a>
     </header>
-
-    <div class="sports-actions">
-        <a href="{% url 'sports:team_select' %}" class="btn btn-secondary">Manage Teams</a>
-    </div>
 
     {% if not has_teams %}
     <div class="empty-state">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <circle cx="12" cy="12" r="10"/>
-            <path d="M12 8v4l3 3"/>
+            <path d="M8 12h8M12 8v8"/>
         </svg>
-        <h2>No teams followed yet</h2>
-        <p>Select your favorite teams to get game-day signals and scheduling awareness.</p>
-        <a href="{% url 'sports:team_select' %}" class="btn btn-primary" style="margin-top: var(--space-4);">Select Teams</a>
+        <h2>You're not following any teams yet</h2>
+        <p>Select your favorite teams to track games and get scheduling awareness.</p>
+        <a href="{% url 'sports:team_select' %}" class="btn-select-teams">Select Teams</a>
     </div>
+
     {% else %}
 
-    <div class="teams-grid" id="teams-grid">
-        {% for team in team_summaries %}
-        <div class="team-card {% if team.status == 'live' %}team-card--live{% endif %}">
-            <div class="team-card-header">
-                <div>
-                    <div class="team-name">{{ team.team_name }}</div>
-                    <div class="team-league">{{ team.league }}</div>
-                </div>
-                <div style="display: flex; align-items: center; gap: var(--space-2);">
-                    {% if team.status == 'live' %}
-                    <span class="team-status-badge team-status-badge--live">LIVE</span>
-                    {% elif team.status == 'starting_soon' %}
-                    <span class="team-status-badge team-status-badge--starting_soon">Soon</span>
-                    {% elif team.status == 'today' %}
-                    <span class="team-status-badge team-status-badge--today">Today</span>
-                    {% endif %}
-                    {% if team.priority == 1 %}
-                    <span class="team-priority team-priority--primary">Primary</span>
-                    {% endif %}
-                </div>
-            </div>
+    {% for league_key, league_data in leagues_with_teams.items %}
+    <div class="league-section">
+        <div class="league-header">
+            <span class="league-badge">{{ league_key }}</span>
+            <span class="league-name">{{ league_data.league.name }}</span>
+        </div>
 
-            {% if team.next_game %}
-            <div class="team-detail">
-                <div class="team-detail-label">Next Game</div>
-                <div class="team-detail-value">
-                    vs {{ team.next_game.opponent }}
-                    {% if team.next_game.time %} &middot; {{ team.next_game.time }}{% endif %}
-                    {% if team.next_game.venue %} &middot; {{ team.next_game.venue }}{% endif %}
+        <div class="team-list">
+            {% for item in league_data.teams %}
+            <div class="team-row {% if item.next_game.status == 'live' %}team-row--live{% endif %}">
+                <div class="team-info">
+                    <div class="team-name">
+                        {% if item.follow.priority == 1 %}<span class="priority-dot"></span>{% endif %}
+                        {{ item.team.full_name }}
+                    </div>
+                    <div class="team-game-info">
+                        {% if item.next_game %}
+                            {% if item.next_game.status == "live" %}
+                                <span class="status-badge status-badge--live">LIVE</span>
+                                vs {{ item.next_game.opponent }}
+                                {% if item.next_game.score %} &middot; {{ item.next_game.score }}{% endif %}
+                            {% else %}
+                                {% if item.next_game.is_home %}Home{% else %}Away{% endif %} vs {{ item.next_game.opponent }}
+                                &middot; <span class="game-time">{{ item.next_game.start_time|date:"D, M j · g:i A" }}</span>
+                                {% if item.next_game.venue %} &middot; {{ item.next_game.venue }}{% endif %}
+                            {% endif %}
+                        {% else %}
+                            No upcoming games
+                        {% endif %}
+                    </div>
                 </div>
-                {% if team.next_game.score %}
-                <div class="team-detail-value" style="font-size: 1.1rem; font-weight: 700; margin-top: 0.25rem;">
-                    {{ team.next_game.score }}
+
+                {% if item.last_result %}
+                <div class="last-result">
+                    <span class="result-tag result-tag--{{ item.last_result.result }}">{{ item.last_result.result }}</span>
+                    <span class="result-score">{{ item.last_result.score }}</span>
                 </div>
                 {% endif %}
             </div>
-            {% endif %}
-
-            {% if team.last_result %}
-            <div class="team-detail">
-                <div class="team-detail-label">Last Result</div>
-                <div class="team-result">
-                    <span class="result-badge result-badge--{{ team.last_result.result }}">{{ team.last_result.result }}</span>
-                    <span class="team-detail-value">
-                        vs {{ team.last_result.opponent }}
-                        {% if team.last_result.score %} &middot; {{ team.last_result.score }}{% endif %}
-                    </span>
-                </div>
-            </div>
-            {% endif %}
+            {% endfor %}
         </div>
-        {% endfor %}
     </div>
+    {% endfor %}
 
     {% endif %}
 </div>

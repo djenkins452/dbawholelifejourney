@@ -6,18 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-## 2026-03-24 — Phase E: Time-Aware Health Coaching
+## 2026-03-24 — Sports: CoS Proactive Integration (FINAL)
 
-- **Feature:** `apply_time_awareness()` post-processes coaching wording based on time of day and schedule proximity. Does NOT change underlying actions, only adjusts phrasing.
-- **Rules implemented:**
-  - RULE 1 (Free window): Adds "now" to actionable items when no upcoming event within 60 min
-  - RULE 2 (Busy soon): Shifts to "after your next task" when event within 30 min
-  - RULE 3 (Medication override): Medications overdue ALWAYS say "now" — never delayed, never softened
-  - RULE 4 (Evening): Activity actions softened to "Take a short walk this evening" after 5 PM
-  - RULE 5 (Stable day): Reinforcement items get "today" appended
-- **Integration:** Called after `build_health_coaching()` in `_build_health_and_vitals()`. Reads next calendar event time from SAE state (already available). Pure function, no DB queries.
-- **Tests:** 14 new time-awareness tests. Total across all health layers: 119 tests, all passing.
-- Files: `apps/health/services/health_coaching_builder.py`, `apps/health/tests/test_health_coaching_builder.py`, `apps/core/ai_orchestrator/cos_context.py`
+- **Complete rewrite** of `_build_sports_context()` — single clean `sports` block
+  - `focus`: ONE highest-urgency game (live > starting_soon > today) with team, opponent, time
+  - `secondary`: up to 3 other today games (if any)
+  - `streaks`: active win/loss streaks >= 3 (team, type, count)
+  - `awareness`: natural-language summary Beth can reference directly
+  - Block ONLY present when actionable (live/soon/today game OR streak >= 3)
+  - Empty dict when nothing to say — Beth stays silent on sports
+- **Behavior rules:**
+  - Never interrupts higher priorities (sports block is additive context, not primary)
+  - Never exposes raw data (signal/state only)
+  - No hardcoded messages (awareness is template-built from structured data)
+  - Disabled module = zero context (verified)
+- Example output:
+  ```
+  sports.focus: {type: "game_today", team: "Atlanta Braves", opponent: "Dodgers", time: "7:10 PM"}
+  sports.awareness: "The user's Atlanta Braves (18-7) plays Dodgers today at 7:10 PM. SP: Max Fried."
+  ```
+- Files: apps/core/ai_orchestrator/cos_context.py
 
 ## 2026-03-24 — Sports: Signal Finalization — 5 Clean Signals Only
 

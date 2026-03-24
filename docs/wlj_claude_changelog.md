@@ -6,6 +6,11 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Fix: Deterministic Module Preference Sync (Eliminates Lazy Init Dependency)
+
+- **Fix:** `sync_module_preferences_on_save` now uses `get_or_create` instead of `filter().update()`, guaranteeing `UserModulePreference` rows exist on every `UserPreferences` save. Previously, if no row existed (existing user who never triggered `initialize_for_user`), the update silently did nothing and navigation never showed the module.
+  - Files: apps/users/signals.py
+
 ## 2026-03-23 — Fix: Preferences ↔ Navigation Sync (All Modules)
 
 - **Fix:** Toggling a module on the Preferences page now immediately updates navigation visibility

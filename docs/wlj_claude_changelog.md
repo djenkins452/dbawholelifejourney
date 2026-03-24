@@ -6,24 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-## 2026-03-24 — Final Hardening + Phase F: Proactive Nudging
+## 2026-03-24 — Sports: API-Sports Provider (Go Live)
 
-### Final Hardening (coaching layer LOCKED after this)
-- **FIX 1 — Action eligibility:** Coaching now validates that the action is still relevant before returning. Iterates summary items in order, skips ineligible keys. Never recommends a completed action.
-- **FIX 2 — Natural time language:** "after your next task" → "after your next task finishes". Consistent phrasing across all time-aware adjustments.
-- **FIX 3 — Signal language:** All 7-day-based reasons standardized to "this week" (replaced "lately" in sleep_short, activity_low, signal actions). No mixing of "lately"/"recently"/"over time".
-- **FIX 4 — Safety fallback:** `build_health_coaching()` now ALWAYS returns a valid dict. Empty/no-items → `"Stay consistent with your routine today"`. Never returns None.
-
-### Phase F: Proactive Nudging
-- **New file:** `apps/core/proactive/nudge_engine.py` — deterministic nudge engine that surfaces actions proactively without user asking.
-- **3 nudge types:**
-  1. `med_overdue` (HIGH) — medications overdue, max once/60 min
-  2. `signal_decline` (MEDIUM) — declining/poor signal, max once/day per signal, priority order: med_adherence > cardio > activity > sleep
-  3. `reinforcement` (LOW) — stable day encouragement, max once/day
-- **Deduplication:** Frequency limits via `last_nudges` dict with ISO timestamps. Nudges suppressed within limits.
-- **Rules:** Reuses existing coaching output, no logic duplication, no DB queries. Returns None when no nudge needed.
-- **Tests:** 15 nudge tests + 7 new hardening tests = 141 total across all health layers, all passing.
-- Files: `apps/core/proactive/nudge_engine.py` (new), `apps/core/proactive/tests/test_nudge_engine.py` (new), `apps/health/services/health_coaching_builder.py`, `apps/health/tests/test_health_coaching_builder.py`
+- **New provider:** `ApiSportsProvider` (`apps/sports/services/providers/api_sports_provider.py`)
+  - Integrates with api-sports.io family: baseball, basketball, hockey, football (soccer)
+  - Endpoints: `/games`, `/standings`, `/teams` per sport host
+  - Status mapping for all sport types (MLB innings, NBA quarters, NHL periods, MLS halves)
+  - Normalizes all responses to existing `NormalizedTeam/Game/Standing` interface
+  - Graceful failure: never raises, logs warnings, returns empty lists
+  - Rate limit awareness (logs 429 responses)
+- **Provider factory:** `get_provider()` reads `SPORTS_PROVIDER` env var
+  - `SPORTS_PROVIDER=api_sports` + `SPORTS_API_KEY=xxx` → real API
+  - Empty/unset → fixture provider (safe default)
+  - Falls back to fixture if key missing (with warning)
+- **Team linking:** `_link_teams()` matches API external_ids to DB teams by abbreviation
+  - Runs once per league, idempotent, enables standings/games sync
+- **Procfile:** Removed `seed_game_events` from startup chain (real sync replaces it)
+- **Settings:** Added `SPORTS_PROVIDER` and `SPORTS_API_KEY` env var config
+- **Railway env vars needed:**
+  - `SPORTS_PROVIDER=api_sports`
+  - `SPORTS_API_KEY=<your api-sports.io key>`
+- Files: apps/sports/services/providers/api_sports_provider.py, apps/sports/services/provider_adapter.py, apps/sports/services/sync_service.py, config/settings.py, Procfile
 
 ## 2026-03-24 — Sports: CoS Proactive Integration (FINAL)
 

@@ -125,9 +125,27 @@ class FixtureSportsProvider(BaseSportsProvider):
 
 
 def get_provider(provider_name: Optional[str] = None) -> BaseSportsProvider:
-    """Factory function to get the configured sports provider."""
-    # For now, always return fixture provider.
-    # Future: read from settings and instantiate real provider.
+    """Factory function to get the configured sports provider.
+
+    Reads SPORTS_PROVIDER env var (or Django setting) to select provider:
+    - "api_sports" → ApiSportsProvider (real API data)
+    - anything else → FixtureSportsProvider (dev/test)
+
+    Requires SPORTS_API_KEY for api_sports provider.
+    """
+    import os
+    from django.conf import settings
+
+    name = provider_name or getattr(settings, "SPORTS_PROVIDER", None) or os.environ.get("SPORTS_PROVIDER", "")
+
+    if name == "api_sports":
+        api_key = getattr(settings, "SPORTS_API_KEY", None) or os.environ.get("SPORTS_API_KEY", "")
+        if not api_key:
+            logger.warning("SPORTS_PROVIDER=api_sports but SPORTS_API_KEY not set — falling back to fixture")
+            return FixtureSportsProvider()
+        from apps.sports.services.providers.api_sports_provider import ApiSportsProvider
+        return ApiSportsProvider()
+
     return FixtureSportsProvider()
 
 

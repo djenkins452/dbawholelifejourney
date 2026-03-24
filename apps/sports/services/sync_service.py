@@ -107,6 +107,9 @@ def sync_sports_data(leagues=None, days_ahead=7, days_back=2):
             continue
 
         try:
+            # Link teams: match API external_ids to our DB teams
+            _link_teams(provider, league)
+
             # Sync standings (team records)
             standings_count = _sync_standings(provider, league)
             result["standings_updated"] += standings_count
@@ -148,6 +151,59 @@ def sync_sports_data(leagues=None, days_ahead=7, days_back=2):
     )
 
     return result
+
+
+def _link_teams(provider, league):
+    """
+    Link API external_ids to existing DB teams.
+
+    Fetches teams from the provider and matches them to our DB teams by
+    abbreviation (case-insensitive). Sets external_id on the DB team so
+    subsequent standings/games sync can match by external_id.
+
+    Only runs for teams that don't already have an external_id set.
+    Idempotent — safe to call on every sync cycle.
+    """
+    # Check if any teams already have external_ids (skip if all linked)
+    unlinked_count = Team.objects.filter(league=league, external_id="").count()
+    if unlinked_count == 0:
+        return  # All teams already linked
+
+    api_teams = provider.fetch_teams(league.slug)
+    if not api_teams:
+        return
+
+    # Build abbreviation → DB team lookup (case-insensitive)
+    db_teams_by_abbr = {
+        t.abbreviation.upper(): t
+        for t in Team.objects.filter(league=league, external_id="")
+    }
+
+    # Also build name → DB team for fallback matching
+    db_teams_by_name = {
+        t.name.lower(): t
+        for t in Team.objects.filter(league=league, external_id="")
+    }
+
+    linked = 0
+    for api_team in api_teams:
+        if not api_team.external_id:
+            continue
+
+        # Try abbreviation match first
+        db_team = db_teams_by_abbr.get(api_team.abbreviation.upper()) if api_team.abbreviation else None
+
+        # Fallback: try name match
+        if not db_team and api_team.name:
+            db_team = db_teams_by_name.get(api_team.name.lower())
+
+        if db_team:
+            db_team.external_id = api_team.external_id
+            db_team.save(update_fields=["external_id"])
+            linked += 1
+
+    if linked:
+        logger.info("Sports sync: linked %d teams for %s", linked, league.abbreviation)
 
 
 def _sync_standings(provider, league):

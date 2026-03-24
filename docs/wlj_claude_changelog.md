@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Phase E: Time-Aware Health Coaching
+
+- **Feature:** `apply_time_awareness()` post-processes coaching wording based on time of day and schedule proximity. Does NOT change underlying actions, only adjusts phrasing.
+- **Rules implemented:**
+  - RULE 1 (Free window): Adds "now" to actionable items when no upcoming event within 60 min
+  - RULE 2 (Busy soon): Shifts to "after your next task" when event within 30 min
+  - RULE 3 (Medication override): Medications overdue ALWAYS say "now" — never delayed, never softened
+  - RULE 4 (Evening): Activity actions softened to "Take a short walk this evening" after 5 PM
+  - RULE 5 (Stable day): Reinforcement items get "today" appended
+- **Integration:** Called after `build_health_coaching()` in `_build_health_and_vitals()`. Reads next calendar event time from SAE state (already available). Pure function, no DB queries.
+- **Tests:** 14 new time-awareness tests. Total across all health layers: 119 tests, all passing.
+- Files: `apps/health/services/health_coaching_builder.py`, `apps/health/tests/test_health_coaching_builder.py`, `apps/core/ai_orchestrator/cos_context.py`
+
 ## 2026-03-24 — Phase D: Beth Health Coaching Integration
 
 - **Feature:** Health priority summary + signals + coaching now flow into Beth's CoS system prompt. Beth receives deterministic "HEALTH RIGHT NOW" context and a single "CURRENT FOCUS" action.

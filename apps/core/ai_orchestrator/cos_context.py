@@ -544,6 +544,7 @@ def _build_health_and_vitals(user):
         )
         from apps.health.services.health_coaching_builder import (
             build_health_coaching,
+            apply_time_awareness,
         )
 
         h_state = get_module_state(user, 'health') or {}
@@ -554,6 +555,17 @@ def _build_health_and_vitals(user):
             h_state, m_state, user_now, signals=h_signals,
         )
         h_coaching = build_health_coaching(h_summary, h_signals)
+
+        # Time-aware adjustment: read next event from SAE calendar state
+        next_event_time = None
+        try:
+            cal_state = get_module_state(user, 'calendar') or {}
+            _next_ev = cal_state.get('next_event')
+            if _next_ev and isinstance(_next_ev, dict):
+                next_event_time = _next_ev.get('start_dt') or _next_ev.get('start')
+        except Exception:
+            pass
+        h_coaching = apply_time_awareness(h_coaching, user_now, next_event_time)
 
         result['health_right_now'] = {
             'headline': h_summary.get('headline', ''),

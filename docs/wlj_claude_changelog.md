@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: ESPN Polish Pass — Feed Layout, Hero Glow, Dense Ticker
+
+- **Refinement:** Visual polish pass on the ESPN-style Sports hub
+  - **Hero card:** 30% taller, animated glow (live/soon), 3rem score, 1.6rem time, vs/@ indicator
+  - **Feed layout:** Replaced card grid with flowing feed items (no boxes), left-border urgency indicators
+  - **Live items:** Pulsing left-border glow on entire row, not just badge
+  - **Starting soon:** Animated left-border fade
+  - **Ticker:** 40s scroll (was 60s), dot separators between items, denser spacing, smaller text
+  - **Section dividers:** Thin lines between urgency groups instead of heavy borders
+  - **Empty state:** Single "No games in the next 24 hours" (not per-team)
+  - **Micro-hierarchy:** Team name (primary) → matchup (secondary) → venue/pitcher (tertiary)
+- Files: apps/sports/templates/sports/my_teams.html, apps/sports/templates/sports/_game_card.html
+
 ## 2026-03-24 — Sports: ESPN-Style UI Transformation
 
 - **Feature:** Complete visual overhaul of /sports/ My Teams page

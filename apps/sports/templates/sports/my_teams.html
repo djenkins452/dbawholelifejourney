@@ -6,7 +6,7 @@
 {% block extra_css %}
 <style>
     /* ═══════════════════════════════════════════════════════════════
-       SPORTS HUB — ESPN-STYLE
+       SPORTS HUB — ESPN POLISH
        ═══════════════════════════════════════════════════════════════ */
 
     .sports-hub {
@@ -15,19 +15,116 @@
         padding: 0;
     }
 
+    /* ── TICKER ── */
+    .ticker-wrapper {
+        background: #0f1117;
+        overflow: hidden;
+        position: relative;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .ticker-label {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        background: #dc2626;
+        color: white;
+        font-size: 0.55rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        display: flex;
+        align-items: center;
+        padding: 0 10px;
+        z-index: 2;
+    }
+
+    .ticker-label::after {
+        content: '';
+        position: absolute;
+        right: -12px;
+        top: 0;
+        bottom: 0;
+        width: 12px;
+        background: linear-gradient(to right, #0f1117, transparent);
+        z-index: 3;
+    }
+
+    .ticker-track {
+        display: flex;
+        animation: ticker-scroll 40s linear infinite;
+        padding: 6px 0 6px 70px;
+    }
+
+    .ticker-track:hover {
+        animation-play-state: paused;
+    }
+
+    .ticker-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+        padding: 0 10px;
+        font-size: 0.66rem;
+        color: rgba(255, 255, 255, 0.75);
+    }
+
+    .ticker-sep {
+        color: rgba(255, 255, 255, 0.15);
+        font-size: 0.5rem;
+        padding: 0 2px;
+    }
+
+    .ticker-badge {
+        font-size: 0.5rem;
+        font-weight: 800;
+        padding: 1px 5px;
+        border-radius: 2px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .ticker-badge--final {
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.5);
+    }
+
+    .ticker-badge--live {
+        background: #dc2626;
+        color: white;
+    }
+
+    .ticker-badge--upcoming {
+        color: rgba(165, 180, 252, 0.7);
+    }
+
+    .ticker-league {
+        font-size: 0.48rem;
+        color: rgba(255, 255, 255, 0.2);
+        font-weight: 700;
+    }
+
+    @keyframes ticker-scroll {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
+    }
+
     /* ── HEADER ── */
     .sports-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: var(--space-4) var(--space-4) var(--space-4);
+        padding: 16px 20px 12px;
     }
 
     .sports-title {
-        font-size: 1.4rem;
-        font-weight: 700;
+        font-size: 1.3rem;
+        font-weight: 800;
         color: var(--color-text);
         margin: 0;
+        letter-spacing: -0.02em;
     }
 
     .header-right {
@@ -37,17 +134,17 @@
     }
 
     .last-updated {
-        font-size: 0.65rem;
+        font-size: 0.6rem;
         color: var(--color-text-muted);
-        opacity: 0.6;
+        opacity: 0.5;
     }
 
     .manage-link {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         color: var(--color-accent);
         text-decoration: none;
         font-weight: 600;
-        padding: 6px 14px;
+        padding: 5px 14px;
         border: 1px solid var(--color-accent);
         border-radius: 20px;
         transition: all 0.2s;
@@ -60,42 +157,53 @@
 
     /* ── HERO / FOCUS CARD ── */
     .hero-card {
-        margin: 0 var(--space-4) var(--space-4);
+        margin: 0 20px 28px;
         border-radius: 16px;
-        padding: 28px 24px 24px;
+        padding: 36px 28px 32px;
         position: relative;
         overflow: hidden;
     }
 
     .hero-card--live {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);
         border: 2px solid #ef4444;
-        box-shadow: 0 0 30px rgba(239, 68, 68, 0.15);
+        box-shadow: 0 0 40px rgba(239, 68, 68, 0.2), 0 0 80px rgba(239, 68, 68, 0.08);
+        animation: hero-glow-live 3s ease-in-out infinite;
     }
 
     .hero-card--starting_soon {
-        background: linear-gradient(135deg, #1a1a2e 0%, #1e293b 50%, #1e3a5f 100%);
+        background: linear-gradient(135deg, #1a1a2e 0%, #1e293b 40%, #1e3a5f 100%);
         border: 2px solid #f97316;
-        box-shadow: 0 0 20px rgba(249, 115, 22, 0.1);
+        box-shadow: 0 0 30px rgba(249, 115, 22, 0.15), 0 0 60px rgba(249, 115, 22, 0.06);
+        animation: hero-glow-soon 4s ease-in-out infinite;
     }
 
     .hero-card--today {
-        background: linear-gradient(135deg, #1a1a2e 0%, #1e293b 50%, #2d2b1f 100%);
-        border: 2px solid #f59e0b;
-        box-shadow: 0 0 20px rgba(245, 158, 11, 0.08);
+        background: linear-gradient(135deg, #1a1a2e 0%, #1e293b 40%, #2d2b1f 100%);
+        border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+
+    @keyframes hero-glow-live {
+        0%, 100% { box-shadow: 0 0 40px rgba(239, 68, 68, 0.2), 0 0 80px rgba(239, 68, 68, 0.08); }
+        50% { box-shadow: 0 0 50px rgba(239, 68, 68, 0.3), 0 0 100px rgba(239, 68, 68, 0.12); }
+    }
+
+    @keyframes hero-glow-soon {
+        0%, 100% { box-shadow: 0 0 30px rgba(249, 115, 22, 0.15), 0 0 60px rgba(249, 115, 22, 0.06); }
+        50% { box-shadow: 0 0 40px rgba(249, 115, 22, 0.22), 0 0 80px rgba(249, 115, 22, 0.1); }
     }
 
     .hero-badge {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        font-size: 0.65rem;
-        font-weight: 800;
+        font-size: 0.6rem;
+        font-weight: 900;
         text-transform: uppercase;
-        letter-spacing: 0.12em;
-        padding: 4px 12px;
+        letter-spacing: 0.14em;
+        padding: 4px 14px;
         border-radius: 20px;
-        margin-bottom: 16px;
+        margin-bottom: 20px;
     }
 
     .hero-badge--live {
@@ -110,356 +218,276 @@
     }
 
     .hero-badge--today {
-        background: rgba(245, 158, 11, 0.2);
+        background: rgba(245, 158, 11, 0.15);
         color: #fbbf24;
-        border: 1px solid rgba(245, 158, 11, 0.3);
+        border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+
+    @keyframes pulse-badge {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+        50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
     }
 
     .hero-league {
         position: absolute;
-        top: 16px;
-        right: 20px;
-        font-size: 0.7rem;
+        top: 18px;
+        right: 24px;
+        font-size: 0.65rem;
         font-weight: 700;
-        color: rgba(255, 255, 255, 0.35);
+        color: rgba(255, 255, 255, 0.25);
         text-transform: uppercase;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.1em;
     }
 
     .hero-matchup {
         display: flex;
-        align-items: center;
-        gap: 16px;
-        margin-bottom: 8px;
+        align-items: baseline;
+        gap: 14px;
+        flex-wrap: wrap;
     }
 
     .hero-team {
-        font-size: 1.5rem;
-        font-weight: 800;
+        font-size: 1.7rem;
+        font-weight: 900;
         color: white;
-        line-height: 1.2;
+        line-height: 1.15;
+        letter-spacing: -0.02em;
     }
 
     .hero-vs {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         font-weight: 600;
-        color: rgba(255, 255, 255, 0.4);
+        color: rgba(255, 255, 255, 0.3);
         text-transform: uppercase;
     }
 
     .hero-score {
-        font-size: 2.2rem;
+        font-size: 3rem;
         font-weight: 900;
         color: white;
-        letter-spacing: -1px;
-        margin-top: 4px;
+        letter-spacing: -2px;
+        margin-top: 12px;
+        line-height: 1;
     }
 
-    .hero-score-separator {
-        color: rgba(255, 255, 255, 0.4);
-        margin: 0 4px;
+    .hero-time {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: rgba(255, 255, 255, 0.9);
+        margin-top: 12px;
+        letter-spacing: -0.5px;
     }
 
     .hero-detail {
-        font-size: 0.85rem;
-        color: rgba(255, 255, 255, 0.6);
-        margin-top: 8px;
-    }
-
-    .hero-detail strong {
-        color: rgba(255, 255, 255, 0.85);
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.4);
+        margin-top: 10px;
     }
 
     .hero-meta {
         display: flex;
-        gap: 16px;
-        margin-top: 12px;
-        font-size: 0.75rem;
-        color: rgba(255, 255, 255, 0.4);
+        gap: 14px;
+        margin-top: 16px;
+        padding-top: 14px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        font-size: 0.72rem;
+        color: rgba(255, 255, 255, 0.35);
     }
 
-    @keyframes pulse-badge {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-        50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    .hero-meta span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
     }
 
     /* ── URGENCY SECTIONS ── */
     .urgency-section {
-        padding: 0 var(--space-4);
-        margin-bottom: 24px;
+        padding: 0 20px;
+        margin-bottom: 32px;
     }
 
-    .section-header {
+    .section-label {
         display: flex;
         align-items: center;
-        gap: 10px;
-        margin-bottom: 12px;
-        padding-bottom: 8px;
-        border-bottom: 2px solid var(--color-border);
+        gap: 8px;
+        margin-bottom: 16px;
     }
 
-    .section-icon {
-        width: 20px;
-        height: 20px;
+    .section-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
         flex-shrink: 0;
     }
 
-    .section-title {
-        font-size: 0.85rem;
+    .section-dot--live { background: #ef4444; animation: dot-pulse 1.5s infinite; }
+    .section-dot--soon { background: #f97316; }
+    .section-dot--today { background: #f59e0b; }
+    .section-dot--upcoming { background: var(--color-border); }
+
+    @keyframes dot-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+    }
+
+    .section-text {
+        font-size: 0.72rem;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.08em;
     }
 
-    .section-title--live { color: #ef4444; }
-    .section-title--soon { color: #f97316; }
-    .section-title--today { color: #f59e0b; }
-    .section-title--upcoming { color: var(--color-text-muted); }
+    .section-text--live { color: #ef4444; }
+    .section-text--soon { color: #f97316; }
+    .section-text--today { color: #f59e0b; }
+    .section-text--upcoming { color: var(--color-text-muted); opacity: 0.6; }
 
-    .section-count {
-        font-size: 0.7rem;
-        color: var(--color-text-muted);
-        margin-left: auto;
+    /* ── GAME ITEMS (Feed, not cards) ── */
+    .game-feed {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
     }
 
-    /* ── GAME CARDS GRID ── */
-    .games-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    .game-item {
+        display: flex;
+        align-items: center;
+        padding: 14px 16px;
+        border-radius: 10px;
+        transition: background 0.15s;
+        position: relative;
         gap: 12px;
     }
 
-    .game-card {
+    .game-item:hover {
         background: var(--color-surface);
-        border-radius: 12px;
-        border: 1px solid var(--color-border);
-        padding: 16px;
-        transition: transform 0.15s, box-shadow 0.15s;
-        position: relative;
-        overflow: hidden;
     }
 
-    .game-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+    .game-item--live {
+        background: rgba(239, 68, 68, 0.04);
+        animation: row-pulse-live 3s ease-in-out infinite;
     }
 
-    .game-card--live {
-        border-color: #ef4444;
-        border-width: 2px;
+    .game-item--live:hover {
+        background: rgba(239, 68, 68, 0.07);
     }
 
-    .game-card--live::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: #ef4444;
+    @keyframes row-pulse-live {
+        0%, 100% { box-shadow: inset 3px 0 0 #ef4444; }
+        50% { box-shadow: inset 3px 0 0 rgba(239, 68, 68, 0.4); }
     }
 
-    .game-card--soon {
-        border-color: #f97316;
-        border-width: 2px;
+    .game-item--soon {
+        box-shadow: inset 3px 0 0 #f97316;
+        animation: border-glow-soon 3s ease-in-out infinite;
     }
 
-    .game-card--soon::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: #f97316;
+    @keyframes border-glow-soon {
+        0%, 100% { box-shadow: inset 3px 0 0 #f97316; }
+        50% { box-shadow: inset 3px 0 0 rgba(249, 115, 22, 0.4); }
     }
 
-    .game-card--today {
-        border-color: #f59e0b;
+    .game-item--today {
+        box-shadow: inset 3px 0 0 rgba(245, 158, 11, 0.4);
     }
 
-    .game-card--today::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: #f59e0b;
+    .item-main {
+        flex: 1;
+        min-width: 0;
     }
 
-    .card-top {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 10px;
-    }
-
-    .card-league {
-        font-size: 0.6rem;
-        font-weight: 700;
-        color: var(--color-text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        opacity: 0.7;
-    }
-
-    .card-badge {
-        font-size: 0.55rem;
-        font-weight: 800;
-        padding: 2px 8px;
-        border-radius: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-    }
-
-    .card-badge--live {
-        background: #ef4444;
-        color: white;
-        animation: pulse-badge 1.5s ease-in-out infinite;
-    }
-
-    .card-badge--soon {
-        background: #f97316;
-        color: white;
-    }
-
-    .card-badge--today {
-        background: rgba(245, 158, 11, 0.15);
-        color: #d97706;
-    }
-
-    .card-team-name {
-        font-size: 1.05rem;
+    .item-team {
+        font-size: 0.95rem;
         font-weight: 700;
         color: var(--color-text);
         line-height: 1.3;
     }
 
-    .card-record {
-        font-size: 0.72rem;
+    .item-matchup {
+        font-size: 0.78rem;
         color: var(--color-text-muted);
         margin-top: 2px;
     }
 
-    .card-streak {
+    .item-matchup strong {
+        color: var(--color-text);
+    }
+
+    .item-sub {
+        font-size: 0.68rem;
+        color: var(--color-text-muted);
+        margin-top: 3px;
+        opacity: 0.7;
+    }
+
+    .item-right {
+        text-align: right;
+        flex-shrink: 0;
+    }
+
+    .item-time {
+        font-size: 0.85rem;
         font-weight: 700;
-    }
-
-    .card-streak--W { color: #22c55e; }
-    .card-streak--L { color: #ef4444; }
-
-    .card-context {
-        font-size: 0.82rem;
         color: var(--color-text);
-        margin-top: 10px;
-        padding-top: 10px;
-        border-top: 1px solid var(--color-border);
-        line-height: 1.4;
     }
 
-    .card-context-muted {
-        color: var(--color-text-muted);
-    }
-
-    .card-pitcher {
-        font-size: 0.72rem;
-        color: var(--color-text-muted);
-        margin-top: 4px;
-        font-style: italic;
-    }
-
-    .card-score {
-        font-size: 1.3rem;
-        font-weight: 800;
+    .item-score {
+        font-size: 1.15rem;
+        font-weight: 900;
         color: var(--color-text);
-        margin-top: 6px;
+        letter-spacing: -0.5px;
     }
 
-    /* ── TICKER ── */
-    .ticker-wrapper {
-        background: #111827;
-        overflow: hidden;
-        margin-bottom: 0;
-        position: relative;
-    }
-
-    .ticker-label {
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        background: #ef4444;
-        color: white;
-        font-size: 0.6rem;
+    .item-badge {
+        display: inline-block;
+        font-size: 0.5rem;
         font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        display: flex;
-        align-items: center;
-        padding: 0 12px;
-        z-index: 2;
-        white-space: nowrap;
-    }
-
-    .ticker-track {
-        display: flex;
-        animation: ticker-scroll 60s linear infinite;
-        padding: 8px 0 8px 80px;
-    }
-
-    .ticker-track:hover {
-        animation-play-state: paused;
-    }
-
-    .ticker-item {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        white-space: nowrap;
-        padding: 0 20px;
-        font-size: 0.72rem;
-        color: rgba(255, 255, 255, 0.8);
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .ticker-item:last-child {
-        border-right: none;
-    }
-
-    .ticker-badge {
-        font-size: 0.55rem;
-        font-weight: 800;
-        padding: 1px 6px;
+        padding: 2px 7px;
         border-radius: 3px;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.06em;
+        margin-top: 2px;
     }
 
-    .ticker-badge--final {
-        background: rgba(255, 255, 255, 0.15);
-        color: rgba(255, 255, 255, 0.7);
-    }
-
-    .ticker-badge--live {
+    .item-badge--live {
         background: #ef4444;
         color: white;
     }
 
-    .ticker-badge--upcoming {
-        background: rgba(99, 102, 241, 0.2);
-        color: #a5b4fc;
+    .item-badge--soon {
+        background: #f97316;
+        color: white;
     }
 
-    .ticker-league {
-        font-size: 0.5rem;
-        color: rgba(255, 255, 255, 0.3);
-        font-weight: 700;
+    .item-badge--today {
+        background: rgba(245, 158, 11, 0.12);
+        color: #d97706;
     }
 
-    @keyframes ticker-scroll {
-        0% { transform: translateX(0); }
-        100% { transform: translateX(-50%); }
+    .item-record {
+        font-size: 0.65rem;
+        color: var(--color-text-muted);
+        opacity: 0.6;
+    }
+
+    .streak--W { color: #22c55e; font-weight: 700; }
+    .streak--L { color: #ef4444; font-weight: 700; }
+
+    /* ── SECTION DIVIDER ── */
+    .section-divider {
+        height: 1px;
+        background: var(--color-border);
+        margin: 0 20px 32px;
+        opacity: 0.5;
+    }
+
+    /* ── NO GAMES STATE ── */
+    .no-games {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--color-text-muted);
+        font-size: 0.85rem;
+        opacity: 0.6;
     }
 
     /* ── EMPTY STATE ── */
@@ -470,23 +498,23 @@
     }
 
     .empty-icon {
-        width: 64px;
-        height: 64px;
+        width: 56px;
+        height: 56px;
         margin: 0 auto 16px;
-        opacity: 0.3;
+        opacity: 0.2;
     }
 
     .empty-state h2 {
-        font-size: 1.2rem;
+        font-size: 1.1rem;
         font-weight: 700;
         color: var(--color-text);
         margin: 0 0 8px;
     }
 
     .empty-state p {
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         margin-bottom: 24px;
-        max-width: 360px;
+        max-width: 320px;
         margin-left: auto;
         margin-right: auto;
     }
@@ -499,7 +527,7 @@
         border-radius: 24px;
         text-decoration: none;
         font-weight: 700;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         transition: transform 0.15s, box-shadow 0.15s;
     }
 
@@ -510,18 +538,17 @@
 
     /* ── RESPONSIVE ── */
     @media (max-width: 480px) {
-        .sports-header { padding: 12px 16px; }
-        .hero-card { margin: 0 12px 16px; padding: 20px 16px 16px; }
-        .hero-team { font-size: 1.2rem; }
-        .hero-score { font-size: 1.8rem; }
+        .sports-header { padding: 12px 16px 10px; }
+        .hero-card { margin: 0 12px 24px; padding: 28px 20px 24px; }
+        .hero-team { font-size: 1.3rem; }
+        .hero-score { font-size: 2.4rem; }
+        .hero-time { font-size: 1.3rem; }
         .urgency-section { padding: 0 12px; }
-        .games-grid { grid-template-columns: 1fr; gap: 10px; }
+        .game-item { padding: 12px; }
         .header-right { gap: 8px; }
-        .manage-link { padding: 5px 12px; font-size: 0.75rem; }
-    }
-
-    @media (max-width: 768px) {
-        .games-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+        .manage-link { padding: 4px 12px; font-size: 0.7rem; }
+        .section-divider { margin: 0 12px 24px; }
+        .hero-matchup { gap: 10px; }
     }
 </style>
 {% endblock %}
@@ -530,7 +557,6 @@
 <div class="sports-hub" data-testid="sports-hub">
 
     {% if ticker_games %}
-    <!-- ═══ TICKER ═══ -->
     <div class="ticker-wrapper">
         <div class="ticker-label">SCORES</div>
         <div class="ticker-track">
@@ -539,21 +565,20 @@
                 <span class="ticker-league">{{ t.league }}</span>
                 <span>{{ t.label }}</span>
                 <span class="ticker-badge ticker-badge--{{ t.badge_class }}">{{ t.badge }}</span>
-            </div>
+            </div>{% if not forloop.last %}<span class="ticker-sep">&bull;</span>{% endif %}
             {% endfor %}
-            {# Duplicate for infinite scroll #}
+            <span class="ticker-sep">&bull;</span>
             {% for t in ticker_games %}
             <div class="ticker-item">
                 <span class="ticker-league">{{ t.league }}</span>
                 <span>{{ t.label }}</span>
                 <span class="ticker-badge ticker-badge--{{ t.badge_class }}">{{ t.badge }}</span>
-            </div>
+            </div>{% if not forloop.last %}<span class="ticker-sep">&bull;</span>{% endif %}
             {% endfor %}
         </div>
     </div>
     {% endif %}
 
-    <!-- ═══ HEADER ═══ -->
     <header class="sports-header">
         <h1 class="sports-title">My Teams</h1>
         <div class="header-right">
@@ -565,27 +590,26 @@
     </header>
 
     {% if not has_teams %}
-    <!-- ═══ EMPTY STATE ═══ -->
     <div class="empty-state">
         <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <circle cx="12" cy="12" r="10"/>
             <path d="M8 12h8M12 8v8"/>
         </svg>
         <h2>No teams yet</h2>
-        <p>Follow your favorite teams to track games, scores, and get scheduling awareness.</p>
+        <p>Follow your favorite teams to track games and scores.</p>
         <a href="{% url 'sports:team_select' %}" class="btn-select">Select Teams</a>
     </div>
 
     {% else %}
 
     {% if focus_game %}
-    <!-- ═══ HERO / FOCUS GAME ═══ -->
+    <!-- ═══ HERO ═══ -->
     <div class="hero-card hero-card--{{ focus_game.urgency }}">
         <span class="hero-league">{{ focus_game.league }}</span>
 
         <div class="hero-badge hero-badge--{{ focus_game.urgency }}">
             {% if focus_game.urgency == "live" %}
-                <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="4"/></svg>
+                <svg width="7" height="7" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="4"/></svg>
                 LIVE
             {% elif focus_game.urgency == "starting_soon" %}
                 STARTING SOON
@@ -596,28 +620,24 @@
 
         <div class="hero-matchup">
             <span class="hero-team">{{ focus_game.team.full_name }}</span>
-            <span class="hero-vs">vs</span>
+            <span class="hero-vs">{% if focus_game.is_home %}vs{% else %}@{% endif %}</span>
             <span class="hero-team">{{ focus_game.opponent }}</span>
         </div>
 
         {% if focus_game.urgency == "live" and focus_game.score %}
         <div class="hero-score">{{ focus_game.score }}</div>
+        {% elif focus_game.urgency != "live" %}
+        <div class="hero-time">{{ focus_game.start_time|date:"g:i A" }}</div>
         {% endif %}
 
         <div class="hero-detail">
-            {% if focus_game.urgency == "live" %}
-                {% if focus_game.venue %}<strong>{{ focus_game.venue }}</strong>{% endif %}
-            {% elif focus_game.urgency == "starting_soon" %}
-                <strong>{{ focus_game.start_time|date:"g:i A" }}</strong>{% if focus_game.venue %} &middot; {{ focus_game.venue }}{% endif %}
-            {% else %}
-                <strong>{{ focus_game.start_time|date:"g:i A" }}</strong>{% if focus_game.venue %} &middot; {{ focus_game.venue }}{% endif %}
-            {% endif %}
+            {% if focus_game.venue %}{{ focus_game.venue }}{% endif %}
         </div>
 
         {% if focus_game.record or focus_game.streak or focus_game.pitcher %}
         <div class="hero-meta">
             {% if focus_game.record %}<span>{{ focus_game.record }}</span>{% endif %}
-            {% if focus_game.streak %}<span>{{ focus_game.streak }}</span>{% endif %}
+            {% if focus_game.streak %}<span class="streak--{{ focus_game.streak.0 }}">{{ focus_game.streak }}</span>{% endif %}
             {% if focus_game.pitcher %}<span>SP: {{ focus_game.pitcher }}</span>{% endif %}
         </div>
         {% endif %}
@@ -625,69 +645,68 @@
     {% endif %}
 
     {% if live_games %}
-    <!-- ═══ LIVE GAMES ═══ -->
     <div class="urgency-section">
-        <div class="section-header">
-            <svg class="section-icon" viewBox="0 0 20 20" fill="#ef4444"><circle cx="10" cy="10" r="6"/></svg>
-            <span class="section-title section-title--live">Live Now</span>
-            <span class="section-count">{{ live_games|length }}</span>
+        <div class="section-label">
+            <span class="section-dot section-dot--live"></span>
+            <span class="section-text section-text--live">Live Now</span>
         </div>
-        <div class="games-grid">
+        <div class="game-feed">
             {% for item in live_games %}
-            {% include "sports/_game_card.html" with item=item card_class="live" %}
+            {% include "sports/_game_card.html" with item=item urgency="live" %}
             {% endfor %}
         </div>
     </div>
     {% endif %}
 
     {% if soon_games %}
-    <!-- ═══ STARTING SOON ═══ -->
+    {% if live_games %}<div class="section-divider"></div>{% endif %}
     <div class="urgency-section">
-        <div class="section-header">
-            <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            <span class="section-title section-title--soon">Starting Soon</span>
-            <span class="section-count">{{ soon_games|length }}</span>
+        <div class="section-label">
+            <span class="section-dot section-dot--soon"></span>
+            <span class="section-text section-text--soon">Starting Soon</span>
         </div>
-        <div class="games-grid">
+        <div class="game-feed">
             {% for item in soon_games %}
-            {% include "sports/_game_card.html" with item=item card_class="soon" %}
+            {% include "sports/_game_card.html" with item=item urgency="soon" %}
             {% endfor %}
         </div>
     </div>
     {% endif %}
 
     {% if today_games %}
-    <!-- ═══ TODAY ═══ -->
+    {% if live_games or soon_games %}<div class="section-divider"></div>{% endif %}
     <div class="urgency-section">
-        <div class="section-header">
-            <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-            <span class="section-title section-title--today">Today</span>
-            <span class="section-count">{{ today_games|length }}</span>
+        <div class="section-label">
+            <span class="section-dot section-dot--today"></span>
+            <span class="section-text section-text--today">Today</span>
         </div>
-        <div class="games-grid">
+        <div class="game-feed">
             {% for item in today_games %}
-            {% include "sports/_game_card.html" with item=item card_class="today" %}
+            {% include "sports/_game_card.html" with item=item urgency="today" %}
             {% endfor %}
         </div>
     </div>
     {% endif %}
 
     {% if upcoming_games %}
-    <!-- ═══ UPCOMING ═══ -->
+    {% if live_games or soon_games or today_games %}<div class="section-divider"></div>{% endif %}
     <div class="urgency-section">
-        <div class="section-header">
-            <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" opacity="0.4"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            <span class="section-title section-title--upcoming">Upcoming</span>
-            <span class="section-count">{{ upcoming_games|length }}</span>
+        <div class="section-label">
+            <span class="section-dot section-dot--upcoming"></span>
+            <span class="section-text section-text--upcoming">Upcoming</span>
         </div>
-        <div class="games-grid">
+        <div class="game-feed">
             {% for item in upcoming_games %}
-            {% include "sports/_game_card.html" with item=item card_class="" %}
+            {% include "sports/_game_card.html" with item=item urgency="upcoming" %}
             {% endfor %}
         </div>
     </div>
     {% endif %}
 
-    {% endif %}{# end has_teams #}
+    {% if not live_games and not soon_games and not today_games and not upcoming_games %}
+    <div class="no-games">No games in the next 24 hours</div>
+    {% endif %}
+
+    {% endif %}
 </div>
 {% endblock %}

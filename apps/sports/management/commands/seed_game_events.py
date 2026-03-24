@@ -216,8 +216,81 @@ COMPLETED_MATCHUPS = [
 ]
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# TEAM RECORDS — realistic early-season 2026
+# Format: (league_slug, abbreviation): (wins, losses)
+# ═══════════════════════════════════════════════════════════════════════
+
+TEAM_RECORDS = {
+    # MLB
+    ("mlb", "ATL"): (18, 7), ("mlb", "LAD"): (16, 9), ("mlb", "NYY"): (15, 10),
+    ("mlb", "BOS"): (14, 11), ("mlb", "HOU"): (17, 8), ("mlb", "CHC"): (12, 13),
+    ("mlb", "STL"): (11, 14), ("mlb", "SFG"): (13, 12), ("mlb", "SD"): (14, 11),
+    ("mlb", "NYM"): (10, 15), ("mlb", "PHI"): (16, 9), ("mlb", "TB"): (13, 12),
+    ("mlb", "SEA"): (12, 13), ("mlb", "TEX"): (11, 14), ("mlb", "BAL"): (15, 10),
+    ("mlb", "DET"): (9, 16), ("mlb", "CLE"): (14, 11), ("mlb", "MIL"): (15, 10),
+    ("mlb", "CIN"): (10, 15), ("mlb", "MIN"): (13, 12), ("mlb", "KC"): (8, 17),
+    ("mlb", "COL"): (7, 18), ("mlb", "ARI"): (12, 13), ("mlb", "OAK"): (6, 19),
+    ("mlb", "LAA"): (11, 14), ("mlb", "TOR"): (12, 13), ("mlb", "WSH"): (9, 16),
+    ("mlb", "PIT"): (10, 15), ("mlb", "CWS"): (5, 20),
+    # NBA
+    ("nba", "BOS"): (58, 18), ("nba", "CLE"): (52, 24), ("nba", "OKC"): (55, 21),
+    ("nba", "DAL"): (46, 30), ("nba", "LAL"): (44, 32), ("nba", "DEN"): (50, 26),
+    ("nba", "ATL"): (38, 38), ("nba", "MIL"): (48, 28), ("nba", "CHI"): (30, 46),
+    ("nba", "IND"): (42, 34), ("nba", "PHX"): (40, 36), ("nba", "MIN"): (44, 32),
+    ("nba", "NYK"): (46, 30), ("nba", "PHI"): (39, 37), ("nba", "MIA"): (40, 36),
+    ("nba", "GSW"): (38, 38), ("nba", "LAC"): (36, 40),
+    # NHL
+    ("nhl", "FLA"): (48, 20), ("nhl", "BOS"): (44, 24), ("nhl", "DAL"): (46, 22),
+    ("nhl", "COL"): (45, 23), ("nhl", "EDM"): (43, 25), ("nhl", "VAN"): (38, 30),
+    ("nhl", "NYR"): (42, 26), ("nhl", "CAR"): (44, 24), ("nhl", "WPG"): (40, 28),
+    ("nhl", "NSH"): (36, 32), ("nhl", "TBL"): (38, 30), ("nhl", "MIN"): (37, 31),
+    ("nhl", "CGY"): (34, 34),
+    # MLS (early season)
+    ("mls", "ATL"): (5, 2), ("mls", "MIA"): (4, 3), ("mls", "LAFC"): (6, 1),
+    ("mls", "LAG"): (4, 3), ("mls", "SEA"): (5, 2), ("mls", "POR"): (3, 4),
+    ("mls", "NYC"): (4, 3), ("mls", "NYRB"): (3, 4), ("mls", "DAL"): (3, 4),
+    ("mls", "HOU"): (2, 5), ("mls", "CLB"): (4, 3), ("mls", "CIN"): (3, 4),
+    ("mls", "CLT"): (2, 5), ("mls", "MIN"): (4, 3), ("mls", "CHI"): (2, 5),
+    ("mls", "PHI"): (5, 2), ("mls", "DC"): (1, 6), ("mls", "COL"): (3, 4),
+    ("mls", "RSL"): (4, 3),
+}
+
+# ═══════════════════════════════════════════════════════════════════════
+# PROBABLE PITCHERS — (home_abbr, away_abbr): (home_pitcher, away_pitcher)
+# Applied to MLB games only
+# ═══════════════════════════════════════════════════════════════════════
+
+PROBABLE_PITCHERS = {
+    ("ATL", "LAD"): ("Max Fried", "Yoshinobu Yamamoto"),
+    ("NYY", "BOS"): ("Gerrit Cole", "Brayan Bello"),
+    ("CHC", "STL"): ("Justin Steele", "Sonny Gray"),
+    ("HOU", "TEX"): ("Framber Valdez", "Nathan Eovaldi"),
+    ("SFG", "SD"): ("Logan Webb", "Yu Darvish"),
+    ("SEA", "LAA"): ("Luis Castillo", "Tyler Anderson"),
+    ("DET", "CLE"): ("Tarik Skubal", "Tanner Bibee"),
+    ("MIL", "CIN"): ("Freddy Peralta", "Hunter Greene"),
+    ("LAD", "ATL"): ("Walker Buehler", "Chris Sale"),
+    ("BOS", "NYY"): ("Tanner Houck", "Carlos Rodon"),
+    ("STL", "CHC"): ("Miles Mikolas", "Shota Imanaga"),
+    ("TB", "TOR"): ("Zack Littell", "Kevin Gausman"),
+    ("PHI", "NYM"): ("Zack Wheeler", "Kodai Senga"),
+    ("MIN", "KC"): ("Pablo Lopez", "Seth Lugo"),
+    ("COL", "ARI"): ("Cal Quantrill", "Zac Gallen"),
+    ("BAL", "WSH"): ("Corbin Burnes", "Patrick Corbin"),
+    ("OAK", "SFG"): ("JP Sears", "Blake Snell"),
+    ("LAD", "SFG"): ("Tyler Glasnow", "Robbie Ray"),
+    ("BOS", "TB"): ("Kutter Crawford", "Shane McClanahan"),
+    ("ATL", "PHI"): ("Spencer Strider", "Aaron Nola"),
+    ("NYM", "ATL"): ("Sean Manaea", "Reynaldo Lopez"),
+    ("NYY", "BAL"): ("Marcus Stroman", "Grayson Rodriguez"),
+    ("SD", "LAD"): ("Joe Musgrove", "Gavin Stone"),
+    ("TEX", "HOU"): ("Jon Gray", "Hunter Brown"),
+}
+
+
 class Command(BaseCommand):
-    help = "Seed realistic upcoming GameEvent data for the next 5 days."
+    help = "Seed realistic upcoming GameEvent data, team records, and pitchers."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -339,3 +412,26 @@ class Command(BaseCommand):
             ).count()
             if upcoming + completed > 0:
                 self.stdout.write(f"  {league.abbreviation:6s} — {upcoming} upcoming, {completed} completed")
+
+        # Seed team records
+        records_updated = 0
+        for (league_slug, abbr), (wins, losses) in TEAM_RECORDS.items():
+            count = Team.objects.filter(
+                league__slug=league_slug, abbreviation=abbr
+            ).exclude(wins=wins, losses=losses).update(wins=wins, losses=losses)
+            records_updated += count
+        if records_updated:
+            self.stdout.write(f"\n  Updated {records_updated} team records")
+
+        # Seed probable pitchers on MLB games
+        pitchers_set = 0
+        for (home_abbr, away_abbr), (hp, ap) in PROBABLE_PITCHERS.items():
+            count = GameEvent.objects.filter(
+                home_team__abbreviation=home_abbr,
+                away_team__abbreviation=away_abbr,
+                home_team__league__slug="mlb",
+                home_probable_pitcher="",
+            ).update(home_probable_pitcher=hp, away_probable_pitcher=ap)
+            pitchers_set += count
+        if pitchers_set:
+            self.stdout.write(f"  Set pitchers on {pitchers_set} MLB games")

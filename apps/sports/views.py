@@ -2,18 +2,21 @@
 Sports Domain — Views
 
 All views gated on sports_enabled preference.
-Views read from cache/state only — no heavy queries on request path.
+Hub view reads followed teams directly (lightweight query) and
+optionally enriches with cached GameEvent data when available.
 """
 import logging
+from collections import OrderedDict
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
-from apps.sports.models import League, Team, UserTeamFollow
-from apps.sports.services.cache_manager import get_user_sports_summary
+from apps.sports.models import GameEvent, League, Team, UserTeamFollow
 
 logger = logging.getLogger(__name__)
 
@@ -32,19 +35,122 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
     """
     My Teams hub page.
 
-    Displays followed teams with next game, status, and last result.
-    All data comes from cache — no GameEvent queries on request path.
+    Displays followed teams grouped by league, with next game info
+    when GameEvent data exists. Works with or without game data.
     """
     template_name = "sports/my_teams.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["team_summaries"] = get_user_sports_summary(
-            self.request.user, warm_on_miss=True
+        user = self.request.user
+        now = timezone.now()
+
+        follows = (
+            UserTeamFollow.objects.filter(user=user, is_active=True)
+            .select_related("team__league__sport")
+            .order_by("team__league__sport__name", "team__league__name", "priority", "team__location")
         )
-        context["has_teams"] = UserTeamFollow.objects.filter(
-            user=self.request.user, is_active=True
-        ).exists()
+
+        if not follows.exists():
+            context["has_teams"] = False
+            context["leagues_with_teams"] = {}
+            return context
+
+        context["has_teams"] = True
+
+        # Collect followed team IDs for game lookup
+        team_ids = [f.team_id for f in follows]
+
+        # Find next upcoming game per team (single query, bounded)
+        upcoming_games = (
+            GameEvent.objects.filter(
+                Q(home_team_id__in=team_ids) | Q(away_team_id__in=team_ids),
+                start_time__gte=now,
+                status__in=[GameEvent.STATUS_SCHEDULED, GameEvent.STATUS_LIVE],
+            )
+            .select_related("home_team", "away_team")
+            .order_by("start_time")
+        )
+
+        # Find last completed game per team
+        recent_games = (
+            GameEvent.objects.filter(
+                Q(home_team_id__in=team_ids) | Q(away_team_id__in=team_ids),
+                status=GameEvent.STATUS_FINAL,
+            )
+            .select_related("home_team", "away_team")
+            .order_by("-start_time")
+        )
+
+        # Build next-game lookup: team_id → GameEvent
+        next_game_map = {}
+        for game in upcoming_games:
+            for tid in [game.home_team_id, game.away_team_id]:
+                if tid in team_ids and tid not in next_game_map:
+                    next_game_map[tid] = game
+
+        # Build last-result lookup: team_id → GameEvent
+        last_result_map = {}
+        for game in recent_games:
+            for tid in [game.home_team_id, game.away_team_id]:
+                if tid in team_ids and tid not in last_result_map:
+                    last_result_map[tid] = game
+
+        # Group follows by league
+        leagues_with_teams = OrderedDict()
+        for follow in follows:
+            team = follow.team
+            league = team.league
+            league_key = league.abbreviation
+
+            if league_key not in leagues_with_teams:
+                leagues_with_teams[league_key] = {
+                    "league": league,
+                    "sport": league.sport.name,
+                    "teams": [],
+                }
+
+            # Build team info dict
+            next_game = next_game_map.get(team.id)
+            last_game = last_result_map.get(team.id)
+
+            team_info = {
+                "team": team,
+                "follow": follow,
+                "next_game": None,
+                "last_result": None,
+            }
+
+            if next_game:
+                opponent = next_game.get_opponent(team)
+                is_home = next_game.home_team_id == team.id
+                team_info["next_game"] = {
+                    "opponent": str(opponent) if opponent else "TBD",
+                    "start_time": next_game.start_time,
+                    "venue": next_game.venue,
+                    "is_home": is_home,
+                    "status": next_game.status,
+                    "score": next_game.get_score_display() if next_game.is_live else "",
+                }
+
+            if last_game:
+                opponent = last_game.get_opponent(team)
+                if last_game.user_team_won(team):
+                    result = "W"
+                elif last_game.user_team_lost(team):
+                    result = "L"
+                else:
+                    result = "T"
+                team_info["last_result"] = {
+                    "opponent": str(opponent) if opponent else "TBD",
+                    "result": result,
+                    "score": last_game.get_score_display(),
+                    "date": last_game.start_time,
+                }
+
+            leagues_with_teams[league_key]["teams"].append(team_info)
+
+        context["leagues_with_teams"] = leagues_with_teams
         return context
 
 

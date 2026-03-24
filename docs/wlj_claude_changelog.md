@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: CoS Proactive Integration (FINAL)
+
+- **Complete rewrite** of `_build_sports_context()` — single clean `sports` block
+  - `focus`: ONE highest-urgency game (live > starting_soon > today) with team, opponent, time
+  - `secondary`: up to 3 other today games (if any)
+  - `streaks`: active win/loss streaks >= 3 (team, type, count)
+  - `awareness`: natural-language summary Beth can reference directly
+  - Block ONLY present when actionable (live/soon/today game OR streak >= 3)
+  - Empty dict when nothing to say — Beth stays silent on sports
+- **Behavior rules:**
+  - Never interrupts higher priorities (sports block is additive context, not primary)
+  - Never exposes raw data (signal/state only)
+  - No hardcoded messages (awareness is template-built from structured data)
+  - Disabled module = zero context (verified)
+- Example output:
+  ```
+  sports.focus: {type: "game_today", team: "Atlanta Braves", opponent: "Dodgers", time: "7:10 PM"}
+  sports.awareness: "The user's Atlanta Braves (18-7) plays Dodgers today at 7:10 PM. SP: Max Fried."
+  ```
+- Files: apps/core/ai_orchestrator/cos_context.py
+
 ## 2026-03-24 — Sports: Signal Finalization — 5 Clean Signals Only
 
 - **Cleanup:** Reduced from 8 signal types to exactly 5 required signals:

@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Fix: Medication Skip Not Triggering CoS Refresh
+
+**What:** Skipping a medication dose did not trigger CoS regeneration. The revalidator tracked `meds_taken`, `meds_expected`, and `meds_all_taken` — none of which change when a dose is skipped (skip doesn't count as taken, doesn't reduce expected, doesn't flip all_taken).
+
+**Root cause:** `medicine_utils.calculate_medicine_adherence()` computed `skipped_count` at line 69 but did not return it. The value was dropped at the source, so it never reached the execution truth engine, locked facts, or revalidator snapshot.
+
+**Fix:** Threaded `skipped` through all 4 layers:
+1. `medicine_utils.py` — return `skipped_doses` (already computed, just not returned)
+2. `execution_truth_engine.py` — add `skipped` to medications dict
+3. `cos_fact_statements.py` — add `meds_skipped` to raw, update medication summary to report skips
+4. `cos_state_revalidator.py` — add `meds_skipped` to snapshot
+
+**Files:**
+- `apps/health/medicine_utils.py` — 1 line (return skipped_doses)
+- `apps/core/execution/execution_truth_engine.py` — 2 lines (init + read skipped)
+- `apps/ai/cos_fact_statements.py` — skip field in raw dict, summary builder, log line
+- `apps/ai/cos_state_revalidator.py` — 1 line (snapshot field)
+- `apps/ai/tests/test_cos_state_revalidator.py` — 1 new test (skip detected), updated helpers
+- `apps/ai/tests/test_cos_truth_enforcement.py` — 2 new tests (skip summary), updated helpers
+
 ## 2026-03-23 — Fix: Medication State Changes Not Triggering CoS Revalidation
 
 **What:** The mid-response state revalidator (`cos_state_revalidator.py`) captured snapshots of 7 completion fields but omitted all 3 medication fields (`meds_taken`, `meds_expected`, `meds_all_taken`). If a user took a medication dose during LLM response generation, the change was invisible to the revalidator and Beth served a stale response.

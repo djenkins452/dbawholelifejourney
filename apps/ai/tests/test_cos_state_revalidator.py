@@ -27,7 +27,8 @@ def _make_raw(**overrides):
         "prayer_expected": False, "bible_expected": False,
         "workout_expected": False, "journal_expected": False,
         "routine_done": 0, "routine_total": 5, "tasks_done": 0,
-        "meds_taken": 0, "meds_expected": 0, "meds_all_taken": True,
+        "meds_taken": 0, "meds_expected": 0, "meds_skipped": 0,
+        "meds_all_taken": True,
     }
     raw.update(overrides)
     return {
@@ -59,7 +60,8 @@ class TestCaptureSnapshot(SimpleTestCase):
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
     def test_captures_medication_fields(self, mock_facts):
         mock_facts.return_value = _make_raw(
-            meds_taken=4, meds_expected=6, meds_all_taken=False,
+            meds_taken=4, meds_expected=6, meds_skipped=1,
+            meds_all_taken=False,
         )
         user = MagicMock(); user.id = 1
 
@@ -68,6 +70,7 @@ class TestCaptureSnapshot(SimpleTestCase):
         self.assertIsNotNone(snap)
         self.assertEqual(snap["meds_taken"], 4)
         self.assertEqual(snap["meds_expected"], 6)
+        self.assertEqual(snap["meds_skipped"], 1)
         self.assertFalse(snap["meds_all_taken"])
 
     def test_capture_failure_returns_none(self):
@@ -151,7 +154,8 @@ class TestHasStateChanged(SimpleTestCase):
             "prayer_done": False, "bible_done": False,
             "workout_done": False, "journal_done": False,
             "routine_done": 0, "routine_total": 5, "tasks_done": 0,
-            "meds_taken": 3, "meds_expected": 6, "meds_all_taken": False,
+            "meds_taken": 3, "meds_expected": 6, "meds_skipped": 0,
+            "meds_all_taken": False,
         }
         after = dict(before)
         after["meds_taken"] = 4
@@ -163,7 +167,8 @@ class TestHasStateChanged(SimpleTestCase):
             "prayer_done": True, "bible_done": True,
             "workout_done": True, "journal_done": True,
             "routine_done": 3, "routine_total": 3, "tasks_done": 2,
-            "meds_taken": 5, "meds_expected": 6, "meds_all_taken": False,
+            "meds_taken": 5, "meds_expected": 6, "meds_skipped": 0,
+            "meds_all_taken": False,
         }
         after = dict(before)
         after["meds_taken"] = 6
@@ -176,6 +181,20 @@ class TestHasStateChanged(SimpleTestCase):
             "prayer_done": False, "bible_done": False,
             "workout_done": False, "journal_done": False,
             "routine_done": 0, "routine_total": 5, "tasks_done": 0,
-            "meds_taken": 4, "meds_expected": 6, "meds_all_taken": False,
+            "meds_taken": 4, "meds_expected": 6, "meds_skipped": 0,
+            "meds_all_taken": False,
         }
         self.assertFalse(has_state_changed(snap, dict(snap)))
+
+    def test_medication_skip_detected(self):
+        before = {
+            "prayer_done": False, "bible_done": False,
+            "workout_done": False, "journal_done": False,
+            "routine_done": 0, "routine_total": 5, "tasks_done": 0,
+            "meds_taken": 3, "meds_expected": 6, "meds_skipped": 0,
+            "meds_all_taken": False,
+        }
+        after = dict(before)
+        after["meds_skipped"] = 1
+
+        self.assertTrue(has_state_changed(before, after))

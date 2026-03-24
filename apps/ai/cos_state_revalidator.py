@@ -45,6 +45,7 @@ def capture_state_snapshot(user) -> dict:
             "tasks_done": raw.get("tasks_done", 0),
             "meds_taken": raw.get("meds_taken", 0),
             "meds_expected": raw.get("meds_expected", 0),
+            "meds_skipped": raw.get("meds_skipped", 0),
             "meds_all_taken": raw.get("meds_all_taken", True),
         }
     except Exception:

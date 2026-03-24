@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: ESPN-Style UI Transformation
+
+- **Feature:** Complete visual overhaul of /sports/ My Teams page
+  - **Hero card:** Dark gradient background, large typography, pulsing LIVE badge, score display
+  - **Urgency-first layout:** Games grouped by LIVE → STARTING SOON → TODAY → UPCOMING (not by league)
+  - **Game cards grid:** Hoverable cards with color-coded top borders, record/streak, context lines
+  - **Scores ticker:** Horizontal auto-scrolling bar showing ALL recent/upcoming games, pauses on hover
+  - **Responsive:** Mobile-optimized grid, compact ticker, touch-friendly cards
+- Files: apps/sports/views.py, apps/sports/templates/sports/my_teams.html, apps/sports/templates/sports/_game_card.html (new)
+
 ## 2026-03-24 — Sports: Limit API to MLB + NCAA Basketball Only
 
 - **Change:** Disabled NHL, MLS, NBA API sync to conserve free-plan calls (100/day)

@@ -1,0 +1,42 @@
+{# Game card partial — used in urgency sections #}
+<div class="game-card {% if card_class %}game-card--{{ card_class }}{% endif %}">
+    <div class="card-top">
+        <span class="card-league">{{ item.team.league.abbreviation }}</span>
+        {% if item.next_game.urgency == "live" %}
+            <span class="card-badge card-badge--live">LIVE</span>
+        {% elif item.next_game.urgency == "starting_soon" %}
+            <span class="card-badge card-badge--soon">SOON</span>
+        {% elif item.next_game.urgency == "today" %}
+            <span class="card-badge card-badge--today">TODAY</span>
+        {% endif %}
+    </div>
+
+    <div class="card-team-name">
+        {{ item.team.full_name }}
+    </div>
+
+    {% if item.record or item.streak %}
+    <div class="card-record">
+        {% if item.record %}{{ item.record }}{% endif %}{% if item.record and item.streak %} &middot; {% endif %}{% if item.streak %}<span class="card-streak card-streak--{{ item.streak.0 }}">{{ item.streak }}</span>{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="card-context">
+        {% if item.next_game.urgency == "live" %}
+            vs {{ item.next_game.opponent }}
+            {% if item.next_game.score %}
+            <div class="card-score">{{ item.next_game.score }}</div>
+            {% endif %}
+        {% elif item.next_game.urgency == "starting_soon" %}
+            <span class="card-context-muted">vs</span> {{ item.next_game.opponent }} <span class="card-context-muted">&middot;</span> <strong>{{ item.next_game.start_time|date:"g:i A" }}</strong>
+        {% elif item.next_game.urgency == "today" %}
+            <span class="card-context-muted">vs</span> {{ item.next_game.opponent }} <span class="card-context-muted">&middot;</span> {{ item.next_game.start_time|date:"g:i A" }}
+        {% else %}
+            <span class="card-context-muted">{{ item.next_game.start_time|date:"D" }} vs</span> {{ item.next_game.opponent }} <span class="card-context-muted">&middot;</span> {{ item.next_game.start_time|date:"g:i A" }}
+        {% endif %}
+    </div>
+
+    {% if item.pitcher %}
+    <div class="card-pitcher">SP: {{ item.pitcher }}</div>
+    {% endif %}
+</div>

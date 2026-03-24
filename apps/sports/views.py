@@ -180,40 +180,93 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
 
         context["leagues_with_teams"] = leagues_with_teams
 
-        # Pick ONE focus game: highest urgency, then highest follow priority
-        urgency_rank = {"live": 0, "starting_soon": 1, "today": 2}
-        focus_game = None
-        focus_rank = 99
-
+        # ── Urgency-grouped list (LIVE/SOON → TODAY → UPCOMING) ──
+        urgency_rank = {"live": 0, "starting_soon": 1, "today": 2, "upcoming": 3}
+        all_team_items = []
         for league_data in leagues_with_teams.values():
             for item in league_data["teams"]:
-                ng = item.get("next_game")
-                if not ng or ng.get("urgency") not in urgency_rank:
-                    continue
-                rank = urgency_rank[ng["urgency"]]
-                priority = item["follow"].priority
-                if rank < focus_rank or (rank == focus_rank and priority < getattr(focus_game, "_priority", 99)):
-                    focus_game = {
-                        "team": item["team"],
-                        "opponent": ng["opponent"],
-                        "urgency": ng["urgency"],
-                        "start_time": ng["start_time"],
-                        "venue": ng.get("venue", ""),
-                        "score": ng.get("score", ""),
-                        "is_home": ng.get("is_home", True),
-                        "league": item["team"].league.abbreviation,
-                        "_priority": priority,
-                    }
-                    focus_rank = rank
+                all_team_items.append(item)
+
+        # Sort: urgency first, then priority, then name
+        all_team_items.sort(key=lambda x: (
+            urgency_rank.get(
+                x.get("next_game", {}).get("urgency", "upcoming") if x.get("next_game") else "upcoming",
+                99
+            ),
+            x["follow"].priority,
+            x["team"].location,
+        ))
+
+        # Split into urgency groups
+        context["live_games"] = [i for i in all_team_items if i.get("next_game") and i["next_game"].get("urgency") == "live"]
+        context["soon_games"] = [i for i in all_team_items if i.get("next_game") and i["next_game"].get("urgency") == "starting_soon"]
+        context["today_games"] = [i for i in all_team_items if i.get("next_game") and i["next_game"].get("urgency") == "today"]
+        context["upcoming_games"] = [i for i in all_team_items if i.get("next_game") and i["next_game"].get("urgency") == "upcoming"]
+        context["no_game_teams"] = [i for i in all_team_items if not i.get("next_game") or not i["next_game"].get("urgency")]
+
+        # ── Focus game: single highest-urgency game ──
+        focus_game = None
+        focus_rank = 99
+        for item in all_team_items:
+            ng = item.get("next_game")
+            if not ng or ng.get("urgency") not in {"live", "starting_soon", "today"}:
+                continue
+            rank = urgency_rank[ng["urgency"]]
+            priority = item["follow"].priority
+            if rank < focus_rank or (rank == focus_rank and priority < getattr(focus_game, "_priority", 99)):
+                focus_game = {
+                    "team": item["team"],
+                    "opponent": ng["opponent"],
+                    "urgency": ng["urgency"],
+                    "start_time": ng["start_time"],
+                    "venue": ng.get("venue", ""),
+                    "score": ng.get("score", ""),
+                    "is_home": ng.get("is_home", True),
+                    "league": item["team"].league.abbreviation,
+                    "pitcher": item.get("pitcher", ""),
+                    "record": item.get("record", ""),
+                    "streak": item.get("streak", ""),
+                    "_priority": priority,
+                }
+                focus_rank = rank
 
         if focus_game:
             focus_game.pop("_priority", None)
         context["focus_game"] = focus_game
 
-        # Last updated timestamp — scoped to user's followed teams only
-        context["last_updated"] = _get_last_updated(team_ids, now)
+        # ── Ticker: ALL recent + upcoming games (not just user's teams) ──
+        ticker_games = []
+        ticker_window = (
+            GameEvent.objects.filter(
+                start_time__gte=now - timedelta(hours=48),
+                start_time__lte=now + timedelta(hours=48),
+            )
+            .select_related("home_team__league", "away_team")
+            .order_by("-start_time")[:60]
+        )
+        for g in ticker_window:
+            if g.status == GameEvent.STATUS_FINAL:
+                label = f"{g.home_team.full_name} {g.home_score}–{g.away_score} {g.away_team.full_name}"
+                badge = "FINAL"
+                badge_class = "final"
+            elif g.status == GameEvent.STATUS_LIVE:
+                label = f"{g.home_team.full_name} {g.home_score or 0}–{g.away_score or 0} {g.away_team.full_name}"
+                badge = "LIVE"
+                badge_class = "live"
+            else:
+                label = f"{g.home_team.full_name} vs {g.away_team.full_name}"
+                badge = g.start_time.strftime("%-I:%M %p")
+                badge_class = "upcoming"
+            ticker_games.append({
+                "label": label,
+                "badge": badge,
+                "badge_class": badge_class,
+                "league": g.home_team.league.abbreviation,
+            })
+        context["ticker_games"] = ticker_games
 
-        # Provider label for data source indicator
+        # ── Metadata ──
+        context["last_updated"] = _get_last_updated(team_ids, now)
         from apps.sports.services.provider_adapter import get_provider
         provider = get_provider()
         context["data_source"] = "Live data" if provider.provider_name() != "fixture" else "Simulated"

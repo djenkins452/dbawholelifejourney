@@ -182,7 +182,8 @@ def get_todays_routine_items(user):
                 time_str = ''
                 if source_display_time:
                     try:
-                        time_str = f" at {source_display_time.strftime('%I:%M %p').lstrip('0')}"
+                        local_time = source_display_time.astimezone(user_now.tzinfo)
+                        time_str = f" at {local_time.strftime('%I:%M %p').lstrip('0')}"
                     except Exception:
                         pass
                 completion_via_label = f"Completed via {source_display_name}{time_str}"
@@ -191,7 +192,8 @@ def get_todays_routine_items(user):
                 time_str = ''
                 if log and log.completed_at:
                     try:
-                        time_str = f" at {log.completed_at.strftime('%I:%M %p').lstrip('0')}"
+                        local_time = log.completed_at.astimezone(user_now.tzinfo)
+                        time_str = f" at {local_time.strftime('%I:%M %p').lstrip('0')}"
                     except Exception:
                         pass
                 from apps.life.models import RoutineLog as _RL
@@ -225,7 +227,7 @@ def get_todays_routine_items(user):
             'completion_via_label': completion_via_label,
             'source_display_name': source_display_name,
             'source_display_time': (
-                source_display_time.strftime('%I:%M %p').lstrip('0')
+                source_display_time.astimezone(user_now.tzinfo).strftime('%I:%M %p').lstrip('0')
                 if source_display_time else None
             ),
             # Execution truth

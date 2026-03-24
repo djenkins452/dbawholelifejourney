@@ -120,9 +120,6 @@
         font-size: 1rem;
         font-weight: 600;
         color: var(--color-text);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
     }
 
     .team-name .priority-dot {
@@ -135,50 +132,32 @@
         vertical-align: middle;
     }
 
-    .team-record {
+    .team-meta {
         font-size: 0.75rem;
-        font-weight: 500;
         color: var(--color-text-muted);
-        margin-left: 6px;
+        margin-top: 1px;
     }
 
     .team-streak {
-        font-size: 0.65rem;
         font-weight: 700;
-        padding: 1px 5px;
-        border-radius: var(--radius-sm);
-        margin-left: 4px;
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
+        margin-left: 2px;
     }
 
-    .team-streak--W {
-        color: #22c55e;
-        background: rgba(34, 197, 94, 0.1);
-    }
+    .team-streak--W { color: #22c55e; }
+    .team-streak--L { color: #ef4444; }
 
-    .team-streak--L {
-        color: #ef4444;
-        background: rgba(239, 68, 68, 0.1);
+    .team-context {
+        font-size: 0.825rem;
+        color: var(--color-text-muted);
+        margin-top: 4px;
+        line-height: 1.3;
     }
 
     .team-pitcher {
         font-size: 0.75rem;
         color: var(--color-text-muted);
-        margin-top: 2px;
+        margin-top: 1px;
         font-style: italic;
-    }
-
-    .team-game-info {
-        font-size: 0.825rem;
-        color: var(--color-text-muted);
-        margin-top: 2px;
-        line-height: 1.4;
-    }
-
-    .team-game-info .game-time {
-        color: var(--color-text);
-        font-weight: 500;
     }
 
     /* Status badges */
@@ -214,28 +193,11 @@
         50% { opacity: 0.7; }
     }
 
-    /* Last result */
-    .last-result {
-        display: flex;
-        align-items: center;
-        gap: var(--space-1);
-        flex-shrink: 0;
-    }
-
-    .result-tag {
-        font-size: 0.75rem;
-        font-weight: 700;
-        padding: 1px 6px;
-        border-radius: var(--radius-sm);
-    }
-
-    .result-tag--W { color: #22c55e; }
-    .result-tag--L { color: #ef4444; }
-    .result-tag--T { color: var(--color-text-muted); }
-
-    .result-score {
-        font-size: 0.75rem;
+    .data-source {
+        font-size: 0.65rem;
         color: var(--color-text-muted);
+        opacity: 0.5;
+        margin-left: 2px;
     }
 
     /* Focus game card */
@@ -341,9 +303,8 @@
     /* Responsive */
     @media (max-width: 480px) {
         .sports-hub { padding: var(--space-3); }
-        .team-row { flex-wrap: wrap; padding: var(--space-3); }
+        .team-row { padding: var(--space-3); }
         .team-info { width: 100%; }
-        .last-result { margin-top: var(--space-1); }
     }
 </style>
 {% endblock %}
@@ -353,7 +314,7 @@
     <header class="sports-header">
         <h1 class="sports-title">My Teams</h1>
         <div class="header-meta">
-            {% if last_updated %}<span class="last-updated">Updated {{ last_updated.relative }}</span>{% endif %}
+            {% if last_updated %}<span class="last-updated">Updated {{ last_updated.relative }} <span class="data-source">&middot; {{ data_source }}</span></span>{% endif %}
             <a href="{% url 'sports:team_select' %}" class="manage-link">Manage Teams</a>
         </div>
     </header>
@@ -416,44 +377,19 @@
                     <div class="team-name">
                         {% if item.follow.priority == 1 %}<span class="priority-dot"></span>{% endif %}
                         {{ item.team.full_name }}
-                        {% if item.record %}<span class="team-record">{{ item.record }}</span>{% endif %}
-                        {% if item.streak %}<span class="team-streak team-streak--{{ item.streak.0 }}">{{ item.streak }}</span>{% endif %}
                     </div>
-                    <div class="team-game-info">
-                        {% if item.next_game %}
-                            {% if item.next_game.urgency == "live" %}
-                                <span class="status-badge status-badge--live">LIVE</span>
-                                vs {{ item.next_game.opponent }}
-                                {% if item.next_game.score %} &middot; {{ item.next_game.score }}{% endif %}
-                            {% elif item.next_game.urgency == "starting_soon" %}
-                                <span class="status-badge status-badge--starting_soon">STARTING SOON</span>
-                                {% if item.next_game.is_home %}Home{% else %}Away{% endif %} vs {{ item.next_game.opponent }}
-                                &middot; <span class="game-time">{{ item.next_game.start_time|date:"g:i A" }}</span>
-                            {% elif item.next_game.urgency == "today" %}
-                                <span class="status-badge status-badge--today">TODAY</span>
-                                {% if item.next_game.is_home %}Home{% else %}Away{% endif %} vs {{ item.next_game.opponent }}
-                                &middot; <span class="game-time">{{ item.next_game.start_time|date:"g:i A" }}</span>
-                                {% if item.next_game.venue %} &middot; {{ item.next_game.venue }}{% endif %}
-                            {% else %}
-                                {% if item.next_game.is_home %}Home{% else %}Away{% endif %} vs {{ item.next_game.opponent }}
-                                &middot; <span class="game-time">{{ item.next_game.start_time|date:"D, M j · g:i A" }}</span>
-                                {% if item.next_game.venue %} &middot; {{ item.next_game.venue }}{% endif %}
-                            {% endif %}
-                            {% if item.next_game.pitcher %}
-                            <div class="team-pitcher">SP: {{ item.next_game.pitcher }}</div>
-                            {% endif %}
-                        {% else %}
-                            No upcoming games
-                        {% endif %}
+                    {% if item.record or item.streak %}
+                    <div class="team-meta">
+                        {% if item.record %}{{ item.record }}{% endif %}{% if item.record and item.streak %} &middot; {% endif %}{% if item.streak %}<span class="team-streak team-streak--{{ item.streak.0 }}">{{ item.streak }}</span>{% endif %}
                     </div>
+                    {% endif %}
+                    <div class="team-context">
+                        {% if item.next_game and item.next_game.urgency == "live" %}<span class="status-badge status-badge--live">LIVE</span> {% elif item.next_game and item.next_game.urgency == "starting_soon" %}<span class="status-badge status-badge--starting_soon">SOON</span> {% elif item.next_game and item.next_game.urgency == "today" %}<span class="status-badge status-badge--today">TODAY</span> {% endif %}{{ item.context_line }}
+                    </div>
+                    {% if item.pitcher %}
+                    <div class="team-pitcher">SP: {{ item.pitcher }}</div>
+                    {% endif %}
                 </div>
-
-                {% if item.last_result %}
-                <div class="last-result">
-                    <span class="result-tag result-tag--{{ item.last_result.result }}">{{ item.last_result.result }}</span>
-                    <span class="result-score">{{ item.last_result.score }}</span>
-                </div>
-                {% endif %}
             </div>
             {% endfor %}
         </div>

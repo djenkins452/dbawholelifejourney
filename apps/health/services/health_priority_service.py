@@ -383,6 +383,80 @@ def _select_signal_for_summary(signals, selected_keys):
     return None
 
 
+# ── Backfill: neutral items from gap-zone state ─────────────────────────────
+
+def _generate_backfill_items(health_state, medicine_state, current_dt,
+                              exclude_keys):
+    """
+    Generate neutral/gap-zone items for minimum-fill when primary evaluators
+    produced too few candidates.
+
+    These cover metrics that exist in state but fell in "acceptable" ranges
+    (e.g., sleep 6-7h, steps 3000-7500, BP 120-139). Freshness-gated.
+
+    Returns list of LOW items, ordered by preference: sleep, activity,
+    glucose, medications.
+    """
+    items = []
+
+    # Sleep: 6-7h is acceptable — worth mentioning
+    if "sleep_short" not in exclude_keys and "sleep_strong" not in exclude_keys:
+        if _is_fresh("last_sleep_entry", health_state, current_dt, "sleep"):
+            avg = health_state.get("sleep_avg_duration_7d")
+            entries = health_state.get("sleep_entries_7d", 0)
+            if avg is not None and entries > 0 and 360 <= avg < 420:
+                items.append(_item("sleep_adequate", LOW, "recovery",
+                                   "Sleep has been adequate", "moon"))
+
+    # Steps: 3000-7500 is moderate — worth mentioning
+    if "activity_low" not in exclude_keys and "activity_on_track" not in exclude_keys:
+        avg = health_state.get("steps_avg_7d")
+        entries = health_state.get("steps_entries_7d", 0)
+        if avg is not None and entries > 0 and 3000 <= avg < 7500:
+            items.append(_item("activity_moderate", LOW, "fitness",
+                               "Activity has been moderate", "shoe"))
+
+    # BP: 120-139 / 80-89 is elevated but not concerning
+    if "bp_normal" not in exclude_keys and "bp_elevated" not in exclude_keys:
+        if _is_fresh("last_bp_entry", health_state, current_dt, "bp"):
+            sys = health_state.get("bp_systolic")
+            dia = health_state.get("bp_diastolic")
+            if sys is not None and dia is not None:
+                if 120 <= sys < 140 and dia < 90:
+                    items.append(_item("bp_acceptable", LOW, "vitals",
+                                       "Blood pressure is slightly elevated",
+                                       "heart"))
+
+    # Glucose: 140-180 is mildly elevated
+    if "glucose_normal" not in exclude_keys and "glucose_concern" not in exclude_keys:
+        if _is_fresh("last_glucose_entry", health_state, current_dt, "glucose"):
+            value = health_state.get("latest_glucose")
+            unit = health_state.get("latest_glucose_unit", "mg/dL")
+            if value is not None:
+                mg_dl = value * 18.0 if unit == "mmol/L" else value
+                if 140 < mg_dl <= 180:
+                    items.append(_item("glucose_mildly_elevated", LOW, "vitals",
+                                       "Blood sugar is slightly elevated",
+                                       "drop"))
+
+    # Medication on track (if not already present)
+    if ("medications_on_track" not in exclude_keys
+            and "medications_overdue" not in exclude_keys
+            and "medication_adherence_low" not in exclude_keys):
+        active = medicine_state.get("active_count", 0)
+        if active > 0:
+            contract = medicine_state.get("_contract", {})
+            overdue = contract.get("alerts", {}).get("overdue", [])
+            if not overdue:
+                expected = medicine_state.get("expected_today", 0)
+                taken = medicine_state.get("today_taken", 0)
+                if expected > 0 and taken >= expected:
+                    items.append(_item("medications_on_track", LOW, "medical",
+                                       "Medications are on track", "pill"))
+
+    return items
+
+
 # ── Main builder ─────────────────────────────────────────────────────────────
 
 def build_health_priority_summary(health_state, medicine_state, current_dt,
@@ -478,6 +552,19 @@ def build_health_priority_summary(health_state, medicine_state, current_dt,
         ]
         if low_candidates:
             selected.append(low_candidates[0])
+
+    # ── Phase 5: Hard minimum backfill ──
+    # If still < 2 items after all phases, generate neutral/gap-zone items
+    # from available state. These are metrics that exist but fell in
+    # "acceptable" ranges that didn't produce a candidate.
+    if len(selected) < MIN_ITEMS:
+        selected_keys = {i["key"] for i in selected}
+        backfill = _generate_backfill_items(health_state, medicine_state,
+                                            current_dt, selected_keys)
+        for item in backfill:
+            selected.append(item)
+            if len(selected) >= MIN_ITEMS:
+                break
 
     # Final trim to MAX_ITEMS
     selected = selected[:MAX_ITEMS]

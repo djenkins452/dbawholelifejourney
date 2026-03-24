@@ -35,27 +35,43 @@ _SPORT_HOSTS = {
     "nba": "v1.basketball.api-sports.io",
     "nhl": "v1.hockey.api-sports.io",
     "mls": "v3.football.api-sports.io",
-    # NCAA — same sport hosts, different league IDs
+    # NCAA
+    "ncaab": "v1.basketball.api-sports.io",  # NCAA Basketball
     "ncaaf": None,      # No API-Sports coverage for college football
-    "ncaab": None,      # No reliable college basketball API
     "ncaabb": None,     # No reliable college baseball API
 }
 
 # API-Sports league IDs (their internal identifiers)
 _LEAGUE_IDS = {
-    "mlb": 1,       # MLB
+    "mlb": 1,       # MLB (regular season)
     "nba": 12,      # NBA (standard league)
     "nhl": 57,      # NHL
     "mls": 253,     # MLS (football/soccer API)
+    "ncaab": 116,   # NCAA Basketball
 }
 
-# Season values (current season)
-_CURRENT_SEASONS = {
-    "mlb": "2025",     # Baseball uses calendar year
-    "nba": "2025-2026",  # Basketball spans two years
-    "nhl": "2025",     # Hockey uses start year
-    "mls": "2026",     # MLS uses calendar year
+# Additional league IDs to accept when filtering games
+# (e.g., Spring Training games count as MLB)
+_GAME_LEAGUE_IDS = {
+    "mlb": {1, 71},     # MLB + Spring Training
+    "nba": {12},
+    "nhl": {57},
+    "mls": {253},
+    "ncaab": {116},
 }
+
+# Season candidates — tried in order until one returns data with actual records
+# API-Sports free tier lags on current season; we auto-detect
+_SEASON_CANDIDATES = {
+    "mlb": [2026, 2025, 2024],
+    "nba": ["2025-2026", "2024-2025", "2023-2024"],
+    "nhl": [2026, 2025, 2024],
+    "mls": [2026, 2025, 2024],
+    "ncaab": ["2025-2026", "2024-2025", "2023-2024"],
+}
+
+# Cached resolved seasons (populated at runtime via _resolve_season)
+_resolved_seasons = {}
 
 # Status mapping: API-Sports status → our GameEvent status
 _STATUS_MAP_BASEBALL = {
@@ -129,25 +145,64 @@ class ApiSportsProvider(BaseSportsProvider):
     def provider_name(self) -> str:
         return "api_sports"
 
+    def _resolve_season(self, league_slug):
+        """
+        Find the latest season with data for a league.
+
+        Tries season candidates in order. Caches the result so we only
+        probe once per league per process lifetime.
+        """
+        if league_slug in _resolved_seasons:
+            return _resolved_seasons[league_slug]
+
+        host = _SPORT_HOSTS.get(league_slug)
+        league_id = _LEAGUE_IDS.get(league_slug)
+        candidates = _SEASON_CANDIDATES.get(league_slug, [])
+
+        if not host or not league_id or not candidates:
+            return None
+
+        # Use standings as the probe — check that data has non-zero records
+        for season in candidates:
+            data = self._request(host, "/standings", {
+                "league": league_id, "season": season,
+            })
+            if data and self._standings_have_data(data):
+                _resolved_seasons[league_slug] = season
+                logger.info("Sports API: resolved %s season → %s", league_slug, season)
+                return season
+
+        # Fallback: try teams endpoint (at least get team linking)
+        for season in candidates:
+            data = self._request(host, "/teams", {
+                "league": league_id, "season": season,
+            })
+            if data:
+                _resolved_seasons[league_slug] = season
+                logger.info("Sports API: resolved %s season → %s (via teams)", league_slug, season)
+                return season
+
+        logger.warning("Sports API: no season found for %s", league_slug)
+        _resolved_seasons[league_slug] = None
+        return None
+
     # ── Teams ───────────────────────────────────────────────────────
 
     def fetch_teams(self, league_slug: str) -> list[NormalizedTeam]:
         """Fetch all teams for a league from API-Sports."""
         host = _SPORT_HOSTS.get(league_slug)
         league_id = _LEAGUE_IDS.get(league_slug)
-        season = _CURRENT_SEASONS.get(league_slug)
+        season = self._resolve_season(league_slug)
 
-        if not host or not league_id:
+        if not host or not league_id or not season:
             return []
 
         if league_slug == "mls":
-            # Football API uses /teams?league=X&season=Y
             data = self._request(host, "/teams", {
                 "league": league_id, "season": season,
             })
             return [self._normalize_football_team(t, league_slug) for t in (data or [])]
         else:
-            # Baseball/Basketball/Hockey use /teams?league=X&season=Y
             data = self._request(host, "/teams", {
                 "league": league_id, "season": season,
             })
@@ -158,23 +213,24 @@ class ApiSportsProvider(BaseSportsProvider):
     def fetch_games(
         self, team_external_ids: list[str], date_from: date, date_to: date
     ) -> list[NormalizedGame]:
-        """Fetch games for teams within a date range."""
+        """Fetch games for teams within a date range.
+
+        Free plan strategy: fetch ALL games for a date (no league filter)
+        then filter client-side by our known league IDs. This uses 1 API
+        call per sport per day instead of 1 per league per day.
+        """
         if not team_external_ids:
             return []
 
-        # Group by sport host (all teams in same league use same host)
-        # We fetch by date range rather than per-team to minimize API calls
         all_games = []
 
-        # Determine which leagues are represented
+        # Determine which sport hosts to query
         leagues_seen = set()
         for ext_id in team_external_ids:
-            # External IDs are formatted as "api_sports_{league}_{id}"
             parts = ext_id.split("_")
-            if len(parts) >= 3:
-                leagues_seen.add(parts[2])  # league slug
+            if len(parts) >= 4:
+                leagues_seen.add(parts[2])
 
-        # Also try to infer from the team objects
         if not leagues_seen:
             from apps.sports.models import Team
             leagues_seen = set(
@@ -183,35 +239,40 @@ class ApiSportsProvider(BaseSportsProvider):
                 .distinct()
             )
 
+        # Group by sport host to avoid duplicate API calls
+        hosts_done = set()
+
         for league_slug in leagues_seen:
             host = _SPORT_HOSTS.get(league_slug)
-            league_id = _LEAGUE_IDS.get(league_slug)
-            season = _CURRENT_SEASONS.get(league_slug)
-
-            if not host or not league_id:
+            if not host or host in hosts_done:
                 continue
+            hosts_done.add(host)
 
-            # Fetch games day by day (API-Sports requires date parameter)
+            accepted_ids = _GAME_LEAGUE_IDS.get(league_slug, set())
+            is_football = league_slug == "mls"
+
             current = date_from
             while current <= date_to:
                 date_str = current.isoformat()
 
-                if league_slug == "mls":
-                    games_data = self._request(host, "/fixtures", {
-                        "league": league_id, "season": season, "date": date_str,
-                    })
+                if is_football:
+                    # Football API: fetch without league for free plan compatibility
+                    games_data = self._request(host, "/fixtures", {"date": date_str})
                     for g in (games_data or []):
-                        normalized = self._normalize_football_game(g, league_slug)
-                        if normalized:
-                            all_games.append(normalized)
+                        fixture_league = g.get("league", {}).get("id")
+                        if fixture_league in accepted_ids:
+                            normalized = self._normalize_football_game(g, league_slug)
+                            if normalized:
+                                all_games.append(normalized)
                 else:
-                    games_data = self._request(host, "/games", {
-                        "league": league_id, "season": season, "date": date_str,
-                    })
+                    # Baseball/Basketball/Hockey: fetch all, filter by league
+                    games_data = self._request(host, "/games", {"date": date_str})
                     for g in (games_data or []):
-                        normalized = self._normalize_game(g, league_slug)
-                        if normalized:
-                            all_games.append(normalized)
+                        game_league = g.get("league", {}).get("id")
+                        if game_league in accepted_ids:
+                            normalized = self._normalize_game(g, league_slug)
+                            if normalized:
+                                all_games.append(normalized)
 
                 current += timedelta(days=1)
 
@@ -223,9 +284,9 @@ class ApiSportsProvider(BaseSportsProvider):
         """Fetch current standings for a league."""
         host = _SPORT_HOSTS.get(league_slug)
         league_id = _LEAGUE_IDS.get(league_slug)
-        season = _CURRENT_SEASONS.get(league_slug)
+        season = self._resolve_season(league_slug)
 
-        if not host or not league_id:
+        if not host or not league_id or not season:
             return []
 
         if league_slug == "mls":
@@ -243,12 +304,18 @@ class ApiSportsProvider(BaseSportsProvider):
 
     def _request(self, host, endpoint, params=None):
         """Make an API request. Returns response data or None on failure."""
+        import time
+        # Rate limit safety: free plan = 10 req/min. Throttle to ~8/min.
+        time.sleep(0.5)
         url = f"https://{host}{endpoint}"
         try:
             resp = self._session.get(url, params=params, timeout=_TIMEOUT)
 
             if resp.status_code == 429:
                 logger.warning("API-Sports rate limited on %s%s", host, endpoint)
+                # Back off briefly to avoid hammering
+                import time
+                time.sleep(6)  # Free plan: 10 req/min → 1 every 6s
                 return None
 
             if resp.status_code != 200:
@@ -364,15 +431,25 @@ class ApiSportsProvider(BaseSportsProvider):
         return results
 
     def _extract_standing(self, entry, league_slug):
-        """Extract a single standing entry."""
+        """Extract a single standing entry.
+
+        API-Sports response structure (baseball/basketball/hockey):
+        {
+            "team": {"id": 25, "name": "New York Yankees"},
+            "games": {
+                "win": {"total": 94, "percentage": "0.580"},
+                "lose": {"total": 68, "percentage": "0.420"}
+            }
+        }
+        """
         try:
             team = entry.get("team", {})
             team_id = team.get("id", "")
-            games = entry.get("games", {}) or entry.get("all", {})
+            games = entry.get("games", {})
             win = games.get("win", {})
             lose = games.get("lose", {})
 
-            # Different structures per sport
+            # Handle nested dict (baseball/hockey) or plain int
             if isinstance(win, dict):
                 wins = win.get("total", 0) or 0
             else:
@@ -390,8 +467,8 @@ class ApiSportsProvider(BaseSportsProvider):
 
             return NormalizedStanding(
                 team_external_id=f"api_sports_{league_slug}_{team_id}",
-                wins=wins,
-                losses=losses,
+                wins=int(wins),
+                losses=int(losses),
             )
         except Exception:
             return None
@@ -471,6 +548,19 @@ class ApiSportsProvider(BaseSportsProvider):
         return results
 
     # ── Helpers ──────────────────────────────────────────────────────
+
+    @staticmethod
+    def _standings_have_data(standings):
+        """Check if standings response has actual W/L data (not all zeros)."""
+        for group in standings:
+            entries = group if isinstance(group, list) else [group]
+            for entry in entries:
+                games = entry.get("games", {})
+                win = games.get("win", {})
+                wins = win.get("total", 0) if isinstance(win, dict) else (win or 0)
+                if wins and int(wins) > 0:
+                    return True
+        return False
 
     @staticmethod
     def _parse_datetime(date_str):

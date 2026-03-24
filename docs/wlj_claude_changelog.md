@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: API-Sports Free Plan Fixes + Real Data Flowing
+
+- **Game sync fixed:** Fetch ALL games per date (no league filter), then filter client-side by known league IDs. Free plan blocks league-specific queries but allows unfiltered date queries. MLB Spring Training (league 71) included alongside regular season (1).
+- **Season auto-detection hardened:** `_resolve_season()` now verifies standings have non-zero records before accepting a season. Prevents NBA 2024-2025 (all zeros) from being used when 2023-2024 has real data.
+- **Rate limiting:** Added 0.5s delay between all requests + 6s backoff on 429 responses. Free plan = 10 req/min.
+- **Duplicate league fix:** Used `set()` to deduplicate league slugs in sync (was processing NBA/NFL multiple times).
+- **Stale seed data removed:** Deleted all 111 old fixture games from DB.
+- **Results verified:**
+  - 62 real games synced (MLB Spring Training, NBA, NHL)
+  - 30 MLB teams linked + records (Dodgers 98-64, Yankees 94-68)
+  - 30 NBA teams linked + records (from 2023-2024 season)
+  - 31 NHL teams linked + records
+  - 25 MLS teams linked + records
+  - UI shows real opponents, times, records
+- Files: apps/sports/services/providers/api_sports_provider.py, apps/sports/services/sync_service.py, apps/sports/tests/test_signals.py, Procfile
+
 ## 2026-03-24 — Sports: API-Sports Provider (Go Live)
 
 - **New provider:** `ApiSportsProvider` (`apps/sports/services/providers/api_sports_provider.py`)

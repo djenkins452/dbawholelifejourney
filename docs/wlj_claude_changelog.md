@@ -6,38 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-## 2026-03-24 — Phase A Final + Phase B Health Signals
+## 2026-03-24 — Sports: CoS Integration — Beth Now Sees Sports Signals
 
-**Phase A (final hardening):**
-- **A1:** MEDIUM headline → "A few things need attention" (was "to keep in mind")
-- **A2:** Activity "so far today" threshold lowered from hour >= 14 to hour >= 12
-- **A3:** SpO2 normal suppressed from positive pool (trivial for most users; only surfaces when < 90)
-- Phase A is now LOCKED.
-
-**Phase B (health signal layer):**
-- **New file:** `apps/core/signals/health_signals.py` — deterministic trend/pattern signals from canonical state
-- **Architecture:** raw data → canonical state → signals (this) → summary/Beth/nudges
-- **4 signals implemented:**
-  1. `med_adherence` — state: strong/moderate/poor, trend: improving/declining/stable/unknown
-  2. `sleep_recovery` — state: strong/moderate/poor, trend from prior 7d (when available)
-  3. `activity_momentum` — state: strong/moderate/low, trend from prior 7d
-  4. `cardio_stability` — combines BP + glucose + HR → stable/watch/unstable
-- **Trend detection:** Uses prior-period data when available (`adherence_prior_7d`, `sleep_avg_duration_prior_7d`, `steps_avg_prior_7d`). Returns `unknown` when prior data not in canonical state.
-- **Freshness gating:** Cardio stability reuses `_is_fresh()` from priority service for BP/glucose/HR
-- **Pure function:** No DB queries, no user object, no caching, no LLM
-- **Tests:** 30 tests covering all 4 signals, edge cases, missing data, trend detection, determinism
-- Files: `apps/core/signals/health_signals.py` (new), `apps/core/signals/tests/test_health_signals.py` (new), `apps/health/services/health_priority_service.py`, `apps/health/tests/test_health_priority_service.py`, `templates/health/home.html`
-
-## 2026-03-24 — Health Summary Hardening Pass
-
-- **FIX 1 — Medication dominance:** Overdue medications are now forced to index 0 via post-generation enforcement step. Cannot be displaced by sort order.
-- **FIX 2 — Minimum items:** Summary targets min 2 items when multiple signals exist. Single-signal case still allowed. Min-fill respects category dedup.
-- **FIX 3 — Headline:** Added `headline` and `priority_level` to output contract. HIGH="Health needs attention", MEDIUM="A few things need attention", LOW="Health looks stable".
-- **FIX 4 — Activity signal:** "Activity is low so far today" only used when `today_steps` exists AND `current_dt.hour >= 12`. Otherwise "Activity has been low lately".
-- **FIX 5 — Tone:** "is normal" → "looks good" (BP, SpO2). "is in range" → "is in a healthy range" (glucose). Consistent calm coaching tone.
-- **FIX 6 — Balance:** Phase 4 adds a positive/reassurance item if room exists and data supports it. Respects category dedup. No false positives injected.
-- **Tests:** 29 → 45 tests. New coverage: medication dominance, minimum items, headline per priority, activity today vs lately, tone assertions, balanced output.
-- Files: `apps/health/services/health_priority_service.py`, `apps/health/tests/test_health_priority_service.py`, `templates/health/home.html`
+- **Feature:** Full raw → signals → state → CoS pipeline for sports domain
+  - **State builder** (`build_sports_state`): Added DB fallback when cache is empty. Lightweight bounded query (user's followed teams + next/last games). Produces urgency signals (game_live, game_starting_soon, game_today, team_win, team_loss).
+  - **CoS context** (`_build_sports_context`): Now produces `sports_awareness` (natural language), `sports_focus_game` (highest-urgency game), structured `sports_games_today` and `sports_recent_results`.
+  - Beth can now naturally say things like "Your Braves play the Dodgers today at 7:10 PM" or "Your team just won."
+  - Disabled module = zero context (verified)
+  - Architecture compliant: raw GameEvent → urgency/signal computation → state dict → CoS text. LLM never sees raw data.
+- Files: apps/core/ai_state/state_builder.py, apps/core/ai_orchestrator/cos_context.py
 
 ## 2026-03-24 — Sports: Focus Game Card (Top of My Teams)
 

@@ -3144,9 +3144,12 @@ def build_capture_state(user):
 
 
 def build_sports_state(user):
-    """Build sports state: followed teams, active signals, game summaries.
+    """Build sports state: followed teams, game awareness, urgency signals.
 
-    Consumes cached signals — never re-derives from raw GameEvent queries.
+    Reads from cache first. On cache miss, falls back to a lightweight
+    bounded query (user's followed teams + their next/last games only).
+    This fallback is safe for request path — single user, indexed queries.
+
     If sports module is disabled, returns empty state immediately.
 
     _contract is primary. See docs/SAE_STATE_CONTRACT.md.
@@ -3164,7 +3167,7 @@ def build_sports_state(user):
 
         state['enabled'] = True
 
-        # Read from cache — NEVER compute here
+        # Try cache first
         from apps.sports.services.cache_manager import (
             get_user_sports_summary,
             get_user_today_games,
@@ -3173,18 +3176,18 @@ def build_sports_state(user):
         summaries = get_user_sports_summary(user)
         today_games = get_user_today_games(user)
 
-        state['teams_followed'] = len(summaries)
-        state['games_today'] = len(today_games)
-        state['today_games'] = today_games
-
-        # Active signals (aggregated from summaries)
-        all_signals = set()
-        for s in summaries:
-            all_signals.update(s.get('active_signals', []))
-        state['active_signals'] = sorted(all_signals)
-
-        # Per-team summaries (for CoS context consumption)
-        state['team_summaries'] = summaries
+        if summaries:
+            state['teams_followed'] = len(summaries)
+            state['games_today'] = len(today_games)
+            state['today_games'] = today_games
+            all_signals = set()
+            for s in summaries:
+                all_signals.update(s.get('active_signals', []))
+            state['active_signals'] = sorted(all_signals)
+            state['team_summaries'] = summaries
+        else:
+            # Cache empty — build from DB (lightweight, bounded to user's teams)
+            _build_sports_state_from_db(user, state)
 
     except ImportError:
         logger.debug("Sports module not installed")
@@ -3196,6 +3199,146 @@ def build_sports_state(user):
         confidence='high',
     )
     return state
+
+
+def _build_sports_state_from_db(user, state):
+    """Fallback: build sports state directly from DB when cache is empty.
+
+    Lightweight query: only user's followed teams + their next/last games.
+    Bounded by user's team count (typically 5-15 teams).
+    """
+    from datetime import timedelta
+
+    from django.db.models import Q
+    from django.utils import timezone
+
+    from apps.sports.models import GameEvent, UserTeamFollow
+
+    now = timezone.now()
+
+    follows = (
+        UserTeamFollow.objects.filter(user=user, is_active=True)
+        .select_related("team__league")
+    )
+    if not follows.exists():
+        state['teams_followed'] = 0
+        state['team_summaries'] = []
+        return
+
+    team_ids = [f.team_id for f in follows]
+    follow_map = {f.team_id: f for f in follows}
+
+    # Next upcoming game per team
+    upcoming = (
+        GameEvent.objects.filter(
+            Q(home_team_id__in=team_ids) | Q(away_team_id__in=team_ids),
+            start_time__gte=now,
+            status__in=[GameEvent.STATUS_SCHEDULED, GameEvent.STATUS_LIVE],
+        )
+        .select_related("home_team", "away_team")
+        .order_by("start_time")
+    )
+    next_game_map = {}
+    for game in upcoming:
+        for tid in [game.home_team_id, game.away_team_id]:
+            if tid in team_ids and tid not in next_game_map:
+                next_game_map[tid] = game
+
+    # Last completed game per team
+    recent = (
+        GameEvent.objects.filter(
+            Q(home_team_id__in=team_ids) | Q(away_team_id__in=team_ids),
+            status=GameEvent.STATUS_FINAL,
+        )
+        .select_related("home_team", "away_team")
+        .order_by("-start_time")
+    )
+    last_game_map = {}
+    for game in recent:
+        for tid in [game.home_team_id, game.away_team_id]:
+            if tid in team_ids and tid not in last_game_map:
+                last_game_map[tid] = game
+
+    summaries = []
+    today_games = []
+    active_signals = set()
+
+    for follow in follows:
+        team = follow.team
+        next_game = next_game_map.get(team.id)
+        last_game = last_game_map.get(team.id)
+
+        # Determine urgency
+        status = "upcoming"
+        if next_game:
+            if next_game.status == GameEvent.STATUS_LIVE:
+                status = "live"
+                active_signals.add("game_live")
+            elif next_game.start_time <= now + timedelta(hours=1):
+                status = "starting_soon"
+                active_signals.add("game_starting_soon")
+            elif next_game.start_time.date() == now.date():
+                status = "today"
+                active_signals.add("game_today")
+
+        summary = {
+            "team_id": team.id,
+            "team_name": str(team),
+            "league": team.league.abbreviation,
+            "priority": follow.priority,
+            "status": status,
+            "next_game": None,
+            "last_result": None,
+            "active_signals": [],
+        }
+
+        if next_game:
+            opponent = next_game.get_opponent(team)
+            summary["next_game"] = {
+                "opponent": str(opponent) if opponent else "TBD",
+                "time": next_game.start_time.strftime("%-I:%M %p"),
+                "venue": next_game.venue,
+            }
+            if next_game.is_live:
+                summary["next_game"]["score"] = next_game.get_score_display()
+            summary["active_signals"].append(f"game_{status}" if status != "upcoming" else "")
+
+            if status in ("today", "starting_soon", "live"):
+                today_games.append({
+                    "team": str(team),
+                    "opponent": str(opponent) if opponent else "TBD",
+                    "time": next_game.start_time.strftime("%-I:%M %p"),
+                    "status": status,
+                })
+
+        if last_game:
+            opponent = last_game.get_opponent(team)
+            if last_game.user_team_won(team):
+                result = "W"
+                active_signals.add("team_win")
+            elif last_game.user_team_lost(team):
+                result = "L"
+                active_signals.add("team_loss")
+            else:
+                result = "T"
+            summary["last_result"] = {
+                "opponent": str(opponent) if opponent else "TBD",
+                "result": result,
+                "score": last_game.get_score_display(),
+            }
+
+        # Clean empty signal entries
+        summary["active_signals"] = [s for s in summary["active_signals"] if s]
+
+        summaries.append(summary)
+
+    summaries.sort(key=lambda x: x["priority"])
+
+    state['teams_followed'] = len(summaries)
+    state['games_today'] = len(today_games)
+    state['today_games'] = today_games
+    state['active_signals'] = sorted(active_signals)
+    state['team_summaries'] = summaries
 
 
 MODULE_BUILDERS = {

@@ -73,14 +73,17 @@ def save_user_preferences(sender, instance, **kwargs):
 @receiver(post_save, sender=UserPreferences)
 def sync_module_preferences_on_save(sender, instance, **kwargs):
     """
-    Sync UserPreferences.*_enabled fields → UserModulePreference.is_enabled.
+    Guarantee UserModulePreference rows exist and are synced for every module
+    that has a preference_field bridge.
 
-    The Preferences page saves to UserPreferences (legacy boolean fields).
-    Navigation reads from UserModulePreference (catalog system).
-    This signal bridges the two so toggling a module in Preferences
-    immediately updates navigation visibility.
+    On every UserPreferences save:
+    1. For each active ModuleDefinition with a preference_field:
+       - get_or_create the UserModulePreference row (guarantees it exists)
+       - Set is_enabled to match the UserPreferences field value
+    2. Invalidate nav cache if anything changed
 
-    Also invalidates the navigation cache so changes are visible on next page load.
+    This eliminates reliance on lazy initialization (initialize_for_user).
+    Module enablement is immediate and deterministic.
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -99,12 +102,20 @@ def sync_module_preferences_on_save(sender, instance, **kwargs):
             if pref_value is None:
                 continue
 
-            updated = UserModulePreference.objects.filter(
+            ump, created = UserModulePreference.objects.get_or_create(
                 user=instance.user,
                 module=module,
-            ).exclude(is_enabled=pref_value).update(is_enabled=pref_value)
+                defaults={
+                    'is_enabled': pref_value,
+                    'sort_order': module.default_order,
+                },
+            )
 
-            if updated:
+            if created:
+                changed = True
+            elif ump.is_enabled != pref_value:
+                ump.is_enabled = pref_value
+                ump.save(update_fields=['is_enabled'])
                 changed = True
 
         if changed:

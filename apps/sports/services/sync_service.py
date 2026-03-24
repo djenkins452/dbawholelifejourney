@@ -109,8 +109,11 @@ def sync_sports_data(leagues=None, days_ahead=1, days_back=1):
             # Link teams: match API external_ids to our DB teams
             _link_teams(provider, league)
 
-            # Sync standings (team records)
-            standings_count = _sync_standings(provider, league)
+            # Sync standings (team records) — pass resolved season for staleness tracking
+            resolved_season = ""
+            if hasattr(provider, '_resolve_season'):
+                resolved_season = str(provider._resolve_season(league.slug) or "")
+            standings_count = _sync_standings(provider, league, resolved_season)
             result["standings_updated"] += standings_count
 
             # Sync games
@@ -224,11 +227,11 @@ def _link_teams(provider, league):
         logger.info("Sports sync: linked %d teams for %s", linked, league.abbreviation)
 
 
-def _sync_standings(provider, league):
+def _sync_standings(provider, league, resolved_season=""):
     """
     Sync team standings (wins/losses) for a league.
 
-    Matches teams by external_id. Updates wins/losses only if changed.
+    Matches teams by external_id. Updates wins/losses and record_season.
     Returns count of teams updated.
     """
     standings = provider.fetch_standings(league.slug)
@@ -247,16 +250,19 @@ def _sync_standings(provider, league):
         if not team:
             continue
 
-        changed = False
+        update_fields = []
         if team.wins != entry.wins:
             team.wins = entry.wins
-            changed = True
+            update_fields.append("wins")
         if team.losses != entry.losses:
             team.losses = entry.losses
-            changed = True
+            update_fields.append("losses")
+        if resolved_season and team.record_season != resolved_season:
+            team.record_season = resolved_season
+            update_fields.append("record_season")
 
-        if changed:
-            team.save(update_fields=["wins", "losses"])
+        if update_fields:
+            team.save(update_fields=update_fields)
             updated += 1
 
     return updated

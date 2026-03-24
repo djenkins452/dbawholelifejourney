@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: Stale Standings Detection — Season Labels
+
+- **Feature:** Records from previous seasons now clearly labeled in UI
+  - Added `record_season` field to Team model (set by sync from API resolved season)
+  - `is_record_stale` property: True when record_season doesn't contain current year
+  - `record_display` property: "89-73 (2024)" for stale, "89-73" for current
+  - View uses `record_display` — no template logic needed
+  - Sync service passes resolved season to `_sync_standings` → saved on each team
+  - When API-Sports upgrades to current season, `(2024)` label disappears automatically
+- Files: apps/sports/models.py, apps/sports/services/sync_service.py, apps/sports/views.py, migration 0003
+
 ## 2026-03-24 — Sports: API-Sports Free Plan Fixes + Real Data Flowing
 
 - **Game sync fixed:** Fetch ALL games per date (no league filter), then filter client-side by known league IDs. Free plan blocks league-specific queries but allows unfiltered date queries. MLB Spring Training (league 71) included alongside regular season (1).

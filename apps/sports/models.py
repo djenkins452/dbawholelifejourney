@@ -49,6 +49,7 @@ class Team(models.Model):
     # Season record — updated by background sync
     wins = models.IntegerField(default=0)
     losses = models.IntegerField(default=0)
+    record_season = models.CharField(max_length=20, blank=True, default="")
 
     class Meta:
         ordering = ["location", "name"]
@@ -67,6 +68,27 @@ class Team(models.Model):
         if self.wins == 0 and self.losses == 0:
             return ""
         return f"{self.wins}-{self.losses}"
+
+    @property
+    def is_record_stale(self):
+        """True if record is from a previous season, not the current one."""
+        if not self.record_season:
+            return False  # Unknown season — don't label
+        from datetime import datetime
+        current_year = str(datetime.now().year)
+        # Handle "2023-2024" format (NBA) and "2024" format (others)
+        return current_year not in self.record_season
+
+    @property
+    def record_display(self):
+        """Record with season label if stale (e.g. '98-64 (2024)')."""
+        if not self.record:
+            return ""
+        if self.is_record_stale and self.record_season:
+            # Extract display year: "2024" or "2023-2024" → "2024"
+            season_label = self.record_season.split("-")[-1] if "-" in self.record_season else self.record_season
+            return f"{self.record} ({season_label})"
+        return self.record
 
 
 class GameEvent(models.Model):

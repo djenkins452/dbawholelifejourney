@@ -119,15 +119,9 @@ class HealthKitManager {
             types.insert(mindfulType)
         }
 
-        // Blood Pressure (correlation type + individual quantity types)
+        // Blood Pressure (correlation type only — covers systolic + diastolic)
         if let bpCorrelationType = HKCorrelationType.correlationType(forIdentifier: .bloodPressure) {
             types.insert(bpCorrelationType)
-        }
-        if let systolicType = HKQuantityType.quantityType(forIdentifier: .bloodPressureSystolic) {
-            types.insert(systolicType)
-        }
-        if let diastolicType = HKQuantityType.quantityType(forIdentifier: .bloodPressureDiastolic) {
-            types.insert(diastolicType)
         }
 
         // Body Temperature
@@ -260,7 +254,20 @@ class HealthKitManager {
             throw HealthKitError.notAvailable
         }
 
-        try await healthStore.requestAuthorization(toShare: [], read: readTypes)
+        // Timeout guard: authorization must complete within 60 seconds.
+        // Prevents indefinite hang if HealthKit callback never fires.
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                try await self.healthStore.requestAuthorization(toShare: [], read: self.readTypes)
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: 60_000_000_000) // 60 seconds
+                throw HealthKitError.authorizationTimeout
+            }
+            // First to complete wins; cancel the other
+            try await group.next()
+            group.cancelAll()
+        }
     }
 
     // MARK: - Sync Health Data
@@ -2267,6 +2274,7 @@ enum HealthKitError: LocalizedError {
     case notAvailable
     case notAuthenticated
     case queryFailed(String)
+    case authorizationTimeout
 
     var errorDescription: String? {
         switch self {
@@ -2276,6 +2284,8 @@ enum HealthKitError: LocalizedError {
             return "Please log in to sync health data."
         case .queryFailed(let message):
             return message
+        case .authorizationTimeout:
+            return "HealthKit authorization timed out. Please try again or check Settings > Privacy > Health."
         }
     }
 }

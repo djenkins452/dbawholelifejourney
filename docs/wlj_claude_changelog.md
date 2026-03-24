@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — iOS: Fix HealthKit Authorization Hang After BP Support Added
+
+- **Root cause:** `HealthKitManager.swift:122-131` passed `HKCorrelationType.bloodPressure` AND its constituent `HKQuantityType.bloodPressureSystolic` / `.bloodPressureDiastolic` in the same `requestAuthorization(read:)` set. HealthKit's authorization UI cannot resolve overlapping correlation + constituent types → completion handler never fires → async `await` hangs indefinitely → spinner never stops.
+- **Fix:**
+  1. Removed redundant `HKQuantityType.bloodPressureSystolic/Diastolic` from `readTypes` — correlation type authorization covers constituent samples
+  2. Added 60-second timeout guard around `requestAuthorization()` using `withThrowingTaskGroup` — prevents indefinite hang for any future type issues
+  3. Added `HealthKitError.authorizationTimeout` case with user-facing message
+- Files: `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift`
+
 ## 2026-03-24 — iOS: Fix Blood Pressure Not Syncing from Apple Health
 
 - **Root cause:** `HealthKitManager.fetchBloodPressure()` queried `.bloodPressureSystolic` and `.bloodPressureDiastolic` as individual `HKSampleQuery` calls. In HealthKit, blood pressure is stored as `HKCorrelation` objects — the individual quantity samples exist only inside correlations and are not returned by standalone sample queries. Result: empty arrays → no BP data sent to WLJ.

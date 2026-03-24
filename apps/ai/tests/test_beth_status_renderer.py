@@ -866,3 +866,205 @@ class TestMedicationGroupingIntegration(SimpleTestCase):
         # Routines should still be listed individually
         self.assertIn("• Wake Up", response)
         self.assertIn("• Shower", response)
+
+
+# ---------------------------------------------------------------------------
+# 13. Medication fallback from raw data
+# ---------------------------------------------------------------------------
+
+
+class TestMedicationRawFallback(SimpleTestCase):
+    """Medications must appear from raw data when execution items are missing."""
+
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    @patch("apps.core.execution.today_execution.build_today_execution")
+    def test_meds_pending_shown_from_raw_when_no_exec_items(self, mock_exec, mock_facts):
+        """Pending medications appear from raw even without execution items."""
+        mock_facts.return_value = {
+            "_raw": {
+                "prayer_done": True, "prayer_expected": True,
+                "bible_done": True, "bible_expected": True,
+                "workout_done": True, "workout_expected": True,
+                "journal_done": True, "journal_expected": True,
+                "routine_done": 3, "routine_total": 3,
+                "tasks_done": 2,
+                "meds_taken": 4, "meds_expected": 6, "meds_skipped": 0,
+                "meds_all_taken": False,
+            },
+            "next_action": "Take your evening medications.",
+        }
+        mock_exec.return_value = {"items": [], "summaries": {"domains": {}, "expected": {}}}
+
+        user = MagicMock()
+        user.id = 1
+        response = build_status_response(user)
+
+        self.assertIn("Medications", response)
+        self.assertIn("4/6", response)
+        self.assertIn("2 remaining", response)
+
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    @patch("apps.core.execution.today_execution.build_today_execution")
+    def test_meds_completed_shown_from_raw(self, mock_exec, mock_facts):
+        """Completed medications appear in completed section."""
+        mock_facts.return_value = {
+            "_raw": {
+                "prayer_done": True, "prayer_expected": True,
+                "bible_done": True, "bible_expected": True,
+                "workout_done": True, "workout_expected": True,
+                "journal_done": True, "journal_expected": True,
+                "routine_done": 3, "routine_total": 3,
+                "tasks_done": 2,
+                "meds_taken": 6, "meds_expected": 6, "meds_skipped": 0,
+                "meds_all_taken": True,
+            },
+            "next_action": "All items are complete — nothing pending.",
+        }
+        mock_exec.return_value = {"items": [], "summaries": {"domains": {}, "expected": {}}}
+
+        user = MagicMock()
+        user.id = 1
+        response = build_status_response(user)
+
+        self.assertIn("Medications", response)
+        self.assertIn("all 6 doses taken", response)
+
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    @patch("apps.core.execution.today_execution.build_today_execution")
+    def test_meds_with_skipped_shown_from_raw(self, mock_exec, mock_facts):
+        """Skipped medications noted in remaining line."""
+        mock_facts.return_value = {
+            "_raw": {
+                "prayer_done": True, "prayer_expected": True,
+                "bible_done": True, "bible_expected": True,
+                "workout_done": True, "workout_expected": True,
+                "journal_done": True, "journal_expected": True,
+                "routine_done": 3, "routine_total": 3,
+                "tasks_done": 2,
+                "meds_taken": 3, "meds_expected": 6, "meds_skipped": 1,
+                "meds_all_taken": False,
+            },
+            "next_action": "Take your evening medications.",
+        }
+        mock_exec.return_value = {"items": [], "summaries": {"domains": {}, "expected": {}}}
+
+        user = MagicMock()
+        user.id = 1
+        response = build_status_response(user)
+
+        self.assertIn("Medications", response)
+        self.assertIn("3/6", response)
+        self.assertIn("2 remaining", response)
+        self.assertIn("1 skipped", response)
+
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    @patch("apps.core.execution.today_execution.build_today_execution")
+    def test_meds_fallback_when_execution_fails(self, mock_exec, mock_facts):
+        """Medications appear even when today_execution raises an exception."""
+        mock_facts.return_value = {
+            "_raw": {
+                "prayer_done": False, "prayer_expected": True,
+                "bible_done": False, "bible_expected": False,
+                "workout_done": False, "workout_expected": False,
+                "journal_done": False, "journal_expected": False,
+                "routine_done": 0, "routine_total": 0,
+                "tasks_done": 0,
+                "meds_taken": 2, "meds_expected": 6, "meds_skipped": 0,
+                "meds_all_taken": False,
+            },
+            "next_action": "Start with Prayer.",
+        }
+        mock_exec.side_effect = Exception("DB down")
+
+        user = MagicMock()
+        user.id = 1
+        response = build_status_response(user)
+
+        # Both prayer AND medications should appear
+        self.assertIn("• Prayer", response)
+        self.assertIn("Medications", response)
+        self.assertIn("2/6", response)
+
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    @patch("apps.core.execution.today_execution.build_today_execution")
+    def test_no_meds_when_none_expected(self, mock_exec, mock_facts):
+        """No medication line when meds_expected is 0."""
+        mock_facts.return_value = {
+            "_raw": {
+                "prayer_done": False, "prayer_expected": True,
+                "bible_done": False, "bible_expected": False,
+                "workout_done": False, "workout_expected": False,
+                "journal_done": False, "journal_expected": False,
+                "routine_done": 0, "routine_total": 0,
+                "tasks_done": 0,
+                "meds_taken": 0, "meds_expected": 0, "meds_skipped": 0,
+                "meds_all_taken": True,
+            },
+            "next_action": "Start with Prayer.",
+        }
+        mock_exec.return_value = {"items": [], "summaries": {"domains": {}, "expected": {}}}
+
+        user = MagicMock()
+        user.id = 1
+        response = build_status_response(user)
+
+        self.assertNotIn("Medications", response)
+        self.assertNotIn("medication", response.lower())
+
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    @patch("apps.core.execution.today_execution.build_today_execution")
+    def test_no_double_counting_with_grouped_meds(self, mock_exec, mock_facts):
+        """When execution items have medication_dose items, raw fallback
+        should NOT add a duplicate medication line."""
+        mock_facts.return_value = {
+            "_raw": {
+                "prayer_done": False, "prayer_expected": True,
+                "bible_done": False, "bible_expected": False,
+                "workout_done": False, "workout_expected": False,
+                "journal_done": False, "journal_expected": False,
+                "routine_done": 0, "routine_total": 0,
+                "tasks_done": 0,
+                "meds_taken": 0, "meds_expected": 2, "meds_skipped": 0,
+                "meds_all_taken": False,
+            },
+            "next_action": "Take your morning medicines.",
+        }
+        mock_exec.return_value = {
+            "items": [
+                {
+                    "source_type": "medication_dose",
+                    "title": "Metformin",
+                    "execution_group_id": "morning",
+                    "completed_today": False,
+                    "is_actionable": True,
+                    "completion_status": "upcoming",
+                    "time_status": "upcoming",
+                    "scheduled_time": "08:00",
+                },
+                {
+                    "source_type": "medication_dose",
+                    "title": "Lantus",
+                    "execution_group_id": "morning",
+                    "completed_today": False,
+                    "is_actionable": True,
+                    "completion_status": "upcoming",
+                    "time_status": "upcoming",
+                    "scheduled_time": "08:00",
+                },
+            ],
+            "summaries": {"domains": {}, "expected": {}},
+        }
+
+        user = MagicMock()
+        user.id = 1
+        response = build_status_response(user)
+
+        # Should have grouped medication summary
+        self.assertIn("Morning medicines", response)
+        # Count medication-related bullets
+        lines = [l.strip() for l in response.split("\n") if l.strip().startswith("•")]
+        med_lines = [l for l in lines if "medic" in l.lower() or "medicine" in l.lower()]
+        self.assertEqual(
+            len(med_lines), 1,
+            f"Expected 1 medication line, got {len(med_lines)}: {med_lines}",
+        )

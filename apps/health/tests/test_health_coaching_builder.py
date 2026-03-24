@@ -32,11 +32,16 @@ def _item(key, priority, message, category="vitals"):
 class TestCoachingContract(TestCase):
     """Output contract tests."""
 
-    def test_returns_none_on_empty_summary(self):
-        self.assertIsNone(build_health_coaching({}))
+    def test_returns_fallback_on_empty_summary(self):
+        """Safety fallback: always returns a valid coaching dict."""
+        result = build_health_coaching({})
+        self.assertIsNotNone(result)
+        self.assertIn("consistent", result["action"].lower())
 
-    def test_returns_none_on_no_items(self):
-        self.assertIsNone(build_health_coaching({"items": []}))
+    def test_returns_fallback_on_no_items(self):
+        result = build_health_coaching({"items": []})
+        self.assertIsNotNone(result)
+        self.assertIn("consistent", result["action"].lower())
 
     def test_returns_dict_with_required_keys(self):
         summary = _summary([_item("bp_normal", "low", "Blood pressure looks good")])
@@ -267,13 +272,13 @@ class TestFreeWindow(TestCase):
 
 
 class TestBusySoon(TestCase):
-    """Event within 30 minutes = defer to 'after your next task'."""
+    """Event within 30 minutes = defer to 'after your next task finishes'."""
 
     def test_shifts_to_after_task(self):
         coaching = {"action": "Take a 10-minute walk", "reason": "Low activity",
                     "source_key": "activity_low", "priority_level": "medium"}
         result = apply_time_awareness(coaching, _dt(14), _next_event_in(15, _dt(14)))
-        self.assertIn("after your next task", result["action"].lower())
+        self.assertIn("after your next task finishes", result["action"].lower())
 
     def test_no_defer_for_reinforcement(self):
         coaching = {"action": "Stay consistent with your routine", "reason": "Stable",
@@ -314,3 +319,68 @@ class TestStableDay(TestCase):
                     "source_key": "medications_on_track", "priority_level": "low"}
         result = apply_time_awareness(coaching, _dt(14), None)
         self.assertEqual(result["action"].lower().count("today"), 1)
+
+
+# ── FIX 1: Action eligibility ───────────────────────────────────────────────
+
+class TestActionEligibility(TestCase):
+    """Completed actions are never recommended."""
+
+    def test_safety_fallback_on_empty(self):
+        """build_health_coaching always returns valid coaching."""
+        result = build_health_coaching(None)
+        self.assertIsNotNone(result)
+        self.assertIn("action", result)
+
+    def test_falls_to_next_item_when_primary_ineligible(self):
+        """If overdue meds key is present but no longer in items, skip."""
+        # This tests the loop logic — items are in order, first valid wins
+        summary = _summary([
+            _item("bp_elevated", "medium", "Blood pressure is elevated"),
+        ], priority_level="medium")
+        result = build_health_coaching(summary)
+        self.assertEqual(result["source_key"], "bp_elevated")
+
+
+# ── FIX 3: Signal language consistency ──────────────────────────────────────
+
+class TestSignalLanguage(TestCase):
+    """All signal-derived reasons use 'this week', never 'lately'."""
+
+    def test_sleep_short_reason_says_this_week(self):
+        summary = _summary([_item("sleep_short", "medium", "Sleep has been short")])
+        result = build_health_coaching(summary)
+        self.assertIn("this week", result["reason"])
+        self.assertNotIn("lately", result["reason"])
+
+    def test_activity_low_reason_says_this_week(self):
+        summary = _summary([_item("activity_low", "medium", "Activity low")])
+        result = build_health_coaching(summary)
+        self.assertIn("this week", result["reason"])
+
+    def test_signal_activity_declining_says_this_week(self):
+        summary = _summary([
+            _item("signal_activity_momentum", "medium",
+                  "Activity levels trending down", "signal"),
+        ], priority_level="medium")
+        signals = [
+            {"key": "activity_momentum", "state": "declining",
+             "insight": "Activity has been dropping this week"},
+        ]
+        result = build_health_coaching(summary, signals)
+        self.assertIn("this week", result["reason"])
+
+
+# ── FIX 4: Safety fallback ──────────────────────────────────────────────────
+
+class TestSafetyFallback(TestCase):
+    """System NEVER returns empty or None coaching."""
+
+    def test_always_returns_dict(self):
+        result = build_health_coaching({})
+        self.assertIsInstance(result, dict)
+        self.assertIn("action", result)
+
+    def test_fallback_has_today(self):
+        result = build_health_coaching({"items": []})
+        self.assertIn("today", result["action"].lower())

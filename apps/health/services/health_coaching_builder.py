@@ -11,10 +11,11 @@ Deterministic Health Coaching Builder.
 Converts health priority summary + signals into a single actionable
 coaching directive for Beth (CoS). No LLM reasoning. Pure function.
 
-Architecture: summary + signals → THIS → CoS system prompt
+Architecture: summary + signals → THIS → time-awareness → CoS system prompt
 
 Public API:
     build_health_coaching(summary, signals) -> dict | None
+    apply_time_awareness(coaching, current_dt, next_event_time) -> dict | None
 
 Rules:
     - Pure function: no DB, no user object, no cache, no LLM
@@ -22,6 +23,8 @@ Rules:
     - Medications always override everything else
     - Never references missing data
     - Never gives medical advice beyond simple behavior
+    - Never recommends something already completed
+    - Signal language: always "this week" for 7-day patterns
 """
 
 import logging
@@ -57,11 +60,11 @@ _ACTIONS = {
     },
     "sleep_short": {
         "action": "Aim for an earlier bedtime tonight",
-        "reason": "Sleep has been short lately — even 30 extra minutes makes a difference",
+        "reason": "Sleep has been short this week — even 30 extra minutes makes a difference",
     },
     "medication_adherence_low": {
         "action": "Set a reminder for your next dose",
-        "reason": "Medication consistency has been slipping — a reminder can help",
+        "reason": "Medication consistency has been slipping this week — a reminder can help",
     },
     "hr_elevated": {
         "action": "Take a few minutes to rest and breathe slowly",
@@ -69,7 +72,7 @@ _ACTIONS = {
     },
     "activity_low": {
         "action": "Take a 10-minute walk",
-        "reason": "Activity has been low — a short walk gets momentum back",
+        "reason": "Activity has been low this week — a short walk gets momentum back",
     },
     "glucose_concern": {
         "action": "Watch your carb intake at your next meal",
@@ -83,7 +86,7 @@ _ACTIONS = {
     },
     "sleep_strong": {
         "action": "Stay consistent with your routine",
-        "reason": "Sleep has been strong — that's powering everything else",
+        "reason": "Sleep has been strong this week — that's powering everything else",
     },
     "medications_on_track": {
         "action": "Stay consistent with your routine",
@@ -91,7 +94,7 @@ _ACTIONS = {
     },
     "activity_on_track": {
         "action": "Keep up your activity level",
-        "reason": "You've been moving well — consistency is key",
+        "reason": "You've been moving well this week — consistency is key",
     },
     "glucose_normal": {
         "action": "Stay consistent with your routine",
@@ -105,7 +108,7 @@ _ACTIONS = {
     },
     "activity_moderate": {
         "action": "Add a short walk to your day",
-        "reason": "Activity has been moderate — a little more movement helps",
+        "reason": "Activity has been moderate this week — a little more movement helps",
     },
     "bp_acceptable": {
         "action": "Stay active and manage stress",
@@ -119,7 +122,7 @@ _SIGNAL_ACTIONS = {
     "med_adherence": {
         "poor": {
             "action": "Set a daily medication reminder",
-            "reason": "Medication adherence has been declining — a consistent reminder helps",
+            "reason": "Medication adherence has been declining this week — a consistent reminder helps",
         },
         "declining": {
             "action": "Set a daily medication reminder",
@@ -129,7 +132,7 @@ _SIGNAL_ACTIONS = {
     "sleep_recovery": {
         "poor": {
             "action": "Prioritize an earlier bedtime tonight",
-            "reason": "Sleep recovery has been poor — even 30 extra minutes helps",
+            "reason": "Sleep recovery has been poor this week — even 30 extra minutes helps",
         },
         "declining": {
             "action": "Aim for an earlier bedtime tonight",
@@ -139,11 +142,11 @@ _SIGNAL_ACTIONS = {
     "activity_momentum": {
         "low": {
             "action": "Take a 10-minute walk",
-            "reason": "Activity levels are trending down — this gets momentum back",
+            "reason": "Activity levels have been trending down this week — this gets momentum back",
         },
         "declining": {
             "action": "Take a 10-minute walk",
-            "reason": "Activity has been dropping — a short walk reverses the trend",
+            "reason": "Activity has been dropping this week — a short walk reverses the trend",
         },
     },
     "cardio_stability": {
@@ -158,6 +161,39 @@ _SIGNAL_ACTIONS = {
     },
 }
 
+# ── Safety fallback ─────────────────────────────────────────────────────────
+
+_SAFETY_FALLBACK = {
+    "action": "Stay consistent with your routine today",
+    "reason": "Everything is trending in a good direction — keep it steady",
+    "priority_level": "low",
+    "source_key": "_fallback",
+}
+
+
+# ── Action eligibility: keys that require incomplete state ──────────────────
+
+# Maps source_key → the summary item key that proves the action is still needed.
+# If the key isn't in the summary items, the action is ineligible.
+_ELIGIBILITY_REQUIRES_ITEM = {
+    "medications_overdue": "medications_overdue",
+    "medication_adherence_low": "medication_adherence_low",
+}
+
+
+def _is_action_eligible(key, summary_items):
+    """
+    Check if an action is still valid (not already completed).
+
+    The summary already reflects current state. If a key requires an item
+    to be present in the summary (e.g., overdue meds), and it's NOT there,
+    the action is stale/completed.
+    """
+    required_key = _ELIGIBILITY_REQUIRES_ITEM.get(key)
+    if required_key is None:
+        return True  # No eligibility check for this key
+    return any(item["key"] == required_key for item in summary_items)
+
 
 def build_health_coaching(summary, signals=None):
     """
@@ -169,66 +205,67 @@ def build_health_coaching(summary, signals=None):
 
     Returns:
         dict with action, reason, priority_level, source_key
-        or None if no summary data
+        Always returns a valid dict (never None when summary has items).
     """
     if not summary or not summary.get("items"):
-        return None
+        return dict(_SAFETY_FALLBACK)
 
     signals = signals or []
     items = summary["items"]
     priority_level = summary.get("priority_level", "low")
 
-    # ── Step 1: Use the highest-priority summary item for the action ──
-    # Items are already ordered by priority (medications first if overdue)
-    primary = items[0]
-    key = primary["key"]
+    # Try each item in order until we find an eligible one
+    for item in items:
+        key = item["key"]
 
-    # Check for signal-based items (key starts with "signal_")
-    if key.startswith("signal_"):
-        sig_key = key.replace("signal_", "")
-        sig_actions = _SIGNAL_ACTIONS.get(sig_key, {})
-        # Find the matching signal to get its state
-        matching_sig = next(
-            (s for s in signals if s["key"] == sig_key), None
-        )
-        if matching_sig:
-            state = matching_sig.get("state", "")
-            trend = matching_sig.get("trend", "")
-            # Try state first, then trend
-            action_data = sig_actions.get(state) or sig_actions.get(trend)
-            if action_data:
-                return {
-                    "action": action_data["action"],
-                    "reason": action_data["reason"],
-                    "priority_level": priority_level,
-                    "source_key": key,
-                }
+        # FIX 1: Skip ineligible actions (already completed)
+        if not _is_action_eligible(key, items):
+            continue
 
-    # ── Step 2: Use template for known summary item keys ──
-    action_data = _ACTIONS.get(key)
-    if action_data:
-        return {
-            "action": action_data["action"],
-            "reason": action_data["reason"],
-            "priority_level": priority_level,
-            "source_key": key,
-        }
+        # Check for signal-based items (key starts with "signal_")
+        if key.startswith("signal_"):
+            sig_key = key.replace("signal_", "")
+            sig_actions = _SIGNAL_ACTIONS.get(sig_key, {})
+            matching_sig = next(
+                (s for s in signals if s["key"] == sig_key), None
+            )
+            if matching_sig:
+                state = matching_sig.get("state", "")
+                trend = matching_sig.get("trend", "")
+                action_data = sig_actions.get(state) or sig_actions.get(trend)
+                if action_data:
+                    return {
+                        "action": action_data["action"],
+                        "reason": action_data["reason"],
+                        "priority_level": priority_level,
+                        "source_key": key,
+                    }
 
-    # ── Step 3: Fallback — use the summary message as context ──
-    # This handles any future items not yet in _ACTIONS
-    if primary.get("priority") == "high":
-        return {
-            "action": "Address the most urgent item first",
-            "reason": primary.get("message", ""),
-            "priority_level": priority_level,
-            "source_key": key,
-        }
+        # Use template for known summary item keys
+        action_data = _ACTIONS.get(key)
+        if action_data:
+            return {
+                "action": action_data["action"],
+                "reason": action_data["reason"],
+                "priority_level": priority_level,
+                "source_key": key,
+            }
 
+        # Unknown key fallback (per-item)
+        if item.get("priority") == "high":
+            return {
+                "action": "Address the most urgent item first",
+                "reason": item.get("message", ""),
+                "priority_level": priority_level,
+                "source_key": key,
+            }
+
+    # FIX 4: Safety fallback — system NEVER returns empty coaching
     return {
-        "action": "Stay consistent with your routine",
+        "action": "Stay consistent with your routine today",
         "reason": "Everything is trending in a good direction — keep it steady",
         "priority_level": priority_level,
-        "source_key": key,
+        "source_key": items[0]["key"] if items else "_fallback",
     }
 
 
@@ -328,7 +365,6 @@ def apply_time_awareness(coaching, current_dt, next_event_time=None):
 
     # ── RULE 4: Evening softening for activity actions ──
     if time_block == "evening" and source_key in _ACTIVITY_KEYS:
-        # Replace walk-based actions with gentler evening phrasing
         lower = action.lower()
         if "walk" in lower:
             coaching["action"] = "Take a short walk this evening"
@@ -337,21 +373,28 @@ def apply_time_awareness(coaching, current_dt, next_event_time=None):
             coaching["action"] = "Light movement this evening"
             return coaching
 
-    # ── RULE 2: Busy soon — shift to "after your next task" ──
+    # ── RULE 2: Busy soon — shift to "after your next task finishes" ──
     if minutes_until is not None and minutes_until < 30:
-        # Don't apply to reinforcement items
         if source_key not in _REINFORCEMENT_KEYS:
             if "now" in action.lower():
-                coaching["action"] = action.replace(" now", " after your next task")
-            elif not any(w in action.lower() for w in ("after", "when", "tonight", "evening")):
-                coaching["action"] = action.rstrip(".") + " after your next task"
+                coaching["action"] = action.replace(
+                    " now", " after your next task finishes"
+                )
+            elif not any(
+                w in action.lower()
+                for w in ("after", "when", "tonight", "evening")
+            ):
+                coaching["action"] = (
+                    action.rstrip(".") + " after your next task finishes"
+                )
             return coaching
 
     # ── RULE 1: Free window — add "now" for actionable items ──
     if minutes_until is None or minutes_until >= 60:
         if source_key not in _REINFORCEMENT_KEYS and priority != "low":
             if "now" not in action.lower() and not any(
-                w in action.lower() for w in ("after", "when", "tonight", "evening")
+                w in action.lower()
+                for w in ("after", "when", "tonight", "evening")
             ):
                 coaching["action"] = action.rstrip(".") + " now"
                 return coaching

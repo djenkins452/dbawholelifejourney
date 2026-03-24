@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: Expand NCAA Baseball to Full D1 (293 teams, all conferences)
+
+- **Data:** Expanded NCAA Baseball from 25 top programs to 293 D1 teams across all conferences
+  - SEC (16), ACC (18), Big 12 (16), Big Ten (15), AAC (14), Sun Belt (14), C-USA (10), Mountain West (8), WCC (8), MVC (10), CAA (11), Big East (9), A-10 (13), ASUN (10), Southern (10), Big West (11), Patriot (6), Ivy (8), Horizon (8), OVC (9), Southland (9), NEC (12), MEAC (8), SWAC (10), Summit (6), WAC (7), America East (7), MAAC (10)
+  - Total teams in system: 526 (up from 258)
+- Files: apps/sports/management/commands/load_sports_data.py, scripts/seed_sports_data.sql
+
 ## 2026-03-24 — Sports: My Teams Hub Now Shows Followed Teams
 
 - **Feature:** Rebuilt My Teams hub (`/sports/`) to display followed teams grouped by league

@@ -172,10 +172,12 @@ class GameLiveSignalTest(TestCase):
         self.assertIn(SIGNAL_GAME_LIVE, signal_types)
 
 
-class WinLossSignalTest(TestCase):
+class NoNoiseSignalsTest(TestCase):
+    """Verify only the 5 required signals are generated — no noise."""
+
     def setUp(self):
         self.user = User.objects.create_user(
-            email="winloss@example.com", password="testpass123"
+            email="nonoise@example.com", password="testpass123"
         )
         prefs = self.user.preferences
         prefs.sports_enabled = True
@@ -185,8 +187,8 @@ class WinLossSignalTest(TestCase):
             user=self.user, team=self.chiefs, priority=1
         )
 
-    def test_team_win_signal(self):
-        """Completed game where followed team won generates team_win signal."""
+    def test_completed_game_produces_no_event_signal(self):
+        """Completed games do NOT produce game_completed/team_win/team_loss signals."""
         GameEvent.objects.create(
             home_team=self.chiefs, away_team=self.niners,
             start_time=timezone.now() - timedelta(hours=3),
@@ -194,22 +196,33 @@ class WinLossSignalTest(TestCase):
             home_score=27, away_score=20,
         )
         signals = generate_sports_signals(self.user)
-        signal_types = [s["signal_type"] for s in signals]
-        self.assertIn(SIGNAL_TEAM_WIN, signal_types)
-        self.assertNotIn(SIGNAL_TEAM_LOSS, signal_types)
+        signal_types = {s["signal_type"] for s in signals}
+        # Only these 5 signals are allowed
+        allowed = {SIGNAL_GAME_LIVE, SIGNAL_GAME_STARTING_SOON, SIGNAL_GAME_TODAY,
+                   SIGNAL_WIN_STREAK, SIGNAL_LOSING_STREAK}
+        self.assertTrue(signal_types.issubset(allowed),
+                        f"Unexpected signals: {signal_types - allowed}")
 
-    def test_team_loss_signal(self):
-        """Completed game where followed team lost generates team_loss signal."""
+    def test_only_five_signal_types_exist(self):
+        """Create various game states — only 5 signal types should appear."""
+        now = timezone.now()
+        # Live game
         GameEvent.objects.create(
             home_team=self.chiefs, away_team=self.niners,
-            start_time=timezone.now() - timedelta(hours=3),
-            status=GameEvent.STATUS_FINAL,
-            home_score=20, away_score=27,
+            start_time=now - timedelta(hours=1),
+            status=GameEvent.STATUS_LIVE, home_score=14, away_score=7,
+        )
+        # Completed game
+        GameEvent.objects.create(
+            home_team=self.chiefs, away_team=self.niners,
+            start_time=now - timedelta(hours=4),
+            status=GameEvent.STATUS_FINAL, home_score=27, away_score=20,
         )
         signals = generate_sports_signals(self.user)
-        signal_types = [s["signal_type"] for s in signals]
-        self.assertIn(SIGNAL_TEAM_LOSS, signal_types)
-        self.assertNotIn(SIGNAL_TEAM_WIN, signal_types)
+        signal_types = {s["signal_type"] for s in signals}
+        allowed = {SIGNAL_GAME_LIVE, SIGNAL_GAME_STARTING_SOON, SIGNAL_GAME_TODAY,
+                   SIGNAL_WIN_STREAK, SIGNAL_LOSING_STREAK}
+        self.assertTrue(signal_types.issubset(allowed))
 
 
 class StreakSignalTest(TestCase):

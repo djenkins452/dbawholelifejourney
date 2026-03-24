@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: Signal Finalization — 5 Clean Signals Only
+
+- **Cleanup:** Reduced from 8 signal types to exactly 5 required signals:
+  1. `game_live` — followed team's game is in progress
+  2. `game_starting_soon` — game within 60 minutes
+  3. `game_today` — game scheduled today
+  4. `win_streak` — 3+ consecutive wins
+  5. `losing_streak` — 3+ consecutive losses
+- **Removed:** `game_completed`, `team_win`, `team_loss` (noise — not needed by Beth)
+- **Fixed:** Streak detection now uses batch `compute_streaks_for_teams()` instead of per-team N+1 queries
+- **Tests:** Updated to verify only 5 signal types exist, no noise signals
+- **Legacy exports:** Kept `SIGNAL_GAME_COMPLETED`, `SIGNAL_TEAM_WIN`, `SIGNAL_TEAM_LOSS` constants for backward-compatible imports (dead code paths in tasks.py)
+- Files: apps/sports/services/signal_generator.py, apps/sports/tests/test_signals.py
+
 ## 2026-03-24 — Sports: UI Polish + Timestamp Hardening
 
 - **UI overhaul:** Cleaner, more scannable team rows

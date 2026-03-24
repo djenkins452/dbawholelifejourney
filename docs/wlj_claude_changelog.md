@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Fix: Medication State Changes Not Triggering CoS Revalidation
+
+**What:** The mid-response state revalidator (`cos_state_revalidator.py`) captured snapshots of 7 completion fields but omitted all 3 medication fields (`meds_taken`, `meds_expected`, `meds_all_taken`). If a user took a medication dose during LLM response generation, the change was invisible to the revalidator and Beth served a stale response.
+
+**Root cause:** `capture_state_snapshot()` at line 38-46 had a hardcoded field list that predated medication support in locked facts. The `_raw` dict contained the medication fields (added in previous fix), but `capture_state_snapshot()` dropped them.
+
+**Fix:** Added 3 lines to `capture_state_snapshot()` extracting `meds_taken`, `meds_expected`, `meds_all_taken`. Since `has_state_changed()` uses `!=` on the full dict, no changes needed there.
+
+**Files:**
+- `apps/ai/cos_state_revalidator.py` — 3 lines added to snapshot extraction
+- `apps/ai/tests/test_cos_state_revalidator.py` — 4 new tests, updated `_make_raw` helper
+
 ## 2026-03-23 — Fix: Medications Excluded from "All Complete" Locked Facts
 
 **What:** Beth was reporting "All daily items are complete" while evening/night medication doses remained pending. Medications were completely absent from the locked fact statement pipeline.

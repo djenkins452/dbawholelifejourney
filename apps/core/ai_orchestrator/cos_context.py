@@ -1732,10 +1732,11 @@ def _build_routine_context(user):
 def _build_sports_context(user):
     """Build sports context — signal-level data only (CoS purity enforced).
 
-    Provides:
-    - games_today: followed teams' games happening today
-    - recent_results: W/L outcomes for emotional context
-    - active_signals: game_starting_soon, game_live, etc.
+    Provides Beth with:
+    - sports_awareness: Natural-language summary of current sports situation
+    - sports_games_today: structured list of today's games
+    - sports_recent_results: W/L outcomes for emotional context
+    - sports_focus_game: single highest-urgency game (live > soon > today)
 
     Does NOT expose raw scores, stats, or standings to CoS.
     Reads from SAE state (which consumes cached signals — never raw GameEvent).
@@ -1778,10 +1779,72 @@ def _build_sports_context(user):
         if recent_results:
             result['sports_recent_results'] = recent_results
 
-        # Active signals (for scheduling awareness)
-        active = sports.get('active_signals', [])
-        if active:
-            result['sports_active_signals'] = active
+        # Focus game — highest urgency, highest follow priority
+        urgency_rank = {"live": 0, "starting_soon": 1, "today": 2}
+        focus = None
+        focus_rank = 99
+        for s in summaries:
+            status = s.get('status', 'upcoming')
+            if status not in urgency_rank:
+                continue
+            rank = urgency_rank[status]
+            priority = s.get('priority', 99)
+            if rank < focus_rank or (rank == focus_rank and priority < (focus or {}).get('priority', 99)):
+                ng = s.get('next_game', {})
+                focus = {
+                    'team': s['team_name'],
+                    'opponent': ng.get('opponent', ''),
+                    'time': ng.get('time', ''),
+                    'status': status,
+                    'priority': priority,
+                }
+                if status == 'live' and ng.get('score'):
+                    focus['score'] = ng['score']
+                focus_rank = rank
+
+        if focus:
+            focus.pop('priority', None)
+            result['sports_focus_game'] = focus
+
+        # Build natural-language awareness text for Beth
+        awareness_parts = []
+
+        if focus:
+            if focus['status'] == 'live':
+                score_text = f" ({focus['score']})" if focus.get('score') else ""
+                awareness_parts.append(
+                    f"The user's {focus['team']} game vs {focus['opponent']} is LIVE right now{score_text}."
+                )
+            elif focus['status'] == 'starting_soon':
+                awareness_parts.append(
+                    f"The user's {focus['team']} game vs {focus['opponent']} starts soon at {focus['time']}."
+                )
+            elif focus['status'] == 'today':
+                awareness_parts.append(
+                    f"The user's {focus['team']} plays {focus['opponent']} today at {focus['time']}."
+                )
+
+        # Other today games beyond the focus
+        other_today = [
+            g for g in today_games
+            if not focus or g['team'] != focus.get('team')
+        ]
+        if other_today:
+            teams = ", ".join(g['team'] for g in other_today[:3])
+            awareness_parts.append(f"Also playing today: {teams}.")
+
+        # Recent notable results
+        wins = [r for r in recent_results if r['result'] == 'W']
+        losses = [r for r in recent_results if r['result'] == 'L']
+        if wins:
+            win_teams = ", ".join(r['team'] for r in wins[:2])
+            awareness_parts.append(f"Recent win: {win_teams}.")
+        if losses:
+            loss_teams = ", ".join(r['team'] for r in losses[:2])
+            awareness_parts.append(f"Recent loss: {loss_teams}.")
+
+        if awareness_parts:
+            result['sports_awareness'] = " ".join(awareness_parts)
 
     except Exception as e:
         logger.debug("CoS context: sports unavailable: %s", e)

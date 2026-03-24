@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: CoS Integration — Beth Now Sees Sports Signals
+
+- **Feature:** Full raw → signals → state → CoS pipeline for sports domain
+  - **State builder** (`build_sports_state`): Added DB fallback when cache is empty. Lightweight bounded query (user's followed teams + next/last games). Produces urgency signals (game_live, game_starting_soon, game_today, team_win, team_loss).
+  - **CoS context** (`_build_sports_context`): Now produces `sports_awareness` (natural language), `sports_focus_game` (highest-urgency game), structured `sports_games_today` and `sports_recent_results`.
+  - Beth can now naturally say things like "Your Braves play the Dodgers today at 7:10 PM" or "Your team just won."
+  - Disabled module = zero context (verified)
+  - Architecture compliant: raw GameEvent → urgency/signal computation → state dict → CoS text. LLM never sees raw data.
+- Files: apps/core/ai_state/state_builder.py, apps/core/ai_orchestrator/cos_context.py
+
 ## 2026-03-24 — Sports: Focus Game Card (Top of My Teams)
 
 - **Feature:** Surfaces ONE primary game at the top of My Teams hub

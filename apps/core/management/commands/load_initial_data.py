@@ -256,6 +256,11 @@ BLUEPRINT_LOADERS = [
         'display': 'Finance Module Project',
         'description': 'Finance tracking feature tasks',
     },
+    {
+        'name': 'load_sports_data',
+        'display': 'Sports Reference Data',
+        'description': 'Sports, leagues, and teams for the Sports domain',
+    },
 ]
 
 

@@ -169,6 +169,7 @@ class CosTruthValidatorTest(TestCase):
             'tasks_done': 0,
             'meds_taken': 0,
             'meds_expected': 0,
+            'meds_skipped': 0,
             'meds_all_taken': True,
         }
         return {
@@ -411,7 +412,8 @@ class CosExpectationAwarenessTest(TestCase):
             'journal_done': False, 'journal_expected': False,
             'routine_done': 0, 'routine_total': 0,
             'tasks_done': 0,
-            'meds_taken': 0, 'meds_expected': 0, 'meds_all_taken': True,
+            'meds_taken': 0, 'meds_expected': 0, 'meds_skipped': 0,
+            'meds_all_taken': True,
         }
         summary = _build_overall_summary(raw)
         self.assertIn("Nothing has been completed", summary)
@@ -427,7 +429,8 @@ class CosExpectationAwarenessTest(TestCase):
             'journal_done': False, 'journal_expected': False,
             'routine_done': 3, 'routine_total': 3,
             'tasks_done': 0,
-            'meds_taken': 0, 'meds_expected': 0, 'meds_all_taken': True,
+            'meds_taken': 0, 'meds_expected': 0, 'meds_skipped': 0,
+            'meds_all_taken': True,
         }
         summary = _build_overall_summary(raw)
         self.assertEqual(summary, "All daily items are complete.")
@@ -480,7 +483,8 @@ class CosMedicationFactTest(TestCase):
             'journal_done': True, 'journal_expected': True,
             'routine_done': 3, 'routine_total': 3,
             'tasks_done': 2,
-            'meds_taken': 0, 'meds_expected': 0, 'meds_all_taken': True,
+            'meds_taken': 0, 'meds_expected': 0, 'meds_skipped': 0,
+            'meds_all_taken': True,
         }
         raw.update(overrides)
         return raw
@@ -512,6 +516,28 @@ class CosMedicationFactTest(TestCase):
         self.assertEqual(
             _build_medication_summary(raw),
             "4 of 6 medication doses taken. 2 doses remaining.",
+        )
+
+    def test_med_summary_partial_with_skip(self):
+        """4 taken, 1 skipped of 6 → includes skip text and correct remaining."""
+        from apps.ai.cos_fact_statements import _build_medication_summary
+        raw = self._make_raw(
+            meds_expected=6, meds_taken=4, meds_skipped=1, meds_all_taken=False,
+        )
+        self.assertEqual(
+            _build_medication_summary(raw),
+            "4 of 6 medication doses taken. 1 doses remaining. 1 skipped.",
+        )
+
+    def test_med_summary_all_accounted_via_skip(self):
+        """5 taken, 1 skipped of 6 → all accounted for."""
+        from apps.ai.cos_fact_statements import _build_medication_summary
+        raw = self._make_raw(
+            meds_expected=6, meds_taken=5, meds_skipped=1, meds_all_taken=False,
+        )
+        self.assertEqual(
+            _build_medication_summary(raw),
+            "5 of 6 medication doses taken. 1 skipped.",
         )
 
     def test_med_summary_none_taken(self):
@@ -608,7 +634,8 @@ class CosMedicationFactTest(TestCase):
             },
             'tasks': {'completed': 2, 'completed_today_all': 2},
             'medications': {
-                'taken': 4, 'expected': 6, 'all_taken': False,
+                'taken': 4, 'expected': 6, 'skipped': 1,
+                'all_taken': False,
             },
         }
         user = MagicMock()
@@ -626,7 +653,7 @@ class CosMedicationFactTest(TestCase):
         self.assertIn('medication_summary', facts)
         self.assertEqual(
             facts['medication_summary'],
-            "4 of 6 medication doses taken. 2 doses remaining.",
+            "4 of 6 medication doses taken. 1 doses remaining. 1 skipped.",
         )
         self.assertNotEqual(
             facts['overall_summary'],
@@ -635,4 +662,5 @@ class CosMedicationFactTest(TestCase):
         # Verify raw includes medication fields
         self.assertEqual(facts['_raw']['meds_taken'], 4)
         self.assertEqual(facts['_raw']['meds_expected'], 6)
+        self.assertEqual(facts['_raw']['meds_skipped'], 1)
         self.assertFalse(facts['_raw']['meds_all_taken'])

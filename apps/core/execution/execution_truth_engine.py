@@ -436,6 +436,7 @@ def _check_medications(user, target_date: date) -> Dict:
     result = {
         'taken': 0,
         'expected': 0,
+        'skipped': 0,
         'all_taken': False,
     }
     try:
@@ -443,6 +444,7 @@ def _check_medications(user, target_date: date) -> Dict:
         adherence = calculate_medicine_adherence(user, target_date, target_date)
         result['expected'] = adherence.get('expected_doses', 0)
         result['taken'] = adherence.get('taken_doses', 0)
+        result['skipped'] = adherence.get('skipped_doses', 0)
         result['all_taken'] = (
             result['taken'] >= result['expected']
             if result['expected'] > 0

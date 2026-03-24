@@ -84,6 +84,7 @@ def calculate_medicine_adherence(user, start_date, end_date):
         "expected_doses": expected_doses,
         "taken_doses": taken_count,
         "missed_doses": missed_count,
+        "skipped_doses": skipped_count,
         "unlogged_doses": unlogged_count,
         "adherence_rate": adherence_rate,
     }

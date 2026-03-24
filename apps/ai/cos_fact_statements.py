@@ -51,6 +51,7 @@ def build_locked_facts(user) -> dict:
         'tasks_done': 0,
         'meds_taken': 0,
         'meds_expected': 0,
+        'meds_skipped': 0,
         'meds_all_taken': True,  # True when none scheduled (vacuous truth)
     }
 
@@ -91,6 +92,7 @@ def build_locked_facts(user) -> dict:
     meds = truth.get('medications', {})
     raw['meds_taken'] = meds.get('taken', 0)
     raw['meds_expected'] = meds.get('expected', 0)
+    raw['meds_skipped'] = meds.get('skipped', 0)
     raw['meds_all_taken'] = meds.get('all_taken', True)
 
     # Collect pending routine item names from raw items
@@ -116,14 +118,15 @@ def build_locked_facts(user) -> dict:
     logger.info(
         "[CoS LOCKED FACTS] user=%s prayer=%s(exp=%s) bible=%s(exp=%s) "
         "workout=%s(exp=%s) journal=%s(exp=%s) routines=%d/%d tasks=%d "
-        "meds=%d/%d(all_taken=%s)",
+        "meds=%d/%d(skipped=%d,all_taken=%s)",
         user.id,
         raw['prayer_done'], raw['prayer_expected'],
         raw['bible_done'], raw['bible_expected'],
         raw['workout_done'], raw['workout_expected'],
         raw['journal_done'], raw['journal_expected'],
         raw['routine_done'], raw['routine_total'], raw['tasks_done'],
-        raw['meds_taken'], raw['meds_expected'], raw['meds_all_taken'],
+        raw['meds_taken'], raw['meds_expected'],
+        raw['meds_skipped'], raw['meds_all_taken'],
     )
 
     return facts
@@ -203,6 +206,7 @@ def _build_medication_summary(raw):
     """Build locked medication fact statement."""
     expected = raw['meds_expected']
     taken = raw['meds_taken']
+    skipped = raw.get('meds_skipped', 0)
 
     if expected == 0:
         return "No medications scheduled today."
@@ -210,15 +214,21 @@ def _build_medication_summary(raw):
     if taken >= expected:
         return f"All {expected} medication doses taken."
 
-    remaining = expected - taken
-    if taken == 0:
+    remaining = expected - taken - skipped
+    skip_text = f" {skipped} skipped." if skipped > 0 else ""
+
+    if remaining <= 0 and taken > 0:
+        # All doses accounted for (taken + skipped = expected)
+        return f"{taken} of {expected} medication doses taken.{skip_text}"
+
+    if taken == 0 and skipped == 0:
         return (
             f"0 of {expected} medication doses taken. "
             f"{remaining} doses remaining."
         )
     return (
         f"{taken} of {expected} medication doses taken. "
-        f"{remaining} doses remaining."
+        f"{remaining} doses remaining.{skip_text}"
     )
 
 

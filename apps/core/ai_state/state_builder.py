@@ -3122,6 +3122,61 @@ def build_capture_state(user):
     return state
 
 
+def build_sports_state(user):
+    """Build sports state: followed teams, active signals, game summaries.
+
+    Consumes cached signals — never re-derives from raw GameEvent queries.
+    If sports module is disabled, returns empty state immediately.
+
+    _contract is primary. See docs/SAE_STATE_CONTRACT.md.
+    """
+    state = {}
+    try:
+        prefs = getattr(user, 'preferences', None)
+        if not prefs or not prefs.sports_enabled:
+            state['enabled'] = False
+            state['_meta'] = _build_state_meta(
+                completeness='full',
+                confidence='high',
+            )
+            return state
+
+        state['enabled'] = True
+
+        # Read from cache — NEVER compute here
+        from apps.sports.services.cache_manager import (
+            get_user_sports_summary,
+            get_user_today_games,
+        )
+
+        summaries = get_user_sports_summary(user)
+        today_games = get_user_today_games(user)
+
+        state['teams_followed'] = len(summaries)
+        state['games_today'] = len(today_games)
+        state['today_games'] = today_games
+
+        # Active signals (aggregated from summaries)
+        all_signals = set()
+        for s in summaries:
+            all_signals.update(s.get('active_signals', []))
+        state['active_signals'] = sorted(all_signals)
+
+        # Per-team summaries (for CoS context consumption)
+        state['team_summaries'] = summaries
+
+    except ImportError:
+        logger.debug("Sports module not installed")
+    except Exception:
+        logger.warning("Sports state build failed", exc_info=True)
+
+    state['_meta'] = _build_state_meta(
+        completeness='full' if state.get('team_summaries') else 'partial',
+        confidence='high',
+    )
+    return state
+
+
 MODULE_BUILDERS = {
     "health": build_health_state,
     "goals": build_goal_state,
@@ -3149,6 +3204,7 @@ MODULE_BUILDERS = {
     "brain_training": build_brain_training_state,
     "medical": build_medical_state,
     "capture": build_capture_state,
+    "sports": build_sports_state,
     # NOTE: daily_execution_status is DEPRECATED — subsumed by the 'execution'
     # module which provides identical domain booleans in summaries.domains.
     # Kept as function only for backward compat; NOT registered in MODULE_BUILDERS.

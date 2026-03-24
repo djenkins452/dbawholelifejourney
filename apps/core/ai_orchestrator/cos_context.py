@@ -1729,6 +1729,65 @@ def _build_routine_context(user):
     return result
 
 
+def _build_sports_context(user):
+    """Build sports context — signal-level data only (CoS purity enforced).
+
+    Provides:
+    - games_today: followed teams' games happening today
+    - recent_results: W/L outcomes for emotional context
+    - active_signals: game_starting_soon, game_live, etc.
+
+    Does NOT expose raw scores, stats, or standings to CoS.
+    Reads from SAE state (which consumes cached signals — never raw GameEvent).
+    """
+    result = {}
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        sports = get_module_state(user, 'sports') or {}
+
+        if not sports.get('enabled'):
+            return result
+
+        summaries = sports.get('team_summaries', [])
+        if not summaries:
+            return result
+
+        # Games today (signal-level: team + opponent + time + status)
+        today_games = []
+        for s in summaries:
+            if s.get('next_game') and s.get('status') in ('today', 'starting_soon', 'live'):
+                today_games.append({
+                    'team': s['team_name'],
+                    'opponent': s['next_game'].get('opponent', ''),
+                    'time': s['next_game'].get('time', ''),
+                    'status': s['status'],
+                })
+        if today_games:
+            result['sports_games_today'] = today_games
+
+        # Recent results (W/L for emotional awareness)
+        recent_results = []
+        for s in summaries:
+            lr = s.get('last_result')
+            if lr:
+                recent_results.append({
+                    'team': s['team_name'],
+                    'result': lr.get('result', ''),
+                    'score': lr.get('score', ''),
+                })
+        if recent_results:
+            result['sports_recent_results'] = recent_results
+
+        # Active signals (for scheduling awareness)
+        active = sports.get('active_signals', [])
+        if active:
+            result['sports_active_signals'] = active
+
+    except Exception as e:
+        logger.debug("CoS context: sports unavailable: %s", e)
+    return result
+
+
 #   - domain_key: domain registry key, or None for system-level builders
 #
 # Domain-keyed builders are filtered by module enablement (Phase 2).
@@ -1760,6 +1819,7 @@ _TAGGED_BUILDERS = [
     ('purpose', lambda user, prefs: _build_purpose_context(user), 'purpose'),
     ('relationships', lambda user, prefs: _build_people_and_mood(user), 'relationships'),
     ('routine', lambda user, prefs: _build_routine_context(user), None),
+    ('sports', lambda user, prefs: _build_sports_context(user), 'sports'),
 ]
 
 # Backward-compatible flat list (used by telemetry and tests)

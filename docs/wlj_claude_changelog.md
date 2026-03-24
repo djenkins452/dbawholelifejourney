@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — New Sports Context Domain
+
+- **Feature:** Add new Sports context domain with team tracking, game-day signals, and CoS integration
+  - New `apps/sports/` Django app: models (Sport, League, Team, GameEvent, UserTeamFollow), views, templates, admin, URL routing
+  - Provider adapter layer with abstract `BaseSportsProvider` and `FixtureSportsProvider` for development
+  - Time normalization model (active/starting_soon/today/upcoming/past windows)
+  - Signal generation: game_today, game_starting_soon, game_live, game_completed, team_win, team_loss, win_streak, losing_streak
+  - SAE state builder (`build_sports_state`) consuming cached signals (not raw GameEvent)
+  - CoS context builder (`_build_sports_context`) providing signal-level data only
+  - Domain registry as CONTEXT domain, ModuleDefinition catalog entry
+  - `sports_enabled` preference on UserPreferences (default=False)
+  - Sports keywords added to signal engine DOMAIN_KEYWORDS
+  - Seed data: 3 sports, 6 leagues (NFL, NBA, MLB, NCAAF, NCAAB, NCAABB), 41 teams
+  - 56 tests covering models, signals, views, provider, time windows, module gating
+  - Files: apps/sports/ (new app), apps/users/models.py, config/settings.py, config/urls.py, apps/core/ai_state/state_builder.py, apps/core/ai_orchestrator/cos_context.py, apps/core/signals/signal_engine.py, apps/users/migrations/0079-0080
+
 ## 2026-03-23 — Fitness Dual-Signal Model (Strength Load + Movement Work)
 
 **What:** Workouts now produce two independent effort signals: Strength Load (volume from load exercises) and Movement Work (reps from non-load exercises). These are never combined — different units, different meaning.

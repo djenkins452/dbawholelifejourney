@@ -362,6 +362,12 @@ class UserPreferences(models.Model):
         help_text="Enable Capture module for audio recording and transcription",
     )
 
+    # Sports Module (Optional — context domain)
+    sports_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable Sports module for tracking followed teams and game-day signals",
+    )
+
     # ===================
     # SUB-FEATURE TOGGLES
     # ===================

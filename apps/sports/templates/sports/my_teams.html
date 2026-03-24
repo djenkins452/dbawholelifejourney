@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Teams - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sports-hub {
+        padding: var(--space-4);
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .sports-header {
+        text-align: center;
+        margin-bottom: var(--space-6);
+        padding: var(--space-4) 0;
+    }
+
+    .sports-title {
+        font-size: 1.75rem;
+        font-weight: 600;
+        color: var(--color-text);
+        margin-bottom: 0.5rem;
+    }
+
+    .sports-subtitle {
+        font-size: 0.9rem;
+        color: var(--color-text-muted);
+        letter-spacing: 0.05em;
+    }
+
+    .sports-actions {
+        text-align: center;
+        margin-bottom: var(--space-6);
+    }
+
+    .teams-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: var(--space-4);
+    }
+
+    @media (max-width: 480px) {
+        .teams-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .team-card {
+        background: var(--color-surface);
+        border-radius: var(--radius-lg);
+        padding: var(--space-5);
+        border: 1px solid var(--color-border);
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+
+    .team-card--live {
+        border-color: var(--color-accent);
+        border-width: 2px;
+    }
+
+    .team-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .team-name {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--color-text);
+    }
+
+    .team-league {
+        font-size: 0.75rem;
+        color: var(--color-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .team-priority {
+        font-size: 0.7rem;
+        padding: 2px 8px;
+        border-radius: var(--radius-sm);
+        background: var(--color-surface-alt, var(--color-border));
+        color: var(--color-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .team-priority--primary {
+        background: var(--color-accent);
+        color: white;
+    }
+
+    .team-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.75rem;
+        padding: 2px 8px;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .team-status-badge--live {
+        background: #ef4444;
+        color: white;
+    }
+
+    .team-status-badge--today {
+        background: #f59e0b;
+        color: white;
+    }
+
+    .team-status-badge--starting_soon {
+        background: #f97316;
+        color: white;
+    }
+
+    .team-status-badge--upcoming {
+        background: var(--color-surface-alt, var(--color-border));
+        color: var(--color-text-muted);
+    }
+
+    .team-detail {
+        font-size: 0.875rem;
+        color: var(--color-text-muted);
+        line-height: 1.5;
+    }
+
+    .team-detail-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--color-text-muted);
+        margin-bottom: 0.25rem;
+    }
+
+    .team-detail-value {
+        color: var(--color-text);
+        font-weight: 500;
+    }
+
+    .team-result {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+    }
+
+    .result-badge {
+        font-weight: 700;
+        font-size: 0.875rem;
+        padding: 1px 6px;
+        border-radius: var(--radius-sm);
+    }
+
+    .result-badge--W {
+        color: #22c55e;
+    }
+
+    .result-badge--L {
+        color: #ef4444;
+    }
+
+    .result-badge--T {
+        color: var(--color-text-muted);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: var(--space-8);
+        color: var(--color-text-muted);
+    }
+
+    .empty-state svg {
+        margin-bottom: var(--space-4);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sports-hub" data-testid="sports-hub">
+    <header class="sports-header">
+        <h1 class="sports-title">My Teams</h1>
+        <p class="sports-subtitle">Game-day awareness & team tracking</p>
+    </header>
+
+    <div class="sports-actions">
+        <a href="{% url 'sports:team_select' %}" class="btn btn-secondary">Manage Teams</a>
+    </div>
+
+    {% if not has_teams %}
+    <div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4l3 3"/>
+        </svg>
+        <h2>No teams followed yet</h2>
+        <p>Select your favorite teams to get game-day signals and scheduling awareness.</p>
+        <a href="{% url 'sports:team_select' %}" class="btn btn-primary" style="margin-top: var(--space-4);">Select Teams</a>
+    </div>
+    {% else %}
+
+    <div class="teams-grid" id="teams-grid">
+        {% for team in team_summaries %}
+        <div class="team-card {% if team.status == 'live' %}team-card--live{% endif %}">
+            <div class="team-card-header">
+                <div>
+                    <div class="team-name">{{ team.team_name }}</div>
+                    <div class="team-league">{{ team.league }}</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: var(--space-2);">
+                    {% if team.status == 'live' %}
+                    <span class="team-status-badge team-status-badge--live">LIVE</span>
+                    {% elif team.status == 'starting_soon' %}
+                    <span class="team-status-badge team-status-badge--starting_soon">Soon</span>
+                    {% elif team.status == 'today' %}
+                    <span class="team-status-badge team-status-badge--today">Today</span>
+                    {% endif %}
+                    {% if team.priority == 1 %}
+                    <span class="team-priority team-priority--primary">Primary</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if team.next_game %}
+            <div class="team-detail">
+                <div class="team-detail-label">Next Game</div>
+                <div class="team-detail-value">
+                    vs {{ team.next_game.opponent }}
+                    {% if team.next_game.time %} &middot; {{ team.next_game.time }}{% endif %}
+                    {% if team.next_game.venue %} &middot; {{ team.next_game.venue }}{% endif %}
+                </div>
+                {% if team.next_game.score %}
+                <div class="team-detail-value" style="font-size: 1.1rem; font-weight: 700; margin-top: 0.25rem;">
+                    {{ team.next_game.score }}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if team.last_result %}
+            <div class="team-detail">
+                <div class="team-detail-label">Last Result</div>
+                <div class="team-result">
+                    <span class="result-badge result-badge--{{ team.last_result.result }}">{{ team.last_result.result }}</span>
+                    <span class="team-detail-value">
+                        vs {{ team.last_result.opponent }}
+                        {% if team.last_result.score %} &middot; {{ team.last_result.score }}{% endif %}
+                    </span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}

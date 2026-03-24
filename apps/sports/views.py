@@ -122,7 +122,7 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
             team_info = {
                 "team": team,
                 "follow": follow,
-                "record": team.record,
+                "record": team.record_display,
                 "streak": streak_map.get(team.id, ""),
                 "next_game": None,
                 "context_line": "",

@@ -299,9 +299,94 @@ def _eval_heart_rate(health_state, current_dt):
     return []  # Normal HR is not interesting enough for a summary slot
 
 
+# ── Signal → Summary item conversion ────────────────────────────────────────
+
+# Concern states that qualify a signal for summary inclusion
+_CONCERN_STATES = frozenset({"poor", "declining", "unstable", "low", "watch"})
+
+# Signal priority order (lower index = higher priority)
+_SIGNAL_PRIORITY = ["med_adherence", "cardio_stability", "activity_momentum",
+                     "sleep_recovery"]
+
+# Map signal state → summary priority
+_SIGNAL_STATE_TO_PRIORITY = {
+    "unstable": HIGH,
+    "poor": MEDIUM,
+    "declining": MEDIUM,
+    "watch": MEDIUM,
+    "low": MEDIUM,
+}
+
+
+def _select_signal_for_summary(signals, selected_keys):
+    """
+    Select at most ONE signal to inject into the summary.
+
+    Rules:
+        - Signal state must indicate concern (_CONCERN_STATES)
+        - Must not duplicate meaning with an existing summary item
+        - Priority order: med_adherence > cardio_stability > activity > sleep
+
+    Args:
+        signals: list of signal dicts from build_health_signals()
+        selected_keys: set of keys already in the summary
+
+    Returns:
+        summary item dict, or None
+    """
+    if not signals:
+        return None
+
+    # Map of signal keys that overlap with existing summary item keys
+    _SIGNAL_OVERLAPS = {
+        "med_adherence": {"medications_overdue", "medication_adherence_low",
+                          "medications_on_track"},
+        "cardio_stability": {"bp_crisis", "bp_elevated", "bp_normal",
+                             "glucose_severe", "glucose_concern", "glucose_normal",
+                             "hr_elevated"},
+        "activity_momentum": {"activity_low", "activity_on_track"},
+        "sleep_recovery": {"sleep_short", "sleep_strong"},
+    }
+
+    # Index signals by key for ordered lookup
+    sig_by_key = {s["key"]: s for s in signals}
+
+    for sig_key in _SIGNAL_PRIORITY:
+        sig = sig_by_key.get(sig_key)
+        if sig is None:
+            continue
+
+        # Must be in a concern state
+        state = sig.get("state", "")
+        trend = sig.get("trend", "")
+        if state not in _CONCERN_STATES and trend not in _CONCERN_STATES:
+            continue
+
+        # Must not overlap with existing summary items
+        overlaps = _SIGNAL_OVERLAPS.get(sig_key, set())
+        if overlaps & selected_keys:
+            continue
+
+        # Convert to summary item
+        # Use the more concerning of state or trend for priority mapping
+        effective_state = state if state in _CONCERN_STATES else trend
+        priority = _SIGNAL_STATE_TO_PRIORITY.get(effective_state, MEDIUM)
+
+        return _item(
+            f"signal_{sig_key}",
+            priority,
+            "signal",
+            sig.get("insight", ""),
+            "trend",
+        )
+
+    return None
+
+
 # ── Main builder ─────────────────────────────────────────────────────────────
 
-def build_health_priority_summary(health_state, medicine_state, current_dt):
+def build_health_priority_summary(health_state, medicine_state, current_dt,
+                                   signals=None):
     """
     Build deterministic health priority summary from canonical state.
 
@@ -309,12 +394,14 @@ def build_health_priority_summary(health_state, medicine_state, current_dt):
         health_state: dict from get_module_state(user, 'health')
         medicine_state: dict from get_module_state(user, 'medicine')
         current_dt: user's current local aware datetime
+        signals: optional list of health signal dicts from build_health_signals()
 
     Returns:
         dict with headline, items (min 2 / max 4), flags, generated_at
     """
     health_state = health_state or {}
     medicine_state = medicine_state or {}
+    signals = signals or []
 
     # Collect all candidate items from evaluators
     candidates = []
@@ -355,6 +442,16 @@ def build_health_priority_summary(health_state, medicine_state, current_dt):
         # Remove from current position, insert at 0
         selected = [i for i in selected if i["key"] != "medications_overdue"]
         selected.insert(0, overdue_items[0])
+
+    # ── Phase 2.5: Inject ONE signal (if concerning + non-duplicate) ──
+    if signals and len(selected) < MAX_ITEMS:
+        selected_keys = {i["key"] for i in selected}
+        signal_item = _select_signal_for_summary(signals, selected_keys)
+        if signal_item:
+            # Insert after medications (index 1) if meds exist, else at 0
+            has_meds = any(i["category"] == "medical" for i in selected)
+            insert_idx = 1 if has_meds and len(selected) > 0 else 0
+            selected.insert(insert_idx, signal_item)
 
     # ── Phase 3: Enforce minimum items (2) ──
     # If we have only 1 item, try to fill from overflow (deduped-out items)

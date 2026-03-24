@@ -6,6 +6,11 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Wire Sports Data Seed into load_initial_data
+
+- **Fix:** Added `load_sports_data` to `COMMAND_LOADERS` in `load_initial_data.py` so sports reference data (5 sports, 8 leagues, 258 teams) is populated on production deploy via the standard data loading pipeline.
+  - Files: apps/core/management/commands/load_initial_data.py
+
 ## 2026-03-23 — Sports Data Seed: Complete Pro + College Rosters
 
 - **Feature:** Expanded `load_sports_data` command with complete team rosters

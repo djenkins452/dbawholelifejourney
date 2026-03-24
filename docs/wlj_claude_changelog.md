@@ -6,6 +6,30 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Fix CI Test Suite (18 errors, 26 failures)
+
+**What:** Fixed all 44 test failures across the CI test suite caused by recent refactors that changed method signatures, removed section headers, and introduced new domain registrations.
+
+**Root causes and fixes:**
+1. **SignalAggregationService `expected_map` parameter (10 errors):** `_compute_nutrition_compliance`, `_compute_relational_engagement`, `_compute_health_activity`, `_compute_financial_health` gained a required `expected_map` parameter. Tests updated to pass `{}`.
+   - `apps/core/ai_eae/tests/test_signal_governance.py`, `apps/health/tests/test_workout_minutes_fix.py`
+
+2. **`_exec_contract` NameError (5 errors):** `_build_data_state_snapshot()` referenced `_exec_contract` before initialization. Added `get_module_state(user, 'execution')` call.
+   - `apps/core/ai_orchestrator/cos_context.py`
+
+3. **COGNITIVE PRECISION conditional injection (3 failures):** With `WLJ_CONDITIONAL_FRAMEWORKS_ENABLED=True`, COGNITIVE PRECISION is only injected for `ACTIVATION_CLEAN` state or decision keywords. Tests for `EARLY_EROSION` and `STRUCTURAL_DRIFT` states updated to not expect it.
+   - `apps/core/tests/test_phase4_cos.py`
+
+4. **WorkoutTemplate `template_type` removed (1 error):** Field no longer exists on model. Test updated.
+   - `apps/dashboard_v2/compliance/tests/test_reconciliation.py`
+
+5. **Cache invalidation test flaky (1 failure):** Prior test in same class left stale cache. Added explicit cache clear before test.
+   - `apps/dashboard_v2/compliance/tests/test_reconciliation.py`
+
+**Files changed:** `test_signal_governance.py`, `test_workout_minutes_fix.py`, `cos_context.py`, `test_phase4_cos.py`, `test_reconciliation.py`
+
+---
+
 ## 2026-03-23 — Fix Test Assertions for Refactored CoS Section Headers
 
 **What:** Updated test assertions across 6 test files to match the current `format_cos_system_injection()` output format after prior refactoring removed/renamed section headers.

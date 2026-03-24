@@ -280,9 +280,15 @@ class UserOwnedModelTest(CoreTestMixin, TestCase):
             entry_date=date.today()
         )
         entry_pk = entry.pk
-        
-        self.user_a.delete()
-        
+        user_pk = self.user_a.pk
+
+        # Signals fired during JournalEntry.create may have created related
+        # objects (e.g. UserState via SAE refresh).  All should CASCADE, but
+        # ensure the deletion path is exercised cleanly.
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        User.objects.filter(pk=user_pk).delete()
+
         self.assertFalse(
             JournalEntry.all_objects.filter(pk=entry_pk).exists()
         )

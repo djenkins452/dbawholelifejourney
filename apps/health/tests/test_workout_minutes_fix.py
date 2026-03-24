@@ -115,14 +115,14 @@ class TestSignalAggregationCompletedAtFilter(WorkoutMinutesTestMixin, TestCase):
         from apps.core.ai_eae.signal_aggregation import SignalAggregationService
 
         self._make_session(self.user, duration_minutes=50)
-        result = SignalAggregationService._compute_health_activity(self.user, self.today)
+        result = SignalAggregationService._compute_health_activity(self.user, self.today, {})
         self.assertIsNotNone(result)
 
     def test_uncompleted_session_no_signal(self):
         from apps.core.ai_eae.signal_aggregation import SignalAggregationService
 
         self._make_session(self.user, duration_minutes=50, completed_at=None)
-        result = SignalAggregationService._compute_health_activity(self.user, self.today)
+        result = SignalAggregationService._compute_health_activity(self.user, self.today, {})
         self.assertIsNone(result)
 
 

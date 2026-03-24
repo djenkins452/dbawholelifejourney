@@ -1014,7 +1014,10 @@ def _build_intelligence_signals(user, _module_permissions=None):
         if _module_permissions is None:
             from apps.core.module_catalog import get_module_permissions
             _module_permissions = get_module_permissions(user)
-        _enabled_modules = {k for k, v in _module_permissions.items() if v}
+        if _module_permissions:
+            _enabled_modules = {k for k, v in _module_permissions.items() if v}
+        # If _module_permissions is empty (no catalog loaded), leave
+        # _enabled_modules as None to fail-open (no filtering).
     except Exception:
         pass  # Fail-open: no filtering if permissions unavailable
 
@@ -2919,6 +2922,8 @@ def _build_data_state_snapshot(user) -> str:
         # SAE build_task_state() computes time-horizon buckets every 5 min.
         from apps.core.ai_state.state_engine import get_module_state
         task_state = get_module_state(user, 'tasks') or {}
+        _exec_contract = get_module_state(user, 'execution') or {}
+        _exec_summaries = _exec_contract.get('summaries', {})
 
         _overdue = task_state.get('overdue_tasks', [])
         _today = task_state.get('due_today_tasks_detail', [])

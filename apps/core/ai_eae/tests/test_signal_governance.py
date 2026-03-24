@@ -111,7 +111,7 @@ class SignalComputerCoverageTest(TestCase):
         from django.contrib.auth import get_user_model
         User = get_user_model()
         user = User.objects.create_user(email='test_fin@test.com', password='test')
-        result = SignalAggregationService._compute_financial_health(user, date.today())
+        result = SignalAggregationService._compute_financial_health(user, date.today(), {})
         self.assertIsNone(result)
 
 
@@ -185,7 +185,7 @@ class NutritionComplianceComputerTest(TestCase):
     def test_no_data_returns_none(self):
         """No nutrition data should produce no snapshot."""
         result = SignalAggregationService._compute_nutrition_compliance(
-            self.user, self.today,
+            self.user, self.today, {},
         )
         self.assertIsNone(result)
 
@@ -205,7 +205,7 @@ class NutritionComplianceComputerTest(TestCase):
         """Food entries should produce a nutrition_compliance signal."""
         self._create_food_entry()
         result = SignalAggregationService._compute_nutrition_compliance(
-            self.user, self.today,
+            self.user, self.today, {},
         )
         self.assertIsNotNone(result)
         self.assertEqual(result.signal_type, 'nutrition_compliance')
@@ -219,7 +219,7 @@ class NutritionComplianceComputerTest(TestCase):
         for i in range(3):
             self._create_food_entry(food_name=f'Meal {i}', calories=400)
         result = SignalAggregationService._compute_nutrition_compliance(
-            self.user, self.today,
+            self.user, self.today, {},
         )
         self.assertIsNotNone(result)
         # With only food entries (no water/fasting), score = 1.0 / 1 sub-score
@@ -236,7 +236,7 @@ class NutritionComplianceComputerTest(TestCase):
             logged_date=self.today,
         )
         result = SignalAggregationService._compute_nutrition_compliance(
-            self.user, self.today,
+            self.user, self.today, {},
         )
         self.assertIsNotNone(result)
         self.assertEqual(result.score, 1.0)
@@ -257,7 +257,7 @@ class RelationalEngagementComputerTest(TestCase):
     def test_no_data_returns_none(self):
         """No interactions should produce no snapshot."""
         result = SignalAggregationService._compute_relational_engagement(
-            self.user, self.today,
+            self.user, self.today, {},
         )
         self.assertIsNone(result)
 
@@ -276,7 +276,7 @@ class RelationalEngagementComputerTest(TestCase):
             interaction_date=self.today,
         )
         result = SignalAggregationService._compute_relational_engagement(
-            self.user, self.today,
+            self.user, self.today, {},
         )
         self.assertIsNotNone(result)
         self.assertEqual(result.signal_type, 'relational_engagement')
@@ -298,7 +298,7 @@ class RelationalEngagementComputerTest(TestCase):
                 interaction_date=self.today,
             )
         result = SignalAggregationService._compute_relational_engagement(
-            self.user, self.today,
+            self.user, self.today, {},
         )
         self.assertIsNotNone(result)
         self.assertEqual(result.score, 1.0)

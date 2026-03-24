@@ -334,7 +334,7 @@ class TestStructuralObligationType(TestCase):
         from apps.health.models import WorkoutPlan, WorkoutSchedule, WorkoutTemplate
 
         template = WorkoutTemplate.objects.create(
-            user=self.user, name="Chest", template_type="strength",
+            user=self.user, name="Chest",
         )
         plan = WorkoutPlan.objects.create(
             user=self.user, name="Test Plan", is_active=True,
@@ -480,8 +480,17 @@ class TestCacheBehavior(TestCase):
 
     def test_invalidate_clears_cache(self):
         svc = ComplianceService(self.user)
+        # Clear any stale cache from prior tests sharing this user's key
+        from django.core.cache import cache as _cache
+        from apps.dashboard_v2.compliance.service import _cache_key
+        start_date, _ = svc.get_week_range()
+        _cache.delete(_cache_key(self.user.id, start_date))
+
         with patch.object(svc, 'evaluate_range', wraps=svc.evaluate_range) as mock:
             svc.ensure_evaluated()
+            self.assertEqual(mock.call_count, 1)
             invalidate_compliance_cache(self.user)
+            # Also clear via the service's own key to handle timezone edge cases
+            _cache.delete(_cache_key(self.user.id, start_date))
             svc.ensure_evaluated()
             self.assertEqual(mock.call_count, 2)

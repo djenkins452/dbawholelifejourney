@@ -324,15 +324,15 @@ class WriteSuppressedContractTest(TestCase):
         self.assertIn("Health", output)
 
     def test_normal_mode_has_cognitive_precision(self):
-        """Normal mode always includes Phase 2 cognitive framework.
-        Phase 3 trajectory framework only in STRUCTURAL_DRIFT state."""
+        """STRUCTURAL_DRIFT state: trajectory framework injected.
+        With conditional frameworks enabled, cognitive precision is
+        suppressed for non-clean states to save tokens."""
         from apps.core.ai_orchestrator.cos_context import (
             format_cos_system_injection, ACTIVATION_STRUCTURAL_DRIFT,
         )
         ctx = self._make_normal_context()
         ctx['trajectory_activation_state'] = ACTIVATION_STRUCTURAL_DRIFT
         output = format_cos_system_injection(ctx)
-        self.assertIn("COGNITIVE PRECISION", output)
         self.assertIn("TRAJECTORY PRECISION", output)
 
     def test_compliance_gate_still_importable(self):
@@ -505,13 +505,14 @@ class TieredActivationTest(TestCase):
         self.assertNotIn("30-day", output.lower())
 
     def test_early_erosion_injects_soft_probe(self):
-        """EARLY_EROSION state: soft probe framework, no full trajectory."""
+        """EARLY_EROSION state: soft probe framework, no full trajectory.
+        With conditional frameworks, cognitive precision is suppressed
+        for non-clean states."""
         from apps.core.ai_orchestrator.cos_context import (
             format_cos_system_injection, ACTIVATION_EARLY_EROSION,
         )
         ctx = self._make_normal_context(activation_state=ACTIVATION_EARLY_EROSION)
         output = format_cos_system_injection(ctx)
-        self.assertIn("COGNITIVE PRECISION", output)
         self.assertIn("EARLY EROSION", output)
         self.assertIn("observational", output.lower())
         # Must NOT contain full trajectory framework
@@ -607,7 +608,6 @@ class TieredActivationTest(TestCase):
             trajectory_signals=signals,
         )
         output = format_cos_system_injection(ctx)
-        self.assertIn("COGNITIVE PRECISION", output)
         self.assertIn("TRAJECTORY PRECISION", output)
         self.assertIn("LAYER 1", output)
         self.assertIn("LAYER 2", output)

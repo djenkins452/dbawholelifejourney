@@ -883,20 +883,27 @@ class TestHabitGoalHelperProperties(TestCase):
 
     def test_weekly_session_count(self):
         """get_weekly_session_count returns this week's sessions."""
+        from apps.core.utils import get_user_today
+
         goal = create_habit_goal(
             self.user,
             measurement_type='duration',
             start_date=date.today() - timedelta(days=30),
         )
-        today = date.today()
+        today = get_user_today(self.user)
         # Get start of current ISO week (Monday)
         week_start = today - timedelta(days=today.weekday())
         HabitEntry.objects.create(
             goal=goal, date=week_start, duration_minutes=Decimal('30'),
         )
-        HabitEntry.objects.create(
-            goal=goal, date=week_start + timedelta(days=1),
-            duration_minutes=Decimal('25'),
-        )
+        # Only add second entry if week_start != today (avoid future-date validation)
+        if week_start < today:
+            HabitEntry.objects.create(
+                goal=goal, date=week_start + timedelta(days=1),
+                duration_minutes=Decimal('25'),
+            )
+            expected_min = 2
+        else:
+            expected_min = 1
         count = goal.get_weekly_session_count()
-        self.assertGreaterEqual(count, 2)
+        self.assertGreaterEqual(count, expected_min)

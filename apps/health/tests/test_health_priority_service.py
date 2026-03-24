@@ -203,7 +203,7 @@ class TestHeadline(TestCase):
             last_sleep_entry=now.date().isoformat(),
         )
         result = build_health_priority_summary(health, {}, now)
-        self.assertEqual(result["headline"], "A few things to keep in mind")
+        self.assertEqual(result["headline"], "A few things need attention")
 
     def test_low_headline(self):
         now = _now()
@@ -224,8 +224,8 @@ class TestActivitySignal(TestCase):
     """Activity message must match available data."""
 
     def test_today_steps_with_afternoon_context(self):
-        """With today_steps + hour >= 14, use 'so far today'."""
-        now = _now().replace(hour=15, minute=0, second=0)
+        """With today_steps + hour >= 12, use 'so far today'."""
+        now = _now().replace(hour=13, minute=0, second=0)
         health = _health_state(
             steps_avg_7d=2000, steps_entries_7d=5,
             today_steps=1500,
@@ -244,7 +244,7 @@ class TestActivitySignal(TestCase):
         self.assertIn("lately", items[0]["message"])
 
     def test_morning_with_today_steps_uses_lately(self):
-        """Even with today_steps, morning hour < 14 uses 'lately'."""
+        """Even with today_steps, morning hour < 12 uses 'lately'."""
         now = _now().replace(hour=9, minute=0, second=0)
         health = _health_state(
             steps_avg_7d=2000, steps_entries_7d=5,
@@ -271,15 +271,16 @@ class TestTone(TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["message"], "Blood pressure looks good")
 
-    def test_spo2_normal_says_looks_good(self):
+    def test_spo2_low_surfaces_when_concerning(self):
+        """SpO2 only surfaces when actually low (< 90)."""
         now = _now()
         health = _health_state(
-            latest_blood_oxygen=98, last_blood_oxygen_entry=_fresh(now),
+            latest_blood_oxygen=87, last_blood_oxygen_entry=_fresh(now),
         )
         result = build_health_priority_summary(health, {}, now)
-        items = [i for i in result["items"] if i["key"] == "spo2_normal"]
+        items = [i for i in result["items"] if i["key"] == "spo2_low"]
         self.assertEqual(len(items), 1)
-        self.assertEqual(items[0]["message"], "Blood oxygen looks good")
+        self.assertEqual(items[0]["priority"], "high")
 
     def test_glucose_in_range_says_healthy_range(self):
         now = _now()
@@ -510,14 +511,15 @@ class TestBloodOxygen(TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["priority"], "high")
 
-    def test_normal_spo2_is_low(self):
+    def test_normal_spo2_suppressed(self):
+        """Normal SpO2 is trivial — not worth a summary slot."""
         now = _now()
         health = _health_state(
             latest_blood_oxygen=98, last_blood_oxygen_entry=_fresh(now),
         )
         result = build_health_priority_summary(health, {}, now)
-        items = [i for i in result["items"] if i["key"] == "spo2_normal"]
-        self.assertEqual(len(items), 1)
+        spo2_items = [i for i in result["items"] if "spo2" in i["key"]]
+        self.assertEqual(len(spo2_items), 0)
 
 
 class TestHeartRate(TestCase):

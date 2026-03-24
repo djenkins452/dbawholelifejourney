@@ -167,6 +167,42 @@ class TestMinimumItems(TestCase):
         result = build_health_priority_summary(health, meds, now)
         self.assertGreaterEqual(len(result["items"]), MIN_ITEMS)
 
+    def test_bp_only_backfills_from_gap_zone(self):
+        """BP normal as only candidate, but sleep in 6-7h gap zone → backfill."""
+        now = _now()
+        health = _health_state(
+            bp_systolic=115, bp_diastolic=75, last_bp_entry=_fresh(now),
+            sleep_avg_duration_7d=390, sleep_entries_7d=5,
+            last_sleep_entry=now.date().isoformat(),
+        )
+        result = build_health_priority_summary(health, {}, now)
+        self.assertGreaterEqual(len(result["items"]), MIN_ITEMS)
+        keys = {i["key"] for i in result["items"]}
+        self.assertIn("bp_normal", keys)
+        self.assertIn("sleep_adequate", keys)
+
+    def test_bp_only_backfills_with_moderate_steps(self):
+        """BP normal + moderate steps (3000-7500) → backfill."""
+        now = _now()
+        health = _health_state(
+            bp_systolic=115, bp_diastolic=75, last_bp_entry=_fresh(now),
+            steps_avg_7d=5000, steps_entries_7d=6,
+        )
+        result = build_health_priority_summary(health, {}, now)
+        self.assertGreaterEqual(len(result["items"]), MIN_ITEMS)
+        keys = {i["key"] for i in result["items"]}
+        self.assertIn("activity_moderate", keys)
+
+    def test_single_item_no_backfill_data(self):
+        """Only BP, no other state at all → 1 item is OK."""
+        now = _now()
+        health = _health_state(
+            bp_systolic=115, bp_diastolic=75, last_bp_entry=_fresh(now),
+        )
+        result = build_health_priority_summary(health, {}, now)
+        # Only 1 item because no other state exists to backfill from
+        self.assertEqual(len(result["items"]), 1)
+
     def test_truly_single_signal_allowed(self):
         """If only one signal exists in total, 1 item is OK."""
         meds = _medicine_state(

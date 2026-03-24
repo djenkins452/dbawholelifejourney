@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Phase C Fix: Hard Minimum Backfill
+
+- **Root cause:** Primary evaluators skip "gap-zone" metrics (sleep 6-7h, steps 3000-7500, BP 120-139). When only 1 metric produced a candidate, minimum 2-item rule couldn't be enforced because overflow and candidate pools were both exhausted.
+- **Fix:** Added Phase 5 (`_generate_backfill_items`) that produces neutral LOW items from gap-zone state: sleep adequate (6-7h), activity moderate (3000-7500 steps), BP slightly elevated (120-139), glucose mildly elevated (140-180). All freshness-gated.
+- **Behavior:** Runs after all other phases. Only activates when `len(selected) < 2`. Does not fabricate data.
+- **Tests:** 54 → 57 (3 new: BP+sleep backfill, BP+steps backfill, truly single item allowed)
+- Files: `apps/health/services/health_priority_service.py`, `apps/health/tests/test_health_priority_service.py`
+
 ## 2026-03-24 — Phase C: Signal → Summary Integration
 
 - **Feature:** Health signals now inform the priority summary. Max ONE signal injected per summary.

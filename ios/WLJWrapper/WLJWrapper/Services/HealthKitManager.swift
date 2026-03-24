@@ -119,9 +119,13 @@ class HealthKitManager {
             types.insert(mindfulType)
         }
 
-        // Blood Pressure (correlation type only — covers systolic + diastolic)
-        if let bpCorrelationType = HKCorrelationType.correlationType(forIdentifier: .bloodPressure) {
-            types.insert(bpCorrelationType)
+        // Blood Pressure (authorize constituent quantity types — NOT the correlation
+        // type, which causes requestAuthorization to hang on some iOS versions)
+        if let systolicType = HKQuantityType.quantityType(forIdentifier: .bloodPressureSystolic) {
+            types.insert(systolicType)
+        }
+        if let diastolicType = HKQuantityType.quantityType(forIdentifier: .bloodPressureDiastolic) {
+            types.insert(diastolicType)
         }
 
         // Body Temperature

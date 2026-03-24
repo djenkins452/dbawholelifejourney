@@ -8,11 +8,12 @@
 
 ## 2026-03-24 — iOS: Fix HealthKit Authorization Hang After BP Support Added
 
-- **Root cause:** `HealthKitManager.swift:122-131` passed `HKCorrelationType.bloodPressure` AND its constituent `HKQuantityType.bloodPressureSystolic` / `.bloodPressureDiastolic` in the same `requestAuthorization(read:)` set. HealthKit's authorization UI cannot resolve overlapping correlation + constituent types → completion handler never fires → async `await` hangs indefinitely → spinner never stops.
-- **Fix:**
-  1. Removed redundant `HKQuantityType.bloodPressureSystolic/Diastolic` from `readTypes` — correlation type authorization covers constituent samples
-  2. Added 60-second timeout guard around `requestAuthorization()` using `withThrowingTaskGroup` — prevents indefinite hang for any future type issues
-  3. Added `HealthKitError.authorizationTimeout` case with user-facing message
+- **Root cause:** `HKCorrelationType.correlationType(forIdentifier: .bloodPressure)` in the `readTypes` authorization set causes `HKHealthStore.requestAuthorization()` to hang indefinitely on certain iOS versions. The system authorization callback never fires when a correlation type is present in the `read` set.
+- **Fix (two commits):**
+  1. First: removed redundant systolic/diastolic quantity types, kept correlation type — **hang persisted** (proved correlation type is sole cause)
+  2. Second: removed `HKCorrelationType.bloodPressure` from `readTypes`, replaced with individual `HKQuantityType.bloodPressureSystolic` / `.bloodPressureDiastolic` — authorization completes normally
+  3. `fetchBloodPressure()` still uses `HKCorrelationQuery` for data fetching (works with constituent type authorization)
+  4. Added 60-second timeout guard + `HealthKitError.authorizationTimeout` for future-proofing
 - Files: `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift`
 
 ## 2026-03-24 — iOS: Fix Blood Pressure Not Syncing from Apple Health

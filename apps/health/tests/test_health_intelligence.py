@@ -2071,7 +2071,7 @@ class TestCosHealthIntelligenceInjection(TestCase, HealthIntelligenceTestMixin):
         injection = format_cos_system_injection(context)
 
         # Should still produce a valid injection without health block
-        self.assertIn("OPERATIONAL INTELLIGENCE", injection)
+        self.assertIn("CRITICAL DIRECTIVE", injection)
         self.assertNotIn("HEALTH INTELLIGENCE", injection)
 
     def test_protein_target_in_build_health_and_vitals(self):

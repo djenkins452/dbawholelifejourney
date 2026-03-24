@@ -817,8 +817,8 @@ class CosContextBuilderTests(TestCase):
         ctx = build_cos_context(self.user)
         injection = format_cos_system_injection(ctx)
         self.assertIsInstance(injection, str)
-        self.assertIn('SITUATIONAL AWARENESS', injection)
-        self.assertIn('END SITUATIONAL AWARENESS', injection)
+        self.assertIn('CRITICAL DIRECTIVE', injection)
+        self.assertIn('PATTERNS & SIGNALS', injection)
 
     def test_injection_contains_priorities(self):
         """System injection should contain life priorities."""
@@ -2704,7 +2704,7 @@ class GovernanceFrameworkTests(TestCase):
         )
         context = build_cos_context(self.user)
         formatted = format_cos_system_injection(context)
-        self.assertIn('SITUATIONAL AWARENESS', formatted)
+        self.assertIn('CRITICAL DIRECTIVE', formatted)
         # Governance is NOT in cos_context — it's a separate prompt layer
         self.assertNotIn('--- GOVERNANCE ---', formatted)
 

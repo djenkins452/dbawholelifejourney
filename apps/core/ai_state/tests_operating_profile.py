@@ -595,8 +595,8 @@ class TestOperatingProfileInjection(TestCase):
         result = _format_operating_profile_injection(data)
 
         # Should contain the section markers
-        self.assertIn('USER OPERATING PROFILE', result)
-        self.assertIn('END OPERATING PROFILE', result)
+        self.assertIn('peak activity hours', result)
+        self.assertIn('HOW TO USE THIS PROFILE', result)
 
         # Should contain interpreted signals
         self.assertIn('9 AM', result)
@@ -1249,7 +1249,7 @@ class TestCosInjectionWithProfile(TestCase):
             'module_permissions': {},
         }
         result = format_cos_system_injection(context)
-        self.assertIn('USER OPERATING PROFILE', result)
+        self.assertIn('peak activity hours', result)
         self.assertIn('9 AM', result)
         self.assertIn('steady and consistent', result)
 

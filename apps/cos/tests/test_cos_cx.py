@@ -607,7 +607,7 @@ class CosCXIntegrationTests(TestCase):
         context = build_cos_context(self.user)
         result = format_cos_system_injection(context)
         self.assertIsInstance(result, str)
-        self.assertIn("SITUATIONAL AWARENESS", result)
+        self.assertIn("CRITICAL DIRECTIVE", result)
 
     def test_cx_blocks_present_when_data_exists(self):
         """When user has data, CX blocks appear in injection."""

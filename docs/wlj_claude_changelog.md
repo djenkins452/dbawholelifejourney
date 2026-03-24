@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Fix Test Assertions for Refactored CoS Section Headers
+
+**What:** Updated test assertions across 6 test files to match the current `format_cos_system_injection()` output format after prior refactoring removed/renamed section headers.
+
+**Why:** The CoS formatter was refactored to remove explicit section headers like `SITUATIONAL AWARENESS`, `OPERATIONAL INTELLIGENCE`, `USER OPERATING PROFILE`, and `HEALTH SCREENSHOT ANALYSIS`. Tests still asserted these old headers, causing failures.
+
+**Key changes:**
+- `apps/core/ai_insights/tests_health_screenshot.py` — `'HEALTH SCREENSHOT ANALYSIS'` → `'Summary:'`
+- `apps/core/ai_state/tests_operating_profile.py` — `'USER OPERATING PROFILE'` → `'peak activity hours'`, `'END OPERATING PROFILE'` → `'HOW TO USE THIS PROFILE'`
+- `apps/core/blueprint/tests.py` — `'SITUATIONAL AWARENESS'` / `'END SITUATIONAL AWARENESS'` → `'CRITICAL DIRECTIVE'` / `'PATTERNS & SIGNALS'`
+- `apps/core/tests/test_phase4_cos.py` — `'SITUATIONAL AWARENESS'` → `'CRITICAL DIRECTIVE'`
+- `apps/cos/tests/test_cos_cx.py` — `'SITUATIONAL AWARENESS'` → `'CRITICAL DIRECTIVE'`
+- `apps/health/tests/test_health_intelligence.py` — `'OPERATIONAL INTELLIGENCE'` → `'CRITICAL DIRECTIVE'`
+
+---
+
 ## 2026-03-23 — Fix Proactive Briefing Tests for Deterministic Renderer
 
 **What:** Updated `test_proactive_briefing.py` to mock `render_checkin_for_time` instead of `_generate_response`, aligning tests with the Phase 5.2+ refactor that replaced LLM-based briefing generation with a deterministic renderer.

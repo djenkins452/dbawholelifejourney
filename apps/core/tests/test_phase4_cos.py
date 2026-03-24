@@ -143,9 +143,9 @@ class SystemInjectionTest(TestCase):
             'learned_profile_prompt': '',
         }
         output = format_cos_system_injection(context)
-        # Insights are rendered in the SITUATIONAL AWARENESS block
+        # Insights are rendered in the PATTERNS & SIGNALS block
         self.assertIn("Weight up", output)
-        self.assertIn("SITUATIONAL AWARENESS", output)
+        self.assertIn("CRITICAL DIRECTIVE", output)
 
     def test_tone_mode_in_executive_context(self):
         """executive_tone_mode is stored in executive sub-dict, not in formatter.

@@ -421,7 +421,7 @@ class CosContextInjectionTests(TestCase):
         context = {'health_screenshot_analysis': analysis}
         result = format_cos_system_injection(context)
 
-        self.assertIn('HEALTH SCREENSHOT ANALYSIS', result)
+        self.assertIn('Summary:', result)
         self.assertIn('Your sleep looks healthy', result)
         self.assertIn('7h 45m', result)
         self.assertIn('Keep your current schedule', result)
@@ -551,7 +551,7 @@ class HealthScreenshotIntegrationTest(TestCase):
         injection = format_cos_system_injection(cos_ctx)
 
         # Step 4: Verify CoS output
-        self.assertIn('HEALTH SCREENSHOT ANALYSIS', injection)
+        self.assertIn('Summary:', injection)
         self.assertIn(analysis['summary_insight'], injection)
         self.assertIn(analysis['recommendation'], injection)
         self.assertIn('REASONING', injection)

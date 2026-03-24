@@ -71,6 +71,51 @@ def save_user_preferences(sender, instance, **kwargs):
 
 
 @receiver(post_save, sender=UserPreferences)
+def sync_module_preferences_on_save(sender, instance, **kwargs):
+    """
+    Sync UserPreferences.*_enabled fields → UserModulePreference.is_enabled.
+
+    The Preferences page saves to UserPreferences (legacy boolean fields).
+    Navigation reads from UserModulePreference (catalog system).
+    This signal bridges the two so toggling a module in Preferences
+    immediately updates navigation visibility.
+
+    Also invalidates the navigation cache so changes are visible on next page load.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        from apps.users.models import ModuleDefinition, UserModulePreference
+
+        modules_with_bridge = ModuleDefinition.objects.filter(
+            is_active=True,
+            preference_field__gt='',
+        )
+
+        changed = False
+        for module in modules_with_bridge:
+            pref_value = getattr(instance, module.preference_field, None)
+            if pref_value is None:
+                continue
+
+            updated = UserModulePreference.objects.filter(
+                user=instance.user,
+                module=module,
+            ).exclude(is_enabled=pref_value).update(is_enabled=pref_value)
+
+            if updated:
+                changed = True
+
+        if changed:
+            from apps.core.context_processors import invalidate_navigation_cache
+            invalidate_navigation_cache(instance.user_id)
+
+    except Exception:
+        logger.warning("Failed to sync module preferences for user %s", instance.user_id, exc_info=True)
+
+
+@receiver(post_save, sender=UserPreferences)
 def auto_enable_cycle_tracking_for_female(sender, instance, **kwargs):
     """
     Auto-enable cycle tracking when a user sets their gender to female.

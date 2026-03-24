@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Fix: Routine completion times displayed in UTC instead of user timezone
+
+- **Root cause:** `_routine_internal.py` formatted `completed_at` and source object timestamps directly via `.strftime()` without converting from UTC to the user's local timezone
+- **Fix:** Added `.astimezone(user_now.tzinfo)` before formatting all completion timestamps (source display time, log completed_at, and source_display_time in the entry dict)
+- **Impact:** "Completed via X at Y:YY PM" labels now show the correct local time
+- Files: apps/life/services/_routine_internal.py
+
 ## 2026-03-24 — Sports: Limit API to MLB + NCAA Basketball Only
 
 - **Change:** Disabled NHL, MLS, NBA API sync to conserve free-plan calls (100/day)

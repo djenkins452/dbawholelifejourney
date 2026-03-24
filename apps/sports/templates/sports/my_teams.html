@@ -192,6 +192,77 @@
         color: var(--color-text-muted);
     }
 
+    /* Focus game card */
+    .focus-card {
+        padding: var(--space-4);
+        border-radius: var(--radius-lg);
+        margin-bottom: var(--space-5);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .focus-card--live {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(239, 68, 68, 0.02));
+        border: 2px solid #ef4444;
+    }
+
+    .focus-card--starting_soon {
+        background: linear-gradient(135deg, rgba(249, 115, 22, 0.08), rgba(249, 115, 22, 0.02));
+        border: 2px solid #f97316;
+    }
+
+    .focus-card--today {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.06), rgba(245, 158, 11, 0.01));
+        border: 2px solid #f59e0b;
+    }
+
+    .focus-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: var(--space-2);
+    }
+
+    .focus-label--live { color: #ef4444; }
+    .focus-label--starting_soon { color: #f97316; }
+    .focus-label--today { color: #f59e0b; }
+
+    .focus-matchup {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--color-text);
+        margin-bottom: 4px;
+    }
+
+    .focus-detail {
+        font-size: 0.875rem;
+        color: var(--color-text-muted);
+        line-height: 1.5;
+    }
+
+    .focus-score {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--color-text);
+        margin-top: var(--space-1);
+    }
+
+    .focus-league {
+        position: absolute;
+        top: var(--space-3);
+        right: var(--space-4);
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: var(--color-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        opacity: 0.6;
+    }
+
     /* Empty state */
     .empty-state {
         text-align: center;
@@ -250,6 +321,37 @@
     </div>
 
     {% else %}
+
+    {% if focus_game %}
+    <div class="focus-card focus-card--{{ focus_game.urgency }}">
+        <span class="focus-league">{{ focus_game.league }}</span>
+        <div class="focus-label focus-label--{{ focus_game.urgency }}">
+            {% if focus_game.urgency == "live" %}
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><circle cx="6" cy="6" r="6"/></svg>
+                Live Now
+            {% elif focus_game.urgency == "starting_soon" %}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                Starting Soon
+            {% elif focus_game.urgency == "today" %}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                Today
+            {% endif %}
+        </div>
+        <div class="focus-matchup">
+            {{ focus_game.team.full_name }} vs {{ focus_game.opponent }}
+        </div>
+        {% if focus_game.urgency == "live" and focus_game.score %}
+        <div class="focus-score">{{ focus_game.score }}</div>
+        {% endif %}
+        <div class="focus-detail">
+            {% if focus_game.urgency == "live" %}
+                {% if focus_game.venue %}{{ focus_game.venue }}{% endif %}
+            {% else %}
+                {{ focus_game.start_time|date:"g:i A" }}{% if focus_game.venue %} &middot; {{ focus_game.venue }}{% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 
     {% for league_key, league_data in leagues_with_teams.items %}
     <div class="league-section">

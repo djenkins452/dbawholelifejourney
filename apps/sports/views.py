@@ -164,6 +164,37 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
             leagues_with_teams[league_key]["teams"].append(team_info)
 
         context["leagues_with_teams"] = leagues_with_teams
+
+        # Pick ONE focus game: highest urgency, then highest follow priority
+        urgency_rank = {"live": 0, "starting_soon": 1, "today": 2}
+        focus_game = None
+        focus_rank = 99
+
+        for league_data in leagues_with_teams.values():
+            for item in league_data["teams"]:
+                ng = item.get("next_game")
+                if not ng or ng.get("urgency") not in urgency_rank:
+                    continue
+                rank = urgency_rank[ng["urgency"]]
+                priority = item["follow"].priority
+                if rank < focus_rank or (rank == focus_rank and priority < getattr(focus_game, "_priority", 99)):
+                    focus_game = {
+                        "team": item["team"],
+                        "opponent": ng["opponent"],
+                        "urgency": ng["urgency"],
+                        "start_time": ng["start_time"],
+                        "venue": ng.get("venue", ""),
+                        "score": ng.get("score", ""),
+                        "is_home": ng.get("is_home", True),
+                        "league": item["team"].league.abbreviation,
+                        "_priority": priority,
+                    }
+                    focus_rank = rank
+
+        if focus_game:
+            focus_game.pop("_priority", None)
+        context["focus_game"] = focus_game
+
         return context
 
 

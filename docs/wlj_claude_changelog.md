@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: Focus Game Card (Top of My Teams)
+
+- **Feature:** Surfaces ONE primary game at the top of My Teams hub
+  - Priority: LIVE > STARTING SOON > TODAY (highest urgency wins)
+  - Tiebreaker: follow priority (Primary > Secondary > Casual)
+  - Shows matchup, time/score, venue in a highlighted card
+  - LIVE: red gradient card with live score display
+  - STARTING SOON: orange gradient with game time
+  - TODAY: amber gradient with game time + venue
+  - Card hidden when no games qualify (all future)
+  - Reuses urgency computed in existing view logic — no duplicate queries
+- Files: apps/sports/views.py, apps/sports/templates/sports/my_teams.html
+
 ## 2026-03-24 — Sports: Game Urgency Badges (LIVE / STARTING SOON / TODAY)
 
 - **Feature:** My Teams hub now highlights games by urgency level

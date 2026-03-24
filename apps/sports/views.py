@@ -125,11 +125,13 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
                 "record": team.record,
                 "streak": streak_map.get(team.id, ""),
                 "next_game": None,
-                "last_result": None,
+                "context_line": "",
+                "pitcher": "",
             }
 
             if next_game:
                 opponent = next_game.get_opponent(team)
+                opp_name = str(opponent) if opponent else "TBD"
                 is_home = next_game.home_team_id == team.id
 
                 # Compute urgency level for badges/highlighting
@@ -150,30 +152,29 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
                     pitcher = next_game.away_probable_pitcher
 
                 team_info["next_game"] = {
-                    "opponent": str(opponent) if opponent else "TBD",
+                    "opponent": opp_name,
                     "start_time": next_game.start_time,
                     "venue": next_game.venue,
                     "is_home": is_home,
                     "status": next_game.status,
                     "score": next_game.get_score_display() if next_game.is_live else "",
                     "urgency": urgency,
-                    "pitcher": pitcher,
                 }
+                team_info["pitcher"] = pitcher
 
-            if last_game:
-                opponent = last_game.get_opponent(team)
-                if last_game.user_team_won(team):
-                    result = "W"
-                elif last_game.user_team_lost(team):
-                    result = "L"
+                # Build plain-English context line
+                if urgency == "live":
+                    score = next_game.get_score_display()
+                    team_info["context_line"] = f"Live vs {opp_name}" + (f" · {score}" if score else "")
+                elif urgency == "starting_soon":
+                    team_info["context_line"] = f"Starting soon vs {opp_name} · {next_game.start_time.strftime('%-I:%M %p')}"
+                elif urgency == "today":
+                    where = "Home" if is_home else "Away"
+                    team_info["context_line"] = f"Playing {opp_name} tonight · {next_game.start_time.strftime('%-I:%M %p')}"
                 else:
-                    result = "T"
-                team_info["last_result"] = {
-                    "opponent": str(opponent) if opponent else "TBD",
-                    "result": result,
-                    "score": last_game.get_score_display(),
-                    "date": last_game.start_time,
-                }
+                    team_info["context_line"] = f"Next: {next_game.start_time.strftime('%a')} vs {opp_name} · {next_game.start_time.strftime('%-I:%M %p')}"
+            else:
+                team_info["context_line"] = "No upcoming games"
 
             leagues_with_teams[league_key]["teams"].append(team_info)
 
@@ -209,8 +210,13 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
             focus_game.pop("_priority", None)
         context["focus_game"] = focus_game
 
-        # Last updated timestamp — most recent GameEvent update or sync health
+        # Last updated timestamp — scoped to user's followed teams only
         context["last_updated"] = _get_last_updated(team_ids, now)
+
+        # Provider label for data source indicator
+        from apps.sports.services.provider_adapter import get_provider
+        provider = get_provider()
+        context["data_source"] = "Live data" if provider.provider_name() != "fixture" else "Simulated"
 
         return context
 

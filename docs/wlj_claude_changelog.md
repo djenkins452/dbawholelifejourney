@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: UI Polish + Timestamp Hardening
+
+- **UI overhaul:** Cleaner, more scannable team rows
+  - Team name on line 1, record + streak on line 2 ("18-7 · W1")
+  - Plain-English context line: "Playing Dodgers tonight · 7:10 PM" / "Next: Wed vs Bulls · 8:30 PM"
+  - Removed cluttered last-result section (W/L score badges)
+  - Pitcher shown as simple "SP: Max Fried" (baseball only, hidden when null)
+  - Urgency badges (LIVE/SOON/TODAY) inline with context line
+- **Timestamp hardening:**
+  - Scoped to user's followed teams only (not global GameEvent max)
+  - Data source label: "Simulated" (fixture provider) vs "Live data" (real API)
+  - Display: "Updated 4 hours ago · Simulated"
+  - Null-safe: hidden entirely when no data
+- Files: apps/sports/views.py, apps/sports/templates/sports/my_teams.html
+
 ## 2026-03-24 — Sports: Last Updated Timestamp on My Teams
 
 - **Feature:** Shows relative timestamp at top of My Teams page ("Updated 3 minutes ago")

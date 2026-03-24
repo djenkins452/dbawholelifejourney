@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: Lean Context Model — Record, Streak, Pitcher
+
+- **Models:**
+  - `Team`: added `wins`, `losses` fields + `record` property (e.g. "18-7")
+  - `GameEvent`: added `home_probable_pitcher`, `away_probable_pitcher` (baseball-only, nullable)
+  - Migration: `0002_add_team_record_and_game_pitchers`
+- **Streak service** (`apps/sports/services/streaks.py`):
+  - `compute_streak(team)` — single-team streak from completed GameEvents
+  - `compute_streaks_for_teams(team_ids)` — batch computation, single query
+  - Returns "W3", "L2", etc. Never relies on external API.
+- **UI:** Record + streak shown inline with team name, pitcher shown under baseball games
+  - Record: muted text (e.g. "18-7")
+  - Streak: colored badge (green W, red L)
+  - Pitcher: italic "SP: Max Fried" under game info
+- **State builder + CoS:** record, streak, pitcher included in state summaries and awareness text
+  - Beth: "The user's Atlanta Braves (18-7) on a 1-game win streak plays Dodgers today. Starting pitcher: Max Fried."
+  - Win/loss streak ≥ 3 triggers `win_streak` / `losing_streak` signals
+- Files: apps/sports/models.py, apps/sports/services/streaks.py, apps/sports/views.py, apps/sports/templates/sports/my_teams.html, apps/core/ai_state/state_builder.py, apps/core/ai_orchestrator/cos_context.py
+
 ## 2026-03-24 — Sports: CoS Integration — Beth Now Sees Sports Signals
 
 - **Feature:** Full raw → signals → state → CoS pipeline for sports domain

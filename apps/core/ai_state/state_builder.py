@@ -3259,6 +3259,10 @@ def _build_sports_state_from_db(user, state):
             if tid in team_ids and tid not in last_game_map:
                 last_game_map[tid] = game
 
+    # Batch compute streaks
+    from apps.sports.services.streaks import compute_streaks_for_teams
+    streak_map = compute_streaks_for_teams(team_ids)
+
     summaries = []
     today_games = []
     active_signals = set()
@@ -3267,6 +3271,7 @@ def _build_sports_state_from_db(user, state):
         team = follow.team
         next_game = next_game_map.get(team.id)
         last_game = last_game_map.get(team.id)
+        streak = streak_map.get(team.id, "")
 
         # Determine urgency
         status = "upcoming"
@@ -3281,12 +3286,22 @@ def _build_sports_state_from_db(user, state):
                 status = "today"
                 active_signals.add("game_today")
 
+        # Streak signals (3+ triggers signal)
+        if streak and len(streak) >= 2:
+            streak_count = int(streak[1:]) if streak[1:].isdigit() else 0
+            if streak.startswith("W") and streak_count >= 3:
+                active_signals.add("win_streak")
+            elif streak.startswith("L") and streak_count >= 3:
+                active_signals.add("losing_streak")
+
         summary = {
             "team_id": team.id,
             "team_name": str(team),
             "league": team.league.abbreviation,
             "priority": follow.priority,
             "status": status,
+            "record": team.record,
+            "streak": streak,
             "next_game": None,
             "last_result": None,
             "active_signals": [],
@@ -3294,6 +3309,7 @@ def _build_sports_state_from_db(user, state):
 
         if next_game:
             opponent = next_game.get_opponent(team)
+            is_home = next_game.home_team_id == team.id
             summary["next_game"] = {
                 "opponent": str(opponent) if opponent else "TBD",
                 "time": next_game.start_time.strftime("%-I:%M %p"),
@@ -3301,6 +3317,16 @@ def _build_sports_state_from_db(user, state):
             }
             if next_game.is_live:
                 summary["next_game"]["score"] = next_game.get_score_display()
+
+            # Pitcher (baseball only)
+            pitcher = ""
+            if is_home and next_game.home_probable_pitcher:
+                pitcher = next_game.home_probable_pitcher
+            elif not is_home and next_game.away_probable_pitcher:
+                pitcher = next_game.away_probable_pitcher
+            if pitcher:
+                summary["next_game"]["pitcher"] = pitcher
+
             summary["active_signals"].append(f"game_{status}" if status != "upcoming" else "")
 
             if status in ("today", "starting_soon", "live"):

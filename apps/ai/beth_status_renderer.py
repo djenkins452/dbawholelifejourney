@@ -324,6 +324,21 @@ def _add_domain_items(
             else:
                 remaining.append("Journal")
 
+    # Medications — fallback from raw if not already covered by grouped items
+    meds_expected = raw.get("meds_expected", 0)
+    if meds_expected > 0 and not _is_covered(existing, "medic"):
+        if raw.get("meds_all_taken"):
+            completed.append(f"Medications — all {meds_expected} doses taken")
+        else:
+            taken = raw.get("meds_taken", 0)
+            skipped = raw.get("meds_skipped", 0)
+            left = meds_expected - taken - skipped
+            skip_note = f", {skipped} skipped" if skipped else ""
+            remaining.append(
+                f"Medications — {taken}/{meds_expected} taken"
+                f" ({left} remaining{skip_note})"
+            )
+
 
 def _add_domain_items_from_raw(remaining: list, completed: list, raw: dict):
     """Fallback: build item lists from raw locked facts only."""
@@ -350,6 +365,21 @@ def _add_domain_items_from_raw(remaining: list, completed: list, raw: dict):
             completed.append("Journal")
         else:
             remaining.append("Journal")
+
+    # Medications
+    meds_expected = raw.get("meds_expected", 0)
+    if meds_expected > 0:
+        if raw.get("meds_all_taken"):
+            completed.append(f"Medications — all {meds_expected} doses taken")
+        else:
+            taken = raw.get("meds_taken", 0)
+            skipped = raw.get("meds_skipped", 0)
+            left = meds_expected - taken - skipped
+            skip_note = f", {skipped} skipped" if skipped else ""
+            remaining.append(
+                f"Medications — {taken}/{meds_expected} taken"
+                f" ({left} remaining{skip_note})"
+            )
 
 
 def _is_covered(existing_titles: set, keyword: str) -> bool:

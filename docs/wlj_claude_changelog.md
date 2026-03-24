@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Fix: Medications Not Surfacing in Beth's Status Response
+
+**What:** Pending medications did not appear in Beth's "what's left today" response when the execution contract lacked medication_dose items (SAE state builder failure, empty schedule data, or exception in today_execution). The fallback path (`_add_domain_items_from_raw`) and the normal domain path (`_add_domain_items`) only handled faith, workout, and journal — medications had no fallback.
+
+**Root cause:** `beth_status_renderer.py` had two domain item functions — `_add_domain_items()` (lines 271-325) and `_add_domain_items_from_raw()` (lines 328-352) — that added faith, workout, journal from the canonical `raw` dict but completely omitted medications. When execution items existed, medications came from `_group_medication_items()`. When they didn't (empty data or exception), medications vanished entirely.
+
+**Fix:** Added medication sections to both `_add_domain_items()` and `_add_domain_items_from_raw()`. Both read from the canonical `raw` data (`meds_expected`, `meds_taken`, `meds_skipped`, `meds_all_taken`). The `_add_domain_items()` version uses `_is_covered(existing, "medic")` to avoid double-counting when grouped medication summaries already exist.
+
+**Files:**
+- `apps/ai/beth_status_renderer.py` — medication sections in both domain item functions
+- `apps/ai/tests/test_beth_status_renderer.py` — 6 new tests (TestMedicationRawFallback)
+
 ## 2026-03-23 — Fix: Medication Skip Not Triggering CoS Refresh
 
 **What:** Skipping a medication dose did not trigger CoS regeneration. The revalidator tracked `meds_taken`, `meds_expected`, and `meds_all_taken` — none of which change when a dose is skipped (skip doesn't count as taken, doesn't reduce expected, doesn't flip all_taken).

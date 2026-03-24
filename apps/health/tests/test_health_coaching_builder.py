@@ -3,9 +3,15 @@
 # Description: Tests for deterministic health coaching builder
 # ==============================================================================
 
-from django.test import TestCase
+from datetime import timedelta
 
-from apps.health.services.health_coaching_builder import build_health_coaching
+from django.test import TestCase
+from django.utils import timezone
+
+from apps.health.services.health_coaching_builder import (
+    build_health_coaching,
+    apply_time_awareness,
+)
 
 
 def _summary(items, priority_level="low", headline="Health looks stable"):
@@ -187,3 +193,124 @@ class TestNoSignals(TestCase):
         ])
         result = build_health_coaching(summary, signals=None)
         self.assertIsNotNone(result)
+
+
+# ── Time-Aware Coaching ─────────────────────────────────────────────────────
+
+def _dt(hour=12, minute=0):
+    """Build an aware datetime at a specific hour."""
+    return timezone.now().replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+
+def _next_event_in(minutes, current_dt):
+    """Build an ISO timestamp `minutes` from current_dt."""
+    return (current_dt + timedelta(minutes=minutes)).isoformat()
+
+
+class TestTimeAwarenessNone(TestCase):
+    """Handles None/missing gracefully."""
+
+    def test_none_coaching(self):
+        self.assertIsNone(apply_time_awareness(None, _dt()))
+
+    def test_none_current_dt(self):
+        coaching = {"action": "Walk", "reason": "Good", "source_key": "activity_low",
+                    "priority_level": "medium"}
+        result = apply_time_awareness(coaching, None)
+        self.assertEqual(result["action"], "Walk")
+
+
+class TestMedicationNeverDelayed(TestCase):
+    """Medications overdue always say 'now', never delayed."""
+
+    def test_overdue_always_now(self):
+        coaching = {"action": "Take your medications now", "reason": "Overdue",
+                    "source_key": "medications_overdue", "priority_level": "high"}
+        # Even with an event in 10 minutes
+        result = apply_time_awareness(coaching, _dt(14), _next_event_in(10, _dt(14)))
+        self.assertIn("now", result["action"].lower())
+        self.assertNotIn("after", result["action"].lower())
+
+    def test_overdue_now_appended_if_missing(self):
+        coaching = {"action": "Take your medications", "reason": "Overdue",
+                    "source_key": "medications_overdue", "priority_level": "high"}
+        result = apply_time_awareness(coaching, _dt())
+        self.assertIn("now", result["action"].lower())
+
+    def test_critical_bp_never_delayed(self):
+        coaching = {"action": "Sit down and rest", "reason": "BP high",
+                    "source_key": "bp_crisis", "priority_level": "high"}
+        result = apply_time_awareness(coaching, _dt(), _next_event_in(10, _dt()))
+        self.assertNotIn("after", result["action"].lower())
+
+
+class TestFreeWindow(TestCase):
+    """No upcoming event = add 'now' for actionable items."""
+
+    def test_adds_now_when_free(self):
+        coaching = {"action": "Take a 10-minute walk", "reason": "Activity low",
+                    "source_key": "activity_low", "priority_level": "medium"}
+        result = apply_time_awareness(coaching, _dt(14), None)
+        self.assertIn("now", result["action"].lower())
+
+    def test_adds_now_when_event_far(self):
+        coaching = {"action": "Take a 10-minute walk", "reason": "Activity low",
+                    "source_key": "activity_low", "priority_level": "medium"}
+        result = apply_time_awareness(coaching, _dt(14), _next_event_in(90, _dt(14)))
+        self.assertIn("now", result["action"].lower())
+
+    def test_no_now_for_reinforcement(self):
+        coaching = {"action": "Stay consistent with your routine", "reason": "Stable",
+                    "source_key": "bp_normal", "priority_level": "low"}
+        result = apply_time_awareness(coaching, _dt(14), None)
+        self.assertNotIn("now", result["action"].lower())
+
+
+class TestBusySoon(TestCase):
+    """Event within 30 minutes = defer to 'after your next task'."""
+
+    def test_shifts_to_after_task(self):
+        coaching = {"action": "Take a 10-minute walk", "reason": "Low activity",
+                    "source_key": "activity_low", "priority_level": "medium"}
+        result = apply_time_awareness(coaching, _dt(14), _next_event_in(15, _dt(14)))
+        self.assertIn("after your next task", result["action"].lower())
+
+    def test_no_defer_for_reinforcement(self):
+        coaching = {"action": "Stay consistent with your routine", "reason": "Stable",
+                    "source_key": "bp_normal", "priority_level": "low"}
+        result = apply_time_awareness(coaching, _dt(14), _next_event_in(15, _dt(14)))
+        self.assertNotIn("after", result["action"].lower())
+
+
+class TestEvening(TestCase):
+    """Evening time block softens activity actions."""
+
+    def test_walk_softened_in_evening(self):
+        coaching = {"action": "Take a 10-minute walk", "reason": "Activity low",
+                    "source_key": "activity_low", "priority_level": "medium"}
+        result = apply_time_awareness(coaching, _dt(20), None)
+        self.assertIn("evening", result["action"].lower())
+        self.assertIn("short walk", result["action"].lower())
+
+    def test_non_activity_not_softened_in_evening(self):
+        coaching = {"action": "Aim for an earlier bedtime tonight", "reason": "Short sleep",
+                    "source_key": "sleep_short", "priority_level": "medium"}
+        result = apply_time_awareness(coaching, _dt(20), None)
+        # Sleep coaching should not be changed to "evening walk"
+        self.assertIn("bedtime", result["action"].lower())
+
+
+class TestStableDay(TestCase):
+    """Stable/reinforcement items get 'today' appended."""
+
+    def test_adds_today_to_reinforcement(self):
+        coaching = {"action": "Stay consistent with your routine", "reason": "Stable",
+                    "source_key": "bp_normal", "priority_level": "low"}
+        result = apply_time_awareness(coaching, _dt(14), None)
+        self.assertIn("today", result["action"].lower())
+
+    def test_no_double_today(self):
+        coaching = {"action": "Keep it going today", "reason": "Stable",
+                    "source_key": "medications_on_track", "priority_level": "low"}
+        result = apply_time_awareness(coaching, _dt(14), None)
+        self.assertEqual(result["action"].lower().count("today"), 1)

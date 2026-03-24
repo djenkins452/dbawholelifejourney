@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Sports Domain Stabilization Pass
+
+- **Fix:** Add cache invalidation on UserTeamFollow save (follow/unfollow now immediately clears stale cached summaries)
+  - Files: apps/sports/signals.py
+- **Fix:** Add warm-on-miss cache trigger for hub page (prevents blank page on first visit when no background task has run yet; uses 30s lock to prevent thundering herd)
+  - Files: apps/sports/services/cache_manager.py, apps/sports/views.py
+
 ## 2026-03-23 — Fix: Medications Excluded from "All Complete" Locked Facts
 
 **What:** Beth was reporting "All daily items are complete" while evening/night medication doses remained pending. Medications were completely absent from the locked fact statement pipeline.

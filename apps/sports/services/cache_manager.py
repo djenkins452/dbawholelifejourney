@@ -23,9 +23,14 @@ LIVE_GAME_TTL = 120          # 2 minutes
 SYNC_HEALTH_TTL = 3600       # 1 hour
 
 
-def get_user_sports_summary(user):
+def get_user_sports_summary(user, warm_on_miss=False):
     """
     Get cached team summaries for a user.
+
+    Args:
+        warm_on_miss: If True and cache is empty, run a single-user signal
+            generation to populate the cache. Use sparingly — only on hub
+            page load to avoid blank-page on first visit.
 
     Returns list of dicts:
     [
@@ -46,7 +51,50 @@ def get_user_sports_summary(user):
     cached = cache.get(key)
     if cached is not None:
         return cached
+
+    if warm_on_miss:
+        try:
+            _warm_cache_for_user(user)
+            cached = cache.get(key)
+            if cached is not None:
+                return cached
+        except Exception:
+            logger.warning("Sports cache warm-on-miss failed for user %s", user.id, exc_info=True)
+
     return []  # No data yet — background task populates this
+
+
+def _warm_cache_for_user(user):
+    """
+    Single-user cache warm: generate signals and populate cache.
+
+    Called on cache miss during hub page load. This is NOT a background task —
+    it runs synchronously but is lightweight (single user, small query set).
+    Guarded by a short lock to prevent thundering herd.
+    """
+    lock_key = f"wlj:sports:warming:{user.id}"
+    if cache.get(lock_key):
+        return  # Another request is already warming
+
+    cache.set(lock_key, True, 30)  # 30-second lock
+    try:
+        from apps.sports.tasks import _build_summaries_from_signals
+        from apps.sports.services.signal_generator import generate_sports_signals, SIGNAL_GAME_TODAY
+        from django.utils import timezone
+
+        signals = generate_sports_signals(user)
+        now = timezone.now()
+
+        summaries = _build_summaries_from_signals(user, signals, now)
+        set_user_sports_summary(user.id, summaries)
+
+        today_games = [
+            s["data"] for s in signals
+            if s["signal_type"] == SIGNAL_GAME_TODAY
+        ]
+        set_user_today_games(user.id, today_games)
+    finally:
+        cache.delete(lock_key)
 
 
 def set_user_sports_summary(user_id, summaries):

@@ -39,7 +39,9 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["team_summaries"] = get_user_sports_summary(self.request.user)
+        context["team_summaries"] = get_user_sports_summary(
+            self.request.user, warm_on_miss=True
+        )
         context["has_teams"] = UserTeamFollow.objects.filter(
             user=self.request.user, is_active=True
         ).exists()

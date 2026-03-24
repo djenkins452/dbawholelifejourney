@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: Last Updated Timestamp on My Teams
+
+- **Feature:** Shows relative timestamp at top of My Teams page ("Updated 3 minutes ago")
+  - Sources: sync_health cache (background sync) OR most recent GameEvent.last_updated
+  - Uses whichever is more recent
+  - Relative formatting: "just now" / "X minutes ago" / "X hours ago" / date
+  - Muted, subtle text — doesn't clutter UI
+  - Hidden when no data available (null-safe)
+- Files: apps/sports/views.py, apps/sports/templates/sports/my_teams.html
+
 ## 2026-03-24 — Sports: API Sync Service + Celery Beat Integration
 
 - **Sync service** (`apps/sports/services/sync_service.py`):

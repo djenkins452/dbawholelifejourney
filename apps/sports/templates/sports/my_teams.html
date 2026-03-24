@@ -34,6 +34,18 @@
         font-weight: 500;
     }
 
+    .header-meta {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+    }
+
+    .last-updated {
+        font-size: 0.7rem;
+        color: var(--color-text-muted);
+        opacity: 0.7;
+    }
+
     /* League sections */
     .league-section {
         margin-bottom: var(--space-5);
@@ -340,7 +352,10 @@
 <div class="sports-hub" data-testid="sports-hub">
     <header class="sports-header">
         <h1 class="sports-title">My Teams</h1>
-        <a href="{% url 'sports:team_select' %}" class="manage-link">Manage Teams</a>
+        <div class="header-meta">
+            {% if last_updated %}<span class="last-updated">Updated {{ last_updated.relative }}</span>{% endif %}
+            <a href="{% url 'sports:team_select' %}" class="manage-link">Manage Teams</a>
+        </div>
     </header>
 
     {% if not has_teams %}

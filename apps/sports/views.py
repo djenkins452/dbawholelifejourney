@@ -209,7 +209,64 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
             focus_game.pop("_priority", None)
         context["focus_game"] = focus_game
 
+        # Last updated timestamp — most recent GameEvent update or sync health
+        context["last_updated"] = _get_last_updated(team_ids, now)
+
         return context
+
+
+def _get_last_updated(team_ids, now):
+    """
+    Get the most recent data update timestamp.
+
+    Checks: sync_health cache (background sync) and most recent
+    GameEvent.last_updated for the user's followed teams.
+    Returns a dict with 'timestamp' and 'relative' (human-readable).
+    Returns None if no data available.
+    """
+    from apps.sports.services.cache_manager import get_sync_health
+
+    latest = None
+
+    # Check sync health cache
+    sync_health = get_sync_health()
+    if sync_health and sync_health.get("last_run"):
+        try:
+            from django.utils.dateparse import parse_datetime
+            sync_ts = parse_datetime(sync_health["last_run"])
+            if sync_ts:
+                latest = sync_ts
+        except (ValueError, TypeError):
+            pass
+
+    # Check most recent GameEvent for user's teams
+    if team_ids:
+        from django.db.models import Max, Q
+        max_updated = GameEvent.objects.filter(
+            Q(home_team_id__in=team_ids) | Q(away_team_id__in=team_ids)
+        ).aggregate(latest=Max("last_updated"))["latest"]
+        if max_updated and (latest is None or max_updated > latest):
+            latest = max_updated
+
+    if not latest:
+        return None
+
+    # Compute relative time
+    delta = now - latest
+    total_seconds = int(delta.total_seconds())
+
+    if total_seconds < 60:
+        relative = "just now"
+    elif total_seconds < 3600:
+        minutes = total_seconds // 60
+        relative = f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+    elif total_seconds < 86400:
+        hours = total_seconds // 3600
+        relative = f"{hours} hour{'s' if hours != 1 else ''} ago"
+    else:
+        relative = latest.strftime("%b %d, %I:%M %p")
+
+    return {"timestamp": latest, "relative": relative}
 
 
 class TeamSelectView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):

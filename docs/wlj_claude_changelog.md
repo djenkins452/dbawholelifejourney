@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Fix: Preferences ↔ Navigation Sync (All Modules)
+
+- **Fix:** Toggling a module on the Preferences page now immediately updates navigation visibility
+  - Root cause: `UserPreferences.*_enabled` (Preferences page) and `UserModulePreference.is_enabled` (navigation system) were two disconnected systems. Changing one did not update the other after initial user creation.
+  - Added `post_save` signal on `UserPreferences` that syncs all `*_enabled` fields to corresponding `UserModulePreference` rows via the `preference_field` bridge on `ModuleDefinition`
+  - Automatically invalidates nav cache on sync so changes are visible on next page load
+  - Affects all modules (journal, health, faith, sports, etc.), not just Sports
+  - Files: apps/users/signals.py
+
 ## 2026-03-23 — Sports UI Wiring (Preferences, Navigation, Context)
 
 - **Feature:** Wire Sports module into Preferences page, context processor, and navigation

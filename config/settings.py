@@ -65,6 +65,10 @@ OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o')
 OPENAI_VISION_MODEL = os.environ.get('OPENAI_VISION_MODEL', 'gpt-4o')
 OPENAI_MINI_MODEL = os.environ.get('OPENAI_MINI_MODEL', 'gpt-4o-mini')
+
+# Sports API (api-sports.io)
+SPORTS_PROVIDER = os.environ.get('SPORTS_PROVIDER', '')  # "api_sports" to enable
+SPORTS_API_KEY = os.environ.get('SPORTS_API_KEY', '')
 # CoS assistant uses gpt-4o regardless of the default model — quality matters here.
 COS_MODEL = os.environ.get('COS_MODEL', 'gpt-4o')
 

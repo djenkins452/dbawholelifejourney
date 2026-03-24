@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Sports: API-Sports Provider (Go Live)
+
+- **New provider:** `ApiSportsProvider` (`apps/sports/services/providers/api_sports_provider.py`)
+  - Integrates with api-sports.io family: baseball, basketball, hockey, football (soccer)
+  - Endpoints: `/games`, `/standings`, `/teams` per sport host
+  - Status mapping for all sport types (MLB innings, NBA quarters, NHL periods, MLS halves)
+  - Normalizes all responses to existing `NormalizedTeam/Game/Standing` interface
+  - Graceful failure: never raises, logs warnings, returns empty lists
+  - Rate limit awareness (logs 429 responses)
+- **Provider factory:** `get_provider()` reads `SPORTS_PROVIDER` env var
+  - `SPORTS_PROVIDER=api_sports` + `SPORTS_API_KEY=xxx` → real API
+  - Empty/unset → fixture provider (safe default)
+  - Falls back to fixture if key missing (with warning)
+- **Team linking:** `_link_teams()` matches API external_ids to DB teams by abbreviation
+  - Runs once per league, idempotent, enables standings/games sync
+- **Procfile:** Removed `seed_game_events` from startup chain (real sync replaces it)
+- **Settings:** Added `SPORTS_PROVIDER` and `SPORTS_API_KEY` env var config
+- **Railway env vars needed:**
+  - `SPORTS_PROVIDER=api_sports`
+  - `SPORTS_API_KEY=<your api-sports.io key>`
+- Files: apps/sports/services/providers/api_sports_provider.py, apps/sports/services/provider_adapter.py, apps/sports/services/sync_service.py, config/settings.py, Procfile
+
 ## 2026-03-24 — Sports: CoS Proactive Integration (FINAL)
 
 - **Complete rewrite** of `_build_sports_context()` — single clean `sports` block

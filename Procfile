@@ -1,4 +1,4 @@
-web: python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file - --workers 4 --timeout 30
+web: python manage.py migrate --noinput && python manage.py load_sports_data && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file - --workers 4 --timeout 30
 worker: celery -A config worker --loglevel=info --concurrency=2
 beat: celery -A config beat --loglevel=info
 # Updated: 2026-03-16 — Removed APScheduler, all scheduling via Celery Beat

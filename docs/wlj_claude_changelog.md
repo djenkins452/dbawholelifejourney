@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Phase D: Beth Health Coaching Integration
+
+- **Feature:** Health priority summary + signals + coaching now flow into Beth's CoS system prompt. Beth receives deterministic "HEALTH RIGHT NOW" context and a single "CURRENT FOCUS" action.
+- **New file:** `apps/health/services/health_coaching_builder.py` — pure function that maps summary items + signals → single actionable coaching directive. No LLM. Templates for all known item keys + signal states.
+- **CoS context builder:** `_build_health_and_vitals()` now computes priority summary, signals, and coaching, stores as `health_right_now`, `health_trend_signals`, `health_current_focus`.
+- **System prompt injection:** `format_cos_system_injection()` adds "HEALTH RIGHT NOW" block with priority items + concerning trends + CURRENT FOCUS action/reason — positioned before existing Health Intelligence block.
+- **Guardrails:**
+  - Medications overdue always produce "Take your medications now" as action
+  - Exactly ONE action per coaching response
+  - Signal actions only for concern states (poor/declining/unstable)
+  - Fallback for unknown keys: high → "Address the most urgent item first", low → "Stay consistent"
+  - Beth instructed to lead with CURRENT FOCUS on health/daily focus queries
+- **Tests:** 18 focused tests for coaching builder covering: contract, medication dominance, high/medium/low priority, signal integration, fallback, no-signals compatibility
+- Files: `apps/health/services/health_coaching_builder.py` (new), `apps/health/tests/test_health_coaching_builder.py` (new), `apps/core/ai_orchestrator/cos_context.py`
+
 ## 2026-03-24 — Phase C Fix: Hard Minimum Backfill
 
 - **Root cause:** Primary evaluators skip "gap-zone" metrics (sleep 6-7h, steps 3000-7500, BP 120-139). When only 1 metric produced a candidate, minimum 2-item rule couldn't be enforced because overflow and candidate pools were both exhausted.

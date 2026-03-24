@@ -534,6 +534,46 @@ def _build_health_and_vitals(user):
             "Failed to build health intelligence for CoS", exc_info=True,
         )
 
+    # Health Priority Summary + Signals + Coaching (deterministic layer)
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        from apps.core.utils import get_user_now
+        from apps.core.signals.health_signals import build_health_signals
+        from apps.health.services.health_priority_service import (
+            build_health_priority_summary,
+        )
+        from apps.health.services.health_coaching_builder import (
+            build_health_coaching,
+        )
+
+        h_state = get_module_state(user, 'health') or {}
+        m_state = get_module_state(user, 'medicine') or {}
+        user_now = get_user_now(user)
+        h_signals = build_health_signals(h_state, m_state, user_now)
+        h_summary = build_health_priority_summary(
+            h_state, m_state, user_now, signals=h_signals,
+        )
+        h_coaching = build_health_coaching(h_summary, h_signals)
+
+        result['health_right_now'] = {
+            'headline': h_summary.get('headline', ''),
+            'priority_level': h_summary.get('priority_level', 'low'),
+            'items': [
+                {'message': i['message'], 'priority': i['priority']}
+                for i in h_summary.get('items', [])
+            ],
+            'flags': h_summary.get('flags', {}),
+        }
+        if h_signals:
+            result['health_trend_signals'] = [
+                {k: v for k, v in s.items() if k in ('key', 'state', 'trend', 'insight')}
+                for s in h_signals
+            ]
+        if h_coaching:
+            result['health_current_focus'] = h_coaching
+    except Exception:
+        logger.warning("CoS context: health priority summary failed", exc_info=True)
+
     return result
 
 
@@ -5689,6 +5729,36 @@ def format_cos_system_injection(context, user_message=None):
                 parts.append(f"{prs} PR{'s' if prs != 1 else ''} this month")
             parts.append(f"{sets_30d} sets / 30d")
             lines.append(f"  {' | '.join(parts)}")
+
+    # Health Right Now — deterministic priority summary + coaching focus
+    health_right_now = context.get('health_right_now')
+    if health_right_now and health_right_now.get('items'):
+        lines.append("")
+        lines.append("HEALTH RIGHT NOW:")
+        lines.append(f"  Status: {health_right_now.get('headline', '')}")
+        for item in health_right_now['items']:
+            prio = item.get('priority', 'low').upper()
+            lines.append(f"  [{prio}] {item.get('message', '')}")
+
+        # Trend signals (if available)
+        trend_signals = context.get('health_trend_signals', [])
+        if trend_signals:
+            for sig in trend_signals:
+                if sig.get('insight') and sig.get('state') in (
+                    'poor', 'declining', 'unstable', 'low', 'watch'
+                ):
+                    lines.append(f"  Trend: {sig['insight']}")
+
+        # Current focus (single action)
+        focus = context.get('health_current_focus')
+        if focus:
+            lines.append("")
+            lines.append(
+                "CURRENT FOCUS (lead with this when user asks about health or daily focus):"
+            )
+            lines.append(f"  Action: {focus.get('action', '')}")
+            lines.append(f"  Why: {focus.get('reason', '')}")
+        lines.append("")
 
     # Health Intelligence Engine — system-calculated scores, protein, trends
     # These are the AUTHORITATIVE values CoS MUST use (never LLM guesses)

@@ -6,32 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-## 2026-03-24 — Health Summary + Priority Layer ("Right Now" block)
+## 2026-03-24 — Sports: Game Urgency Badges (LIVE / STARTING SOON / TODAY)
 
-- **Feature:** Deterministic health priority summary service that converts canonical state into a short ordered "what matters right now" summary (max 4 items, ordered by importance)
-- **Architecture:** Pure function — no DB queries, no LLM, reads pre-built SAE state only. Sits between canonical state and UI. Does not modify Beth/CoS.
-- **Priority rules:**
-  - HIGH: overdue medications, BP crisis (>=180/120), severe glucose (<54 or >250 mg/dL), SpO2 <90%
-  - MEDIUM: elevated BP (140-179/90-119), short sleep (<6h avg), low adherence (<70%), elevated HR (>100 bpm), low activity (<3000 steps avg)
-  - LOW: normal BP, strong sleep, meds on track, glucose in range, good activity, normal SpO2
-- **Freshness gating:** BP suppressed if >7 days, sleep if >3 days, HR/glucose/SpO2 if >7 days. Medications always current (today's schedule). Steps gated by entries count.
-- **Message discipline:** No "so far today" (steps is 7d avg). No "right now" without freshness proof. Uses "lately" for 7d averages.
-- **UI:** Compact "Right Now" block on Physical Health page with colored priority dots (red/amber/green). Calm, not alarmist.
-- **Tests:** 29 focused unit tests covering all priority levels, freshness gating, ordering, flags, category dedup, max items, empty state
-- Files: `apps/health/services/health_priority_service.py` (new), `apps/health/tests/test_health_priority_service.py` (new), `apps/health/views.py`, `templates/health/home.html`
-
-## 2026-03-24 — Fix Heart Rate Ingestion + HealthKit Vitals State Builder Gap
-
-- **Root cause (heart rate):** `process_heart_rate_metric()` in `apps/mobile/views.py:920` wrote HR data to `SleepEntry.heart_rate_*` fields, but the state builder at `apps/core/ai_state/state_builder.py:183` reads from `HeartRateEntry.bpm` — a completely different model the handler never wrote to. Additionally, if no `SleepEntry` existed for that date, HR data was silently discarded.
-- **Root cause (sleep-attached vitals):** HRV, VO2 Max, respiratory rate, caffeine, and mindful minutes handlers correctly write to `SleepEntry` fields, but the state builder never read those fields — making them invisible to Beth/CoS.
-- **Fix:**
-  1. Rewrote `process_heart_rate_metric()` to create `HeartRateEntry` records with proper `source`/`sync_id` deduplication — no longer depends on `SleepEntry` existing
-  2. Added `source` and `sync_id` fields to `HeartRateEntry` model (migration 0070)
-  3. Added state builder reads for `SleepEntry` vitals: `latest_hrv`, `latest_vo2_max`, `latest_respiratory_rate`, `latest_caffeine_mg`, `latest_mindful_minutes`
-- **Coverage audit results:** 6 of 8 vitals handlers were writing to `SleepEntry` with silent skip — only `BloodOxygenEntry` and `BodyTemperatureEntry` had standalone models. Heart rate was the critical break (model mismatch). The other 5 are sleep-context metrics where the skip-if-no-sleep behavior is acceptable.
-- Files: `apps/mobile/views.py`, `apps/health/models.py`, `apps/core/ai_state/state_builder.py`, `apps/health/migrations/0070_add_source_sync_id_to_heartrateentry.py`
-
-## 2026-03-24 — iOS: Fix HealthKit Authorization Hang After BP Support Added
+- **Feature:** My Teams hub now highlights games by urgency level
+  - LIVE: red pulsing badge + red border + subtle red background
+  - STARTING SOON (within 1 hour): orange badge + orange border
+  - TODAY: amber badge + amber-tinted row
+  - Future games: no badge, plain row
+  - Urgency computed in view (not template) from GameEvent start_time vs now
+  - TODAY/STARTING SOON show simplified time (just "7:10 PM"), future games show full date
+- Files: apps/sports/views.py, apps/sports/templates/sports/my_teams.html
 
 ## 2026-03-24 — Sports: Seed Realistic Game Events (111 games across 6 leagues)
 

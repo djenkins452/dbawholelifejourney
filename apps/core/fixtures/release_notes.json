@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 171,
+    "fields": {
+      "title": "Health: Right Now Priority Summary",
+      "description": "Your Physical Health page now shows a compact 'Right Now' summary at the top with up to 4 priority items. Overdue medications appear first, followed by any vitals that need attention, then reassuring signals like normal blood pressure or strong sleep. Items are freshness-gated \u2014 stale readings are automatically suppressed so you only see what's current and relevant.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-24",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-24T16:00:00Z",
+      "updated_at": "2026-03-24T16:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 170,
     "fields": {
       "title": "Morning Check-In: Yesterday's Routines",

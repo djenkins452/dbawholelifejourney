@@ -466,6 +466,21 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             {"title": "Physical Health", "url": None},
         ]
 
+        # Health Priority Summary (deterministic, reads pre-built state only)
+        try:
+            from apps.core.ai_state.state_engine import get_module_state
+            from apps.core.utils import get_user_now
+            from apps.health.services.health_priority_service import build_health_priority_summary
+
+            health_state = get_module_state(user, "health") or {}
+            medicine_state = get_module_state(user, "medicine") or {}
+            user_now = get_user_now(user)
+            context["health_summary"] = build_health_priority_summary(
+                health_state, medicine_state, user_now
+            )
+        except Exception:
+            pass
+
         return context
 
 

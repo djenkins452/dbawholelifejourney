@@ -23,6 +23,21 @@
         <p>Whole Life Journey provides informational insights only. It does not provide medical advice, diagnosis, or treatment. Always consult a qualified healthcare professional for medical decisions.</p>
     </div>
 
+    {% if health_summary.items %}
+    <!-- Health Right Now -->
+    <div class="health-right-now" data-testid="health-right-now">
+        <h2 class="right-now-title">Right Now</h2>
+        <div class="right-now-items">
+            {% for item in health_summary.items %}
+            <div class="right-now-item priority-{{ item.priority }}">
+                <span class="priority-dot" aria-hidden="true"></span>
+                <span class="right-now-message">{{ item.message }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     {% if ai_insight %}
     <!-- AI Insight Card -->
     <div class="ai-insight-card mb-6">
@@ -770,6 +785,61 @@
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
     font-style: italic;
+}
+
+/* Health Right Now */
+.health-right-now {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.right-now-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 var(--space-3) 0;
+}
+
+.right-now-items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.right-now-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) 0;
+}
+
+.priority-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.priority-high .priority-dot {
+    background-color: var(--color-danger, #dc3545);
+}
+
+.priority-medium .priority-dot {
+    background-color: var(--color-warning, #f59e0b);
+}
+
+.priority-low .priority-dot {
+    background-color: var(--color-success, #22c55e);
+}
+
+.right-now-message {
+    font-size: var(--font-size-base);
+    color: var(--color-text);
 }
 
 /* AI Insight Card */

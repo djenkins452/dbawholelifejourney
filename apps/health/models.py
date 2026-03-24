@@ -735,6 +735,18 @@ class HeartRateEntry(UserOwnedModel):
     )
     recorded_at = models.DateTimeField(default=timezone.now)
     notes = models.TextField(blank=True)
+    source = models.CharField(
+        max_length=50,
+        default="manual",
+        help_text="Data source (manual, apple_health, etc.)"
+    )
+    sync_id = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        unique=True,
+        help_text="Unique sync ID to prevent duplicates"
+    )
 
     class Meta:
         ordering = ["-recorded_at"]

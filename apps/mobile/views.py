@@ -919,61 +919,71 @@ def process_sleep_metric(user, metric_date, source, sync_id, data):
 
 def process_heart_rate_metric(user, metric_date, source, sync_id, data):
     """
-    Process heart rate metric.
+    Process heart rate metric into HeartRateEntry.
 
-    Heart rate data is attached to an existing sleep entry if one exists
-    for that date. If no sleep entry exists, the HR data is skipped —
-    we do NOT create dummy sleep entries just to store HR values, as that
-    produces false sleep readings.
+    Creates a standalone HeartRateEntry record — does NOT depend on
+    SleepEntry existing. Uses resting HR as the primary BPM value.
     """
+    from apps.health.models import HeartRateEntry
+
     resting_hr = data.get("resting_hr")
     avg_hr = data.get("avg_hr")
-    max_hr = data.get("max_hr")
-    min_hr = data.get("min_hr")
 
-    if not any([resting_hr, avg_hr, max_hr, min_hr]):
-        raise ValueError("At least one heart rate value required")
+    # Use resting HR first, fall back to avg HR
+    bpm = resting_hr or avg_hr
+    if bpm is None:
+        raise ValueError("resting_hr or avg_hr is required")
 
-    # Validate ranges
-    for name, value in [("resting_hr", resting_hr), ("avg_hr", avg_hr),
-                        ("max_hr", max_hr), ("min_hr", min_hr)]:
-        if value is not None:
-            try:
-                value = int(value)
-                if value < 20 or value > 300:
-                    raise ValueError(f"{name} out of range: {value}")
-            except (TypeError, ValueError):
-                raise ValueError(f"Invalid {name}: {value}")
+    try:
+        bpm = int(bpm)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid heart rate value: {bpm}")
 
-    # Only attach HR data to an existing sleep entry — never create one
-    sleep_entry = SleepEntry.objects.filter(
+    if bpm < 20 or bpm > 300:
+        raise ValueError(f"Heart rate out of range: {bpm}")
+
+    # Parse recorded_at timestamp (noon default for daily aggregates)
+    from django.utils import timezone as tz
+    import datetime
+
+    recorded_at_str = data.get("recorded_at")
+    if recorded_at_str:
+        try:
+            from django.utils.dateparse import parse_datetime
+            recorded_at = parse_datetime(recorded_at_str)
+            if recorded_at is None:
+                recorded_at = tz.make_aware(
+                    datetime.datetime.combine(metric_date, datetime.time(12, 0))
+                )
+        except Exception:
+            recorded_at = tz.make_aware(
+                datetime.datetime.combine(metric_date, datetime.time(12, 0))
+            )
+    else:
+        recorded_at = tz.make_aware(
+            datetime.datetime.combine(metric_date, datetime.time(12, 0))
+        )
+
+    # Deduplication by sync_id
+    if sync_id:
+        existing = HeartRateEntry.objects.filter(sync_id=sync_id).first()
+        if existing:
+            if existing.bpm != bpm:
+                existing.bpm = bpm
+                existing.recorded_at = recorded_at
+                existing.save(update_fields=["bpm", "recorded_at", "updated_at"])
+                return "updated"
+            return "skipped"
+
+    HeartRateEntry.objects.create(
         user=user,
-        sleep_date=metric_date,
-    ).first()
-
-    if not sleep_entry:
-        return "skipped"
-
-    hr_data = {}
-    if resting_hr is not None:
-        hr_data["heart_rate_avg"] = resting_hr  # Use resting as avg if available
-    if avg_hr is not None:
-        hr_data["heart_rate_avg"] = avg_hr
-    if max_hr is not None:
-        hr_data["heart_rate_max"] = max_hr
-    if min_hr is not None:
-        hr_data["heart_rate_min"] = min_hr
-
-    changed = False
-    for key, value in hr_data.items():
-        if getattr(sleep_entry, key, None) != value:
-            setattr(sleep_entry, key, value)
-            changed = True
-
-    if changed:
-        sleep_entry.save()
-        return "updated"
-    return "skipped"
+        bpm=bpm,
+        context="resting",
+        recorded_at=recorded_at,
+        source=source,
+        sync_id=sync_id or None,
+    )
+    return "created"
 
 
 def process_blood_glucose_metric(user, metric_date, source, sync_id, data, existing_sync_ids=None):

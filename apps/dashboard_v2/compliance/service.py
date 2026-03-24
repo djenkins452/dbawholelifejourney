@@ -59,8 +59,11 @@ def invalidate_compliance_cache(user):
         today = get_user_today(user)
         week_start = today - timedelta(days=6)
         cache.delete(_cache_key(user.id, week_start))
+        # Also invalidate yesterday's key in case of timezone boundary drift
+        yesterday_start = today - timedelta(days=7)
+        cache.delete(_cache_key(user.id, yesterday_start))
     except Exception:
-        pass  # Cache invalidation is best-effort
+        logger.debug("Compliance cache invalidation failed", exc_info=True)
 
 
 class ComplianceService:

@@ -80,7 +80,7 @@ MODULE_CATALOG = [
         'status': 'active',
         'catalog_type': 'module',
         'layer': 3,
-        'mapped_domain_keys': ['journal'],
+        'mapped_domain_keys': ['journal', 'emotional'],
         'route_name': 'journal:home',
         'url_namespace': 'journal',
         'app_names': ['journal'],

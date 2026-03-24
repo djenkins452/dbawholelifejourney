@@ -1547,6 +1547,8 @@ class IntentInCosContextTests(TestCase):
 
     def setUp(self):
         self.user = _create_test_user('test-intent-cos@example.com')
+        self.user.preferences.finances_enabled = True
+        self.user.preferences.save()
 
     def test_single_intent_in_daily_signals(self):
         """Signal with one intent fact should produce intents list."""
@@ -1802,6 +1804,8 @@ class SignalInterpreterIntegrationTests(TestCase):
 
     def setUp(self):
         self.user = _create_test_user('test-interp-integration@example.com')
+        self.user.preferences.finances_enabled = True
+        self.user.preferences.save()
 
     def test_interpretation_in_context(self):
         """Signal with intent produces signal_interpretation in context."""
@@ -2154,6 +2158,8 @@ class SignalInsightIntegrationTests(TestCase):
         self.user = User.objects.create_user(
             email='pie_test@example.com', password='test1234'
         )
+        self.user.preferences.finances_enabled = True
+        self.user.preferences.save()
 
     @patch('apps.core.ai_orchestrator.cos_context._compute_signal_trend')
     def test_signal_insights_in_context(self, mock_trend):
@@ -2382,6 +2388,8 @@ class MandatoryInsightIntegrationTests(TestCase):
         self.user = User.objects.create_user(
             email='mandatory_test@example.com', password='test1234'
         )
+        self.user.preferences.finances_enabled = True
+        self.user.preferences.save()
 
     @patch('apps.core.ai_orchestrator.cos_context._compute_signal_trend')
     def test_mandatory_insights_in_context(self, mock_trend):

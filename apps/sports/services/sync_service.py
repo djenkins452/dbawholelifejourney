@@ -31,7 +31,7 @@ from apps.sports.services.provider_adapter import get_provider
 logger = logging.getLogger(__name__)
 
 
-def sync_sports_data(leagues=None, days_ahead=7, days_back=2):
+def sync_sports_data(leagues=None, days_ahead=1, days_back=1):
     """
     Sync sports data from the configured provider.
 
@@ -82,12 +82,11 @@ def sync_sports_data(leagues=None, days_ahead=7, days_back=2):
     if leagues:
         league_slugs = leagues
     else:
-        # Only sync leagues that have active followers
-        league_slugs = list(
+        # Only sync leagues that have active followers (deduplicated)
+        league_slugs = list(set(
             UserTeamFollow.objects.filter(is_active=True)
             .values_list("team__league__slug", flat=True)
-            .distinct()
-        )
+        ))
 
     if not league_slugs:
         result["skipped_reason"] = "no_active_followers"
@@ -173,33 +172,52 @@ def _link_teams(provider, league):
     if not api_teams:
         return
 
-    # Build abbreviation → DB team lookup (case-insensitive)
-    db_teams_by_abbr = {
-        t.abbreviation.upper(): t
-        for t in Team.objects.filter(league=league, external_id="")
-    }
+    db_teams = list(Team.objects.filter(league=league, external_id=""))
 
-    # Also build name → DB team for fallback matching
-    db_teams_by_name = {
-        t.name.lower(): t
-        for t in Team.objects.filter(league=league, external_id="")
-    }
+    # Build multiple lookup strategies
+    # 1. Abbreviation match (case-insensitive)
+    db_by_abbr = {t.abbreviation.upper(): t for t in db_teams}
+    # 2. Full name match: "Location Name" (how our DB stores it)
+    db_by_full_name = {f"{t.location} {t.name}".lower(): t for t in db_teams}
+    # 3. Name-only match (e.g., "Yankees", "Braves")
+    db_by_name = {t.name.lower(): t for t in db_teams}
 
     linked = 0
     for api_team in api_teams:
         if not api_team.external_id:
             continue
 
-        # Try abbreviation match first
-        db_team = db_teams_by_abbr.get(api_team.abbreviation.upper()) if api_team.abbreviation else None
+        db_team = None
+        api_name = api_team.name.lower() if api_team.name else ""
 
-        # Fallback: try name match
-        if not db_team and api_team.name:
-            db_team = db_teams_by_name.get(api_team.name.lower())
+        # Strategy 1: abbreviation match
+        if api_team.abbreviation:
+            db_team = db_by_abbr.get(api_team.abbreviation.upper())
+
+        # Strategy 2: full name match (API "New York Yankees" → DB "New York Yankees")
+        if not db_team and api_name:
+            db_team = db_by_full_name.get(api_name)
+
+        # Strategy 3: API name contains our team name (API "Atlanta Braves" → DB name "Braves")
+        if not db_team and api_name:
+            for t in db_teams:
+                if t.name.lower() in api_name and t.location.lower() in api_name:
+                    db_team = t
+                    break
+
+        # Strategy 4: partial name match (last word of API name = DB name)
+        if not db_team and api_name:
+            api_last_word = api_name.split()[-1] if api_name.split() else ""
+            db_team = db_by_name.get(api_last_word)
 
         if db_team:
             db_team.external_id = api_team.external_id
             db_team.save(update_fields=["external_id"])
+            # Remove from lookup dicts to prevent double-matching
+            db_teams.remove(db_team)
+            db_by_abbr = {t.abbreviation.upper(): t for t in db_teams}
+            db_by_full_name = {f"{t.location} {t.name}".lower(): t for t in db_teams}
+            db_by_name = {t.name.lower(): t for t in db_teams}
             linked += 1
 
     if linked:

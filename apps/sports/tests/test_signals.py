@@ -66,6 +66,11 @@ class DisabledModuleTest(TestCase):
 
     def test_enabled_module_produces_signals(self):
         """Module enabled — signals generated for followed teams."""
+        # Create a game that is definitely starting soon (30 min from now)
+        GameEvent.objects.create(
+            home_team=self.chiefs, away_team=self.niners,
+            start_time=timezone.now() + timedelta(minutes=30),
+        )
         prefs = self.user.preferences
         prefs.sports_enabled = True
         prefs.save()

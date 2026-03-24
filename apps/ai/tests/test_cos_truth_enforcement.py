@@ -152,6 +152,7 @@ class CosTruthValidatorTest(TestCase):
             _build_task_summary,
             _build_workout_summary,
             _build_journal_summary,
+            _build_medication_summary,
             _build_overall_summary,
         )
         raw = {
@@ -166,6 +167,9 @@ class CosTruthValidatorTest(TestCase):
             'routine_done': 0,
             'routine_total': 5,
             'tasks_done': 0,
+            'meds_taken': 0,
+            'meds_expected': 0,
+            'meds_all_taken': True,
         }
         return {
             'faith_summary': _build_faith_summary(raw),
@@ -173,6 +177,7 @@ class CosTruthValidatorTest(TestCase):
             'task_summary': _build_task_summary(0),
             'workout_summary': _build_workout_summary(raw),
             'journal_summary': _build_journal_summary(raw),
+            'medication_summary': _build_medication_summary(raw),
             'overall_summary': _build_overall_summary(raw),
             '_raw': raw,
         }
@@ -406,6 +411,7 @@ class CosExpectationAwarenessTest(TestCase):
             'journal_done': False, 'journal_expected': False,
             'routine_done': 0, 'routine_total': 0,
             'tasks_done': 0,
+            'meds_taken': 0, 'meds_expected': 0, 'meds_all_taken': True,
         }
         summary = _build_overall_summary(raw)
         self.assertIn("Nothing has been completed", summary)
@@ -421,6 +427,7 @@ class CosExpectationAwarenessTest(TestCase):
             'journal_done': False, 'journal_expected': False,
             'routine_done': 3, 'routine_total': 3,
             'tasks_done': 0,
+            'meds_taken': 0, 'meds_expected': 0, 'meds_all_taken': True,
         }
         summary = _build_overall_summary(raw)
         self.assertEqual(summary, "All daily items are complete.")
@@ -454,3 +461,178 @@ class CosExpectationAwarenessTest(TestCase):
         rate = _compute_completion_rate_from_raw(raw)
         # 2 expected done out of 2 expected + 3 routine done / 3 total = 100%
         self.assertEqual(rate, 100)
+
+
+class CosMedicationFactTest(TestCase):
+    """Verify medication doses are first-class items in locked facts.
+
+    Root cause fix: medications were completely excluded from the locked
+    fact pipeline, allowing Beth to say "all complete" while evening/night
+    doses remained pending. These tests enforce the gate.
+    """
+
+    def _make_raw(self, **overrides):
+        """Build a raw dict with all fields including medications."""
+        raw = {
+            'prayer_done': True, 'prayer_expected': True,
+            'bible_done': True, 'bible_expected': True,
+            'workout_done': True, 'workout_expected': True,
+            'journal_done': True, 'journal_expected': True,
+            'routine_done': 3, 'routine_total': 3,
+            'tasks_done': 2,
+            'meds_taken': 0, 'meds_expected': 0, 'meds_all_taken': True,
+        }
+        raw.update(overrides)
+        return raw
+
+    # --- _build_medication_summary tests ---
+
+    def test_med_summary_no_meds_scheduled(self):
+        """No medications scheduled → 'No medications scheduled today.'"""
+        from apps.ai.cos_fact_statements import _build_medication_summary
+        raw = self._make_raw(meds_expected=0, meds_taken=0, meds_all_taken=True)
+        self.assertEqual(
+            _build_medication_summary(raw),
+            "No medications scheduled today.",
+        )
+
+    def test_med_summary_all_taken(self):
+        """All 6 doses taken → 'All 6 medication doses taken.'"""
+        from apps.ai.cos_fact_statements import _build_medication_summary
+        raw = self._make_raw(meds_expected=6, meds_taken=6, meds_all_taken=True)
+        self.assertEqual(
+            _build_medication_summary(raw),
+            "All 6 medication doses taken.",
+        )
+
+    def test_med_summary_partial(self):
+        """4 of 6 taken → '4 of 6 medication doses taken. 2 doses remaining.'"""
+        from apps.ai.cos_fact_statements import _build_medication_summary
+        raw = self._make_raw(meds_expected=6, meds_taken=4, meds_all_taken=False)
+        self.assertEqual(
+            _build_medication_summary(raw),
+            "4 of 6 medication doses taken. 2 doses remaining.",
+        )
+
+    def test_med_summary_none_taken(self):
+        """0 of 6 taken → '0 of 6 medication doses taken. 6 doses remaining.'"""
+        from apps.ai.cos_fact_statements import _build_medication_summary
+        raw = self._make_raw(meds_expected=6, meds_taken=0, meds_all_taken=False)
+        self.assertEqual(
+            _build_medication_summary(raw),
+            "0 of 6 medication doses taken. 6 doses remaining.",
+        )
+
+    # --- Overall summary medication gate tests ---
+
+    def test_overall_blocked_by_pending_meds(self):
+        """All domains + routines done BUT meds pending → NOT 'all complete'."""
+        from apps.ai.cos_fact_statements import _build_overall_summary
+        raw = self._make_raw(meds_expected=6, meds_taken=4, meds_all_taken=False)
+        summary = _build_overall_summary(raw)
+        self.assertNotEqual(
+            summary, "All daily items are complete.",
+            "CRITICAL: 'All daily items are complete' while medications pending!",
+        )
+
+    def test_overall_allowed_when_meds_complete(self):
+        """All domains + routines + meds done → 'All daily items are complete.'"""
+        from apps.ai.cos_fact_statements import _build_overall_summary
+        raw = self._make_raw(meds_expected=6, meds_taken=6, meds_all_taken=True)
+        summary = _build_overall_summary(raw)
+        self.assertEqual(summary, "All daily items are complete.")
+
+    def test_overall_allowed_when_no_meds_scheduled(self):
+        """All domains + routines done, no meds → 'All daily items are complete.'"""
+        from apps.ai.cos_fact_statements import _build_overall_summary
+        raw = self._make_raw(meds_expected=0, meds_taken=0, meds_all_taken=True)
+        summary = _build_overall_summary(raw)
+        self.assertEqual(summary, "All daily items are complete.")
+
+    def test_overall_blocked_by_zero_of_six_meds(self):
+        """Zero meds taken with 6 expected → must NOT say all complete."""
+        from apps.ai.cos_fact_statements import _build_overall_summary
+        raw = self._make_raw(meds_expected=6, meds_taken=0, meds_all_taken=False)
+        summary = _build_overall_summary(raw)
+        self.assertNotEqual(
+            summary, "All daily items are complete.",
+            "CRITICAL: 'All complete' with 0/6 medication doses taken!",
+        )
+
+    # --- format_locked_facts_block includes Medications line ---
+
+    def test_locked_facts_block_contains_medications_line(self):
+        """The formatted locked facts block must include a Medications line."""
+        from apps.ai.cos_fact_statements import (
+            format_locked_facts_block, _build_medication_summary,
+            _build_faith_summary, _build_routine_summary,
+            _build_task_summary, _build_workout_summary,
+            _build_journal_summary, _build_overall_summary,
+        )
+        raw = self._make_raw(meds_expected=6, meds_taken=4, meds_all_taken=False)
+        facts = {
+            'faith_summary': _build_faith_summary(raw),
+            'routine_summary': _build_routine_summary(3, 3, []),
+            'task_summary': _build_task_summary(2),
+            'workout_summary': _build_workout_summary(raw),
+            'journal_summary': _build_journal_summary(raw),
+            'medication_summary': _build_medication_summary(raw),
+            'overall_summary': _build_overall_summary(raw),
+            'next_action': 'Start with Evening Medications.',
+            '_raw': raw,
+        }
+        block = format_locked_facts_block(facts)
+        self.assertIn('Medications:', block)
+        self.assertIn('4 of 6 medication doses taken', block)
+
+    # --- Integration: build_locked_facts includes medication data ---
+
+    def test_build_locked_facts_includes_medication_key(self):
+        """build_locked_facts() must return a 'medication_summary' key."""
+        from apps.ai.cos_fact_statements import build_locked_facts
+        from unittest.mock import patch
+
+        mock_truth = {
+            'date': '2026-03-23',
+            'domains': {
+                'faith': {
+                    'prayer_completed': True, 'prayer_expected': True,
+                    'bible_reading_completed': True, 'bible_expected': True,
+                },
+                'workout': {'completed': True, 'expected': True},
+                'journal': {'completed': True, 'expected': True},
+            },
+            'routines': {
+                'total': 3, 'completed': 3,
+                'fully_complete': True, '_raw_items': {},
+            },
+            'tasks': {'completed': 2, 'completed_today_all': 2},
+            'medications': {
+                'taken': 4, 'expected': 6, 'all_taken': False,
+            },
+        }
+        user = MagicMock()
+        user.id = 999
+
+        with patch(
+            'apps.core.execution.execution_truth_engine.get_execution_truth',
+            return_value=mock_truth,
+        ), patch(
+            'apps.ai.cos_fact_statements.build_locked_next_action',
+            return_value='Start with Evening Medications.',
+        ):
+            facts = build_locked_facts(user)
+
+        self.assertIn('medication_summary', facts)
+        self.assertEqual(
+            facts['medication_summary'],
+            "4 of 6 medication doses taken. 2 doses remaining.",
+        )
+        self.assertNotEqual(
+            facts['overall_summary'],
+            "All daily items are complete.",
+        )
+        # Verify raw includes medication fields
+        self.assertEqual(facts['_raw']['meds_taken'], 4)
+        self.assertEqual(facts['_raw']['meds_expected'], 6)
+        self.assertFalse(facts['_raw']['meds_all_taken'])

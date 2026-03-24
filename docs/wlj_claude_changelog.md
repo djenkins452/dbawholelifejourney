@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Fix: Medications Excluded from "All Complete" Locked Facts
+
+**What:** Beth was reporting "All daily items are complete" while evening/night medication doses remained pending. Medications were completely absent from the locked fact statement pipeline.
+
+**Root cause:** `cos_fact_statements.py` built the `raw` dict and `_build_overall_summary()` from domains (prayer, bible, workout, journal) and routines only. The Execution Truth Engine correctly returned `truth['medications']` with `taken`, `expected`, and `all_taken`, but `build_locked_facts()` never read it. The "all complete" gate at line 231 checked `total_done == total_expected and routine_done >= routine_total` — no medication check.
+
+**Fix (4 surgical changes to one file):**
+1. Added `meds_taken`, `meds_expected`, `meds_all_taken` to the `raw` dict
+2. Added `_build_medication_summary()` — produces locked medication fact statement
+3. Gated `_build_overall_summary()` on `raw['meds_all_taken']`
+4. Added `Medications:` line to `format_locked_facts_block()` output
+
+**Architecture note:** No new systems introduced. Execution Truth Engine remains the single source of truth. Medication data was already there — the locked facts layer simply wasn't reading it.
+
+**Follow-up needed:** `cos_state_revalidator.py:capture_state_snapshot()` also doesn't capture medication fields — if meds change mid-response, the revalidator won't detect it. Separate fix.
+
+**Files:**
+- `apps/ai/cos_fact_statements.py` — All 4 changes
+- `apps/ai/tests/test_cos_truth_enforcement.py` — 11 new tests (CosMedicationFactTest), updated existing raw dicts
+
 ## 2026-03-23 — Fitness Dual-Signal Model (Strength Load + Movement Work)
 
 **What:** Workouts now produce two independent effort signals: Strength Load (volume from load exercises) and Movement Work (reps from non-load exercises). These are never combined — different units, different meaning.

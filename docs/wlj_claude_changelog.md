@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Sports UI Wiring (Preferences, Navigation, Context)
+
+- **Feature:** Wire Sports module into Preferences page, context processor, and navigation
+  - `apps/users/forms.py` — Added `sports_enabled` to PreferencesForm fields and widgets
+  - `templates/users/preferences.html` — Added Sports toggle in module toggles section + JS counter
+  - `apps/core/context_processors.py` — Added `sports_enabled` to defaults and authenticated context
+  - Navigation auto-wires from ModuleDefinition catalog (no template changes needed)
+
 ## 2026-03-23 — Fix: Medication State Changes Not Triggering CoS Revalidation
 
 **What:** The mid-response state revalidator (`cos_state_revalidator.py`) captured snapshots of 7 completion fields but omitted all 3 medication fields (`meds_taken`, `meds_expected`, `meds_all_taken`). If a user took a medication dose during LLM response generation, the change was invisible to the revalidator and Beth served a stale response.

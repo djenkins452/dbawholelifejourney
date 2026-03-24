@@ -1,0 +1,320 @@
+"""
+Sports Domain — Sync Service
+
+Single source of truth for sports data synchronization.
+Fetches from provider adapter → upserts Teams and GameEvents.
+
+Responsibilities:
+- Sync team standings (wins/losses) from provider
+- Sync game events (schedule, scores, pitchers) from provider
+- Idempotent: safe to run repeatedly, no duplicates
+- Raw sync ONLY: no streak computation, no urgency, no signals
+
+Usage:
+    from apps.sports.services.sync_service import sync_sports_data
+    result = sync_sports_data()  # Full sync
+    result = sync_sports_data(leagues=["mlb", "nba"])  # Targeted
+"""
+import logging
+import time
+from datetime import timedelta
+
+from django.utils import timezone
+
+from apps.sports.models import GameEvent, League, Team, UserTeamFollow
+from apps.sports.services.cache_manager import (
+    invalidate_user_caches_for_game,
+    set_sync_health,
+)
+from apps.sports.services.provider_adapter import get_provider
+
+logger = logging.getLogger(__name__)
+
+
+def sync_sports_data(leagues=None, days_ahead=7, days_back=2):
+    """
+    Sync sports data from the configured provider.
+
+    Fetches standings and games for leagues that have active followers.
+    Upserts all data — safe to run on every schedule tick.
+
+    Args:
+        leagues: Optional list of league slugs to sync. If None, syncs
+                 all leagues with active followers.
+        days_ahead: Number of days ahead to fetch games (default 7).
+        days_back: Number of days back to fetch completed games (default 2).
+
+    Returns:
+        dict with sync results:
+        {
+            "standings_updated": int,
+            "games_upserted": int,
+            "games_updated": int,
+            "leagues_synced": list[str],
+            "duration_seconds": float,
+            "provider": str,
+            "skipped_reason": str or None,
+        }
+    """
+    start = time.monotonic()
+    provider = get_provider()
+    now = timezone.now()
+
+    result = {
+        "standings_updated": 0,
+        "games_upserted": 0,
+        "games_updated": 0,
+        "leagues_synced": [],
+        "duration_seconds": 0,
+        "provider": provider.provider_name(),
+        "skipped_reason": None,
+        "errors": [],
+    }
+
+    # Fixture provider has no real data — skip sync
+    if provider.provider_name() == "fixture":
+        result["skipped_reason"] = "fixture_provider"
+        result["duration_seconds"] = round(time.monotonic() - start, 3)
+        logger.debug("Sports sync skipped: fixture provider")
+        return result
+
+    # Determine which leagues to sync
+    if leagues:
+        league_slugs = leagues
+    else:
+        # Only sync leagues that have active followers
+        league_slugs = list(
+            UserTeamFollow.objects.filter(is_active=True)
+            .values_list("team__league__slug", flat=True)
+            .distinct()
+        )
+
+    if not league_slugs:
+        result["skipped_reason"] = "no_active_followers"
+        result["duration_seconds"] = round(time.monotonic() - start, 3)
+        return result
+
+    league_objects = {
+        lg.slug: lg for lg in League.objects.filter(slug__in=league_slugs)
+    }
+
+    date_from = (now - timedelta(days=days_back)).date()
+    date_to = (now + timedelta(days=days_ahead)).date()
+
+    for slug in league_slugs:
+        league = league_objects.get(slug)
+        if not league:
+            continue
+
+        try:
+            # Sync standings (team records)
+            standings_count = _sync_standings(provider, league)
+            result["standings_updated"] += standings_count
+
+            # Sync games
+            upserted, updated = _sync_games(provider, league, date_from, date_to)
+            result["games_upserted"] += upserted
+            result["games_updated"] += updated
+
+            result["leagues_synced"].append(slug)
+        except Exception as e:
+            logger.error("Sports sync failed for league %s: %s", slug, e, exc_info=True)
+            result["errors"].append(f"{slug}: {str(e)}")
+
+    duration = round(time.monotonic() - start, 3)
+    result["duration_seconds"] = duration
+
+    # Record sync health for observability
+    set_sync_health({
+        "last_sync": now.isoformat(),
+        "provider": provider.provider_name(),
+        "leagues_synced": result["leagues_synced"],
+        "standings_updated": result["standings_updated"],
+        "games_upserted": result["games_upserted"],
+        "games_updated": result["games_updated"],
+        "errors": len(result["errors"]),
+        "duration_seconds": duration,
+    })
+
+    logger.info(
+        "Sports sync complete: %d standings, %d new games, %d updated games, "
+        "%d leagues (%.2fs) [%s]",
+        result["standings_updated"],
+        result["games_upserted"],
+        result["games_updated"],
+        len(result["leagues_synced"]),
+        duration,
+        provider.provider_name(),
+    )
+
+    return result
+
+
+def _sync_standings(provider, league):
+    """
+    Sync team standings (wins/losses) for a league.
+
+    Matches teams by external_id. Updates wins/losses only if changed.
+    Returns count of teams updated.
+    """
+    standings = provider.fetch_standings(league.slug)
+    if not standings:
+        return 0
+
+    # Build external_id → Team lookup for this league
+    teams_by_ext = {
+        t.external_id: t
+        for t in Team.objects.filter(league=league).exclude(external_id="")
+    }
+
+    updated = 0
+    for entry in standings:
+        team = teams_by_ext.get(entry.team_external_id)
+        if not team:
+            continue
+
+        changed = False
+        if team.wins != entry.wins:
+            team.wins = entry.wins
+            changed = True
+        if team.losses != entry.losses:
+            team.losses = entry.losses
+            changed = True
+
+        if changed:
+            team.save(update_fields=["wins", "losses"])
+            updated += 1
+
+    return updated
+
+
+def _sync_games(provider, league, date_from, date_to):
+    """
+    Sync game events for a league's followed teams.
+
+    Matches by external_id. Creates new games, updates existing ones.
+    Returns (upserted_count, updated_count).
+    """
+    # Get external IDs of teams in this league that have followers
+    followed_team_ids = list(
+        UserTeamFollow.objects.filter(
+            is_active=True, team__league=league
+        ).values_list("team__external_id", flat=True).distinct()
+    )
+    # Filter out empty external_ids
+    followed_team_ids = [eid for eid in followed_team_ids if eid]
+
+    if not followed_team_ids:
+        # Fall back to all teams in league with external_ids
+        followed_team_ids = list(
+            Team.objects.filter(league=league)
+            .exclude(external_id="")
+            .values_list("external_id", flat=True)
+        )
+
+    if not followed_team_ids:
+        return 0, 0
+
+    games = provider.fetch_games(followed_team_ids, date_from, date_to)
+    if not games:
+        return 0, 0
+
+    # Build external_id → Team lookup
+    all_ext_ids = set()
+    for g in games:
+        all_ext_ids.add(g.home_team_external_id)
+        all_ext_ids.add(g.away_team_external_id)
+
+    teams_by_ext = {
+        t.external_id: t
+        for t in Team.objects.filter(
+            league=league, external_id__in=all_ext_ids
+        )
+    }
+
+    # Existing games by external_id for update detection
+    game_ext_ids = [g.external_id for g in games if g.external_id]
+    existing_games = {
+        ge.external_id: ge
+        for ge in GameEvent.objects.filter(external_id__in=game_ext_ids)
+    } if game_ext_ids else {}
+
+    upserted = 0
+    updated = 0
+
+    for ng in games:
+        home = teams_by_ext.get(ng.home_team_external_id)
+        away = teams_by_ext.get(ng.away_team_external_id)
+        if not home or not away:
+            continue
+
+        existing = existing_games.get(ng.external_id) if ng.external_id else None
+
+        if existing:
+            # Update existing game
+            changed = _update_game_if_changed(existing, ng)
+            if changed:
+                updated += 1
+        else:
+            # Create new game
+            GameEvent.objects.create(
+                home_team=home,
+                away_team=away,
+                start_time=ng.start_time,
+                status=ng.status,
+                home_score=ng.home_score,
+                away_score=ng.away_score,
+                venue=ng.venue,
+                external_id=ng.external_id,
+                home_probable_pitcher=ng.home_probable_pitcher,
+                away_probable_pitcher=ng.away_probable_pitcher,
+            )
+            upserted += 1
+
+    return upserted, updated
+
+
+def _update_game_if_changed(game, normalized):
+    """
+    Update a GameEvent if the normalized data differs.
+
+    Only updates fields that have actually changed to minimize DB writes.
+    Returns True if any field was updated.
+    """
+    update_fields = []
+
+    if game.status != normalized.status:
+        game.status = normalized.status
+        update_fields.append("status")
+
+    if normalized.home_score is not None and game.home_score != normalized.home_score:
+        game.home_score = normalized.home_score
+        update_fields.append("home_score")
+
+    if normalized.away_score is not None and game.away_score != normalized.away_score:
+        game.away_score = normalized.away_score
+        update_fields.append("away_score")
+
+    if normalized.venue and game.venue != normalized.venue:
+        game.venue = normalized.venue
+        update_fields.append("venue")
+
+    if normalized.start_time and game.start_time != normalized.start_time:
+        game.start_time = normalized.start_time
+        update_fields.append("start_time")
+
+    if normalized.home_probable_pitcher and game.home_probable_pitcher != normalized.home_probable_pitcher:
+        game.home_probable_pitcher = normalized.home_probable_pitcher
+        update_fields.append("home_probable_pitcher")
+
+    if normalized.away_probable_pitcher and game.away_probable_pitcher != normalized.away_probable_pitcher:
+        game.away_probable_pitcher = normalized.away_probable_pitcher
+        update_fields.append("away_probable_pitcher")
+
+    if update_fields:
+        game.save(update_fields=update_fields + ["last_updated"])
+        # Invalidate caches for affected users
+        invalidate_user_caches_for_game(game)
+        return True
+
+    return False

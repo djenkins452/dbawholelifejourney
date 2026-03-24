@@ -86,11 +86,15 @@ class GameTodaySignalTest(TestCase):
             user=self.user, team=self.chiefs, priority=1
         )
 
-    def test_game_today_signal(self):
+    @patch("apps.sports.services.signal_generator.timezone")
+    def test_game_today_signal(self, mock_tz):
         """Game scheduled for today generates game_today signal."""
+        # Pin 'now' to 10 AM UTC so +4h is still today
+        fake_now = timezone.now().replace(hour=10, minute=0, second=0, microsecond=0)
+        mock_tz.now.return_value = fake_now
         GameEvent.objects.create(
             home_team=self.chiefs, away_team=self.niners,
-            start_time=timezone.now() + timedelta(hours=4),
+            start_time=fake_now + timedelta(hours=4),
         )
         signals = generate_sports_signals(self.user)
         signal_types = [s["signal_type"] for s in signals]

@@ -6,17 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-## 2026-03-24 — Phase C: Signal → Summary Integration
+## 2026-03-24 — Sports: API Sync Service + Celery Beat Integration
 
-- **Feature:** Health signals now inform the priority summary. Max ONE signal injected per summary.
-- **Selection rules:** Signal must be in a concern state (poor/declining/unstable/low/watch). Priority order: med_adherence > cardio_stability > activity_momentum > sleep_recovery.
-- **Dedup:** Signal skipped if its meaning overlaps with an existing summary item (e.g., activity_momentum skipped if activity_low already present).
-- **Injection position:** After medications if meds exist, otherwise at index 0. Counts toward max 4 items.
-- **Priority mapping:** unstable → HIGH, poor/declining/watch/low → MEDIUM.
-- **Backward compatible:** `signals` param defaults to None; existing callers unaffected.
-- **View updated:** `HealthHomeView` now calls `build_health_signals()` and passes result to summary builder.
-- **Tests:** 45 → 54 (9 new signal integration tests). Total: 84 tests across summary + signals.
-- Files: `apps/health/services/health_priority_service.py`, `apps/health/views.py`, `apps/health/tests/test_health_priority_service.py`
+- **Sync service** (`apps/sports/services/sync_service.py`):
+  - `sync_sports_data()` — fetches from provider adapter, upserts Team records + GameEvents
+  - Syncs standings (wins/losses), games (schedule/scores/pitchers), per league
+  - Only syncs leagues with active followers (no wasted API calls)
+  - Idempotent: matches by external_id, updates only changed fields
+  - Invalidates user caches when games update
+  - Records sync health telemetry for observability
+- **Celery Beat**: `sports-sync-every-600-seconds` — runs every 10 minutes
+- **Provider adapter**: Extended `NormalizedGame` with `home_probable_pitcher`, `away_probable_pitcher`
+- **Task**: `sync_games_from_provider` now a proper `@shared_task` calling sync service
+- **Test fix**: Fixed flaky `test_game_today_signal` — was time-of-day dependent (failed after 8 PM UTC when +4h crossed midnight)
+- Files: apps/sports/services/sync_service.py, apps/sports/services/provider_adapter.py, apps/sports/tasks.py, config/settings.py, apps/sports/tests/test_signals.py
 
 ## 2026-03-24 — Sports: Lean Context Model — Record, Streak, Pitcher
 

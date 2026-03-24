@@ -119,7 +119,10 @@ class HealthKitManager {
             types.insert(mindfulType)
         }
 
-        // Blood Pressure (systolic and diastolic)
+        // Blood Pressure (correlation type + individual quantity types)
+        if let bpCorrelationType = HKCorrelationType.correlationType(forIdentifier: .bloodPressure) {
+            types.insert(bpCorrelationType)
+        }
         if let systolicType = HKQuantityType.quantityType(forIdentifier: .bloodPressureSystolic) {
             types.insert(systolicType)
         }
@@ -1669,74 +1672,56 @@ class HealthKitManager {
     // MARK: - Fetch Blood Pressure
 
     private func fetchBloodPressure(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
-        guard let systolicType = HKQuantityType.quantityType(forIdentifier: .bloodPressureSystolic),
+        guard let bpCorrelationType = HKCorrelationType.correlationType(forIdentifier: .bloodPressure),
+              let systolicType = HKQuantityType.quantityType(forIdentifier: .bloodPressureSystolic),
               let diastolicType = HKQuantityType.quantityType(forIdentifier: .bloodPressureDiastolic) else {
             return []
         }
 
         let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
-        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
 
-        // Fetch systolic readings
-        let systolicReadings = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[HKQuantitySample], Error>) in
-            let query = HKSampleQuery(
-                sampleType: systolicType,
+        // Blood pressure is stored as HKCorrelation — query the correlation type
+        let correlations = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[HKCorrelation], Error>) in
+            let query = HKCorrelationQuery(
+                type: bpCorrelationType,
                 predicate: predicate,
-                limit: HKObjectQueryNoLimit,
-                sortDescriptors: [sortDescriptor]
-            ) { _, samples, error in
+                samplePredicates: nil
+            ) { _, results, error in
                 if let error = error {
                     continuation.resume(throwing: error)
                     return
                 }
-                continuation.resume(returning: (samples as? [HKQuantitySample]) ?? [])
+                continuation.resume(returning: results ?? [])
             }
             healthStore.execute(query)
         }
 
-        // Fetch diastolic readings
-        let diastolicReadings = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[HKQuantitySample], Error>) in
-            let query = HKSampleQuery(
-                sampleType: diastolicType,
-                predicate: predicate,
-                limit: HKObjectQueryNoLimit,
-                sortDescriptors: [sortDescriptor]
-            ) { _, samples, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-                continuation.resume(returning: (samples as? [HKQuantitySample]) ?? [])
-            }
-            healthStore.execute(query)
-        }
-
-        // Match systolic and diastolic readings by timestamp (within 1 minute)
+        // Extract systolic and diastolic from each correlation
         var metrics: [HealthMetric] = []
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let timeFormatter = ISO8601DateFormatter()
 
-        for systolic in systolicReadings {
-            let systolicValue = Int(systolic.quantity.doubleValue(for: .millimeterOfMercury()))
-            let systolicTime = systolic.startDate
-
-            // Find matching diastolic reading (within 60 seconds)
-            if let diastolic = diastolicReadings.first(where: { abs($0.startDate.timeIntervalSince(systolicTime)) < 60 }) {
-                let diastolicValue = Int(diastolic.quantity.doubleValue(for: .millimeterOfMercury()))
-                let dateStr = dateFormatter.string(from: systolicTime)
-                let timeStr = timeFormatter.string(from: systolicTime)
-
-                metrics.append(HealthMetric(
-                    type: "blood_pressure",
-                    date: dateStr,
-                    systolicValue: systolicValue,
-                    diastolicValue: diastolicValue,
-                    recordedAt: timeStr,
-                    source: "apple_health",
-                    syncId: "bp-\(timeStr)"
-                ))
+        for correlation in correlations {
+            guard let systolicSample = correlation.objects(for: systolicType).first as? HKQuantitySample,
+                  let diastolicSample = correlation.objects(for: diastolicType).first as? HKQuantitySample else {
+                continue
             }
+
+            let systolicValue = Int(systolicSample.quantity.doubleValue(for: .millimeterOfMercury()))
+            let diastolicValue = Int(diastolicSample.quantity.doubleValue(for: .millimeterOfMercury()))
+            let dateStr = dateFormatter.string(from: correlation.startDate)
+            let timeStr = timeFormatter.string(from: correlation.startDate)
+
+            metrics.append(HealthMetric(
+                type: "blood_pressure",
+                date: dateStr,
+                systolicValue: systolicValue,
+                diastolicValue: diastolicValue,
+                recordedAt: timeStr,
+                source: "apple_health",
+                syncId: "bp-\(timeStr)"
+            ))
         }
 
         return metrics

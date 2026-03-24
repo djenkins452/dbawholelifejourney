@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — iOS: Fix Blood Pressure Not Syncing from Apple Health
+
+- **Root cause:** `HealthKitManager.fetchBloodPressure()` queried `.bloodPressureSystolic` and `.bloodPressureDiastolic` as individual `HKSampleQuery` calls. In HealthKit, blood pressure is stored as `HKCorrelation` objects — the individual quantity samples exist only inside correlations and are not returned by standalone sample queries. Result: empty arrays → no BP data sent to WLJ.
+- **Fix:**
+  1. Added `HKCorrelationType.correlationType(forIdentifier: .bloodPressure)` to HealthKit authorization types (ensures iOS presents BP as a toggleable permission)
+  2. Replaced two `HKSampleQuery` calls with a single `HKCorrelationQuery` that fetches BP correlations and extracts systolic/diastolic from each
+- **Django backend:** Already fully wired (ingestion handler, model, state builder, CoS context, events, dashboard) — no changes needed
+- Files: `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift`
+
 ## 2026-03-24 — Sports: Expand NCAA Baseball to Full D1 (293 teams, all conferences)
 
 - **Data:** Expanded NCAA Baseball from 25 top programs to 293 D1 teams across all conferences

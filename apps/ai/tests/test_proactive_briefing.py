@@ -14,6 +14,10 @@ Tests cover:
 3. No fake user message creation
 4. Correct metadata (delivery_reason, generated_at)
 5. View endpoint behavior
+
+Note: As of Phase 5.2+, daily briefings use a deterministic renderer
+(beth_checkin_renderer.render_checkin_for_time) instead of LLM generation.
+Tests mock the renderer rather than _generate_response.
 """
 
 from datetime import timedelta
@@ -27,6 +31,19 @@ from apps.ai.models import AssistantConversation, AssistantMessage
 from apps.ai.personal_assistant import PersonalAssistant, get_personal_assistant
 
 User = get_user_model()
+
+MOCK_BRIEFING_LONG = (
+    "Danny — here's where things stand today.\n\n"
+    "**Goals**\nYour current priority is improving health.\n\n"
+    "**Recommendation**\nStart with your workout."
+)
+
+MOCK_BRIEFING_SHORT = (
+    "Danny — here's where things stand today. "
+    "Your workout is pending. Start with that."
+)
+
+RENDERER_PATCH = 'apps.ai.beth_checkin_renderer.render_checkin_for_time'
 
 
 class ProactiveBriefingTestMixin:
@@ -64,29 +81,22 @@ class TestGenerateProactiveBriefing(ProactiveBriefingTestMixin, TestCase):
         self.enable_ai(self.user)
         self.assistant = get_personal_assistant(self.user)
 
-    @patch.object(PersonalAssistant, '_generate_response')
-    def test_first_of_day_generates_briefing(self, mock_generate):
+    @patch(RENDERER_PATCH)
+    def test_first_of_day_generates_briefing(self, mock_render):
         """First call of the day should generate a briefing."""
-        mock_generate.return_value = (
-            "Danny — here's where things stand today.\n\n"
-            "**Goals**\nYour current priority is improving health.\n\n"
-            "**Recommendation**\nStart with your workout."
-        )
+        mock_render.return_value = MOCK_BRIEFING_LONG
 
         result = self.assistant.generate_proactive_briefing()
 
         self.assertIsNotNone(result)
         self.assertIn('response', result)
         self.assertIn('message_id', result)
-        mock_generate.assert_called_once()
+        mock_render.assert_called_once()
 
-    @patch.object(PersonalAssistant, '_generate_response')
-    def test_no_fake_user_message(self, mock_generate):
+    @patch(RENDERER_PATCH)
+    def test_no_fake_user_message(self, mock_render):
         """Briefing should NOT create a user message in conversation."""
-        mock_generate.return_value = (
-            "Danny — here's where things stand today. "
-            "Your workout is not yet logged. Start there."
-        )
+        mock_render.return_value = MOCK_BRIEFING_SHORT
 
         result = self.assistant.generate_proactive_briefing()
         self.assertIsNotNone(result)
@@ -95,13 +105,10 @@ class TestGenerateProactiveBriefing(ProactiveBriefingTestMixin, TestCase):
         user_msgs = conversation.messages.filter(role='user').count()
         self.assertEqual(user_msgs, 0, "No fake user message should be created")
 
-    @patch.object(PersonalAssistant, '_generate_response')
-    def test_message_saved_as_proactive(self, mock_generate):
+    @patch(RENDERER_PATCH)
+    def test_message_saved_as_proactive(self, mock_render):
         """Briefing message should be saved with is_proactive=True."""
-        mock_generate.return_value = (
-            "Danny — here's where things stand today. "
-            "No overdue tasks. Focus on your workout."
-        )
+        mock_render.return_value = MOCK_BRIEFING_SHORT
 
         result = self.assistant.generate_proactive_briefing()
         msg = AssistantMessage.objects.get(id=result['message_id'])
@@ -110,13 +117,10 @@ class TestGenerateProactiveBriefing(ProactiveBriefingTestMixin, TestCase):
         self.assertEqual(msg.message_type, 'state_assessment')
         self.assertEqual(msg.role, 'assistant')
 
-    @patch.object(PersonalAssistant, '_generate_response')
-    def test_metadata_includes_delivery_reason(self, mock_generate):
+    @patch(RENDERER_PATCH)
+    def test_metadata_includes_delivery_reason(self, mock_render):
         """v7.1: Metadata should include delivery_reason and generated_at."""
-        mock_generate.return_value = (
-            "Danny — here's where things stand today. "
-            "No tasks due. Great day to focus on goals."
-        )
+        mock_render.return_value = MOCK_BRIEFING_SHORT
 
         result = self.assistant.generate_proactive_briefing()
         msg = AssistantMessage.objects.get(id=result['message_id'])
@@ -125,13 +129,10 @@ class TestGenerateProactiveBriefing(ProactiveBriefingTestMixin, TestCase):
         self.assertEqual(msg.metadata['delivery_reason'], 'first_open')
         self.assertIn('generated_at', msg.metadata)
 
-    @patch.object(PersonalAssistant, '_generate_response')
-    def test_cooldown_prevents_duplicate(self, mock_generate):
+    @patch(RENDERER_PATCH)
+    def test_cooldown_prevents_duplicate(self, mock_render):
         """v7.1 Part 1: Second call within 4 hours returns None."""
-        mock_generate.return_value = (
-            "Danny — here's where things stand today. "
-            "Your workout is pending. Get it done first."
-        )
+        mock_render.return_value = MOCK_BRIEFING_SHORT
 
         # First call generates
         result1 = self.assistant.generate_proactive_briefing()
@@ -141,16 +142,13 @@ class TestGenerateProactiveBriefing(ProactiveBriefingTestMixin, TestCase):
         result2 = self.assistant.generate_proactive_briefing()
         self.assertIsNone(result2)
 
-        # _generate_response should only be called once
-        self.assertEqual(mock_generate.call_count, 1)
+        # render_checkin_for_time should only be called once
+        self.assertEqual(mock_render.call_count, 1)
 
-    @patch.object(PersonalAssistant, '_generate_response')
-    def test_idempotency_returns_existing(self, mock_generate):
+    @patch(RENDERER_PATCH)
+    def test_idempotency_returns_existing(self, mock_render):
         """v7.1 Part 2: Concurrent duplicate returns existing message."""
-        mock_generate.return_value = (
-            "Danny — here's where things stand today. "
-            "Your plate is clear. Focus on health goals."
-        )
+        mock_render.return_value = MOCK_BRIEFING_SHORT
 
         # First call generates
         result1 = self.assistant.generate_proactive_briefing()
@@ -168,13 +166,13 @@ class TestGenerateProactiveBriefing(ProactiveBriefingTestMixin, TestCase):
         result2 = self.assistant.generate_proactive_briefing()
         self.assertIsNotNone(result2)
         self.assertEqual(result2['message_id'], result1['message_id'])
-        # _generate_response should still only be called once
-        self.assertEqual(mock_generate.call_count, 1)
+        # render_checkin_for_time should still only be called once
+        self.assertEqual(mock_render.call_count, 1)
 
-    @patch.object(PersonalAssistant, '_generate_response')
-    def test_fallback_response_not_saved(self, mock_generate):
-        """Fallback responses should not be saved as briefings."""
-        mock_generate.return_value = "What do you need to get done?"
+    @patch(RENDERER_PATCH)
+    def test_renderer_empty_response_not_saved(self, mock_render):
+        """If the renderer returns empty/short text, no briefing is saved."""
+        mock_render.return_value = ""
 
         result = self.assistant.generate_proactive_briefing()
         self.assertIsNone(result)
@@ -186,13 +184,25 @@ class TestGenerateProactiveBriefing(ProactiveBriefingTestMixin, TestCase):
         ).count()
         self.assertEqual(proactive_count, 0)
 
-    @patch.object(PersonalAssistant, '_generate_response')
-    def test_short_response_not_saved(self, mock_generate):
-        """Very short responses (< 50 chars) should not be saved."""
-        mock_generate.return_value = "Hi Danny."
+    @patch(RENDERER_PATCH)
+    def test_renderer_short_response_not_saved(self, mock_render):
+        """Very short renderer responses (< 20 chars) should not be saved."""
+        mock_render.return_value = "Hi Danny."
 
         result = self.assistant.generate_proactive_briefing()
         self.assertIsNone(result)
+
+    @patch(RENDERER_PATCH)
+    def test_renderer_exception_uses_safe_fallback(self, mock_render):
+        """If the renderer raises an exception, the safe fallback is used."""
+        mock_render.side_effect = Exception("renderer exploded")
+
+        result = self.assistant.generate_proactive_briefing()
+
+        # _SAFE_FALLBACK is long enough to pass the length check, so
+        # a briefing should still be generated from the fallback text.
+        self.assertIsNotNone(result)
+        self.assertIn('response', result)
 
 
 class TestProactiveBriefingView(ProactiveBriefingTestMixin, TestCase):
@@ -204,13 +214,10 @@ class TestProactiveBriefingView(ProactiveBriefingTestMixin, TestCase):
         self.client = Client()
         self.client.force_login(self.user)
 
-    @patch.object(PersonalAssistant, '_generate_response')
-    def test_post_returns_briefing(self, mock_generate):
+    @patch(RENDERER_PATCH)
+    def test_post_returns_briefing(self, mock_render):
         """POST /assistant/api/briefing/ returns briefing on first-of-day."""
-        mock_generate.return_value = (
-            "Danny — here's where things stand today. "
-            "Your workout is pending. Start with that."
-        )
+        mock_render.return_value = MOCK_BRIEFING_SHORT
 
         response = self.client.post(
             '/assistant/api/briefing/',
@@ -223,13 +230,10 @@ class TestProactiveBriefingView(ProactiveBriefingTestMixin, TestCase):
         self.assertIn('response', data)
         self.assertTrue(data['is_proactive'])
 
-    @patch.object(PersonalAssistant, '_generate_response')
-    def test_post_returns_skipped_on_cooldown(self, mock_generate):
+    @patch(RENDERER_PATCH)
+    def test_post_returns_skipped_on_cooldown(self, mock_render):
         """POST returns skipped: True when briefing already delivered."""
-        mock_generate.return_value = (
-            "Danny — here's where things stand today. "
-            "No overdue items. Clean slate ahead."
-        )
+        mock_render.return_value = MOCK_BRIEFING_SHORT
 
         # First call generates
         self.client.post(

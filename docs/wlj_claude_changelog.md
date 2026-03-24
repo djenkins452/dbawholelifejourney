@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-23 — Fix Proactive Briefing Tests for Deterministic Renderer
+
+**What:** Updated `test_proactive_briefing.py` to mock `render_checkin_for_time` instead of `_generate_response`, aligning tests with the Phase 5.2+ refactor that replaced LLM-based briefing generation with a deterministic renderer.
+
+**Why:** The production code was refactored to call `beth_checkin_renderer.render_checkin_for_time()` instead of `_generate_response()`, but the tests still mocked the old LLM path, causing all 5 briefing tests to fail.
+
+**Key changes:**
+- `apps/ai/tests/test_proactive_briefing.py` — All `@patch.object(PersonalAssistant, '_generate_response')` decorators replaced with `@patch('apps.ai.beth_checkin_renderer.render_checkin_for_time')`
+- Fallback/short-response tests updated: threshold changed from 50 to 20 chars to match production code
+- Added new test `test_renderer_exception_uses_safe_fallback` covering the exception-to-fallback path
+- Extracted common mock return values into module-level constants
+
+---
+
 ## 2026-03-23 — Fitness Dual-Signal Model (Strength Load + Movement Work)
 
 **What:** Workouts now produce two independent effort signals: Strength Load (volume from load exercises) and Movement Work (reps from non-load exercises). These are never combined — different units, different meaning.

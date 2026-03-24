@@ -97,6 +97,10 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
                 if tid in team_ids and tid not in last_result_map:
                     last_result_map[tid] = game
 
+        # Batch compute streaks (single query for all teams)
+        from apps.sports.services.streaks import compute_streaks_for_teams
+        streak_map = compute_streaks_for_teams(team_ids)
+
         # Group follows by league
         leagues_with_teams = OrderedDict()
         for follow in follows:
@@ -118,6 +122,8 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
             team_info = {
                 "team": team,
                 "follow": follow,
+                "record": team.record,
+                "streak": streak_map.get(team.id, ""),
                 "next_game": None,
                 "last_result": None,
             }
@@ -136,6 +142,13 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
                 else:
                     urgency = "upcoming"
 
+                # Pitcher (baseball only)
+                pitcher = ""
+                if is_home and next_game.home_probable_pitcher:
+                    pitcher = next_game.home_probable_pitcher
+                elif not is_home and next_game.away_probable_pitcher:
+                    pitcher = next_game.away_probable_pitcher
+
                 team_info["next_game"] = {
                     "opponent": str(opponent) if opponent else "TBD",
                     "start_time": next_game.start_time,
@@ -144,6 +157,7 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
                     "status": next_game.status,
                     "score": next_game.get_score_display() if next_game.is_live else "",
                     "urgency": urgency,
+                    "pitcher": pitcher,
                 }
 
             if last_game:

@@ -46,6 +46,10 @@ class Team(models.Model):
     external_id = models.CharField(max_length=100, blank=True, default="")
     logo_url = models.URLField(blank=True, default="")
 
+    # Season record — updated by background sync
+    wins = models.IntegerField(default=0)
+    losses = models.IntegerField(default=0)
+
     class Meta:
         ordering = ["location", "name"]
         unique_together = [("league", "abbreviation")]
@@ -56,6 +60,13 @@ class Team(models.Model):
     @property
     def full_name(self):
         return f"{self.location} {self.name}"
+
+    @property
+    def record(self):
+        """Season record as string (e.g. '18-7'). Empty if no data."""
+        if self.wins == 0 and self.losses == 0:
+            return ""
+        return f"{self.wins}-{self.losses}"
 
 
 class GameEvent(models.Model):
@@ -93,6 +104,11 @@ class GameEvent(models.Model):
     away_score = models.IntegerField(null=True, blank=True)
     venue = models.CharField(max_length=200, blank=True, default="")
     external_id = models.CharField(max_length=100, blank=True, default="")
+
+    # Baseball-only: probable starting pitchers (null for other sports)
+    home_probable_pitcher = models.CharField(max_length=100, blank=True, default="")
+    away_probable_pitcher = models.CharField(max_length=100, blank=True, default="")
+
     last_updated = models.DateTimeField(auto_now=True)
 
     class Meta:

@@ -1810,19 +1810,40 @@ def _build_sports_context(user):
         awareness_parts = []
 
         if focus:
+            # Find the matching summary for record/streak/pitcher
+            focus_summary = next(
+                (s for s in summaries if s['team_name'] == focus['team']),
+                {}
+            )
+            record = focus_summary.get('record', '')
+            streak = focus_summary.get('streak', '')
+            pitcher = (focus_summary.get('next_game') or {}).get('pitcher', '')
+
+            record_text = f" ({record})" if record else ""
+            streak_text = ""
+            if streak and len(streak) >= 2:
+                s_count = streak[1:]
+                if streak.startswith("W"):
+                    streak_text = f" on a {s_count}-game win streak"
+                elif streak.startswith("L"):
+                    streak_text = f" on a {s_count}-game losing streak"
+
             if focus['status'] == 'live':
                 score_text = f" ({focus['score']})" if focus.get('score') else ""
                 awareness_parts.append(
-                    f"The user's {focus['team']} game vs {focus['opponent']} is LIVE right now{score_text}."
+                    f"The user's {focus['team']}{record_text} game vs {focus['opponent']} is LIVE right now{score_text}."
                 )
             elif focus['status'] == 'starting_soon':
                 awareness_parts.append(
-                    f"The user's {focus['team']} game vs {focus['opponent']} starts soon at {focus['time']}."
+                    f"The user's {focus['team']}{record_text}{streak_text} game vs {focus['opponent']} starts soon at {focus['time']}."
                 )
             elif focus['status'] == 'today':
                 awareness_parts.append(
-                    f"The user's {focus['team']} plays {focus['opponent']} today at {focus['time']}."
+                    f"The user's {focus['team']}{record_text}{streak_text} plays {focus['opponent']} today at {focus['time']}."
                 )
+
+            if pitcher:
+                awareness_parts.append(f"Starting pitcher: {pitcher}.")
 
         # Other today games beyond the focus
         other_today = [

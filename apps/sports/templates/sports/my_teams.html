@@ -123,6 +123,40 @@
         vertical-align: middle;
     }
 
+    .team-record {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--color-text-muted);
+        margin-left: 6px;
+    }
+
+    .team-streak {
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 1px 5px;
+        border-radius: var(--radius-sm);
+        margin-left: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .team-streak--W {
+        color: #22c55e;
+        background: rgba(34, 197, 94, 0.1);
+    }
+
+    .team-streak--L {
+        color: #ef4444;
+        background: rgba(239, 68, 68, 0.1);
+    }
+
+    .team-pitcher {
+        font-size: 0.75rem;
+        color: var(--color-text-muted);
+        margin-top: 2px;
+        font-style: italic;
+    }
+
     .team-game-info {
         font-size: 0.825rem;
         color: var(--color-text-muted);
@@ -367,6 +401,8 @@
                     <div class="team-name">
                         {% if item.follow.priority == 1 %}<span class="priority-dot"></span>{% endif %}
                         {{ item.team.full_name }}
+                        {% if item.record %}<span class="team-record">{{ item.record }}</span>{% endif %}
+                        {% if item.streak %}<span class="team-streak team-streak--{{ item.streak.0 }}">{{ item.streak }}</span>{% endif %}
                     </div>
                     <div class="team-game-info">
                         {% if item.next_game %}
@@ -387,6 +423,9 @@
                                 {% if item.next_game.is_home %}Home{% else %}Away{% endif %} vs {{ item.next_game.opponent }}
                                 &middot; <span class="game-time">{{ item.next_game.start_time|date:"D, M j · g:i A" }}</span>
                                 {% if item.next_game.venue %} &middot; {{ item.next_game.venue }}{% endif %}
+                            {% endif %}
+                            {% if item.next_game.pitcher %}
+                            <div class="team-pitcher">SP: {{ item.next_game.pitcher }}</div>
                             {% endif %}
                         {% else %}
                             No upcoming games

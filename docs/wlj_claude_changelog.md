@@ -6,20 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-## 2026-03-24 — Phase D: Beth Health Coaching Integration
+## 2026-03-24 — Sports: Signal Finalization — 5 Clean Signals Only
 
-- **Feature:** Health priority summary + signals + coaching now flow into Beth's CoS system prompt. Beth receives deterministic "HEALTH RIGHT NOW" context and a single "CURRENT FOCUS" action.
-- **New file:** `apps/health/services/health_coaching_builder.py` — pure function that maps summary items + signals → single actionable coaching directive. No LLM. Templates for all known item keys + signal states.
-- **CoS context builder:** `_build_health_and_vitals()` now computes priority summary, signals, and coaching, stores as `health_right_now`, `health_trend_signals`, `health_current_focus`.
-- **System prompt injection:** `format_cos_system_injection()` adds "HEALTH RIGHT NOW" block with priority items + concerning trends + CURRENT FOCUS action/reason — positioned before existing Health Intelligence block.
-- **Guardrails:**
-  - Medications overdue always produce "Take your medications now" as action
-  - Exactly ONE action per coaching response
-  - Signal actions only for concern states (poor/declining/unstable)
-  - Fallback for unknown keys: high → "Address the most urgent item first", low → "Stay consistent"
-  - Beth instructed to lead with CURRENT FOCUS on health/daily focus queries
-- **Tests:** 18 focused tests for coaching builder covering: contract, medication dominance, high/medium/low priority, signal integration, fallback, no-signals compatibility
-- Files: `apps/health/services/health_coaching_builder.py` (new), `apps/health/tests/test_health_coaching_builder.py` (new), `apps/core/ai_orchestrator/cos_context.py`
+- **Cleanup:** Reduced from 8 signal types to exactly 5 required signals:
+  1. `game_live` — followed team's game is in progress
+  2. `game_starting_soon` — game within 60 minutes
+  3. `game_today` — game scheduled today
+  4. `win_streak` — 3+ consecutive wins
+  5. `losing_streak` — 3+ consecutive losses
+- **Removed:** `game_completed`, `team_win`, `team_loss` (noise — not needed by Beth)
+- **Fixed:** Streak detection now uses batch `compute_streaks_for_teams()` instead of per-team N+1 queries
+- **Tests:** Updated to verify only 5 signal types exist, no noise signals
+- **Legacy exports:** Kept `SIGNAL_GAME_COMPLETED`, `SIGNAL_TEAM_WIN`, `SIGNAL_TEAM_LOSS` constants for backward-compatible imports (dead code paths in tasks.py)
+- Files: apps/sports/services/signal_generator.py, apps/sports/tests/test_signals.py
 
 ## 2026-03-24 — Sports: UI Polish + Timestamp Hardening
 

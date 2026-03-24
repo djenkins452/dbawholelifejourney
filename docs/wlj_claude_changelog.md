@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Fix Heart Rate Ingestion + HealthKit Vitals State Builder Gap
+
+- **Root cause (heart rate):** `process_heart_rate_metric()` in `apps/mobile/views.py:920` wrote HR data to `SleepEntry.heart_rate_*` fields, but the state builder at `apps/core/ai_state/state_builder.py:183` reads from `HeartRateEntry.bpm` — a completely different model the handler never wrote to. Additionally, if no `SleepEntry` existed for that date, HR data was silently discarded.
+- **Root cause (sleep-attached vitals):** HRV, VO2 Max, respiratory rate, caffeine, and mindful minutes handlers correctly write to `SleepEntry` fields, but the state builder never read those fields — making them invisible to Beth/CoS.
+- **Fix:**
+  1. Rewrote `process_heart_rate_metric()` to create `HeartRateEntry` records with proper `source`/`sync_id` deduplication — no longer depends on `SleepEntry` existing
+  2. Added `source` and `sync_id` fields to `HeartRateEntry` model (migration 0070)
+  3. Added state builder reads for `SleepEntry` vitals: `latest_hrv`, `latest_vo2_max`, `latest_respiratory_rate`, `latest_caffeine_mg`, `latest_mindful_minutes`
+- **Coverage audit results:** 6 of 8 vitals handlers were writing to `SleepEntry` with silent skip — only `BloodOxygenEntry` and `BodyTemperatureEntry` had standalone models. Heart rate was the critical break (model mismatch). The other 5 are sleep-context metrics where the skip-if-no-sleep behavior is acceptable.
+- Files: `apps/mobile/views.py`, `apps/health/models.py`, `apps/core/ai_state/state_builder.py`, `apps/health/migrations/0070_add_source_sync_id_to_heartrateentry.py`
+
 ## 2026-03-24 — iOS: Fix HealthKit Authorization Hang After BP Support Added
 
 - **Root cause:** `HKCorrelationType.correlationType(forIdentifier: .bloodPressure)` in the `readTypes` authorization set causes `HKHealthStore.requestAuthorization()` to hang indefinitely on certain iOS versions. The system authorization callback never fires when a correlation type is present in the `read` set.

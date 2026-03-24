@@ -153,6 +153,27 @@ def build_health_state(user):
         if last_sleep:
             state["last_sleep_entry"] = last_sleep.isoformat()
 
+        # Sleep-attached vitals (HRV, VO2 Max, respiratory rate)
+        latest_sleep_vitals = (
+            SleepEntry.objects.filter(user=user)
+            .exclude(hrv_value__isnull=True, vo2_max__isnull=True, respiratory_rate__isnull=True)
+            .order_by("-sleep_date")
+            .values_list("hrv_value", "vo2_max", "respiratory_rate", "caffeine_mg",
+                         "mindful_minutes", "sleep_date")
+            .first()
+        )
+        if latest_sleep_vitals:
+            if latest_sleep_vitals[0] is not None:
+                state["latest_hrv"] = round(float(latest_sleep_vitals[0]), 1)
+            if latest_sleep_vitals[1] is not None:
+                state["latest_vo2_max"] = round(float(latest_sleep_vitals[1]), 1)
+            if latest_sleep_vitals[2] is not None:
+                state["latest_respiratory_rate"] = round(float(latest_sleep_vitals[2]), 1)
+            if latest_sleep_vitals[3] is not None:
+                state["latest_caffeine_mg"] = round(float(latest_sleep_vitals[3]))
+            if latest_sleep_vitals[4] is not None:
+                state["latest_mindful_minutes"] = latest_sleep_vitals[4]
+
     # ── Steps (last 7 days) ───────────────────────────────────
     recent_steps = StepsEntry.objects.filter(
         user=user, logged_date__gte=cutoff_7d.date()

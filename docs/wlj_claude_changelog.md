@@ -6,6 +6,33 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Tasks Intelligence Engine (Full System: Phases 1-5)
+
+- **Architecture:** Follows proven Health pattern: `state → signals → priority summary → coaching → time-awareness → nudges`. All logic deterministic, state-driven, no DB queries.
+- **Phase 1 — Task Priority Summary** (`apps/life/services/task_priority_service.py`):
+  - Reads canonical task state from SAE (`get_module_state(user, 'tasks')`)
+  - Evaluates: overdue, next task, due today/soon, tomorrow, completion momentum
+  - Headlines: HIGH="Tasks need attention", MEDIUM="A few things to focus on", LOW="You're on track"
+  - Min 2, max 4 items. Overdue always index 0.
+- **Phase 2 — Task Signals** (`apps/life/services/task_signals.py`):
+  - 3 signals: `task_momentum` (strong/moderate/low), `task_pressure` (high/medium/low), `task_slippage` (stable/slipping)
+  - Slippage detects foundational skip streaks + consistency score
+- **Phase 3 — Task Coaching** (`apps/life/services/task_coaching_builder.py`):
+  - Deterministic templates for all summary item keys + signal states
+  - Personalizes "next task" with actual title from state
+  - Safety fallback: always returns valid coaching
+- **Phase 4 — Time Awareness** (same file):
+  - Overdue always "now". Free window adds "now". Busy soon defers. Evening softened. Reinforcement gets "today".
+- **Phase 5 — Task Nudges** (same file):
+  - 4 nudge types: overdue (HIGH, 60min), pressure (MEDIUM, daily), momentum (MEDIUM, daily), reinforcement (LOW, daily)
+  - Frequency dedup via `last_nudges` timestamps
+- **CoS Integration:**
+  - `_build_health_and_vitals()` now also computes task intelligence
+  - `format_cos_system_injection()` renders "TASKS RIGHT NOW" + "TASK FOCUS" blocks
+  - Beth sees task priority items, concerning trends, and single coaching action
+- **Tests:** 34 task tests + 141 health tests = **175 total**, all passing
+- Files: `apps/life/services/task_priority_service.py` (new), `apps/life/services/task_signals.py` (new), `apps/life/services/task_coaching_builder.py` (new), `apps/life/tests/test_task_intelligence.py` (new), `apps/core/ai_orchestrator/cos_context.py`
+
 ## 2026-03-24 — Final Hardening + Phase F: Proactive Nudging
 
 ### Final Hardening (coaching layer LOCKED after this)

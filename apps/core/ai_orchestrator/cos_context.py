@@ -586,6 +586,55 @@ def _build_health_and_vitals(user):
     except Exception:
         logger.warning("CoS context: health priority summary failed", exc_info=True)
 
+    # Task Priority Summary + Signals + Coaching (deterministic layer)
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        from apps.core.utils import get_user_now
+        from apps.life.services.task_priority_service import (
+            build_task_priority_summary,
+        )
+        from apps.life.services.task_signals import build_task_signals
+        from apps.life.services.task_coaching_builder import (
+            build_task_coaching,
+            apply_task_time_awareness,
+        )
+
+        t_state = get_module_state(user, 'tasks') or {}
+        user_now_t = get_user_now(user)
+        t_signals = build_task_signals(t_state)
+        t_summary = build_task_priority_summary(t_state, user_now_t)
+        t_coaching = build_task_coaching(t_summary, t_signals)
+
+        # Time-aware adjustment
+        t_next_event = None
+        try:
+            cal_state_t = get_module_state(user, 'calendar') or {}
+            _next_ev_t = cal_state_t.get('next_event')
+            if _next_ev_t and isinstance(_next_ev_t, dict):
+                t_next_event = _next_ev_t.get('start_dt') or _next_ev_t.get('start')
+        except Exception:
+            pass
+        t_coaching = apply_task_time_awareness(t_coaching, user_now_t, t_next_event)
+
+        result['tasks_right_now'] = {
+            'headline': t_summary.get('headline', ''),
+            'priority_level': t_summary.get('priority_level', 'low'),
+            'items': [
+                {'message': i['message'], 'priority': i['priority']}
+                for i in t_summary.get('items', [])
+            ],
+            'flags': t_summary.get('flags', {}),
+        }
+        if t_signals:
+            result['task_trend_signals'] = [
+                {k: v for k, v in s.items() if k in ('key', 'state', 'insight')}
+                for s in t_signals
+            ]
+        if t_coaching:
+            result['task_current_focus'] = t_coaching
+    except Exception:
+        logger.warning("CoS context: task priority summary failed", exc_info=True)
+
     return result
 
 
@@ -5770,6 +5819,36 @@ def format_cos_system_injection(context, user_message=None):
             )
             lines.append(f"  Action: {focus.get('action', '')}")
             lines.append(f"  Why: {focus.get('reason', '')}")
+        lines.append("")
+
+    # Tasks Right Now — deterministic priority summary + coaching focus
+    tasks_right_now = context.get('tasks_right_now')
+    if tasks_right_now and tasks_right_now.get('items'):
+        lines.append("")
+        lines.append("TASKS RIGHT NOW:")
+        lines.append(f"  Status: {tasks_right_now.get('headline', '')}")
+        for item in tasks_right_now['items']:
+            prio = item.get('priority', 'low').upper()
+            lines.append(f"  [{prio}] {item.get('message', '')}")
+
+        # Task trend signals (if concerning)
+        task_signals = context.get('task_trend_signals', [])
+        if task_signals:
+            for sig in task_signals:
+                if sig.get('insight') and sig.get('state') in (
+                    'high', 'low', 'slipping'
+                ):
+                    lines.append(f"  Trend: {sig['insight']}")
+
+        # Task focus (single action)
+        task_focus = context.get('task_current_focus')
+        if task_focus:
+            lines.append("")
+            lines.append(
+                "TASK FOCUS (lead with this when user asks about tasks or what to work on):"
+            )
+            lines.append(f"  Action: {task_focus.get('action', '')}")
+            lines.append(f"  Why: {task_focus.get('reason', '')}")
         lines.append("")
 
     # Health Intelligence Engine — system-calculated scores, protein, trends

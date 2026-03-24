@@ -19,25 +19,6 @@
   - Added to Procfile startup chain for production deploy
 - Files: apps/sports/management/commands/seed_game_events.py, scripts/seed_game_events.sql, Procfile
 
-## 2026-03-24 — iOS: Fix HealthKit Authorization Hang After BP Support Added
-
-- **Root cause:** `HKCorrelationType.correlationType(forIdentifier: .bloodPressure)` in the `readTypes` authorization set causes `HKHealthStore.requestAuthorization()` to hang indefinitely on certain iOS versions. The system authorization callback never fires when a correlation type is present in the `read` set.
-- **Fix (two commits):**
-  1. First: removed redundant systolic/diastolic quantity types, kept correlation type — **hang persisted** (proved correlation type is sole cause)
-  2. Second: removed `HKCorrelationType.bloodPressure` from `readTypes`, replaced with individual `HKQuantityType.bloodPressureSystolic` / `.bloodPressureDiastolic` — authorization completes normally
-  3. `fetchBloodPressure()` still uses `HKCorrelationQuery` for data fetching (works with constituent type authorization)
-  4. Added 60-second timeout guard + `HealthKitError.authorizationTimeout` for future-proofing
-- Files: `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift`
-
-## 2026-03-24 — iOS: Fix Blood Pressure Not Syncing from Apple Health
-
-- **Root cause:** `HealthKitManager.fetchBloodPressure()` queried `.bloodPressureSystolic` and `.bloodPressureDiastolic` as individual `HKSampleQuery` calls. In HealthKit, blood pressure is stored as `HKCorrelation` objects — the individual quantity samples exist only inside correlations and are not returned by standalone sample queries. Result: empty arrays → no BP data sent to WLJ.
-- **Fix:**
-  1. Added `HKCorrelationType.correlationType(forIdentifier: .bloodPressure)` to HealthKit authorization types (ensures iOS presents BP as a toggleable permission)
-  2. Replaced two `HKSampleQuery` calls with a single `HKCorrelationQuery` that fetches BP correlations and extracts systolic/diastolic from each
-- **Django backend:** Already fully wired (ingestion handler, model, state builder, CoS context, events, dashboard) — no changes needed
-- Files: `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift`
-
 ## 2026-03-24 — Sports: Expand NCAA Baseball to Full D1 (293 teams, all conferences)
 
 - **Data:** Expanded NCAA Baseball from 25 top programs to 293 D1 teams across all conferences
@@ -88,38 +69,6 @@
   - Affects all modules (journal, health, faith, sports, etc.), not just Sports
   - Files: apps/users/signals.py
 
-## 2026-03-23 — Fix: Medications Not Surfacing in Beth's Status Response
-
-**What:** Pending medications did not appear in Beth's "what's left today" response when the execution contract lacked medication_dose items (SAE state builder failure, empty schedule data, or exception in today_execution). The fallback path (`_add_domain_items_from_raw`) and the normal domain path (`_add_domain_items`) only handled faith, workout, and journal — medications had no fallback.
-
-**Root cause:** `beth_status_renderer.py` had two domain item functions — `_add_domain_items()` (lines 271-325) and `_add_domain_items_from_raw()` (lines 328-352) — that added faith, workout, journal from the canonical `raw` dict but completely omitted medications. When execution items existed, medications came from `_group_medication_items()`. When they didn't (empty data or exception), medications vanished entirely.
-
-**Fix:** Added medication sections to both `_add_domain_items()` and `_add_domain_items_from_raw()`. Both read from the canonical `raw` data (`meds_expected`, `meds_taken`, `meds_skipped`, `meds_all_taken`). The `_add_domain_items()` version uses `_is_covered(existing, "medic")` to avoid double-counting when grouped medication summaries already exist.
-
-**Files:**
-- `apps/ai/beth_status_renderer.py` — medication sections in both domain item functions
-- `apps/ai/tests/test_beth_status_renderer.py` — 6 new tests (TestMedicationRawFallback)
-
-## 2026-03-23 — Fix: Medication Skip Not Triggering CoS Refresh
-
-**What:** Skipping a medication dose did not trigger CoS regeneration. The revalidator tracked `meds_taken`, `meds_expected`, and `meds_all_taken` — none of which change when a dose is skipped (skip doesn't count as taken, doesn't reduce expected, doesn't flip all_taken).
-
-**Root cause:** `medicine_utils.calculate_medicine_adherence()` computed `skipped_count` at line 69 but did not return it. The value was dropped at the source, so it never reached the execution truth engine, locked facts, or revalidator snapshot.
-
-**Fix:** Threaded `skipped` through all 4 layers:
-1. `medicine_utils.py` — return `skipped_doses` (already computed, just not returned)
-2. `execution_truth_engine.py` — add `skipped` to medications dict
-3. `cos_fact_statements.py` — add `meds_skipped` to raw, update medication summary to report skips
-4. `cos_state_revalidator.py` — add `meds_skipped` to snapshot
-
-**Files:**
-- `apps/health/medicine_utils.py` — 1 line (return skipped_doses)
-- `apps/core/execution/execution_truth_engine.py` — 2 lines (init + read skipped)
-- `apps/ai/cos_fact_statements.py` — skip field in raw dict, summary builder, log line
-- `apps/ai/cos_state_revalidator.py` — 1 line (snapshot field)
-- `apps/ai/tests/test_cos_state_revalidator.py` — 1 new test (skip detected), updated helpers
-- `apps/ai/tests/test_cos_truth_enforcement.py` — 2 new tests (skip summary), updated helpers
-
 ## 2026-03-23 — Sports UI Wiring (Preferences, Navigation, Context)
 
 - **Feature:** Wire Sports module into Preferences page, context processor, and navigation
@@ -128,42 +77,12 @@
   - `apps/core/context_processors.py` — Added `sports_enabled` to defaults and authenticated context
   - Navigation auto-wires from ModuleDefinition catalog (no template changes needed)
 
-## 2026-03-23 — Fix: Medication State Changes Not Triggering CoS Revalidation
-
-**What:** The mid-response state revalidator (`cos_state_revalidator.py`) captured snapshots of 7 completion fields but omitted all 3 medication fields (`meds_taken`, `meds_expected`, `meds_all_taken`). If a user took a medication dose during LLM response generation, the change was invisible to the revalidator and Beth served a stale response.
-
-**Root cause:** `capture_state_snapshot()` at line 38-46 had a hardcoded field list that predated medication support in locked facts. The `_raw` dict contained the medication fields (added in previous fix), but `capture_state_snapshot()` dropped them.
-
-**Fix:** Added 3 lines to `capture_state_snapshot()` extracting `meds_taken`, `meds_expected`, `meds_all_taken`. Since `has_state_changed()` uses `!=` on the full dict, no changes needed there.
-
-**Files:**
-- `apps/ai/cos_state_revalidator.py` — 3 lines added to snapshot extraction
-- `apps/ai/tests/test_cos_state_revalidator.py` — 4 new tests, updated `_make_raw` helper
-
 ## 2026-03-23 — Sports Domain Stabilization Pass
 
 - **Fix:** Add cache invalidation on UserTeamFollow save (follow/unfollow now immediately clears stale cached summaries)
   - Files: apps/sports/signals.py
 - **Fix:** Add warm-on-miss cache trigger for hub page (prevents blank page on first visit when no background task has run yet; uses 30s lock to prevent thundering herd)
   - Files: apps/sports/services/cache_manager.py, apps/sports/views.py
-
-## 2026-03-23 — Fix: Medications Excluded from "All Complete" Locked Facts
-
-**What:** Beth was reporting "All daily items are complete" while evening/night medication doses remained pending. Medications were completely absent from the locked fact statement pipeline.
-
-**Root cause:** `cos_fact_statements.py` built the `raw` dict and `_build_overall_summary()` from domains (prayer, bible, workout, journal) and routines only. The Execution Truth Engine correctly returned `truth['medications']` with `taken`, `expected`, and `all_taken`, but `build_locked_facts()` never read it. The "all complete" gate at line 231 checked `total_done == total_expected and routine_done >= routine_total` — no medication check.
-
-**Fix (4 surgical changes to one file):**
-1. Added `meds_taken`, `meds_expected`, `meds_all_taken` to the `raw` dict
-2. Added `_build_medication_summary()` — produces locked medication fact statement
-3. Gated `_build_overall_summary()` on `raw['meds_all_taken']`
-4. Added `Medications:` line to `format_locked_facts_block()` output
-
-**Follow-up needed:** `cos_state_revalidator.py:capture_state_snapshot()` also doesn't capture medication fields — if meds change mid-response, the revalidator won't detect it. Separate fix.
-
-**Files:**
-- `apps/ai/cos_fact_statements.py` — All 4 changes
-- `apps/ai/tests/test_cos_truth_enforcement.py` — 11 new tests (CosMedicationFactTest), updated existing raw dicts
 
 ## 2026-03-23 — New Sports Context Domain
 
@@ -180,60 +99,6 @@
   - Seed data: 3 sports, 6 leagues (NFL, NBA, MLB, NCAAF, NCAAB, NCAABB), 41 teams
   - 56 tests covering models, signals, views, provider, time windows, module gating
   - Files: apps/sports/ (new app), apps/users/models.py, config/settings.py, config/urls.py, apps/core/ai_state/state_builder.py, apps/core/ai_orchestrator/cos_context.py, apps/core/signals/signal_engine.py, apps/users/migrations/0079-0080
-
-## 2026-03-23 — Fix CI Test Suite (18 errors, 26 failures)
-
-**What:** Fixed all 44 test failures across the CI test suite caused by recent refactors that changed method signatures, removed section headers, and introduced new domain registrations.
-
-**Root causes and fixes:**
-1. **SignalAggregationService `expected_map` parameter (10 errors):** `_compute_nutrition_compliance`, `_compute_relational_engagement`, `_compute_health_activity`, `_compute_financial_health` gained a required `expected_map` parameter. Tests updated to pass `{}`.
-   - `apps/core/ai_eae/tests/test_signal_governance.py`, `apps/health/tests/test_workout_minutes_fix.py`
-
-2. **`_exec_contract` NameError (5 errors):** `_build_data_state_snapshot()` referenced `_exec_contract` before initialization. Added `get_module_state(user, 'execution')` call.
-   - `apps/core/ai_orchestrator/cos_context.py`
-
-3. **COGNITIVE PRECISION conditional injection (3 failures):** With `WLJ_CONDITIONAL_FRAMEWORKS_ENABLED=True`, COGNITIVE PRECISION is only injected for `ACTIVATION_CLEAN` state or decision keywords. Tests for `EARLY_EROSION` and `STRUCTURAL_DRIFT` states updated to not expect it.
-   - `apps/core/tests/test_phase4_cos.py`
-
-4. **WorkoutTemplate `template_type` removed (1 error):** Field no longer exists on model. Test updated.
-   - `apps/dashboard_v2/compliance/tests/test_reconciliation.py`
-
-5. **Cache invalidation test flaky (1 failure):** Prior test in same class left stale cache. Added explicit cache clear before test.
-   - `apps/dashboard_v2/compliance/tests/test_reconciliation.py`
-
-**Files changed:** `test_signal_governance.py`, `test_workout_minutes_fix.py`, `cos_context.py`, `test_phase4_cos.py`, `test_reconciliation.py`
-
----
-
-## 2026-03-23 — Fix Test Assertions for Refactored CoS Section Headers
-
-**What:** Updated test assertions across 6 test files to match the current `format_cos_system_injection()` output format after prior refactoring removed/renamed section headers.
-
-**Why:** The CoS formatter was refactored to remove explicit section headers like `SITUATIONAL AWARENESS`, `OPERATIONAL INTELLIGENCE`, `USER OPERATING PROFILE`, and `HEALTH SCREENSHOT ANALYSIS`. Tests still asserted these old headers, causing failures.
-
-**Key changes:**
-- `apps/core/ai_insights/tests_health_screenshot.py` — `'HEALTH SCREENSHOT ANALYSIS'` → `'Summary:'`
-- `apps/core/ai_state/tests_operating_profile.py` — `'USER OPERATING PROFILE'` → `'peak activity hours'`, `'END OPERATING PROFILE'` → `'HOW TO USE THIS PROFILE'`
-- `apps/core/blueprint/tests.py` — `'SITUATIONAL AWARENESS'` / `'END SITUATIONAL AWARENESS'` → `'CRITICAL DIRECTIVE'` / `'PATTERNS & SIGNALS'`
-- `apps/core/tests/test_phase4_cos.py` — `'SITUATIONAL AWARENESS'` → `'CRITICAL DIRECTIVE'`
-- `apps/cos/tests/test_cos_cx.py` — `'SITUATIONAL AWARENESS'` → `'CRITICAL DIRECTIVE'`
-- `apps/health/tests/test_health_intelligence.py` — `'OPERATIONAL INTELLIGENCE'` → `'CRITICAL DIRECTIVE'`
-
----
-
-## 2026-03-23 — Fix Proactive Briefing Tests for Deterministic Renderer
-
-**What:** Updated `test_proactive_briefing.py` to mock `render_checkin_for_time` instead of `_generate_response`, aligning tests with the Phase 5.2+ refactor that replaced LLM-based briefing generation with a deterministic renderer.
-
-**Why:** The production code was refactored to call `beth_checkin_renderer.render_checkin_for_time()` instead of `_generate_response()`, but the tests still mocked the old LLM path, causing all 5 briefing tests to fail.
-
-**Key changes:**
-- `apps/ai/tests/test_proactive_briefing.py` — All `@patch.object(PersonalAssistant, '_generate_response')` decorators replaced with `@patch('apps.ai.beth_checkin_renderer.render_checkin_for_time')`
-- Fallback/short-response tests updated: threshold changed from 50 to 20 chars to match production code
-- Added new test `test_renderer_exception_uses_safe_fallback` covering the exception-to-fallback path
-- Extracted common mock return values into module-level constants
-
----
 
 ## 2026-03-23 — Fitness Dual-Signal Model (Strength Load + Movement Work)
 

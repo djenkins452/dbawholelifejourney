@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Feature: Sports hub "Recent Action" section
+
+- **What:** Added a "Recent Action" layer between the hero card and urgency sections on the sports hub page
+- **Why:** Prevents empty/dead-feeling UI — always shows completed game scores even when no upcoming games exist
+- **Implementation:** Reuses the existing ticker query (±48h GameEvent window) to extract up to 12 final games — no additional DB queries
+- **Display:** Compact wrapped pill/chip layout with muted styling: `Home 5–3 Away F` per game
+- **Files:** apps/sports/views.py, apps/sports/templates/sports/my_teams.html
+
 ## 2026-03-24 — Fix: Routine completion times displayed in UTC instead of user timezone
 
 - **Root cause:** `_routine_internal.py` formatted `completed_at` and source object timestamps directly via `.strftime()` without converting from UTC to the user's local timezone

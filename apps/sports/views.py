@@ -265,6 +265,22 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
             })
         context["ticker_games"] = ticker_games
 
+        # ── Recent Action: completed games from ticker window (no extra query) ──
+        recent_action = []
+        for g in ticker_window:
+            if g.status != GameEvent.STATUS_FINAL:
+                continue
+            recent_action.append({
+                "home_team": g.home_team.full_name,
+                "away_team": g.away_team.full_name,
+                "home_score": g.home_score,
+                "away_score": g.away_score,
+                "league": g.home_team.league.abbreviation,
+            })
+            if len(recent_action) >= 12:
+                break
+        context["recent_action"] = recent_action
+
         # ── Metadata ──
         context["last_updated"] = _get_last_updated(team_ids, now)
         from apps.sports.services.provider_adapter import get_provider

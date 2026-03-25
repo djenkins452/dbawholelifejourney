@@ -131,7 +131,14 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 newest = month_weights.first()
                 change = float(newest.value_in_lb) - float(oldest.value_in_lb)
                 context["weight_change_30d"] = round(change, 1)
-        
+                # Weight trend direction (derived from change)
+                if change < -0.5:
+                    context["weight_trend_direction"] = "down"
+                elif change > 0.5:
+                    context["weight_trend_direction"] = "up"
+                else:
+                    context["weight_trend_direction"] = "stable"
+
         # Active fasting window
         context["active_fast"] = FastingWindow.objects.filter(
             user=user,
@@ -232,6 +239,23 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 avg = fasting_glucose.aggregate(avg=Avg("value"))["avg"]
                 context["avg_fasting_glucose"] = round(avg, 1)
 
+        # Glucose variability from DailyHealthSummary (pre-computed by builder)
+        recent_summary = DailyHealthSummary.objects.filter(
+            user=user, glucose_variability__isnull=False
+        ).order_by("-summary_date").first()
+        if recent_summary and recent_summary.glucose_variability is not None:
+            cv = float(recent_summary.glucose_variability)
+            context["glucose_variability"] = round(cv, 1)
+            if cv > 50:
+                context["glucose_variability_label"] = "High variability"
+                context["glucose_variability_level"] = "high"
+            elif cv > 36:
+                context["glucose_variability_label"] = "Moderate variability"
+                context["glucose_variability_level"] = "moderate"
+            else:
+                context["glucose_variability_label"] = "Stable"
+                context["glucose_variability_level"] = "stable"
+
         # Blood Pressure summary
         bp_entries = BloodPressureEntry.objects.filter(user=user)
         if bp_entries.exists():
@@ -296,15 +320,41 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["medicine_count"] = active_medicines.count()
 
         if active_medicines.exists():
-            # Count today's scheduled doses
+            # Count today's scheduled doses + group by time_of_day window
+            # Single pass: computes totals AND window breakdown together
+            from collections import OrderedDict
+            from datetime import datetime as dt_cls
+            from datetime import timedelta as td
+
             total_scheduled = 0
             taken_count = 0
             overdue_count = 0
+            windows = OrderedDict()
+
+            # Get user timezone once (outside loop)
+            try:
+                user_tz = pytz.timezone(user.preferences.timezone_iana)
+            except (AttributeError, pytz.UnknownTimeZoneError):
+                user_tz = pytz.UTC
+            now_local = now.astimezone(user_tz)
+            now_local_naive = now_local.replace(tzinfo=None)
 
             for medicine in active_medicines.filter(is_prn=False):
                 for schedule in medicine.schedules.filter(is_active=True):
                     if schedule.applies_to_day(today.weekday()):
                         total_scheduled += 1
+
+                        # Track window grouping
+                        tod = schedule.time_of_day or "other"
+                        if tod not in windows:
+                            tod_display = schedule.time_of_day_display or "Other"
+                            windows[tod] = {
+                                "label": tod_display,
+                                "total": 0,
+                                "taken": 0,
+                            }
+                        windows[tod]["total"] += 1
+
                         log = MedicineLog.objects.filter(
                             medicine=medicine,
                             schedule=schedule,
@@ -316,36 +366,34 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                             MedicineLog.STATUS_LATE,
                         ]:
                             taken_count += 1
+                            windows[tod]["taken"] += 1
                         elif not log or log.log_status not in [
                             MedicineLog.STATUS_TAKEN,
                             MedicineLog.STATUS_LATE,
                             MedicineLog.STATUS_SKIPPED,
                         ]:
-                            # Check if overdue using user's timezone
-                            from datetime import datetime, timedelta as td
-
-                            # Get user's timezone (use timezone_iana for legacy format support)
-                            try:
-                                user_tz = pytz.timezone(user.preferences.timezone_iana)
-                            except (AttributeError, pytz.UnknownTimeZoneError):
-                                user_tz = pytz.UTC
-
-                            # Convert current time to user's local time
-                            now_local = now.astimezone(user_tz)
-
-                            # Create deadline from user's local date and scheduled time
-                            scheduled_dt = datetime.combine(today, schedule.scheduled_time)
+                            # Check if overdue
+                            scheduled_dt = dt_cls.combine(
+                                today, schedule.scheduled_time
+                            )
                             grace_minutes = medicine.grace_period_minutes
                             deadline = scheduled_dt + td(minutes=grace_minutes)
-
-                            # Compare in user's local time (both naive)
-                            now_local_naive = now_local.replace(tzinfo=None)
                             if now_local_naive > deadline:
                                 overdue_count += 1
 
             context["medicine_scheduled_today"] = total_scheduled
             context["medicine_taken_today"] = taken_count
             context["medicine_overdue"] = overdue_count
+
+            # Build window status list
+            for w in windows.values():
+                if w["taken"] >= w["total"]:
+                    w["status"] = "complete"
+                elif w["taken"] > 0:
+                    w["status"] = "partial"
+                else:
+                    w["status"] = "missed"
+            context["medicine_windows"] = list(windows.values())
 
             # Check for low supply
             low_supply = [m for m in active_medicines if m.needs_refill]
@@ -390,6 +438,21 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             month_start = today.replace(day=1)
             month_workouts = workouts.filter(date__gte=month_start)
             context["workouts_this_month"] = month_workouts.count()
+
+        # Workout today status
+        workout_today = WorkoutSession.objects.filter(
+            user=user, date=today
+        ).first()
+        if workout_today:
+            context["workout_today_completed"] = (
+                workout_today.completed_at is not None
+            )
+            context["workout_today_time"] = (
+                workout_today.completed_at or workout_today.started_at
+            )
+            context["workout_today_name"] = workout_today.name
+        else:
+            context["workout_today_completed"] = False
 
         # Cycle Tracking summary (only if opted in)
         try:
@@ -482,6 +545,27 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             )
         except Exception:
             pass
+
+        # Card emphasis flags — signals control emphasis, NOT visibility
+        card_emphasis = {}
+        if context.get("medicine_overdue", 0) > 0:
+            card_emphasis["medicine"] = "high"
+        elif context.get("medicine_windows"):
+            if any(w["status"] == "missed" for w in context["medicine_windows"]):
+                card_emphasis["medicine"] = "medium"
+
+        if not context.get("workout_today_completed") and context.get(
+            "latest_workout"
+        ):
+            # Only flag if user has workout history (they exercise regularly)
+            card_emphasis["fitness"] = "medium"
+
+        if context.get("glucose_variability_level") == "high":
+            card_emphasis["glucose"] = "high"
+        elif context.get("glucose_variability_level") == "moderate":
+            card_emphasis["glucose"] = "medium"
+
+        context["card_emphasis"] = card_emphasis
 
         return context
 

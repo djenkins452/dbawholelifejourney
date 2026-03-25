@@ -1,0 +1,66 @@
+{# Health Domain Expanded Panel — workout, medication, sleep, water #}
+
+<div class="v2-panel-content">
+    <h3 class="v2-panel-title">Health — 7-Day Breakdown</h3>
+
+    <div class="v2-panel-grid">
+        {# Workout #}
+        {% if health.components.workout_score != None %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Workouts</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ health.components.workout.completed }}</span>
+                <span class="v2-panel-metric-total">/ {{ health.components.workout.expected }} completed</span>
+            </div>
+            {% if health.components.workout.missed > 0 %}
+            <div class="v2-panel-metric-gap">{{ health.components.workout.missed }} missed</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# Medication #}
+        {% if health.components.med_score != None %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Medication</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ health.components.medication.completed }}</span>
+                <span class="v2-panel-metric-total">/ {{ health.components.medication.expected }} doses</span>
+            </div>
+            {% if health.components.medication.missed > 0 %}
+            <div class="v2-panel-metric-gap">{{ health.components.medication.missed }} missed</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# Sleep #}
+        {% if health.components.sleep.avg_hours != None %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Sleep</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ health.components.sleep.avg_hours }}h</span>
+                <span class="v2-panel-metric-total">avg / night</span>
+            </div>
+            <div class="v2-panel-metric-sub">
+                {{ health.components.sleep.good_nights }} of {{ health.components.sleep.tracked_nights }} nights &#x2265; 7h
+            </div>
+        </div>
+        {% endif %}
+
+        {# Water #}
+        {% if health.components.water.avg_oz != None %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Water</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ health.components.water.avg_oz }}oz</span>
+                <span class="v2-panel-metric-total">avg / day</span>
+            </div>
+            <div class="v2-panel-metric-sub">
+                {{ health.components.water.good_days }} of 7 days met {{ health.components.water.goal_oz }}oz goal
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {# Quick link #}
+    <a href="{% url 'health:home' %}" class="v2-panel-link">View Health Dashboard &#x2192;</a>
+</div>

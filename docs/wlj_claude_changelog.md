@@ -6,6 +6,33 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Dashboard V2: Goal-Based Cockpit (Faith / Health / Work Dials)
+
+**What changed:** Replaced the adherence score bar, domain dials, and daily progress donut with three large SVG semi-circular gauge dials for Faith (blue), Health (green), and Work/Purpose (amber). Each dial shows a 0-100% score based on 7-day consistency, trend direction (↑↓→), and color-coded zones (red/yellow/green). Clicking a dial expands an inline detail panel with component breakdowns and sparklines. Made V2 the default dashboard — navigation and login redirect now point to `/v2/`. Old `/dashboard/` redirects to V2.
+
+**Why:** The previous dashboard was metric-heavy but lacked a clear life-alignment signal. The cockpit provides an immediate visual answer to "Am I living aligned with what matters most?" across the three primary life domains.
+
+**Files created:**
+- `apps/dashboard_v2/services/cockpit_service.py` — GoalCockpitService with faith/health/work scoring
+- `templates/dashboard_v2/partials/cockpit_dial.html` — SVG gauge dial template
+- `templates/dashboard_v2/partials/cockpit_panels/faith_panel.html` — Faith expanded panel
+- `templates/dashboard_v2/partials/cockpit_panels/health_panel.html` — Health expanded panel
+- `templates/dashboard_v2/partials/cockpit_panels/work_panel.html` — Work/Purpose expanded panel
+- `apps/dashboard_v2/tests/test_cockpit_service.py` — 12 unit tests
+
+**Files modified:**
+- `apps/dashboard_v2/views.py` — Added cockpit context + CockpitPanelView HTMX endpoint
+- `apps/dashboard_v2/urls.py` — Added cockpit panel URL
+- `templates/dashboard_v2/home.html` — Replaced top sections with cockpit row
+- `static/css/dashboard_v2.css` — Added gauge, panel, sparkline, priority, responsive styles
+- `templates/components/navigation.html` — Home link → dashboard_v2:home
+- `templates/components/desktop_left_rail.html` — Home link → dashboard_v2:home
+- `apps/dashboard/urls.py` — Root redirect to V2
+- `config/settings.py` — LOGIN_REDIRECT_URL → dashboard_v2:home
+- `apps/billing/tests/test_faith_only.py` — Updated redirect assertion for V2
+
+---
+
 ## 2026-03-25 — Sports: Personalized Command Center Upgrade
 
 - **Your Teams section:** Compact grid cards showing each followed team with record, streak, next game or last result, and status badge (LIVE/NEXT/FINAL). Always visible.

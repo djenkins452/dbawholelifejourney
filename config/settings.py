@@ -597,7 +597,7 @@ ACCOUNT_FORMS = {
     "signup": "apps.users.forms.CustomSignupForm",
 }
 
-LOGIN_REDIRECT_URL = "dashboard:home"
+LOGIN_REDIRECT_URL = "dashboard_v2:home"
 LOGOUT_REDIRECT_URL = "core:landing"
 LOGIN_URL = "account_login"
 

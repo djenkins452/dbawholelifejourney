@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 174,
+    "fields": {
+      "title": "Life Alignment Cockpit",
+      "description": "Your dashboard now opens with three visual dials showing how aligned you are across Faith, Health, and Work/Purpose. Each dial scores your 7-day consistency (0-100%), shows trend direction, and color-codes from red to green. Tap any dial to see the detailed breakdown \u2014 Bible reading days, prayer consistency, workout adherence, medication tracking, sleep quality, task completion, and milestone progress. The cockpit answers one question at a glance: Am I living aligned with what matters most?",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-25",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-03-25T12:00:00Z",
+      "updated_at": "2026-03-25T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 173,
     "fields": {
       "title": "Beth: Smart Task Coaching",

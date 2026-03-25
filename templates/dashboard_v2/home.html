@@ -5,44 +5,6 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/dashboard_v2.css' %}">
-<style nonce="{{ csp_nonce }}">
-.v2-progress-weather-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-4, 1rem);
-    align-items: stretch;
-}
-.v2-progress-weather-row > .v2-section {
-    background: var(--color-surface, #fff);
-    border: 1px solid var(--color-border, #e5e7eb);
-    border-radius: var(--radius-lg, 0.75rem);
-    padding: var(--space-4, 1rem);
-    display: flex;
-    flex-direction: column;
-}
-.v2-progress-weather-row > .v2-section .weather-section {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
-.v2-progress-weather-row > .v2-section .weather-card {
-    border: none;
-    padding: 0;
-    border-radius: 0;
-    background: transparent;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
-.v2-progress-weather-row > .v2-section .weather-forecast {
-    margin-top: auto;
-}
-@media (max-width: 768px) {
-    .v2-progress-weather-row {
-        grid-template-columns: 1fr;
-    }
-}
-</style>
 {% endblock %}
 
 {% block content %}
@@ -53,21 +15,27 @@
         <p class="v2-date">{{ current_date|date:"l, F j, Y" }}</p>
     </div>
 
-    <!-- Section 1: 7-Day Adherence Score (replaces momentum gauges) -->
-    {% if adherence %}
-    {% include "dashboard_v2/partials/adherence_card.html" with adherence=adherence %}
+    <!-- Goal Cockpit — Three Domain Dials -->
+    {% if cockpit %}
+    <section class="v2-section v2-cockpit-section">
+        <div class="v2-cockpit-row">
+            {% if faith_enabled %}
+            {% include "dashboard_v2/partials/cockpit_dial.html" with domain_key="faith" domain_data=cockpit.faith %}
+            {% endif %}
+            {% if health_enabled %}
+            {% include "dashboard_v2/partials/cockpit_dial.html" with domain_key="health" domain_data=cockpit.health %}
+            {% endif %}
+            {% if purpose_enabled %}
+            {% include "dashboard_v2/partials/cockpit_dial.html" with domain_key="work" domain_data=cockpit.work %}
+            {% endif %}
+        </div>
+    </section>
     {% endif %}
 
-    <!-- Domain Adherence Dials (unified with global score) -->
-    {% if adherence.domain_scores %}
-    <section class="v2-section" style="margin-top: 0;">
-        <div style="display: flex; gap: var(--space-3); overflow-x: auto; padding-bottom: var(--space-2);">
-            {% for domain_key, ds in adherence.domain_scores.items %}
-            {% if ds.score != None %}
-            {% include "dashboard_v2/partials/domain_dial.html" with domain=ds domain_key=domain_key %}
-            {% endif %}
-            {% endfor %}
-        </div>
+    <!-- Weather (compact standalone) -->
+    {% if weather %}
+    <section class="v2-section v2-weather-standalone">
+        {% include "dashboard/tiles/weather.html" %}
     </section>
     {% endif %}
 
@@ -76,20 +44,6 @@
          hx-get="{% url 'dashboard_v2:section_reconciliation' %}"
          hx-trigger="load delay:200ms"
          hx-swap="innerHTML">
-    </div>
-
-    <!-- Section 2: Daily Progress + Weather (side by side) -->
-    <div class="v2-progress-weather-row">
-        <section class="v2-section v2-progress-section" style="margin-bottom: 0;">
-            <h2 class="v2-section-title">Today's Progress</h2>
-            {% include "dashboard_v2/sections/daily_progress.html" %}
-        </section>
-
-        {% if weather %}
-        <section class="v2-section" style="margin-bottom: 0;">
-            {% include "dashboard/tiles/weather.html" %}
-        </section>
-        {% endif %}
     </div>
 
     <!-- Section 3: Action Center (replaces Next Action — critical path, inline) -->
@@ -207,13 +161,35 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Momentum gauge expand/collapse
+    // Cockpit dial expand/collapse
     document.addEventListener('click', function(e) {
-        var card = e.target.closest('.v2-momentum-card');
-        if (!card) return;
-        // Don't toggle if clicking a link or button inside the card
+        var dial = e.target.closest('.v2-cockpit-dial');
+        if (!dial) return;
+        // Don't capture link or button clicks inside the dial
         if (e.target.closest('a, button')) return;
-        card.classList.toggle('expanded');
+
+        var panel = dial.querySelector('.v2-cockpit-panel');
+        if (!panel) return;
+
+        if (dial.classList.contains('expanded')) {
+            dial.classList.remove('expanded');
+            panel.innerHTML = '';
+        } else {
+            // Collapse any other expanded dials first
+            document.querySelectorAll('.v2-cockpit-dial.expanded').forEach(function(other) {
+                other.classList.remove('expanded');
+                var otherPanel = other.querySelector('.v2-cockpit-panel');
+                if (otherPanel) otherPanel.innerHTML = '';
+            });
+            dial.classList.add('expanded');
+            // Fetch panel content
+            var url = dial.dataset.expandUrl;
+            if (url) {
+                fetch(url, { headers: {'X-Requested-With': 'XMLHttpRequest'} })
+                    .then(function(r) { return r.text(); })
+                    .then(function(html) { panel.innerHTML = html; });
+            }
+        }
     });
 
     // Action Center collapse/expand

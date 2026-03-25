@@ -17,7 +17,7 @@
     <div class="rail-divider"></div>
 
     <!-- Home - Always first -->
-    <a href="{% url 'dashboard:home' %}" class="rail-item{% if request.resolver_match.app_name == 'dashboard' %} active{% endif %}" data-tooltip="Home">
+    <a href="{% url 'dashboard_v2:home' %}" class="rail-item{% if request.resolver_match.app_name == 'dashboard_v2' or request.resolver_match.app_name == 'dashboard' %} active{% endif %}" data-tooltip="Home">
         <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
         </svg>

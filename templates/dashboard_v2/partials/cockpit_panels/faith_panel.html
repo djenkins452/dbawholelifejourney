@@ -1,0 +1,40 @@
+{# Faith Domain Expanded Panel — Bible reading + prayer consistency #}
+
+<div class="v2-panel-content">
+    <h3 class="v2-panel-title">Faith — 7-Day Breakdown</h3>
+
+    <div class="v2-panel-grid">
+        {# Bible Reading #}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Bible Reading</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ faith.components.bible_days }}</span>
+                <span class="v2-panel-metric-total">/ 7 days</span>
+            </div>
+            {# 7-day sparkline #}
+            <div class="v2-sparkline">
+                {% for val in faith.components.bible_daily %}
+                <div class="v2-sparkline-bar{% if val %} v2-sparkline-filled{% endif %}" title="{% if val %}Done{% else %}Missed{% endif %}"></div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {# Prayer #}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Prayer</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ faith.components.prayer_days }}</span>
+                <span class="v2-panel-metric-total">/ 7 days</span>
+            </div>
+            {# 7-day sparkline #}
+            <div class="v2-sparkline">
+                {% for val in faith.components.prayer_daily %}
+                <div class="v2-sparkline-bar{% if val %} v2-sparkline-filled{% endif %}" title="{% if val %}Done{% else %}Missed{% endif %}"></div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    {# Quick link #}
+    <a href="{% url 'faith:reading_plans' %}" class="v2-panel-link">View Reading Plans &#x2192;</a>
+</div>

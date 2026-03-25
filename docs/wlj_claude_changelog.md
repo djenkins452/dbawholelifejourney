@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Sports: Personalized Command Center Upgrade
+
+- **Your Teams section:** Compact grid cards showing each followed team with record, streak, next game or last result, and status badge (LIVE/NEXT/FINAL). Always visible.
+- **Sport Sections:** League-level game context — 6 games per followed league showing live, upcoming, and recent games across all teams (not just user's). Headers with rule line.
+- **Trending / Around the League:** Auto-generated from game data — win streaks (3+), blowouts, close games. No external API.
+- **Bottom ticker:** Moved from top to bottom, sticky, 25% larger font, higher contrast. Constant ambient sports awareness.
+- **Recent Action expanded:** Now shows all leagues, not just user's teams. Up to 20 games.
+- **Layout order:** Hero → Your Teams → Schedule → Sport Sections → Recent → Trending → Bottom Ticker
+- **View changes:** Added `your_teams`, `sport_sections`, `trending` context. Recent action now queries all leagues.
+- **Files:** `apps/sports/views.py`, `apps/sports/templates/sports/my_teams.html`
+
 ## 2026-03-25 — Sports: Hero + Density + Emphasis UI Pass
 
 - **Hero always present:** Added fallback logic — when no live/soon/today games exist, hero shows most recent completed game with FINAL badge and score. Page never feels empty.

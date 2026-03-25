@@ -47,6 +47,19 @@ def compute_sports_signals():
     start = time.monotonic()
     now = timezone.now()
 
+    # Bootstrap: if no game data exists and we have a live provider, sync first
+    if not GameEvent.objects.exists():
+        try:
+            from apps.sports.services.provider_adapter import get_provider
+            provider = get_provider()
+            if provider.provider_name() != "fixture":
+                logger.info("Sports: no GameEvents found — triggering initial sync")
+                from apps.sports.services.sync_service import sync_sports_data
+                result = sync_sports_data()
+                logger.info("Sports: initial sync result: %s", result)
+        except Exception:
+            logger.error("Sports: initial sync failed", exc_info=True)
+
     # Only process users with sports enabled AND active follows
     user_ids_with_follows = (
         UserTeamFollow.objects.filter(is_active=True)

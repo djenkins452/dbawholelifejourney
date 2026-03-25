@@ -244,6 +244,15 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
             .select_related("home_team__league", "away_team")
             .order_by("-start_time")[:60]
         )
+        # Fallback: if no games in ±48h window, show last completed games
+        if not ticker_window.exists():
+            ticker_window = (
+                GameEvent.objects.filter(
+                    status=GameEvent.STATUS_FINAL,
+                )
+                .select_related("home_team__league", "away_team")
+                .order_by("-start_time")[:30]
+            )
         for g in ticker_window:
             if g.status == GameEvent.STATUS_FINAL:
                 label = f"{g.home_team.full_name} {g.home_score}–{g.away_score} {g.away_team.full_name}"
@@ -265,11 +274,11 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
             })
         context["ticker_games"] = ticker_games
 
-        # ── Recent Action: completed games from ticker window (no extra query) ──
+        # ── Recent Action: last completed games for user's teams ──
+        # Reuse the existing recent_games queryset (no time restriction),
+        # so there's always something to show even without recent data.
         recent_action = []
-        for g in ticker_window:
-            if g.status != GameEvent.STATUS_FINAL:
-                continue
+        for g in recent_games[:12]:
             recent_action.append({
                 "home_team": g.home_team.full_name,
                 "away_team": g.away_team.full_name,
@@ -277,8 +286,6 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
                 "away_score": g.away_score,
                 "league": g.home_team.league.abbreviation,
             })
-            if len(recent_action) >= 12:
-                break
         context["recent_action"] = recent_action
 
         # ── Metadata ──

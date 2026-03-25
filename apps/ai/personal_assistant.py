@@ -3045,14 +3045,25 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                         try:
                             _bt = cos_context.get('_builder_timings', {}) if cos_context else {}
                             for _btag, _bdur in _bt.items():
+                                if _bdur == 'skipped':
+                                    # Record skipped builders as 0-duration so ops
+                                    # telemetry can distinguish "skipped" from "missing".
+                                    _ltrace.start(f'COS_BUILDER_{_btag}')
+                                    _ltrace._stages[f'COS_BUILDER_{_btag}']['end'] = (
+                                        _ltrace._stages[f'COS_BUILDER_{_btag}']['start']
+                                    )
+                                    continue
                                 if not isinstance(_bdur, (int, float)):
-                                    continue  # skip non-numeric (e.g. 'skipped')
+                                    continue
                                 _ltrace.start(f'COS_BUILDER_{_btag}')
                                 _ltrace._stages[f'COS_BUILDER_{_btag}']['end'] = (
                                     _ltrace._stages[f'COS_BUILDER_{_btag}']['start'] + _bdur / 1000
                                 )
-                        except Exception:
-                            pass
+                        except Exception as _bt_err:
+                            logger.warning(
+                                "CoS builder timing extraction failed: %s",
+                                _bt_err, exc_info=True,
+                            )
 
                 # Pending reflections (check-ins after events)
                 try:

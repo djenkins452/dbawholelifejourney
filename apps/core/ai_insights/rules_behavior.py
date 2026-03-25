@@ -13,7 +13,7 @@ from datetime import timedelta
 
 from apps.core.ai_insights.base_rules import BaseInsightRule
 from apps.core.ai_insights.rule_registry import register
-from apps.core.ai_insights.utils import build_dedupe_key
+from apps.core.ai_insights.models import build_dedupe_key
 
 logger = logging.getLogger(__name__)
 

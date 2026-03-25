@@ -196,7 +196,8 @@ class FaithOnlyUpgradePageTest(TestCase):
         profile.save()
 
         response = self.client.get(reverse('billing:faith_only_upgrade'))
-        self.assertRedirects(response, reverse('dashboard:home'))
+        # dashboard:home now redirects to dashboard_v2:home
+        self.assertRedirects(response, reverse('dashboard:home'), target_status_code=302)
 
 
 @override_settings(**TEST_SETTINGS)

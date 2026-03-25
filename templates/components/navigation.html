@@ -3,7 +3,7 @@
 <header class="site-header">
     <nav class="nav-container" aria-label="Main navigation">
         <!-- Logo + Site Name -->
-        <a href="{% url 'dashboard:home' %}" class="nav-logo">
+        <a href="{% url 'dashboard_v2:home' %}" class="nav-logo">
             <img src="{% if site_logo_url %}{{ site_logo_url }}{% else %}{% static 'images/wlj-logo.png' %}{% endif %}" alt="{{ site_name }}" class="nav-logo-img">
             <span class="nav-logo-text">WLJ</span>
         </a>
@@ -29,7 +29,7 @@
             <ul class="nav-links">
                 <!-- Dashboard - Always visible (no submenu) -->
                 <li>
-                    <a href="{% url 'dashboard:home' %}" class="nav-link {% if request.resolver_match.app_name == 'dashboard' %}active{% endif %}">
+                    <a href="{% url 'dashboard_v2:home' %}" class="nav-link {% if request.resolver_match.app_name == 'dashboard_v2' or request.resolver_match.app_name == 'dashboard' %}active{% endif %}">
                         <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
                         </svg>

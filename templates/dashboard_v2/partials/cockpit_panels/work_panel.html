@@ -1,0 +1,60 @@
+{# Work / Purpose Domain Expanded Panel — tasks, sessions, milestones #}
+
+<div class="v2-panel-content">
+    <h3 class="v2-panel-title">Work / Purpose — 7-Day Breakdown</h3>
+
+    <div class="v2-panel-grid">
+        {# Task Completion #}
+        {% if work.components.tasks.total > 0 %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Tasks Completed</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ work.components.tasks.completed }}</span>
+                <span class="v2-panel-metric-total">/ {{ work.components.tasks.total }} due</span>
+            </div>
+        </div>
+        {% endif %}
+
+        {# Work Sessions #}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Active Days</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ work.components.sessions.days_active }}</span>
+                <span class="v2-panel-metric-total">/ 7 days</span>
+            </div>
+            {% if work.components.sessions.last_worked %}
+            <div class="v2-panel-metric-sub">
+                Last worked: {{ work.components.sessions.last_worked|date:"M j" }}
+            </div>
+            {% endif %}
+        </div>
+
+        {# Milestone Progress #}
+        {% if work.components.milestones.total_milestones > 0 %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Milestones</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ work.components.milestones.completed_milestones }}</span>
+                <span class="v2-panel-metric-total">/ {{ work.components.milestones.total_milestones }} complete</span>
+            </div>
+            <div class="v2-panel-metric-sub">
+                {{ work.components.milestones.active_goals }} active goal{{ work.components.milestones.active_goals|pluralize }}
+            </div>
+        </div>
+        {% elif work.components.milestones.active_goals > 0 %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Goals</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ work.components.milestones.active_goals }}</span>
+                <span class="v2-panel-metric-total">active (no milestones set)</span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {# Quick links #}
+    <div class="v2-panel-links">
+        <a href="{% url 'life:task_list' %}" class="v2-panel-link">View Tasks &#x2192;</a>
+        <a href="{% url 'purpose:goal_list' %}" class="v2-panel-link">View Goals &#x2192;</a>
+    </div>
+</div>

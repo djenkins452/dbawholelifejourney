@@ -7,6 +7,12 @@ app_name = "dashboard_v2"
 urlpatterns = [
     # Main dashboard shell
     path("", views.DashboardV2View.as_view(), name="home"),
+    # Cockpit expanded panel (HTMX)
+    path(
+        "cockpit/<str:domain>/panel/",
+        views.CockpitPanelView.as_view(),
+        name="cockpit_panel",
+    ),
     # HTMX lazy-load section endpoints
     path(
         "sections/execution/",

@@ -54,12 +54,21 @@ class DashboardV2View(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["purpose_enabled"] = getattr(prefs, "purpose_enabled", True)
         context["life_enabled"] = getattr(prefs, "life_enabled", True)
 
-        # 7-day adherence score (replaces momentum dial as primary metric)
+        # 7-day adherence score (used by cockpit health dial)
         try:
             from apps.core.behavior.behavior_score_engine import compute_adherence_summary
             context["adherence"] = compute_adherence_summary(self.request.user)
         except Exception:
             context["adherence"] = None
+
+        # Goal Cockpit — three domain dials (faith, health, work)
+        try:
+            from .services.cockpit_service import GoalCockpitService
+            cockpit = GoalCockpitService(self.request.user, adherence_data=context.get("adherence"))
+            context["cockpit"] = cockpit.get_cockpit_data()
+        except Exception:
+            logger.warning("Goal cockpit computation failed", exc_info=True)
+            context["cockpit"] = None
 
         # Weather data
         try:
@@ -79,6 +88,35 @@ class DashboardV2View(HelpContextMixin, LoginRequiredMixin, TemplateView):
             pass
 
         return context
+
+
+# ── Cockpit Panel Endpoint ──────────────────────────────────────────
+
+
+class CockpitPanelView(LoginRequiredMixin, View):
+    """HTMX endpoint for cockpit domain expanded panel."""
+
+    VALID_DOMAINS = ('faith', 'health', 'work')
+
+    def get(self, request, domain):
+        if domain not in self.VALID_DOMAINS:
+            return HttpResponse("Invalid domain", status=400)
+
+        from .services.cockpit_service import GoalCockpitService
+
+        adherence = None
+        if domain == 'health':
+            try:
+                from apps.core.behavior.behavior_score_engine import compute_adherence_summary
+                adherence = compute_adherence_summary(request.user)
+            except Exception:
+                pass
+
+        service = GoalCockpitService(request.user, adherence_data=adherence)
+        data = service.get_domain_detail(domain)
+        template = f"dashboard_v2/partials/cockpit_panels/{domain}_panel.html"
+        html = render_to_string(template, {domain: data, "request": request}, request=request)
+        return HttpResponse(html)
 
 
 # ── HTMX Section Endpoints ──────────────────────────────────────────

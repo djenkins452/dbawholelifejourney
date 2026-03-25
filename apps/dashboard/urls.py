@@ -21,13 +21,15 @@ Copyright:
     without explicit permission.
 """
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views
 
 app_name = "dashboard"
 
 urlpatterns = [
-    path("", views.DashboardView.as_view(), name="home"),
+    # Redirect /dashboard/ to V2 cockpit (V2 is now the primary dashboard)
+    path("", RedirectView.as_view(pattern_name='dashboard_v2:home', permanent=False), name="home"),
     path("configure/", views.ConfigureDashboardView.as_view(), name="configure"),
     path("debug/", views.DashboardDebugView.as_view(), name="debug"),  # Temporary
 

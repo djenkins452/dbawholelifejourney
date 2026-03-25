@@ -1782,6 +1782,33 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         conversation.updated_at = timezone.now()
         conversation.save(update_fields=['updated_at'])
 
+        # Post-response: record interaction depth for Adaptive CoS Presence.
+        # Determines whether this was a "deep" interaction (briefing, check-in,
+        # or multi-message engagement) so future briefings can adapt.
+        try:
+            from apps.ai.executive_briefing import record_interaction_depth
+            _metadata_post = conversation.metadata or {}
+            _briefing_was_delivered = (
+                _metadata_post.get('last_briefing_date') == str(
+                    timezone.now().date()
+                )
+            )
+            _msg_lower_depth = (message or '').lower()
+            _is_checkin_depth = any(
+                p in _msg_lower_depth for p in [
+                    'check in', 'checking in', 'status', 'refresh',
+                    "how's my day", 'how does my day look',
+                    "what's left", "what do i have",
+                ]
+            )
+            record_interaction_depth(
+                conversation, self.user,
+                briefing_delivered=_briefing_was_delivered,
+                is_checkin=_is_checkin_depth,
+            )
+        except Exception:
+            pass  # Interaction depth tracking must never break chat
+
         # Post-response: trigger rolling conversation summary if needed.
         # Run in background thread — may make an OpenAI API call (~1-3s).
         try:
@@ -6076,6 +6103,31 @@ Rules for this response:
         # Update conversation timestamp
         conversation.updated_at = timezone.now()
         conversation.save(update_fields=['updated_at'])
+
+        # Post-response: record interaction depth for Adaptive CoS Presence.
+        try:
+            from apps.ai.executive_briefing import record_interaction_depth
+            _metadata_post = conversation.metadata or {}
+            _briefing_was_delivered = (
+                _metadata_post.get('last_briefing_date') == str(
+                    timezone.now().date()
+                )
+            )
+            _msg_lower_depth = (message or '').lower()
+            _is_checkin_depth = any(
+                p in _msg_lower_depth for p in [
+                    'check in', 'checking in', 'status', 'refresh',
+                    "how's my day", 'how does my day look',
+                    "what's left", "what do i have",
+                ]
+            )
+            record_interaction_depth(
+                conversation, self.user,
+                briefing_delivered=_briefing_was_delivered,
+                is_checkin=_is_checkin_depth,
+            )
+        except Exception:
+            pass  # Interaction depth tracking must never break chat
 
         # Background: rolling summary
         try:

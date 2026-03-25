@@ -23,6 +23,9 @@ operator. Builds structured context injections for:
 
 Public API:
     - build_executive_briefing(user, conversation) -> str
+    - build_lightweight_alignment(user, conversation) -> str
+    - record_interaction_depth(conversation, user, ...) -> None
+    - auto_complete_wakeup(user, today) -> bool
     - maybe_generate_rolling_summary(user, conversation) -> None
     - get_conversation_memory(conversation) -> str
 """
@@ -72,6 +75,201 @@ MOOD_SCORES = {
 }
 
 
+def auto_complete_wakeup(user, today):
+    """
+    Auto-complete the 'Wake Up' routine task for today.
+
+    Reusable helper called by build_executive_briefing() and the
+    session-start endpoint. Safe to call multiple times per day
+    (idempotent — only completes pending tasks).
+
+    Args:
+        user: Django User instance.
+        today: date — user's local today.
+
+    Returns:
+        bool — True if a wake_up task was found and completed.
+    """
+    try:
+        from apps.life.models import Task
+        wake_task = Task.objects.filter(
+            user=user, is_routine=True, completion_status='pending',
+            due_date=today, title__icontains='wake up',
+        ).first()
+        if wake_task:
+            wake_task.mark_complete()
+            logger.debug(
+                "Auto-completed 'Wake Up' task for user=%s", user.email
+            )
+            return True
+    except Exception as e:
+        logger.debug("Wake Up auto-complete failed: %s", e)
+    return False
+
+
+def record_interaction_depth(conversation, user, briefing_delivered=False,
+                             is_checkin=False):
+    """
+    Record interaction depth in conversation metadata. Deterministic only.
+
+    Called post-response to track whether a meaningful (deep) interaction
+    occurred — used by build_executive_briefing() and the session-start
+    endpoint to decide whether to deliver a full briefing or a lightweight
+    alignment.
+
+    Deep interaction criteria (any one is sufficient):
+    1. Executive briefing was delivered in this response
+    2. User triggered a check-in query (status/priorities/etc.)
+    3. User sent 3+ messages in last 30 minutes
+
+    When deep: captures an alignment snapshot from execution truth so
+    future lightweight alignments can compute the delta.
+
+    Args:
+        conversation: AssistantConversation instance.
+        user: Django User instance.
+        briefing_delivered: bool — True if executive briefing fired.
+        is_checkin: bool — True if user asked a check-in/status question.
+    """
+    metadata = conversation.metadata or {}
+    now = timezone.now()
+
+    # Count recent user messages (last 30 min)
+    recent_msgs = conversation.messages.filter(
+        role='user',
+        created_at__gte=now - timedelta(minutes=30),
+    ).count()
+
+    is_deep = briefing_delivered or is_checkin or recent_msgs >= 3
+
+    if is_deep:
+        metadata['last_deep_interaction_at'] = now.isoformat()
+        metadata['interaction_depth'] = 'deep'
+
+        # Capture alignment snapshot from execution truth
+        try:
+            from apps.core.execution.execution_truth_engine import (
+                get_execution_truth,
+            )
+            truth = get_execution_truth(user)
+            routines = truth.get('routines', {})
+            tasks = truth.get('tasks', {})
+            metadata['alignment_snapshot'] = {
+                'captured_at': now.isoformat(),
+                'completed_items': [
+                    name for name, info
+                    in routines.get('items', {}).items()
+                    if info.get('fully_complete')
+                ],
+                'tasks_completed': tasks.get('completed', 0),
+                'pending_count': (
+                    tasks.get('total', 0) - tasks.get('completed', 0)
+                ),
+            }
+        except Exception as e:
+            logger.debug("Alignment snapshot capture failed: %s", e)
+    else:
+        metadata['interaction_depth'] = 'shallow'
+
+    conversation.metadata = metadata
+    conversation.save(update_fields=['metadata'])
+
+
+def build_lightweight_alignment(user, conversation) -> str:
+    """
+    Build a compressed alignment when a full briefing would be redundant.
+
+    Called when the executive briefing gate fires (first-of-day or gap
+    re-entry) but a deep interaction occurred within the last 90 minutes.
+    Returns a short system prompt injection that acknowledges the prior
+    alignment and highlights only what changed.
+
+    Data sources (all pre-computed, no heavy computation):
+    - conversation.metadata['alignment_snapshot'] — state at last alignment
+    - get_execution_truth(user) — current state
+    - get_today_context(user)['next'] — current next action
+
+    Args:
+        user: Django User instance.
+        conversation: AssistantConversation instance.
+
+    Returns:
+        str — formatted system prompt injection, or "" if snapshot missing.
+    """
+    try:
+        metadata = conversation.metadata or {}
+        snapshot = metadata.get('alignment_snapshot')
+        deep_at = metadata.get('last_deep_interaction_at')
+
+        if not snapshot or not deep_at:
+            return ""  # No snapshot — fall through to full briefing
+
+        from django.utils.dateparse import parse_datetime
+        deep_ts = parse_datetime(deep_at)
+        if not deep_ts:
+            return ""
+
+        # Format the prior alignment time
+        from apps.core.utils import get_user_now
+        user_now = get_user_now(user)
+        alignment_time = deep_ts.strftime('%I:%M %p').lstrip('0')
+
+        # Get current execution truth
+        from apps.core.execution.execution_truth_engine import (
+            get_execution_truth,
+        )
+        truth = get_execution_truth(user)
+
+        # Compute delta: what completed since last alignment
+        prev_completed = set(snapshot.get('completed_items', []))
+        current_routines = truth.get('routines', {}).get('items', {})
+        current_completed = {
+            name for name, info in current_routines.items()
+            if info.get('fully_complete')
+        }
+        newly_completed = current_completed - prev_completed
+
+        # Current next action
+        try:
+            from apps.core.today.today_engine import get_today_context
+            today_ctx = get_today_context(user)
+            next_action = today_ctx.get('next', '')
+        except Exception:
+            next_action = ''
+
+        # Build lightweight alignment injection
+        sections = ["--- LIGHTWEIGHT ALIGNMENT ---"]
+        first_name = getattr(user, 'first_name', '') or 'the user'
+        sections.append(
+            f"You already aligned with {first_name} at {alignment_time}."
+        )
+
+        if newly_completed:
+            items_str = ', '.join(sorted(newly_completed))
+            sections.append(f"Since then: {items_str} completed.")
+        else:
+            sections.append("No new completions since then.")
+
+        if next_action:
+            sections.append(f"Current focus: {next_action}.")
+
+        sections.append(
+            "Do NOT repeat the full briefing. Reference only what has "
+            "changed. Be brief and forward-looking."
+        )
+        sections.append("--- END LIGHTWEIGHT ALIGNMENT ---")
+
+        logger.info(
+            "LIGHTWEIGHT_ALIGNMENT user=%s prior_at=%s newly_completed=%d",
+            user.id, alignment_time, len(newly_completed),
+        )
+        return "\n".join(sections)
+
+    except Exception as e:
+        logger.debug("Lightweight alignment failed: %s", e)
+        return ""
+
+
 def build_executive_briefing(user, conversation) -> str:
     """
     Build the morning executive briefing for system prompt injection.
@@ -114,6 +312,23 @@ def build_executive_briefing(user, conversation) -> str:
         # if the LLM call subsequently fails, no briefing can fire
         # for the rest of the day. See mark_briefing_delivered().
 
+        # Check for recent deep interaction — if user already had a
+        # meaningful alignment within 90 minutes, deliver a lightweight
+        # alignment instead of the full briefing (prevents repetition).
+        deep_at = metadata.get('last_deep_interaction_at')
+        if deep_at:
+            from django.utils.dateparse import parse_datetime
+            deep_ts = parse_datetime(deep_at)
+            if deep_ts and (timezone.now() - deep_ts).total_seconds() < 90 * 60:
+                lightweight = build_lightweight_alignment(user, conversation)
+                if lightweight:
+                    logger.info(
+                        "BRIEFING_SUPPRESSED_LIGHTWEIGHT user=%s "
+                        "deep_at=%s",
+                        user.id, deep_at,
+                    )
+                    return lightweight
+
         # Ensure routine tasks exist for today (fills recurrence gaps)
         # and auto-complete "Wake Up" on first-of-day interaction.
         if is_first_of_day:
@@ -122,19 +337,7 @@ def build_executive_briefing(user, conversation) -> str:
             except Exception as e:
                 logger.debug("Routine task ensure failed: %s", e)
 
-            try:
-                from apps.life.models import Task
-                wake_task = Task.objects.filter(
-                    user=user, is_routine=True, completion_status='pending',
-                    due_date=today, title__icontains='wake up',
-                ).first()
-                if wake_task:
-                    wake_task.mark_complete()
-                    logger.debug(
-                        "Auto-completed 'Wake Up' task for user=%s", user.email
-                    )
-            except Exception as e:
-                logger.debug("Wake Up auto-complete failed: %s", e)
+            auto_complete_wakeup(user, today)
 
         sections = []
         sections.append("--- EXECUTIVE BRIEFING ---")

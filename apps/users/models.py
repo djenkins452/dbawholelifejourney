@@ -728,6 +728,22 @@ class UserPreferences(models.Model):
         help_text="Proactive mood check-ins after difficult days (requires proactive checkins)",
     )
 
+    ASSERTIVENESS_CHOICES = [
+        ('gentle', 'Gentle'),
+        ('firm_respectful', 'Firm but Respectful'),
+        ('direct', 'Direct'),
+    ]
+    assistant_assertiveness = models.CharField(
+        max_length=20,
+        choices=ASSERTIVENESS_CHOICES,
+        default='firm_respectful',
+        help_text=(
+            'Controls how assertively Beth intervenes on overdue/drift items. '
+            'Gentle = fewer nudges, longer cooldowns. '
+            'Direct = more nudges, shorter cooldowns.'
+        ),
+    )
+
     # Location for weather (manual entry)
     location_city = models.CharField(max_length=100, blank=True)
     location_country = models.CharField(max_length=100, blank=True)

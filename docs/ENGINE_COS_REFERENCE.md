@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-20 (Today State: routine truth fix, faith bridge, Current Focus, Nudge Guidance, Conversation Awareness, CoS voice upgrade, Response Rules)
+**Last updated:** 2026-03-25 (Adaptive CoS Presence: session-start endpoint, interaction awareness, lightweight alignment, structured midday/evening briefs, assertiveness preference)
 
 ---
 
@@ -382,6 +382,24 @@ User opens chat → loadHistory() → maybeTriggerBriefing()
 **Files changed:** `apps/ai/personal_assistant.py`, `apps/ai/views.py`, `apps/ai/urls.py`, `templates/components/chat_widget.html`
 
 **New endpoint:** `POST /assistant/api/briefing/` → `ProactiveBriefingView`
+
+**New endpoint (v8 — Adaptive CoS Presence):** `POST /assistant/api/session-start/` → `SessionStartView`
+- Deterministic, no LLM. Returns structured JSON: briefing, lightweight_alignment, drift_intervention, or none.
+- Reads pre-computed data only (DriftScore, execution truth, today engine).
+- Auto-completes wake_up on first-of-day via `auto_complete_wakeup()`.
+
+**New: Interaction Awareness** (`apps/ai/executive_briefing.py`):
+- `record_interaction_depth()` — post-response hook tracks deep vs shallow interactions.
+- `build_lightweight_alignment()` — compressed briefing when deep interaction within 90 min.
+- `alignment_snapshot` in conversation metadata — captures execution truth state at alignment time.
+
+**New: Assertiveness Preference** (`apps/users/models.py`):
+- `UserPreferences.assistant_assertiveness` — gentle / firm_respectful / direct.
+- Adjusts PGS nudge scoring (0.7x / 1.0x / 1.3x) and cooldown timing (1.5x / 1.0x / 0.7x).
+
+**Enhanced PGS generators** (`apps/ai/proactive_checkins.py`):
+- `generate_midday_alignment_for_user()` — now uses execution truth + today engine (slipping items, next action).
+- `generate_evening_wrap_for_user()` — now uses execution truth (explicit misses, med adherence).
 
 **Evaluation report:** `docs/CoSEvaluation_v7.md`
 

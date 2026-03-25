@@ -382,6 +382,304 @@ class ProactiveBriefingView(LoginRequiredMixin, AssistantMixin, View):
 
 
 # =============================================================================
+# SESSION START (Adaptive CoS Presence)
+# =============================================================================
+
+class SessionStartView(LoginRequiredMixin, AssistantMixin, View):
+    """
+    Deterministic session-start endpoint for Adaptive CoS Presence.
+
+    Called by the frontend/iOS app on app-open to let Beth proactively
+    engage without the user typing first. Returns structured, pre-computed
+    data — NO LLM calls, NO heavy computation on the request path.
+
+    Decision tree (all deterministic):
+    1. First-of-day or gap re-entry → briefing or lightweight alignment
+    2. High drift detected → drift intervention
+    3. Otherwise → action: none (Beth stays quiet)
+
+    POST /assistant/api/session-start/
+
+    Returns JSON:
+        {"action": "briefing",              "payload": {...}}
+        {"action": "lightweight_alignment",  "payload": {...}}
+        {"action": "drift_intervention",     "payload": {...}}
+        {"action": "none"}
+    """
+
+    def post(self, request, *args, **kwargs):
+        enabled, error = self.check_personal_assistant_enabled()
+        if not enabled:
+            return JsonResponse({
+                'action': 'none',
+                'reason': error,
+            }, status=200)
+
+        try:
+            from django.utils import timezone as tz
+            from apps.core.utils import get_user_now, get_user_today
+            from apps.ai.executive_briefing import (
+                _compute_session_gap,
+                auto_complete_wakeup,
+                build_lightweight_alignment,
+            )
+
+            user = request.user
+            user_now = get_user_now(user)
+            today = get_user_today(user)
+
+            # Get or create conversation
+            conversation = AssistantConversation.get_or_create_active(user)
+            metadata = conversation.metadata or {}
+
+            # ── Gate: first-of-day or gap re-entry? ──
+            last_briefing_date = metadata.get('last_briefing_date')
+            is_first_of_day = last_briefing_date != str(today)
+
+            gap_hours = _compute_session_gap(conversation)
+            is_gap_reentry = (
+                gap_hours is not None
+                and gap_hours >= 4
+                and not is_first_of_day
+            )
+
+            # ── Time classification ──
+            hour = user_now.hour
+            time_of_day = (
+                'morning' if hour < 12
+                else 'afternoon' if hour < 17
+                else 'evening'
+            )
+
+            # ── Branch 1: Briefing warranted ──
+            if is_first_of_day or is_gap_reentry:
+                # Auto-complete wake-up (reuses extracted helper)
+                wake_inferred = False
+                if is_first_of_day:
+                    try:
+                        from apps.ai.executive_briefing import (
+                            _ensure_routine_tasks_for_today,
+                        )
+                        _ensure_routine_tasks_for_today(user, today)
+                    except Exception:
+                        pass
+                    wake_inferred = auto_complete_wakeup(user, today)
+
+                # Check for recent deep interaction → lightweight alignment
+                deep_at = metadata.get('last_deep_interaction_at')
+                if deep_at:
+                    from django.utils.dateparse import parse_datetime
+                    deep_ts = parse_datetime(deep_at)
+                    if (
+                        deep_ts
+                        and (tz.now() - deep_ts).total_seconds() < 90 * 60
+                    ):
+                        # Build lightweight alignment payload
+                        snapshot = metadata.get('alignment_snapshot', {})
+                        alignment_payload = (
+                            self._build_lightweight_payload(
+                                user, deep_at, snapshot,
+                            )
+                        )
+                        logger.info(
+                            "SESSION_START action=lightweight_alignment "
+                            "user=%s deep_at=%s",
+                            user.id, deep_at,
+                        )
+                        return JsonResponse({
+                            'action': 'lightweight_alignment',
+                            'payload': alignment_payload,
+                        })
+
+                # Full briefing payload (structured, no LLM)
+                briefing_payload = self._build_briefing_payload(
+                    user, today, user_now, time_of_day,
+                    is_first_of_day, wake_inferred,
+                )
+                session_type = (
+                    'morning' if is_first_of_day
+                    else 'gap_reentry'
+                )
+                logger.info(
+                    "SESSION_START action=briefing user=%s type=%s",
+                    user.id, session_type,
+                )
+                return JsonResponse({
+                    'action': 'briefing',
+                    'payload': {
+                        'session_type': session_type,
+                        'time_of_day': time_of_day,
+                        'wake_inferred': wake_inferred,
+                        **briefing_payload,
+                    },
+                })
+
+            # ── Branch 2: Drift intervention ──
+            drift_payload = self._check_drift(user, today)
+            if drift_payload:
+                logger.info(
+                    "SESSION_START action=drift_intervention user=%s "
+                    "score=%s",
+                    user.id, drift_payload.get('drift_score'),
+                )
+                return JsonResponse({
+                    'action': 'drift_intervention',
+                    'payload': drift_payload,
+                })
+
+            # ── Branch 3: Nothing to say ──
+            return JsonResponse({'action': 'none'})
+
+        except Exception as e:
+            logger.error(
+                "Session start error: %s", e, exc_info=True,
+            )
+            return JsonResponse({'action': 'none'})
+
+    def _build_briefing_payload(self, user, today, user_now, time_of_day,
+                                is_first_of_day, wake_inferred):
+        """
+        Build structured briefing payload from pre-computed data.
+
+        Reads execution truth (lightweight DB queries only) and today
+        context. Does NOT call build_cos_context() or any heavy engine.
+        """
+        payload = {}
+        try:
+            from apps.core.execution.execution_truth_engine import (
+                get_execution_truth,
+            )
+            truth = get_execution_truth(user)
+            routines = truth.get('routines', {})
+            tasks = truth.get('tasks', {})
+            meds = truth.get('medications', {})
+
+            payload['execution_snapshot'] = {
+                'routines_completed': routines.get('completed', 0),
+                'routines_total': routines.get('total', 0),
+                'tasks_completed': tasks.get('completed', 0),
+                'tasks_total': tasks.get('total', 0),
+                'meds_taken': meds.get('taken', 0),
+                'meds_expected': meds.get('expected', 0),
+            }
+        except Exception as e:
+            logger.debug("Session start: execution truth failed: %s", e)
+            payload['execution_snapshot'] = {}
+
+        # Next action from today engine
+        try:
+            from apps.core.today.today_engine import get_today_context
+            today_ctx = get_today_context(user)
+            payload['next_action'] = today_ctx.get('next', '')
+
+            overdue = today_ctx.get('overdue', [])
+            payload['overdue_count'] = len(overdue)
+
+            # Day load classification
+            all_items = today_ctx.get('all_items', [])
+            pending = [i for i in all_items if not i.get('completed')]
+            if len(pending) <= 3:
+                payload['day_load'] = 'light'
+            elif len(pending) <= 7:
+                payload['day_load'] = 'focused'
+            else:
+                payload['day_load'] = 'heavy'
+        except Exception as e:
+            logger.debug("Session start: today context failed: %s", e)
+            payload['next_action'] = ''
+            payload['day_load'] = 'focused'
+
+        # Drift score (pre-computed by run_drift_scoring)
+        try:
+            from apps.core.blueprint.models import DriftScore
+            drift_obj = DriftScore.objects.filter(
+                user=user, date=today,
+            ).first()
+            payload['drift_score'] = (
+                round(drift_obj.score) if drift_obj else 0
+            )
+        except Exception:
+            payload['drift_score'] = 0
+
+        return payload
+
+    def _build_lightweight_payload(self, user, deep_at, snapshot):
+        """Build lightweight alignment payload from snapshot + current state."""
+        payload = {
+            'prior_alignment_at': deep_at,
+            'since_alignment': {
+                'completed': [],
+                'newly_overdue': [],
+            },
+            'current_next_action': '',
+        }
+        try:
+            from apps.core.execution.execution_truth_engine import (
+                get_execution_truth,
+            )
+            truth = get_execution_truth(user)
+            prev_completed = set(snapshot.get('completed_items', []))
+            current_routines = truth.get('routines', {}).get('items', {})
+            current_completed = {
+                name for name, info in current_routines.items()
+                if info.get('fully_complete')
+            }
+            payload['since_alignment']['completed'] = sorted(
+                current_completed - prev_completed
+            )
+        except Exception:
+            pass
+
+        try:
+            from apps.core.today.today_engine import get_today_context
+            today_ctx = get_today_context(user)
+            payload['current_next_action'] = today_ctx.get('next', '')
+            overdue = today_ctx.get('overdue', [])
+            payload['since_alignment']['newly_overdue'] = [
+                item.get('name', '') for item in overdue[:3]
+            ]
+        except Exception:
+            pass
+
+        return payload
+
+    def _check_drift(self, user, today):
+        """
+        Check for high drift that warrants intervention at session start.
+
+        Reads DriftScore (pre-computed by run_drift_scoring in SAME cycle).
+        Returns drift payload if score >= 40, else None.
+        """
+        try:
+            from apps.core.blueprint.models import DriftScore
+            drift_obj = DriftScore.objects.filter(
+                user=user, date=today,
+            ).first()
+            if not drift_obj or drift_obj.score < 40:
+                return None
+
+            pillar_scores = drift_obj.pillar_scores or {}
+            top_pillar = max(
+                pillar_scores, key=pillar_scores.get, default=None,
+            ) if pillar_scores else None
+
+            return {
+                'drift_score': round(drift_obj.score),
+                'top_pillar': top_pillar,
+                'pillar_score': (
+                    round(pillar_scores.get(top_pillar, 0), 1)
+                    if top_pillar else 0
+                ),
+                'probability_24h': round(
+                    (drift_obj.drift_probability_24h or 0) * 100
+                ),
+            }
+        except Exception as e:
+            logger.debug("Session start: drift check failed: %s", e)
+            return None
+
+
+# =============================================================================
 # CONVERSATION / CHAT
 # =============================================================================
 

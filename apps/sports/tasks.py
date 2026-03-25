@@ -16,7 +16,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
 
-from apps.sports.models import GameEvent, UserTeamFollow
+from apps.sports.models import GameEvent, Team, UserTeamFollow
 from apps.sports.services.cache_manager import (
     set_sync_health,
     set_user_sports_summary,
@@ -47,18 +47,57 @@ def compute_sports_signals():
     start = time.monotonic()
     now = timezone.now()
 
-    # Bootstrap: if no game data exists and we have a live provider, sync first
+    # Bootstrap: if no game data exists, diagnose and attempt sync
     if not GameEvent.objects.exists():
         try:
             from apps.sports.services.provider_adapter import get_provider
+            from django.conf import settings as django_settings
+
             provider = get_provider()
-            if provider.provider_name() != "fixture":
-                logger.info("Sports: no GameEvents found — triggering initial sync")
+            provider_name = provider.provider_name()
+            configured_setting = getattr(django_settings, "SPORTS_PROVIDER", "")
+            has_key = bool(getattr(django_settings, "SPORTS_API_KEY", ""))
+
+            # Diagnose: what teams are followed and what leagues
+            follow_leagues = list(
+                UserTeamFollow.objects.filter(is_active=True)
+                .values_list("team__league__slug", flat=True)
+                .distinct()
+            )
+            follow_count = UserTeamFollow.objects.filter(is_active=True).count()
+            team_count = UserTeamFollow.objects.filter(
+                is_active=True
+            ).values_list("team_id", flat=True).distinct().count()
+
+            logger.warning(
+                "Sports bootstrap: 0 GameEvents. provider=%s, "
+                "SPORTS_PROVIDER=%r, has_key=%s, follows=%d, "
+                "teams=%d, league_slugs=%s",
+                provider_name, configured_setting, has_key,
+                follow_count, team_count, follow_leagues,
+            )
+
+            if provider_name != "fixture":
                 from apps.sports.services.sync_service import sync_sports_data
-                result = sync_sports_data()
-                logger.info("Sports: initial sync result: %s", result)
+                # Force sync ALL enabled leagues (not just followed)
+                # so we get data even if user only follows NFL/NBA
+                result = sync_sports_data(leagues=["mlb", "ncaab"])
+                logger.warning("Sports bootstrap: sync result: %s", result)
+
+                # Check what we got
+                game_count = GameEvent.objects.count()
+                linked_teams = Team.objects.exclude(external_id="").count()
+                logger.warning(
+                    "Sports bootstrap: after sync — %d GameEvents, %d linked teams",
+                    game_count, linked_teams,
+                )
+            else:
+                logger.warning(
+                    "Sports bootstrap: SKIPPED — fixture provider. "
+                    "Set SPORTS_PROVIDER=api_sports and SPORTS_API_KEY."
+                )
         except Exception:
-            logger.error("Sports: initial sync failed", exc_info=True)
+            logger.error("Sports bootstrap: sync failed", exc_info=True)
 
     # Only process users with sports enabled AND active follows
     user_ids_with_follows = (

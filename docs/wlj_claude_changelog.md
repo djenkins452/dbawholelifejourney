@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Sports: Team Logos + Card Polish
+
+- **Logos populated:** `_link_teams()` now saves `logo_url` from ESPN provider during team linking. Backfill logic runs for already-linked teams missing logos.
+- **Logos in UI:** Team cards show 36px logos, game rows show 20px logos, sport section rows show inline logos. Fallback: abbreviation placeholder when no logo available. `onerror` hides broken images.
+- **League labels on cards:** Each team card now shows league abbreviation (MLB, NCAAF, etc.) next to the name — solves the "Alabama appears 3 times" confusion (it's Football, Basketball, Baseball).
+- **No-data teams de-emphasized:** Teams with no game data show dashed border, 50% opacity, "Off-season" label instead of "No games yet."
+- **Files:** `apps/sports/services/sync_service.py` (logo backfill), `apps/sports/views.py` (logo_url + league + sport + has_data in context), `apps/sports/templates/sports/my_teams.html` (logos + styling), `apps/sports/templates/sports/_game_card.html` (logos)
+
 ## 2026-03-25 — Dashboard V2: Goal-Based Cockpit (Faith / Health / Work Dials)
 
 **What changed:** Replaced the adherence score bar, domain dials, and daily progress donut with three large SVG semi-circular gauge dials for Faith (blue), Health (green), and Work/Purpose (amber). Each dial shows a 0-100% score based on 7-day consistency, trend direction (↑↓→), and color-coded zones (red/yellow/green). Clicking a dial expands an inline detail panel with component breakdowns and sparklines. Made V2 the default dashboard — navigation and login redirect now point to `/v2/`. Old `/dashboard/` redirects to V2.
@@ -30,8 +38,6 @@
 - `apps/dashboard/urls.py` — Root redirect to V2
 - `config/settings.py` — LOGIN_REDIRECT_URL → dashboard_v2:home
 - `apps/billing/tests/test_faith_only.py` — Updated redirect assertion for V2
-
----
 
 ## 2026-03-25 — Sports: Personalized Command Center Upgrade
 

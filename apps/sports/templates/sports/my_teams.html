@@ -104,6 +104,47 @@
     .hero-meta { display: flex; gap: 12px; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.06); font-size: 0.7rem; color: rgba(255, 255, 255, 0.25); }
     .hero-meta span { display: flex; align-items: center; gap: 4px; }
 
+    /* ── LOGOS ── */
+    .team-logo {
+        width: 36px;
+        height: 36px;
+        object-fit: contain;
+        flex-shrink: 0;
+        border-radius: 4px;
+    }
+
+    .team-logo--sm {
+        width: 20px;
+        height: 20px;
+    }
+
+    .team-logo--hero {
+        width: 28px;
+        height: 28px;
+        opacity: 0.85;
+    }
+
+    .logo-placeholder {
+        width: 36px;
+        height: 36px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.04);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 0.6rem;
+        font-weight: 800;
+        color: var(--color-text-muted);
+        opacity: 0.3;
+    }
+
+    .logo-placeholder--sm {
+        width: 20px;
+        height: 20px;
+        font-size: 0.4rem;
+    }
+
     /* ── YOUR TEAMS CARDS ── */
     .your-teams {
         padding: 12px 20px 8px;
@@ -138,8 +179,17 @@
 
     .team-card:hover { background: var(--color-surface-hover, rgba(255,255,255,0.04)); }
 
+    .team-card--nodata {
+        opacity: 0.5;
+        background: transparent;
+        border: 1px dashed var(--color-border);
+    }
+
     .tc-info { flex: 1; min-width: 0; }
+
+    .tc-name-row { display: flex; align-items: center; gap: 6px; }
     .tc-name { font-size: 0.88rem; font-weight: 800; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tc-league { font-size: 0.48rem; font-weight: 700; color: var(--color-text-muted); opacity: 0.4; text-transform: uppercase; letter-spacing: 0.06em; }
     .tc-record { font-size: 0.65rem; color: var(--color-text-muted); opacity: 0.6; }
     .tc-line { font-size: 0.7rem; color: var(--color-text-muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -516,9 +566,18 @@
         <div class="section-header">Your Teams</div>
         <div class="team-cards">
             {% for card in your_teams %}
-            <div class="team-card">
+            <div class="team-card {% if not card.has_data %}team-card--nodata{% endif %}">
+                {% if card.logo_url %}
+                <img src="{{ card.logo_url }}" alt="" class="team-logo" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                <div class="logo-placeholder" style="display:none">{{ card.team.abbreviation }}</div>
+                {% else %}
+                <div class="logo-placeholder">{{ card.team.abbreviation }}</div>
+                {% endif %}
                 <div class="tc-info">
-                    <div class="tc-name">{{ card.team.full_name }}</div>
+                    <div class="tc-name-row">
+                        <span class="tc-name">{{ card.team.full_name }}</span>
+                        <span class="tc-league">{{ card.league }}</span>
+                    </div>
                     <div class="tc-record">
                         {{ card.record }}
                         {% if card.streak %} · <span class="streak--{{ card.streak.0 }}">{{ card.streak }}</span>{% endif %}
@@ -607,9 +666,11 @@
         <div class="sport-games">
             {% for g in section.items %}
             <div class="sg-row">
+                {% if g.away_logo %}<img src="{{ g.away_logo }}" alt="" class="team-logo--sm" loading="lazy" onerror="this.style.display='none'">{% endif %}
                 <div class="sg-teams">
                     {{ g.away }} {% if g.status_class != "upcoming" %}<span class="sg-score">{{ g.away_score }}</span>{% endif %}
                     &nbsp;@&nbsp;
+                    {% if g.home_logo %}<img src="{{ g.home_logo }}" alt="" class="team-logo--sm" loading="lazy" onerror="this.style.display='none'" style="display:inline;vertical-align:middle;margin-right:3px">{% endif %}
                     {{ g.home }} {% if g.status_class != "upcoming" %}<span class="sg-score">{{ g.home_score }}</span>{% endif %}
                 </div>
                 <span class="sg-status sg-status--{{ g.status_class }}">{{ g.status }}</span>

@@ -213,6 +213,15 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["water_today_percentage"] = water_progress["percentage"]
         context["water_goal_met"] = water_progress["goal_met"]
 
+        # Water behind-goal flag (time-aware)
+        from apps.core.utils import get_user_now
+        user_now = get_user_now(user)
+        pct = water_progress["percentage"]
+        hour = user_now.hour
+        if not water_progress["goal_met"]:
+            if (hour >= 18 and pct < 75) or (hour >= 12 and pct < 50):
+                context["water_behind_goal"] = True
+
         water_entries = WaterEntry.objects.filter(user=user)
         if water_entries.exists():
             context["water_entry_count"] = water_entries.count()

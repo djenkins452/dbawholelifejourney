@@ -40,6 +40,9 @@
                     <span class="today-label">Workout</span>
                     {% if workout_today_completed %}
                         <span class="today-value today-value-good">Completed{% if workout_today_time %} at {{ workout_today_time|time:"g:i A" }}{% endif %}</span>
+                    {% elif latest_workout %}
+                        <span class="today-value today-value-pending">Not completed</span>
+                        <span class="today-nudge nudge-pending">&#8594; Complete your workout</span>
                     {% else %}
                         <span class="today-value today-value-pending">Not completed</span>
                     {% endif %}
@@ -59,6 +62,9 @@
                         <span class="today-window tw-{{ window.status }}">{{ window.label }}: {{ window.taken }}/{{ window.total }}{% if window.status == "complete" %} &#10003;{% elif window.status == "missed" %} &#10007;{% endif %}</span>
                         {% endfor %}
                     </div>
+                    {% if medicine_overdue > 0 %}
+                        <span class="today-nudge nudge-alert">&#8594; {{ medicine_overdue }} dose{{ medicine_overdue|pluralize }} overdue</span>
+                    {% endif %}
                     {% else %}
                         <span class="today-value">{{ medicine_taken_today|default:0 }}/{{ medicine_scheduled_today|default:0 }} taken</span>
                     {% endif %}
@@ -92,11 +98,16 @@
             {% endif %}
 
             {# ── Water Status ── #}
-            <div class="today-item {% if water_goal_met %}today-complete{% else %}today-neutral{% endif %}">
-                <span class="today-icon" aria-hidden="true">{% if water_goal_met %}&#10003;{% else %}&#9675;{% endif %}</span>
+            <div class="today-item {% if water_goal_met %}today-complete{% elif water_behind_goal %}today-caution{% else %}today-neutral{% endif %}">
+                <span class="today-icon" aria-hidden="true">{% if water_goal_met %}&#10003;{% elif water_behind_goal %}&#9888;{% else %}&#9675;{% endif %}</span>
                 <div class="today-content">
                     <span class="today-label">Water</span>
-                    <span class="today-value">{{ water_today_oz|floatformat:0 }} / {{ water_goal_oz }} oz</span>
+                    <span class="today-value">{{ water_today_oz|floatformat:0 }} / {{ water_goal_oz }} oz{% if water_behind_goal %} &#9888;{% endif %}</span>
+                    {% if water_behind_goal %}
+                        <span class="today-nudge nudge-caution">&#8594; Behind goal</span>
+                    {% elif water_goal_met %}
+                        <span class="today-nudge nudge-good">&#10003; Goal met</span>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -1130,6 +1141,18 @@
 .ts-stable { color: #16a34a; }
 .ts-moderate { color: #d97706; }
 .ts-high { color: #dc2626; }
+
+/* Today Nudge — actionable hint below status */
+.today-nudge {
+    font-size: var(--font-size-xs, 0.75rem);
+    font-weight: 600;
+    margin-top: 0.125rem;
+}
+
+.nudge-alert { color: #dc2626; }
+.nudge-caution { color: #d97706; }
+.nudge-pending { color: #6b7280; }
+.nudge-good { color: #16a34a; }
 
 /* ══════════════════════════════════════════════════════════════════════ */
 /* CARD SECTIONS — labeled groups for priority ordering                 */

@@ -57,7 +57,13 @@ class FixtureProviderTest(TestCase):
 
 class ProviderFactoryTest(TestCase):
     def test_get_default_provider(self):
+        """Default provider is ESPN (free, no key required)."""
+        from apps.sports.services.providers.espn_provider import EspnSportsProvider
         provider = get_provider()
+        self.assertIsInstance(provider, EspnSportsProvider)
+
+    def test_get_fixture_provider(self):
+        provider = get_provider("fixture")
         self.assertIsInstance(provider, FixtureSportsProvider)
 
     def test_provider_is_base_class(self):

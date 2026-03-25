@@ -2292,18 +2292,22 @@ def _get_intelligence_pipeline_health(now):
             # COS_BUILDER_* stage entries are set by personal_assistant.py
             # from the _builder_timings dict returned by build_cos_context().
             # A builder with duration > 0 produced data; duration == 0 means
-            # it ran but returned nothing (or was skipped).
+            # it was skipped (disabled module) or returned instantly.
             prefix = 'COS_BUILDER_'
             for key, duration in stages.items():
                 if not key.startswith(prefix):
                     continue
                 name = key[len(prefix):]
-                if duration and duration > 0:
+                if duration is not None and duration > 0:
                     builders_present.append(name)
                 else:
                     builders_empty.append(name)
 
-        is_healthy = recent_chats > 0 and len(builders_present) > 0
+        # Healthy if we have chats AND at least one builder produced data.
+        # Also consider healthy if builders ran but all had 0 duration
+        # (fast/cached) — the key signal is that COS_BUILDER_ entries exist.
+        has_builders = len(builders_present) > 0 or len(builders_empty) > 0
+        is_healthy = recent_chats > 0 and has_builders
         if is_healthy:
             healthy_count += 1
 

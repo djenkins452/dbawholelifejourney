@@ -6,7 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Fix: Signal drought, Compensatory engine EMPTY, CoS context STALE
+
+**Root cause:** PIE `__init__.py` only imported `rules_cross_domain`, so the ISE `run_pie_synthetic()` scheduled task could only evaluate cross-domain rules. All 14 domain-specific rule modules (health, goals, behavior, compensatory, etc.) never fired on the scheduled cadence — only on real user events that happened to import them first. This caused "signal drought" for 6+ domains on the ops wall.
+
+**Changes:**
+- `apps/core/ai_insights/__init__.py` — Import all 15 rule modules (was only `rules_cross_domain`). Now all PIE rules fire during scheduled checks.
+- `apps/core/ai_insights/rules_behavior.py` — Fix broken import: `utils.build_dedupe_key` → `models.build_dedupe_key`
+- `apps/core/ai_insights/rules_context.py` — Same broken import fix
+- `apps/ai/personal_assistant.py` — Record skipped CoS builders as 0-duration (instead of silently filtering them out), making CoS context show as HEALTHY when builders ran. Also log builder timing extraction errors instead of `except: pass`.
+- `apps/core/ai_observability/ops_telemetry.py` — CoS context health check now considers context healthy if ANY COS_BUILDER_ entries exist (including skipped/0-duration), not just duration > 0.
+
+**Why:** Signal drought P2 incident on ops wall. Compensatory engine showed EMPTY because its rule was never imported. CoS context showed STALE because skipped builders were filtered from telemetry.
+
 ## 2026-03-24 — Fix: Remove sports bootstrap that crashed DB connections
+
+## 2026-03-24 — Fix: Sports sync never ran — bootstrap trigger on SAME cycle
 
 - **Root cause:** Bootstrap code in `compute_sports_signals()` ran API sync inline (and later via `.delay()`), but the inline version poisoned the DB connection pool causing cascading `InterfaceError: connection already closed` across all requests. Also discovered NCAAB is blocked on API-Sports free plan ("try from 2022 to 2024").
 - **Fix:** Removed bootstrap entirely. Sports sync should only run via Celery Beat task (`sync_games_from_provider` every 2h) on the worker service, never triggered from the web process.

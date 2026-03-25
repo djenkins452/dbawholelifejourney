@@ -38,25 +38,6 @@
     </div>
     {% endif %}
 
-    {% if ai_insight %}
-    <!-- AI Insight Card -->
-    <div class="ai-insight-card mb-6">
-        <div class="ai-insight-inner">
-            <div class="ai-insight-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
-                </svg>
-            </div>
-            <div class="ai-insight-content">
-                <h3 class="ai-insight-title">AI Insight</h3>
-                <p class="ai-insight-text">{{ ai_insight }}</p>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-
     <!-- Quick Log Banner - Active Fast (only if fasting feature enabled) -->
     {% if features.health.fasting and active_fast %}
     <div class="active-fast-banner mb-6">
@@ -102,6 +83,7 @@
 
                 {% if weight_change_30d is not None %}
                     <p class="metric-change {% if weight_change_30d < 0 %}change-down{% elif weight_change_30d > 0 %}change-up{% endif %}">
+                        {% if weight_trend_direction == "down" %}<span class="trend-arrow" aria-label="trending down">&#8595;</span>{% elif weight_trend_direction == "up" %}<span class="trend-arrow" aria-label="trending up">&#8593;</span>{% elif weight_trend_direction == "stable" %}<span class="trend-arrow" aria-label="stable">&#8594;</span>{% endif %}
                         {% if weight_change_30d > 0 %}+{% endif %}{{ weight_change_30d }} lb in 30 days
                     </p>
                 {% endif %}
@@ -321,7 +303,7 @@
 
         <!-- Glucose Card -->
         {% if features.health.glucose %}
-        <div class="health-card">
+        <div class="health-card{% if card_emphasis.glucose == 'high' %} card-emphasis-high{% elif card_emphasis.glucose == 'medium' %} card-emphasis-medium{% endif %}">
             <div class="card-header">
                 <h2>
                     <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -345,6 +327,12 @@
 
                 {% if avg_fasting_glucose %}
                     <p class="metric-avg">Avg fasting: {{ avg_fasting_glucose }} {{ latest_glucose.unit }}</p>
+                {% endif %}
+
+                {% if glucose_variability_label %}
+                <p class="glucose-variability variability-{{ glucose_variability_level }}">
+                    {{ glucose_variability_label }}{% if glucose_variability %} (CV {{ glucose_variability }}%){% endif %}
+                </p>
                 {% endif %}
 
                 <a href="{% url 'health:glucose_dashboard' %}" class="card-link">View Dashboard</a>
@@ -500,7 +488,7 @@
 
         <!-- Medicine Card -->
         {% if features.health.medicine %}
-        <div class="health-card medicine-card">
+        <div class="health-card medicine-card{% if card_emphasis.medicine == 'high' %} card-emphasis-high{% elif card_emphasis.medicine == 'medium' %} card-emphasis-medium{% endif %}">
             <div class="card-header">
                 <h2>
                     <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -537,6 +525,17 @@
                         <span class="stat-label">active medicine{{ medicine_count|pluralize }}</span>
                     </div>
                 </div>
+
+                {% if medicine_windows %}
+                <div class="medicine-windows">
+                    {% for window in medicine_windows %}
+                    <div class="medicine-window window-{{ window.status }}">
+                        <span class="window-label">{{ window.label }}</span>
+                        <span class="window-status">{{ window.taken }}/{{ window.total }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
             {% else %}
                 <p class="text-muted">No medicines being tracked.</p>
                 <a href="{% url 'health:medicine_create' %}" class="btn btn-secondary btn-sm mt-4">
@@ -550,7 +549,7 @@
 
         <!-- Fitness Card -->
         {% if features.health.workouts %}
-        <div class="health-card fitness-card">
+        <div class="health-card fitness-card{% if card_emphasis.fitness == 'medium' %} card-emphasis-medium{% elif card_emphasis.fitness == 'high' %} card-emphasis-high{% endif %}">
             <div class="card-header">
                 <h2>
                     <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -562,6 +561,18 @@
                 </h2>
                 <a href="{% url 'health:workout_create' %}" class="btn btn-primary btn-sm">Log Workout</a>
             </div>
+
+            {% if workout_today_completed %}
+            <div class="workout-today workout-done">
+                <span class="workout-today-label">Today</span>
+                <span class="workout-today-status">Completed{% if workout_today_time %} at {{ workout_today_time|time:"g:i A" }}{% endif %}</span>
+            </div>
+            {% elif latest_workout %}
+            <div class="workout-today workout-pending">
+                <span class="workout-today-label">Today</span>
+                <span class="workout-today-status">No workout yet</span>
+            </div>
+            {% endif %}
 
             {% if latest_workout %}
                 <div class="fitness-stats">
@@ -694,6 +705,25 @@
             <a href="{% url 'medical:home' %}" class="card-link">View Labs & Vitals</a>
         </div>
     </div>
+
+    {% if ai_insight %}
+    <!-- AI Insight Card — CoS interprets state, never replaces it -->
+    <div class="ai-insight-card mt-6 mb-6">
+        <div class="ai-insight-inner">
+            <div class="ai-insight-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+            </div>
+            <div class="ai-insight-content">
+                <h3 class="ai-insight-title">AI Insight</h3>
+                <p class="ai-insight-text">{{ ai_insight }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     {# Advanced Metrics Section - shows when user has wearable/sync data #}
     {% if has_hrv_data or has_vo2_max_data or has_respiratory_rate_data or has_caffeine_data or has_mindful_minutes_data or has_body_temperature %}
@@ -1467,6 +1497,101 @@
     .metric-links-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* ── Card Emphasis (signal-driven, never controls visibility) ── */
+.card-emphasis-high {
+    border-left: 3px solid var(--color-danger, #dc3545);
+}
+
+.card-emphasis-medium {
+    border-left: 3px solid var(--color-warning, #f59e0b);
+}
+
+/* ── Medicine Windows ── */
+.medicine-windows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+}
+
+.medicine-window {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm, 0.25rem);
+    font-size: var(--font-size-sm, 0.875rem);
+}
+
+.window-complete {
+    background: var(--color-success-bg, #f0fdf4);
+    color: var(--color-success, #22c55e);
+}
+
+.window-partial {
+    background: var(--color-warning-bg, #fffbeb);
+    color: var(--color-warning, #f59e0b);
+}
+
+.window-missed {
+    background: var(--color-danger-bg, #fef2f2);
+    color: var(--color-danger, #dc3545);
+}
+
+.window-label {
+    font-weight: 500;
+}
+
+/* ── Workout Today ── */
+.workout-today {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-sm, 0.25rem);
+    margin-bottom: 0.5rem;
+    font-size: var(--font-size-sm, 0.875rem);
+}
+
+.workout-done {
+    background: var(--color-success-bg, #f0fdf4);
+    color: var(--color-success, #22c55e);
+}
+
+.workout-pending {
+    background: var(--color-surface, #f9fafb);
+    color: var(--color-text-muted, #6b7280);
+}
+
+.workout-today-label {
+    font-weight: 500;
+}
+
+/* ── Glucose Variability ── */
+.glucose-variability {
+    font-size: var(--font-size-sm, 0.875rem);
+    margin-top: 0.25rem;
+    font-weight: 500;
+}
+
+.variability-stable {
+    color: var(--color-success, #22c55e);
+}
+
+.variability-moderate {
+    color: var(--color-warning, #f59e0b);
+}
+
+.variability-high {
+    color: var(--color-danger, #dc3545);
+}
+
+/* ── Weight Trend Arrow ── */
+.trend-arrow {
+    font-weight: 600;
+    margin-right: 0.125rem;
 }
 </style>
 {% endblock %}

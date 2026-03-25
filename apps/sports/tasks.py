@@ -47,57 +47,26 @@ def compute_sports_signals():
     start = time.monotonic()
     now = timezone.now()
 
-    # Bootstrap: if no game data exists, diagnose and attempt sync
+    # Bootstrap: if no game data exists, queue async sync via Celery
     if not GameEvent.objects.exists():
         try:
             from apps.sports.services.provider_adapter import get_provider
-            from django.conf import settings as django_settings
-
             provider = get_provider()
-            provider_name = provider.provider_name()
-            configured_setting = getattr(django_settings, "SPORTS_PROVIDER", "")
-            has_key = bool(getattr(django_settings, "SPORTS_API_KEY", ""))
-
-            # Diagnose: what teams are followed and what leagues
-            follow_leagues = list(
-                UserTeamFollow.objects.filter(is_active=True)
-                .values_list("team__league__slug", flat=True)
-                .distinct()
-            )
-            follow_count = UserTeamFollow.objects.filter(is_active=True).count()
-            team_count = UserTeamFollow.objects.filter(
-                is_active=True
-            ).values_list("team_id", flat=True).distinct().count()
-
-            logger.warning(
-                "Sports bootstrap: 0 GameEvents. provider=%s, "
-                "SPORTS_PROVIDER=%r, has_key=%s, follows=%d, "
-                "teams=%d, league_slugs=%s",
-                provider_name, configured_setting, has_key,
-                follow_count, team_count, follow_leagues,
-            )
-
-            if provider_name != "fixture":
-                from apps.sports.services.sync_service import sync_sports_data
-                # Force sync ALL enabled leagues (not just followed)
-                # so we get data even if user only follows NFL/NBA
-                result = sync_sports_data(leagues=["mlb", "ncaab"])
-                logger.warning("Sports bootstrap: sync result: %s", result)
-
-                # Check what we got
-                game_count = GameEvent.objects.count()
-                linked_teams = Team.objects.exclude(external_id="").count()
+            if provider.provider_name() != "fixture":
                 logger.warning(
-                    "Sports bootstrap: after sync — %d GameEvents, %d linked teams",
-                    game_count, linked_teams,
+                    "Sports bootstrap: 0 GameEvents, live provider active "
+                    "— dispatching async sync to Celery worker"
                 )
+                # Force mlb + ncaab so we get data even if user
+                # only follows leagues without API coverage
+                sync_games_from_provider.delay(leagues=["mlb", "ncaab"])
             else:
                 logger.warning(
-                    "Sports bootstrap: SKIPPED — fixture provider. "
+                    "Sports bootstrap: 0 GameEvents, fixture provider. "
                     "Set SPORTS_PROVIDER=api_sports and SPORTS_API_KEY."
                 )
         except Exception:
-            logger.error("Sports bootstrap: sync failed", exc_info=True)
+            logger.error("Sports bootstrap: failed to queue sync", exc_info=True)
 
     # Only process users with sports enabled AND active follows
     user_ids_with_follows = (
@@ -248,15 +217,21 @@ def _build_summaries_from_signals(user, signals, now):
     acks_late=True,
     reject_on_worker_lost=True,
 )
-def sync_games_from_provider():
+def sync_games_from_provider(leagues=None):
     """
     Background task: Sync sports data from the configured provider.
 
     Fetches standings (team records) and game events (schedule, scores, pitchers)
     for all leagues with active followers. Idempotent — safe on every tick.
 
+    Args:
+        leagues: Optional list of league slugs to force sync (bypasses
+                 follower check). Used by bootstrap to ensure initial data.
+
     Raw sync only: no streak computation, no urgency, no signals.
     Those are handled by compute_sports_signals().
     """
     from apps.sports.services.sync_service import sync_sports_data
-    return sync_sports_data()
+    result = sync_sports_data(leagues=leagues)
+    logger.info("sync_games_from_provider: %s", result)
+    return result

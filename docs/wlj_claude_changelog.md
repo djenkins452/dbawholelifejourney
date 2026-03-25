@@ -6,6 +6,12 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Fix: Sports sync never ran — bootstrap trigger on SAME cycle
+
+- **Root cause:** `sync_games_from_provider` is a Celery Beat task (every 2h) but the env vars (`SPORTS_API_KEY`, `SPORTS_PROVIDER`) were not shared with the web service. Even after sharing, the beat task hadn't fired yet, so the DB had zero GameEvents and zero linked teams.
+- **Fix:** Added bootstrap check to `compute_sports_signals()` (SAME cycle): if no GameEvents exist and provider is live, trigger `sync_sports_data()` immediately before computing signals. This is a one-time bootstrap — once data exists, the check is a single `EXISTS` query and skips.
+- **Files:** apps/sports/tasks.py
+
 ## 2026-03-24 — Fix: Sports hub blank page — ticker & recent action empty
 
 - **Root cause:** Ticker query only searched ±48h window; recent action reused that same empty result set. When no GameEvents existed in that window, all sections were empty — only "No games in the next 24 hours" showed.

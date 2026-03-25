@@ -232,6 +232,36 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
 
         if focus_game:
             focus_game.pop("_priority", None)
+
+        # Fallback: if no live/soon/today game, use most recent completed game
+        # so the hero section is ALWAYS present (page never feels empty)
+        if not focus_game and recent_games.exists():
+            last_game = recent_games[0]  # Already ordered by -start_time
+            # Determine which team is the user's
+            user_team = None
+            opponent_name = ""
+            is_home = True
+            for tid in [last_game.home_team_id, last_game.away_team_id]:
+                if tid in team_ids:
+                    user_team = last_game.home_team if tid == last_game.home_team_id else last_game.away_team
+                    is_home = tid == last_game.home_team_id
+                    opponent_name = last_game.away_team.full_name if is_home else last_game.home_team.full_name
+                    break
+            if user_team:
+                focus_game = {
+                    "team": user_team,
+                    "opponent": opponent_name,
+                    "urgency": "final",
+                    "start_time": last_game.start_time,
+                    "venue": last_game.venue or "",
+                    "score": f"{last_game.home_score} – {last_game.away_score}",
+                    "is_home": is_home,
+                    "league": user_team.league.abbreviation,
+                    "pitcher": "",
+                    "record": "",
+                    "streak": "",
+                }
+
         context["focus_game"] = focus_game
 
         # ── Ticker: ALL recent + upcoming games (not just user's teams) ──

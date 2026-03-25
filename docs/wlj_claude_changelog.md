@@ -6,10 +6,10 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-## 2026-03-24 — Fix: Sports sync never ran — bootstrap trigger on SAME cycle
+## 2026-03-24 — Fix: Remove sports bootstrap that crashed DB connections
 
-- **Root cause:** `sync_games_from_provider` is a Celery Beat task (every 2h) but the env vars (`SPORTS_API_KEY`, `SPORTS_PROVIDER`) were not shared with the web service. Even after sharing, the beat task hadn't fired yet, so the DB had zero GameEvents and zero linked teams.
-- **Fix:** Added bootstrap check to `compute_sports_signals()` (SAME cycle): if no GameEvents exist and provider is live, trigger `sync_sports_data()` immediately before computing signals. This is a one-time bootstrap — once data exists, the check is a single `EXISTS` query and skips.
+- **Root cause:** Bootstrap code in `compute_sports_signals()` ran API sync inline (and later via `.delay()`), but the inline version poisoned the DB connection pool causing cascading `InterfaceError: connection already closed` across all requests. Also discovered NCAAB is blocked on API-Sports free plan ("try from 2022 to 2024").
+- **Fix:** Removed bootstrap entirely. Sports sync should only run via Celery Beat task (`sync_games_from_provider` every 2h) on the worker service, never triggered from the web process.
 - **Files:** apps/sports/tasks.py
 
 ## 2026-03-24 — Fix: Sports hub blank page — ticker & recent action empty

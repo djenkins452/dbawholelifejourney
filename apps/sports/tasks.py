@@ -47,26 +47,6 @@ def compute_sports_signals():
     start = time.monotonic()
     now = timezone.now()
 
-    # Bootstrap: if no game data exists, queue async sync via Celery
-    if not GameEvent.objects.exists():
-        try:
-            from apps.sports.services.provider_adapter import get_provider
-            provider = get_provider()
-            if provider.provider_name() != "fixture":
-                logger.warning(
-                    "Sports bootstrap: 0 GameEvents, live provider active "
-                    "— dispatching async sync to Celery worker"
-                )
-                # Force mlb + ncaab so we get data even if user
-                # only follows leagues without API coverage
-                sync_games_from_provider.delay(leagues=["mlb", "ncaab"])
-            else:
-                logger.warning(
-                    "Sports bootstrap: 0 GameEvents, fixture provider. "
-                    "Set SPORTS_PROVIDER=api_sports and SPORTS_API_KEY."
-                )
-        except Exception:
-            logger.error("Sports bootstrap: failed to queue sync", exc_info=True)
 
     # Only process users with sports enabled AND active follows
     user_ids_with_follows = (

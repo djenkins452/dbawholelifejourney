@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-24 — Fix: Sports hub blank page — ticker & recent action empty
+
+- **Root cause:** Ticker query only searched ±48h window; recent action reused that same empty result set. When no GameEvents existed in that window, all sections were empty — only "No games in the next 24 hours" showed.
+- **Fix:** (1) Recent Action now uses the existing `recent_games` queryset (last 12 FINAL games for followed teams, no time restriction). (2) Ticker falls back to last 30 completed games globally when ±48h window is empty.
+- **Result:** Page always shows activity as long as any completed game data exists in the database.
+- **Files:** apps/sports/views.py
+
 ## 2026-03-24 — Feature: Sports hub "Recent Action" section
 
 - **What:** Added a "Recent Action" layer between the hero card and urgency sections on the sports hub page

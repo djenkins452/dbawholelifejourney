@@ -163,13 +163,50 @@ def _link_teams(provider, league):
     abbreviation (case-insensitive). Sets external_id on the DB team so
     subsequent standings/games sync can match by external_id.
 
-    Only runs for teams that don't already have an external_id set.
-    Idempotent — safe to call on every sync cycle.
+    Provider-switch safety:
+    - Only resets external_id when existing prefix doesn't match current provider
+    - Once linked to the current provider, NEVER re-links on future syncs
+    - Idempotent — multiple sync runs don't change already-linked teams
     """
-    # Check if any teams already have external_ids (skip if all linked)
+    provider_prefix = f"{provider.provider_name()}_"
+
+    # Detect provider mismatch: teams linked to a DIFFERENT provider
+    mismatched = Team.objects.filter(
+        league=league
+    ).exclude(
+        external_id=""
+    ).exclude(
+        external_id__startswith=provider_prefix
+    ).count()
+
+    if mismatched > 0:
+        logger.info(
+            "Sports sync: clearing %d mismatched external_ids for %s "
+            "(switching to %s provider)",
+            mismatched, league.abbreviation, provider.provider_name(),
+        )
+        Team.objects.filter(
+            league=league
+        ).exclude(
+            external_id=""
+        ).exclude(
+            external_id__startswith=provider_prefix
+        ).update(external_id="")
+
+        # Also clear old GameEvent external_ids from the old provider
+        # so they don't conflict with new provider's IDs
+        GameEvent.objects.filter(
+            home_team__league=league
+        ).exclude(
+            external_id=""
+        ).exclude(
+            external_id__startswith=provider_prefix
+        ).update(external_id="")
+
+    # Check if any teams still need linking (skip if all linked to current provider)
     unlinked_count = Team.objects.filter(league=league, external_id="").count()
     if unlinked_count == 0:
-        return  # All teams already linked
+        return  # All teams already linked to current provider
 
     api_teams = provider.fetch_teams(league.slug)
     if not api_teams:

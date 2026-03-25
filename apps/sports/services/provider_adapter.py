@@ -138,6 +138,10 @@ def get_provider(provider_name: Optional[str] = None) -> BaseSportsProvider:
 
     name = provider_name or getattr(settings, "SPORTS_PROVIDER", None) or os.environ.get("SPORTS_PROVIDER", "")
 
+    if name == "espn":
+        from apps.sports.services.providers.espn_provider import EspnSportsProvider
+        return EspnSportsProvider()
+
     if name == "api_sports":
         api_key = getattr(settings, "SPORTS_API_KEY", None) or os.environ.get("SPORTS_API_KEY", "")
         if not api_key:

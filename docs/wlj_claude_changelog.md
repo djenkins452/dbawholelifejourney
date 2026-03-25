@@ -6,6 +6,24 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Sports: Switch from API-Sports to ESPN Public API
+
+- **Root cause:** API-Sports free tier returned zero data — NCAAB blocked, env vars not shared with worker services. Sports page was completely blank in production with zero GameEvents.
+- **Fix:** Created `EspnSportsProvider` using ESPN's free public API (no API key, no rate limits). Covers all leagues: MLB, NBA, NCAA Basketball, NCAA Baseball, NFL, NCAA Football, NHL.
+- **Provider swap safety:** `_link_teams()` auto-detects provider mismatch via external_id prefix and re-links teams without manual migration. Existing ESPN-linked teams are never re-linked.
+- **Game fetch limits:** Hard cap of 3 date requests per league per sync (yesterday + today + tomorrow). No unbounded date loops.
+- **Sync frequency:** Changed Celery Beat from 2h to 15min — ESPN has no rate limits.
+- **Default provider:** Changed from fixture to ESPN (`SPORTS_PROVIDER` defaults to `"espn"`).
+- **Files:**
+  - `apps/sports/services/providers/espn_provider.py` (NEW)
+  - `apps/sports/services/provider_adapter.py` (added ESPN branch)
+  - `apps/sports/services/sync_service.py` (provider-mismatch re-linking)
+  - `apps/sports/tasks.py` (bootstrap syncs all leagues, not just MLB)
+  - `apps/sports/tests/test_espn_provider.py` (NEW — 38 tests)
+  - `apps/sports/tests/test_provider.py` (updated default provider test)
+  - `config/settings.py` (ESPN default, 15min sync)
+- **Verification:** 95 sports tests pass. ESPN API tested live: MLB 8 games, NCAA Basketball 4, NCAA Baseball 82, NBA 4, NHL 15.
+
 ## 2026-03-24 — Fix: Remove sports bootstrap that crashed DB connections
 
 - **Root cause:** Bootstrap code in `compute_sports_signals()` ran API sync inline (and later via `.delay()`), but the inline version poisoned the DB connection pool causing cascading `InterfaceError: connection already closed` across all requests. Also discovered NCAAB is blocked on API-Sports free plan ("try from 2022 to 2024").

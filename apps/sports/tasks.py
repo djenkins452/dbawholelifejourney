@@ -49,10 +49,11 @@ def compute_sports_signals():
 
     # One-time bootstrap: if no games exist, queue a sync on the Celery worker.
     # This is safe — .delay() just enqueues a Redis message, no DB/API work here.
+    # Syncs all leagues with active followers (not just MLB).
     if not GameEvent.objects.exists():
         logger.warning("Sports: 0 GameEvents — queueing sync_games_from_provider to worker")
         try:
-            sync_games_from_provider.delay(leagues=["mlb"])
+            sync_games_from_provider.delay()  # None = sync all leagues with followers
         except Exception:
             logger.error("Sports: failed to queue bootstrap sync", exc_info=True)
 

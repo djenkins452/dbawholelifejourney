@@ -66,8 +66,8 @@ OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o')
 OPENAI_VISION_MODEL = os.environ.get('OPENAI_VISION_MODEL', 'gpt-4o')
 OPENAI_MINI_MODEL = os.environ.get('OPENAI_MINI_MODEL', 'gpt-4o-mini')
 
-# Sports API (api-sports.io)
-SPORTS_PROVIDER = os.environ.get('SPORTS_PROVIDER', '')  # "api_sports" to enable
+# Sports data provider: "espn" (default, free, no key), "api_sports", or "" (fixture)
+SPORTS_PROVIDER = os.environ.get('SPORTS_PROVIDER', 'espn')
 SPORTS_API_KEY = os.environ.get('SPORTS_API_KEY', '')
 # CoS assistant uses gpt-4o regardless of the default model — quality matters here.
 COS_MODEL = os.environ.get('COS_MODEL', 'gpt-4o')
@@ -1085,9 +1085,9 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.core.tasks.run_ise_cycle_task",
         "schedule": 300.0,  # Every 5 minutes — primary ISE trigger
     },
-    "sports-sync-every-7200-seconds": {
+    "sports-sync-every-900-seconds": {
         "task": "sports.sync_games_from_provider",
-        "schedule": 7200.0,  # Every 2 hours — free plan: 100 calls/day limit
+        "schedule": 900.0,  # Every 15 min — ESPN public API, no rate limit
     },
     "cos-keepalive-every-30-seconds": {
         "task": "apps.ai.tasks.cos_keepalive_task",

@@ -1,5 +1,8 @@
 {# Game feed item — used in urgency sections #}
 <div class="game-item {% if urgency == 'live' %}game-item--live{% elif urgency == 'soon' %}game-item--soon{% elif urgency == 'today' %}game-item--today{% endif %}">
+    {% if item.team.logo_url %}
+    <img src="{{ item.team.logo_url }}" alt="" class="team-logo--sm" loading="lazy" onerror="this.style.display='none'">
+    {% endif %}
     <div class="item-main">
         <div class="item-team">{{ item.team.full_name }}</div>
         <div class="item-matchup">

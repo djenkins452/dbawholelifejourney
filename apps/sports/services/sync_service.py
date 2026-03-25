@@ -251,14 +251,38 @@ def _link_teams(provider, league):
             db_team = db_by_name.get(api_last_word)
 
         if db_team:
+            update_fields = ["external_id"]
             db_team.external_id = api_team.external_id
-            db_team.save(update_fields=["external_id"])
+            # Also store logo_url if provider supplies one
+            if api_team.logo_url and db_team.logo_url != api_team.logo_url:
+                db_team.logo_url = api_team.logo_url
+                update_fields.append("logo_url")
+            db_team.save(update_fields=update_fields)
             # Remove from lookup dicts to prevent double-matching
             db_teams.remove(db_team)
             db_by_abbr = {t.abbreviation.upper(): t for t in db_teams}
             db_by_full_name = {f"{t.location} {t.name}".lower(): t for t in db_teams}
             db_by_name = {t.name.lower(): t for t in db_teams}
             linked += 1
+
+    # Backfill logos for already-linked teams missing logo_url
+    linked_no_logo = Team.objects.filter(
+        league=league,
+        external_id__startswith=provider_prefix,
+    ).exclude(external_id="").filter(logo_url="")
+
+    if linked_no_logo.exists():
+        # Build a lookup from the API teams we already fetched
+        api_logo_map = {t.external_id: t.logo_url for t in api_teams if t.logo_url}
+        logo_updated = 0
+        for team in linked_no_logo:
+            logo = api_logo_map.get(team.external_id, "")
+            if logo:
+                team.logo_url = logo
+                team.save(update_fields=["logo_url"])
+                logo_updated += 1
+        if logo_updated:
+            logger.info("Sports sync: backfilled logos for %d teams in %s", logo_updated, league.abbreviation)
 
     if linked:
         logger.info("Sports sync: linked %d teams for %s", linked, league.abbreviation)

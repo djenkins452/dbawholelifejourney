@@ -318,6 +318,8 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
                 "home_score": g.home_score,
                 "away_score": g.away_score,
                 "league": g.home_team.league.abbreviation,
+                "home_logo": g.home_team.logo_url or "",
+                "away_logo": g.away_team.logo_url or "",
             })
         context["recent_action"] = recent_action
 
@@ -333,23 +335,29 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
                 "record": item.get("record", ""),
                 "streak": item.get("streak", ""),
                 "league": team.league.abbreviation,
+                "sport": team.league.sport.name if team.league.sport else "",
+                "logo_url": team.logo_url or "",
+                "has_data": False,  # set below
                 "status": "",       # LIVE / NEXT / FINAL
                 "status_class": "",  # live / next / final
                 "line": "",         # matchup or result line
             }
 
             if ng and ng.get("urgency") == "live":
+                card["has_data"] = True
                 card["status"] = "LIVE"
                 card["status_class"] = "live"
                 card["line"] = f"vs {ng['opponent']}" if ng.get("is_home") else f"@ {ng['opponent']}"
                 if ng.get("score"):
                     card["line"] += f" · {ng['score']}"
             elif ng and ng.get("urgency") in ("starting_soon", "today", "upcoming"):
+                card["has_data"] = True
                 card["status"] = "NEXT"
                 card["status_class"] = "next"
                 prefix = "vs" if ng.get("is_home") else "@"
                 card["line"] = f"{prefix} {ng['opponent']} · {ng['start_time'].strftime('%a %-I:%M %p')}"
             elif last_game:
+                card["has_data"] = True
                 card["status"] = "FINAL"
                 card["status_class"] = "final"
                 opp = last_game.away_team if last_game.home_team_id == team.id else last_game.home_team
@@ -360,8 +368,9 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
                 else:
                     card["line"] = f"@ {opp.full_name} · {aws}–{hs}"
             else:
+                card["has_data"] = False
                 card["status"] = ""
-                card["line"] = "No games yet"
+                card["line"] = "Off-season"
 
             your_teams.append(card)
         context["your_teams"] = your_teams
@@ -400,36 +409,19 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
 
             items = []
             for g in league_games:
+                base = {
+                    "home": g.home_team.full_name,
+                    "away": g.away_team.full_name,
+                    "home_logo": g.home_team.logo_url or "",
+                    "away_logo": g.away_team.logo_url or "",
+                }
                 if g.status == GameEvent.STATUS_FINAL:
-                    items.append({
-                        "home": g.home_team.full_name,
-                        "away": g.away_team.full_name,
-                        "home_score": g.home_score,
-                        "away_score": g.away_score,
-                        "status": "FINAL",
-                        "status_class": "final",
-                        "time": "",
-                    })
+                    base.update({"home_score": g.home_score, "away_score": g.away_score, "status": "FINAL", "status_class": "final", "time": ""})
                 elif g.status == GameEvent.STATUS_LIVE:
-                    items.append({
-                        "home": g.home_team.full_name,
-                        "away": g.away_team.full_name,
-                        "home_score": g.home_score or 0,
-                        "away_score": g.away_score or 0,
-                        "status": "LIVE",
-                        "status_class": "live",
-                        "time": "",
-                    })
+                    base.update({"home_score": g.home_score or 0, "away_score": g.away_score or 0, "status": "LIVE", "status_class": "live", "time": ""})
                 else:
-                    items.append({
-                        "home": g.home_team.full_name,
-                        "away": g.away_team.full_name,
-                        "home_score": None,
-                        "away_score": None,
-                        "status": g.start_time.strftime("%-I:%M %p"),
-                        "status_class": "upcoming",
-                        "time": g.start_time.strftime("%a %-I:%M %p"),
-                    })
+                    base.update({"home_score": None, "away_score": None, "status": g.start_time.strftime("%-I:%M %p"), "status_class": "upcoming", "time": g.start_time.strftime("%a %-I:%M %p")})
+                items.append(base)
 
             if items:
                 sport_sections.append({

@@ -304,11 +304,14 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
             })
         context["ticker_games"] = ticker_games
 
-        # ── Recent Action: last completed games for user's teams ──
-        # Reuse the existing recent_games queryset (no time restriction),
-        # so there's always something to show even without recent data.
+        # ── Recent Action: last completed games across ALL leagues ──
+        all_recent = (
+            GameEvent.objects.filter(status=GameEvent.STATUS_FINAL)
+            .select_related("home_team__league", "away_team")
+            .order_by("-start_time")[:20]
+        )
         recent_action = []
-        for g in recent_games[:12]:
+        for g in all_recent:
             recent_action.append({
                 "home_team": g.home_team.full_name,
                 "away_team": g.away_team.full_name,
@@ -317,6 +320,155 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
                 "league": g.home_team.league.abbreviation,
             })
         context["recent_action"] = recent_action
+
+        # ── Your Teams: compact cards with status ──
+        your_teams = []
+        for item in all_team_items:
+            team = item["team"]
+            ng = item.get("next_game")
+            last_game = last_result_map.get(team.id)
+
+            card = {
+                "team": team,
+                "record": item.get("record", ""),
+                "streak": item.get("streak", ""),
+                "league": team.league.abbreviation,
+                "status": "",       # LIVE / NEXT / FINAL
+                "status_class": "",  # live / next / final
+                "line": "",         # matchup or result line
+            }
+
+            if ng and ng.get("urgency") == "live":
+                card["status"] = "LIVE"
+                card["status_class"] = "live"
+                card["line"] = f"vs {ng['opponent']}" if ng.get("is_home") else f"@ {ng['opponent']}"
+                if ng.get("score"):
+                    card["line"] += f" · {ng['score']}"
+            elif ng and ng.get("urgency") in ("starting_soon", "today", "upcoming"):
+                card["status"] = "NEXT"
+                card["status_class"] = "next"
+                prefix = "vs" if ng.get("is_home") else "@"
+                card["line"] = f"{prefix} {ng['opponent']} · {ng['start_time'].strftime('%a %-I:%M %p')}"
+            elif last_game:
+                card["status"] = "FINAL"
+                card["status_class"] = "final"
+                opp = last_game.away_team if last_game.home_team_id == team.id else last_game.home_team
+                hs = last_game.home_score or 0
+                aws = last_game.away_score or 0
+                if last_game.home_team_id == team.id:
+                    card["line"] = f"vs {opp.full_name} · {hs}–{aws}"
+                else:
+                    card["line"] = f"@ {opp.full_name} · {aws}–{hs}"
+            else:
+                card["status"] = ""
+                card["line"] = "No games yet"
+
+            your_teams.append(card)
+        context["your_teams"] = your_teams
+
+        # ── Sport Sections: league-level game context (not just user teams) ──
+        # Show 6 recent/upcoming/live games per league the user follows
+        followed_league_ids = list(set(
+            f.team.league_id for f in follows
+        ))
+        followed_leagues = list(set(
+            f.team.league for f in follows
+        ))
+
+        sport_sections = []
+        for league in sorted(followed_leagues, key=lambda l: l.abbreviation):
+            league_games = (
+                GameEvent.objects.filter(
+                    Q(home_team__league=league) | Q(away_team__league=league),
+                    start_time__gte=now - timedelta(hours=24),
+                    start_time__lte=now + timedelta(hours=48),
+                )
+                .select_related("home_team", "away_team")
+                .order_by("start_time")[:8]
+            )
+
+            # Fallback: if no games in window, get last completed
+            if not league_games.exists():
+                league_games = (
+                    GameEvent.objects.filter(
+                        Q(home_team__league=league) | Q(away_team__league=league),
+                        status=GameEvent.STATUS_FINAL,
+                    )
+                    .select_related("home_team", "away_team")
+                    .order_by("-start_time")[:6]
+                )
+
+            items = []
+            for g in league_games:
+                if g.status == GameEvent.STATUS_FINAL:
+                    items.append({
+                        "home": g.home_team.full_name,
+                        "away": g.away_team.full_name,
+                        "home_score": g.home_score,
+                        "away_score": g.away_score,
+                        "status": "FINAL",
+                        "status_class": "final",
+                        "time": "",
+                    })
+                elif g.status == GameEvent.STATUS_LIVE:
+                    items.append({
+                        "home": g.home_team.full_name,
+                        "away": g.away_team.full_name,
+                        "home_score": g.home_score or 0,
+                        "away_score": g.away_score or 0,
+                        "status": "LIVE",
+                        "status_class": "live",
+                        "time": "",
+                    })
+                else:
+                    items.append({
+                        "home": g.home_team.full_name,
+                        "away": g.away_team.full_name,
+                        "home_score": None,
+                        "away_score": None,
+                        "status": g.start_time.strftime("%-I:%M %p"),
+                        "status_class": "upcoming",
+                        "time": g.start_time.strftime("%a %-I:%M %p"),
+                    })
+
+            if items:
+                sport_sections.append({
+                    "league": league,
+                    "label": f"{league.abbreviation} — Today",
+                    "items": items[:6],
+                })
+        context["sport_sections"] = sport_sections
+
+        # ── Trending: computed from game data (no external API) ──
+        trending = []
+
+        # Streak-based trending
+        for item in all_team_items:
+            streak = item.get("streak", "")
+            if streak and len(streak) >= 2:
+                streak_num = streak[1:]
+                try:
+                    if int(streak_num) >= 3:
+                        team_name = item["team"].full_name
+                        if streak.startswith("W"):
+                            trending.append(f"{team_name} on a {streak_num}-game win streak")
+                        else:
+                            trending.append(f"{team_name} have dropped {streak_num} straight")
+                except ValueError:
+                    pass
+
+        # Recent blowouts or close games
+        for g in all_recent[:10]:
+            hs = g.home_score or 0
+            aws = g.away_score or 0
+            diff = abs(hs - aws)
+            if diff >= 8:
+                winner = g.home_team.full_name if hs > aws else g.away_team.full_name
+                trending.append(f"{winner} cruise to {max(hs, aws)}–{min(hs, aws)} blowout")
+            elif diff <= 1 and (hs + aws) > 0:
+                trending.append(f"{g.home_team.full_name} edge {g.away_team.full_name} {hs}–{aws}")
+
+        context["trending"] = trending[:5]
 
         # ── Metadata ──
         context["last_updated"] = _get_last_updated(team_ids, now)

@@ -163,10 +163,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Cockpit dial expand/collapse
     document.addEventListener('click', function(e) {
+        // .closest() may not cross SVG→HTML boundary in all browsers,
+        // so walk up manually if needed.
         var dial = e.target.closest('.v2-cockpit-dial');
+        if (!dial) {
+            var node = e.target;
+            while (node && node !== document) {
+                if (node.classList && node.classList.contains('v2-cockpit-dial')) {
+                    dial = node;
+                    break;
+                }
+                node = node.parentNode || node.parentElement;
+            }
+        }
         if (!dial) return;
-        // Don't capture link or button clicks inside the dial
-        if (e.target.closest('a, button')) return;
+        // Don't capture link or button clicks inside the panel
+        if (e.target.closest && e.target.closest('a, button')) return;
 
         var panel = dial.querySelector('.v2-cockpit-panel');
         if (!panel) return;

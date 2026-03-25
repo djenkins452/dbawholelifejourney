@@ -1748,14 +1748,16 @@ a.v2-action-title:hover {
     letter-spacing: 0.08em;
     font-weight: 700;
     margin-bottom: 0.25rem;
+    pointer-events: none;
 }
 
-/* SVG Gauge */
+/* SVG Gauge — pointer-events:none so clicks pass through to the parent div */
 .v2-gauge-svg {
     width: 100%;
     max-width: 180px;
     margin: 0 auto;
     display: block;
+    pointer-events: none;
 }
 
 .v2-gauge-fill {
@@ -1774,6 +1776,7 @@ a.v2-action-title:hover {
     font-weight: 600;
     margin-top: 0.25rem;
     line-height: 1;
+    pointer-events: none;
 }
 
 .v2-dial-trend-up { color: var(--color-success, #22c55e); }

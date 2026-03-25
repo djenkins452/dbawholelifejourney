@@ -10,6 +10,9 @@ Tests for:
 6. Rolling summary triggers
 7. Conversation memory formatting
 8. Graceful handling of empty data
+9. Interaction depth recording (Adaptive CoS Presence)
+10. Lightweight alignment mode
+11. Auto-complete wakeup helper
 """
 
 from datetime import date, timedelta
@@ -440,3 +443,176 @@ class TestLearningExtractorNewCategories(TestCase):
         )
         categories = [e.category for e in extractions]
         self.assertIn("life_event_mention", categories)
+
+
+# =========================================================================
+# Adaptive CoS Presence — Interaction Awareness Tests
+# =========================================================================
+
+
+class TestRecordInteractionDepth(ExecutiveBriefingTestMixin, TestCase):
+    """Tests for record_interaction_depth()."""
+
+    def setUp(self):
+        self.user = self.create_user(email='depth@example.com')
+        self.conversation = self.create_conversation(self.user)
+
+    def test_briefing_delivered_marks_deep(self):
+        """When briefing was delivered, interaction is deep."""
+        from apps.ai.executive_briefing import record_interaction_depth
+        record_interaction_depth(
+            self.conversation, self.user, briefing_delivered=True,
+        )
+        self.conversation.refresh_from_db()
+        metadata = self.conversation.metadata or {}
+        self.assertEqual(metadata.get('interaction_depth'), 'deep')
+        self.assertIsNotNone(metadata.get('last_deep_interaction_at'))
+        self.assertIsNotNone(metadata.get('alignment_snapshot'))
+
+    def test_checkin_marks_deep(self):
+        """When user triggered a check-in, interaction is deep."""
+        from apps.ai.executive_briefing import record_interaction_depth
+        record_interaction_depth(
+            self.conversation, self.user, is_checkin=True,
+        )
+        self.conversation.refresh_from_db()
+        metadata = self.conversation.metadata or {}
+        self.assertEqual(metadata.get('interaction_depth'), 'deep')
+
+    def test_three_messages_marks_deep(self):
+        """When 3+ recent user messages, interaction is deep."""
+        from apps.ai.executive_briefing import record_interaction_depth
+        # Add 3 recent user messages
+        for i in range(3):
+            AssistantMessage.objects.create(
+                conversation=self.conversation,
+                role='user',
+                content=f"Message {i}",
+            )
+        record_interaction_depth(self.conversation, self.user)
+        self.conversation.refresh_from_db()
+        metadata = self.conversation.metadata or {}
+        self.assertEqual(metadata.get('interaction_depth'), 'deep')
+
+    def test_single_message_marks_shallow(self):
+        """When no briefing, no check-in, <3 messages, interaction is shallow."""
+        from apps.ai.executive_briefing import record_interaction_depth
+        AssistantMessage.objects.create(
+            conversation=self.conversation,
+            role='user',
+            content="Hello",
+        )
+        record_interaction_depth(self.conversation, self.user)
+        self.conversation.refresh_from_db()
+        metadata = self.conversation.metadata or {}
+        self.assertEqual(metadata.get('interaction_depth'), 'shallow')
+
+    def test_alignment_snapshot_captured(self):
+        """Deep interaction captures alignment snapshot from execution truth."""
+        from apps.ai.executive_briefing import record_interaction_depth
+
+        # Call with briefing_delivered=True — snapshot will use real
+        # execution truth (returns zeros for test user with no data).
+        record_interaction_depth(
+            self.conversation, self.user, briefing_delivered=True,
+        )
+        self.conversation.refresh_from_db()
+        snapshot = self.conversation.metadata.get('alignment_snapshot', {})
+        # Snapshot should exist and have the expected keys
+        self.assertIn('captured_at', snapshot)
+        self.assertIn('completed_items', snapshot)
+        self.assertIn('tasks_completed', snapshot)
+        self.assertIn('pending_count', snapshot)
+        self.assertIsInstance(snapshot['completed_items'], list)
+        self.assertEqual(snapshot['tasks_completed'], 0)  # Test user has no tasks
+
+
+class TestLightweightAlignment(ExecutiveBriefingTestMixin, TestCase):
+    """Tests for build_lightweight_alignment()."""
+
+    def setUp(self):
+        self.user = self.create_user(email='lw@example.com')
+        self.conversation = self.create_conversation(self.user)
+
+    def test_returns_alignment_with_delta(self):
+        """Lightweight alignment shows what changed since last alignment."""
+        from apps.ai.executive_briefing import build_lightweight_alignment
+
+        deep_at = (timezone.now() - timedelta(minutes=30)).isoformat()
+
+        self.conversation.metadata = {
+            'last_deep_interaction_at': deep_at,
+            'alignment_snapshot': {
+                'captured_at': deep_at,
+                'completed_items': ['Wake Up'],
+                'tasks_completed': 0,
+                'pending_count': 5,
+            },
+        }
+        self.conversation.save(update_fields=['metadata'])
+
+        with patch(
+            'apps.core.execution.execution_truth_engine.get_execution_truth',
+            return_value={
+                'routines': {
+                    'items': {
+                        'Wake Up': {'fully_complete': True},
+                        'Prayer': {'fully_complete': True},
+                        'Workout': {'fully_complete': False},
+                    },
+                },
+            },
+        ):
+            with patch(
+                'apps.core.today.today_engine.get_today_context',
+                return_value={'next': 'Bible Reading'},
+            ):
+                result = build_lightweight_alignment(
+                    self.user, self.conversation,
+                )
+
+        self.assertIn('LIGHTWEIGHT ALIGNMENT', result)
+        self.assertIn('Prayer', result)  # Newly completed
+        self.assertNotIn('Wake Up', result)  # Already known
+        self.assertIn('Bible Reading', result)  # Current focus
+
+    def test_returns_empty_without_snapshot(self):
+        """Without prior snapshot, returns empty (falls through to full)."""
+        from apps.ai.executive_briefing import build_lightweight_alignment
+
+        self.conversation.metadata = {}
+        self.conversation.save(update_fields=['metadata'])
+
+        result = build_lightweight_alignment(self.user, self.conversation)
+        self.assertEqual(result, "")
+
+
+class TestAutoCompleteWakeup(ExecutiveBriefingTestMixin, TestCase):
+    """Tests for auto_complete_wakeup() helper."""
+
+    def setUp(self):
+        self.user = self.create_user(email='wake@example.com')
+
+    @patch('apps.life.models.Task.objects')
+    def test_completes_pending_wake_task(self, mock_qs):
+        """Auto-completes a pending Wake Up task."""
+        from apps.ai.executive_briefing import auto_complete_wakeup
+
+        mock_task = MagicMock()
+        mock_qs.filter.return_value.first.return_value = mock_task
+
+        result = auto_complete_wakeup(self.user, timezone.now().date())
+
+        self.assertTrue(result)
+        mock_task.mark_complete.assert_called_once()
+
+    @patch('apps.life.models.Task.objects')
+    def test_returns_false_when_no_task(self, mock_qs):
+        """Returns False when no Wake Up task found."""
+        from apps.ai.executive_briefing import auto_complete_wakeup
+
+        mock_qs.filter.return_value.first.return_value = None
+
+        result = auto_complete_wakeup(self.user, timezone.now().date())
+
+        self.assertFalse(result)

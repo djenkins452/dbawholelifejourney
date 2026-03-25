@@ -2445,55 +2445,64 @@ def generate_midday_alignment_for_user(user):
     """
     Midday alignment check-in (10–12, weekdays only).
 
-    Provides a factual progress snapshot: tasks completed vs remaining,
-    upcoming events for the rest of the day.
+    Structured progress snapshot using execution truth and today engine.
+    Includes: completed/total, slipping items, and current next action.
     """
     from apps.core.utils import get_user_today, get_user_now
-    from apps.life.models import Task
 
     prefs = user.preferences
     if not getattr(prefs, 'assistant_proactive_checkins', True):
         return
 
     today = get_user_today(user)
-    user_now = get_user_now(user)
 
     # Dedup: already sent today? (batch cache)
     dedup = _get_dedup_cache(user)
     if dedup.already_sent('midday_alignment'):
         return
 
-    # Count today's tasks
-    today_tasks = Task.objects.filter(
-        user=user, due_date=today, deleted_at__isnull=True,
-    ).exclude(completion_status='skipped')
-
-    completed = today_tasks.filter(
-        completion_status='completed', completed_at__date=today,
-    ).count()
-    pending = today_tasks.filter(completion_status='pending').count()
-
-    if completed == 0 and pending == 0:
-        return  # Nothing to report
-
-    # Upcoming events
+    # Use execution truth (single source) instead of raw Task queries
     try:
-        from apps.life.models import CalendarEvent
-        upcoming_events = CalendarEvent.objects.filter(
-            user=user,
-            start_dt__date=today,
-            start_dt__gt=user_now,
-            deleted_at__isnull=True,
-        ).exclude(status=CalendarEvent.STATUS_CANCELED).count()
+        from apps.core.execution.execution_truth_engine import (
+            get_execution_truth,
+        )
+        truth = get_execution_truth(user)
     except Exception:
-        upcoming_events = 0
+        return  # Can't build alignment without truth
 
-    # Build message
-    parts = []
-    parts.append(f"Midday check: {completed} done, {pending} remaining")
-    if upcoming_events:
-        parts.append(f"{upcoming_events} event{'s' if upcoming_events != 1 else ''} ahead")
-    message = ", ".join(parts) + "."
+    routines = truth.get('routines', {})
+    tasks = truth.get('tasks', {})
+
+    r_done = routines.get('completed', 0)
+    r_total = routines.get('total', 0)
+    t_done = tasks.get('completed', 0)
+    t_total = tasks.get('total', 0)
+
+    total_done = r_done + t_done
+    total = r_total + t_total
+
+    if total == 0:
+        return  # Nothing scheduled
+
+    # Slipping items from today engine
+    slipping_count = 0
+    next_action = ''
+    try:
+        from apps.core.today.today_engine import get_today_context
+        today_ctx = get_today_context(user)
+        overdue = today_ctx.get('overdue', [])
+        slipping_count = len(overdue)
+        next_action = today_ctx.get('next', '')
+    except Exception:
+        pass
+
+    # Build structured message
+    parts = [f"Midday: {total_done}/{total} done"]
+    if slipping_count:
+        parts.append(f"{slipping_count} slipping")
+    if next_action:
+        parts.append(f"Next: {next_action}")
+    message = ". ".join(parts) + "."
 
     service = get_proactive_service(user)
     service._create_proactive_message(
@@ -2502,9 +2511,10 @@ def generate_midday_alignment_for_user(user):
         message_type='nudge',
         metadata={
             'check_in_type': 'midday_alignment',
-            'completed': completed,
-            'pending': pending,
-            'upcoming_events': upcoming_events,
+            'completed': total_done,
+            'total': total,
+            'slipping': slipping_count,
+            'next_action': next_action,
         },
     )
 
@@ -2567,7 +2577,9 @@ def generate_evening_wrap_for_user(user):
     """
     Evening wrap-up check-in (17–21, every day).
 
-    Summarises completed tasks, missed tasks, and tomorrow's load.
+    Structured debrief using execution truth: completed vs expected,
+    explicit misses (routine items not done), medication adherence,
+    and tomorrow's load.
     """
     from apps.core.utils import get_user_today
     from apps.life.models import Task
@@ -2584,31 +2596,62 @@ def generate_evening_wrap_for_user(user):
     if dedup.already_sent('evening_wrap'):
         return
 
-    completed_today = Task.objects.filter(
-        user=user, completed_at__date=today, completion_status='completed',
-        deleted_at__isnull=True,
-    ).count()
+    # Use execution truth for accurate completed-vs-expected
+    try:
+        from apps.core.execution.execution_truth_engine import (
+            get_execution_truth,
+        )
+        truth = get_execution_truth(user)
+    except Exception:
+        return  # Can't build debrief without truth
 
-    missed_today = Task.objects.filter(
-        user=user, due_date=today, completion_status='pending',
-        deleted_at__isnull=True,
-    ).count()
+    routines = truth.get('routines', {})
+    tasks = truth.get('tasks', {})
+    meds = truth.get('medications', {})
 
+    r_done = routines.get('completed', 0)
+    r_total = routines.get('total', 0)
+    t_done = tasks.get('completed', 0)
+    t_total = tasks.get('total', 0)
+
+    total_done = r_done + t_done
+    total_expected = r_total + t_total
+
+    # Explicit misses — routine items not completed (named, not just counted)
+    missed_items = [
+        name for name, info in routines.get('items', {}).items()
+        if not info.get('fully_complete')
+    ]
+
+    # Medication adherence
+    med_taken = meds.get('taken', 0)
+    med_expected = meds.get('expected', 0)
+
+    # Tomorrow's load (lightweight query)
     tomorrow_load = Task.objects.filter(
         user=user, due_date=tomorrow, deleted_at__isnull=True,
     ).exclude(completion_status='skipped').count()
 
-    if completed_today == 0 and missed_today == 0 and tomorrow_load == 0:
+    if total_expected == 0 and tomorrow_load == 0:
         return
 
+    # Build structured debrief message
     parts = []
-    if completed_today:
-        parts.append(f"{completed_today} task{'s' if completed_today != 1 else ''} completed")
-    if missed_today:
-        parts.append(f"{missed_today} still open")
+    if total_expected > 0:
+        parts.append(f"Day closing: {total_done}/{total_expected} completed")
+    if missed_items:
+        missed_str = ', '.join(missed_items[:3])
+        if len(missed_items) > 3:
+            missed_str += f' +{len(missed_items) - 3} more'
+        parts.append(f"Missed: {missed_str}")
+    if med_expected > 0 and med_taken < med_expected:
+        parts.append(f"Meds: {med_taken}/{med_expected}")
     if tomorrow_load:
-        parts.append(f"{tomorrow_load} item{'s' if tomorrow_load != 1 else ''} tomorrow")
-    message = "Day closing: " + ", ".join(parts) + "."
+        parts.append(
+            f"{tomorrow_load} item{'s' if tomorrow_load != 1 else ''} "
+            f"tomorrow"
+        )
+    message = ". ".join(parts) + "."
 
     service = get_proactive_service(user)
     service._create_proactive_message(
@@ -2617,8 +2660,11 @@ def generate_evening_wrap_for_user(user):
         message_type='nudge',
         metadata={
             'check_in_type': 'evening_wrap',
-            'completed': completed_today,
-            'missed': missed_today,
+            'completed': total_done,
+            'expected': total_expected,
+            'missed_items': missed_items[:5],
+            'meds_taken': med_taken,
+            'meds_expected': med_expected,
             'tomorrow': tomorrow_load,
         },
     )
@@ -2639,6 +2685,14 @@ _NUDGE_DEDUP_WINDOWS = {
     'pre_nudge': 20,
     'due_now': 20,
     'routine_recovery': 60,
+}
+
+# Assertiveness multipliers — adjust scoring intensity and cooldown timing
+# based on user preference (UserPreferences.assistant_assertiveness).
+_ASSERTIVENESS_MULTIPLIERS = {
+    'gentle':          {'score': 0.7, 'cooldown': 1.5},
+    'firm_respectful': {'score': 1.0, 'cooldown': 1.0},
+    'direct':          {'score': 1.3, 'cooldown': 0.7},
 }
 
 # Base scores by stage for prioritization
@@ -2761,6 +2815,16 @@ def _score_nudge_candidate(item, stage, user):
     if schedule_id and _was_recently_nudged(user, schedule_id, minutes=30):
         score -= 15
 
+    # Apply assertiveness multiplier from user preference
+    assertiveness = getattr(
+        getattr(user, 'preferences', None),
+        'assistant_assertiveness', 'firm_respectful',
+    )
+    mult = _ASSERTIVENESS_MULTIPLIERS.get(
+        assertiveness, _ASSERTIVENESS_MULTIPLIERS['firm_respectful'],
+    )
+    score = int(score * mult['score'])
+
     return score
 
 
@@ -2846,10 +2910,20 @@ def _send_prioritized_nudges(user, candidates):
         return 0
 
     # Cooldown check: skip if a routine nudge was sent very recently
-    if _check_user_nudge_cooldown(user):
+    # Assertiveness adjusts cooldown: gentle = 1.5x, direct = 0.7x
+    _assertiveness = getattr(
+        getattr(user, 'preferences', None),
+        'assistant_assertiveness', 'firm_respectful',
+    )
+    _cool_mult = _ASSERTIVENESS_MULTIPLIERS.get(
+        _assertiveness, _ASSERTIVENESS_MULTIPLIERS['firm_respectful'],
+    ).get('cooldown', 1.0)
+    _effective_cooldown = int(_NUDGE_COOLDOWN_MINUTES * _cool_mult)
+    if _check_user_nudge_cooldown(user, cooldown_minutes=_effective_cooldown):
         logger.debug(
-            "PGS_COOLDOWN user=%s — routine nudge sent within last %d min, skipping",
-            user.pk, _NUDGE_COOLDOWN_MINUTES,
+            "PGS_COOLDOWN user=%s — routine nudge sent within last %d min "
+            "(assertiveness=%s), skipping",
+            user.pk, _effective_cooldown, _assertiveness,
         )
         return 0
 

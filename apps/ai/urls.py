@@ -26,6 +26,9 @@ urlpatterns = [
     # Proactive Daily Executive Briefing (v7)
     path('api/briefing/', views.ProactiveBriefingView.as_view(), name='api_briefing'),
 
+    # Session Start — Adaptive CoS Presence (deterministic, no LLM)
+    path('api/session-start/', views.SessionStartView.as_view(), name='api_session_start'),
+
     # Conversation / Chat
     path('api/chat/', views.AssistantChatView.as_view(), name='api_chat'),
     path('api/chat/stream/', views.AssistantChatStreamView.as_view(), name='api_chat_stream'),

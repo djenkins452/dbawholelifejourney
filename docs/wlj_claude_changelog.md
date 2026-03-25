@@ -6,6 +6,40 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Feature: Adaptive CoS Presence (Session-Start, Interaction Awareness, Structured Briefs)
+
+**Objective:** Evolve Beth from reactive, request-driven responses into an adaptive, event-aware Chief of Staff with continuous presence — without creating new engines or parallel decision systems.
+
+**Changes:**
+
+### New: Session-Start Endpoint (`POST /assistant/api/session-start/`)
+- `apps/ai/views.py` — Added `SessionStartView`: deterministic endpoint called on app-open. Returns structured payloads (briefing, lightweight alignment, drift intervention, or none). No LLM calls, no heavy computation — reads only pre-computed data.
+- `apps/ai/urls.py` — Added route `api/session-start/`
+
+### New: Interaction Awareness & Lightweight Alignment
+- `apps/ai/executive_briefing.py` — Added `record_interaction_depth()`: post-response hook that tracks whether interactions are "deep" (briefing delivered, check-in triggered, or 3+ messages in 30 min) using deterministic heuristics. Captures alignment snapshots from execution truth.
+- `apps/ai/executive_briefing.py` — Added `build_lightweight_alignment()`: compressed briefing mode when a deep interaction occurred within 90 minutes. Shows delta since last alignment instead of repeating full brief.
+- `apps/ai/executive_briefing.py` — Modified `build_executive_briefing()` to check for recent deep interaction before delivering full briefing.
+- `apps/ai/executive_briefing.py` — Extracted `auto_complete_wakeup()` as reusable helper (was inline in build_executive_briefing).
+- `apps/ai/personal_assistant.py` — Wired `record_interaction_depth()` into both non-streaming and streaming post-response paths.
+
+### Enhanced: PGS Generators (Structured Midday/Evening Briefs)
+- `apps/ai/proactive_checkins.py` — `generate_midday_alignment_for_user()` now uses execution truth + today engine. Includes completed/total, slipping items count, and current next action.
+- `apps/ai/proactive_checkins.py` — `generate_evening_wrap_for_user()` now uses execution truth. Includes completed vs expected, explicit missed routine items (named), medication adherence, and tomorrow's load.
+
+### New: Assertiveness Preference
+- `apps/users/models.py` — Added `assistant_assertiveness` field to UserPreferences (choices: gentle, firm_respectful, direct).
+- `apps/ai/proactive_checkins.py` — Added `_ASSERTIVENESS_MULTIPLIERS` dict. Applied score multiplier in `_score_nudge_candidate()` and cooldown multiplier in `_send_prioritized_nudges()`.
+- `apps/users/migrations/0082_userpreferences_assistant_assertiveness.py` — Migration for new field.
+
+### Tests
+- `apps/ai/tests/test_session_start.py` — New: 5 tests covering all 4 response types + auth gate.
+- `apps/ai/tests/test_executive_briefing.py` — Added 9 tests for interaction depth, lightweight alignment, and wakeup helper.
+
+**Architecture:** No new engines, no new signals, no parallel decision systems. All decisions deterministic. LLM-last preserved. Extends existing executive briefing, PGS generators, and user preferences.
+
+---
+
 ## 2026-03-25 — Fix: Signal drought, Compensatory engine EMPTY, CoS context STALE
 
 **Root cause:** PIE `__init__.py` only imported `rules_cross_domain`, so the ISE `run_pie_synthetic()` scheduled task could only evaluate cross-domain rules. All 14 domain-specific rule modules (health, goals, behavior, compensatory, etc.) never fired on the scheduled cadence — only on real user events that happened to import them first. This caused "signal drought" for 6+ domains on the ops wall.

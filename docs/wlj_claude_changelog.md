@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Sports: Hero + Density + Emphasis UI Pass
+
+- **Hero always present:** Added fallback logic — when no live/soon/today games exist, hero shows most recent completed game with FINAL badge and score. Page never feels empty.
+- **Hero is dominant:** 2.2rem team names, 3.5rem score, dark gradient backgrounds. Badge + league + manage link in top row. Immediately answers "what matters right now?"
+- **Hero + recent action fused:** Zero gap between hero and recent action — they flow as one block. Recent action has subtle dark gradient background that blends with hero.
+- **Recent action readable:** Increased font size from 0.68rem to 0.76rem, reduced opacity, FINAL badge leads each item, tighter layout.
+- **Compressed vertical spacing:** Section margins 32px → 8px, game item padding 14px → 10px, divider margins 32px → 8px. Page feels like a feed, not a form.
+- **Emphasized primary content:** Team names 0.95rem → 1rem with weight 800. Matchup text bolded. Metadata (venue, record) de-emphasized at 0.5 opacity.
+- **Header restructured:** "My Teams" replaced with "Schedule" below the hero block. Manage link and last-updated moved into hero top row.
+- **Files:** `apps/sports/views.py` (hero fallback), `apps/sports/templates/sports/my_teams.html` (CSS + structure)
+
 ## 2026-03-25 — Sports: Switch from API-Sports to ESPN Public API
 
 - **Root cause:** API-Sports free tier returned zero data — NCAAB blocked, env vars not shared with worker services. Sports page was completely blank in production with zero GameEvents.

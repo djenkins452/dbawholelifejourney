@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Health Command Center: UI Transformation
+
+- **Feature:** Major visual overhaul of Physical Health page into a true Health Command Center
+  - **Today Status Block:** New prominent section at page top showing workout completion, medication windows (morning/evening/night with status), glucose + stability signal, sleep quality, water progress — all color-coded with status icons
+  - **Priority Card Sections:** "Needs Attention" section with red/amber tinted background floats concerning cards to top; remaining cards in "All Health Metrics" section
+  - **Bold Card Emphasis:** Cards needing attention get 5px colored border + tinted background + status icon circles; stable cards get green border + checkmark
+  - **Glucose Variability Badge:** Prominent colored badge instead of plain text
+  - **CoS Position:** AI Insight moved below all deterministic data (interpretation below truth)
+  - Page is now visibly different within 3 seconds of loading
+  - Files: templates/health/home.html
+
 ## 2026-03-24 — Fix: Sports hub blank page — ticker & recent action empty
 
 - **Root cause:** Ticker query only searched ±48h window; recent action reused that same empty result set. When no GameEvents existed in that window, all sections were empty — only "No games in the next 24 hours" showed.

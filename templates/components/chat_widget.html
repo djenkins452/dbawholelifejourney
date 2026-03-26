@@ -1546,9 +1546,11 @@
         `;
     }
 
-    // ── v7: Proactive Daily Executive Briefing ──────────────────────
-    // Triggers a CoS briefing when the chat opens and no recent
-    // briefing has been delivered. Goes through the full pipeline.
+    // ── v8: Adaptive CoS Presence — Session-Aware Briefing ──────────
+    // On drawer open: call session-start (lightweight, deterministic)
+    // to determine whether Beth should speak. Then trigger the briefing
+    // endpoint if warranted. Session-start handles interaction awareness
+    // (prevents repetitive briefings after deep conversations).
     var briefingRequested = false;
     var briefingDrawerOpen = false;  // Track if trigger came from drawer open
 
@@ -1583,6 +1585,26 @@
         if (!needsBriefing) return;
 
         briefingRequested = true;
+
+        // v8: Call session-start first for drift awareness.
+        // This is fast (no LLM, reads cached data). If drift is high,
+        // show it as context before the briefing loads.
+        try {
+            var ssResp = await fetch('/assistant/api/session-start/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
+                },
+                body: JSON.stringify({}),
+            });
+            var ssData = await ssResp.json();
+            // Log for debugging — session-start is informational
+            console.log('[CoS] session-start:', ssData.action);
+        } catch (ssErr) {
+            console.debug('[CoS] session-start failed (non-blocking):', ssErr);
+        }
+
         showBriefingLoading();
 
         try {

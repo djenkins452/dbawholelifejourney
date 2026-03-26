@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-26 — Evolve Morning Briefing from Mechanical Check-in to Structured Briefing
+
+**Problem:** The morning briefing at app-open showed a flat, mechanical format: "Morning Check-in / Completed: • None / Upcoming: • Workout (6:15 AM)..." — the Adaptive CoS Presence backend was built but the actual renderer (`beth_checkin_renderer.py`) was never evolved, and the session-start endpoint was never wired into the frontend.
+
+**Changes:**
+
+### Evolved Briefing Renderer (`apps/ai/beth_checkin_renderer.py`)
+- **Morning Briefing:** Now includes time-aware greeting, day load classification (light/focused/heavy with count), overdue items section, completed items, coming up (90 min), later today, and next action. Replaces the flat "Completed/Upcoming/Next" format.
+- **Midday Alignment:** Progress fraction (X/Y done), completed list, slipping items, remaining items, next action.
+- **Evening Debrief:** Day result fraction, completed vs missed (explicit names), tomorrow's load count.
+- All three phases remain fully deterministic — no LLM involvement.
+
+### Interaction Awareness in Briefing Delivery (`apps/ai/personal_assistant.py`)
+- `generate_proactive_briefing()` now checks for recent deep interaction (within 90 min) before rendering. If found, delivers a lightweight alignment (delta since last alignment + current next action) instead of repeating the full briefing.
+
+### Frontend Session-Start Integration (`templates/components/chat_widget.html`)
+- Chat widget now calls `/assistant/api/session-start/` on drawer open (fast, deterministic, no LLM) before triggering the briefing endpoint. Provides drift awareness and interaction context to the backend.
+
+**Files:** `apps/ai/beth_checkin_renderer.py` (renderer evolution), `apps/ai/personal_assistant.py` (interaction awareness in briefing path), `templates/components/chat_widget.html` (session-start wiring). 51 tests pass.
+
 ## 2026-03-25 — Fix: Auto-dismiss stale PIE insights when rule condition resolves
 
 **Problem:** Organize page AI Insight showed completed/moved tasks as still due today. The `TaskDueTodayRule` created an Insight record, but when all tasks were completed or moved, the old insight was never dismissed — it persisted for up to 48 hours.

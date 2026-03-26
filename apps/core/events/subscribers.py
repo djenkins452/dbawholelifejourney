@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 @subscribe("health.*")
 def on_health_event_invalidate_state(event):
-    """Invalidate SAE cached state when any health data changes."""
+    """Invalidate SAE cached state and rebuild today's health summary."""
     if not event.user:
         return
     try:
@@ -42,6 +42,17 @@ def on_health_event_invalidate_state(event):
         )
     except Exception as e:
         logger.debug("SAE cache invalidation skipped: %s", e)
+
+    # Rebuild today's DailyHealthSummary so the next SAE cycle picks up
+    # the new data in HealthScoreService.compute(). Without this, health
+    # score would lag until the nightly Celery build.
+    try:
+        from datetime import date
+
+        from apps.health.services.daily_summary_builder import DailyHealthSummaryBuilder
+        DailyHealthSummaryBuilder().build_for_date(event.user, date.today())
+    except Exception:
+        logger.debug("Health summary rebuild on event skipped", exc_info=True)
 
 
 @subscribe("journal.*")

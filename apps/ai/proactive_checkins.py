@@ -2445,64 +2445,33 @@ def generate_midday_alignment_for_user(user):
     """
     Midday alignment check-in (10–12, weekdays only).
 
-    Structured progress snapshot using execution truth and today engine.
-    Includes: completed/total, slipping items, and current next action.
+    Uses the canonical CoS renderer (render_checkin_for_time) which
+    auto-routes to _render_midday() during this time window.
+    No custom formatting — same CoS voice as every other path.
     """
-    from apps.core.utils import get_user_today, get_user_now
-
     prefs = user.preferences
     if not getattr(prefs, 'assistant_proactive_checkins', True):
         return
-
-    today = get_user_today(user)
 
     # Dedup: already sent today? (batch cache)
     dedup = _get_dedup_cache(user)
     if dedup.already_sent('midday_alignment'):
         return
 
-    # Use execution truth (single source) instead of raw Task queries
+    # Use the canonical CoS renderer — same path as briefing/check-in.
+    # render_checkin_for_time auto-routes to _render_midday() at 10-12.
     try:
-        from apps.core.execution.execution_truth_engine import (
-            get_execution_truth,
+        from apps.ai.beth_checkin_renderer import render_checkin_for_time
+        message = render_checkin_for_time(user)
+    except Exception:
+        logger.error(
+            "[MIDDAY ALIGNMENT] Canonical renderer failed for user=%s",
+            user.id, exc_info=True,
         )
-        truth = get_execution_truth(user)
-    except Exception:
-        return  # Can't build alignment without truth
+        return  # Don't send a broken message
 
-    routines = truth.get('routines', {})
-    tasks = truth.get('tasks', {})
-
-    r_done = routines.get('completed', 0)
-    r_total = routines.get('total', 0)
-    t_done = tasks.get('completed', 0)
-    t_total = tasks.get('total', 0)
-
-    total_done = r_done + t_done
-    total = r_total + t_total
-
-    if total == 0:
-        return  # Nothing scheduled
-
-    # Slipping items from today engine
-    slipping_count = 0
-    next_action = ''
-    try:
-        from apps.core.today.today_engine import get_today_context
-        today_ctx = get_today_context(user)
-        overdue = today_ctx.get('overdue', [])
-        slipping_count = len(overdue)
-        next_action = today_ctx.get('next', '')
-    except Exception:
-        pass
-
-    # Build structured message
-    parts = [f"Midday: {total_done}/{total} done"]
-    if slipping_count:
-        parts.append(f"{slipping_count} slipping")
-    if next_action:
-        parts.append(f"Next: {next_action}")
-    message = ". ".join(parts) + "."
+    if not message or len(message) < 20:
+        return
 
     service = get_proactive_service(user)
     service._create_proactive_message(
@@ -2511,10 +2480,6 @@ def generate_midday_alignment_for_user(user):
         message_type='nudge',
         metadata={
             'check_in_type': 'midday_alignment',
-            'completed': total_done,
-            'total': total,
-            'slipping': slipping_count,
-            'next_action': next_action,
         },
     )
 
@@ -2523,7 +2488,7 @@ def generate_afternoon_momentum_for_user(user):
     """
     Afternoon momentum check-in (13–16, weekdays only).
 
-    Surfaces non-negotiable tasks still pending for today.
+    Surfaces non-negotiable tasks still pending by name (not count).
     """
     from apps.core.utils import get_user_today
     from apps.life.models import Task
@@ -2552,10 +2517,15 @@ def generate_afternoon_momentum_for_user(user):
     if not nn_list:
         return
 
+    # Name items directly — no count language
     if len(nn_list) == 1:
         message = f"'{nn_list[0].title}' is still on today's list. Afternoon's a good window."
     else:
-        message = f"{len(nn_list)} non-negotiables still pending today."
+        names = ' and '.join(
+            [', '.join(t.title for t in nn_list[:-1]), nn_list[-1].title]
+            if len(nn_list) > 2 else [t.title for t in nn_list]
+        )
+        message = f"{names} — still on today's list. Afternoon's a good window."
 
     service = get_proactive_service(user)
     quick_replies = []
@@ -2577,81 +2547,33 @@ def generate_evening_wrap_for_user(user):
     """
     Evening wrap-up check-in (17–21, every day).
 
-    Structured debrief using execution truth: completed vs expected,
-    explicit misses (routine items not done), medication adherence,
-    and tomorrow's load.
+    Uses the canonical CoS renderer (render_checkin_for_time) which
+    auto-routes to _render_evening() during this time window.
+    No custom formatting — same CoS voice as every other path.
     """
-    from apps.core.utils import get_user_today
-    from apps.life.models import Task
-
     prefs = user.preferences
     if not getattr(prefs, 'assistant_proactive_checkins', True):
         return
-
-    today = get_user_today(user)
-    tomorrow = today + timedelta(days=1)
 
     # Dedup (batch cache)
     dedup = _get_dedup_cache(user)
     if dedup.already_sent('evening_wrap'):
         return
 
-    # Use execution truth for accurate completed-vs-expected
+    # Use the canonical CoS renderer — same path as briefing/check-in.
+    # render_checkin_for_time auto-routes to _render_evening() at 17-21.
     try:
-        from apps.core.execution.execution_truth_engine import (
-            get_execution_truth,
-        )
-        truth = get_execution_truth(user)
+        from apps.ai.beth_checkin_renderer import render_checkin_for_time
+        message = render_checkin_for_time(user)
     except Exception:
-        return  # Can't build debrief without truth
-
-    routines = truth.get('routines', {})
-    tasks = truth.get('tasks', {})
-    meds = truth.get('medications', {})
-
-    r_done = routines.get('completed', 0)
-    r_total = routines.get('total', 0)
-    t_done = tasks.get('completed', 0)
-    t_total = tasks.get('total', 0)
-
-    total_done = r_done + t_done
-    total_expected = r_total + t_total
-
-    # Explicit misses — routine items not completed (named, not just counted)
-    missed_items = [
-        name for name, info in routines.get('items', {}).items()
-        if not info.get('fully_complete')
-    ]
-
-    # Medication adherence
-    med_taken = meds.get('taken', 0)
-    med_expected = meds.get('expected', 0)
-
-    # Tomorrow's load (lightweight query)
-    tomorrow_load = Task.objects.filter(
-        user=user, due_date=tomorrow, deleted_at__isnull=True,
-    ).exclude(completion_status='skipped').count()
-
-    if total_expected == 0 and tomorrow_load == 0:
-        return
-
-    # Build structured debrief message
-    parts = []
-    if total_expected > 0:
-        parts.append(f"Day closing: {total_done}/{total_expected} completed")
-    if missed_items:
-        missed_str = ', '.join(missed_items[:3])
-        if len(missed_items) > 3:
-            missed_str += f' +{len(missed_items) - 3} more'
-        parts.append(f"Missed: {missed_str}")
-    if med_expected > 0 and med_taken < med_expected:
-        parts.append(f"Meds: {med_taken}/{med_expected}")
-    if tomorrow_load:
-        parts.append(
-            f"{tomorrow_load} item{'s' if tomorrow_load != 1 else ''} "
-            f"tomorrow"
+        logger.error(
+            "[EVENING WRAP] Canonical renderer failed for user=%s",
+            user.id, exc_info=True,
         )
-    message = ". ".join(parts) + "."
+        return  # Don't send a broken message
+
+    if not message or len(message) < 20:
+        return
 
     service = get_proactive_service(user)
     service._create_proactive_message(
@@ -2660,12 +2582,6 @@ def generate_evening_wrap_for_user(user):
         message_type='nudge',
         metadata={
             'check_in_type': 'evening_wrap',
-            'completed': total_done,
-            'expected': total_expected,
-            'missed_items': missed_items[:5],
-            'meds_taken': med_taken,
-            'meds_expected': med_expected,
-            'tomorrow': tomorrow_load,
         },
     )
 

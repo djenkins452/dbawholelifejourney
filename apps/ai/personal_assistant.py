@@ -6132,54 +6132,47 @@ Rules for this response:
 
     def _get_fallback_response(self, message: str) -> str:
         """
-        Fallback when AI is unavailable — uses REAL data from Execution Truth Engine.
+        Fallback when AI is unavailable — uses the canonical CoS renderer.
 
-        Instead of generic "try again" messages, builds a deterministic,
-        fact-based response from live DB data. No LLM needed. No lies possible.
+        Routes through the same deterministic pipeline as every other CoS
+        path: build_cos_structured_output → rendered_text. No domain labels,
+        no count dumps, no legacy formatting. Same voice as a normal briefing.
         """
         # Check if the message is a personal reflection/sharing (emotional content)
         if self._is_personal_reflection(message):
             return self._get_reflection_response(message)
 
-        # Try to build a fact-based response from the Execution Truth Engine
+        # Use the canonical CoS renderer — same path as briefing/check-in
         try:
-            from apps.ai.cos_fact_statements import build_locked_facts
-            facts = build_locked_facts(self.user)
-            logger.info(
-                "[CoS FALLBACK] user=%s — LLM unavailable, using "
-                "deterministic fact-based response",
-                self.user.id,
+            from apps.ai.beth_checkin_renderer import (
+                build_cos_structured_output,
             )
-            parts = [
-                "I'm having trouble connecting to AI right now, but here's "
-                "your actual status from the system:",
-                "",
-                f"Faith: {facts['faith_summary']}",
-                f"Routines: {facts['routine_summary']}",
-                f"Tasks: {facts['task_summary']}",
-                f"Workout: {facts['workout_summary']}",
-                f"Journal: {facts['journal_summary']}",
-                "",
-                facts['overall_summary'],
-            ]
-            return "\n".join(parts)
+            structured = build_cos_structured_output(self.user)
+            rendered = structured.get('rendered_text', '')
+            if rendered and len(rendered) > 20:
+                logger.info(
+                    "[CoS FALLBACK] user=%s — LLM unavailable, using "
+                    "canonical CoS renderer",
+                    self.user.id,
+                )
+                return rendered
         except Exception as e:
             logger.error(
-                "[CoS FALLBACK FAILED] user=%s — both LLM and Execution "
-                "Truth Engine failed: %s",
+                "[CoS FALLBACK] user=%s — canonical renderer failed: %s",
                 self.user.id, e, exc_info=True,
             )
-            return (
-                "I'm unable to load your status right now — both the AI "
-                "and the data engine encountered an error. This has been "
-                "logged. Please try again in a moment."
-            )
 
-    # Fallback detection — the new fallback uses real data, so detect by prefix.
+        # Emergency fallback — minimal safe message, no domain labels
+        from apps.ai.beth_checkin_renderer import _SAFE_FALLBACK
+        return _SAFE_FALLBACK
+
+    # Fallback detection — the canonical CoS renderer produces normal
+    # briefing text, so we detect fallback by the _SAFE_FALLBACK prefix.
     _FALLBACK_PREFIXES = (
+        "I wasn't able to load your day right now",  # _SAFE_FALLBACK
+        # Legacy strings for backward compat with saved messages
         "I'm having trouble connecting to AI right now",
         "I'm unable to load your status right now",
-        # Legacy strings for backward compat with saved messages
         "I wasn't able to pull your data",
         "Something went wrong on my end loading",
         "I hit a snag pulling your information",

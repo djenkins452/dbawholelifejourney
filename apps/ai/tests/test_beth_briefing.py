@@ -306,3 +306,117 @@ class TestEveningOutput(TestCase):
         self.assertIn('Workout', output)
         self.assertIn('Missed', output)
         self.assertIn('1 of 2', output)
+
+
+class TestCanonicalRendererEnforcement(TestCase):
+    """Enforce that all user-facing CoS paths use the canonical renderer.
+
+    These tests verify that:
+    1. No user-facing path produces domain labels (Faith:, Routines:, etc.)
+    2. The fallback response uses the canonical renderer
+    3. Proactive generators use the canonical renderer
+    4. No path produces count-dump language (x/y completed, x/y done)
+    """
+
+    # Domain labels that must NEVER appear in user-facing output
+    _DOMAIN_LABELS = [
+        'Faith:', 'Routines:', 'Tasks:', 'Medications:',
+        'Workout:', 'Journal:', 'Health:',
+    ]
+
+    # Count-dump patterns that must NEVER appear in user-facing output
+    _COUNT_PATTERNS = [
+        'Day closing:',
+        'Meds:',
+    ]
+
+    def test_fallback_response_no_domain_labels(self):
+        """_get_fallback_response must not produce domain labels."""
+        from apps.ai.personal_assistant import PersonalAssistant
+
+        # The fallback uses build_cos_structured_output which needs a real
+        # user, but we can test the code path by verifying the function
+        # no longer references cos_fact_statements for user-facing output.
+        import ast
+        import inspect
+        source = inspect.getsource(PersonalAssistant._get_fallback_response)
+        # Must NOT contain domain-dump format strings
+        self.assertNotIn("Faith:", source)
+        self.assertNotIn("Routines:", source)
+        self.assertNotIn("Tasks:", source)
+        self.assertNotIn("Workout:", source)
+        self.assertNotIn("Journal:", source)
+        # Must reference the canonical renderer
+        self.assertIn('build_cos_structured_output', source)
+
+    def test_midday_generator_uses_canonical_renderer(self):
+        """generate_midday_alignment_for_user must use render_checkin_for_time."""
+        import inspect
+        from apps.ai.proactive_checkins import (
+            generate_midday_alignment_for_user,
+        )
+        source = inspect.getsource(generate_midday_alignment_for_user)
+        # Must use canonical renderer
+        self.assertIn('render_checkin_for_time', source)
+        # Must NOT build count-dump strings
+        self.assertNotIn('/{', source)  # No f"x/{y}" patterns
+        self.assertNotIn('done"', source)  # No "x done" strings
+
+    def test_evening_generator_uses_canonical_renderer(self):
+        """generate_evening_wrap_for_user must use render_checkin_for_time."""
+        import inspect
+        from apps.ai.proactive_checkins import (
+            generate_evening_wrap_for_user,
+        )
+        source = inspect.getsource(generate_evening_wrap_for_user)
+        # Must use canonical renderer
+        self.assertIn('render_checkin_for_time', source)
+        # Must NOT build count-dump strings
+        self.assertNotIn('Day closing', source)
+        self.assertNotIn('Meds:', source)
+        self.assertNotIn('/{', source)
+
+    def test_afternoon_generator_no_count_language(self):
+        """generate_afternoon_momentum_for_user must not use count language."""
+        import inspect
+        from apps.ai.proactive_checkins import (
+            generate_afternoon_momentum_for_user,
+        )
+        source = inspect.getsource(generate_afternoon_momentum_for_user)
+        # Must NOT say "N non-negotiables still pending"
+        self.assertNotIn('non-negotiables still pending', source)
+
+    def test_canonical_renderer_bans_domain_words(self):
+        """The canonical renderer must enforce banned words."""
+        self.assertTrue(
+            'items' in _BANNED_WORDS
+            and 'tasks' in _BANNED_WORDS
+            and 'routines' in _BANNED_WORDS,
+            "Canonical renderer must ban domain aggregate words",
+        )
+
+    def test_build_cos_structured_output_returns_required_keys(self):
+        """build_cos_structured_output fallback must return all keys."""
+        from apps.ai.beth_checkin_renderer import build_cos_structured_output
+        from unittest.mock import patch
+
+        # Force an exception to test the fallback path
+        with patch(
+            'apps.ai.beth_checkin_renderer._build_structured_from_truth',
+            side_effect=Exception('test'),
+        ):
+            result = build_cos_structured_output(MagicMock(id=1))
+
+        required_keys = [
+            'greeting', 'day_narrative', 'state', 'state_text',
+            'next_commitment', 'do_now', 'sequence', 'move_later',
+            'adjustment_reason', 'decision_required', 'completed',
+            'phase', 'rendered_text',
+        ]
+        for key in required_keys:
+            self.assertIn(key, result, f"Missing key: {key}")
+
+        # Fallback rendered_text must not contain domain labels
+        text = result['rendered_text']
+        for label in self._DOMAIN_LABELS:
+            self.assertNotIn(label, text)

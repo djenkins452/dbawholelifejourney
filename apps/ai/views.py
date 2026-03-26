@@ -539,12 +539,40 @@ class SessionStartView(LoginRequiredMixin, AssistantMixin, View):
     def _build_briefing_payload(self, user, today, user_now, time_of_day,
                                 is_first_of_day, wake_inferred):
         """
-        Build structured briefing payload from pre-computed data.
+        Build structured briefing payload from unified CoS pipeline.
 
-        Reads execution truth (lightweight DB queries only) and today
-        context. Does NOT call build_cos_context() or any heavy engine.
+        Uses build_cos_structured_output() as the single source of truth,
+        then enriches with execution snapshot and drift score for backward
+        compatibility.
         """
         payload = {}
+
+        # Unified CoS structured output (Today Engine + prioritizer)
+        try:
+            from apps.ai.beth_checkin_renderer import (
+                build_cos_structured_output,
+            )
+            cos_structured = build_cos_structured_output(user)
+            payload['cos_structured'] = cos_structured
+            payload['rendered_text'] = cos_structured['rendered_text']
+            payload['next_action'] = (
+                cos_structured['sequence'][0]
+                if cos_structured['sequence']
+                else ''
+            )
+            payload['overdue_count'] = (
+                len(cos_structured['move_later'])
+                if cos_structured['state'] == 'behind'
+                else 0
+            )
+        except Exception as e:
+            logger.debug("Session start: cos structured failed: %s", e)
+            payload['cos_structured'] = {}
+            payload['rendered_text'] = ''
+            payload['next_action'] = ''
+            payload['overdue_count'] = 0
+
+        # Execution snapshot (backward compat for frontend)
         try:
             from apps.core.execution.execution_truth_engine import (
                 get_execution_truth,
@@ -566,28 +594,17 @@ class SessionStartView(LoginRequiredMixin, AssistantMixin, View):
             logger.debug("Session start: execution truth failed: %s", e)
             payload['execution_snapshot'] = {}
 
-        # Next action from today engine
-        try:
-            from apps.core.today.today_engine import get_today_context
-            today_ctx = get_today_context(user)
-            payload['next_action'] = today_ctx.get('next', '')
-
-            overdue = today_ctx.get('overdue', [])
-            payload['overdue_count'] = len(overdue)
-
-            # Day load classification
-            all_items = today_ctx.get('all_items', [])
-            pending = [i for i in all_items if not i.get('completed')]
-            if len(pending) <= 3:
-                payload['day_load'] = 'light'
-            elif len(pending) <= 7:
-                payload['day_load'] = 'focused'
-            else:
-                payload['day_load'] = 'heavy'
-        except Exception as e:
-            logger.debug("Session start: today context failed: %s", e)
-            payload['next_action'] = ''
+        # Day load classification from structured output
+        cos = payload.get('cos_structured', {})
+        do_now_count = len(cos.get('do_now', []))
+        move_later_count = len(cos.get('move_later', []))
+        total_pending = do_now_count + move_later_count
+        if total_pending <= 3:
+            payload['day_load'] = 'light'
+        elif total_pending <= 7:
             payload['day_load'] = 'focused'
+        else:
+            payload['day_load'] = 'heavy'
 
         # Drift score (pre-computed by run_drift_scoring)
         try:

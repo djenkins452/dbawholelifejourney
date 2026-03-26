@@ -3124,6 +3124,40 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                     # Append operational context AFTER personality layers
                     # so the LLM prioritizes relationship over raw data.
                     append_layers.append(cos_injection)
+
+                    # ── LOCKED CoS STATE ──────────────────────────────
+                    # Inject deterministic structured output as immutable
+                    # facts. The LLM MUST NOT alter, reorder, or infer
+                    # beyond this data when referencing the user's day.
+                    try:
+                        from apps.ai.beth_checkin_renderer import (
+                            build_cos_structured_output,
+                        )
+                        _cos_struct = build_cos_structured_output(self.user)
+                        _do_now_str = ', '.join(
+                            item['name'] for item in _cos_struct.get('do_now', [])
+                        ) or 'none'
+                        _seq_str = ' → '.join(
+                            _cos_struct.get('sequence', [])
+                        ) or 'none'
+                        _locked_state = (
+                            "--- LOCKED CoS STATE (DO NOT ALTER) ---\n"
+                            f"Day state: {_cos_struct.get('state', 'on_track')}\n"
+                            f"Phase: {_cos_struct.get('phase', 'morning')}\n"
+                            f"Next commitment: {_cos_struct.get('next_commitment') or 'none'}\n"
+                            f"Do now: {_do_now_str}\n"
+                            f"Sequence: {_seq_str}\n"
+                            f"Completed: {', '.join(_cos_struct.get('completed', [])) or 'none'}\n"
+                            "--- END LOCKED CoS STATE ---\n"
+                            "When referencing the user's day, priorities, or "
+                            "state, you MUST use ONLY the data in LOCKED CoS "
+                            "STATE. Do NOT infer, reorder, or add items beyond "
+                            "what is listed."
+                        )
+                        append_layers.append(_locked_state)
+                    except Exception:
+                        pass  # LOCKED CoS STATE is advisory; must never break chat
+
                 except Exception as cos_ctx_err:
                     logger.warning("CoS context (Layer 6) failed: %s", cos_ctx_err, exc_info=True)
                 finally:
@@ -3517,538 +3551,34 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                 tasks = {}
                 remaining_tasks = 0
 
-            if is_requesting_checkin and _checkin_assembly_ok:
-              try:
-                # FULL CoS BRIEFING — with SPECIFIC item names, not just counts.
-                # User explicitly asked for a check-in — give them actionable specifics
-                # so they can knock items out. Never throttled.
-                from apps.core.utils import get_user_today, get_user_now
-                from apps.ai.executive_briefing import (
-                    _build_health_gate_section,
-                    _build_day_overview_section,
-                )
-                today = get_user_today(self.user)
-                user_now = get_user_now(self.user)
-                # CRITICAL: Use user's LOCAL time, not UTC. Schedule times
-                # in the DB are naive local times. At 6:25 AM Eastern,
-                # timezone.now().time() returns 10:25 UTC which falsely marks
-                # 9:00 AM meds as overdue.
-                current_time = user_now.time()
-
-                faith = state.get('faith', {})
-                health = state.get('health', {})
-                reading_status = "completed today" if faith.get('reading_completed_today') else (
-                    "not yet done today" if faith.get('active_reading_plans', 0) > 0 else "no active plan"
-                )
-                workout_today = health.get('workout_today', False)
-                workout_status = "logged today" if workout_today else "not yet logged"
-
-                # Pull calendar + health gate data from executive briefing
-                health_gate = ''
-                day_overview = ''
+            if is_requesting_checkin:
+                # ── DETERMINISTIC CHECK-IN (no LLM) ──────────────────
+                # The deterministic router normally catches check-ins
+                # terminally. This fallback fires only when the router's
+                # renderer threw an exception. Try the unified structured
+                # output one more time — if it succeeds, return directly
+                # without LLM involvement.
                 try:
-                    health_gate = _build_health_gate_section(self.user, today)
-                except Exception as _hg_err:
-                    logger.warning(
-                        "CHECKIN_HEALTH_GATE user=%s — health gate build failed: %s",
-                        self.user.id, _hg_err, exc_info=True,
+                    from apps.ai.beth_checkin_renderer import (
+                        build_cos_structured_output,
                     )
-                try:
-                    day_overview = _build_day_overview_section(self.user, user_now, today)
-                except Exception as _do_err:
-                    logger.warning(
-                        "CHECKIN_DAY_OVERVIEW user=%s — day overview build failed: %s",
-                        self.user.id, _do_err, exc_info=True,
-                    )
-
-                # ── Pull SPECIFIC ITEMS (not just counts) ──
-                # Pre-initialize lists used by priority synthesis and dedup
-                # so they're always defined even if a try/except block fails.
-                completed_today_tasks = []
-                overdue_tasks = []
-                due_today_tasks = []
-                overdue_meds = []
-                taken_meds = []
-                completed_events = []
-                upcoming_events = []
-
-                # Tasks: EXACT same query as the Organize page.
-                # SoftDeleteManager already filters status='active'.
-                # Counts must match the UI — examples are capped at 3.
-                task_details = ''
-                _priority_items = []  # For priority synthesis
-                try:
-                    from apps.life.models import Task as LifeTask
-                    from apps.life.views import _refresh_stale_task_priorities
-                    _refresh_stale_task_priorities(self.user)
-
-                    # Identical base queryset to Organize page
-                    pending_base = LifeTask.objects.filter(
-                        user=self.user, completion_status='pending',
-                    )
-
-                    # True counts — MUST match what the Organize page shows
-                    now_count = pending_base.filter(priority='now').count()
-                    soon_count = pending_base.filter(priority='soon').count()
-
-                    _task_fields = ['title', 'commitment_level', 'module',
-                                    'scheduled_time', 'is_routine', 'priority',
-                                    'due_date']
-                    # Full list for priority scoring (capped at 15 for sanity)
-                    now_tasks = list(pending_base.filter(
-                        priority='now',
-                    ).values(*_task_fields)[:15])
-                    soon_tasks = list(pending_base.filter(
-                        priority='soon',
-                    ).values(*_task_fields)[:8])
-
-                    # Split "now" into overdue vs due-today for display
-                    overdue_tasks = [t for t in now_tasks if t.get('due_date') and t['due_date'] < today]
-                    due_today_tasks = [t for t in now_tasks if t not in overdue_tasks]
-
-                    completed_today_tasks = list(LifeTask.objects.filter(
-                        user=self.user, completion_status='completed', completed_at__date=today
-                    ).values_list('title', flat=True)[:10])
-
-                    parts = []
-                    if overdue_tasks:
-                        # List ALL overdue task titles — the LLM needs every
-                        # name to report accurate counts and specifics.
-                        examples = [t["title"] for t in overdue_tasks]
-                        example_str = '\n'.join(f'  • {t}' for t in examples)
-                        parts.append(f"OVERDUE ({len(overdue_tasks)}):\n{example_str}")
-                    if due_today_tasks:
-                        # Count = total now minus overdue (true count)
-                        due_today_count = now_count - len(overdue_tasks)
-                        # List ALL due-today task titles so the LLM can
-                        # reference every task by name and report the correct
-                        # total.  The old [:3] cap caused prompt starvation:
-                        # the LLM only saw 3 names and collapsed the rest.
-                        examples = [t["title"] for t in due_today_tasks]
-                        example_str = '\n'.join(f'  • {t}' for t in examples)
-                        parts.append(f"NOW ({due_today_count}):\n{example_str}")
-                    if soon_count:
-                        examples = [t["title"] for t in soon_tasks]
-                        example_str = '\n'.join(f'  • {t}' for t in examples)
-                        parts.append(f"SOON ({soon_count}):\n{example_str}")
-                    if completed_today_tasks:
-                        parts.append(f"COMPLETED TODAY ({len(completed_today_tasks)}):\n" + '\n'.join(
-                            f'  ✓ {t}' for t in completed_today_tasks))
-                    if not parts:
-                        parts.append("No tasks due today and nothing overdue.")
-                    task_details = '\n'.join(parts)
-
-                    # ── Priority scoring for synthesis ──
-                    _COMMIT_SCORE = {'non_negotiable': 3, 'important': 2, 'optional': 1}
-                    _HEALTH_MODULES = {'health', 'faith'}
-                    for t in overdue_tasks:
-                        score = (
-                            9
-                            + _COMMIT_SCORE.get(t.get('commitment_level', ''), 1)
-                            + (2 if t.get('module', '') in _HEALTH_MODULES else 0)
+                    _cos_output = build_cos_structured_output(self.user)
+                    _deterministic_text = _cos_output.get('rendered_text', '')
+                    if _deterministic_text and len(_deterministic_text) > 20:
+                        logger.info(
+                            "CHECKIN_FALLBACK_DETERMINISTIC user=%s — "
+                            "structured output succeeded on retry",
+                            self.user.id,
                         )
-                        _priority_items.append((score, t['title'], 'overdue'))
-                    for t in due_today_tasks:
-                        time_bonus = 0
-                        if t.get('scheduled_time'):
-                            from datetime import datetime as _dt
-                            try:
-                                _sched = t['scheduled_time']
-                                _minutes_until = (
-                                    _dt.combine(today, _sched) - _dt.combine(today, current_time)
-                                ).total_seconds() / 60
-                                if _minutes_until <= 0:
-                                    time_bonus = 6
-                                elif _minutes_until <= 120:
-                                    time_bonus = 4
-                                elif _minutes_until <= 240:
-                                    time_bonus = 2
-                            except Exception:
-                                pass
-                        score = (
-                            3
-                            + time_bonus
-                            + _COMMIT_SCORE.get(t.get('commitment_level', ''), 1)
-                            + (2 if t.get('module', '') in _HEALTH_MODULES else 0)
-                            + (0 if t.get('is_routine') else 1)
-                        )
-                        _priority_items.append((score, t['title'], 'due_today'))
-                except Exception as _task_err:
-                    logger.warning(
-                        "CHECKIN_TASK_QUERY user=%s — task query failed: %s",
-                        self.user.id, _task_err, exc_info=True,
+                        return _deterministic_text
+                except Exception as _cos_err:
+                    logger.error(
+                        "CHECKIN_FALLBACK_STRUCTURED user=%s — structured "
+                        "output also failed: %s. Using safe fallback.",
+                        self.user.id, _cos_err, exc_info=True,
                     )
-                    task_details = f"Tasks remaining: {remaining_tasks}"
-
-                # Goals: actual goal titles
-                goal_details = ''
-                try:
-                    from apps.purpose.models import LifeGoal
-                    active_goals = list(LifeGoal.objects.filter(
-                        user=self.user, status='active'
-                    ).values_list('title', flat=True)[:10])
-                    if active_goals:
-                        goal_details = '\n'.join(f'  • {g}' for g in active_goals)
-                    else:
-                        goal_details = 'No active goals.'
-                except Exception as _goal_err:
-                    logger.warning(
-                        "CHECKIN_GOALS user=%s — goal query failed: %s",
-                        self.user.id, _goal_err, exc_info=True,
-                    )
-                    goal_details = f"Active goals: {state.get('goals', {}).get('active', 0)}"
-
-                # Prayers: actual prayer request titles/summaries
-                prayer_details = ''
-                try:
-                    from apps.faith.models import PrayerRequest
-                    active_prayers = list(PrayerRequest.objects.filter(
-                        user=self.user, is_answered=False
-                    ).exclude(status='deleted').values_list('title', flat=True)[:15])
-                    if active_prayers:
-                        prayer_details = f"Active prayer requests ({len(active_prayers)}):\n" + '\n'.join(f'  • {p}' for p in active_prayers)
-                    else:
-                        prayer_details = 'No active prayer requests.'
-                except Exception as _prayer_err:
-                    logger.warning(
-                        "CHECKIN_PRAYERS user=%s — prayer query failed: %s",
-                        self.user.id, _prayer_err, exc_info=True,
-                    )
-                    prayer_details = f"Active prayers: {faith.get('active_prayers', 0)}"
-
-                # Medications: actual med names and what's outstanding
-                # CRITICAL SAFETY: Must check each INDIVIDUAL schedule/dose,
-                # not just any dose for the medication. A med with morning +
-                # evening doses must show each dose separately — telling a user
-                # to take a dose they already took could be dangerous.
-                med_details = ''
-                try:
-                    from apps.health.models import Medicine, MedicineLog
-                    active_meds = Medicine.objects.filter(
-                        user=self.user, medicine_status=Medicine.STATUS_ACTIVE,
-                    ).exclude(status='deleted')
-
-                    # current_time defined at top of check-in block
-                    day_of_week = today.weekday()  # 0=Mon, 6=Sun
-                    taken_meds = []
-                    overdue_meds = []    # Past scheduled time and NOT taken
-                    upcoming_meds = []   # Scheduled time is in the future
-                    for med in active_meds:
-                        schedules = list(med.schedules.all())
-                        if not schedules:
-                            # Med has no schedules — check if any log exists today
-                            any_taken = MedicineLog.objects.filter(
-                                medicine=med,
-                                scheduled_date=today,
-                                log_status__in=['taken', 'late'],
-                            ).exists()
-                            if any_taken:
-                                taken_meds.append(med.name)
-                            else:
-                                upcoming_meds.append(med.name)
-                            continue
-
-                        for sched in schedules:
-                            # Skip schedules that don't apply today
-                            # (e.g., Mounjaro is Thursday-only)
-                            if not sched.applies_to_day(day_of_week):
-                                continue
-                            # Check THIS SPECIFIC schedule/dose, not just any dose
-                            taken = MedicineLog.objects.filter(
-                                medicine=med,
-                                schedule=sched,
-                                scheduled_date=today,
-                                log_status__in=['taken', 'late'],
-                            ).exists()
-                            time_str = sched.scheduled_time.strftime('%I:%M %p').lstrip('0') if sched.scheduled_time else ''
-                            label = f"{med.name} ({time_str})" if time_str else med.name
-                            if taken:
-                                taken_meds.append(label)
-                            elif sched.scheduled_time and sched.scheduled_time > current_time:
-                                # Not due yet — do NOT report as missed/overdue
-                                upcoming_meds.append(label)
-                            else:
-                                # Past due and not taken
-                                overdue_meds.append(label)
-
-                    parts = []
-                    if overdue_meds:
-                        parts.append(f"OVERDUE — NOT TAKEN ({len(overdue_meds)}):\n" + '\n'.join(f'  ⬜ {m}' for m in overdue_meds))
-                    if upcoming_meds:
-                        parts.append(f"SCHEDULED LATER TODAY ({len(upcoming_meds)}) — NOT due yet, do NOT report as missed:\n" + '\n'.join(f'  🕐 {m}' for m in upcoming_meds))
-                    if taken_meds:
-                        parts.append(f"ALREADY TAKEN ({len(taken_meds)}):\n" + '\n'.join(f'  ✓ {m}' for m in taken_meds))
-                    if parts:
-                        med_details = '\n'.join(parts)
-                        med_details += '\n\nIMPORTANT: Only remind the user about OVERDUE medications. ' \
-                                       'NEVER report SCHEDULED LATER TODAY medications as missed or overdue — they are not due yet. ' \
-                                       'NEVER suggest taking medications marked as ALREADY TAKEN — double-dosing is dangerous.'
-                    else:
-                        med_details = 'No active medications.'
-                except Exception as _med_err:
-                    logger.warning(
-                        "CHECKIN_MEDICATIONS user=%s — medication query failed: %s",
-                        self.user.id, _med_err, exc_info=True,
-                    )
-                    med_details = 'Medication data unavailable.'
-
-                # Calendar: actual event names with times
-                # Use explicit text labels (not just symbols) so the AI
-                # cannot confuse completed items with upcoming ones.
-                calendar_details = ''
-                try:
-                    from apps.calendar_engine.models import CalendarEvent
-                    events = CalendarEvent.objects.filter(
-                        user=self.user, start_dt__date=today
-                    ).exclude(status='canceled').exclude(
-                        deleted_at__isnull=False
-                    ).order_by('start_dt')[:15]
-
-                    if events.exists():
-                        completed_events = []
-                        upcoming_events = []
-                        for evt in events:
-                            local_start = evt.start_dt.astimezone(user_now.tzinfo)
-                            time_str = local_start.strftime('%I:%M %p').lstrip('0')
-                            if evt.status == 'completed':
-                                completed_events.append(f"  [DONE] {time_str} — {evt.title}")
-                            else:
-                                upcoming_events.append(f"  [TODO] {time_str} — {evt.title}")
-                        cal_lines = []
-                        if completed_events:
-                            cal_lines.append("COMPLETED:")
-                            cal_lines.extend(completed_events)
-                        if upcoming_events:
-                            cal_lines.append("REMAINING:")
-                            cal_lines.extend(upcoming_events)
-                        calendar_details = '\n'.join(cal_lines)
-                    else:
-                        calendar_details = 'No events scheduled today.'
-                except Exception as _cal_err:
-                    logger.warning(
-                        "CHECKIN_CALENDAR user=%s — calendar query failed: %s",
-                        self.user.id, _cal_err, exc_info=True,
-                    )
-                    calendar_details = day_overview or 'Calendar data unavailable.'
-
-                # ── Priority Synthesis ────────────────────────────────
-                # Score overdue meds and upcoming calendar events alongside
-                # tasks, then pick the top 1-2 items for the prompt.
-                for m in overdue_meds:
-                    _priority_items.append((12, m, 'overdue_med'))  # Health-critical
-                for evt_line in upcoming_events:
-                    # Calendar events get moderate urgency
-                    _priority_items.append((5, evt_line.strip(), 'calendar'))
-
-                _priority_items.sort(key=lambda x: x[0], reverse=True)
-
-                # ── Validate: verify task-sourced priorities still exist ──
-                # Prevents phantom tasks from stale snapshots / race conditions.
-                _validated_priorities = []
-                for item in _priority_items:
-                    _score, _title, _source = item
-                    if _source in ('overdue', 'due_today'):
-                        # Re-check that this task title exists in active tasks
-                        _still_exists = LifeTask.objects.filter(
-                            user=self.user, title=_title,
-                            completion_status='pending', status='active',
-                        ).exists()
-                        if not _still_exists:
-                            continue
-                    _validated_priorities.append(item)
-                _top_priorities = _validated_priorities[:2]
-
-                # Priority synthesis — provide as reference data, NOT as
-                # a formatting directive.  The CoS voice contract controls
-                # how Beth presents this to the user.
-                priority_synthesis = ''
-                if _top_priorities:
-                    _pri_lines = []
-                    for rank, (score, title, source) in enumerate(_top_priorities, 1):
-                        if source == 'overdue_med':
-                            _pri_lines.append(f"  {rank}. {title} (medication, overdue)")
-                        elif source == 'overdue':
-                            _pri_lines.append(f"  {rank}. {title} (task, overdue)")
-                        elif source == 'calendar':
-                            _pri_lines.append(f"  {rank}. {title}")
-                        else:
-                            _pri_lines.append(f"  {rank}. {title} (due today)")
-                    priority_synthesis = (
-                        "Highest-priority items right now:\n"
-                        + '\n'.join(_pri_lines)
-                    )
-
-                # ── Domain deduplication map ─────────────────────────────
-                # Track which domains have authoritative data so the LLM
-                # doesn't repeat the same signal across sections.
-                _reported_domains = set()
-                if workout_status == "logged today":
-                    _reported_domains.add("fitness")
-                if reading_status == "completed today":
-                    _reported_domains.add("faith_reading")
-                if taken_meds:
-                    _reported_domains.add("medications_taken")
-                if completed_today_tasks:
-                    _reported_domains.add("completed_tasks")
-                if completed_events:
-                    _reported_domains.add("completed_events")
-
-                dedup_instruction = ''
-                if _reported_domains:
-                    dedup_instruction = (
-                        "SIGNAL DEDUPLICATION (REQUIRED):\n"
-                        "The following domains are already covered by authoritative "
-                        "data sections above. Do NOT repeat them in your response "
-                        "narrative. Mention each domain AT MOST ONCE.\n"
-                        "Already reported: " + ", ".join(sorted(_reported_domains))
-                        + "\n"
-                        "Example of WRONG behavior: listing 'Workout' as completed "
-                        "in the tasks section AND THEN saying 'your workout is done' "
-                        "later in the response.\n"
-                        "Example of CORRECT behavior: synthesize completed items into "
-                        "one brief acknowledgement (e.g., 'Morning routine is done') "
-                        "and move on to what's pending."
-                    )
-
-                # v7: Distinguish system-initiated briefings from user requests
-                # Prevents synthetic trigger "briefing" from leaking into response
-                if message_lower.strip() == 'briefing':
-                    _checkin_preamble = (
-                        "SYSTEM-INITIATED DAILY ORIENTATION — the user just "
-                        "opened the system. Deliver a proactive Chief of Staff "
-                        "executive briefing. Do NOT reference any trigger "
-                        "message or say the user 'requested' or 'asked for' "
-                        "a briefing. Begin naturally: 'Danny — here\\'s where "
-                        "things stand.' or similar CoS greeting."
-                    )
-                else:
-                    _checkin_preamble = (
-                        "The user is asking what to do. The data below is "
-                        "fresh from the database. Respond following your "
-                        "CoS voice — current moment first, then next step. "
-                        "Write naturally, not as a briefing."
-                    )
-
-                system_prompt += f"""
-
-{_checkin_preamble}
-List SPECIFIC items by name so they can take action. Never give vague counts without the actual items.
-
-{priority_synthesis}
-
-{dedup_instruction}
-
-TODAY'S CALENDAR:
-{calendar_details}
-
-MEDICATIONS:
-{med_details}
-
-HEALTH & ROUTINES (AUTHORITATIVE — these override any conflicting data elsewhere):
-{health_gate or 'No health gate data available.'}
-- Reading plan / Quiet Time: {reading_status}
-- Workout: {workout_status}
-NOTE: The "Reading plan" and "Workout" lines above are checked against ACTUAL
-activity logs (WorkoutSession, UserReadingProgress), NOT routine task completion.
-These values are AUTHORITATIVE. If a routine task says "Workout" is completed
-but the line above says "not yet logged", trust the line above.
-{"⚠️ WORKOUT IS NOT LOGGED — do NOT say it is done, completed, or knocked out." if workout_status == "not yet logged" else ""}
-{"⚠️ READING/QUIET TIME IS NOT DONE — do NOT say it is completed." if reading_status == "not yet done today" else ""}
-
-TASKS:
-{task_details}
-
-ACTIVE GOALS:
-{goal_details}
-
-FAITH:
-{prayer_details}
-- Journal streak: {state.get('journal', {}).get('streak', 0)} days
-
-TIME CONTEXT:
-- ~{time_context.get('hours_remaining', 'unknown')} hours until bedtime
-
-Use the data above as REFERENCE — but respond following the CoS voice
-contract already in your instructions. Write naturally, no section headers,
-no numbered lists. Start with the current moment, then the next step, then
-quick status only if relevant. If the user is inside a routine window,
-reinforce that first. Pick ONE next action — don't list options.
-
-Summarize completed items in one sentence, not a list. Only mention
-overdue items if they are truly past due. Medications scheduled later
-today are NOT overdue — mention them as upcoming if relevant.
-  WRONG: "You've got a couple things left." (vague, hides the real count)
-  RIGHT: "You have 10 tasks on your plate right now — Prayer Time, Bible
-  Reading, Workout, Journal, Charge Watch, Put Watch On, plus 4 others."
-- When the user asks "how many tasks" or similar count questions, the
-  EXACT count from the TASKS section header (e.g., "NOW (10)") is the
-  authoritative answer. Report it accurately.
-- Lead with what NEEDS ATTENTION, not with a recap of what's done.
-- Be concise — this person wants an actionable briefing, not a motivational
-  speech or a day review.
-
-INSTRUCTIONS:
-- Lead with what's REMAINING — the user is asking what's LEFT, not for a recap.
-- Do NOT list completed items individually unless remarkable. Summarize them.
-- LIST outstanding items BY NAME so they can take action.
-- For meds, list what's NOT taken yet by name — don't just say "74% adherence."
-- For tasks, list EVERY overdue/due-today task by title from the TASKS section.
-  Routine tasks (Prayer Time, Bible Reading, Workout, etc.) are real tasks —
-  count and list them the same as any other task. Do NOT collapse routine
-  tasks into "morning routine" when listing pending items.
-- TASK COUNT ACCURACY: The number in parentheses after OVERDUE/NOW/SOON
-  (e.g., "NOW (10)") is the EXACT count from the database. When the user
-  asks "how many tasks", report this exact number. Never under-report.
-- If there are no tasks due today and nothing overdue, say so clearly.
-- CRITICAL: The data above is the AUTHORITATIVE current state. Only reference
-  tasks, calendar items, and medications that appear above. If something was
-  mentioned earlier in the conversation but is NOT listed above, it has been
-  moved, completed, or rescheduled — do NOT mention it.
-- NEVER give generic scheduling advice ("consider creating a daily schedule",
-  "aim for 7-9 hours of sleep"). You have the user's ACTUAL data — use it.
-
-LOW-DATA DAY HANDLING (v7):
-If few or no tasks/events exist, the briefing must still be useful. Prioritize:
-1. Goals — remind the user of their declared priorities
-2. Goal-supporting actions — workout status, routines, habits
-3. Missing tracking that unlocks intelligence
-4. One clear recommendation — even if it's just "Your plate is clear. Good day to focus on [goal]."
-Never default to generic productivity filler. An empty day is a briefing opportunity, not a void.
-"""
-                # v8: Inject situational awareness into check-in prompt
-                try:
-                    from apps.ai.situational_awareness import (
-                        build_situational_awareness,
-                        format_situational_awareness_injection,
-                    )
-                    _sa_data = build_situational_awareness(self.user)
-                    _sa_block = format_situational_awareness_injection(_sa_data)
-                    if _sa_block:
-                        system_prompt += f"\n\n{_sa_block}"
-                except Exception:
-                    pass  # SA must never break check-in path
-
-                system_prompt += """
-ANTI-FABRICATION RULES (ABSOLUTE — VIOLATION IS A CRITICAL ERROR):
-- NEVER claim an activity is completed unless it EXPLICITLY appears under COMPLETED, ALREADY TAKEN, [DONE], or [VERIFIED COMPLETED] sections above.
-- Workout status is ONLY determined by the "Workout:" line in HEALTH & ROUTINES. If it says "not yet logged", the user has NOT worked out — regardless of what any routine task says. DO NOT say "workout done" or "knocked out your workout" if it says "not yet logged".
-- Reading/prayer status is ONLY determined by the "Reading plan / Quiet Time:" line. If it says "not yet done today", it has NOT been done. DO NOT say "prayer time done" or "quiet time complete" if it says "not yet done today".
-- A task being PAST its scheduled time does NOT mean it was completed. Past time = MISSED or still pending. Only completion_status='completed' in the TASKS section means done.
-- Calendar events marked [DONE] are COMPLETED. Events marked [TODO] are NOT completed. Never reverse these.
-- If you are not 100% certain something was completed based on the data above, do NOT claim it was completed. Say you don't see a log for it.
-- You may ONLY reference task names, goal names, medication names, and calendar events that are EXPLICITLY listed in the structured data above. NEVER invent, derive, or infer a task or priority item that does not appear word-for-word in the data sections.
-- If no priority tasks are provided in TOP PRIORITIES, say "No urgent priorities right now." Do NOT fabricate a priority from context, summaries, or conversation history.
-"""
-              except Exception as _checkin_err:
-                logger.error(
-                    "CHECKIN_DATA_CRASH user=%s — check-in data assembly "
-                    "failed. The LLM will be called WITHOUT check-in context. "
-                    "Exception: %s",
-                    self.user.id, _checkin_err, exc_info=True,
-                )
-                # Don't return fallback — let the LLM run with whatever
-                # system prompt was built so far. A generic response is
-                # better than no response at all.
+                    from apps.ai.beth_checkin_renderer import _SAFE_FALLBACK
+                    return _SAFE_FALLBACK
             elif is_asking_for_analysis:
                 faith = state.get('faith', {})
                 health = state.get('health', {})

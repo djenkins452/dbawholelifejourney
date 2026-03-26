@@ -1332,10 +1332,10 @@ class FitnessHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         today = get_user_today(user)
         week_ago = today - timedelta(days=7)
 
-        # Recent workouts
+        # Recent 7 workouts
         context["recent_workouts"] = WorkoutSession.objects.filter(
             user=user
-        ).select_related("user")[:5]
+        ).select_related("user").order_by("-date")[:7]
 
         # This week's workout count
         context["workouts_this_week"] = WorkoutSession.objects.filter(
@@ -1346,13 +1346,38 @@ class FitnessHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         # User's templates
         context["templates"] = WorkoutTemplate.objects.filter(user=user)[:5]
 
-        # Recent PRs
-        context["recent_prs"] = PersonalRecord.objects.filter(
-            user=user
-        ).select_related("exercise")[:5]
+        # Recent PRs — latest per exercise to avoid duplicates
+        latest_pr_ids = list(
+            PersonalRecord.objects.filter(user=user)
+            .values("exercise_id")
+            .annotate(latest_id=Max("id"))
+            .values_list("latest_id", flat=True)
+        )
+        context["recent_prs"] = (
+            PersonalRecord.objects.filter(id__in=latest_pr_ids)
+            .select_related("exercise")
+            .order_by("-achieved_date")[:5]
+        )
 
         # Exercises for quick add
         context["exercises"] = Exercise.objects.filter(is_active=True)
+
+        # Best suggestion for today (weekday match or most recent)
+        completed_qs = WorkoutSession.objects.filter(
+            user=user,
+            completed_at__isnull=False,
+        )
+        # Django week_day: 1=Sunday, 2=Monday ... 7=Saturday
+        # Python weekday(): 0=Monday ... 6=Sunday
+        py_weekday = today.weekday()
+        django_weekday = (py_weekday + 2) % 7 or 7
+        same_day = (
+            completed_qs
+            .filter(date__week_day=django_weekday)
+            .order_by("-date")
+            .first()
+        )
+        context["best_suggestion"] = same_day or completed_qs.order_by("-date").first()
 
         return context
 
@@ -1481,44 +1506,6 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
                 context["copy_from"] = copy_from
             except WorkoutSession.DoesNotExist:
                 pass
-
-        # --- Best Suggestion + Recent Workouts (create flow only) ---
-        if not context.get("editing"):
-            completed_qs = WorkoutSession.objects.filter(
-                user=user,
-                completed_at__isnull=False,
-            )
-
-            # Recent 7 workouts (query 1)
-            context["recent_workouts_list"] = (
-                completed_qs
-                .annotate(num_exercises=Count("workout_exercises"))
-                .order_by("-date")[:7]
-            )
-
-            # Best suggestion (query 2)
-            # Copy flow: the copied workout IS the best suggestion
-            if context.get("copy_from"):
-                context["best_suggestion"] = context["copy_from"]
-                context["is_copy_flow"] = True
-            else:
-                # Weekday match: find most recent workout done on same weekday
-                # Django week_day: 1=Sunday, 2=Monday ... 7=Saturday
-                # Python weekday(): 0=Monday ... 6=Sunday
-                py_weekday = today.weekday()  # 0=Mon
-                django_weekday = (py_weekday + 2) % 7 or 7  # convert to Django's 1-7
-                same_day = (
-                    completed_qs
-                    .filter(date__week_day=django_weekday)
-                    .order_by("-date")
-                    .first()
-                )
-                if same_day:
-                    context["best_suggestion"] = same_day
-                else:
-                    context["best_suggestion"] = (
-                        completed_qs.order_by("-date").first()
-                    )
 
         return context
 

@@ -41,8 +41,27 @@
         </div>
     </div>
 
+    <!-- Best Suggestion -->
+    {% if best_suggestion %}
+    <div class="best-suggestion-section mb-6">
+        <div class="best-suggestion-header">
+            <span class="best-suggestion-label">Best Match for Today</span>
+        </div>
+        <div class="best-suggestion-card">
+            <div class="best-suggestion-info">
+                <span class="best-suggestion-name">{{ best_suggestion.name|default:"Workout" }}</span>
+                <span class="best-suggestion-meta">Last performed: {{ best_suggestion.date|date:"M j, Y" }} &middot; {{ best_suggestion.exercise_count }} exercise{{ best_suggestion.exercise_count|pluralize }}</span>
+            </div>
+            <div class="best-suggestion-actions">
+                <a href="{% url 'health:workout_copy' best_suggestion.pk %}" class="btn btn-primary btn-sm">Copy &amp; Start</a>
+                <a href="{% url 'health:workout_detail' best_suggestion.pk %}" class="btn btn-ghost btn-sm">View Details</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="fitness-grid">
-        <!-- Recent Workouts -->
+        <!-- Recent Workouts (Last 7) -->
         <div class="fitness-section">
             <div class="section-header">
                 <h2>Recent Workouts</h2>
@@ -52,19 +71,19 @@
             {% if recent_workouts %}
                 <div class="workout-list">
                     {% for workout in recent_workouts %}
-                        <a href="{% url 'health:workout_detail' workout.pk %}" class="workout-card">
-                            <div class="workout-date">
-                                <span class="day">{{ workout.date|date:"d" }}</span>
-                                <span class="month">{{ workout.date|date:"M" }}</span>
-                            </div>
-                            <div class="workout-info">
-                                <h3>{{ workout.name|default:"Workout" }}</h3>
-                                <p>{{ workout.exercise_count }} exercises{% if workout.total_sets %} &bull; {{ workout.total_sets }} sets{% endif %}</p>
-                            </div>
-                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="9 18 15 12 9 6"></polyline>
-                            </svg>
-                        </a>
+                        <div class="workout-card-row">
+                            <a href="{% url 'health:workout_detail' workout.pk %}" class="workout-card-link">
+                                <div class="workout-date">
+                                    <span class="day">{{ workout.date|date:"d" }}</span>
+                                    <span class="month">{{ workout.date|date:"M" }}</span>
+                                </div>
+                                <div class="workout-info">
+                                    <h3>{{ workout.name|default:"Workout" }}</h3>
+                                    <p>{{ workout.exercise_count }} exercises{% if workout.total_sets %} &bull; {{ workout.total_sets }} sets{% endif %}</p>
+                                </div>
+                            </a>
+                            <a href="{% url 'health:workout_copy' workout.pk %}" class="btn btn-ghost btn-sm copy-btn">Copy</a>
+                        </div>
                     {% endfor %}
                 </div>
             {% else %}
@@ -75,26 +94,31 @@
             {% endif %}
         </div>
 
-        <!-- Quick Actions -->
+        <!-- Quick Start (collapsed by default) -->
         <div class="fitness-section">
-            <div class="section-header">
-                <h2>Quick Start</h2>
+            <div class="section-header template-toggle" id="templateToggle">
+                <h2>Templates</h2>
+                <svg class="toggle-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
             </div>
 
-            {% if templates %}
-                <div class="template-buttons">
-                    {% for template in templates %}
-                        <a href="{% url 'health:template_use' template.pk %}" class="template-btn">
-                            <span class="template-name">{{ template.name }}</span>
-                            <span class="template-exercises">{{ template.exercise_count }} exercises</span>
-                        </a>
-                    {% endfor %}
-                </div>
-                <a href="{% url 'health:template_list' %}" class="section-link mt-4">Manage templates</a>
-            {% else %}
-                <p class="text-muted mb-4">Create templates for your common workout routines</p>
-                <a href="{% url 'health:template_create' %}" class="btn btn-secondary">Create Template</a>
-            {% endif %}
+            <div id="templateContent" style="display: none;">
+                {% if templates %}
+                    <div class="template-buttons">
+                        {% for template in templates %}
+                            <a href="{% url 'health:template_use' template.pk %}" class="template-btn">
+                                <span class="template-name">{{ template.name }}</span>
+                                <span class="template-exercises">{{ template.exercise_count }} exercises</span>
+                            </a>
+                        {% endfor %}
+                    </div>
+                    <a href="{% url 'health:template_list' %}" class="section-link mt-4">Manage templates</a>
+                {% else %}
+                    <p class="text-muted mb-4">Create templates for your common workout routines</p>
+                    <a href="{% url 'health:template_create' %}" class="btn btn-secondary">Create Template</a>
+                {% endif %}
+            </div>
 
             <div class="quick-links mt-6">
                 <a href="{% url 'health:fitness_progress' %}" class="quick-link">
@@ -229,20 +253,97 @@
     gap: var(--space-2);
 }
 
-.workout-card {
+.workout-card-row {
     display: flex;
     align-items: center;
-    gap: var(--space-4);
+    gap: var(--space-2);
     padding: var(--space-3);
     background: var(--color-surface);
     border-radius: var(--radius-md);
-    text-decoration: none;
-    color: inherit;
     transition: background 0.15s;
 }
 
-.workout-card:hover {
+.workout-card-row:hover {
     background: var(--color-border);
+}
+
+.workout-card-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex: 1;
+    min-width: 0;
+    text-decoration: none;
+    color: inherit;
+}
+
+.copy-btn {
+    flex-shrink: 0;
+}
+
+/* Best Suggestion */
+.best-suggestion-section {
+    margin-bottom: var(--space-4);
+}
+
+.best-suggestion-header {
+    margin-bottom: var(--space-2);
+}
+
+.best-suggestion-label {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.best-suggestion-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    background: var(--color-background);
+    border: 2px solid var(--color-accent);
+    border-radius: var(--radius-lg);
+}
+
+.best-suggestion-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.best-suggestion-name {
+    font-weight: 600;
+    font-size: var(--font-size-lg, 1.125rem);
+}
+
+.best-suggestion-meta {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.best-suggestion-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+
+/* Template toggle */
+.template-toggle {
+    cursor: pointer;
+}
+
+.toggle-chevron {
+    transition: transform 0.2s ease;
+    color: var(--color-text-muted);
+}
+
+.template-toggle.expanded .toggle-chevron {
+    transform: rotate(180deg);
 }
 
 .workout-date {
@@ -410,6 +511,34 @@
     .stats-row {
         grid-template-columns: 1fr;
     }
+
+    .best-suggestion-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .best-suggestion-actions {
+        width: 100%;
+    }
+
+    .best-suggestion-actions .btn {
+        flex: 1;
+        text-align: center;
+    }
 }
 </style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    var toggle = document.getElementById('templateToggle');
+    var content = document.getElementById('templateContent');
+    if (toggle && content) {
+        toggle.addEventListener('click', function() {
+            var isHidden = content.style.display === 'none';
+            content.style.display = isHidden ? 'block' : 'none';
+            toggle.classList.toggle('expanded', isHidden);
+        });
+    }
+});
+</script>
 {% endblock %}

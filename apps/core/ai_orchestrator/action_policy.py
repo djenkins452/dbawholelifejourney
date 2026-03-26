@@ -203,6 +203,8 @@ _r('update_goal_progress', ActionCategory.MUTATE, RiskLevel.MEDIUM, AuthorityLev
    label='Update goal progress')
 _r('complete_shopping_item', ActionCategory.MUTATE, RiskLevel.LOW, AuthorityLevel.CONFIRM,
    label='Mark shopping item purchased')
+_r('reschedule_routine_item', ActionCategory.MUTATE, RiskLevel.MEDIUM, AuthorityLevel.CONFIRM,
+   label='Reschedule routine item')
 
 # ── Settings (medium risk, confirm) ───────────────────────────────────
 

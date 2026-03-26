@@ -8,8 +8,9 @@ Domains:
 
 Architecture:
   - 100% deterministic (no LLM)
-  - Reuses existing data sources (Execution Truth Engine, behavior_score_engine, DailyHealthSummary)
-  - Accepts pre-computed adherence_data from the view to avoid duplicate queries
+  - Health reads ONLY from SAE canonical state (single source of truth)
+  - Faith uses Execution Truth Engine
+  - Work uses Task/LifeGoal models directly
 """
 
 import logging
@@ -26,10 +27,9 @@ TREND_THRESHOLD = 5
 class GoalCockpitService:
     """Computes the three domain dials for the goal-based cockpit."""
 
-    def __init__(self, user, adherence_data=None):
+    def __init__(self, user):
         self.user = user
         self.today = get_user_today(user)
-        self._adherence = adherence_data
 
     def get_cockpit_data(self):
         """
@@ -126,33 +126,44 @@ class GoalCockpitService:
     # ── Health ────────────────────────────────────────────
 
     def _compute_health(self):
+        """Compute health score from SAE canonical state (single source of truth)."""
         try:
-            # Medication + workout adherence from pre-computed data
-            med_score = None
-            workout_score = None
-            med_detail = {}
-            workout_detail = {}
+            from apps.core.ai_state.state_engine import get_state_value
 
-            if self._adherence and self._adherence.get('domain_scores'):
-                ds = self._adherence['domain_scores']
-                med_data = ds.get('medication', {})
-                med_score = med_data.get('score')
-                med_detail = {
-                    'completed': med_data.get('completed', 0),
-                    'expected': med_data.get('expected', 0),
-                    'missed': med_data.get('missed', 0),
-                }
-                wk_data = ds.get('workout', {})
-                workout_score = wk_data.get('score')
-                workout_detail = {
-                    'completed': wk_data.get('completed', 0),
-                    'expected': wk_data.get('expected', 0),
-                    'missed': wk_data.get('missed', 0),
-                }
+            user = self.user
 
-            # Sleep + water from DailyHealthSummary
-            sleep_score, sleep_detail = self._compute_sleep_consistency()
-            water_score, water_detail = self._compute_water_consistency()
+            # Medication from SAE medicine state
+            med_score = get_state_value(user, 'medicine.adherence_score_7d')
+            med_detail = {
+                'completed': get_state_value(user, 'medicine.completed_7d', 0),
+                'expected': get_state_value(user, 'medicine.expected_7d', 0),
+                'missed': get_state_value(user, 'medicine.missed_7d', 0),
+            }
+
+            # Workout from SAE fitness state
+            workout_score = get_state_value(user, 'fitness.workout_adherence_score')
+            workout_detail = {
+                'completed': get_state_value(user, 'fitness.workout_completed_7d', 0),
+                'expected': get_state_value(user, 'fitness.workout_expected_7d', 0),
+                'missed': get_state_value(user, 'fitness.workout_missed_7d', 0),
+            }
+
+            # Sleep from SAE health state
+            sleep_score = get_state_value(user, 'health.sleep_consistency_score')
+            sleep_detail = {
+                'avg_hours': get_state_value(user, 'health.sleep_avg_hours_7d'),
+                'good_nights': get_state_value(user, 'health.sleep_good_nights_7d', 0),
+                'tracked_nights': get_state_value(user, 'health.sleep_entries_7d', 0),
+            }
+
+            # Water from SAE health state
+            water_score = get_state_value(user, 'health.water_consistency_score')
+            water_detail = {
+                'avg_oz': get_state_value(user, 'health.water_avg_oz_7d'),
+                'good_days': get_state_value(user, 'health.water_good_days_7d', 0),
+                'tracked_days': get_state_value(user, 'health.water_tracked_days_7d', 0),
+                'goal_oz': get_state_value(user, 'health.water_goal_oz', 64),
+            }
 
             # Weighted average with redistribution for missing components
             weights = {}
@@ -179,12 +190,9 @@ class GoalCockpitService:
             else:
                 score = 0
 
-            # Trend: use adherence delta if available, else flat
-            trend = 'flat'
-            trend_delta = 0
-            if self._adherence:
-                adh_delta = self._adherence.get('delta', 0)
-                trend, trend_delta = self._calc_trend(score, score - adh_delta)
+            # Trend from SAE behavior state
+            adh_delta = get_state_value(user, 'behavior.adherence_delta', 0)
+            trend, trend_delta = self._calc_trend(score, score - adh_delta)
 
             return {
                 'score': score,
@@ -207,76 +215,6 @@ class GoalCockpitService:
         except Exception:
             logger.warning("Cockpit: health score failed", exc_info=True)
             return self._empty_domain('Health', '#22c55e')
-
-    def _compute_sleep_consistency(self):
-        """Count nights with ≥7h sleep in last 7 days via DailyHealthSummary."""
-        try:
-            from apps.health.models import DailyHealthSummary
-
-            start = self.today - timedelta(days=6)
-            summaries = DailyHealthSummary.objects.filter(
-                user=self.user,
-                summary_date__gte=start,
-                summary_date__lte=self.today,
-                sleep_hours__isnull=False,
-            ).values_list('summary_date', 'sleep_hours')
-
-            if not summaries:
-                return None, {'avg_hours': None, 'good_nights': 0, 'tracked_nights': 0}
-
-            good_nights = sum(1 for _, hours in summaries if hours and hours >= 7)
-            tracked = len(summaries)
-            avg_hours = round(sum(float(h) for _, h in summaries if h) / tracked, 1) if tracked else 0
-
-            score = round((good_nights / 7) * 100)
-            return score, {
-                'avg_hours': avg_hours,
-                'good_nights': good_nights,
-                'tracked_nights': tracked,
-            }
-        except Exception:
-            logger.debug("Cockpit: sleep query failed", exc_info=True)
-            return None, {'avg_hours': None, 'good_nights': 0, 'tracked_nights': 0}
-
-    def _compute_water_consistency(self):
-        """Count days meeting water goal (64oz default) in last 7 days."""
-        try:
-            from apps.health.models import DailyHealthSummary
-
-            start = self.today - timedelta(days=6)
-            summaries = DailyHealthSummary.objects.filter(
-                user=self.user,
-                summary_date__gte=start,
-                summary_date__lte=self.today,
-                water_oz__isnull=False,
-            ).values_list('summary_date', 'water_oz')
-
-            if not summaries:
-                return None, {'avg_oz': None, 'good_days': 0, 'tracked_days': 0}
-
-            # Default water goal: 64oz
-            water_goal = 64
-            try:
-                prefs = self.user.preferences
-                if hasattr(prefs, 'water_goal_oz') and prefs.water_goal_oz:
-                    water_goal = float(prefs.water_goal_oz)
-            except Exception:
-                pass
-
-            good_days = sum(1 for _, oz in summaries if oz and float(oz) >= water_goal)
-            tracked = len(summaries)
-            avg_oz = round(sum(float(o) for _, o in summaries if o) / tracked, 1) if tracked else 0
-
-            score = round((good_days / 7) * 100)
-            return score, {
-                'avg_oz': avg_oz,
-                'good_days': good_days,
-                'tracked_days': tracked,
-                'goal_oz': water_goal,
-            }
-        except Exception:
-            logger.debug("Cockpit: water query failed", exc_info=True)
-            return None, {'avg_oz': None, 'good_days': 0, 'tracked_days': 0}
 
     # ── Work / Purpose ────────────────────────────────────
 

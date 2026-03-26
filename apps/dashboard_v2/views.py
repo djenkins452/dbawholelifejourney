@@ -54,17 +54,11 @@ class DashboardV2View(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["purpose_enabled"] = getattr(prefs, "purpose_enabled", True)
         context["life_enabled"] = getattr(prefs, "life_enabled", True)
 
-        # 7-day adherence score (used by cockpit health dial)
-        try:
-            from apps.core.behavior.behavior_score_engine import compute_adherence_summary
-            context["adherence"] = compute_adherence_summary(self.request.user)
-        except Exception:
-            context["adherence"] = None
-
         # Goal Cockpit — three domain dials (faith, health, work)
+        # Health reads from SAE canonical state; no live adherence computation needed.
         try:
             from .services.cockpit_service import GoalCockpitService
-            cockpit = GoalCockpitService(self.request.user, adherence_data=context.get("adherence"))
+            cockpit = GoalCockpitService(self.request.user)
             context["cockpit"] = cockpit.get_cockpit_data()
         except Exception:
             logger.warning("Goal cockpit computation failed", exc_info=True)
@@ -104,15 +98,7 @@ class CockpitPanelView(LoginRequiredMixin, View):
 
         from .services.cockpit_service import GoalCockpitService
 
-        adherence = None
-        if domain == 'health':
-            try:
-                from apps.core.behavior.behavior_score_engine import compute_adherence_summary
-                adherence = compute_adherence_summary(request.user)
-            except Exception:
-                pass
-
-        service = GoalCockpitService(request.user, adherence_data=adherence)
+        service = GoalCockpitService(request.user)
         data = service.get_domain_detail(domain)
         template = f"dashboard_v2/partials/cockpit_panels/{domain}_panel.html"
         html = render_to_string(template, {domain: data, "request": request}, request=request)

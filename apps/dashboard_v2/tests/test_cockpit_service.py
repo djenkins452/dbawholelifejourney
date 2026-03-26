@@ -92,30 +92,46 @@ class GoalCockpitServiceTest(TestCase):
         expected = round((4 / 7 * 50) + (5 / 7 * 50))
         self.assertEqual(result["score"], expected)
 
-    def test_health_score_with_adherence_data(self):
-        """Health score uses pre-computed adherence data."""
-        adherence_data = {
-            "score": 80,
-            "delta": 5,
-            "domain_scores": {
-                "medication": {"score": 90, "completed": 18, "expected": 20, "missed": 2},
-                "workout": {"score": 70, "completed": 5, "expected": 7, "missed": 2},
-            },
+    @patch("apps.core.ai_state.state_engine.get_state_value")
+    def test_health_score_from_sae(self, mock_gsv):
+        """Health score reads from SAE canonical state."""
+        # Mock SAE state values
+        sae_data = {
+            'medicine.adherence_score_7d': 90,
+            'medicine.completed_7d': 18,
+            'medicine.expected_7d': 20,
+            'medicine.missed_7d': 2,
+            'fitness.workout_adherence_score': 70,
+            'fitness.workout_completed_7d': 5,
+            'fitness.workout_expected_7d': 7,
+            'fitness.workout_missed_7d': 2,
+            'health.sleep_consistency_score': None,
+            'health.sleep_avg_hours_7d': None,
+            'health.sleep_good_nights_7d': 0,
+            'health.sleep_entries_7d': 0,
+            'health.water_consistency_score': None,
+            'health.water_avg_oz_7d': None,
+            'health.water_good_days_7d': 0,
+            'health.water_tracked_days_7d': 0,
+            'health.water_goal_oz': 64,
+            'behavior.adherence_delta': 5,
         }
-        service = GoalCockpitService(self.user, adherence_data=adherence_data)
+        mock_gsv.side_effect = lambda user, path, default=None: sae_data.get(path, default)
+
+        service = GoalCockpitService(self.user)
         result = service._compute_health()
 
         self.assertIsInstance(result["score"], int)
         self.assertGreater(result["score"], 0)
         self.assertEqual(result["label"], "Health")
         self.assertEqual(result["color"], "#22c55e")
-        # Should contain medication and workout detail
+        # Should contain medication and workout detail from SAE
         self.assertEqual(result["components"]["medication"]["completed"], 18)
         self.assertEqual(result["components"]["workout"]["missed"], 2)
 
-    def test_health_score_no_adherence(self):
-        """Health score is 0 when no adherence data exists."""
-        service = GoalCockpitService(self.user, adherence_data=None)
+    def test_health_score_no_sae_data(self):
+        """Health score is 0 when no SAE state exists."""
+        service = GoalCockpitService(self.user)
         result = service._compute_health()
 
         self.assertEqual(result["score"], 0)

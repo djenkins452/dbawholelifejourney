@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Refactor: Eliminate Parallel Dashboard Pipelines — Single Source of Truth via SAE
+
+- **Refactor:** Dashboard health cockpit now reads ONLY from SAE canonical state for all metrics (sleep, water, medication, workout). Eliminates parallel data pipelines and enforces single source of truth.
+  - Extended `build_health_state()` with sleep consistency score, avg hours, good nights, and water metrics (avg oz, good days, goal, consistency score)
+  - Extended `build_medicine_state()` with 7d behavior breakdown (completed, expected, missed, adherence score) via existing domain adapter
+  - Extended `build_fitness_state()` with 7d workout behavior breakdown via existing domain adapter
+  - Extended `build_behavior_state()` with adherence trend delta (current vs previous 7d window)
+  - Refactored `GoalCockpitService._compute_health()` to read exclusively from SAE via `get_state_value()`
+  - Removed `_compute_sleep_consistency()` and `_compute_water_consistency()` (DailyHealthSummary queries)
+  - Removed `compute_adherence_summary()` call from dashboard request path (was running ~6 DB queries per page load)
+  - Files: `apps/core/ai_state/state_builder.py`, `apps/dashboard_v2/services/cockpit_service.py`, `apps/dashboard_v2/views.py`, `apps/dashboard_v2/tests/test_cockpit_service.py`
+- **Fix:** Sleep hours in DailyHealthSummary now uses `total_duration_minutes` (validated, capped at 1440) instead of `wake_time - bedtime` delta (unvalidated, could exceed 24h). Fixes the 18.1h sleep average bug.
+  - Added 24h hard cap on computed sleep hours
+  - Files: `apps/health/services/daily_summary_builder.py`
+
 ## 2026-03-25 — Feature: Adaptive CoS Presence (Session-Start, Interaction Awareness, Structured Briefs)
 
 **Objective:** Evolve Beth from reactive, request-driven responses into an adaptive, event-aware Chief of Staff with continuous presence — without creating new engines or parallel decision systems.

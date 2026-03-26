@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-26 — Fix: Workout Counting Multi-Source + Task Fairness (Today's Incomplete Tasks)
+
+- **Fix:** Workout behavior engine now counts completions from ALL sources: WorkoutScheduleLog, WorkoutSession, AND RoutineLog (workout obligation items). Previously only WorkoutScheduleLog was checked — routines that create a RoutineLog (e.g., "Workout" in Morning Routine) without a template-linked WorkoutSession were invisible, showing false "missed" counts.
+  - Files: `apps/core/behavior/domain_workout.py`
+- **Fix:** WorkoutSession signal now creates WorkoutScheduleLog for workouts WITHOUT `from_template` (ad-hoc, routine-triggered). Previously required `from_template` to be set. Falls back to day-of-week matching when no template link exists.
+  - Files: `apps/health/signals.py`
+- **Fix:** Task completion score no longer penalizes for today's incomplete tasks. Tasks due today that haven't been completed yet are excluded from the denominator — only past-due incomplete tasks and completed tasks count. Previously all tasks due today were counted, penalizing the user before they had a chance to do them.
+  - Files: `apps/dashboard_v2/services/cockpit_service.py`
+
 ## 2026-03-26 — Beth CoS Behavior Upgrade: Feasibility Triage + Day Narrative + Situational Awareness
 
 **Objective:** Transform Beth from status reporter into Chief of Staff — contextual, time-aware, decisive, human.

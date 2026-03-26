@@ -330,8 +330,15 @@ class GoalCockpitService:
             return self._empty_domain('Work / Purpose', '#f59e0b')
 
     def _compute_task_completion(self, start=None, end=None):
-        """Non-routine task completion rate over a date range."""
+        """
+        Non-routine task completion rate over a date range.
+
+        Today's incomplete tasks are excluded from the denominator — the day
+        isn't over, so they aren't failures yet. They're included once
+        completed or once the day passes.
+        """
         try:
+            from django.db.models import Q
             from apps.life.models import Task
 
             if start is None:
@@ -339,15 +346,22 @@ class GoalCockpitService:
             if end is None:
                 end = self.today
 
-            due_tasks = Task.objects.filter(
+            base_tasks = Task.objects.filter(
                 user=self.user,
                 is_routine=False,
                 due_date__gte=start,
                 due_date__lte=end,
             ).exclude(status='deleted')
 
-            total = due_tasks.count()
-            completed = due_tasks.filter(completion_status='completed').count()
+            # Only count tasks where the due date has passed OR already completed.
+            # Today's incomplete tasks aren't failures yet — the day isn't over.
+            countable_tasks = base_tasks.filter(
+                Q(due_date__lt=self.today)  # past days: always count
+                | Q(completion_status='completed')  # completed today: count
+            )
+
+            total = countable_tasks.count()
+            completed = countable_tasks.filter(completion_status='completed').count()
 
             if total == 0:
                 return None, {'completed': 0, 'total': 0}

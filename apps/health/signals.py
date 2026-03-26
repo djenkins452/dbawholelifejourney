@@ -101,8 +101,14 @@ def handle_workout_session_completed(sender, instance, **kwargs):
     First-workout-wins: once a routine log exists for the day, later workouts
     are no-ops.
     """
-    # ── Block 1: WorkoutScheduleLog (requires completed_at + from_template) ──
-    if instance.completed_at and instance.from_template:
+    # ── Block 1: WorkoutScheduleLog ──
+    # Creates schedule adherence records when a workout is completed.
+    # Two paths:
+    #   A) Template-linked: match by day_of_week + template (precise)
+    #   B) Any workout on a scheduled day: match by day_of_week only (fallback)
+    # This ensures workouts logged via routine, ad-hoc, or any other path
+    # still count toward workout plan adherence.
+    if instance.completed_at and instance.date:
         try:
             from apps.health.models import WorkoutPlan, WorkoutSchedule, WorkoutScheduleLog
             from apps.core.behavior.status_engine import compute_occurrence_status
@@ -116,12 +122,21 @@ def handle_workout_session_completed(sender, instance, **kwargs):
                 user=user, is_active=True, status='active',
             ).first()
             if active_plan:
-                matching_schedules = WorkoutSchedule.objects.filter(
-                    plan=active_plan,
-                    day_of_week=day_of_week,
-                    template=instance.from_template,
-                    is_rest_day=False,
-                )
+                # Path A: template-linked (precise match)
+                if instance.from_template:
+                    matching_schedules = WorkoutSchedule.objects.filter(
+                        plan=active_plan,
+                        day_of_week=day_of_week,
+                        template=instance.from_template,
+                        is_rest_day=False,
+                    )
+                else:
+                    # Path B: no template — match any non-rest schedule for this day
+                    matching_schedules = WorkoutSchedule.objects.filter(
+                        plan=active_plan,
+                        day_of_week=day_of_week,
+                        is_rest_day=False,
+                    )
 
                 if matching_schedules.count() == 1:
                     schedule = matching_schedules.first()
@@ -154,10 +169,43 @@ def handle_workout_session_completed(sender, instance, **kwargs):
                             completed_at=instance.completed_at,
                         )
                 elif matching_schedules.count() > 1:
-                    logger.warning(
-                        "WORKOUT_SCHEDULE_AMBIGUOUS user=%s date=%s template=%s matches=%d — skipping",
-                        user.id, workout_date, instance.from_template_id, matching_schedules.count(),
-                    )
+                    if instance.from_template:
+                        logger.warning(
+                            "WORKOUT_SCHEDULE_AMBIGUOUS user=%s date=%s template=%s matches=%d — skipping",
+                            user.id, workout_date, instance.from_template_id, matching_schedules.count(),
+                        )
+                    else:
+                        # Multiple schedule slots for this day and no template to disambiguate.
+                        # Pick the first unlogged slot to avoid over-counting.
+                        for schedule in matching_schedules:
+                            if not WorkoutScheduleLog.objects.filter(
+                                schedule=schedule, scheduled_date=workout_date,
+                            ).exists():
+                                from django.utils import timezone as _tz
+                                if schedule.preferred_time:
+                                    scheduled_dt = _tz.make_aware(
+                                        datetime.combine(workout_date, schedule.preferred_time),
+                                        _tz.get_current_timezone(),
+                                    )
+                                else:
+                                    scheduled_dt = instance.completed_at
+
+                                status = compute_occurrence_status(
+                                    now=instance.completed_at,
+                                    scheduled_datetime=scheduled_dt,
+                                    grace_minutes=schedule.grace_period_minutes,
+                                    log={'completed_at': instance.completed_at},
+                                )
+
+                                WorkoutScheduleLog.objects.create(
+                                    user=user,
+                                    schedule=schedule,
+                                    scheduled_date=workout_date,
+                                    log_status=status,
+                                    session=instance,
+                                    completed_at=instance.completed_at,
+                                )
+                                break  # one session fills one slot
 
         except Exception as e:
             logger.warning(

@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Enhancement: Context-Aware Workout Creation (Best Suggestion + Recent Workouts)
+
+**Objective:** Improve "Copy Workout" / "Log Workout" UX by providing context-aware suggestions and fast access to recent workouts, reducing friction on the workout creation page.
+
+**Changes:**
+- `apps/health/views.py` — Extended `WorkoutCreateView.get_context_data()` with "Best Suggestion" (weekday-match or most recent, overridden by copy flow) and "Recent Workouts" (last 7 completed). Two efficient queries with `annotate(exercise_count=Count(...))`.
+- `templates/health/fitness/workout_form.html` — Added "Best Match for Today" card (top of page), "Recent Workouts" list with copy actions + "View all" link. Moved Quick Start Templates to collapsed/secondary position below new sections. Added responsive CSS and toggle JS (CSP-compliant).
+
+**Files:** `apps/health/views.py`, `templates/health/fitness/workout_form.html`
+
+---
+
 ## 2026-03-25 — Fix: Register reschedule_routine_item in ACTION_POLICY
 
 **Gap found during mutation gate audit:** `reschedule_routine_item` was the only mutation intent not explicitly registered in `ACTION_POLICY`. It fell to the safe default (CONFIRM + HIGH risk), but should be explicitly registered for clarity and correct risk classification (MEDIUM, not HIGH).

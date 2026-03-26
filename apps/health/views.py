@@ -10,7 +10,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Avg, Max, Min, Sum, F
+from django.db.models import Avg, Count, Max, Min, Sum, F
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -1481,6 +1481,44 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
                 context["copy_from"] = copy_from
             except WorkoutSession.DoesNotExist:
                 pass
+
+        # --- Best Suggestion + Recent Workouts (create flow only) ---
+        if not context.get("editing"):
+            completed_qs = WorkoutSession.objects.filter(
+                user=user,
+                completed_at__isnull=False,
+            )
+
+            # Recent 7 workouts (query 1)
+            context["recent_workouts_list"] = (
+                completed_qs
+                .annotate(exercise_count=Count("workout_exercises"))
+                .order_by("-date")[:7]
+            )
+
+            # Best suggestion (query 2)
+            # Copy flow: the copied workout IS the best suggestion
+            if context.get("copy_from"):
+                context["best_suggestion"] = context["copy_from"]
+                context["is_copy_flow"] = True
+            else:
+                # Weekday match: find most recent workout done on same weekday
+                # Django week_day: 1=Sunday, 2=Monday ... 7=Saturday
+                # Python weekday(): 0=Monday ... 6=Sunday
+                py_weekday = today.weekday()  # 0=Mon
+                django_weekday = (py_weekday + 2) % 7 or 7  # convert to Django's 1-7
+                same_day = (
+                    completed_qs
+                    .filter(date__week_day=django_weekday)
+                    .order_by("-date")
+                    .first()
+                )
+                if same_day:
+                    context["best_suggestion"] = same_day
+                else:
+                    context["best_suggestion"] = (
+                        completed_qs.order_by("-date").first()
+                    )
 
         return context
 

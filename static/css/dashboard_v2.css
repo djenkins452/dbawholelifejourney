@@ -1808,7 +1808,7 @@ a.v2-action-title:hover {
 }
 
 .v2-cockpit-dial.expanded .v2-cockpit-panel {
-    max-height: 600px;
+    max-height: 1200px;
     margin-top: var(--space-3, 0.75rem);
 }
 

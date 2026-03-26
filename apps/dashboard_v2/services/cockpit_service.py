@@ -399,9 +399,17 @@ class GoalCockpitService:
             return None, {'days_active': 0, 'last_worked': None}
 
     def _compute_milestone_progress(self):
-        """Average milestone completion across active life goals."""
+        """
+        Milestone completion across active life goals.
+
+        Only counts milestones that are due (target_date <= today) or have
+        no target_date. Future milestones are excluded — you shouldn't be
+        penalized for milestones that aren't due yet.
+        """
         try:
-            from apps.purpose.models import LifeGoal
+            from django.db.models import Q
+
+            from apps.purpose.models import GoalMilestone, LifeGoal
 
             goals = LifeGoal.objects.filter(
                 user=self.user,
@@ -411,15 +419,15 @@ class GoalCockpitService:
             if not goals.exists():
                 return None, {'total_milestones': 0, 'completed_milestones': 0, 'active_goals': 0}
 
-            total_m = 0
-            completed_m = 0
-            goal_count = 0
-            for goal in goals:
-                mc = goal.milestone_count
-                if mc > 0:
-                    total_m += mc
-                    completed_m += goal.completed_milestone_count
-                    goal_count += 1
+            # Only milestones that are due or have no deadline
+            due_milestones = GoalMilestone.objects.filter(
+                goal__in=goals,
+            ).filter(
+                Q(target_date__isnull=True) | Q(target_date__lte=self.today)
+            )
+
+            total_m = due_milestones.count()
+            completed_m = due_milestones.filter(completed=True).count()
 
             if total_m == 0:
                 return None, {'total_milestones': 0, 'completed_milestones': 0, 'active_goals': goals.count()}

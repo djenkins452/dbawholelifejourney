@@ -344,44 +344,59 @@ def build_health_state(user):
     except Exception:
         pass
 
-    # ── Composite Health Score (from HealthScoreService via DailyHealthSummary) ──
-    # Use the most recent scored summary (today or yesterday), not strictly
-    # today — the nightly Celery task builds summaries through yesterday,
-    # so today's row may not have health_score yet.
+    # ── Composite Health Score (real-time via ScorePipeline) ────────
+    # Build today's DailyHealthSummary + compute HealthScoreService
+    # composite on every SAE cycle. This gives ~5-minute freshness
+    # instead of the nightly batch's ~24-hour lag.
     try:
         from django.db.models import Avg
 
         from apps.health.models import DailyHealthSummary
+        from apps.health.services.score_pipeline import ScorePipeline
 
-        latest_scored = (
-            DailyHealthSummary.objects.filter(
-                user=user,
-                health_score__isnull=False,
-                summary_date__gte=(now.date() - timedelta(days=3)),
+        today = now.date()
+
+        # Compute health score directly from HealthScoreService.
+        # Uses DailyHealthSummary data from the last 7 days (built nightly
+        # + on health data changes via domain events). Does NOT build or
+        # modify DailyHealthSummary — read-only computation.
+        try:
+            from apps.health.services.health_score import HealthScoreService
+
+            health_score, health_drivers = HealthScoreService.compute(user, today)
+            if health_score is not None:
+                state['health_score'] = health_score
+                state['health_score_drivers'] = health_drivers or {}
+        except Exception:
+            logger.debug("HealthScoreService.compute failed", exc_info=True)
+
+        # Recovery score from today's or most recent summary
+        try:
+            latest_recovery = (
+                DailyHealthSummary.objects.filter(
+                    user=user, recovery_score__isnull=False,
+                    summary_date__gte=(today - timedelta(days=3)),
+                )
+                .order_by('-summary_date')
+                .values_list('recovery_score', flat=True)
+                .first()
             )
-            .order_by('-summary_date')
-            .values('health_score', 'health_score_drivers', 'recovery_score',
-                    'summary_date')
-            .first()
-        )
-
-        if latest_scored:
-            state['health_score'] = latest_scored['health_score']
-            state['health_score_drivers'] = latest_scored['health_score_drivers'] or {}
-            if latest_scored['recovery_score'] is not None:
-                state['recovery_score_today'] = latest_scored['recovery_score']
+            if latest_recovery is not None:
+                state['recovery_score_today'] = latest_recovery
+        except Exception:
+            pass
 
         # Previous week average for trend
         prev_week = DailyHealthSummary.objects.filter(
             user=user,
-            summary_date__gte=(now.date() - timedelta(days=13)),
-            summary_date__lte=(now.date() - timedelta(days=7)),
+            summary_date__gte=(today - timedelta(days=13)),
+            summary_date__lte=(today - timedelta(days=7)),
             health_score__isnull=False,
         ).aggregate(avg=Avg('health_score'))
         if prev_week['avg'] is not None:
             state['health_score_prev_7d'] = round(float(prev_week['avg']))
     except Exception:
-        logger.debug("Health score state build failed", exc_info=True)
+        logger.debug("Health score pipeline failed in SAE", exc_info=True)
 
     return state
 

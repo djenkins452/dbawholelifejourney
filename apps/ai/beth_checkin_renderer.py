@@ -1,24 +1,34 @@
 """
-Deterministic Check-in Renderer — Pure Truth Layer
+Beth Check-in Renderer — Chief of Staff Briefing Layer
 
-Renders morning/midday/evening check-ins using ONLY deterministic data.
+Renders morning/midday/evening briefings using ONLY deterministic data.
 The LLM is NOT involved in generating any state description.
 
+Beth's briefing model (every interaction):
+1. Greeting (natural, simple)
+2. Day narrative (1 sentence, flow-oriented, no domain labels)
+3. Situational awareness (behind / on track / ahead)
+4. Time-aware triage (DO NOW vs MOVE LATER, with feasibility)
+5. Adjustment suggestion (if items can't fit)
+6. Decision prompt (if change needed — no auto-execution)
+
 DATA SOURCES (exclusively):
-- Execution Truth Engine (via cos_fact_statements.build_locked_facts)
-- Execution Truth raw routine items (individual named items)
-- Locked Next Action (via cos_fact_statements.build_locked_next_action)
-- Current time (for upcoming window filter)
+- Today Engine (get_today_context) — unified day dataset
+- Current time (user_now) — for triage windows
+- User first name — for greeting
 
 RULES:
-- NO aggregation (no counts, no grouping, no "X items")
+- NO domain labels (Faith, Health, Tasks)
+- NO counts or status language ("8 routines pending")
 - NO coaching or commentary
-- NO interpretation or inferred priorities
-- Every bullet = one real named item
-- Upcoming = only time-bound items within 90 minutes
+- NO LLM inference
+- Describe FLOW, not inventory
+- Mention meds ONLY if due soon or overdue
+- Suppress distant future items in morning
 """
 
 import logging
+from datetime import timedelta
 
 from django.utils import timezone
 
@@ -26,15 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 def render_morning_checkin(user) -> str:
-    """Render a deterministic morning check-in from execution truth.
-
-    Returns a structured, factual check-in string with:
-    - Completed items (or "None")
-    - Upcoming items with times
-    - Next action directive
-
-    This output is FINAL — it is NOT passed to an LLM for rephrasing.
-    """
+    """Render a deterministic morning briefing from execution truth."""
     try:
         return _render_checkin_from_truth(user)
     except Exception:
@@ -46,13 +48,10 @@ def render_morning_checkin(user) -> str:
 
 
 def render_checkin_for_time(user) -> str:
-    """Render a check-in appropriate for the current time of day.
-
-    Routes to morning/midday/evening format based on hour.
-    All formats use the same deterministic data — only framing differs.
-    """
+    """Render a briefing appropriate for the current time of day."""
     try:
-        hour = timezone.localtime().hour
+        from apps.core.utils import get_user_now
+        hour = get_user_now(user).hour
         if hour < 12:
             return _render_checkin_from_truth(user, phase="morning")
         elif hour < 17:
@@ -71,243 +70,520 @@ def render_checkin_for_time(user) -> str:
 # Internal renderer
 # ---------------------------------------------------------------------------
 
-_PHASE_LABELS = {
-    "morning": "Morning Briefing",
-    "midday": "Midday Alignment",
-    "evening": "Evening Debrief",
-}
-
 _SAFE_FALLBACK = (
-    "Morning Briefing\n\n"
-    "Completed:\n• None\n\n"
-    "Upcoming:\n• None\n\n"
-    "Next: Start with your next planned item."
+    "Good morning.\n\n"
+    "I wasn't able to load your day right now. "
+    "Try asking me what's on your plate."
 )
 
 # Re-export for backward compat with tests
 from apps.core.today.today_engine import COMING_UP_WINDOW_MINUTES as UPCOMING_WINDOW_MINUTES  # noqa: F401, E402
 
 # Banned words — if any appear in output, validation fails
-_BANNED_WORDS = frozenset({"items", "tasks", "routines"})
+_BANNED_WORDS = frozenset({"items", "tasks", "routines", "domains"})
+
+# Default activity durations (minutes) for feasibility triage.
+# Used when no scheduled duration is available from the item data.
+_DEFAULT_DURATIONS = {
+    'bible reading': 15,
+    'prayer': 15,
+    'prayer time': 15,
+    'quiet time': 15,
+    'devotion': 15,
+    'workout': 45,
+    'exercise': 45,
+    'shower': 15,
+    'journal': 10,
+    'journaling': 10,
+    'meditation': 10,
+}
+_DEFAULT_DURATION_FALLBACK = 15  # minutes
 
 
-def _classify_day_load(ctx) -> str:
-    """Classify day as light / focused / heavy based on pending items."""
-    pending = [i for i in ctx.get("all_items", []) if not i.get("completed")]
-    count = len(pending)
-    if count <= 3:
-        return "light"
-    elif count <= 7:
-        return "focused"
-    return "heavy"
+def _estimate_duration(item_name: str) -> int:
+    """Estimate activity duration in minutes from item name."""
+    name_lower = (item_name or '').lower().strip()
+    for key, minutes in _DEFAULT_DURATIONS.items():
+        if key in name_lower:
+            return minutes
+    return _DEFAULT_DURATION_FALLBACK
 
 
 def _render_checkin_from_truth(user, phase: str = "morning") -> str:
-    """Core renderer — structured briefing from Today Engine.
-
-    Uses the unified today context dataset. Output format varies by phase:
-
-    MORNING: Greeting, yesterday context (if any), day framing, agenda,
-             overdue/slipping items, next action.
-
-    MIDDAY: Progress vs plan, completed, slipping, recalibrated next action.
-
-    EVENING: Completed vs expected, explicit misses, carryover.
-
-    All data is deterministic from execution truth — no LLM involvement.
-    """
+    """Core renderer — builds Chief of Staff briefing from Today Engine."""
     from apps.core.today.today_engine import get_today_context
     from apps.core.utils import get_user_now
 
     ctx = get_today_context(user)
-    label = _PHASE_LABELS.get(phase, "Check-in")
     user_now = get_user_now(user)
 
-    def _fmt(bucket, limit=None):
-        if not bucket:
-            return "• None"
-        entries = bucket[:limit] if limit else bucket
-        result = "\n".join(f"• {entry['label']}" for entry in entries)
-        if limit and len(bucket) > limit:
-            result += f"\n• +{len(bucket) - limit} more"
-        return result
-
     if phase == "morning":
-        output = _render_morning(ctx, label, user, user_now, _fmt)
+        output = _render_morning(ctx, user, user_now)
     elif phase == "midday":
-        output = _render_midday(ctx, label, _fmt)
+        output = _render_midday(ctx, user, user_now)
     elif phase == "evening":
-        output = _render_evening(ctx, label, user, _fmt)
+        output = _render_evening(ctx, user, user_now)
     else:
-        output = _render_morning(ctx, label, user, user_now, _fmt)
+        output = _render_morning(ctx, user, user_now)
 
     _validate_output(output)
     return output
 
 
-def _render_morning(ctx, label, user, user_now, _fmt) -> str:
-    """Morning briefing — day framing + agenda + next action."""
-    lines = [label]
+# ---------------------------------------------------------------------------
+# MORNING BRIEFING
+# ---------------------------------------------------------------------------
 
-    # Greeting with time awareness
-    hour = user_now.hour
+def _render_morning(ctx, user, user_now) -> str:
+    """Morning briefing — narrative, triage, guidance."""
+    lines = []
     first_name = getattr(user, 'first_name', '') or ''
+    hour = user_now.hour
+
+    # ── 1. Greeting ──
     if hour < 5:
-        greeting = f"Early start{', ' + first_name if first_name else ''}."
-    elif hour < 8:
-        greeting = f"Good morning{', ' + first_name if first_name else ''}."
-    elif hour < 12:
-        greeting = f"Morning{', ' + first_name if first_name else ''}."
+        lines.append(f"Early start{', ' + first_name if first_name else ''}.")
+    elif hour < 9:
+        lines.append(
+            f"Good morning{', ' + first_name if first_name else ''}."
+        )
     else:
-        greeting = f"Hey{', ' + first_name if first_name else ''}."
-    lines.append(greeting)
-    lines.append("")
+        lines.append(f"Morning{', ' + first_name if first_name else ''}.")
 
-    # Day framing (light / focused / heavy)
-    day_load = _classify_day_load(ctx)
-    pending = [i for i in ctx.get("all_items", []) if not i.get("completed")]
-    load_msg = {
-        "light": f"Light day ahead — {len(pending)} items on your plate.",
-        "focused": f"Focused day — {len(pending)} items to work through.",
-        "heavy": f"Full day ahead — {len(pending)} items. Stay sharp.",
-    }
-    lines.append(load_msg.get(day_load, f"{len(pending)} items today."))
-    lines.append("")
+    # ── 2. Day narrative (flow, not inventory) ──
+    narrative = _build_day_narrative(ctx, user_now)
+    if narrative:
+        lines.append("")
+        lines.append(narrative)
 
-    # Overdue / slipping (from yesterday or earlier today)
+    # ── 3. Situational awareness ──
     overdue = ctx.get("overdue", [])
-    if overdue:
-        lines.append("Overdue:")
-        lines.append(_fmt(overdue, limit=3))
-        lines.append("")
-
-    # Already completed
-    completed = ctx.get("completed", [])
-    if completed:
-        lines.append("Done:")
-        lines.append(_fmt(completed))
-        lines.append("")
-
-    # Upcoming (within 90 min)
     coming_up = ctx.get("coming_up", [])
-    if coming_up:
-        lines.append("Coming up:")
-        lines.append(_fmt(coming_up))
-        lines.append("")
-
-    # Later today
+    completed = ctx.get("completed", [])
     later = ctx.get("later", [])
-    if later:
-        lines.append("Later:")
-        lines.append(_fmt(later, limit=5))
-        lines.append("")
 
-    # Next action (always shown)
-    lines.append(f"Next: {ctx['next']}")
+    situation = _assess_situation(overdue, completed, coming_up, user_now)
+    lines.append("")
+    lines.append(situation)
+
+    # ── 4 + 5. Time-aware triage + adjustment ──
+    triage = _build_morning_triage(
+        ctx, user_now, overdue, coming_up, later,
+    )
+    if triage:
+        lines.append("")
+        lines.append(triage)
+
+    # ── 6. Completed acknowledgment (brief) ──
+    if completed:
+        names = [e['label'] for e in completed[:3]]
+        if len(completed) <= 3:
+            lines.append("")
+            lines.append(f"Already done: {', '.join(names)}.")
+        else:
+            lines.append("")
+            lines.append(
+                f"Already done: {', '.join(names)}, "
+                f"+{len(completed) - 3} more."
+            )
 
     return "\n".join(lines)
 
 
-def _render_midday(ctx, label, _fmt) -> str:
-    """Midday alignment — progress vs plan."""
-    lines = [label]
-    lines.append("")
+def _build_day_narrative(ctx, user_now) -> str:
+    """Build a 1-sentence flow description of the day.
 
+    Describes the shape of the day — not a list, not counts.
+    Focuses on: morning structure → key commitment → general layout.
+    """
     all_items = ctx.get("all_items", [])
-    total = len(all_items)
+    pending = [
+        i for i in all_items
+        if not i.get("completed") and i.get("scheduled_time")
+    ]
+    if not pending:
+        return ""
+
+    # Sort by time
+    pending.sort(key=lambda i: i["scheduled_time"])
+
+    # Find the key structural items
+    morning_items = [
+        i for i in pending
+        if i["scheduled_time"].hour < 12
+    ]
+    afternoon_items = [
+        i for i in pending
+        if 12 <= i["scheduled_time"].hour < 17
+    ]
+
+    # Build narrative from morning flow
+    if not morning_items:
+        if afternoon_items:
+            first = afternoon_items[0]
+            return (
+                f"Your first commitment is "
+                f"{first['name']} at {first.get('time_str', '')}."
+            )
+        return ""
+
+    # Describe the morning structure
+    first = morning_items[0]
+    last_morning = morning_items[-1]
+
+    if len(morning_items) == 1:
+        return (
+            f"Your morning starts with {first['name']} "
+            f"at {first.get('time_str', '')}."
+        )
+
+    # Find a "hard" commitment (shower, meeting, appointment)
+    hard_commits = [
+        i for i in morning_items
+        if any(k in (i['name'] or '').lower() for k in (
+            'shower', 'meeting', 'appointment', 'call', 'class',
+        ))
+    ]
+
+    if hard_commits:
+        anchor = hard_commits[0]
+        before_anchor = [
+            i for i in morning_items
+            if i["scheduled_time"] < anchor["scheduled_time"]
+        ]
+        if before_anchor:
+            return (
+                f"Your morning leads into "
+                f"{anchor['name']} at {anchor.get('time_str', '')}, "
+                f"with {len(before_anchor)} "
+                f"thing{'s' if len(before_anchor) != 1 else ''} "
+                f"to get through first."
+            )
+        return (
+            f"Your morning starts with {anchor['name']} "
+            f"at {anchor.get('time_str', '')}."
+        )
+
+    # Generic: describe span
+    return (
+        f"Your morning runs from "
+        f"{first.get('time_str', '')} through "
+        f"{last_morning.get('time_str', '')}."
+    )
+
+
+def _assess_situation(overdue, completed, coming_up, user_now) -> str:
+    """Determine situational state: behind / on track / ahead."""
+    has_overdue = len(overdue) > 0
+    has_completed = len(completed) > 0
+    hour = user_now.hour
+
+    if has_overdue:
+        if len(overdue) >= 3:
+            return "You're behind this morning — a few things have slipped."
+        return "You're a bit behind — let's get you caught up."
+
+    if has_completed and not coming_up:
+        return "You're ahead right now — nice position to be in."
+
+    if hour < 6 and not has_completed:
+        return "Early start — you've got time to set the tone."
+
+    return "You're on track."
+
+
+def _build_morning_triage(ctx, user_now, overdue, coming_up, later) -> str:
+    """Time-aware feasibility triage.
+
+    Determines what can be done NOW vs what needs to move later.
+    Uses the next hard commitment as the time boundary.
+
+    Returns: guidance text with DO NOW + MOVE LATER sections.
+    """
+    # Collect actionable items: overdue + coming_up (not completed)
+    actionable = []
+    for item in overdue:
+        raw = item.get('item', {})
+        if not raw.get('completed'):
+            actionable.append(raw)
+    for item in coming_up:
+        raw = item.get('item', {})
+        if not raw.get('completed'):
+            actionable.append(raw)
+
+    if not actionable:
+        # Nothing actionable — check for later items
+        next_action = ctx.get('next', '')
+        if next_action and next_action != "Start with your next planned item.":
+            return f"Start with {next_action}."
+        return ""
+
+    # Find next hard commitment (fixed-time item that acts as deadline)
+    # Look in coming_up and later for the first non-overdue, non-completed
+    # item that is time-bound.
+    hard_deadline = None
+    hard_deadline_name = None
+    for bucket in [coming_up, later]:
+        for entry in bucket:
+            raw = entry.get('item', {})
+            if raw.get('completed'):
+                continue
+            sched = raw.get('scheduled_time')
+            name = raw.get('name', '')
+            # Hard commits: shower, meetings, appointments, medications
+            is_hard = any(
+                k in (name or '').lower()
+                for k in ('shower', 'meeting', 'appointment', 'call',
+                          'class', 'mounjaro', 'medication')
+            )
+            if is_hard and sched and sched > user_now:
+                hard_deadline = sched
+                hard_deadline_name = name
+                break
+        if hard_deadline:
+            break
+
+    if not hard_deadline:
+        # No hard deadline found — just guide to start
+        next_name = actionable[0].get('name', '')
+        if len(actionable) == 1:
+            return f"Start with {next_name}."
+        names = [i.get('name', '') for i in actionable[:3]]
+        return f"Start with {names[0]}, then {', then '.join(names[1:])}."
+
+    # Feasibility split: what fits before the deadline?
+    available_minutes = max(
+        0,
+        int((hard_deadline - user_now).total_seconds() / 60),
+    )
+
+    do_now = []
+    move_later = []
+    time_used = 0
+
+    # Sort actionable by scheduled time (earliest first), then by priority
+    def _sort_key(item):
+        sched = item.get('scheduled_time')
+        priority = 0 if item.get('priority') == 'foundational' else 1
+        return (priority, sched or user_now)
+
+    actionable.sort(key=_sort_key)
+
+    for item in actionable:
+        name = item.get('name', '')
+        # Skip the hard deadline item itself
+        if name.lower() == (hard_deadline_name or '').lower():
+            continue
+        duration = _estimate_duration(name)
+        if time_used + duration <= available_minutes:
+            do_now.append(name)
+            time_used += duration
+        else:
+            move_later.append(name)
+
+    # Build output
+    parts = []
+
+    if do_now:
+        if len(do_now) == 1:
+            parts.append(
+                f"You can get {do_now[0]} done before your "
+                f"{hard_deadline_name} at "
+                f"{hard_deadline.strftime('%I:%M %p').lstrip('0')}."
+            )
+        else:
+            items_str = ' and '.join(
+                [', '.join(do_now[:-1]), do_now[-1]]
+                if len(do_now) > 2
+                else do_now
+            )
+            parts.append(
+                f"You can get {items_str} done before your "
+                f"{hard_deadline_name} at "
+                f"{hard_deadline.strftime('%I:%M %p').lstrip('0')}."
+            )
+        parts.append(f"Start with {do_now[0]} now.")
+    elif not move_later:
+        # Everything fits in "coming up" — normal flow
+        next_action = ctx.get('next', '')
+        if next_action:
+            parts.append(f"Start with {next_action}.")
+
+    if move_later:
+        if len(move_later) == 1:
+            parts.append(
+                f"{move_later[0]} won't fit before then — "
+                f"plan to move it later today."
+            )
+        else:
+            items_str = ' and '.join(
+                [', '.join(move_later[:-1]), move_later[-1]]
+                if len(move_later) > 2
+                else move_later
+            )
+            parts.append(
+                f"{items_str} won't fit before then — "
+                f"plan to move those later today."
+            )
+
+    return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# MIDDAY ALIGNMENT
+# ---------------------------------------------------------------------------
+
+def _render_midday(ctx, user, user_now) -> str:
+    """Midday alignment — progress, slipping, recalibrated guidance."""
+    lines = []
+    first_name = getattr(user, 'first_name', '') or ''
+
+    # Greeting
+    lines.append(f"Midday check{', ' + first_name if first_name else ''}.")
+
+    # Progress narrative
+    all_items = ctx.get("all_items", [])
     completed = ctx.get("completed", [])
-    done_count = len(completed)
-
-    if total > 0:
-        lines.append(f"Progress: {done_count}/{total} done.")
-    lines.append("")
-
-    # Completed
-    if completed:
-        lines.append("Done:")
-        lines.append(_fmt(completed))
-        lines.append("")
-
-    # Slipping / overdue
     overdue = ctx.get("overdue", [])
-    if overdue:
-        lines.append("Slipping:")
-        lines.append(_fmt(overdue, limit=3))
-        lines.append("")
+    total = len(all_items)
+    done = len(completed)
 
-    # Still coming
+    lines.append("")
+    if total > 0:
+        if done == 0:
+            lines.append("Nothing completed yet today.")
+        elif done == total:
+            lines.append("Everything's done. Clean sweep.")
+        elif done >= total * 0.7:
+            lines.append(
+                f"Strong progress — {done} of {total} done."
+            )
+        elif done >= total * 0.4:
+            lines.append(
+                f"Halfway there — {done} of {total} done."
+            )
+        else:
+            lines.append(
+                f"Slow start — {done} of {total} done so far."
+            )
+
+    # Slipping items
+    if overdue:
+        lines.append("")
+        if len(overdue) == 1:
+            lines.append(
+                f"{overdue[0]['label']} has slipped. "
+                f"Can you get to it this afternoon?"
+            )
+        else:
+            names = [e['label'] for e in overdue[:3]]
+            lines.append(
+                f"Slipping: {', '.join(names)}."
+            )
+
+    # Remaining
     coming_up = ctx.get("coming_up", [])
     later = ctx.get("later", [])
     remaining = coming_up + later
     if remaining:
-        lines.append("Remaining:")
-        lines.append(_fmt(remaining, limit=5))
         lines.append("")
+        names = [e['label'] for e in remaining[:4]]
+        lines.append(f"Still ahead: {', '.join(names)}.")
 
-    lines.append(f"Next: {ctx['next']}")
+    # Next action
+    next_action = ctx.get('next', '')
+    if next_action and next_action != "Start with your next planned item.":
+        lines.append("")
+        lines.append(f"Focus on {next_action} next.")
+
     return "\n".join(lines)
 
 
-def _render_evening(ctx, label, user, _fmt) -> str:
-    """Evening debrief — completed vs expected, explicit misses."""
-    lines = [label]
-    lines.append("")
+# ---------------------------------------------------------------------------
+# EVENING DEBRIEF
+# ---------------------------------------------------------------------------
 
+def _render_evening(ctx, user, user_now) -> str:
+    """Evening debrief — results, explicit misses, tomorrow."""
+    lines = []
+    first_name = getattr(user, 'first_name', '') or ''
+
+    lines.append(
+        f"End of day{', ' + first_name if first_name else ''}."
+    )
+
+    # Results
     all_items = ctx.get("all_items", [])
-    total = len(all_items)
     completed = ctx.get("completed", [])
-    done_count = len(completed)
-    missed_count = total - done_count
+    total = len(all_items)
+    done = len(completed)
 
-    if total > 0:
-        lines.append(f"Day result: {done_count}/{total} completed.")
     lines.append("")
+    if total == 0:
+        lines.append("Nothing was scheduled today.")
+    elif done == total:
+        lines.append("You completed everything today. Well done.")
+    elif done >= total * 0.7:
+        lines.append(f"Solid day — {done} of {total} done.")
+    elif done > 0:
+        lines.append(f"{done} of {total} done today.")
+    else:
+        lines.append("Tough day — nothing got checked off.")
 
-    # Completed
-    if completed:
-        lines.append("Done:")
-        lines.append(_fmt(completed))
+    # What got done (brief)
+    if completed and len(completed) <= 5:
+        names = [e['label'] for e in completed]
         lines.append("")
+        lines.append(f"Done: {', '.join(names)}.")
+    elif completed:
+        names = [e['label'] for e in completed[:4]]
+        lines.append("")
+        lines.append(
+            f"Done: {', '.join(names)}, +{len(completed) - 4} more."
+        )
 
-    # Explicit misses (overdue + coming_up + later that aren't done)
+    # Explicit misses
     overdue = ctx.get("overdue", [])
     coming_up = ctx.get("coming_up", [])
     later = ctx.get("later", [])
     missed = overdue + coming_up + later
     if missed:
-        lines.append("Missed:")
-        lines.append(_fmt(missed, limit=5))
+        names = [e['label'] for e in missed[:4]]
         lines.append("")
+        lines.append(f"Missed: {', '.join(names)}.")
 
-    # Tomorrow's load (lightweight query — just count)
+    # Tomorrow's load
     try:
         from apps.core.utils import get_user_today
         from apps.life.models import Task
-        from datetime import timedelta as _td
         today = get_user_today(user)
-        tomorrow = today + _td(days=1)
+        tomorrow = today + timedelta(days=1)
         tomorrow_count = Task.objects.filter(
             user=user, due_date=tomorrow, deleted_at__isnull=True,
         ).exclude(completion_status='skipped').count()
         if tomorrow_count:
-            lines.append(
-                f"Tomorrow: {tomorrow_count} "
-                f"item{'s' if tomorrow_count != 1 else ''} queued."
-            )
             lines.append("")
+            lines.append(
+                f"Tomorrow has {tomorrow_count} "
+                f"thing{'s' if tomorrow_count != 1 else ''} lined up."
+            )
     except Exception:
-        pass  # Tomorrow count is optional
+        pass
 
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
+
 def _validate_output(output: str):
-    """Validate that output contains no aggregation language."""
+    """Validate that output contains no domain/aggregation language."""
     output_lower = output.lower()
     for word in _BANNED_WORDS:
         if word in output_lower:
             logger.warning(
-                "[CHECKIN RENDERER] VALIDATION: banned word '%s' found in output",
+                "[CHECKIN RENDERER] VALIDATION: banned word '%s' found",
                 word,
             )
 
@@ -316,7 +592,6 @@ def _validate_output(output: str):
 # State guard — blocks LLM-generated state descriptions
 # ---------------------------------------------------------------------------
 
-# Patterns that indicate the LLM is fabricating user state
 _STATE_PATTERNS = [
     "you completed",
     "you've completed",
@@ -347,11 +622,7 @@ _STATE_PATTERNS = [
 
 
 def contains_state_language(text: str) -> bool:
-    """Check if text contains LLM-generated state language.
-
-    Returns True if the text appears to contain state descriptions
-    that should only come from the deterministic renderer.
-    """
+    """Check if text contains LLM-generated state language."""
     if not text:
         return False
     text_lower = text.lower()
@@ -363,16 +634,12 @@ def guard_llm_output(llm_output: str, user) -> str:
 
     If the LLM output contains state language, replace with
     the deterministic check-in renderer output.
-
-    Returns the original output if safe, or the deterministic
-    replacement if state language is detected.
     """
     if not contains_state_language(llm_output):
         return llm_output
 
     logger.warning(
-        "[STATE GUARD] Blocked LLM state language for user=%s, "
-        "replacing with deterministic check-in",
+        "[STATE GUARD] Blocked LLM state language for user=%s",
         user.id,
     )
 

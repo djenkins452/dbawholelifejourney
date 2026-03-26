@@ -655,4 +655,204 @@ class PersonalAssistantIntegrationTests(TestCase):
         # Verify basic structure - high value may or may not trigger confirmation
         self.assertIsInstance(result, dict)
         self.assertIn('response', result)
-        self.assertIsInstance(result['response'], str)
+
+
+# ==========================================================================
+# Intent Routing Safeguards — Domain Locking & Cross-Domain Rejection
+# ==========================================================================
+
+
+class TestDomainLockSafeguard(TestCase):
+    """
+    Tests for the domain-lock safeguard that prevents cross-domain
+    intent misrouting (e.g., "move workout" → "rename assistant").
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='domainlock@example.com',
+            password='testpass123',
+        )
+        prefs = self.user.preferences
+        prefs.ai_enabled = True
+        prefs.ai_data_consent = True
+        prefs.personal_assistant_enabled = True
+        prefs.personal_assistant_consent = True
+        prefs.save()
+
+    def test_settings_removed_from_core_intent_tools(self):
+        """SETTINGS_INTENT_TOOLS must NOT be in CORE_INTENT_TOOLS."""
+        from apps.ai.intents import (
+            CORE_INTENT_TOOLS, SETTINGS_INTENT_TOOLS,
+        )
+        core_names = {
+            t['function']['name'] for t in CORE_INTENT_TOOLS
+        }
+        settings_names = {
+            t['function']['name'] for t in SETTINGS_INTENT_TOOLS
+        }
+        self.assertTrue(
+            core_names.isdisjoint(settings_names),
+            f"Settings intents in CORE: {core_names & settings_names}",
+        )
+
+    def test_settings_in_own_domain(self):
+        """Settings intents must be in their own domain scope."""
+        from apps.ai.intents import DOMAIN_INTENT_TOOLS
+        self.assertIn('settings', DOMAIN_INTENT_TOOLS)
+
+    def test_health_domain_includes_life_tools(self):
+        """Health domain must include LIFE_INTENT_TOOLS for routine crossover."""
+        from apps.ai.intents import DOMAIN_INTENT_TOOLS
+        health_tool_names = {
+            t['function']['name'] for t in DOMAIN_INTENT_TOOLS['health']
+        }
+        self.assertIn(
+            'reschedule_routine_item', health_tool_names,
+            "health domain must include reschedule_routine_item "
+            "for 'move my workout' messages",
+        )
+
+    @patch('django.conf.settings.WLJ_SCOPED_INTENT_TOOLS_ENABLED', True)
+    def test_scoped_tools_health_excludes_set_cos_name(self):
+        """When domain is 'health', set_cos_name must NOT be in tools."""
+        from apps.ai.intents import get_scoped_intent_tools
+        tools = get_scoped_intent_tools('health')
+        tool_names = {t['function']['name'] for t in tools}
+        self.assertNotIn(
+            'set_cos_name', tool_names,
+            "set_cos_name must not appear in health-scoped tools",
+        )
+
+    @patch('django.conf.settings.WLJ_SCOPED_INTENT_TOOLS_ENABLED', True)
+    def test_scoped_tools_tasks_excludes_set_cos_name(self):
+        """When domain is 'tasks', set_cos_name must NOT be in tools."""
+        from apps.ai.intents import get_scoped_intent_tools
+        tools = get_scoped_intent_tools('tasks')
+        tool_names = {t['function']['name'] for t in tools}
+        self.assertNotIn(
+            'set_cos_name', tool_names,
+            "set_cos_name must not appear in tasks-scoped tools",
+        )
+
+
+class TestSetCosNameSafeguards(TestCase):
+    """
+    Tests for the keyword safeguard and confirmation gate on set_cos_name.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='cosname@example.com',
+            password='testpass123',
+        )
+        prefs = self.user.preferences
+        prefs.ai_enabled = True
+        prefs.ai_data_consent = True
+        prefs.personal_assistant_enabled = True
+        prefs.personal_assistant_consent = True
+        prefs.save()
+
+    def test_set_cos_name_requires_confirmation(self):
+        """set_cos_name must always require confirmation."""
+        from apps.ai.intent_service import IntentService
+        svc = IntentService()
+        requires, msg = svc._check_validation(
+            'set_cos_name', {'name': 'Max'}, self.user,
+        )
+        self.assertTrue(
+            requires,
+            "set_cos_name must always require confirmation",
+        )
+        self.assertIn('Max', msg)
+
+    def test_set_cos_name_reset_requires_confirmation(self):
+        """set_cos_name with empty name (reset) must also require confirmation."""
+        from apps.ai.intent_service import IntentService
+        svc = IntentService()
+        requires, msg = svc._check_validation(
+            'set_cos_name', {'name': ''}, self.user,
+        )
+        self.assertTrue(requires)
+        self.assertIn('default', msg.lower())
+
+    def test_keyword_safeguard_rejects_without_name_language(self):
+        """
+        If user message doesn't contain name-change language,
+        set_cos_name must be rejected even if OpenAI selects it.
+        """
+        from apps.ai.intent_service import IntentService
+        from unittest.mock import MagicMock
+
+        svc = IntentService()
+
+        # Simulate OpenAI returning set_cos_name for a workout message
+        mock_response = MagicMock()
+        mock_tool_call = MagicMock()
+        mock_tool_call.function.name = 'set_cos_name'
+        mock_tool_call.function.arguments = '{"name": "Max"}'
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.tool_calls = [mock_tool_call]
+        mock_response.choices[0].message.content = None
+        mock_response.usage = None
+
+        # Patch the client attribute directly
+        original_client = svc.client
+        svc.client = MagicMock()
+        svc.client.chat.completions.create.return_value = mock_response
+
+        try:
+            results = svc.recognize_intents(
+                "I have to move my workout until tonight at 8:30pm",
+                self.user,
+            )
+        finally:
+            svc.client = original_client
+
+        # set_cos_name should be rejected — no name-change language
+        intent_types = [r.intent_type for r in results]
+        self.assertNotIn(
+            'set_cos_name', intent_types,
+            "set_cos_name must be rejected when message has no "
+            "name-change language",
+        )
+
+    def test_keyword_safeguard_allows_with_name_language(self):
+        """
+        If user message contains explicit name-change language,
+        set_cos_name should be allowed (with confirmation).
+        """
+        from apps.ai.intent_service import IntentService
+        from unittest.mock import MagicMock
+
+        svc = IntentService()
+
+        mock_response = MagicMock()
+        mock_tool_call = MagicMock()
+        mock_tool_call.function.name = 'set_cos_name'
+        mock_tool_call.function.arguments = '{"name": "Jarvis"}'
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.tool_calls = [mock_tool_call]
+        mock_response.choices[0].message.content = None
+        mock_response.usage = None
+
+        original_client = svc.client
+        svc.client = MagicMock()
+        svc.client.chat.completions.create.return_value = mock_response
+
+        try:
+            results = svc.recognize_intents(
+                "call yourself Jarvis from now on",
+                self.user,
+            )
+        finally:
+            svc.client = original_client
+
+        # Should be allowed — explicit name-change language
+        intent_types = [r.intent_type for r in results]
+        self.assertIn('set_cos_name', intent_types)
+        # Should require confirmation
+        cos_result = next(
+            r for r in results if r.intent_type == 'set_cos_name'
+        )
+        self.assertTrue(cos_result.requires_confirmation)

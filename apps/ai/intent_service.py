@@ -26,7 +26,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 
-from .intents import ALL_INTENT_TOOLS
+from .intents import ALL_INTENT_TOOLS, INTENT_HANDLERS
 from .intents.health_intents import HEALTH_VALIDATION_RANGES
 
 logger = logging.getLogger(__name__)
@@ -270,6 +270,51 @@ class IntentService:
                                 "read_calendar_events → %s params=%s",
                                 function_name, parameters,
                             )
+
+                    # --- Domain-lock safeguard ---
+                    # Prevent cross-domain misrouting: if the router
+                    # detected a specific domain AND the LLM selected an
+                    # intent from a different domain, reject the intent.
+                    # This stops "move workout" from triggering "rename
+                    # assistant" (set_cos_name) when the domain is 'tasks'.
+                    if domain and function_name in INTENT_HANDLERS:
+                        intent_domain = INTENT_HANDLERS.get(function_name)
+                        if intent_domain and intent_domain != domain:
+                            # Cross-domain: only allow if it's a system
+                            # intent (undo/edit) or calibration intent
+                            # (these are legitimately cross-cutting).
+                            _cross_cutting = {
+                                'system', 'calibration', 'learning_mode',
+                            }
+                            if intent_domain not in _cross_cutting:
+                                logger.warning(
+                                    "DOMAIN_LOCK_REJECT intent=%s "
+                                    "intent_domain=%s router_domain=%s "
+                                    "msg=%r — cross-domain mismatch, "
+                                    "rejecting intent",
+                                    function_name, intent_domain, domain,
+                                    user_message[:80],
+                                )
+                                continue  # Skip this misrouted intent
+
+                    # --- Keyword safeguard for set_cos_name ---
+                    # Require explicit name-change language in the user's
+                    # message before allowing assistant rename. This
+                    # prevents any residual misclassification.
+                    if function_name == 'set_cos_name':
+                        _name_verbs = {
+                            'call yourself', 'your name', 'rename',
+                            'change your name', 'name is now',
+                            'call you', 'named',
+                        }
+                        _msg_lower = (user_message or '').lower()
+                        if not any(v in _msg_lower for v in _name_verbs):
+                            logger.warning(
+                                "SET_COS_NAME_REJECTED msg=%r — no "
+                                "name-change language detected",
+                                user_message[:80],
+                            )
+                            continue  # Reject: not a rename request
 
                     logger.info(f"Intent recognized: {function_name} with params: {parameters}")
 
@@ -1163,6 +1208,24 @@ the Medications page), honor the explicit domain.
                 status = "low"
                 msg = f"{spo2}% SpO2 is {status}. Are you feeling okay? Should I log it?"
                 return True, msg
+
+        # --- Settings mutation confirmation (always required) ---
+        # Settings changes like renaming the assistant must ALWAYS
+        # require confirmation. This prevents silent mutations from
+        # misrouted intents or accidental triggers.
+        elif intent_type == 'set_cos_name':
+            new_name = parameters.get('name', '').strip()
+            if new_name:
+                msg = (
+                    f'Change my name to "{new_name}"? '
+                    f"Reply yes to confirm, or no to cancel."
+                )
+            else:
+                msg = (
+                    "Reset my name back to the default? "
+                    "Reply yes to confirm, or no to cancel."
+                )
+            return True, msg
 
         return False, ""
 

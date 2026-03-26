@@ -10,7 +10,7 @@
 
 - **Fix:** Medication behavior engine now excludes today's future doses (scheduled_time > current time) from expected count. Previously all 8 days of doses were counted including doses not yet due, inflating "missed" count. Now a morning check only counts doses due before the current time.
   - Files: `apps/core/behavior/domain_medication.py`
-- **Fix:** Workout behavior engine now excludes today from expected if the workout hasn't been completed or skipped yet. Same fairness principle — can't miss what isn't due yet.
+- **Fix:** Workout behavior engine: reverted today-exclusion. Today's scheduled workout always counts in expected — if overdue it shows as missed, when completed later it flips to completed. User expects to see "7/8, 1 missed" when they're behind schedule.
   - Files: `apps/core/behavior/domain_workout.py`
 
 ## 2026-03-26 — Fix: Workout Counting Multi-Source + Task Fairness (Today's Incomplete Tasks)

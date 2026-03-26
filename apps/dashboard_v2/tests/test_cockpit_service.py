@@ -62,34 +62,34 @@ class GoalCockpitServiceTest(TestCase):
 
     @patch("apps.dashboard_v2.services.cockpit_service.GoalCockpitService._faith_window")
     def test_faith_score_full_consistency(self, mock_window):
-        """Faith score is 100 when all 7 days have Bible + prayer."""
+        """Faith score is 100 when all 8 days have Bible + prayer."""
         mock_window.return_value = {
-            "bible_days": 7,
-            "prayer_days": 7,
-            "bible_daily": [1, 1, 1, 1, 1, 1, 1],
-            "prayer_daily": [1, 1, 1, 1, 1, 1, 1],
+            "bible_days": 8,
+            "prayer_days": 8,
+            "bible_daily": [1, 1, 1, 1, 1, 1, 1, 1],
+            "prayer_daily": [1, 1, 1, 1, 1, 1, 1, 1],
         }
         service = GoalCockpitService(self.user)
         result = service._compute_faith()
 
         self.assertEqual(result["score"], 100)
-        self.assertEqual(result["components"]["bible_days"], 7)
-        self.assertEqual(result["components"]["prayer_days"], 7)
+        self.assertEqual(result["components"]["bible_days"], 8)
+        self.assertEqual(result["components"]["prayer_days"], 8)
 
     @patch("apps.dashboard_v2.services.cockpit_service.GoalCockpitService._faith_window")
     def test_faith_score_partial(self, mock_window):
-        """Faith score reflects partial consistency."""
+        """Faith score reflects partial consistency (8-day window)."""
         mock_window.return_value = {
             "bible_days": 4,
             "prayer_days": 5,
-            "bible_daily": [1, 1, 0, 1, 0, 0, 1],
-            "prayer_daily": [1, 1, 1, 1, 0, 1, 0],
+            "bible_daily": [1, 1, 0, 1, 0, 0, 1, 0],
+            "prayer_daily": [1, 1, 1, 1, 0, 1, 0, 0],
         }
         service = GoalCockpitService(self.user)
         result = service._compute_faith()
 
-        # (4/7 * 50) + (5/7 * 50) = 28.57 + 35.71 = 64.28 → 64
-        expected = round((4 / 7 * 50) + (5 / 7 * 50))
+        # (4/8 * 50) + (5/8 * 50) = 25 + 31.25 = 56.25 → 56
+        expected = round((4 / 8 * 50) + (5 / 8 * 50))
         self.assertEqual(result["score"], expected)
 
     @patch("apps.core.ai_state.state_engine.get_state_value")

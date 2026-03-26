@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Enhancement: Context-Aware Workout Creation (Best Suggestion + Recent Workouts)
+
+**Objective:** Improve "Copy Workout" / "Log Workout" UX by providing context-aware suggestions and fast access to recent workouts, reducing friction on the workout creation page.
+
+**Changes:**
+- `apps/health/views.py` — Extended `WorkoutCreateView.get_context_data()` with "Best Suggestion" (weekday-match or most recent, overridden by copy flow) and "Recent Workouts" (last 7 completed). Two efficient queries with `annotate(exercise_count=Count(...))`.
+- `templates/health/fitness/workout_form.html` — Added "Best Match for Today" card (top of page), "Recent Workouts" list with copy actions + "View all" link. Moved Quick Start Templates to collapsed/secondary position below new sections. Added responsive CSS and toggle JS (CSP-compliant).
+
+**Files:** `apps/health/views.py`, `templates/health/fitness/workout_form.html`
+
+---
+
 ## 2026-03-25 — Fix: Intent Misrouting — Domain Locking & set_cos_name Safeguards
 
 **Root cause:** "move my workout to tonight at 8:30pm" triggered "Changing assistant name: Max" because `SETTINGS_INTENT_TOOLS` was in `CORE_INTENT_TOOLS` (sent to OpenAI on every call), the health domain scope excluded `reschedule_routine_item` but included `set_cos_name`, and no post-classification safeguard existed.

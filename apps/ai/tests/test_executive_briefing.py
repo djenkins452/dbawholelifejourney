@@ -616,3 +616,122 @@ class TestAutoCompleteWakeup(ExecutiveBriefingTestMixin, TestCase):
         result = auto_complete_wakeup(self.user, timezone.now().date())
 
         self.assertFalse(result)
+
+
+class TestHandleDayStart(ExecutiveBriefingTestMixin, TestCase):
+    """Tests for handle_day_start() — the authoritative day-start initializer."""
+
+    def setUp(self):
+        self.user = self.create_user(email='daystart@example.com')
+
+    @patch('apps.ai.executive_briefing.auto_complete_wakeup')
+    @patch('apps.ai.executive_briefing._ensure_routine_tasks_for_today')
+    @patch('apps.core.utils.get_user_today')
+    def test_first_call_initializes(self, mock_today, mock_ensure, mock_wake):
+        """First call of the day performs initialization."""
+        from apps.ai.executive_briefing import handle_day_start
+        from django.core.cache import cache
+
+        mock_today.return_value = timezone.now().date()
+        mock_wake.return_value = True
+        cache.clear()
+
+        result = handle_day_start(self.user)
+
+        self.assertTrue(result['initialized'])
+        self.assertTrue(result['wake_completed'])
+        mock_ensure.assert_called_once()
+        mock_wake.assert_called_once()
+
+    @patch('apps.ai.executive_briefing.auto_complete_wakeup')
+    @patch('apps.ai.executive_briefing._ensure_routine_tasks_for_today')
+    @patch('apps.core.utils.get_user_today')
+    def test_second_call_is_noop(self, mock_today, mock_ensure, mock_wake):
+        """Subsequent calls the same day are instant no-ops."""
+        from apps.ai.executive_briefing import handle_day_start
+        from django.core.cache import cache
+
+        today = timezone.now().date()
+        mock_today.return_value = today
+        mock_wake.return_value = True
+        cache.clear()
+
+        # First call
+        result1 = handle_day_start(self.user)
+        self.assertTrue(result1['initialized'])
+
+        # Second call — should be cache hit, no-op
+        mock_ensure.reset_mock()
+        mock_wake.reset_mock()
+
+        result2 = handle_day_start(self.user)
+        self.assertFalse(result2['initialized'])
+        self.assertFalse(result2['wake_completed'])
+        mock_ensure.assert_not_called()
+        mock_wake.assert_not_called()
+
+    @patch('apps.ai.executive_briefing.auto_complete_wakeup')
+    @patch('apps.ai.executive_briefing._ensure_routine_tasks_for_today')
+    @patch('apps.core.utils.get_user_today')
+    def test_no_wake_task_still_initializes(self, mock_today, mock_ensure, mock_wake):
+        """Initialization succeeds even when no Wake Up task exists."""
+        from apps.ai.executive_briefing import handle_day_start
+        from django.core.cache import cache
+
+        mock_today.return_value = timezone.now().date()
+        mock_wake.return_value = False  # No wake task
+        cache.clear()
+
+        result = handle_day_start(self.user)
+
+        self.assertTrue(result['initialized'])
+        self.assertFalse(result['wake_completed'])
+        mock_ensure.assert_called_once()
+
+    @patch('apps.ai.executive_briefing.auto_complete_wakeup')
+    @patch('apps.ai.executive_briefing._ensure_routine_tasks_for_today')
+    @patch('apps.core.utils.get_user_today')
+    def test_ensure_failure_does_not_block_wake(self, mock_today, mock_ensure, mock_wake):
+        """If _ensure_routine_tasks_for_today fails, Wake Up still runs."""
+        from apps.ai.executive_briefing import handle_day_start
+        from django.core.cache import cache
+
+        mock_today.return_value = timezone.now().date()
+        mock_ensure.side_effect = Exception('DB error')
+        mock_wake.return_value = True
+        cache.clear()
+
+        result = handle_day_start(self.user)
+
+        self.assertTrue(result['initialized'])
+        self.assertTrue(result['wake_completed'])
+        mock_wake.assert_called_once()
+
+    def test_all_entry_points_call_handle_day_start(self):
+        """Verify all CoS entry points include handle_day_start."""
+        import inspect
+        from apps.ai.views import (
+            SessionStartView,
+            ProactiveBriefingView,
+            AssistantOpeningView,
+            AssistantChatView,
+            AssistantChatStreamView,
+        )
+
+        views_to_check = [
+            ('SessionStartView', SessionStartView),
+            ('ProactiveBriefingView', ProactiveBriefingView),
+            ('AssistantOpeningView', AssistantOpeningView),
+            ('AssistantChatView', AssistantChatView),
+            ('AssistantChatStreamView', AssistantChatStreamView),
+        ]
+
+        for name, view_cls in views_to_check:
+            # Check the post or get method
+            method = getattr(view_cls, 'post', None) or getattr(view_cls, 'get', None)
+            source = inspect.getsource(method)
+            self.assertIn(
+                'handle_day_start',
+                source,
+                f"{name} must call handle_day_start before CoS rendering",
+            )

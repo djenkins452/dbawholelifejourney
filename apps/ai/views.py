@@ -166,6 +166,10 @@ class AssistantOpeningView(LoginRequiredMixin, AssistantMixin, View):
             }, status=200)
 
         try:
+            # ── Authoritative day-start (idempotent) ──
+            from apps.ai.executive_briefing import handle_day_start
+            handle_day_start(request.user)
+
             assistant = self.get_assistant()
             opening = assistant.get_opening_message()
 
@@ -356,6 +360,11 @@ class ProactiveBriefingView(LoginRequiredMixin, AssistantMixin, View):
             }, status=200)
 
         try:
+            # ── Authoritative day-start (idempotent) ──
+            # Must run BEFORE CoS rendering so execution truth is settled.
+            from apps.ai.executive_briefing import handle_day_start
+            handle_day_start(request.user)
+
             assistant = self.get_assistant()
             result = assistant.generate_proactive_briefing()
 
@@ -420,13 +429,18 @@ class SessionStartView(LoginRequiredMixin, AssistantMixin, View):
             from apps.core.utils import get_user_now, get_user_today
             from apps.ai.executive_briefing import (
                 _compute_session_gap,
-                auto_complete_wakeup,
+                handle_day_start,
                 build_lightweight_alignment,
             )
 
             user = request.user
             user_now = get_user_now(user)
             today = get_user_today(user)
+
+            # ── Authoritative day-start (idempotent) ──
+            # Ensures routine tasks exist + auto-completes Wake Up.
+            # Must run BEFORE any CoS rendering or briefing logic.
+            day_start = handle_day_start(user)
 
             # Get or create conversation
             conversation = AssistantConversation.get_or_create_active(user)
@@ -453,17 +467,7 @@ class SessionStartView(LoginRequiredMixin, AssistantMixin, View):
 
             # ── Branch 1: Briefing warranted ──
             if is_first_of_day or is_gap_reentry:
-                # Auto-complete wake-up (reuses extracted helper)
-                wake_inferred = False
-                if is_first_of_day:
-                    try:
-                        from apps.ai.executive_briefing import (
-                            _ensure_routine_tasks_for_today,
-                        )
-                        _ensure_routine_tasks_for_today(user, today)
-                    except Exception:
-                        pass
-                    wake_inferred = auto_complete_wakeup(user, today)
+                wake_inferred = day_start.get('wake_completed', False)
 
                 # Check for recent deep interaction → lightweight alignment
                 deep_at = metadata.get('last_deep_interaction_at')
@@ -797,6 +801,10 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                     'error': 'Message too long (max 2000 characters)',
                 }, status=400)
 
+            # ── Authoritative day-start (idempotent) ──
+            from apps.ai.executive_briefing import handle_day_start
+            handle_day_start(request.user)
+
             assistant = self.get_assistant()
             conversation = assistant.get_or_create_conversation()
             result = assistant.send_message(
@@ -964,6 +972,10 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
                     {'success': False, 'error': 'Message too long'},
                     status=400,
                 )
+
+            # ── Authoritative day-start (idempotent) ──
+            from apps.ai.executive_briefing import handle_day_start
+            handle_day_start(request.user)
 
             assistant = self.get_assistant()
             conversation = assistant.get_or_create_conversation()

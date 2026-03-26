@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-26 — Fix: Workout Counting Multi-Source + Task Fairness (Today's Incomplete Tasks)
+
+- **Fix:** Workout behavior engine now counts completions from ALL sources: WorkoutScheduleLog, WorkoutSession, AND RoutineLog (workout obligation items). Previously only WorkoutScheduleLog was checked — routines that create a RoutineLog (e.g., "Workout" in Morning Routine) without a template-linked WorkoutSession were invisible, showing false "missed" counts.
+  - Files: `apps/core/behavior/domain_workout.py`
+- **Fix:** WorkoutSession signal now creates WorkoutScheduleLog for workouts WITHOUT `from_template` (ad-hoc, routine-triggered). Previously required `from_template` to be set. Falls back to day-of-week matching when no template link exists.
+  - Files: `apps/health/signals.py`
+- **Fix:** Task completion score no longer penalizes for today's incomplete tasks. Tasks due today that haven't been completed yet are excluded from the denominator — only past-due incomplete tasks and completed tasks count. Previously all tasks due today were counted, penalizing the user before they had a chance to do them.
+  - Files: `apps/dashboard_v2/services/cockpit_service.py`
+
 ## 2026-03-26 — Fix: Faith Bridge Date-Aware + 8-Day Window Labels + Lifetime Goal Progress Bar
 
 - **Fix:** Faith routine bridge now works for historical dates. Previously, `_check_routines()` was hardcoded to fetch today's items only via `get_todays_routine_items()`, so the faith bridge (Prayer Time → prayer_completed, Bible Reading → bible_reading_completed) only fired for today. Historical days in the 7-day cockpit window showed 0/7 prayer even when user completed it daily. Now queries `RoutineLog` directly for historical dates.

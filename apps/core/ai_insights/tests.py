@@ -9,7 +9,11 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.core.ai_insights.base_rules import BaseInsightRule
-from apps.core.ai_insights.insight_engine import _upsert_insight, run_insights
+from apps.core.ai_insights.insight_engine import (
+    _dismiss_stale_insights,
+    _upsert_insight,
+    run_insights,
+)
 from apps.core.ai_insights.models import Insight, build_dedupe_key
 from apps.core.ai_insights.notification_engine import maybe_notify
 from apps.core.ai_insights.pattern_utils import (
@@ -202,6 +206,96 @@ class InsightEngineTests(PIETestMixin, TestCase):
             Insight.objects.filter(user=self.user, dedupe_key="dismissed_key").count(),
             2,
         )
+
+
+    def test_stale_insights_dismissed_when_rule_returns_empty(self):
+        """When a rule applies but returns no insights, existing 'new'
+        insights of that type should be auto-dismissed."""
+        class MockRule:
+            module = "life"
+            insight_type = "task_due_today"
+
+        rule = MockRule()
+        # Create a 'new' insight as if the rule generated it earlier
+        Insight.objects.create(
+            user=self.user,
+            module="life",
+            insight_type="task_due_today",
+            severity="info",
+            title="3 tasks due today",
+            message="Tasks due today: 'Work on WLJ', 'Payroll'.",
+            confidence_score=1.0,
+            dedupe_key="old_key",
+            status="new",
+        )
+
+        # Rule condition no longer true → dismiss stale insights
+        _dismiss_stale_insights(self.user, rule)
+
+        insight = Insight.objects.get(dedupe_key="old_key")
+        self.assertEqual(insight.status, "dismissed")
+
+    def test_dismissed_insights_not_re_dismissed(self):
+        """Already-dismissed insights should not be affected."""
+        class MockRule:
+            module = "life"
+            insight_type = "task_due_today"
+
+        Insight.objects.create(
+            user=self.user,
+            module="life",
+            insight_type="task_due_today",
+            severity="info",
+            title="Old",
+            message="Old insight",
+            confidence_score=1.0,
+            dedupe_key="already_dismissed",
+            status="dismissed",
+        )
+
+        # Should not error or change anything
+        _dismiss_stale_insights(self.user, MockRule())
+
+        insight = Insight.objects.get(dedupe_key="already_dismissed")
+        self.assertEqual(insight.status, "dismissed")
+
+    def test_run_insights_auto_dismisses_when_rule_returns_empty(self):
+        """Integration test: run_insights dismisses stale insights when
+        the rule's condition is no longer met."""
+        # Create a stale insight
+        Insight.objects.create(
+            user=self.user,
+            module="life",
+            insight_type="test_auto_dismiss",
+            severity="info",
+            title="Stale",
+            message="Should be dismissed",
+            confidence_score=0.8,
+            dedupe_key="stale_integration",
+            status="new",
+        )
+
+        # Register a rule that applies but returns empty
+        class EmptyRule(BaseInsightRule):
+            rule_name = "test_auto_dismiss"
+            module = "life"
+            insight_type = "test_auto_dismiss"
+
+            def applies(self, user, event):
+                return event.get("event_type") == "scheduled_check"
+
+            def evaluate(self, user, event):
+                return []
+
+        # Temporarily register
+        RULES.append(EmptyRule())
+        try:
+            run_insights(self.user, {"event_type": "scheduled_check"})
+        finally:
+            RULES.pop()
+
+        insight = Insight.objects.get(dedupe_key="stale_integration")
+        self.assertEqual(insight.status, "dismissed")
 
 
 # ─── Weight Rule Tests ───

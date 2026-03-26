@@ -61,6 +61,13 @@ def run_insights(user, event):
 
             insights = rule.evaluate(user, event)
 
+            # Auto-invalidate: if rule applies but returns no insights,
+            # dismiss any existing 'new' insights of this type so stale
+            # data doesn't persist (e.g., completed tasks still showing).
+            if not insights:
+                _dismiss_stale_insights(user, rule)
+                continue
+
             for insight_data in insights:
                 confidence = insight_data.get("confidence_score", 0.0)
 
@@ -139,6 +146,27 @@ def _trigger_predictions(user, event):
         logger.error(
             f"Prediction generation failed for user {user.id}: {e}",
             exc_info=True,
+        )
+
+
+def _dismiss_stale_insights(user, rule):
+    """
+    Dismiss existing 'new' insights when the rule's condition is no longer true.
+
+    Called when a rule applies but evaluate() returns an empty list, meaning
+    the condition that generated the insight has been resolved (e.g., all
+    tasks due today have been completed or moved).
+    """
+    dismissed_count = Insight.objects.filter(
+        user=user,
+        insight_type=rule.insight_type,
+        status="new",
+    ).update(status="dismissed")
+
+    if dismissed_count:
+        logger.debug(
+            "Auto-dismissed %d stale '%s' insights for user %s",
+            dismissed_count, rule.insight_type, user.id,
         )
 
 

@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Fix: Auto-dismiss stale PIE insights when rule condition resolves
+
+**Problem:** Organize page AI Insight showed completed/moved tasks as still due today. The `TaskDueTodayRule` created an Insight record, but when all tasks were completed or moved, the old insight was never dismissed — it persisted for up to 48 hours.
+
+**Root cause:** The insight engine had no invalidation mechanism. When a rule's `evaluate()` returned an empty list (condition no longer true), existing insights of that type remained with `status='new'`.
+
+**Fix:** Added `_dismiss_stale_insights()` to the PIE insight engine. When any rule applies but returns no insights, all existing `status='new'` insights of that `insight_type` are automatically dismissed. This is a general mechanism benefiting all insight rules (task, health, goals, etc.).
+
+**Files:** `apps/core/ai_insights/insight_engine.py`, `apps/core/ai_insights/tests.py`
+
+---
+
 ## 2026-03-25 — Governance: ACTION_POLICY registration gate + routing safety tests
 
 **New governance rule:** No new mutation tool ships without explicit ACTION_POLICY registration. Enforced via `test_all_intents_have_action_policy` in `test_intent_registration.py` — build fails if any intent is missing from the policy registry.

@@ -6,6 +6,47 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-26 — Beth CoS Behavior Upgrade: Feasibility Triage + Day Narrative + Situational Awareness
+
+**Objective:** Transform Beth from status reporter into Chief of Staff — contextual, time-aware, decisive, human.
+
+**Morning Briefing now produces:**
+```
+Good morning, Danny.
+
+Your morning leads into Shower at 7:00 AM, with 3 things to get through first.
+
+You're a bit behind — let's get you caught up.
+
+You can get Bible Reading and Prayer done before your Shower at 7:00 AM.
+Start with Bible Reading now.
+Workout won't fit before then — plan to move it later today.
+```
+
+Instead of:
+```
+Morning Check-in
+Completed: • None
+Upcoming: • Workout (6:15 AM) • Shower (7:00 AM)
+Next: Start with Bible Reading.
+```
+
+**New in renderer (`apps/ai/beth_checkin_renderer.py`):**
+- **Day narrative** — 1-sentence flow description (morning structure → key commitment → layout). No domain labels, no counts.
+- **Situational awareness** — behind/on-track/ahead classification from overdue state.
+- **Time-aware feasibility triage** — identifies next hard commitment (shower, meeting), estimates durations (workout=45m, prayer=15m, etc.), splits actionable items into DO NOW vs MOVE LATER based on available time.
+- **Adjustment suggestions** — explicitly names items that won't fit and why ("Workout won't fit before then").
+- **Medication suppression** — evening meds not mentioned in morning briefings.
+- **Human tone** — no domain labels, no "8 routines pending", no status language.
+- **Midday** — progress narrative ("Strong progress — 5 of 7 done"), slipping items named, remaining items listed.
+- **Evening** — results narrative, explicit misses named, tomorrow's load.
+
+**Tests:** `apps/ai/tests/test_beth_briefing.py` — 16 new tests covering tight morning (DO NOW/MOVE LATER split), enough time (no reschedule), ahead scenario, domain label suppression, greeting, midday progress, evening misses.
+
+**Architecture safety:** No mutations, no ACTION_POLICY changes, no intent routing changes. Presentation-layer intelligence only — reads Today Engine data, outputs text.
+
+---
+
 ## 2026-03-26 — Evolve Morning Briefing from Mechanical Check-in to Structured Briefing
 
 **Problem:** The morning briefing at app-open showed a flat, mechanical format: "Morning Check-in / Completed: • None / Upcoming: • Workout (6:15 AM)..." — the Adaptive CoS Presence backend was built but the actual renderer (`beth_checkin_renderer.py`) was never evolved, and the session-start endpoint was never wired into the frontend.

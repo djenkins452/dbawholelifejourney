@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Fix: Register reschedule_routine_item in ACTION_POLICY
+
+**Gap found during mutation gate audit:** `reschedule_routine_item` was the only mutation intent not explicitly registered in `ACTION_POLICY`. It fell to the safe default (CONFIRM + HIGH risk), but should be explicitly registered for clarity and correct risk classification (MEDIUM, not HIGH).
+
+**Change:** `apps/core/ai_orchestrator/action_policy.py` — Added `reschedule_routine_item` with `ActionCategory.MUTATE`, `RiskLevel.MEDIUM`, `AuthorityLevel.CONFIRM`.
+
+**Audit result:** All 40+ mutation-capable intents now require explicit user confirmation via the existing CRUD confirmation gate at `orchestrator.py:337-402`. Only 7 intents bypass confirmation — all are reads (`read_task`, `read_calendar_events`, `check_budget`) or control-plane (`enter/exit_learning_mode`, `pause/complete_calibration`).
+
+---
+
 ## 2026-03-25 — Fix: Intent Misrouting — Domain Locking & set_cos_name Safeguards
 
 **Root cause:** "move my workout to tonight at 8:30pm" triggered "Changing assistant name: Max" because `SETTINGS_INTENT_TOOLS` was in `CORE_INTENT_TOOLS` (sent to OpenAI on every call), the health domain scope excluded `reschedule_routine_item` but included `set_cos_name`, and no post-classification safeguard existed.

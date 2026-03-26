@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-26 — Final CoS Unification: One Renderer, No Exceptions
+
+- **Fix:** LLM-unavailable fallback (`_get_fallback_response`) no longer produces domain-dump output ("Faith: ...\nRoutines: ...\nTasks: ..."). Now routes through `build_cos_structured_output()` — same canonical renderer as every other CoS path.
+  - Files: `apps/ai/personal_assistant.py`
+- **Fix:** Midday proactive generator (`generate_midday_alignment_for_user`) no longer builds inline "Midday: 3/8 done" strings. Now calls `render_checkin_for_time()` which auto-routes to `_render_midday()`.
+  - Files: `apps/ai/proactive_checkins.py`
+- **Fix:** Evening proactive generator (`generate_evening_wrap_for_user`) no longer builds inline "Day closing: 5/8 completed. Meds: 2/3" strings. Now calls `render_checkin_for_time()` which auto-routes to `_render_evening()`.
+  - Files: `apps/ai/proactive_checkins.py`
+- **Fix:** Afternoon momentum generator no longer says "N non-negotiables still pending" — now names specific tasks by title.
+  - Files: `apps/ai/proactive_checkins.py`
+- **Tests:** Added 6 enforcement tests (`TestCanonicalRendererEnforcement`) verifying that all user-facing CoS paths use the canonical renderer and produce no domain labels or count dumps.
+  - Files: `apps/ai/tests/test_beth_briefing.py`
+
 ## 2026-03-26 — Architecture: Unify CoS Pipeline — Deterministic Brain, LLM Voice Only
 
 - **Architecture alignment:** All CoS entry points now flow through a single deterministic pipeline: Today Engine → Prioritizer → Structured Output → Renderer. The LLM is constrained to tone-polishing only (voice, not brain).

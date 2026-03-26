@@ -1492,7 +1492,7 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
             # Recent 7 workouts (query 1)
             context["recent_workouts_list"] = (
                 completed_qs
-                .annotate(exercise_count=Count("workout_exercises"))
+                .annotate(num_exercises=Count("workout_exercises"))
                 .order_by("-date")[:7]
             )
 

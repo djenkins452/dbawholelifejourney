@@ -89,7 +89,7 @@
                     <div class="recent-workout-row">
                         <div class="recent-workout-info">
                             <span class="recent-workout-name">{{ rw.name|default:"Workout" }}</span>
-                            <span class="recent-workout-meta">{{ rw.date|date:"D, M j" }}{% if rw.exercise_count %} &middot; {{ rw.exercise_count }} exercise{{ rw.exercise_count|pluralize }}{% endif %}</span>
+                            <span class="recent-workout-meta">{{ rw.date|date:"D, M j" }}{% if rw.num_exercises %} &middot; {{ rw.num_exercises }} exercise{{ rw.num_exercises|pluralize }}{% endif %}</span>
                         </div>
                         <a href="{% url 'health:workout_copy' rw.pk %}" class="btn btn-ghost btn-sm">Copy</a>
                     </div>

@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Governance: ACTION_POLICY registration gate + routing safety tests
+
+**New governance rule:** No new mutation tool ships without explicit ACTION_POLICY registration. Enforced via `test_all_intents_have_action_policy` in `test_intent_registration.py` — build fails if any intent is missing from the policy registry.
+
+**Routing safety validation:** Added `apps/ai/tests/test_routing_safety.py` — 24 deterministic tests validating domain classification, tool scoping, policy completeness, and keyword safeguards for real-world phrases ("move my workout to 8:30 tonight", "skip prayer time today", "rename Beth to Max", etc.).
+
+**Files:** `apps/ai/tests/test_intent_registration.py` (1 new test), `apps/ai/tests/test_routing_safety.py` (new, 24 tests).
+
+---
+
 ## 2026-03-25 — Fix: Register reschedule_routine_item in ACTION_POLICY
 
 **Gap found during mutation gate audit:** `reschedule_routine_item` was the only mutation intent not explicitly registered in `ACTION_POLICY`. It fell to the safe default (CONFIRM + HIGH risk), but should be explicitly registered for clarity and correct risk classification (MEDIUM, not HIGH).

@@ -56,89 +56,38 @@
             </div>
         </div>
 
-        {% if not editing %}
-            <!-- Best Suggestion -->
-            {% if best_suggestion %}
-            <div class="best-suggestion-section">
-                <div class="best-suggestion-header">
-                    <span class="best-suggestion-label">{% if is_copy_flow %}Copied Workout{% else %}Best Match for Today{% endif %}</span>
+        <!-- Template Selection -->
+        {% if templates and not editing %}
+            {% if from_template %}
+                <!-- Active template banner -->
+                <div class="quick-start-section active-template-section" id="activeTemplateBanner">
+                    <span class="section-label">Using Template:</span>
+                    <span class="active-template-name">{{ from_template.name }}</span>
+                    <button type="button" class="btn btn-ghost btn-sm" id="changeTemplateBtn">Change Template</button>
                 </div>
-                <div class="best-suggestion-card">
-                    <div class="best-suggestion-info">
-                        <span class="best-suggestion-name">{{ best_suggestion.name|default:"Workout" }}</span>
-                        <span class="best-suggestion-meta">Last performed: {{ best_suggestion.date|date:"M j, Y" }}{% if best_suggestion.exercise_count %} &middot; {{ best_suggestion.exercise_count }} exercise{{ best_suggestion.exercise_count|pluralize }}{% endif %}</span>
-                    </div>
-                    <div class="best-suggestion-actions">
-                        {% if not is_copy_flow %}
-                        <a href="{% url 'health:workout_copy' best_suggestion.pk %}" class="btn btn-primary btn-sm">Use This Workout</a>
-                        {% endif %}
-                        <a href="{% url 'health:workout_detail' best_suggestion.pk %}" class="btn btn-ghost btn-sm">View Details</a>
+                <!-- Hidden template list -->
+                <div class="quick-start-section template-selector-expanded" id="templateSelectorExpanded" style="display: none;">
+                    <span class="section-label">Select template:</span>
+                    <div class="template-chips">
+                        {% for template in templates %}
+                            <a href="#" class="template-chip template-preview-chip" data-template-id="{{ template.pk }}">
+                                {{ template.name }}
+                            </a>
+                        {% endfor %}
                     </div>
                 </div>
-            </div>
-            {% endif %}
-
-            <!-- Recent Workouts (Last 7) -->
-            {% if recent_workouts_list %}
-            <div class="recent-workouts-section">
-                <div class="recent-workouts-header">
-                    <span class="section-label">Recent Workouts</span>
+            {% else %}
+                <!-- Fresh selection with preview -->
+                <div class="quick-start-section">
+                    <span class="section-label">Quick start from template:</span>
+                    <div class="template-chips">
+                        {% for template in templates %}
+                            <a href="#" class="template-chip template-preview-chip" data-template-id="{{ template.pk }}">
+                                {{ template.name }}
+                            </a>
+                        {% endfor %}
+                    </div>
                 </div>
-                <div class="recent-workouts-list">
-                    {% for rw in recent_workouts_list %}
-                    <div class="recent-workout-row">
-                        <div class="recent-workout-info">
-                            <span class="recent-workout-name">{{ rw.name|default:"Workout" }}</span>
-                            <span class="recent-workout-meta">{{ rw.date|date:"D, M j" }}{% if rw.num_exercises %} &middot; {{ rw.num_exercises }} exercise{{ rw.num_exercises|pluralize }}{% endif %}</span>
-                        </div>
-                        <a href="{% url 'health:workout_copy' rw.pk %}" class="btn btn-ghost btn-sm">Copy</a>
-                    </div>
-                    {% endfor %}
-                </div>
-                <a href="{% url 'health:workout_list' %}" class="recent-workouts-view-all">View all workouts</a>
-            </div>
-            {% endif %}
-
-            <!-- Template Selection (collapsed) -->
-            {% if templates %}
-                {% if from_template %}
-                    <!-- Active template banner -->
-                    <div class="quick-start-section active-template-section" id="activeTemplateBanner">
-                        <span class="section-label">Using Template:</span>
-                        <span class="active-template-name">{{ from_template.name }}</span>
-                        <button type="button" class="btn btn-ghost btn-sm" id="changeTemplateBtn">Change Template</button>
-                    </div>
-                    <!-- Hidden template list -->
-                    <div class="quick-start-section template-selector-expanded" id="templateSelectorExpanded" style="display: none;">
-                        <span class="section-label">Select template:</span>
-                        <div class="template-chips">
-                            {% for template in templates %}
-                                <a href="#" class="template-chip template-preview-chip" data-template-id="{{ template.pk }}">
-                                    {{ template.name }}
-                                </a>
-                            {% endfor %}
-                        </div>
-                    </div>
-                {% else %}
-                    <!-- Collapsed template selector -->
-                    <div class="quick-start-section template-collapsed" id="templateCollapsed">
-                        <button type="button" class="template-toggle-btn" id="templateToggleBtn">
-                            <span class="section-label">Start from template</span>
-                            <svg class="toggle-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                                <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="quick-start-section template-selector-expanded" id="templateSelectorFromCollapse" style="display: none;">
-                        <div class="template-chips">
-                            {% for template in templates %}
-                                <a href="#" class="template-chip template-preview-chip" data-template-id="{{ template.pk }}">
-                                    {{ template.name }}
-                                </a>
-                            {% endfor %}
-                        </div>
-                    </div>
-                {% endif %}
             {% endif %}
         {% endif %}
 
@@ -687,168 +636,6 @@
 .template-chip.active {
     border-color: var(--color-accent);
     color: var(--color-accent);
-}
-
-/* Template toggle (collapsed state) */
-.template-collapsed {
-    margin-bottom: var(--space-4);
-    padding: var(--space-3);
-    background: var(--color-surface);
-    border-radius: var(--radius-md);
-}
-
-.template-toggle-btn {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--color-text-muted);
-    padding: 0;
-    min-height: 44px;
-    font-size: var(--font-size-sm);
-}
-
-.template-toggle-btn:hover {
-    color: var(--color-text);
-}
-
-.toggle-chevron {
-    transition: transform 0.2s ease;
-}
-
-.template-collapsed.expanded .toggle-chevron {
-    transform: rotate(180deg);
-}
-
-/* Best Suggestion Section */
-.best-suggestion-section {
-    margin-bottom: var(--space-4);
-}
-
-.best-suggestion-header {
-    margin-bottom: var(--space-2);
-}
-
-.best-suggestion-label {
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    color: var(--color-accent);
-    text-transform: uppercase;
-    letter-spacing: 0.025em;
-}
-
-.best-suggestion-card {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    padding: var(--space-4);
-    background: var(--color-surface);
-    border: 2px solid var(--color-accent);
-    border-radius: var(--radius-md);
-}
-
-.best-suggestion-info {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-}
-
-.best-suggestion-name {
-    font-weight: 600;
-    font-size: var(--font-size-lg, 1.125rem);
-}
-
-.best-suggestion-meta {
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
-}
-
-.best-suggestion-actions {
-    display: flex;
-    gap: var(--space-2);
-    flex-shrink: 0;
-}
-
-/* Recent Workouts Section */
-.recent-workouts-section {
-    margin-bottom: var(--space-4);
-}
-
-.recent-workouts-header {
-    margin-bottom: var(--space-2);
-}
-
-.recent-workouts-list {
-    display: flex;
-    flex-direction: column;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-}
-
-.recent-workout-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--space-3) var(--space-4);
-    gap: var(--space-3);
-}
-
-.recent-workout-row + .recent-workout-row {
-    border-top: 1px solid var(--color-border);
-}
-
-.recent-workout-info {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-
-.recent-workout-name {
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.recent-workout-meta {
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
-}
-
-.recent-workouts-view-all {
-    display: block;
-    text-align: center;
-    padding: var(--space-2) 0;
-    margin-top: var(--space-2);
-    font-size: var(--font-size-sm);
-    color: var(--color-accent);
-    text-decoration: none;
-}
-
-.recent-workouts-view-all:hover {
-    text-decoration: underline;
-}
-
-/* Mobile adjustments */
-@media (max-width: 480px) {
-    .best-suggestion-card {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    .best-suggestion-actions {
-        width: 100%;
-    }
-    .best-suggestion-actions .btn {
-        flex: 1;
-        text-align: center;
-    }
 }
 
 #exerciseContainer {
@@ -2186,18 +1973,6 @@ document.addEventListener('click', function(e) {
         const selector = document.getElementById('templateSelectorExpanded');
         if (banner) banner.style.display = 'none';
         if (selector) selector.style.display = 'flex';
-        return;
-    }
-
-    // --- Template toggle (collapsed → expanded) ---
-    if (target.closest('#templateToggleBtn')) {
-        const wrapper = document.getElementById('templateCollapsed');
-        const panel = document.getElementById('templateSelectorFromCollapse');
-        if (wrapper && panel) {
-            const isHidden = panel.style.display === 'none';
-            panel.style.display = isHidden ? 'flex' : 'none';
-            wrapper.classList.toggle('expanded', isHidden);
-        }
         return;
     }
 

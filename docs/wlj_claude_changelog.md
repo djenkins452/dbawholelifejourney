@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Enhancement: Full-Vitals Health Score (HealthScoreService 7-Domain Composite)
+
+- **Enhancement:** Dashboard health score now uses HealthScoreService 7-domain composite (sleep 20%, recovery 20%, glucose 15%, weight 15%, workout 10%, nutrition 10%, activity 10%) instead of primitive 4-component formula. Missing signals reduce denominator — users aren't penalized for untracked data.
+  - Added `health_score`, `health_score_drivers`, `recovery_score_today`, `health_score_prev_7d` to SAE `build_health_state()` from pre-computed DailyHealthSummary
+  - Cockpit `_compute_health()` now reads composite score from SAE instead of computing its own weighted average
+  - Health panel now displays vitals (BP, HR, glucose, SpO2, recovery) and per-domain score breakdown with missing signals note
+  - Files: `apps/core/ai_state/state_builder.py`, `apps/dashboard_v2/services/cockpit_service.py`, `templates/dashboard_v2/partials/cockpit_panels/health_panel.html`, `apps/dashboard_v2/tests/test_cockpit_service.py`
+
 ## 2026-03-25 — Refactor: Eliminate Parallel Dashboard Pipelines — Single Source of Truth via SAE
 
 - **Refactor:** Dashboard health cockpit now reads ONLY from SAE canonical state for all metrics (sleep, water, medication, workout). Eliminates parallel data pipelines and enforces single source of truth.

@@ -126,73 +126,77 @@ class GoalCockpitService:
     # ── Health ────────────────────────────────────────────
 
     def _compute_health(self):
-        """Compute health score from SAE canonical state (single source of truth)."""
+        """
+        Health score from HealthScoreService (7-domain composite) via SAE.
+
+        Domains: sleep (20%), recovery (20%), glucose (15%), weight (15%),
+        workout (10%), nutrition (10%), activity (10%).
+        Missing signals reduce denominator — don't punish for untracked data.
+        """
         try:
             from apps.core.ai_state.state_engine import get_state_value
 
             user = self.user
 
-            # Medication from SAE medicine state
-            med_score = get_state_value(user, 'medicine.adherence_score_7d')
-            med_detail = {
-                'completed': get_state_value(user, 'medicine.completed_7d', 0),
-                'expected': get_state_value(user, 'medicine.expected_7d', 0),
-                'missed': get_state_value(user, 'medicine.missed_7d', 0),
-            }
+            # Primary score: HealthScoreService composite stored in SAE
+            score = get_state_value(user, 'health.health_score')
+            drivers = get_state_value(user, 'health.health_score_drivers', {})
 
-            # Workout from SAE fitness state
-            workout_score = get_state_value(user, 'fitness.workout_adherence_score')
-            workout_detail = {
-                'completed': get_state_value(user, 'fitness.workout_completed_7d', 0),
-                'expected': get_state_value(user, 'fitness.workout_expected_7d', 0),
-                'missed': get_state_value(user, 'fitness.workout_missed_7d', 0),
-            }
+            if score is None:
+                return self._empty_domain('Health', '#22c55e')
 
-            # Sleep from SAE health state
-            sleep_score = get_state_value(user, 'health.sleep_consistency_score')
-            sleep_detail = {
-                'avg_hours': get_state_value(user, 'health.sleep_avg_hours_7d'),
-                'good_nights': get_state_value(user, 'health.sleep_good_nights_7d', 0),
-                'tracked_nights': get_state_value(user, 'health.sleep_entries_7d', 0),
-            }
-
-            # Water from SAE health state
-            water_score = get_state_value(user, 'health.water_consistency_score')
-            water_detail = {
-                'avg_oz': get_state_value(user, 'health.water_avg_oz_7d'),
-                'good_days': get_state_value(user, 'health.water_good_days_7d', 0),
-                'tracked_days': get_state_value(user, 'health.water_tracked_days_7d', 0),
-                'goal_oz': get_state_value(user, 'health.water_goal_oz', 64),
-            }
-
-            # Weighted average with redistribution for missing components
-            weights = {}
-            scores_map = {}
-            if med_score is not None:
-                weights['medication'] = 30
-                scores_map['medication'] = med_score
-            if workout_score is not None:
-                weights['workout'] = 25
-                scores_map['workout'] = workout_score
-            if sleep_score is not None:
-                weights['sleep'] = 25
-                scores_map['sleep'] = sleep_score
-            if water_score is not None:
-                weights['water'] = 20
-                scores_map['water'] = water_score
-
-            if weights:
-                weight_sum = sum(weights.values())
-                score = round(sum(
-                    scores_map[k] * (w / weight_sum)
-                    for k, w in weights.items()
-                ))
+            # Trend from HealthScoreService previous-week delta
+            prev_score = get_state_value(user, 'health.health_score_prev_7d')
+            if prev_score is not None:
+                trend, trend_delta = self._calc_trend(score, prev_score)
             else:
-                score = 0
+                trend, trend_delta = 'flat', 0
 
-            # Trend from SAE behavior state
-            adh_delta = get_state_value(user, 'behavior.adherence_delta', 0)
-            trend, trend_delta = self._calc_trend(score, score - adh_delta)
+            # Score domain breakdown from HealthScoreService
+            domains = drivers.get('domains', {})
+
+            # Component details for expanded health panel
+            components = {
+                # Behavioral detail cards (existing)
+                'medication': {
+                    'completed': get_state_value(user, 'medicine.completed_7d', 0),
+                    'expected': get_state_value(user, 'medicine.expected_7d', 0),
+                    'missed': get_state_value(user, 'medicine.missed_7d', 0),
+                },
+                'workout': {
+                    'completed': get_state_value(user, 'fitness.workout_completed_7d', 0),
+                    'expected': get_state_value(user, 'fitness.workout_expected_7d', 0),
+                    'missed': get_state_value(user, 'fitness.workout_missed_7d', 0),
+                },
+                'sleep': {
+                    'avg_hours': get_state_value(user, 'health.sleep_avg_hours_7d'),
+                    'good_nights': get_state_value(user, 'health.sleep_good_nights_7d', 0),
+                    'tracked_nights': get_state_value(user, 'health.sleep_entries_7d', 0),
+                },
+                'water': {
+                    'avg_oz': get_state_value(user, 'health.water_avg_oz_7d'),
+                    'good_days': get_state_value(user, 'health.water_good_days_7d', 0),
+                    'tracked_days': get_state_value(user, 'health.water_tracked_days_7d', 0),
+                    'goal_oz': get_state_value(user, 'health.water_goal_oz', 64),
+                },
+                # Vitals snapshot
+                'vitals': {
+                    'bp_systolic': get_state_value(user, 'health.bp_systolic'),
+                    'bp_diastolic': get_state_value(user, 'health.bp_diastolic'),
+                    'heart_rate_avg': get_state_value(user, 'health.heart_rate_avg_7d'),
+                    'glucose_avg': get_state_value(user, 'health.glucose_avg_7d'),
+                    'blood_oxygen_avg': get_state_value(user, 'health.blood_oxygen_avg_7d'),
+                    'recovery_score': get_state_value(user, 'health.recovery_score_today'),
+                },
+                # HealthScoreService domain breakdown
+                'score_domains': domains,
+                'missing_signals': drivers.get('missing_signals', []),
+                # Individual sub-scores for template compatibility
+                'med_score': get_state_value(user, 'medicine.adherence_score_7d'),
+                'workout_score': get_state_value(user, 'fitness.workout_adherence_score'),
+                'sleep_score': get_state_value(user, 'health.sleep_consistency_score'),
+                'water_score': get_state_value(user, 'health.water_consistency_score'),
+            }
 
             return {
                 'score': score,
@@ -201,16 +205,7 @@ class GoalCockpitService:
                 'priority': score < 60,
                 'label': 'Health',
                 'color': '#22c55e',
-                'components': {
-                    'medication': med_detail,
-                    'workout': workout_detail,
-                    'sleep': sleep_detail,
-                    'water': water_detail,
-                    'med_score': med_score,
-                    'workout_score': workout_score,
-                    'sleep_score': sleep_score,
-                    'water_score': water_score,
-                },
+                'components': components,
             }
         except Exception:
             logger.warning("Cockpit: health score failed", exc_info=True)

@@ -1362,22 +1362,53 @@ class FitnessHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         # Exercises for quick add
         context["exercises"] = Exercise.objects.filter(is_active=True)
 
-        # Best suggestion for today (weekday match or most recent)
-        completed_qs = WorkoutSession.objects.filter(
-            user=user,
-            completed_at__isnull=False,
-        )
-        # Django week_day: 1=Sunday, 2=Monday ... 7=Saturday
-        # Python weekday(): 0=Monday ... 6=Sunday
-        py_weekday = today.weekday()
-        django_weekday = (py_weekday + 2) % 7 or 7
-        same_day = (
-            completed_qs
-            .filter(date__week_day=django_weekday)
+        # Best suggestion for today — frequency-based with weekday tie-breaking
+        # Single query: last 20 completed workouts
+        recent_completed = list(
+            WorkoutSession.objects.filter(user=user, completed_at__isnull=False)
             .order_by("-date")
-            .first()
+            .values_list("id", "name", "date")[:20]
         )
-        context["best_suggestion"] = same_day or completed_qs.order_by("-date").first()
+
+        py_weekday = today.weekday()  # 0=Mon ... 6=Sun
+        same_day_workouts = [
+            (wid, name, date) for wid, name, date in recent_completed
+            if date.weekday() == py_weekday
+        ]
+
+        best = None
+        consistency_msg = ""
+
+        if same_day_workouts:
+            # Count frequency by workout name among same-weekday entries
+            from collections import Counter
+            name_counts = Counter(name for _, name, _ in same_day_workouts)
+            # Pick the most frequent name, then most recent instance of it
+            top_name = name_counts.most_common(1)[0][0]
+            top_count = name_counts[top_name]
+            total_same_day = len(same_day_workouts)
+
+            # Find the most recent instance with that name
+            for wid, name, date in same_day_workouts:
+                if name == top_name:
+                    best = WorkoutSession.objects.get(pk=wid)
+                    break
+
+            # Build consistency message
+            weekday_name = today.strftime("%A")
+            if top_count > 1:
+                consistency_msg = (
+                    f"You've done this workout {top_count} of your last "
+                    f"{total_same_day} {weekday_name}s"
+                )
+            elif total_same_day == 1:
+                consistency_msg = f"Last {weekday_name} workout"
+
+        if not best and recent_completed:
+            best = WorkoutSession.objects.get(pk=recent_completed[0][0])
+
+        context["best_suggestion"] = best
+        context["consistency_msg"] = consistency_msg
 
         return context
 

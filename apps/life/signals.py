@@ -77,6 +77,17 @@ def handle_task_saved(sender, instance, created, **kwargs):
                 "Failed to project task %s to calendar: %s", instance.pk, e
             )
 
+    # Invalidate stale task insights so Organize page reflects current state
+    try:
+        from apps.core.ai_insights.models import Insight
+        Insight.objects.filter(
+            user=instance.user,
+            insight_type__in=['task_due_today', 'task_overdue_pattern', 'task_stall'],
+            status='new',
+        ).update(status='dismissed')
+    except Exception:
+        pass  # Insight invalidation is best-effort
+
     # Invalidate ALL caches so next interaction sees updated schedule
     # 1. CoS context cache (Beth's prompt data)
     try:

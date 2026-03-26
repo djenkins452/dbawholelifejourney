@@ -72,13 +72,13 @@ def render_checkin_for_time(user) -> str:
 # ---------------------------------------------------------------------------
 
 _PHASE_LABELS = {
-    "morning": "Morning Check-in",
-    "midday": "Midday Check-in",
-    "evening": "Evening Check-in",
+    "morning": "Morning Briefing",
+    "midday": "Midday Alignment",
+    "evening": "Evening Debrief",
 }
 
 _SAFE_FALLBACK = (
-    "Morning Check-in\n\n"
+    "Morning Briefing\n\n"
     "Completed:\n• None\n\n"
     "Upcoming:\n• None\n\n"
     "Next: Start with your next planned item."
@@ -91,37 +91,214 @@ from apps.core.today.today_engine import COMING_UP_WINDOW_MINUTES as UPCOMING_WI
 _BANNED_WORDS = frozenset({"items", "tasks", "routines"})
 
 
-def _render_checkin_from_truth(user, phase: str = "morning") -> str:
-    """Core renderer — builds check-in from Today Engine.
+def _classify_day_load(ctx) -> str:
+    """Classify day as light / focused / heavy based on pending items."""
+    pending = [i for i in ctx.get("all_items", []) if not i.get("completed")]
+    count = len(pending)
+    if count <= 3:
+        return "light"
+    elif count <= 7:
+        return "focused"
+    return "heavy"
 
-    Uses the same unified dataset as the day renderer.
-    Shows: Completed, Upcoming (coming_up bucket), Next action.
+
+def _render_checkin_from_truth(user, phase: str = "morning") -> str:
+    """Core renderer — structured briefing from Today Engine.
+
+    Uses the unified today context dataset. Output format varies by phase:
+
+    MORNING: Greeting, yesterday context (if any), day framing, agenda,
+             overdue/slipping items, next action.
+
+    MIDDAY: Progress vs plan, completed, slipping, recalibrated next action.
+
+    EVENING: Completed vs expected, explicit misses, carryover.
+
+    All data is deterministic from execution truth — no LLM involvement.
     """
     from apps.core.today.today_engine import get_today_context
+    from apps.core.utils import get_user_now
 
     ctx = get_today_context(user)
     label = _PHASE_LABELS.get(phase, "Check-in")
+    user_now = get_user_now(user)
 
-    def _fmt(bucket):
+    def _fmt(bucket, limit=None):
         if not bucket:
             return "• None"
-        return "\n".join(f"• {entry['label']}" for entry in bucket)
+        entries = bucket[:limit] if limit else bucket
+        result = "\n".join(f"• {entry['label']}" for entry in entries)
+        if limit and len(bucket) > limit:
+            result += f"\n• +{len(bucket) - limit} more"
+        return result
 
-    lines = [
-        label,
-        "",
-        "Completed:",
-        _fmt(ctx["completed"]),
-        "",
-        "Upcoming:",
-        _fmt(ctx["coming_up"]),
-        "",
-        f"Next: {ctx['next']}",
-    ]
+    if phase == "morning":
+        output = _render_morning(ctx, label, user, user_now, _fmt)
+    elif phase == "midday":
+        output = _render_midday(ctx, label, _fmt)
+    elif phase == "evening":
+        output = _render_evening(ctx, label, user, _fmt)
+    else:
+        output = _render_morning(ctx, label, user, user_now, _fmt)
 
-    output = "\n".join(lines)
     _validate_output(output)
     return output
+
+
+def _render_morning(ctx, label, user, user_now, _fmt) -> str:
+    """Morning briefing — day framing + agenda + next action."""
+    lines = [label]
+
+    # Greeting with time awareness
+    hour = user_now.hour
+    first_name = getattr(user, 'first_name', '') or ''
+    if hour < 5:
+        greeting = f"Early start{', ' + first_name if first_name else ''}."
+    elif hour < 8:
+        greeting = f"Good morning{', ' + first_name if first_name else ''}."
+    elif hour < 12:
+        greeting = f"Morning{', ' + first_name if first_name else ''}."
+    else:
+        greeting = f"Hey{', ' + first_name if first_name else ''}."
+    lines.append(greeting)
+    lines.append("")
+
+    # Day framing (light / focused / heavy)
+    day_load = _classify_day_load(ctx)
+    pending = [i for i in ctx.get("all_items", []) if not i.get("completed")]
+    load_msg = {
+        "light": f"Light day ahead — {len(pending)} items on your plate.",
+        "focused": f"Focused day — {len(pending)} items to work through.",
+        "heavy": f"Full day ahead — {len(pending)} items. Stay sharp.",
+    }
+    lines.append(load_msg.get(day_load, f"{len(pending)} items today."))
+    lines.append("")
+
+    # Overdue / slipping (from yesterday or earlier today)
+    overdue = ctx.get("overdue", [])
+    if overdue:
+        lines.append("Overdue:")
+        lines.append(_fmt(overdue, limit=3))
+        lines.append("")
+
+    # Already completed
+    completed = ctx.get("completed", [])
+    if completed:
+        lines.append("Done:")
+        lines.append(_fmt(completed))
+        lines.append("")
+
+    # Upcoming (within 90 min)
+    coming_up = ctx.get("coming_up", [])
+    if coming_up:
+        lines.append("Coming up:")
+        lines.append(_fmt(coming_up))
+        lines.append("")
+
+    # Later today
+    later = ctx.get("later", [])
+    if later:
+        lines.append("Later:")
+        lines.append(_fmt(later, limit=5))
+        lines.append("")
+
+    # Next action (always shown)
+    lines.append(f"Next: {ctx['next']}")
+
+    return "\n".join(lines)
+
+
+def _render_midday(ctx, label, _fmt) -> str:
+    """Midday alignment — progress vs plan."""
+    lines = [label]
+    lines.append("")
+
+    all_items = ctx.get("all_items", [])
+    total = len(all_items)
+    completed = ctx.get("completed", [])
+    done_count = len(completed)
+
+    if total > 0:
+        lines.append(f"Progress: {done_count}/{total} done.")
+    lines.append("")
+
+    # Completed
+    if completed:
+        lines.append("Done:")
+        lines.append(_fmt(completed))
+        lines.append("")
+
+    # Slipping / overdue
+    overdue = ctx.get("overdue", [])
+    if overdue:
+        lines.append("Slipping:")
+        lines.append(_fmt(overdue, limit=3))
+        lines.append("")
+
+    # Still coming
+    coming_up = ctx.get("coming_up", [])
+    later = ctx.get("later", [])
+    remaining = coming_up + later
+    if remaining:
+        lines.append("Remaining:")
+        lines.append(_fmt(remaining, limit=5))
+        lines.append("")
+
+    lines.append(f"Next: {ctx['next']}")
+    return "\n".join(lines)
+
+
+def _render_evening(ctx, label, user, _fmt) -> str:
+    """Evening debrief — completed vs expected, explicit misses."""
+    lines = [label]
+    lines.append("")
+
+    all_items = ctx.get("all_items", [])
+    total = len(all_items)
+    completed = ctx.get("completed", [])
+    done_count = len(completed)
+    missed_count = total - done_count
+
+    if total > 0:
+        lines.append(f"Day result: {done_count}/{total} completed.")
+    lines.append("")
+
+    # Completed
+    if completed:
+        lines.append("Done:")
+        lines.append(_fmt(completed))
+        lines.append("")
+
+    # Explicit misses (overdue + coming_up + later that aren't done)
+    overdue = ctx.get("overdue", [])
+    coming_up = ctx.get("coming_up", [])
+    later = ctx.get("later", [])
+    missed = overdue + coming_up + later
+    if missed:
+        lines.append("Missed:")
+        lines.append(_fmt(missed, limit=5))
+        lines.append("")
+
+    # Tomorrow's load (lightweight query — just count)
+    try:
+        from apps.core.utils import get_user_today
+        from apps.life.models import Task
+        from datetime import timedelta as _td
+        today = get_user_today(user)
+        tomorrow = today + _td(days=1)
+        tomorrow_count = Task.objects.filter(
+            user=user, due_date=tomorrow, deleted_at__isnull=True,
+        ).exclude(completion_status='skipped').count()
+        if tomorrow_count:
+            lines.append(
+                f"Tomorrow: {tomorrow_count} "
+                f"item{'s' if tomorrow_count != 1 else ''} queued."
+            )
+            lines.append("")
+    except Exception:
+        pass  # Tomorrow count is optional
+
+    return "\n".join(lines)
 
 
 def _validate_output(output: str):

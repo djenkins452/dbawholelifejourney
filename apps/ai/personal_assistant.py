@@ -714,6 +714,67 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             # ── v7.1 Part 5: Determine delivery reason ────────────────
             delivery_reason = 'first_open' if is_first_of_day else 'return_after_gap'
 
+            # ── v8: Interaction awareness — lightweight alignment ───
+            # If a deep interaction occurred within 90 minutes, deliver
+            # a compressed alignment instead of a full briefing.
+            # This prevents Beth from repeating herself.
+            deep_at = metadata.get('last_deep_interaction_at')
+            if deep_at:
+                from django.utils.dateparse import parse_datetime as _parse_dt
+                deep_ts = _parse_dt(deep_at)
+                if deep_ts and (timezone.now() - deep_ts).total_seconds() < 90 * 60:
+                    try:
+                        from apps.ai.executive_briefing import (
+                            build_lightweight_alignment,
+                        )
+                        lightweight = build_lightweight_alignment(
+                            self.user, conversation,
+                        )
+                        if lightweight:
+                            logger.info(
+                                "v8_BRIEFING_LIGHTWEIGHT user=%s "
+                                "deep_at=%s",
+                                self.user.id, deep_at,
+                            )
+                            delivery_reason = 'lightweight_alignment'
+                            # Use the lightweight alignment as the
+                            # briefing text — skip full render below.
+                            # Save + mark as delivered to prevent retry.
+                            assistant_msg = AssistantMessage.objects.create(
+                                conversation=conversation,
+                                role='assistant',
+                                content=lightweight,
+                                message_type='state_assessment',
+                                is_proactive=True,
+                                metadata={
+                                    'check_in_type': 'lightweight_alignment',
+                                    'delivery_reason': delivery_reason,
+                                    'generated_at': timezone.now().isoformat(),
+                                },
+                            )
+                            from apps.ai.executive_briefing import (
+                                mark_briefing_delivered,
+                            )
+                            mark_briefing_delivered(conversation)
+                            metadata = conversation.metadata or {}
+                            metadata['last_briefing_at'] = (
+                                timezone.now().isoformat()
+                            )
+                            conversation.metadata = metadata
+                            conversation.updated_at = timezone.now()
+                            conversation.save(
+                                update_fields=['metadata', 'updated_at']
+                            )
+                            return {
+                                'response': lightweight,
+                                'message_id': assistant_msg.id,
+                            }
+                    except Exception as _lw_err:
+                        logger.debug(
+                            "Lightweight alignment failed, using full: %s",
+                            _lw_err,
+                        )
+
             # ── Generate deterministic briefing (no LLM) ───────────────
             # Phase 5.2+: Daily briefings are now rendered deterministically
             # from execution truth data. The LLM is NOT involved in

@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-25 (Adaptive CoS Presence: session-start endpoint, interaction awareness, lightweight alignment, structured midday/evening briefs, assertiveness preference)
+**Last updated:** 2026-03-25 (SAE single-source-of-truth: dashboard cockpit reads from SAE, sleep/water/med/workout fields added to state builders)
 
 ---
 
@@ -515,14 +515,14 @@ DNE (delivery_engine.py) → DeliveredNotification (in-app / email / SMS)
 
 | Module Key | Builder | Fields |
 |------------|---------|--------|
-| `health` | `build_health_state()` | weight_current, weight_trend, weight_entries_90d, body_fat_current, sleep_avg_7d, bp_systolic, bp_diastolic, heart_rate_avg_7d, glucose_avg_7d, blood_oxygen_avg_7d, heart_rate_events_7d, weight_goal, weight_goal_unit, weight_goal_target_date, weight_goal_remaining, weight_goal_on_track |
+| `health` | `build_health_state()` | weight_current, weight_trend, weight_entries_90d, body_fat_current, sleep_avg_7d, **sleep_avg_hours_7d, sleep_good_nights_7d, sleep_consistency_score**, bp_systolic, bp_diastolic, heart_rate_avg_7d, glucose_avg_7d, blood_oxygen_avg_7d, heart_rate_events_7d, weight_goal, weight_goal_unit, weight_goal_target_date, weight_goal_remaining, weight_goal_on_track, **water_avg_oz_7d, water_good_days_7d, water_tracked_days_7d, water_goal_oz, water_consistency_score** |
 | `goals` | `build_goal_state()` | active_goal_count, next_deadline, completion_rate |
 | `habits` | `build_habit_state()` | active_habit_count, longest_streak, avg_completion_rate |
 | `journal` | `build_journal_state()` | last_entry, entry_frequency, mood_distribution |
 | `faith` | `build_faith_state()` | reading_streak, last_scripture_read, answered_prayers, recent_prayer_titles, urgent_prayers, bible_plan_name |
 | `nutrition` | `build_nutrition_state()` | calorie_avg_7d, protein_avg_7d, macro_compliance |
 | `fasting` | `build_fasting_state()` | rolling_7d_hours, avg_fast_duration, compliance_score |
-| `fitness` | `build_fitness_state()` | workout_count_7d, total_volume, pr_count, strength_trend, workout_calories_7d, workout_minutes_7d, workout_avg_hr_7d, workout_distance_7d, recent_workouts |
+| `fitness` | `build_fitness_state()` | workout_count_7d, total_volume, pr_count, strength_trend, workout_calories_7d, workout_minutes_7d, workout_avg_hr_7d, workout_distance_7d, recent_workouts, **workout_adherence_score, workout_completed_7d, workout_expected_7d, workout_missed_7d** |
 | `transformation` | `build_transformation_state()` | transformation_score, weight_trend_score, momentum_score |
 | `meals` | `build_meals_state()` | pantry_item_count, expiring_item_names, has_dinner_planned, dinner_recipe |
 | `intervention` | `build_intervention_state()` | override_frequency_14d, override_count_10d, pending_friction_gates, deferrals_7d, renegotiation_patterns, tier1_skip_patterns, consecutive_tier1_skips |

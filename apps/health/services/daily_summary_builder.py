@@ -165,19 +165,22 @@ class DailyHealthSummaryBuilder:
             return None
 
         result = {}
-        if entry.bedtime and entry.wake_time:
+        # Prefer total_duration_minutes (validated, capped at 1440 by HealthKit
+        # import) over bedtime/wake_time delta which can exceed actual sleep
+        # duration (e.g., "In Bed" span includes awake time, reading, etc.).
+        if entry.total_duration_minutes:
+            hours = entry.total_duration_minutes / 60
+            result["sleep_hours"] = Decimal(str(round(min(hours, 24.0), 2)))
+            result["sleep_debt_minutes"] = int(450 - entry.total_duration_minutes)
+        elif entry.bedtime and entry.wake_time:
             delta = entry.wake_time - entry.bedtime
-            hours = delta.total_seconds() / 3600
+            hours = min(delta.total_seconds() / 3600, 24.0)  # Hard cap
             result["sleep_hours"] = Decimal(str(round(hours, 2)))
 
             # Sleep debt: target 7.5h
             target_minutes = 450  # 7.5 hours
-            actual_minutes = delta.total_seconds() / 60
+            actual_minutes = min(delta.total_seconds() / 60, 1440.0)
             result["sleep_debt_minutes"] = int(target_minutes - actual_minutes)
-        elif entry.total_duration_minutes:
-            hours = entry.total_duration_minutes / 60
-            result["sleep_hours"] = Decimal(str(round(hours, 2)))
-            result["sleep_debt_minutes"] = int(450 - entry.total_duration_minutes)
 
         result["deep_sleep_minutes"] = entry.stage_deep_minutes
         result["rem_sleep_minutes"] = entry.stage_rem_minutes

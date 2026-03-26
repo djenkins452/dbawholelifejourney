@@ -144,6 +144,17 @@ def build_health_state(user):
         state["sleep_avg_duration_7d"] = round(float(avg_duration), 1) if avg_duration else None
         state["sleep_entries_7d"] = sleep_count
 
+        # Dashboard cockpit fields: consistency score + avg hours
+        if avg_duration:
+            state["sleep_avg_hours_7d"] = round(float(avg_duration) / 60, 1)
+        durations = list(
+            recent_sleep.filter(total_duration_minutes__isnull=False)
+            .values_list("total_duration_minutes", flat=True)
+        )
+        good_nights = sum(1 for d in durations if d >= 420)  # ≥7h
+        state["sleep_good_nights_7d"] = good_nights
+        state["sleep_consistency_score"] = round((good_nights / 7) * 100)
+
         last_sleep = (
             SleepEntry.objects.filter(user=user)
             .order_by("-sleep_date")
@@ -185,6 +196,42 @@ def build_health_state(user):
         avg_steps = recent_steps.aggregate(avg=Avg("count"))["avg"]
         state["steps_avg_7d"] = round(float(avg_steps)) if avg_steps else None
         state["steps_entries_7d"] = steps_count
+
+    # ── Water / Hydration (last 7 days) ──────────────────────────
+    try:
+        from apps.health.models import WaterEntry
+
+        water_goal = 64.0
+        try:
+            prefs = user.preferences
+            if hasattr(prefs, 'water_goal_oz') and prefs.water_goal_oz:
+                water_goal = float(prefs.water_goal_oz)
+        except Exception:
+            pass
+
+        state["water_goal_oz"] = water_goal
+        tracked_days = 0
+        good_days = 0
+        total_oz = 0.0
+
+        day = cutoff_7d.date() + timedelta(days=1)  # 7 days back from today
+        today_date = now.date()
+        while day <= today_date:
+            daily_total = WaterEntry.get_daily_total(user, day)
+            if daily_total and daily_total > 0:
+                tracked_days += 1
+                total_oz += float(daily_total)
+                if float(daily_total) >= water_goal:
+                    good_days += 1
+            day += timedelta(days=1)
+
+        if tracked_days > 0:
+            state["water_avg_oz_7d"] = round(total_oz / tracked_days, 1)
+            state["water_good_days_7d"] = good_days
+            state["water_tracked_days_7d"] = tracked_days
+            state["water_consistency_score"] = round((good_days / 7) * 100)
+    except Exception:
+        logger.debug("Water state build failed", exc_info=True)
 
     # ── Blood Pressure (latest) ──────────────────────────────
     latest_bp = (
@@ -906,6 +953,25 @@ def build_fitness_state(user):
         user=user, date__gte=cutoff_30d.date(), status="active",
         completed_at__isnull=False,
     ).count()
+
+    # ── Workout behavior breakdown (7d) for dashboard cockpit ────
+    try:
+        from apps.core.behavior.domain_workout import calculate_workout_behavior_output
+        from apps.core.utils import get_user_today
+
+        user_today = get_user_today(user)
+        wk_beh = calculate_workout_behavior_output(
+            user, user_today - timedelta(days=7), user_today,
+        )
+        if wk_beh:
+            state["workout_adherence_score"] = (
+                round(wk_beh['adherence']) if wk_beh.get('adherence') is not None else None
+            )
+            state["workout_completed_7d"] = wk_beh.get('completed', 0) + wk_beh.get('late', 0)
+            state["workout_expected_7d"] = wk_beh.get('expected', 0)
+            state["workout_missed_7d"] = wk_beh.get('missed', 0)
+    except Exception:
+        logger.debug("Workout 7d behavior output failed", exc_info=True)
 
     # ── Volume (7d) ──────────────────────────────────────────────
     recent_sessions = WorkoutSession.objects.filter(
@@ -2160,6 +2226,22 @@ def build_medicine_state(user):
         if adherence is not None:
             state['adherence_7d'] = adherence
 
+        # 7-day behavior breakdown for dashboard cockpit
+        try:
+            from apps.core.behavior.domain_medication import calculate_medicine_behavior_output
+            med_beh = calculate_medicine_behavior_output(
+                user, user_today - timedelta(days=7), user_today,
+            )
+            if med_beh:
+                state['adherence_score_7d'] = (
+                    round(med_beh['adherence']) if med_beh.get('adherence') is not None else None
+                )
+                state['completed_7d'] = med_beh.get('completed', 0) + med_beh.get('late', 0)
+                state['expected_7d'] = med_beh.get('expected', 0)
+                state['missed_7d'] = med_beh.get('missed', 0)
+        except Exception:
+            logger.debug("Medicine 7d behavior output failed", exc_info=True)
+
     except Exception:
         logger.warning("Medicine state build failed", exc_info=True)
 
@@ -2544,10 +2626,16 @@ def build_behavior_state(user):
     Build behavior score state from cross-domain adherence outputs.
 
     Returns composite score + per-domain breakdown for CoS consumption.
+    Includes adherence_delta for dashboard cockpit trend indicators.
     """
     state = {}
     try:
-        from apps.core.behavior.behavior_score_engine import compute_behavior_score_7d
+        from apps.core.behavior.behavior_score_engine import (
+            compute_behavior_score,
+            compute_behavior_score_7d,
+        )
+        from apps.core.utils import get_user_today
+
         result = compute_behavior_score_7d(user)
         state['behavior_score'] = result.get('score')
         state['behavior_strongest'] = result.get('strongest_domain')
@@ -2565,6 +2653,26 @@ def build_behavior_state(user):
                 'skipped': d['skipped'],
                 'missed': d['missed'],
             }
+
+        # Adherence delta: compare current 7d to yesterday's 7d window
+        current_score = result.get('score')
+        user_today = get_user_today(user)
+        yesterday = user_today - timedelta(days=1)
+        prev_result = compute_behavior_score(user, yesterday - timedelta(days=7), yesterday)
+        prev_score = prev_result.get('score')
+
+        if current_score is not None and prev_score is not None:
+            delta = round(current_score - prev_score)
+            state['adherence_delta'] = delta
+            if delta > 0:
+                state['adherence_delta_direction'] = 'up'
+            elif delta < 0:
+                state['adherence_delta_direction'] = 'down'
+            else:
+                state['adherence_delta_direction'] = 'flat'
+        else:
+            state['adherence_delta'] = 0
+            state['adherence_delta_direction'] = 'flat'
     except Exception as e:
         logger.warning("build_behavior_state failed: %s", e, exc_info=True)
         state['behavior_score'] = None

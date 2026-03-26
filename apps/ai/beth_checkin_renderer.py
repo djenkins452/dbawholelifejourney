@@ -66,6 +66,130 @@ def render_checkin_for_time(user) -> str:
         return _SAFE_FALLBACK
 
 
+def build_cos_structured_output(user) -> dict:
+    """Canonical CoS structured output from Today Engine.
+
+    Single unified entry point that ALL CoS paths should use.
+    Returns structured data + rendered text from the same computation.
+
+    Returns dict with:
+        greeting: str
+        day_narrative: str
+        state: 'behind' | 'on_track' | 'ahead'
+        state_text: str (human-readable situation description)
+        next_commitment: str | None
+        do_now: list of {'name': str, 'duration_est': int}
+        sequence: list of str (explicit ordering)
+        move_later: list of {'name': str, 'reason': str}
+        adjustment_reason: str | None
+        decision_required: bool
+        completed: list of str (completed item names)
+        phase: 'morning' | 'midday' | 'evening'
+        rendered_text: str (full deterministic briefing text)
+    """
+    try:
+        return _build_structured_from_truth(user)
+    except Exception:
+        logger.error(
+            "[COS STRUCTURED] Failed for user=%s, returning safe fallback",
+            user.id, exc_info=True,
+        )
+        return {
+            'greeting': 'Good morning.',
+            'day_narrative': '',
+            'state': 'on_track',
+            'state_text': '',
+            'next_commitment': None,
+            'do_now': [],
+            'sequence': [],
+            'move_later': [],
+            'adjustment_reason': None,
+            'decision_required': False,
+            'completed': [],
+            'phase': 'morning',
+            'rendered_text': _SAFE_FALLBACK,
+        }
+
+
+def _build_structured_from_truth(user) -> dict:
+    """Build structured CoS output from Today Engine data."""
+    from apps.core.today.today_engine import get_today_context
+    from apps.core.utils import get_user_now
+
+    ctx = get_today_context(user)
+    user_now = get_user_now(user)
+    hour = user_now.hour
+    first_name = getattr(user, 'first_name', '') or ''
+
+    # Determine phase
+    if hour < 12:
+        phase = 'morning'
+    elif hour < 17:
+        phase = 'midday'
+    else:
+        phase = 'evening'
+
+    # 1. Greeting
+    if phase == 'morning':
+        if hour < 5:
+            greeting = f"Early start{', ' + first_name if first_name else ''}."
+        elif hour < 9:
+            greeting = f"Good morning{', ' + first_name if first_name else ''}."
+        else:
+            greeting = f"Morning{', ' + first_name if first_name else ''}."
+    elif phase == 'midday':
+        greeting = f"Midday check{', ' + first_name if first_name else ''}."
+    else:
+        greeting = f"End of day{', ' + first_name if first_name else ''}."
+
+    # 2. Day narrative
+    day_narrative = _build_day_narrative(ctx, user_now)
+
+    # 3. Situational awareness
+    overdue = ctx.get('overdue', [])
+    coming_up = ctx.get('coming_up', [])
+    completed = ctx.get('completed', [])
+    later = ctx.get('later', [])
+
+    state, state_text = _assess_situation_structured(
+        overdue, completed, coming_up, user_now,
+    )
+
+    # 4. Triage
+    triage = _build_triage_structured(
+        ctx, user_now, overdue, coming_up, later,
+    )
+
+    # 5. Completed names
+    completed_names = [e['label'] for e in completed]
+
+    # 6. Render text (reuse existing renderers)
+    if phase == 'morning':
+        rendered_text = _render_morning(ctx, user, user_now)
+    elif phase == 'midday':
+        rendered_text = _render_midday(ctx, user, user_now)
+    else:
+        rendered_text = _render_evening(ctx, user, user_now)
+
+    _validate_output(rendered_text)
+
+    return {
+        'greeting': greeting,
+        'day_narrative': day_narrative,
+        'state': state,
+        'state_text': state_text,
+        'next_commitment': triage['next_commitment'],
+        'do_now': triage['do_now'],
+        'sequence': triage['sequence'],
+        'move_later': triage['move_later'],
+        'adjustment_reason': triage['adjustment_reason'],
+        'decision_required': triage['decision_required'],
+        'completed': completed_names,
+        'phase': phase,
+        'rendered_text': rendered_text,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Internal renderer
 # ---------------------------------------------------------------------------
@@ -273,33 +397,72 @@ def _build_day_narrative(ctx, user_now) -> str:
 
 
 def _assess_situation(overdue, completed, coming_up, user_now) -> str:
-    """Determine situational state: behind / on track / ahead."""
+    """Determine situational state: behind / on track / ahead.
+
+    Returns text description only. Use _assess_situation_structured()
+    for both state enum and text.
+    """
+    _state, text = _assess_situation_structured(
+        overdue, completed, coming_up, user_now,
+    )
+    return text
+
+
+def _assess_situation_structured(overdue, completed, coming_up, user_now):
+    """Determine situational state with both enum and text.
+
+    Returns:
+        (state, text) where state is 'behind' | 'on_track' | 'ahead'
+    """
     has_overdue = len(overdue) > 0
     has_completed = len(completed) > 0
     hour = user_now.hour
 
     if has_overdue:
         if len(overdue) >= 3:
-            return "You're behind this morning — a few things have slipped."
-        return "You're a bit behind — let's get you caught up."
+            return ('behind', "You're behind this morning — a few things have slipped.")
+        return ('behind', "You're a bit behind — let's get you caught up.")
 
     if has_completed and not coming_up:
-        return "You're ahead right now — nice position to be in."
+        return ('ahead', "You're ahead right now — nice position to be in.")
 
     if hour < 6 and not has_completed:
-        return "Early start — you've got time to set the tone."
+        return ('on_track', "Early start — you've got time to set the tone.")
 
-    return "You're on track."
+    return ('on_track', "You're on track.")
 
 
 def _build_morning_triage(ctx, user_now, overdue, coming_up, later) -> str:
-    """Time-aware feasibility triage.
-
-    Determines what can be done NOW vs what needs to move later.
-    Uses the next hard commitment as the time boundary.
+    """Time-aware feasibility triage (text-only wrapper).
 
     Returns: guidance text with DO NOW + MOVE LATER sections.
     """
+    result = _build_triage_structured(ctx, user_now, overdue, coming_up, later)
+    return result['text']
+
+
+def _build_triage_structured(ctx, user_now, overdue, coming_up, later) -> dict:
+    """Time-aware feasibility triage returning structured data + text.
+
+    Returns dict with:
+        do_now: list of {'name': str, 'duration_est': int}
+        move_later: list of {'name': str, 'reason': str}
+        next_commitment: str | None (the hard deadline name)
+        adjustment_reason: str | None
+        decision_required: bool
+        sequence: list of str (explicit ordering)
+        text: str (rendered guidance text)
+    """
+    result = {
+        'do_now': [],
+        'move_later': [],
+        'next_commitment': None,
+        'adjustment_reason': None,
+        'decision_required': False,
+        'sequence': [],
+        'text': '',
+    }
+
     # Collect actionable items: overdue + coming_up (not completed)
     actionable = []
     for item in overdue:
@@ -315,12 +478,11 @@ def _build_morning_triage(ctx, user_now, overdue, coming_up, later) -> str:
         # Nothing actionable — check for later items
         next_action = ctx.get('next', '')
         if next_action and next_action != "Start with your next planned item.":
-            return f"Start with {next_action}."
-        return ""
+            result['text'] = f"Start with {next_action}."
+            result['sequence'] = [next_action]
+        return result
 
     # Find next hard commitment (fixed-time item that acts as deadline)
-    # Look in coming_up and later for the first non-overdue, non-completed
-    # item that is time-bound.
     hard_deadline = None
     hard_deadline_name = None
     for bucket in [coming_up, later]:
@@ -330,7 +492,6 @@ def _build_morning_triage(ctx, user_now, overdue, coming_up, later) -> str:
                 continue
             sched = raw.get('scheduled_time')
             name = raw.get('name', '')
-            # Hard commits: shower, meetings, appointments, medications
             is_hard = any(
                 k in (name or '').lower()
                 for k in ('shower', 'meeting', 'appointment', 'call',
@@ -343,13 +504,24 @@ def _build_morning_triage(ctx, user_now, overdue, coming_up, later) -> str:
         if hard_deadline:
             break
 
+    result['next_commitment'] = hard_deadline_name
+
     if not hard_deadline:
         # No hard deadline found — just guide to start
         next_name = actionable[0].get('name', '')
         if len(actionable) == 1:
-            return f"Start with {next_name}."
-        names = [i.get('name', '') for i in actionable[:3]]
-        return f"Start with {names[0]}, then {', then '.join(names[1:])}."
+            result['text'] = f"Start with {next_name}."
+            result['do_now'] = [{'name': next_name, 'duration_est': _estimate_duration(next_name)}]
+            result['sequence'] = [next_name]
+        else:
+            names = [i.get('name', '') for i in actionable[:3]]
+            result['text'] = f"Start with {names[0]}, then {', then '.join(names[1:])}."
+            result['do_now'] = [
+                {'name': n, 'duration_est': _estimate_duration(n)}
+                for n in names
+            ]
+            result['sequence'] = names
+        return result
 
     # Feasibility split: what fits before the deadline?
     available_minutes = max(
@@ -361,7 +533,6 @@ def _build_morning_triage(ctx, user_now, overdue, coming_up, later) -> str:
     move_later = []
     time_used = 0
 
-    # Sort actionable by scheduled time (earliest first), then by priority
     def _sort_key(item):
         sched = item.get('scheduled_time')
         priority = 0 if item.get('priority') == 'foundational' else 1
@@ -371,7 +542,6 @@ def _build_morning_triage(ctx, user_now, overdue, coming_up, later) -> str:
 
     for item in actionable:
         name = item.get('name', '')
-        # Skip the hard deadline item itself
         if name.lower() == (hard_deadline_name or '').lower():
             continue
         duration = _estimate_duration(name)
@@ -381,7 +551,23 @@ def _build_morning_triage(ctx, user_now, overdue, coming_up, later) -> str:
         else:
             move_later.append(name)
 
-    # Build output
+    # Populate structured data
+    result['do_now'] = [
+        {'name': n, 'duration_est': _estimate_duration(n)} for n in do_now
+    ]
+    result['move_later'] = [
+        {'name': n, 'reason': f"won't fit before {hard_deadline_name}"}
+        for n in move_later
+    ]
+    result['sequence'] = do_now + [hard_deadline_name] + move_later
+    if move_later:
+        result['adjustment_reason'] = (
+            f"Not enough time before {hard_deadline_name} at "
+            f"{hard_deadline.strftime('%I:%M %p').lstrip('0')}"
+        )
+        result['decision_required'] = True
+
+    # Build text output
     parts = []
 
     if do_now:
@@ -404,7 +590,6 @@ def _build_morning_triage(ctx, user_now, overdue, coming_up, later) -> str:
             )
         parts.append(f"Start with {do_now[0]} now.")
     elif not move_later:
-        # Everything fits in "coming up" — normal flow
         next_action = ctx.get('next', '')
         if next_action:
             parts.append(f"Start with {next_action}.")
@@ -426,7 +611,8 @@ def _build_morning_triage(ctx, user_now, overdue, coming_up, later) -> str:
                 f"plan to move those later today."
             )
 
-    return "\n".join(parts)
+    result['text'] = "\n".join(parts)
+    return result
 
 
 # ---------------------------------------------------------------------------

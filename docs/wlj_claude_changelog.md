@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-26 — Architecture: Unify CoS Pipeline — Deterministic Brain, LLM Voice Only
+
+- **Architecture alignment:** All CoS entry points now flow through a single deterministic pipeline: Today Engine → Prioritizer → Structured Output → Renderer. The LLM is constrained to tone-polishing only (voice, not brain).
+- **New:** `build_cos_structured_output(user)` in `beth_checkin_renderer.py` — canonical structured output returning `state`, `do_now`, `move_later`, `sequence`, `day_narrative`, `rendered_text`, etc. Single source of truth for all CoS paths.
+  - Files: `apps/ai/beth_checkin_renderer.py`
+- **Fix:** Opening message endpoint (`/assistant/api/opening/`) no longer calls the LLM for state assessment. Replaced `assess_current_state()` + `generate_daily_priorities()` + `_generate_ai_assessment()` with `build_cos_structured_output()` — fully deterministic, no LLM call.
+  - Files: `apps/ai/greeting_service.py`
+- **Fix:** Session-start briefing payload now uses unified CoS structured output instead of duplicate Today Engine + execution truth queries. Includes `rendered_text` and `cos_structured` fields for frontend.
+  - Files: `apps/ai/views.py`
+- **Fix:** Chat check-in fallback path (when deterministic router's renderer fails) no longer builds 500+ lines of LLM system prompt injection. Now retries `build_cos_structured_output()` and returns deterministic text directly — **LLM is never involved in check-in responses**. Removed ~500 lines of duplicated task/med/calendar/goal/prayer query logic.
+  - Files: `apps/ai/personal_assistant.py`
+- **New:** LOCKED CoS STATE injection in chat system prompt — for non-check-in messages, injects deterministic `state`, `sequence`, `do_now`, `completed` as immutable facts the LLM cannot alter. Extends existing LOCKED FACT STATEMENTS pattern.
+  - Files: `apps/ai/personal_assistant.py`
+- Net reduction: -348 lines (355 added, 703 removed)
+
 ## 2026-03-26 — Fix: Workout Counting Multi-Source + Task Fairness (Today's Incomplete Tasks)
 
 - **Fix:** Workout behavior engine now counts completions from ALL sources: WorkoutScheduleLog, WorkoutSession, AND RoutineLog (workout obligation items). Previously only WorkoutScheduleLog was checked — routines that create a RoutineLog (e.g., "Workout" in Morning Routine) without a template-linked WorkoutSession were invisible, showing false "missed" counts.

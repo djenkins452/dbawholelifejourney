@@ -280,6 +280,28 @@ class IntentRegistrationTest(TestCase):
             f"Fix: Add a mapping in get_intent_module() in intent_engine.py"
         )
 
+    def test_all_intents_have_action_policy(self):
+        """
+        Every intent in INTENT_HANDLERS must be explicitly registered in
+        ACTION_POLICY. The safe default catches unregistered intents at
+        runtime, but explicit registration ensures correct risk level,
+        category, and authority for every intent.
+
+        This is the governance line: no new mutation tool ships without
+        explicit ACTION_POLICY registration.
+        """
+        from apps.core.ai_orchestrator.action_policy import ACTION_POLICY
+        all_intents = set(INTENT_HANDLERS.keys()) - {'no_action'}
+        registered = set(ACTION_POLICY.keys())
+        missing = all_intents - registered
+        self.assertFalse(
+            missing,
+            f"Intents missing from ACTION_POLICY ({len(missing)}): "
+            f"{sorted(missing)}. "
+            f"Fix: Add _r() entries in "
+            f"apps/core/ai_orchestrator/action_policy.py for each."
+        )
+
     def test_no_orphaned_handler_methods(self):
         """
         Every handle_* method on ActionHandler should correspond to a known intent.

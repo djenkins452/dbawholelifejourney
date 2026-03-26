@@ -172,6 +172,28 @@ class LifeHomeView(HelpContextMixin, LifeAccessMixin, TemplateView):
         context['user_today'] = today
 
         # AI insight — engine-first: read latest PIE insight (no OpenAI)
+        # Dismiss stale task insights whose referenced tasks are no longer pending
+        try:
+            from apps.core.ai_insights.models import Insight
+            stale_task_insights = Insight.objects.filter(
+                user=user,
+                insight_type='task_due_today',
+                status='new',
+            )
+            for insight in stale_task_insights:
+                evidence = insight.evidence or {}
+                task_ids = [t['task_id'] for t in evidence.get('tasks', [])]
+                if task_ids:
+                    from apps.life.services.task_queries import TaskQueries
+                    still_pending = TaskQueries.pending(user).filter(
+                        id__in=task_ids, due_date=today,
+                    ).count()
+                    if still_pending == 0:
+                        insight.status = 'dismissed'
+                        insight.save(update_fields=['status', 'updated_at'])
+        except Exception:
+            pass  # Validation is best-effort
+
         from apps.core.ai_insights.services import get_module_insight
         context['ai_insight'] = get_module_insight(user, 'life')
         context['ai_enabled'] = getattr(user.preferences, 'ai_enabled', False)

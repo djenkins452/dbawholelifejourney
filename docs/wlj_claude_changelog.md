@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-26 — Fix: Medication Fairness — Don't Count Future Doses as Missed
+
+- **Fix:** Medication behavior engine now excludes today's future doses (scheduled_time > current time) from expected count. Previously all 8 days of doses were counted including doses not yet due, inflating "missed" count. Now a morning check only counts doses due before the current time.
+  - Files: `apps/core/behavior/domain_medication.py`
+- **Fix:** Workout behavior engine now excludes today from expected if the workout hasn't been completed or skipped yet. Same fairness principle — can't miss what isn't due yet.
+  - Files: `apps/core/behavior/domain_workout.py`
+
 ## 2026-03-26 — Fix: Workout Counting Multi-Source + Task Fairness (Today's Incomplete Tasks)
 
 - **Fix:** Workout behavior engine now counts completions from ALL sources: WorkoutScheduleLog, WorkoutSession, AND RoutineLog (workout obligation items). Previously only WorkoutScheduleLog was checked — routines that create a RoutineLog (e.g., "Workout" in Morning Routine) without a template-linked WorkoutSession were invisible, showing false "missed" counts.

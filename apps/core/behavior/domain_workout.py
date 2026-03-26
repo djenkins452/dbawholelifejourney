@@ -137,6 +137,14 @@ def calculate_workout_behavior_output(user, start_date, end_date):
     all_completed_dates = (log_completed_dates | session_dates | routine_dates) & expected_days
     all_skipped_dates = log_skipped_dates - all_completed_dates  # skip only if not completed
 
+    # Fairness: today's workout isn't "missed" if it hasn't happened yet.
+    # Only count today in expected if it's already completed or skipped.
+    from apps.core.utils import get_user_today
+    user_today = get_user_today(user)
+    if user_today in expected_days and user_today not in all_completed_dates and user_today not in all_skipped_dates:
+        expected_days = expected_days - {user_today}
+        expected = len(expected_days)
+
     completed = len(all_completed_dates)
     skipped = len(all_skipped_dates)
     late = 0  # late is already included in completed dates from schedule_logs

@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-26 — Authoritative Day-Start: handle_day_start() Unified Across All Entry Points
+
+- **New:** `handle_day_start(user)` in `executive_briefing.py` — single authoritative day-start initializer called from ALL user-facing entry points. Ensures routine tasks exist for today and auto-completes Wake Up. Cache-backed idempotency (one initialization per user-local-date, subsequent calls are instant no-ops).
+  - Files: `apps/ai/executive_briefing.py`
+- **Fix:** All entry points now call `handle_day_start()` BEFORE CoS rendering, so Wake Up is always resolved before execution truth is read:
+  - `SessionStartView` (session-start endpoint)
+  - `ProactiveBriefingView` (briefing endpoint)
+  - `AssistantOpeningView` (opening message)
+  - `AssistantChatView` (non-streaming chat)
+  - `AssistantChatStreamView` (streaming chat)
+  - `build_executive_briefing()` (system prompt injection)
+  - Files: `apps/ai/views.py`, `apps/ai/executive_briefing.py`
+- **Tests:** Added 5 tests for `handle_day_start()` (idempotency, no-op on cache hit, ensure failure isolation, all entry points wired) + entry point enforcement test.
+  - Files: `apps/ai/tests/test_executive_briefing.py`
+
 ## 2026-03-26 — Final CoS Unification: One Renderer, No Exceptions
 
 - **Fix:** LLM-unavailable fallback (`_get_fallback_response`) no longer produces domain-dump output ("Faith: ...\nRoutines: ...\nTasks: ..."). Now routes through `build_cos_structured_output()` — same canonical renderer as every other CoS path.

@@ -75,13 +75,68 @@ MOOD_SCORES = {
 }
 
 
+def handle_day_start(user):
+    """
+    Authoritative day-start initializer — ONE function, ALL entry points.
+
+    Called on every meaningful user interaction. Idempotent: only performs
+    initialization once per user-local date, cached for the rest of the day.
+
+    Responsibilities:
+    1. Ensure routine tasks exist for today (fill recurrence gaps)
+    2. Auto-complete Wake Up routine for today
+    3. Set cache flag so subsequent calls are instant no-ops
+
+    This function must be called BEFORE CoS rendering so that execution
+    truth reflects the initialized state.
+
+    Args:
+        user: Django User instance.
+
+    Returns:
+        dict with:
+            initialized: bool — True if this call performed initialization
+            wake_completed: bool — True if Wake Up was auto-completed
+    """
+    from django.core.cache import cache
+    from apps.core.utils import get_user_today
+
+    today = get_user_today(user)
+    cache_key = f"wlj:day_start:{user.id}:{today}"
+
+    # Fast path: already initialized today (cache hit)
+    if cache.get(cache_key):
+        return {'initialized': False, 'wake_completed': False}
+
+    # Perform day-start initialization
+    wake_completed = False
+
+    # Step 1: Ensure routine tasks exist for today
+    try:
+        _ensure_routine_tasks_for_today(user, today)
+    except Exception as e:
+        logger.debug("Day start: routine task ensure failed: %s", e)
+
+    # Step 2: Auto-complete Wake Up
+    wake_completed = auto_complete_wakeup(user, today)
+
+    # Mark initialized — TTL until end of day (max 24h)
+    cache.set(cache_key, True, timeout=86400)
+
+    logger.info(
+        "DAY_START_INITIALIZED user=%s date=%s wake=%s",
+        user.id, today, wake_completed,
+    )
+
+    return {'initialized': True, 'wake_completed': wake_completed}
+
+
 def auto_complete_wakeup(user, today):
     """
     Auto-complete the 'Wake Up' routine task for today.
 
-    Reusable helper called by build_executive_briefing() and the
-    session-start endpoint. Safe to call multiple times per day
-    (idempotent — only completes pending tasks).
+    Internal helper called by handle_day_start(). Safe to call multiple
+    times per day (idempotent — only completes pending tasks).
 
     Args:
         user: Django User instance.
@@ -329,15 +384,10 @@ def build_executive_briefing(user, conversation) -> str:
                     )
                     return lightweight
 
-        # Ensure routine tasks exist for today (fills recurrence gaps)
-        # and auto-complete "Wake Up" on first-of-day interaction.
-        if is_first_of_day:
-            try:
-                _ensure_routine_tasks_for_today(user, today)
-            except Exception as e:
-                logger.debug("Routine task ensure failed: %s", e)
-
-            auto_complete_wakeup(user, today)
+        # Authoritative day-start (idempotent) — ensures routine tasks
+        # exist and auto-completes Wake Up. Safe to call even if
+        # handle_day_start already ran from another entry point.
+        handle_day_start(user)
 
         sections = []
         sections.append("--- EXECUTIVE BRIEFING ---")

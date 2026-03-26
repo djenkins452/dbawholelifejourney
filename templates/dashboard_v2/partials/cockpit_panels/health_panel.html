@@ -1,4 +1,4 @@
-{# Health Domain Expanded Panel — workout, medication, sleep, water #}
+{# Health Domain Expanded Panel — comprehensive 7-domain health score #}
 
 <div class="v2-panel-content">
     <h3 class="v2-panel-title">Health — 7-Day Breakdown</h3>
@@ -14,20 +14,6 @@
             </div>
             {% if health.components.workout.missed > 0 %}
             <div class="v2-panel-metric-gap">{{ health.components.workout.missed }} missed</div>
-            {% endif %}
-        </div>
-        {% endif %}
-
-        {# Medication #}
-        {% if health.components.med_score != None %}
-        <div class="v2-panel-metric">
-            <div class="v2-panel-metric-label">Medication</div>
-            <div class="v2-panel-metric-value">
-                <span class="v2-panel-metric-number">{{ health.components.medication.completed }}</span>
-                <span class="v2-panel-metric-total">/ {{ health.components.medication.expected }} doses</span>
-            </div>
-            {% if health.components.medication.missed > 0 %}
-            <div class="v2-panel-metric-gap">{{ health.components.medication.missed }} missed</div>
             {% endif %}
         </div>
         {% endif %}
@@ -59,7 +45,99 @@
             </div>
         </div>
         {% endif %}
+
+        {# Medication #}
+        {% if health.components.med_score != None %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Medication</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ health.components.medication.completed }}</span>
+                <span class="v2-panel-metric-total">/ {{ health.components.medication.expected }} doses</span>
+            </div>
+            {% if health.components.medication.missed > 0 %}
+            <div class="v2-panel-metric-gap">{{ health.components.medication.missed }} missed</div>
+            {% endif %}
+        </div>
+        {% endif %}
     </div>
+
+    {# Vitals #}
+    {% with v=health.components.vitals %}
+    {% if v.bp_systolic or v.heart_rate_avg or v.glucose_avg or v.blood_oxygen_avg or v.recovery_score %}
+    <h4 class="v2-panel-subtitle" style="margin-top: 0.75rem; margin-bottom: 0.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary, #94a3b8);">Vitals</h4>
+    <div class="v2-panel-grid">
+        {% if v.bp_systolic and v.bp_diastolic %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Blood Pressure</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ v.bp_systolic }}/{{ v.bp_diastolic }}</span>
+                <span class="v2-panel-metric-total">mmHg</span>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if v.heart_rate_avg %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Resting HR</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ v.heart_rate_avg }}</span>
+                <span class="v2-panel-metric-total">bpm avg</span>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if v.glucose_avg %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Glucose</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ v.glucose_avg }}</span>
+                <span class="v2-panel-metric-total">mg/dL avg</span>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if v.blood_oxygen_avg %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">SpO2</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ v.blood_oxygen_avg }}%</span>
+                <span class="v2-panel-metric-total">avg</span>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if v.recovery_score %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Recovery</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ v.recovery_score }}</span>
+                <span class="v2-panel-metric-total">/ 100</span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    {# Score Domain Breakdown #}
+    {% if health.components.score_domains %}
+    <h4 class="v2-panel-subtitle" style="margin-top: 0.75rem; margin-bottom: 0.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary, #94a3b8);">Score Breakdown</h4>
+    <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+        {% for domain_key, domain_data in health.components.score_domains.items %}
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem;">
+            <span style="color: var(--text-secondary, #64748b); text-transform: capitalize;">{{ domain_key|cut:"_" }}</span>
+            <span style="font-weight: 600; color: {% if domain_data.score >= 70 %}var(--color-success, #22c55e){% elif domain_data.score >= 50 %}var(--color-warning, #eab308){% else %}var(--color-danger, #ef4444){% endif %};">{{ domain_data.score }}%</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# Missing Signals #}
+    {% if health.components.missing_signals %}
+    <div style="margin-top: 0.5rem; font-size: 0.7rem; color: var(--text-tertiary, #94a3b8);">
+        Not yet tracking: {{ health.components.missing_signals|join:", " }}
+    </div>
+    {% endif %}
 
     {# Quick link #}
     <a href="{% url 'health:home' %}" class="v2-panel-link">View Health Dashboard &#x2192;</a>

@@ -93,10 +93,23 @@ class GoalCockpitServiceTest(TestCase):
         self.assertEqual(result["score"], expected)
 
     @patch("apps.core.ai_state.state_engine.get_state_value")
-    def test_health_score_from_sae(self, mock_gsv):
-        """Health score reads from SAE canonical state."""
-        # Mock SAE state values
+    def test_health_score_from_health_score_service(self, mock_gsv):
+        """Health score uses HealthScoreService composite from SAE."""
         sae_data = {
+            # HealthScoreService composite score + drivers
+            'health.health_score': 72,
+            'health.health_score_drivers': {
+                'domains': {
+                    'sleep': {'score': 80, 'weight': 20, 'detail': '7.2h avg'},
+                    'recovery': {'score': 65, 'weight': 20, 'detail': 'Recovery: 65'},
+                    'workout': {'score': 70, 'weight': 10, 'detail': '5/7 sessions'},
+                },
+                'missing_signals': ['glucose', 'nutrition'],
+                'status': 'computed',
+            },
+            'health.health_score_prev_7d': 68,
+            'health.recovery_score_today': 65,
+            # Behavioral detail
             'medicine.adherence_score_7d': 90,
             'medicine.completed_7d': 18,
             'medicine.expected_7d': 20,
@@ -105,32 +118,45 @@ class GoalCockpitServiceTest(TestCase):
             'fitness.workout_completed_7d': 5,
             'fitness.workout_expected_7d': 7,
             'fitness.workout_missed_7d': 2,
-            'health.sleep_consistency_score': None,
-            'health.sleep_avg_hours_7d': None,
-            'health.sleep_good_nights_7d': 0,
-            'health.sleep_entries_7d': 0,
-            'health.water_consistency_score': None,
-            'health.water_avg_oz_7d': None,
-            'health.water_good_days_7d': 0,
-            'health.water_tracked_days_7d': 0,
+            'health.sleep_consistency_score': 57,
+            'health.sleep_avg_hours_7d': 7.2,
+            'health.sleep_good_nights_7d': 4,
+            'health.sleep_entries_7d': 7,
+            'health.water_consistency_score': 43,
+            'health.water_avg_oz_7d': 48.0,
+            'health.water_good_days_7d': 3,
+            'health.water_tracked_days_7d': 7,
             'health.water_goal_oz': 64,
-            'behavior.adherence_delta': 5,
+            # Vitals
+            'health.bp_systolic': 128,
+            'health.bp_diastolic': 82,
+            'health.heart_rate_avg_7d': 68,
+            'health.glucose_avg_7d': 105,
+            'health.blood_oxygen_avg_7d': 97.5,
         }
         mock_gsv.side_effect = lambda user, path, default=None: sae_data.get(path, default)
 
         service = GoalCockpitService(self.user)
         result = service._compute_health()
 
-        self.assertIsInstance(result["score"], int)
-        self.assertGreater(result["score"], 0)
+        # Score comes from HealthScoreService, not custom formula
+        self.assertEqual(result["score"], 72)
         self.assertEqual(result["label"], "Health")
-        self.assertEqual(result["color"], "#22c55e")
-        # Should contain medication and workout detail from SAE
+        # Trend: 72 vs 68 = +4, within threshold → flat
+        self.assertEqual(result["trend"], "flat")
+        # Components still populated for panel
         self.assertEqual(result["components"]["medication"]["completed"], 18)
         self.assertEqual(result["components"]["workout"]["missed"], 2)
+        self.assertEqual(result["components"]["sleep"]["avg_hours"], 7.2)
+        # Vitals present
+        self.assertEqual(result["components"]["vitals"]["bp_systolic"], 128)
+        self.assertEqual(result["components"]["vitals"]["recovery_score"], 65)
+        # Score domains present
+        self.assertIn("sleep", result["components"]["score_domains"])
+        self.assertEqual(result["components"]["missing_signals"], ["glucose", "nutrition"])
 
     def test_health_score_no_sae_data(self):
-        """Health score is 0 when no SAE state exists."""
+        """Health score is 0 when no SAE health_score exists."""
         service = GoalCockpitService(self.user)
         result = service._compute_health()
 
@@ -146,12 +172,15 @@ class GoalCockpitServiceTest(TestCase):
         self.assertEqual(result["color"], "#f59e0b")
 
     def test_priority_flag(self):
-        """Priority is True when score < 60."""
+        """Priority is True when score < 60 (except empty domains with no data)."""
         service = GoalCockpitService(self.user)
         data = service.get_cockpit_data()
 
         for key in ("faith", "health", "work"):
             domain = data[key]
+            # Empty domains (no data) return priority=False even with score=0
+            if not domain.get("components"):
+                continue
             if domain["score"] < 60:
                 self.assertTrue(domain["priority"])
             else:

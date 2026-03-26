@@ -345,21 +345,31 @@ def build_health_state(user):
         pass
 
     # ── Composite Health Score (from HealthScoreService via DailyHealthSummary) ──
+    # Use the most recent scored summary (today or yesterday), not strictly
+    # today — the nightly Celery task builds summaries through yesterday,
+    # so today's row may not have health_score yet.
     try:
         from django.db.models import Avg
 
         from apps.health.models import DailyHealthSummary
 
-        today_summary = DailyHealthSummary.objects.filter(
-            user=user, summary_date=now.date(),
-        ).values('health_score', 'health_score_drivers', 'recovery_score').first()
+        latest_scored = (
+            DailyHealthSummary.objects.filter(
+                user=user,
+                health_score__isnull=False,
+                summary_date__gte=(now.date() - timedelta(days=3)),
+            )
+            .order_by('-summary_date')
+            .values('health_score', 'health_score_drivers', 'recovery_score',
+                    'summary_date')
+            .first()
+        )
 
-        if today_summary:
-            if today_summary['health_score'] is not None:
-                state['health_score'] = today_summary['health_score']
-                state['health_score_drivers'] = today_summary['health_score_drivers'] or {}
-            if today_summary['recovery_score'] is not None:
-                state['recovery_score_today'] = today_summary['recovery_score']
+        if latest_scored:
+            state['health_score'] = latest_scored['health_score']
+            state['health_score_drivers'] = latest_scored['health_score_drivers'] or {}
+            if latest_scored['recovery_score'] is not None:
+                state['recovery_score_today'] = latest_scored['recovery_score']
 
         # Previous week average for trend
         prev_week = DailyHealthSummary.objects.filter(

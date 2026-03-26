@@ -129,9 +129,11 @@ class GoalCockpitService:
         """
         Health score from HealthScoreService (7-domain composite) via SAE.
 
-        Domains: sleep (20%), recovery (20%), glucose (15%), weight (15%),
-        workout (10%), nutrition (10%), activity (10%).
-        Missing signals reduce denominator — don't punish for untracked data.
+        Primary: HealthScoreService composite (sleep, recovery, glucose,
+        weight, workout, nutrition, activity — adaptive weighting).
+        Fallback: weighted average of available behavioral sub-scores from
+        SAE (medication, workout, sleep, water) when composite not yet
+        available (baseline collecting or stale state).
         """
         try:
             from apps.core.ai_state.state_engine import get_state_value
@@ -142,15 +144,21 @@ class GoalCockpitService:
             score = get_state_value(user, 'health.health_score')
             drivers = get_state_value(user, 'health.health_score_drivers', {})
 
+            # Fallback: if HealthScoreService hasn't computed yet (baseline
+            # not ready, or DailyHealthSummary not scored), derive a basic
+            # score from available behavioral sub-scores in SAE.
             if score is None:
-                return self._empty_domain('Health', '#22c55e')
+                score, drivers = self._fallback_health_score(user)
+                if score is None:
+                    return self._empty_domain('Health', '#22c55e')
 
             # Trend from HealthScoreService previous-week delta
             prev_score = get_state_value(user, 'health.health_score_prev_7d')
             if prev_score is not None:
                 trend, trend_delta = self._calc_trend(score, prev_score)
             else:
-                trend, trend_delta = 'flat', 0
+                adh_delta = get_state_value(user, 'behavior.adherence_delta', 0)
+                trend, trend_delta = self._calc_trend(score, score - adh_delta)
 
             # Score domain breakdown from HealthScoreService
             domains = drivers.get('domains', {})
@@ -210,6 +218,54 @@ class GoalCockpitService:
         except Exception:
             logger.warning("Cockpit: health score failed", exc_info=True)
             return self._empty_domain('Health', '#22c55e')
+
+    @staticmethod
+    def _fallback_health_score(user):
+        """
+        Basic health score from behavioral sub-scores when HealthScoreService
+        composite is not available (baseline collecting or stale state).
+
+        Uses SAE fields only — no raw queries.
+        """
+        from apps.core.ai_state.state_engine import get_state_value
+
+        weights = {}
+        scores = {}
+
+        med = get_state_value(user, 'medicine.adherence_score_7d')
+        if med is not None:
+            weights['medication'] = 30
+            scores['medication'] = med
+
+        wk = get_state_value(user, 'fitness.workout_adherence_score')
+        if wk is not None:
+            weights['workout'] = 25
+            scores['workout'] = wk
+
+        sl = get_state_value(user, 'health.sleep_consistency_score')
+        if sl is not None:
+            weights['sleep'] = 25
+            scores['sleep'] = sl
+
+        wa = get_state_value(user, 'health.water_consistency_score')
+        if wa is not None:
+            weights['water'] = 20
+            scores['water'] = wa
+
+        if not weights:
+            return None, {}
+
+        total_w = sum(weights.values())
+        score = round(sum(scores[k] * (weights[k] / total_w) for k in weights))
+        drivers = {
+            'domains': {
+                k: {'score': scores[k], 'weight': weights[k], 'detail': f'{k} adherence'}
+                for k in weights
+            },
+            'missing_signals': [],
+            'status': 'fallback',
+        }
+        return score, drivers
 
     # ── Work / Purpose ────────────────────────────────────
 

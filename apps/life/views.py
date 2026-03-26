@@ -172,25 +172,32 @@ class LifeHomeView(HelpContextMixin, LifeAccessMixin, TemplateView):
         context['user_today'] = today
 
         # AI insight — engine-first: read latest PIE insight (no OpenAI)
-        # Dismiss stale task insights whose referenced tasks are no longer pending
+        # Dismiss stale task_due_today insights if referenced tasks changed
         try:
             from apps.core.ai_insights.models import Insight
-            stale_task_insights = Insight.objects.filter(
+            from apps.life.services.task_queries import TaskQueries
+
+            stale_insights = Insight.objects.filter(
                 user=user,
                 insight_type='task_due_today',
                 status='new',
             )
-            for insight in stale_task_insights:
+            for insight in stale_insights:
                 evidence = insight.evidence or {}
-                task_ids = [t['task_id'] for t in evidence.get('tasks', [])]
-                if task_ids:
-                    from apps.life.services.task_queries import TaskQueries
-                    still_pending = TaskQueries.pending(user).filter(
-                        id__in=task_ids, due_date=today,
-                    ).count()
-                    if still_pending == 0:
-                        insight.status = 'dismissed'
-                        insight.save(update_fields=['status', 'updated_at'])
+                original_ids = sorted(
+                    t['task_id'] for t in evidence.get('tasks', [])
+                )
+                if not original_ids:
+                    continue
+                current_ids = sorted(
+                    TaskQueries.pending(user).filter(
+                        id__in=original_ids, due_date=today,
+                    ).values_list('id', flat=True)
+                )
+                # Dismiss if any referenced task was completed/moved
+                if current_ids != original_ids:
+                    insight.status = 'dismissed'
+                    insight.save(update_fields=['status', 'updated_at'])
         except Exception:
             pass  # Validation is best-effort
 

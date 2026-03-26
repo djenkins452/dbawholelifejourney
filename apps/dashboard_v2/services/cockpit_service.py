@@ -62,14 +62,15 @@ class GoalCockpitService:
             return self._empty_domain('Faith', '#3b82f6')
 
         try:
-            current = self._faith_window(self.today - timedelta(days=6), self.today)
-            previous = self._faith_window(self.today - timedelta(days=13), self.today - timedelta(days=7))
+            window_days = 8  # today - timedelta(days=7) through today inclusive
+            current = self._faith_window(self.today - timedelta(days=7), self.today)
+            previous = self._faith_window(self.today - timedelta(days=15), self.today - timedelta(days=8))
 
             bible_days = current['bible_days']
             prayer_days = current['prayer_days']
-            score = round((bible_days / 7 * 50) + (prayer_days / 7 * 50))
+            score = round((bible_days / window_days * 50) + (prayer_days / window_days * 50))
 
-            prev_score = round((previous['bible_days'] / 7 * 50) + (previous['prayer_days'] / 7 * 50))
+            prev_score = round((previous['bible_days'] / window_days * 50) + (previous['prayer_days'] / window_days * 50))
             trend, trend_delta = self._calc_trend(score, prev_score)
 
             return {
@@ -79,6 +80,7 @@ class GoalCockpitService:
                 'priority': score < 60,
                 'label': 'Faith',
                 'color': '#3b82f6',
+                'goal_progress': self._goal_progress('faith'),
                 'components': {
                     'bible_days': bible_days,
                     'prayer_days': prayer_days,
@@ -213,6 +215,7 @@ class GoalCockpitService:
                 'priority': score < 60,
                 'label': 'Health',
                 'color': '#22c55e',
+                'goal_progress': self._goal_progress('health'),
                 'components': components,
             }
         except Exception:
@@ -312,6 +315,7 @@ class GoalCockpitService:
                 'priority': score < 60,
                 'label': 'Work / Purpose',
                 'color': '#f59e0b',
+                'goal_progress': self._goal_progress('work'),
                 'components': {
                     'tasks': task_detail,
                     'sessions': session_detail,
@@ -453,6 +457,41 @@ class GoalCockpitService:
             return 'down', delta
         return 'flat', delta
 
+    def _goal_progress(self, domain_slug):
+        """
+        Lifetime milestone progress for a LifeDomain.
+
+        Returns dict with total, completed, percent for use in progress bar.
+        Queries ALL milestones (not just due ones) for lifetime view.
+        """
+        try:
+            from apps.purpose.models import GoalMilestone, LifeGoal
+
+            goals = LifeGoal.objects.filter(
+                user=self.user,
+                status='active',
+                domain__slug=domain_slug,
+            )
+            if not goals.exists():
+                return None
+
+            total = GoalMilestone.objects.filter(goal__in=goals).count()
+            completed = GoalMilestone.objects.filter(
+                goal__in=goals, completed=True,
+            ).count()
+
+            if total == 0:
+                return None
+
+            return {
+                'total': total,
+                'completed': completed,
+                'percent': round((completed / total) * 100),
+            }
+        except Exception:
+            logger.debug("Cockpit: goal progress failed for %s", domain_slug)
+            return None
+
     def _empty_domain(self, label, color):
         return {
             'score': 0,
@@ -462,4 +501,5 @@ class GoalCockpitService:
             'label': label,
             'color': color,
             'components': {},
+            'goal_progress': None,
         }

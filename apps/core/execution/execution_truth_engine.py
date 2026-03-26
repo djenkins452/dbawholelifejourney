@@ -121,7 +121,7 @@ def get_execution_truth(user, target_date: Optional[date] = None) -> Dict:
         target_date = get_user_today(user)
 
     # Build routines first — we need them for expectation detection
-    routines = _check_routines(user)
+    routines = _check_routines(user, target_date)
 
     # Derive domain expectations from today's routine items
     expectations = _derive_expectations(user, target_date, routines)
@@ -354,8 +354,14 @@ def _check_journal(user, target_date: date, expectations: Dict) -> Dict:
     return result
 
 
-def _check_routines(user) -> Dict:
-    """Check routine completion from RoutineLog via _routine_internal."""
+def _check_routines(user, target_date: Optional[date] = None) -> Dict:
+    """
+    Check routine completion from RoutineLog for a specific date.
+
+    When target_date is today, delegates to get_todays_routine_items() for
+    full time-window enrichment. For historical dates, queries RoutineLog
+    directly so the faith bridge works correctly across the 7-day window.
+    """
     result = {
         'total': 0,
         'completed': 0,
@@ -364,28 +370,123 @@ def _check_routines(user) -> Dict:
         '_raw_items': {},
     }
     try:
-        from apps.life.services._routine_internal import get_todays_routine_items
-        routine_data = get_todays_routine_items(user)
-        routine_completion = routine_data.get('routine_completion', {})
+        if target_date is None:
+            target_date = get_user_today(user)
 
-        total = 0
-        completed = 0
-        for routine_id, completion in routine_completion.items():
-            r_total = completion.get('total_count', 0)
-            r_done = completion.get('completed_count', 0)
-            r_name = completion.get('name', str(routine_id))
-            total += r_total
-            completed += r_done
-            result['items'][r_name] = {
-                'total': r_total,
-                'completed': r_done,
-                'fully_complete': r_done >= r_total and r_total > 0,
-            }
+        user_today = get_user_today(user)
 
-        result['total'] = total
-        result['completed'] = completed
-        result['fully_complete'] = completed >= total and total > 0
-        result['_raw_items'] = routine_data.get('items_by_window', {})
+        if target_date == user_today:
+            # Today: use the rich routine service for full time-window data
+            from apps.life.services._routine_internal import get_todays_routine_items
+            routine_data = get_todays_routine_items(user)
+            routine_completion = routine_data.get('routine_completion', {})
+
+            total = 0
+            completed = 0
+            for routine_id, completion in routine_completion.items():
+                r_total = completion.get('total_count', 0)
+                r_done = completion.get('completed_count', 0)
+                r_name = completion.get('name', str(routine_id))
+                total += r_total
+                completed += r_done
+                result['items'][r_name] = {
+                    'total': r_total,
+                    'completed': r_done,
+                    'fully_complete': r_done >= r_total and r_total > 0,
+                }
+
+            result['total'] = total
+            result['completed'] = completed
+            result['fully_complete'] = completed >= total and total > 0
+            result['_raw_items'] = routine_data.get('items_by_window', {})
+        else:
+            # Historical date: query RoutineLog directly for that date.
+            # This ensures the faith bridge can detect completed Prayer Time /
+            # Bible Reading items on any date, not just today.
+            from apps.life.models import Routine, RoutineLog, RoutineSchedule
+
+            day_of_week = target_date.weekday()
+            active_routines = Routine.objects.filter(
+                user=user, is_active=True,
+            ).exclude(status='deleted')
+
+            # Get all schedule items that apply to this day of the week
+            schedules = RoutineSchedule.objects.filter(
+                routine__in=active_routines,
+            ).select_related('routine')
+
+            applicable_schedules = []
+            for sched in schedules:
+                if sched.days_of_week:
+                    try:
+                        days = [int(d) for d in sched.days_of_week.split(',') if d.strip()]
+                        if day_of_week in days:
+                            applicable_schedules.append(sched)
+                    except (ValueError, AttributeError):
+                        applicable_schedules.append(sched)
+                else:
+                    # No days restriction = every day
+                    applicable_schedules.append(sched)
+
+            schedule_ids = [s.id for s in applicable_schedules]
+
+            # Get logs for that date
+            logs = RoutineLog.objects.filter(
+                schedule_id__in=schedule_ids,
+                scheduled_date=target_date,
+            ).select_related('schedule')
+
+            log_by_schedule = {log.schedule_id: log for log in logs}
+
+            total = len(applicable_schedules)
+            completed = sum(
+                1 for log in logs
+                if log.log_status in (
+                    RoutineLog.STATUS_COMPLETED,
+                    RoutineLog.STATUS_COMPLETED_LATE,
+                )
+            )
+
+            # Build _raw_items in the same format the bridge expects:
+            # { window_name: [{ item_name, is_completed, ... }, ...] }
+            raw_items_list = []
+            routine_totals = {}
+            for sched in applicable_schedules:
+                log = log_by_schedule.get(sched.id)
+                is_done = (
+                    log is not None
+                    and log.log_status in (
+                        RoutineLog.STATUS_COMPLETED,
+                        RoutineLog.STATUS_COMPLETED_LATE,
+                    )
+                )
+                raw_items_list.append({
+                    'item_name': sched.name,
+                    'is_completed': is_done,
+                    'schedule_id': sched.id,
+                    'obligation_type': sched.obligation_type,
+                })
+
+                r_name = sched.routine.name
+                if r_name not in routine_totals:
+                    routine_totals[r_name] = {'total': 0, 'completed': 0}
+                routine_totals[r_name]['total'] += 1
+                if is_done:
+                    routine_totals[r_name]['completed'] += 1
+
+            for r_name, counts in routine_totals.items():
+                result['items'][r_name] = {
+                    'total': counts['total'],
+                    'completed': counts['completed'],
+                    'fully_complete': counts['completed'] >= counts['total'] and counts['total'] > 0,
+                }
+
+            result['total'] = total
+            result['completed'] = completed
+            result['fully_complete'] = completed >= total and total > 0
+            # Place all items under a single 'historical' window key
+            result['_raw_items'] = {'historical': raw_items_list}
+
     except ImportError:
         pass
     except Exception:

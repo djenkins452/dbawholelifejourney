@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-26 — Fix: Faith Bridge Date-Aware + 8-Day Window Labels + Lifetime Goal Progress Bar
+
+- **Fix:** Faith routine bridge now works for historical dates. Previously, `_check_routines()` was hardcoded to fetch today's items only via `get_todays_routine_items()`, so the faith bridge (Prayer Time → prayer_completed, Bible Reading → bible_reading_completed) only fired for today. Historical days in the 7-day cockpit window showed 0/7 prayer even when user completed it daily. Now queries `RoutineLog` directly for historical dates.
+  - Files: `apps/core/execution/execution_truth_engine.py`
+- **Fix:** Aligned all cockpit windows to consistent 8-day period (today - timedelta(days=7) through today inclusive). Updated faith window from `days=6` (7 days) to `days=7` (8 days) to match health/medication. Updated all panel labels from "7-Day" to "8-Day".
+  - Files: `apps/dashboard_v2/services/cockpit_service.py`, `templates/dashboard_v2/partials/cockpit_panels/faith_panel.html`, `templates/dashboard_v2/partials/cockpit_panels/health_panel.html`, `apps/dashboard_v2/tests/test_cockpit_service.py`
+- **Enhancement:** Added lifetime goal progress bar to cockpit dials. Thin horizontal bar appears under the trend indicator showing milestone completion % for each domain's active LifeGoals. Data comes from LifeGoal/GoalMilestone models (all milestones, not just due ones).
+  - Files: `apps/dashboard_v2/services/cockpit_service.py` (`_goal_progress()`), `templates/dashboard_v2/partials/cockpit_dial.html`, `static/css/dashboard_v2.css`
+
 ## 2026-03-26 — Evolve Morning Briefing from Mechanical Check-in to Structured Briefing
 
 **Problem:** The morning briefing at app-open showed a flat, mechanical format: "Morning Check-in / Completed: • None / Upcoming: • Workout (6:15 AM)..." — the Adaptive CoS Presence backend was built but the actual renderer (`beth_checkin_renderer.py`) was never evolved, and the session-start endpoint was never wired into the frontend.

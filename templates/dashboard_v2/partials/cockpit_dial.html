@@ -59,6 +59,15 @@
         {% endif %}
     </div>
 
+    {# Lifetime goal progress bar #}
+    {% if domain_data.goal_progress %}
+    <div class="v2-dial-goal-progress" title="Goal progress: {{ domain_data.goal_progress.completed }}/{{ domain_data.goal_progress.total }} milestones">
+        <div class="v2-progress-bar v2-progress-bar-sm" style="width: 100%; flex: 1;">
+            <div class="v2-progress-bar-fill" style="width: {{ domain_data.goal_progress.percent }}%; background: {{ domain_data.color }};"></div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="v2-dial-tap-hint">Tap for details</div>
 
     {# Expandable panel container (populated via HTMX fetch on click) #}

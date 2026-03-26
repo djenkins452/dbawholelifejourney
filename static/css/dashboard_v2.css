@@ -1783,6 +1783,23 @@ a.v2-action-title:hover {
 .v2-dial-trend-down { color: var(--color-error, #ef4444); }
 .v2-dial-trend-flat { color: var(--color-text-muted, #9ca3af); }
 
+/* Lifetime goal progress bar */
+.v2-dial-goal-progress {
+    display: flex;
+    align-items: center;
+    margin-top: 0.35rem;
+    padding: 0 0.75rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+.v2-dial-goal-progress .v2-progress-bar {
+    height: 4px;
+    border-radius: 2px;
+}
+.v2-dial-goal-progress .v2-progress-bar-fill {
+    border-radius: 2px;
+}
+
 /* Tap hint */
 .v2-dial-tap-hint {
     font-size: 0.65rem;

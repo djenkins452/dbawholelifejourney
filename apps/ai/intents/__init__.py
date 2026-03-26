@@ -137,10 +137,13 @@ INTENT_HANDLERS = {
 # Maps router domain → only the relevant tool schemas. Reduces ~19K tokens
 # to ~2-6K when the domain is known. Unknown/None domain → ALL tools.
 
-# Tools always included regardless of domain (cross-cutting)
+# Tools always included regardless of domain (cross-cutting).
+# NOTE: SETTINGS_INTENT_TOOLS intentionally EXCLUDED from core tools.
+# set_cos_name was causing cross-domain misrouting — e.g., "move workout"
+# triggering "rename assistant". Settings intents only load when the
+# router detects an explicit settings domain or domain is unknown.
 CORE_INTENT_TOOLS = (
     SYSTEM_INTENT_TOOLS +
-    SETTINGS_INTENT_TOOLS +
     CALIBRATION_INTENT_TOOLS +
     LEARNING_MODE_INTENT_TOOLS
 )
@@ -148,13 +151,18 @@ CORE_INTENT_TOOLS = (
 DOMAIN_INTENT_TOOLS = {
     'health': (
         HEALTH_INTENT_TOOLS + MEDICINE_INTENT_TOOLS +
-        FASTING_INTENT_TOOLS + FITNESS_INTENT_TOOLS
+        FASTING_INTENT_TOOLS + FITNESS_INTENT_TOOLS +
+        # Include LIFE tools for health domain because routine items
+        # (workout, prayer) cross health/life boundaries. Without this,
+        # "move my workout to 7pm" has no matching intent in health scope.
+        LIFE_INTENT_TOOLS
     ),
     'faith': FAITH_INTENT_TOOLS,
     'journal': JOURNAL_INTENT_TOOLS,
     'goals': PURPOSE_INTENT_TOOLS,
     'tasks': LIFE_INTENT_TOOLS + CALENDAR_INTENT_TOOLS,
     'finance': FINANCE_INTENT_TOOLS,
+    'settings': SETTINGS_INTENT_TOOLS,
 }
 
 

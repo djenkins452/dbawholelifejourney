@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-25 — Fix: Intent Misrouting — Domain Locking & set_cos_name Safeguards
+
+**Root cause:** "move my workout to tonight at 8:30pm" triggered "Changing assistant name: Max" because `SETTINGS_INTENT_TOOLS` was in `CORE_INTENT_TOOLS` (sent to OpenAI on every call), the health domain scope excluded `reschedule_routine_item` but included `set_cos_name`, and no post-classification safeguard existed.
+
+**Changes (4 layered defenses):**
+- `apps/ai/intents/__init__.py` — Removed `SETTINGS_INTENT_TOOLS` from `CORE_INTENT_TOOLS`. Added `settings` as own domain. Added `LIFE_INTENT_TOOLS` to health domain scope for routine crossover.
+- `apps/ai/intent_service.py` — Added domain-lock safeguard (rejects cross-domain intents). Added keyword safeguard for `set_cos_name` (requires explicit name-change language). Added confirmation gate for settings mutations.
+- `apps/ai/tests/test_intent_service.py` — 9 new tests for domain locking + safeguards. 55 total intent tests pass.
+
+---
+
 ## 2026-03-25 — Feature: Adaptive CoS Presence (Session-Start, Interaction Awareness, Structured Briefs)
 
 **Objective:** Evolve Beth from reactive, request-driven responses into an adaptive, event-aware Chief of Staff with continuous presence — without creating new engines or parallel decision systems.

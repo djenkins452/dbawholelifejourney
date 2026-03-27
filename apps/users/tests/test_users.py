@@ -152,7 +152,7 @@ class AuthenticationTest(TestCase):
         self.client.logout()
         
         # Try to access protected page
-        response = self.client.get(reverse('dashboard:home'))
+        response = self.client.get(reverse('dashboard_v2:home'))
         # Should redirect to login
         self.assertEqual(response.status_code, 302)
 

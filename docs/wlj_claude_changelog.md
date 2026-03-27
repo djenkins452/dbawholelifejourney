@@ -6,6 +6,30 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-26 — Fix 70+ Failing Tests: Dashboard V1→V2 Redirect Migration
+
+- **Root cause:** `dashboard:home` URL was changed from `DashboardView` (template) to `RedirectView` → `dashboard_v2:home`, but 70+ tests across 13 files still expected `dashboard:home` to return status 200 with template context.
+- **Fix:** Updated all affected tests to target `dashboard_v2:home` instead of `dashboard:home`. For tests that check redirect behavior (onboarding, faith-only, MFA), preserved `dashboard:home` with `target_status_code=302`.
+- **V1-specific content tests:** Updated tests that checked V1-only context keys (`dashboard_config`, `encouragement`, `user_data`, `daily_briefing`, `dashboard_tiles`) and template content (`state-snapshot-tile`, `Weekly Intelligence Report`) to verify V2 equivalents or just assert successful page load.
+- **No production code changed** — all changes are test-only.
+- Files modified:
+  - `apps/dashboard/tests/test_dashboard.py` — Rewrote to test V2 + redirect
+  - `apps/dashboard/tests/test_dashboard_comprehensive.py` — V2 context keys
+  - `apps/dashboard/tests/test_cos_unification.py` — V2 URL
+  - `apps/dashboard/tests/test_guidance_panel.py` — V2 insights endpoint
+  - `apps/dashboard/tests/test_state_snapshot.py` — V2 state section
+  - `apps/capture/tests/test_views.py` — V2 navigation tests
+  - `apps/users/tests/test_onboarding_wizard.py` — Redirect chain fix
+  - `apps/users/tests/test_quick_links.py` — V2 URL
+  - `apps/users/tests/test_users.py` — V2 URL
+  - `apps/users/tests/test_signup_security.py` — V2 URL
+  - `apps/users/tests/test_mfa_email_code.py` — V2 URL for non-redirect tests
+  - `apps/faith/tests/test_saved_verses.py` — Test on faith page instead
+  - `apps/relationships/tests/test_relationship_insights.py` — V2 URL
+  - `apps/core/ai_briefing/tests.py` — V2 URL, remove V1 assertions
+  - `apps/core/ai_weekly_report/tests.py` — V2 URL, remove V1 assertions
+  - `apps/core/blueprint/tests.py` — V2 URL, fix drift_score key
+
 ## 2026-03-26 — Fix Failing Tests: MFA Middleware + Memory Verse Dashboard
 
 - **Fix:** MFA enforcement middleware tests (`test_exempt_user_not_redirected`, `test_regular_user_not_redirected`, `test_mfa_verified_session_allows_access`) were using `dashboard:home` which now redirects to `dashboard_v2:home`, making all responses 302 regardless of MFA status. Updated tests to use `dashboard_v2:home` directly.

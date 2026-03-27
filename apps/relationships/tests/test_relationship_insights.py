@@ -349,7 +349,7 @@ class InsightsViewTest(InsightsTestMixin, TestCase):
 
     def test_dashboard_renders_with_tile(self):
         """Dashboard should render without errors when relational_health tile exists."""
-        response = self.client.get(reverse('dashboard:home'))
+        response = self.client.get(reverse('dashboard_v2:home'))
         self.assertEqual(response.status_code, 200)
 
 

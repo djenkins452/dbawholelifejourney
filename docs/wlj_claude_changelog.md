@@ -6,7 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-<<<<<<< HEAD
+## 2026-03-26 — Fix Failing Tests: MFA Middleware + Memory Verse Dashboard
+
+- **Fix:** MFA enforcement middleware tests (`test_exempt_user_not_redirected`, `test_regular_user_not_redirected`, `test_mfa_verified_session_allows_access`) were using `dashboard:home` which now redirects to `dashboard_v2:home`, making all responses 302 regardless of MFA status. Updated tests to use `dashboard_v2:home` directly.
+  - Files: `apps/users/tests/test_mfa_email_code.py`
+- **Fix:** `MemoryVerseOnDashboardTest.test_dashboard_shows_memory_verse_when_set` was checking `dashboard_v2:home` for memory verse content, but V2 dashboard does not render memory verses inline. Updated test to verify memory verse badge on `faith:scripture_list` instead.
+  - Files: `apps/faith/tests/test_saved_verses.py`
+
 ## 2026-03-26 — Ops Wall: Fix False STALE/DEGRADED/Ghost Engine Warnings
 
 - **Fix:** CoS Context showed STALE despite 9 chats in 24h. Root cause: `build_learning_mode_context()` returned context dict without `_builder_timings` key, so zero `COS_BUILDER_*` stages were recorded in `ChatLatencySnapshot`. Added `'_builder_timings': {'learning_mode': 0}` to the learning mode context.

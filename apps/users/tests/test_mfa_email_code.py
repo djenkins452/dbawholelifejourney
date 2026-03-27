@@ -392,7 +392,7 @@ class MFAEnforcementMiddlewareTest(MFAEmailCodeTestMixin, TestCase):
         client = Client()
         client.force_login(user)
 
-        response = client.get(reverse('dashboard:home'))
+        response = client.get(reverse('dashboard_v2:home'))
 
         # Should access dashboard directly, not redirect to MFA
         self.assertNotEqual(response.status_code, 302)
@@ -431,7 +431,7 @@ class MFAEnforcementMiddlewareTest(MFAEmailCodeTestMixin, TestCase):
         client = Client()
         client.force_login(user)
 
-        response = client.get(reverse('dashboard:home'))
+        response = client.get(reverse('dashboard_v2:home'))
 
         # Should access dashboard directly
         self.assertNotEqual(response.status_code, 302)
@@ -448,7 +448,7 @@ class MFAEnforcementMiddlewareTest(MFAEmailCodeTestMixin, TestCase):
         session['mfa_verified'] = True
         session.save()
 
-        response = client.get(reverse('dashboard:home'))
+        response = client.get(reverse('dashboard_v2:home'))
 
         # Should access dashboard directly
         self.assertNotEqual(response.status_code, 302)

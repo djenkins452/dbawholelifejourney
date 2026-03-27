@@ -6,6 +6,21 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Fix: Recurring Tasks Cannot Be Permanently Removed
+
+- **Bug:** "Work on WLJ" and "Workout" reappeared after deletion because of a model mismatch: the morning briefing reads from RoutineSchedule items (via execution truth), but the AI delete handler only operated on Task objects. Deleting a Task had zero effect on the RoutineSchedule source. Additionally, `_ensure_routine_tasks_for_today()` ignored `end_date` and created ghost Task instances past their series expiration.
+- **Root cause (3 layers):**
+  1. AI delete handler (`handle_mutate_task`) searched only Task model, not RoutineSchedule
+  2. `_ensure_routine_tasks_for_today()` (`executive_briefing.py:719`) created Task instances without checking `end_date`
+  3. Single-instance Task deletion left `is_recurring=True` on other instances, enabling regeneration
+- **Fix:**
+  1. Added RoutineSchedule fallback to AI delete handler — when no Task matches, searches RoutineSchedule by name and deactivates (`is_active=False`)
+  2. Added `end_date` check to `_ensure_routine_tasks_for_today()` — skips creation when `today > template_task.end_date`
+  3. Series delete now also deactivates matching RoutineSchedule items
+  4. Single-instance deletion of routine tasks (`is_routine=True`) now kills the entire series + deactivates RoutineSchedule to prevent regeneration
+- **Files:** `apps/ai/action_handlers.py`, `apps/ai/executive_briefing.py`, `apps/life/tests/test_recurring_delete.py`
+- **Tests:** 21/21 tests pass (6 new tests covering end_date, RoutineSchedule deactivation, shadow task cleanup, cross-item isolation)
+
 ## 2026-03-27 — Fix: State Guard Overriding Conversational Responses
 
 - **Bug:** During evening faith Q&A conversations, the LLM's correct answer to "Could Jesus know about the Zechariah 9:9 prophecy?" was replaced by the evening check-in renderer output ("End of day, Danny. You completed everything today."). The deterministic router correctly classified the message as conversational fallthrough, but the post-processing state guard (`guard_llm_output`) ignored the router's classification and replaced the response because it contained common English phrases matching state patterns (e.g., "you've done your", "you completed").

@@ -282,3 +282,182 @@ class TestHandleMutateTaskDelete(RecurringDeleteTestBase):
         # No new tasks should be created
         task_count_after = Task.all_objects.filter(user=self.user).count()
         self.assertEqual(task_count_before, task_count_after)
+
+
+class TestEnsureRoutineTasksEndDate(RecurringDeleteTestBase):
+    """Test that _ensure_routine_tasks_for_today respects end_date."""
+
+    def test_skips_task_past_end_date(self):
+        """Task with end_date in the past should not regenerate."""
+        yesterday = date.today() - timedelta(days=1)
+        Task.objects.create(
+            user=self.user,
+            title='Expired Routine',
+            is_routine=True,
+            is_recurring=True,
+            recurrence_pattern='daily',
+            due_date=yesterday,
+            end_date=yesterday,
+            scheduled_time='07:00',
+        )
+
+        from apps.ai.executive_briefing import _ensure_routine_tasks_for_today
+        _ensure_routine_tasks_for_today(self.user, date.today())
+
+        # Should NOT create today's instance
+        exists = Task.objects.filter(
+            user=self.user,
+            title='Expired Routine',
+            due_date=date.today(),
+        ).exists()
+        self.assertFalse(exists)
+
+    def test_creates_task_before_end_date(self):
+        """Task with end_date in the future should still regenerate."""
+        tomorrow = date.today() + timedelta(days=1)
+        Task.objects.create(
+            user=self.user,
+            title='Active Routine',
+            is_routine=True,
+            is_recurring=True,
+            recurrence_pattern='daily',
+            due_date=date.today() - timedelta(days=1),
+            end_date=tomorrow,
+            scheduled_time='07:00',
+        )
+
+        from apps.ai.executive_briefing import _ensure_routine_tasks_for_today
+        _ensure_routine_tasks_for_today(self.user, date.today())
+
+        exists = Task.objects.filter(
+            user=self.user,
+            title='Active Routine',
+            due_date=date.today(),
+        ).exists()
+        self.assertTrue(exists)
+
+
+class TestRoutineScheduleDeactivation(RecurringDeleteTestBase):
+    """Test that AI delete handler deactivates RoutineSchedule items."""
+
+    def _get_handler(self):
+        from apps.ai.action_handlers import ActionHandler
+        return ActionHandler(self.user)
+
+    def _create_routine_with_schedule(self, item_name='Workout'):
+        """Create a Routine + RoutineSchedule for testing."""
+        from apps.life.models import Routine, RoutineSchedule
+        routine = Routine.objects.create(
+            user=self.user,
+            name='Morning Routine',
+            time_of_day='morning',
+            is_active=True,
+        )
+        schedule = RoutineSchedule.objects.create(
+            routine=routine,
+            name=item_name,
+            scheduled_time='06:00',
+            days_of_week='0,1,2,3,4,5,6',
+            is_active=True,
+        )
+        return routine, schedule
+
+    def test_fallback_finds_routine_schedule(self):
+        """When no Task matches, handler should find RoutineSchedule."""
+        _routine, _schedule = self._create_routine_with_schedule('Workout')
+        handler = self._get_handler()
+
+        result = handler.handle_mutate_task(
+            action='delete',
+            task_query='Workout',
+        )
+
+        # Should ask for confirmation (found as routine item)
+        self.assertFalse(result.success)
+        self.assertIn('routine item', result.message.lower())
+
+    def test_confirmed_deactivation(self):
+        """Confirmed delete should set is_active=False on schedule."""
+        from apps.life.models import RoutineSchedule
+        _routine, schedule = self._create_routine_with_schedule('Workout')
+        handler = self._get_handler()
+
+        result = handler.handle_mutate_task(
+            action='delete',
+            task_query='Workout',
+            delete_confirmed=True,
+        )
+
+        self.assertTrue(result.success)
+        self.assertIn("won't come back", result.message.lower())
+
+        schedule.refresh_from_db()
+        self.assertFalse(schedule.is_active)
+
+    def test_deactivation_also_kills_shadow_tasks(self):
+        """Deactivating schedule should also stop shadow Task regeneration."""
+        _routine, _schedule = self._create_routine_with_schedule('Work on WLJ')
+        # Create shadow Task (as _ensure_routine_tasks_for_today would)
+        Task.objects.create(
+            user=self.user,
+            title='Work on WLJ',
+            is_routine=True,
+            is_recurring=True,
+            recurrence_pattern='daily',
+            due_date=date.today(),
+        )
+
+        handler = self._get_handler()
+        handler.handle_mutate_task(
+            action='delete',
+            task_query='Work on WLJ',
+            delete_confirmed=True,
+        )
+
+        # Shadow task should have is_recurring=False
+        shadow = Task.all_objects.filter(
+            user=self.user,
+            title__iexact='Work on WLJ',
+            is_routine=True,
+        ).first()
+        self.assertIsNotNone(shadow)
+        self.assertFalse(shadow.is_recurring)
+
+    def test_series_delete_also_deactivates_schedule(self):
+        """delete_task_series should also deactivate matching schedule."""
+        from apps.life.models import RoutineSchedule
+        _routine, schedule = self._create_routine_with_schedule('Approve Payroll')
+        self._create_recurring_series(count=2)
+
+        handler = self._get_handler()
+        handler.handle_mutate_task(
+            action='delete',
+            task_query='Approve Payroll',
+            delete_series=True,
+            delete_confirmed=True,
+        )
+
+        schedule.refresh_from_db()
+        self.assertFalse(schedule.is_active)
+
+    def test_other_routine_items_unaffected(self):
+        """Deactivating one item should not affect others in the routine."""
+        from apps.life.models import RoutineSchedule
+        routine, _workout = self._create_routine_with_schedule('Workout')
+        prayer = RoutineSchedule.objects.create(
+            routine=routine,
+            name='Prayer Time',
+            scheduled_time='06:30',
+            days_of_week='0,1,2,3,4,5,6',
+            is_active=True,
+        )
+
+        handler = self._get_handler()
+        handler.handle_mutate_task(
+            action='delete',
+            task_query='Workout',
+            delete_confirmed=True,
+        )
+
+        prayer.refresh_from_db()
+        self.assertTrue(prayer.is_active)

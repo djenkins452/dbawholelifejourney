@@ -4,12 +4,14 @@ Sports Domain — Signal Generation
 Generates sports signals ONLY from GameEvent + Team data.
 All signals are deterministic, timestamped, and respect time windows.
 
-REQUIRED SIGNALS ONLY (5 total):
-  1. game_live       — a followed team's game is in progress
+SIGNALS (7 total):
+  1. game_live         — a followed team's game is in progress
   2. game_starting_soon — game starts within 60 minutes
-  3. game_today      — game is scheduled for today
-  4. win_streak      — team has won 3+ consecutive games
-  5. losing_streak   — team has lost 3+ consecutive games
+  3. game_today        — game is scheduled for today
+  4. game_upcoming     — game scheduled within 7 days
+  5. game_final        — most recent completed game for a followed team
+  6. win_streak        — team has won 3+ consecutive games
+  7. losing_streak     — team has lost 3+ consecutive games
 
 No extra signals. No player stats. No analytics.
 
@@ -17,6 +19,7 @@ Architecture rule: This is the ONLY place sports signals are created.
 State builder and CoS context consume these signals — never re-derive.
 """
 import logging
+from datetime import timedelta
 
 from django.db.models import Q
 from django.utils import timezone
@@ -26,10 +29,12 @@ from apps.sports.services.time_windows import GameTimeWindow
 
 logger = logging.getLogger(__name__)
 
-# Signal type constants — ONLY these 5 exist
+# Signal type constants
 SIGNAL_GAME_LIVE = "game_live"
 SIGNAL_GAME_STARTING_SOON = "game_starting_soon"
 SIGNAL_GAME_TODAY = "game_today"
+SIGNAL_GAME_UPCOMING = "game_upcoming"
+SIGNAL_GAME_FINAL = "game_final"
 SIGNAL_WIN_STREAK = "win_streak"
 SIGNAL_LOSING_STREAK = "losing_streak"
 
@@ -46,22 +51,8 @@ def generate_sports_signals(user):
     """
     Generate all sports signals for a user.
 
-    Returns list of signal dicts:
-    [
-        {
-            "signal_type": "game_today",
-            "team_id": 1,
-            "team_name": "Atlanta Braves",
-            "game_id": 42,       # null for streak signals
-            "timestamp": "2026-03-24T19:00:00Z",
-            "priority": 1,
-            "data": {
-                "opponent": "Los Angeles Dodgers",
-                "start_time": "2026-03-24T23:10:00Z",
-                "venue": "Truist Park",
-            },
-        },
-    ]
+    Returns list of signal dicts with keys:
+        signal_type, team_id, team_name, game_id, timestamp, priority, data
 
     Returns [] if sports_enabled=False or no followed teams.
     """
@@ -84,15 +75,14 @@ def generate_sports_signals(user):
     signals = []
 
     # ── EVENT SIGNALS (from active/upcoming games) ──────────────────
-    from datetime import timedelta
-    window_end = now + timedelta(hours=48)
+    window_end = now + timedelta(days=7)
 
     games = GameEvent.objects.filter(
         Q(home_team_id__in=team_ids) | Q(away_team_id__in=team_ids),
         start_time__gte=now - timedelta(hours=3),  # Include recently started
         start_time__lte=window_end,
         status__in=[GameEvent.STATUS_SCHEDULED, GameEvent.STATUS_LIVE],
-    ).select_related("home_team", "away_team").order_by("start_time")
+    ).select_related("home_team", "away_team", "home_team__league").order_by("start_time")
 
     for game in games:
         tw = GameTimeWindow(game, now=now)
@@ -110,10 +100,17 @@ def generate_sports_signals(user):
 
         for team, follow in user_teams_in_game:
             opponent = game.get_opponent(team)
+            is_home = game.home_team_id == team.id
+            opp_team = game.away_team if is_home else game.home_team
             base_data = {
                 "opponent": opponent.full_name if opponent else "",
+                "opponent_logo": opp_team.logo_url or "",
                 "start_time": game.start_time.isoformat(),
                 "venue": game.venue,
+                "is_home": is_home,
+                "league": team.league.abbreviation,
+                "home_pitcher": game.home_probable_pitcher or "",
+                "away_pitcher": game.away_probable_pitcher or "",
             }
 
             if tw.window == GameTimeWindow.ACTIVE:
@@ -122,6 +119,8 @@ def generate_sports_signals(user):
                     data={
                         **base_data,
                         "score": game.get_score_display(),
+                        "home_score": game.home_score or 0,
+                        "away_score": game.away_score or 0,
                     },
                 ))
             elif tw.window == GameTimeWindow.STARTING_SOON:
@@ -138,6 +137,56 @@ def generate_sports_signals(user):
                 signals.append(_make_signal(
                     SIGNAL_GAME_TODAY, team, game, follow, now,
                     data=base_data,
+                ))
+            elif tw.window in (GameTimeWindow.UPCOMING, GameTimeWindow.FUTURE):
+                # Future games within the 7-day window
+                signals.append(_make_signal(
+                    SIGNAL_GAME_UPCOMING, team, game, follow, now,
+                    data=base_data,
+                ))
+
+    # ── FINAL SIGNALS (most recent completed game per team) ─────────
+    recent_completed = (
+        GameEvent.objects.filter(
+            Q(home_team_id__in=team_ids) | Q(away_team_id__in=team_ids),
+            status=GameEvent.STATUS_FINAL,
+        )
+        .select_related("home_team", "away_team", "home_team__league", "away_team__league")
+        .order_by("-start_time")
+    )
+
+    # Track which teams already have a final signal (one per team)
+    teams_with_final = set()
+    for game in recent_completed:
+        if len(teams_with_final) == len(team_ids):
+            break  # All teams covered
+
+        for tid in [game.home_team_id, game.away_team_id]:
+            if tid in team_map and tid not in teams_with_final:
+                teams_with_final.add(tid)
+                team = game.home_team if tid == game.home_team_id else game.away_team
+                follow = team_map[tid]
+                is_home = game.home_team_id == tid
+                opp_team = game.away_team if is_home else game.home_team
+
+                won = game.user_team_won(team)
+                lost = game.user_team_lost(team)
+                result = "W" if won else ("L" if lost else "T")
+
+                signals.append(_make_signal(
+                    SIGNAL_GAME_FINAL, team, game, follow, now,
+                    data={
+                        "opponent": opp_team.full_name,
+                        "opponent_logo": opp_team.logo_url or "",
+                        "start_time": game.start_time.isoformat(),
+                        "venue": game.venue,
+                        "is_home": is_home,
+                        "league": team.league.abbreviation,
+                        "home_score": game.home_score or 0,
+                        "away_score": game.away_score or 0,
+                        "score": game.get_score_display(),
+                        "result": result,
+                    },
                 ))
 
     # ── PATTERN SIGNALS (streaks from completed games) ──────────────
@@ -168,7 +217,10 @@ def generate_sports_signals(user):
             "game_id": None,
             "timestamp": now.isoformat(),
             "priority": follow.priority,
-            "data": {"streak_length": streak_count},
+            "data": {
+                "streak_length": streak_count,
+                "league": team.league.abbreviation,
+            },
         })
 
     return signals

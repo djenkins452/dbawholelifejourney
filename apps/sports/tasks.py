@@ -13,14 +13,15 @@ import time
 
 from celery import shared_task
 from django.contrib.auth import get_user_model
-from django.db.models import Q
 from django.utils import timezone
 
-from apps.sports.models import GameEvent, Team, UserTeamFollow
+from apps.sports.models import GameEvent, UserTeamFollow
 from apps.sports.services.cache_manager import (
     set_sync_health,
+    set_user_signals,
     set_user_sports_summary,
     set_user_today_games,
+    set_user_view_model,
 )
 from apps.sports.services.signal_generator import (
     SIGNAL_GAME_COMPLETED,
@@ -31,7 +32,6 @@ from apps.sports.services.signal_generator import (
     SIGNAL_TEAM_WIN,
     generate_sports_signals,
 )
-from apps.sports.services.time_windows import GameTimeWindow
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -78,7 +78,10 @@ def compute_sports_signals():
             signals = generate_sports_signals(user)
             signal_count += len(signals)
 
-            # Build and cache team summaries from signals
+            # Cache raw signals for view model builder
+            set_user_signals(user.id, signals)
+
+            # Build and cache team summaries from signals (legacy)
             summaries = _build_summaries_from_signals(user, signals, now)
             set_user_sports_summary(user.id, summaries)
 
@@ -88,6 +91,14 @@ def compute_sports_signals():
                 if s["signal_type"] == SIGNAL_GAME_TODAY
             ]
             set_user_today_games(user.id, today_games)
+
+            # Build and cache the view model (pre-compute for fast page loads)
+            try:
+                from apps.sports.services.sports_view_model import build_sports_view_model
+                vm = build_sports_view_model(user)
+                set_user_view_model(user.id, vm)
+            except Exception:
+                logger.warning("Sports view model build failed for user %s", user.id, exc_info=True)
 
             processed += 1
         except Exception:

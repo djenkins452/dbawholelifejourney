@@ -3181,6 +3181,15 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                                 _ltrace._stages[f'COS_BUILDER_{_btag}']['end'] = (
                                     _ltrace._stages[f'COS_BUILDER_{_btag}']['start'] + _bdur / 1000
                                 )
+                            # Ensure at least one COS_BUILDER_ entry exists so
+                            # ops telemetry doesn't report false STALE.  This
+                            # covers cached contexts or exception paths where
+                            # _builder_timings is empty/missing.
+                            if not _bt and cos_context:
+                                _ltrace.start('COS_BUILDER_context_present')
+                                _ltrace._stages['COS_BUILDER_context_present']['end'] = (
+                                    _ltrace._stages['COS_BUILDER_context_present']['start']
+                                )
                         except Exception as _bt_err:
                             logger.warning(
                                 "CoS builder timing extraction failed: %s",

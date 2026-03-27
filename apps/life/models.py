@@ -2706,6 +2706,8 @@ class RoutineLog(UserOwnedModel):
     SOURCE_WORKOUT = "workout"
     SOURCE_MEDICINE = "medicine"
     SOURCE_BIBLE = "bible"
+    SOURCE_FAITH = "faith"
+    SOURCE_JOURNAL = "journal"
     SOURCE_AUTO = "auto"
     SOURCE_SCHEDULED_OVERRIDE = "scheduled_override"
 
@@ -2714,6 +2716,8 @@ class RoutineLog(UserOwnedModel):
         (SOURCE_WORKOUT, "Workout"),
         (SOURCE_MEDICINE, "Medicine"),
         (SOURCE_BIBLE, "Bible Reading"),
+        (SOURCE_FAITH, "Faith"),
+        (SOURCE_JOURNAL, "Journal Entry"),
         (SOURCE_AUTO, "Auto"),
         (SOURCE_SCHEDULED_OVERRIDE, "Scheduled Override"),
     ]

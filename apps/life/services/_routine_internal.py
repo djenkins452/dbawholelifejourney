@@ -126,6 +126,36 @@ def get_todays_routine_items(user):
         except Exception:
             pass
 
+    # Bible reading / faith completions
+    for src_key in ('bible', 'faith'):
+        if src_key in _source_ids_by_type:
+            try:
+                from apps.faith.models import UserReadingProgress
+                for rp in UserReadingProgress.objects.filter(
+                    pk__in=_source_ids_by_type[src_key]
+                ).only('id', 'completed_at'):
+                    _source_objects[(src_key, rp.pk)] = {
+                        'name': 'Bible Reading',
+                        'time': rp.completed_at,
+                    }
+            except Exception:
+                pass
+
+    if 'medicine' in _source_ids_by_type:
+        try:
+            from apps.health.models import MedicineLog
+            for ml in MedicineLog.objects.filter(
+                pk__in=_source_ids_by_type['medicine']
+            ).select_related('medicine').only(
+                'id', 'taken_at', 'medicine__name',
+            ):
+                _source_objects[('medicine', ml.pk)] = {
+                    'name': ml.medicine.name if ml.medicine else 'Medicine',
+                    'time': ml.taken_at,
+                }
+        except Exception:
+            pass
+
     for routine, item in today_items:
         log = log_by_schedule.get(item.id)
         display_time = item.scheduled_time  # may be overridden by reschedule
@@ -188,11 +218,16 @@ def get_todays_routine_items(user):
                         pass
                 completion_via_label = f"Completed via {source_display_name}{time_str}"
             else:
-                # Fallback: generic label from completion_source choices
+                # Fallback: generic label from completion_source choices.
+                # Prefer performed_at (actual activity time) over completed_at
+                # (log creation time) for accurate timezone display.
                 time_str = ''
-                if log and log.completed_at:
+                fallback_time = None
+                if log:
+                    fallback_time = getattr(log, 'performed_at', None) or log.completed_at
+                if fallback_time:
                     try:
-                        local_time = log.completed_at.astimezone(user_now.tzinfo)
+                        local_time = fallback_time.astimezone(user_now.tzinfo)
                         time_str = f" at {local_time.strftime('%I:%M %p').lstrip('0')}"
                     except Exception:
                         pass

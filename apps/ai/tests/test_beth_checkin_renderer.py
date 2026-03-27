@@ -168,3 +168,86 @@ class TestGuardLlmOutput(SimpleTestCase):
                     side_effect=Exception("Error")):
             result = guard_llm_output("You've completed everything!", user)
         self.assertEqual(result, _SAFE_FALLBACK)
+
+
+class TestRouteControlledGuardBoundary(SimpleTestCase):
+    """Verify the state guard only fires for state-reporting routes.
+
+    The guard must NOT replace conversational LLM responses (faith Q&A,
+    coaching, etc.) with the deterministic renderer. It should only fire
+    when the router classified the message as a state/check-in path.
+    """
+
+    def _make_route_result(self, category='fallthrough'):
+        from apps.ai.deterministic_router import RouteResult
+        return RouteResult(category=category)
+
+    def test_fallthrough_skips_guard(self):
+        """Conversational fallthrough must bypass state guard entirely."""
+        route = self._make_route_result('fallthrough')
+        _is_conversational_fallthrough = (
+            route is not None
+            and getattr(route, 'category', None) == 'fallthrough'
+        )
+        self.assertTrue(_is_conversational_fallthrough)
+
+    def test_checkin_prefilter_runs_guard(self):
+        """Check-in prefilter routes must still apply the state guard."""
+        route = self._make_route_result('checkin_prefilter')
+        _is_conversational_fallthrough = (
+            route is not None
+            and getattr(route, 'category', None) == 'fallthrough'
+        )
+        self.assertFalse(_is_conversational_fallthrough)
+
+    def test_deterministic_data_runs_guard(self):
+        """Deterministic data routes must still apply the state guard."""
+        route = self._make_route_result('deterministic_data')
+        _is_conversational_fallthrough = (
+            route is not None
+            and getattr(route, 'category', None) == 'fallthrough'
+        )
+        self.assertFalse(_is_conversational_fallthrough)
+
+    def test_none_route_runs_guard(self):
+        """If router failed (None), guard should still fire (conservative)."""
+        route = None
+        _is_conversational_fallthrough = (
+            route is not None
+            and getattr(route, 'category', None) == 'fallthrough'
+        )
+        self.assertFalse(_is_conversational_fallthrough)
+
+    def test_faith_response_with_state_pattern_survives_fallthrough(self):
+        """A faith response containing 'you completed' must NOT be replaced
+        when the route was conversational fallthrough."""
+        faith_response = (
+            "Great question. Jesus would have known the Zechariah 9:9 "
+            "prophecy well. As you've done your study of the Old Testament, "
+            "you'll see this was central to messianic expectation."
+        )
+        # The response contains state patterns, but route is fallthrough
+        self.assertTrue(contains_state_language(faith_response))
+        route = self._make_route_result('fallthrough')
+        _is_conversational_fallthrough = (
+            route is not None
+            and getattr(route, 'category', None) == 'fallthrough'
+        )
+        # Guard is skipped — response survives intact
+        self.assertTrue(_is_conversational_fallthrough)
+
+    @patch("apps.ai.beth_checkin_renderer.render_checkin_for_time")
+    def test_checkin_response_with_state_pattern_still_blocked(self, mock_render):
+        """A check-in route response with state patterns IS still blocked."""
+        mock_render.return_value = "End of day, Danny.\n\nYou completed everything."
+        user = MagicMock(); user.id = 1
+        llm_response = "You've completed your morning routine and you still need to journal."
+        route = self._make_route_result('checkin_prefilter')
+        _is_conversational_fallthrough = (
+            route is not None
+            and getattr(route, 'category', None) == 'fallthrough'
+        )
+        self.assertFalse(_is_conversational_fallthrough)
+        # Guard fires — response is replaced
+        result = guard_llm_output(llm_response, user)
+        self.assertEqual(result, "End of day, Danny.\n\nYou completed everything.")

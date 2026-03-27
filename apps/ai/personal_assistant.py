@@ -1789,11 +1789,21 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             )
 
         # ── State guard: block LLM-fabricated state descriptions ──
-        try:
-            from apps.ai.beth_checkin_renderer import guard_llm_output
-            response = guard_llm_output(response, self.user)
-        except Exception:
-            pass  # Guard failure must never break chat
+        # Only apply when the router selected a state-reporting path
+        # (check-in, status, deterministic data). Conversational fallthrough
+        # responses (faith Q&A, coaching, etc.) must not be replaced by
+        # the evening/morning renderer. The router is the source of truth
+        # for interaction type.
+        _is_conversational_fallthrough = (
+            _route_result is not None
+            and getattr(_route_result, 'category', None) == 'fallthrough'
+        )
+        if not _is_conversational_fallthrough:
+            try:
+                from apps.ai.beth_checkin_renderer import guard_llm_output
+                response = guard_llm_output(response, self.user)
+            except Exception:
+                pass  # Guard failure must never break chat
 
         # ── Mid-response state revalidation (context comparison) ──
         # Compares pre-generation state snapshot with current truth.

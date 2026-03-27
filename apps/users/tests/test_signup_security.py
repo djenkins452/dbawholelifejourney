@@ -79,7 +79,7 @@ class EmailVerificationFlowTest(TestCase):
 
         # Login attempt should redirect to verification pending
         self.client.login(email='unverified@example.com', password='testpass123')
-        response = self.client.get(reverse('dashboard:home'))
+        response = self.client.get(reverse('dashboard_v2:home'))
 
         # Should redirect (302) - unverified users can't access dashboard
         self.assertEqual(response.status_code, 302)
@@ -128,7 +128,7 @@ class EmailVerificationFlowTest(TestCase):
         self.client.login(email='verified@example.com', password='testpass123')
 
         # Access dashboard - should redirect to terms (user hasn't accepted yet)
-        response = self.client.get(reverse('dashboard:home'))
+        response = self.client.get(reverse('dashboard_v2:home'))
 
         # Should redirect to terms acceptance
         self.assertEqual(response.status_code, 302)

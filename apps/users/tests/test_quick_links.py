@@ -568,7 +568,7 @@ class QuickLinksContextProcessorTest(TestCase):
         from django.core.cache import cache
         cache.delete(f'quick_links_user_{self.user.id}')
 
-        response = self.client.get(reverse('dashboard:home'))
+        response = self.client.get(reverse('dashboard_v2:home'))
         self.assertEqual(response.status_code, 200)
         quick_links = response.context.get('quick_links_list', [])
         self.assertEqual(len(quick_links), 1)
@@ -579,7 +579,7 @@ class QuickLinksContextProcessorTest(TestCase):
         from django.core.cache import cache
         cache.delete(f'quick_links_user_{self.user.id}')
 
-        response = self.client.get(reverse('dashboard:home'))
+        response = self.client.get(reverse('dashboard_v2:home'))
         self.assertEqual(response.status_code, 200)
         quick_links = response.context.get('quick_links_list', [])
         self.assertEqual(len(quick_links), 0)
@@ -593,7 +593,7 @@ class QuickLinksContextProcessorTest(TestCase):
         from django.core.cache import cache
         cache.delete(f'quick_links_user_{self.user.id}')
 
-        response = self.client.get(reverse('dashboard:home'))
+        response = self.client.get(reverse('dashboard_v2:home'))
         quick_links = response.context.get('quick_links_list', [])
         self.assertEqual(len(quick_links), 1)
         self.assertEqual(quick_links[0]['mobile_app_url'], 'chase://')

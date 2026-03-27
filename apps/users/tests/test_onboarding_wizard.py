@@ -235,7 +235,9 @@ class OnboardingWizardSubmissionTest(TestCase):
 
         self.user.preferences.refresh_from_db()
         self.assertTrue(self.user.preferences.has_completed_onboarding)
-        self.assertRedirects(response, reverse("dashboard:home"))
+        # dashboard:home now redirects to dashboard_v2:home
+        self.assertRedirects(response, reverse("dashboard:home"),
+                             target_status_code=302)
 
     def test_skip_action_advances_without_saving(self):
         """Skip action advances to next step without changing values."""
@@ -343,7 +345,8 @@ class OnboardingMiddlewareTest(TestCase):
         self.user.preferences.save()
         self.client.login(email="test@example.com", password="testpass123")
 
-        response = self.client.get(reverse("dashboard:home"))
+        # dashboard:home redirects to dashboard_v2:home; use V2 directly
+        response = self.client.get(reverse("dashboard_v2:home"))
         self.assertEqual(response.status_code, 200)
 
     def test_onboarding_pages_accessible_during_onboarding(self):

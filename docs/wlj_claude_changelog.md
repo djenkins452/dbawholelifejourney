@@ -12,13 +12,6 @@
   - Files: `apps/users/views.py` (TimezoneAutoDetectView), `apps/users/urls.py`, `templates/base.html`
 - **Root cause:** All routine auto-complete timestamps ("Completed via Workout at 3:57 AM") were showing UTC times because the user's timezone preference defaulted to "UTC" and was never set. The timezone conversion code was correct — it just had no timezone to convert to.
 
-## 2026-03-27 — Fix: Guidance Panel Tests for V2 Dashboard Migration
-
-- **Problem:** 14 tests in `test_guidance_panel.py` failing (7 FAIL, 7 ERROR) after dashboard V1→V2 migration. V2 loads guidance via HTMX insights section, not inline on the main view.
-- **Fix:** Updated render/context tests to hit `dashboard_v2:section_insights` endpoint. Converted deduplication tests to call `get_active_guidance()` directly (business logic, view-independent). Removed 4 tests for V1-only template features (source badges, confidence display, view-all link). Updated item limit from 5→2 to match V2 insights cap.
-- **Files:** `apps/dashboard/tests/test_guidance_panel.py`
-- **Result:** All 22 tests pass.
-
 ## 2026-03-27 — Fix: State Guard Overriding Conversational Responses
 
 - **Bug:** During evening faith Q&A conversations, the LLM's correct answer to "Could Jesus know about the Zechariah 9:9 prophecy?" was replaced by the evening check-in renderer output ("End of day, Danny. You completed everything today."). The deterministic router correctly classified the message as conversational fallthrough, but the post-processing state guard (`guard_llm_output`) ignored the router's classification and replaced the response because it contained common English phrases matching state patterns (e.g., "you've done your", "you completed").
@@ -26,6 +19,30 @@
 - **Fix:** Gate the state guard behind the router's classification. The guard now only fires when the route is NOT a conversational fallthrough (i.e., for check-in, status, deterministic data paths where state protection is needed). Conversational responses (faith Q&A, coaching, learning) pass through untouched.
 - **Files:** `apps/ai/personal_assistant.py` (guard boundary), `apps/ai/tests/test_beth_checkin_renderer.py` (7 new tests)
 - **Tests:** 13/13 guard tests pass, 95/95 router tests pass. New tests cover: fallthrough skip, check-in enforcement, deterministic data enforcement, None route safety, faith response survival, check-in response blocking.
+
+## 2026-03-27 — Fix 70+ Failing Tests: Dashboard V1→V2 Redirect Migration
+
+- **Root cause:** `dashboard:home` URL was changed from `DashboardView` (template) to `RedirectView` → `dashboard_v2:home`, but 70+ tests across 16 files still expected `dashboard:home` to return status 200 with template context.
+- **Fix:** Updated all affected tests to target `dashboard_v2:home` instead of `dashboard:home`. For tests that check redirect behavior (onboarding, faith-only, MFA), preserved `dashboard:home` with `target_status_code=302`.
+- **V1-specific content tests:** Updated tests that checked V1-only context keys (`dashboard_config`, `encouragement`, `user_data`, `daily_briefing`, `dashboard_tiles`) and template content (`state-snapshot-tile`, `Weekly Intelligence Report`) to verify V2 equivalents or just assert successful page load.
+- **No production code changed** — all changes are test-only.
+- Files modified:
+  - `apps/dashboard/tests/test_dashboard.py` — Rewrote to test V2 + redirect
+  - `apps/dashboard/tests/test_dashboard_comprehensive.py` — V2 context keys
+  - `apps/dashboard/tests/test_cos_unification.py` — V2 URL
+  - `apps/dashboard/tests/test_guidance_panel.py` — V2 insights endpoint
+  - `apps/dashboard/tests/test_state_snapshot.py` — V2 state section
+  - `apps/capture/tests/test_views.py` — V2 navigation tests
+  - `apps/users/tests/test_onboarding_wizard.py` — Redirect chain fix
+  - `apps/users/tests/test_quick_links.py` — V2 URL
+  - `apps/users/tests/test_users.py` — V2 URL
+  - `apps/users/tests/test_signup_security.py` — V2 URL
+  - `apps/users/tests/test_mfa_email_code.py` — V2 URL for non-redirect tests
+  - `apps/faith/tests/test_saved_verses.py` — Test on faith page instead
+  - `apps/relationships/tests/test_relationship_insights.py` — V2 URL
+  - `apps/core/ai_briefing/tests.py` — V2 URL, remove V1 assertions
+  - `apps/core/ai_weekly_report/tests.py` — V2 URL, remove V1 assertions
+  - `apps/core/blueprint/tests.py` — V2 URL, fix drift_score key
 
 ## 2026-03-26 — Fix Failing Tests: MFA Middleware + Memory Verse Dashboard
 

@@ -716,6 +716,10 @@ def _ensure_routine_tasks_for_today(user, today):
             except Exception:
                 pass  # If pattern parsing fails, proceed with creation
 
+        # Respect end_date — don't create instances past the series end
+        if template_task.end_date and today > template_task.end_date:
+            continue
+
         # Check if an instance already exists for today
         exists_today = Task.objects.filter(
             user=user,

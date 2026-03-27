@@ -250,6 +250,129 @@ class ActionHandler:
             pass
         return None
 
+    # ── RoutineSchedule deactivation helpers ──────────────────────
+    # When the user says "delete Workout" and no Task matches, the item
+    # likely comes from the RoutineSchedule system (the canonical source
+    # for the morning briefing). These helpers deactivate the schedule
+    # item so it stops appearing in the Today Engine.
+
+    def _deactivate_matching_routine_schedules(self, title):
+        """Deactivate RoutineSchedule items matching a title.
+
+        Called as a side-effect when deleting a recurring Task series,
+        to ensure the morning briefing also stops showing the item.
+        """
+        try:
+            from apps.life.models import RoutineSchedule
+            schedules = RoutineSchedule.objects.filter(
+                routine__user=self.user,
+                name__iexact=title,
+                is_active=True,
+            )
+            count = schedules.update(is_active=False)
+            if count:
+                logger.info(
+                    "Deactivated %d RoutineSchedule items matching '%s' "
+                    "for user=%s",
+                    count, title, self.user.id,
+                )
+        except Exception as e:
+            logger.warning(
+                "Failed to deactivate RoutineSchedule '%s' for user=%s: %s",
+                title, self.user.id, e,
+            )
+
+    def _try_deactivate_routine_schedule(self, query, **kwargs):
+        """Fallback: deactivate a RoutineSchedule when no Task matches.
+
+        Returns an ActionResult if a matching schedule was found,
+        or None to let the caller continue with other fallbacks.
+        """
+        try:
+            from apps.life.models import RoutineSchedule
+            query_lower = query.strip().lower()
+            schedules = list(
+                RoutineSchedule.objects.filter(
+                    routine__user=self.user,
+                    is_active=True,
+                ).select_related('routine')
+            )
+            # Match by name (case-insensitive, substring)
+            matches = [
+                s for s in schedules
+                if query_lower in s.name.lower()
+                or s.name.lower() in query_lower
+            ]
+            if not matches:
+                return None
+
+            delete_confirmed = kwargs.get('delete_confirmed', False)
+            if not delete_confirmed:
+                titles = [f"• {m.name} ({m.routine.name})" for m in matches[:5]]
+                return ActionResult(
+                    success=False,
+                    message=(
+                        f"I found this as a routine item, not a task:\n"
+                        + "\n".join(titles)
+                        + "\n\nWould you like me to permanently remove "
+                        + ("it" if len(matches) == 1 else "them")
+                        + " from your routine? Say 'yes, delete' to confirm."
+                    ),
+                    error='delete_confirmation_required',
+                    action_type='mutate_task',
+                    created_object={
+                        'routine_schedule_ids': [m.id for m in matches],
+                    },
+                )
+
+            # Confirmed — deactivate
+            from apps.life.models import Task
+            deactivated_names = []
+            for schedule in matches:
+                schedule.is_active = False
+                schedule.save(update_fields=['is_active'])
+                deactivated_names.append(schedule.name)
+                # Also kill any shadow Task series with the same name
+                shadow_tasks = Task.all_objects.filter(
+                    user=self.user,
+                    title__iexact=schedule.name,
+                    is_routine=True,
+                    is_recurring=True,
+                )
+                shadow_tasks.update(is_recurring=False)
+                Task.objects.filter(
+                    user=self.user,
+                    title__iexact=schedule.name,
+                    is_routine=True,
+                    status='active',
+                ).update(status='deleted')
+
+            logger.info(
+                "Deactivated RoutineSchedule items %s for user=%s",
+                deactivated_names, self.user.id,
+            )
+
+            names_str = ', '.join(deactivated_names)
+            return ActionResult(
+                success=True,
+                message=(
+                    f"{_pick_opener(_SUCCESS_OPENERS, 'del')} \u2014 "
+                    f"{names_str} has been permanently removed from your "
+                    f"routine. It won't come back."
+                ),
+                action_type='mutate_task',
+                confirmation_detail=self._build_confirmation(
+                    what=names_str,
+                    where="Organize > Routines",
+                ),
+            )
+        except Exception as e:
+            logger.warning(
+                "RoutineSchedule deactivation fallback failed for '%s': %s",
+                query, e, exc_info=True,
+            )
+            return None
+
     def _resolve_across_domains(self, query, primary='task'):
         """
         Check both tasks and calendar events for a title match.
@@ -3584,6 +3707,17 @@ class ActionHandler:
             count = len(tasks)
 
             if count == 0:
+                # ── RoutineSchedule fallback for delete ──
+                # The morning briefing shows RoutineSchedule items, not Tasks.
+                # When the user says "delete Workout", no Task may exist, but
+                # the RoutineSchedule is the real source. Deactivate it.
+                if action == 'delete':
+                    _routine_result = self._try_deactivate_routine_schedule(
+                        task_query, **kwargs,
+                    )
+                    if _routine_result is not None:
+                        return _routine_result
+
                 # Cross-domain fallback: check calendar events
                 cross = self._resolve_across_domains(task_query, primary='task')
                 if cross.suggestion:
@@ -3747,6 +3881,11 @@ class ActionHandler:
                             representative,
                         )
                         deleted_titles.append(representative.title)
+                        # Also deactivate matching RoutineSchedule items so
+                        # the morning briefing stops showing this item.
+                        self._deactivate_matching_routine_schedules(
+                            representative.title,
+                        )
                         msg = (
                             f"{_pick_opener(_SUCCESS_OPENERS, 'del_series')} \u2014 "
                             f"the recurring task \"{representative.title}\" and all "
@@ -3757,6 +3896,17 @@ class ActionHandler:
                         for task in tasks:
                             task.soft_delete()
                             deleted_titles.append(task.title)
+                            # If this is a routine task, also deactivate
+                            # the RoutineSchedule source and kill the series
+                            # so it never regenerates.
+                            if task.is_routine and task.is_recurring:
+                                self._deactivate_matching_routine_schedules(
+                                    task.title,
+                                )
+                                from apps.life.services.recurrence import (
+                                    RecurrenceService,
+                                )
+                                RecurrenceService.delete_task_series(task)
 
                         if len(deleted_titles) == 1:
                             msg = f"{_pick_opener(_SUCCESS_OPENERS, 'del')} \u2014 {deleted_titles[0]} is removed."

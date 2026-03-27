@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Fix: Guidance Panel Tests for V2 Dashboard Migration
+
+- **Problem:** 14 tests in `test_guidance_panel.py` failing (7 FAIL, 7 ERROR) after dashboard V1→V2 migration. V2 loads guidance via HTMX insights section, not inline on the main view.
+- **Fix:** Updated render/context tests to hit `dashboard_v2:section_insights` endpoint. Converted deduplication tests to call `get_active_guidance()` directly (business logic, view-independent). Removed 4 tests for V1-only template features (source badges, confidence display, view-all link). Updated item limit from 5→2 to match V2 insights cap.
+- **Files:** `apps/dashboard/tests/test_guidance_panel.py`
+- **Result:** All 22 tests pass.
+
 ## 2026-03-27 — Fix: State Guard Overriding Conversational Responses
 
 - **Bug:** During evening faith Q&A conversations, the LLM's correct answer to "Could Jesus know about the Zechariah 9:9 prophecy?" was replaced by the evening check-in renderer output ("End of day, Danny. You completed everything today."). The deterministic router correctly classified the message as conversational fallthrough, but the post-processing state guard (`guard_llm_output`) ignored the router's classification and replaced the response because it contained common English phrases matching state patterns (e.g., "you've done your", "you completed").

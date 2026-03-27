@@ -259,6 +259,23 @@ def classify_and_route(message, user, cos_context_cache=None):
             _log_route_decision(result, user, message)
             return result
 
+    # ── Phase 1b: Routine time queries ("when is my workout?") ───
+    # Must run BEFORE check-in prefilter to prevent misclassification.
+    _item_kw = _match_routine_time_query(msg_lower)
+    if _item_kw and user is not None:
+        _time_resp = _handle_routine_time_query(user, item_keyword=_item_kw)
+        if _time_resp:
+            result = RouteResult(
+                category=RouteCategory.DETERMINISTIC_DATA,
+                response=_time_resp,
+                route_name='routine_time_query',
+                domain='execution',
+                is_terminal=True,
+            )
+            result.elapsed_ms = (time.monotonic() - t_start) * 1000
+            _log_route_decision(result, user, message)
+            return result
+
     # ── Phase 2: Health summary fast path (existing) ──────────────
     result = _try_health_summary(message, msg_lower, user)
     if result is not None:
@@ -883,6 +900,63 @@ def _handle_weight_query(user):
         )
 
     return response
+
+
+def _match_routine_time_query(msg_lower):
+    """Match direct time questions about routine items.
+
+    Examples: "when is my workout?", "what time is prayer?",
+    "when is shower scheduled?"
+    """
+    import re
+    # More specific patterns first (with trailing keyword), then catch-all
+    _TIME_PATTERNS = (
+        r'when(?:\'s| is) (?:my |the )?(\w[\w\s]*?) scheduled',
+        r'when(?:\'s| is) (?:my |the )?(\w[\w\s]*?) today',
+        r'what time is (?:my |the )?(\w[\w\s]*?)[\?\.\!]*$',
+        r'when is (?:my |the )?(\w[\w\s]*?)[\?\.\!]*$',
+    )
+    for pattern in _TIME_PATTERNS:
+        m = re.search(pattern, msg_lower)
+        if m:
+            return m.group(1).strip()
+    return None
+
+
+def _handle_routine_time_query(user, item_keyword=None):
+    """Build a deterministic response for routine time queries."""
+    if not item_keyword:
+        return None
+    try:
+        from apps.life.services._routine_internal import get_todays_routine_items
+        result = get_todays_routine_items(user)
+        items_by_window = result.get('items_by_window', {})
+        logs = result.get('logs_by_schedule', {})
+        keyword_lower = item_keyword.lower()
+
+        for _window, items in items_by_window.items():
+            for item in items:
+                name = (item.get('item_name') or '').lower()
+                if keyword_lower in name or name in keyword_lower:
+                    display_time = item.get('display_time') or item.get('scheduled_time')
+                    status = item.get('status', 'pending')
+                    item_name = item.get('item_name', item_keyword)
+                    rescheduled = item.get('rescheduled_time')
+
+                    if status == 'completed':
+                        return f"{item_name} is already done for today."
+                    elif rescheduled:
+                        return (
+                            f"{item_name} was rescheduled to "
+                            f"{rescheduled} today."
+                        )
+                    elif display_time:
+                        return f"{item_name} is scheduled for {display_time} today."
+                    else:
+                        return f"{item_name} is on your schedule today (no specific time set)."
+    except Exception as e:
+        logger.warning("Routine time query failed: %s", e, exc_info=True)
+    return None
 
 
 def _match_workout_query(msg_lower):

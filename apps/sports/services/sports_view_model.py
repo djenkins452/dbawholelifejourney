@@ -97,6 +97,9 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
 
     Reads canonical team data and storylines from _contract.
     Derives presentation-only values: heat, priority scores, hero selection.
+
+    V2 layout: Hero → What's Next (3) → Momentum (5) → Storylines (5)
+    Removed: momentum_strip, live_games, league_boards, ticker, recent_action
     """
     teams = contract.get('teams', [])
     storylines = contract.get('storylines', [])
@@ -110,69 +113,94 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
 
     scored_teams.sort(key=lambda x: -x[0])
 
-    # ── BUILD HERO ───────────────────────────────────────────────────
+    # ── HERO: single most important game ─────────────────────────────
     hero = None
+    hero_team_id = None
     if scored_teams:
         _, hero_team = scored_teams[0]
         hero = _build_hero_from_contract(hero_team)
+        hero_team_id = hero_team.get('team_id')
     else:
         # Fallback: team with most recent last_result
         for t in teams:
             if t.get('last_result'):
                 hero = _build_hero_from_contract(t)
+                hero_team_id = t.get('team_id')
                 break
 
-    # ── BUILD MOMENTUM STRIP ────────────────────────────────────────
-    momentum_strip = _build_momentum_strip_from_contract(teams)
-
-    # ── BUILD LIVE GAMES ────────────────────────────────────────────
-    live_games = []
-    live_seen = set()
-    for t in teams:
-        if t.get('status') != 'live' or not t.get('next_game'):
-            continue
-        game_id = t['next_game'].get('game_id')
-        if game_id and game_id in live_seen:
-            continue
-        if game_id:
-            live_seen.add(game_id)
-        live_games.append(_build_game_item_from_contract(t, "live"))
-
-    # ── BUILD MY SCHEDULE (top 5 scored, non-live) ──────────────────
-    my_schedule = []
-    schedule_seen = set()
+    # ── WHAT'S NEXT: top 3 non-hero games within 48h ─────────────────
+    whats_next = []
+    next_seen = set()
     for _, t in scored_teams:
+        tid = t.get('team_id')
+        if tid == hero_team_id:
+            continue  # Don't repeat hero game
         if t.get('status') == 'live':
-            continue
+            continue  # Live games belong in hero, not schedule
         game_id = t['next_game'].get('game_id') if t.get('next_game') else None
-        if game_id and game_id in schedule_seen:
+        if game_id and game_id in next_seen:
             continue
         if game_id:
-            schedule_seen.add(game_id)
-        my_schedule.append(_build_game_item_from_contract(t, t.get('status', 'upcoming')))
-        if len(my_schedule) >= 5:
+            next_seen.add(game_id)
+        # Filter: only games within 48h
+        ng = t.get('next_game') or {}
+        if ng.get('start_time'):
+            try:
+                from django.utils.dateparse import parse_datetime
+                start = parse_datetime(ng['start_time'])
+                if start and (start - now).total_seconds() > 48 * 3600:
+                    continue
+            except (ValueError, TypeError):
+                pass
+        whats_next.append({
+            "team_name": t.get('team_name', ''),
+            "team_logo": t.get('logo_url', ''),
+            "opponent": ng.get('opponent', ''),
+            "is_home": ng.get('is_home', True),
+            "start_time": ng.get('start_time', ''),
+            "urgency": t.get('status', 'upcoming'),
+            "league": t.get('league', ''),
+        })
+        if len(whats_next) >= 3:
             break
 
-    # ── BUILD LEAGUE BOARDS ─────────────────────────────────────────
-    league_boards = _build_league_boards(follows, now)
+    # ── MOMENTUM: teams with streak >= 3, sorted by count desc ────────
+    momentum = []
+    for t in sorted(teams, key=lambda x: x.get('streak_count', 0), reverse=True):
+        if t.get('streak_count', 0) < 3:
+            continue
+        momentum.append({
+            "team_name": t.get('team_name', ''),
+            "streak_type": t.get('streak_type', ''),
+            "streak_count": t.get('streak_count', 0),
+            "heat": "hot" if t.get('streak_type') == 'W' else "cold",
+        })
+        if len(momentum) >= 5:
+            break
 
-    # ── BUILD STORIES (from _contract.storylines) ───────────────────
-    stories = _build_stories_from_contract(storylines)
+    # ── KEY STORYLINES: high+medium importance, max 5 ─────────────────
+    key_storylines = []
+    # High importance first, then medium
+    for importance in ('high', 'medium'):
+        for sl in storylines:
+            if sl.get('importance') == importance:
+                key_storylines.append({
+                    "message": sl.get('message', ''),
+                    "type": sl.get('type', 'streak'),
+                    "importance": importance,
+                })
+                if len(key_storylines) >= 5:
+                    break
+        if len(key_storylines) >= 5:
+            break
 
-    # ── BUILD TICKER + RECENT ACTION ────────────────────────────────
-    ticker = _build_ticker(now)
-    recent_action = _build_recent_action()
     meta = _build_meta(team_ids, now)
 
     return {
         "hero": hero,
-        "momentum_strip": momentum_strip,
-        "live_games": live_games,
-        "my_schedule": my_schedule,
-        "league_boards": league_boards,
-        "stories": stories,
-        "ticker": ticker,
-        "recent_action": recent_action,
+        "whats_next": whats_next,
+        "momentum": momentum,
+        "storylines": key_storylines,
         "meta": meta,
     }
 
@@ -247,53 +275,69 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
         team = follow.team if follow else None
         hero = _build_hero(fs, team, streak_map, now)
 
-    # Momentum strip
-    momentum_strip = _build_momentum_strip(follows, signals_by_team, streak_map, final_signals)
-
-    # Live games
-    live_games = []
-    live_seen = set()
-    for s in live_signals:
-        gid = s["game_id"]
-        if gid in live_seen:
-            continue
-        live_seen.add(gid)
-        follow = team_map.get(s["team_id"])
-        if follow:
-            live_games.append(_build_game_item(s, follow.team, "live"))
-
-    # My schedule
-    my_schedule = []
-    schedule_game_ids = set()
+    # What's Next: top 3 non-hero, non-live games
+    hero_team_id = hero_signal["team_id"] if scored_games else None
+    whats_next = []
+    next_seen = set()
     for _, s in scored_games:
+        if s["team_id"] == hero_team_id:
+            continue
         if s["signal_type"] == SIGNAL_GAME_LIVE:
             continue
         gid = s["game_id"]
-        if gid in schedule_game_ids:
+        if gid in next_seen:
             continue
-        schedule_game_ids.add(gid)
+        next_seen.add(gid)
         follow = team_map.get(s["team_id"])
         if follow:
-            urgency = _signal_to_urgency(s["signal_type"])
-            my_schedule.append(_build_game_item(s, follow.team, urgency))
-        if len(my_schedule) >= 5:
+            whats_next.append({
+                "team_name": s["team_name"],
+                "team_logo": follow.team.logo_url or "",
+                "opponent": s["data"].get("opponent", ""),
+                "is_home": s["data"].get("is_home", True),
+                "start_time": s["data"].get("start_time", ""),
+                "urgency": _signal_to_urgency(s["signal_type"]),
+                "league": s["data"].get("league", ""),
+            })
+        if len(whats_next) >= 3:
             break
 
-    league_boards = _build_league_boards(follows, now)
+    # Momentum: teams with streak >= 3
+    momentum = []
+    for tid, streak in sorted(streak_map.items(), key=lambda x: int(x[1][1:]) if x[1] and len(x[1]) >= 2 else 0, reverse=True):
+        if not streak or len(streak) < 2:
+            continue
+        try:
+            s_count = int(streak[1:])
+        except ValueError:
+            continue
+        if s_count < 3:
+            continue
+        follow = team_map.get(tid)
+        if follow:
+            momentum.append({
+                "team_name": follow.team.full_name,
+                "streak_type": streak[0],
+                "streak_count": s_count,
+                "heat": "hot" if streak[0] == "W" else "cold",
+            })
+        if len(momentum) >= 5:
+            break
+
+    # Storylines from signal-derived stories
     stories = _build_stories(streak_signals, final_signals, live_signals, team_map)
-    ticker = _build_ticker(now)
-    recent_action = _build_recent_action()
+    storylines = [
+        {"message": s["text"], "type": s["type"], "importance": "medium"}
+        for s in stories
+    ]
+
     meta = _build_meta(team_ids, now)
 
     return {
         "hero": hero,
-        "momentum_strip": momentum_strip,
-        "live_games": live_games,
-        "my_schedule": my_schedule,
-        "league_boards": league_boards,
-        "stories": stories,
-        "ticker": ticker,
-        "recent_action": recent_action,
+        "whats_next": whats_next,
+        "momentum": momentum,
+        "storylines": storylines,
         "meta": meta,
     }
 
@@ -1021,12 +1065,8 @@ def _empty_view_model():
     """Return empty view model structure."""
     return {
         "hero": None,
-        "momentum_strip": [],
-        "live_games": [],
-        "my_schedule": [],
-        "league_boards": [],
-        "stories": [],
-        "ticker": [],
-        "recent_action": [],
+        "whats_next": [],
+        "momentum": [],
+        "storylines": [],
         "meta": {"last_updated": None, "data_source": ""},
     }

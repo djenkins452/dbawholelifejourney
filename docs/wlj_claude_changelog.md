@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Sports Hub v2: Complete Page Redesign
+
+- **Redesign:** Rebuilt the sports page from 8 sections down to 4 focused sections: Hero, What's Next (max 3), Momentum (max 5), Key Storylines (max 5). Removed: momentum strip grid, live games section, league boards, recent action, bottom ticker. Every item now answers "what matters right now?"
+- **View Model:** New v2 return keys: `whats_next` (top 3 non-hero games within 48h), `momentum` (teams with streak >= 3, sorted by count), `storylines` (from _contract, high+medium importance). Removed: `momentum_strip`, `live_games`, `my_schedule`, `league_boards`, `stories`, `ticker`, `recent_action`.
+- **Template:** Clean 4-section layout with strong visual hierarchy. Hero gets full-width gradient, sections use consistent spacing (24px gaps), typography hierarchy (2.2rem hero → 0.88rem rows → 0.82rem storylines). Color only for meaning: red=live/cold, green=hot, amber=soon, indigo=today.
+- **Files:** `apps/sports/services/sports_view_model.py`, `apps/sports/templates/sports/my_teams.html`
+
 ## 2026-03-27 — Fix: Future Items Penalizing Health Score Prematurely
 
 - **Bug:** At 6:13 AM, a workout scheduled for 6:15 AM was counted as "missed" and medications scheduled for 9:00 AM were dragging down adherence. Items not yet due were penalizing the health score and daily progress ring.

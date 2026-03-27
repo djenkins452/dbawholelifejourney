@@ -12,10 +12,10 @@ Tests for:
 8. Graceful handling of empty data
 9. Interaction depth recording (Adaptive CoS Presence)
 10. Lightweight alignment mode
-11. Auto-complete wakeup helper
+11. Auto-complete wakeup via canonical RoutineSchedule/RoutineLog engine
 """
 
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 from unittest.mock import patch, MagicMock
 
 from django.test import TestCase
@@ -587,37 +587,6 @@ class TestLightweightAlignment(ExecutiveBriefingTestMixin, TestCase):
         self.assertEqual(result, "")
 
 
-class TestAutoCompleteWakeup(ExecutiveBriefingTestMixin, TestCase):
-    """Tests for auto_complete_wakeup() helper."""
-
-    def setUp(self):
-        self.user = self.create_user(email='wake@example.com')
-
-    @patch('apps.life.models.Task.objects')
-    def test_completes_pending_wake_task(self, mock_qs):
-        """Auto-completes a pending Wake Up task."""
-        from apps.ai.executive_briefing import auto_complete_wakeup
-
-        mock_task = MagicMock()
-        mock_qs.filter.return_value.first.return_value = mock_task
-
-        result = auto_complete_wakeup(self.user, timezone.now().date())
-
-        self.assertTrue(result)
-        mock_task.mark_complete.assert_called_once()
-
-    @patch('apps.life.models.Task.objects')
-    def test_returns_false_when_no_task(self, mock_qs):
-        """Returns False when no Wake Up task found."""
-        from apps.ai.executive_briefing import auto_complete_wakeup
-
-        mock_qs.filter.return_value.first.return_value = None
-
-        result = auto_complete_wakeup(self.user, timezone.now().date())
-
-        self.assertFalse(result)
-
-
 class TestHandleDayStart(ExecutiveBriefingTestMixin, TestCase):
     """Tests for handle_day_start() — the authoritative day-start initializer."""
 
@@ -735,3 +704,137 @@ class TestHandleDayStart(ExecutiveBriefingTestMixin, TestCase):
                 source,
                 f"{name} must call handle_day_start before CoS rendering",
             )
+
+
+class TestAutoCompleteWakeupIntegration(ExecutiveBriefingTestMixin, TestCase):
+    """Integration tests for auto_complete_wakeup via canonical RoutineSchedule/RoutineLog."""
+
+    def setUp(self):
+        from apps.life.models import Routine, RoutineSchedule
+        self.user = self.create_user(email='wakeup@example.com')
+        self.routine = Routine.objects.create(
+            user=self.user, name='Morning Routine',
+            time_of_day='morning', is_active=True,
+        )
+        today = timezone.now().date()
+        weekday = str(today.weekday())
+        self.wake_schedule = RoutineSchedule.objects.create(
+            routine=self.routine, name='Wake Up',
+            scheduled_time=time(5, 0),
+            grace_period_minutes=60,
+            days_of_week='0,1,2,3,4,5,6',
+            is_active=True,
+        )
+
+    def test_wakeup_creates_routine_log(self):
+        """First interaction auto-completes Wake Up via RoutineLog."""
+        from apps.ai.executive_briefing import auto_complete_wakeup
+        from apps.life.models import RoutineLog
+
+        today = timezone.now().date()
+        result = auto_complete_wakeup(self.user, today)
+
+        self.assertTrue(result)
+        log = RoutineLog.objects.get(
+            schedule=self.wake_schedule, scheduled_date=today,
+        )
+        self.assertEqual(log.completion_source, 'auto')
+        self.assertIn(log.timing, ('on_time', 'late', 'early'))
+        self.assertIsNotNone(log.performed_at)
+
+    def test_wakeup_idempotent_no_duplicate(self):
+        """Second call does not create a duplicate RoutineLog."""
+        from apps.ai.executive_briefing import auto_complete_wakeup
+        from apps.life.models import RoutineLog
+
+        today = timezone.now().date()
+        auto_complete_wakeup(self.user, today)
+        auto_complete_wakeup(self.user, today)
+
+        count = RoutineLog.objects.filter(
+            schedule=self.wake_schedule, scheduled_date=today,
+        ).count()
+        self.assertEqual(count, 1)
+
+    def test_wakeup_skips_manual_completion(self):
+        """Does not overwrite an existing manual completion."""
+        from apps.ai.executive_briefing import auto_complete_wakeup
+        from apps.life.models import RoutineLog
+
+        today = timezone.now().date()
+        RoutineLog.objects.create(
+            user=self.user,
+            schedule=self.wake_schedule,
+            scheduled_date=today,
+            log_status='completed',
+            completed_at=timezone.now(),
+            performed_at=timezone.now(),
+            timing='on_time',
+            completion_source='manual',
+        )
+
+        result = auto_complete_wakeup(self.user, today)
+
+        self.assertFalse(result)
+        count = RoutineLog.objects.filter(
+            schedule=self.wake_schedule, scheduled_date=today,
+        ).count()
+        self.assertEqual(count, 1)
+
+    def test_wakeup_respects_day_of_week(self):
+        """Wake Up is not auto-completed on days it's not scheduled."""
+        from apps.ai.executive_briefing import auto_complete_wakeup
+        from apps.life.models import RoutineLog
+
+        # Restrict to Monday only
+        self.wake_schedule.days_of_week = '0'
+        self.wake_schedule.save()
+
+        today = timezone.now().date()
+        # Find a non-Monday date
+        if today.weekday() == 0:
+            target = today + timedelta(days=1)  # Tuesday
+        else:
+            target = today
+
+        # Patch at the source module since routine_helpers imports at call time
+        with patch('apps.core.utils.get_user_today', return_value=target), \
+             patch('apps.core.utils.get_user_now',
+                   return_value=timezone.now()):
+            result = auto_complete_wakeup(self.user, target)
+
+        self.assertFalse(result)
+        self.assertFalse(
+            RoutineLog.objects.filter(schedule=self.wake_schedule).exists()
+        )
+
+    def test_wakeup_no_schedule_returns_false(self):
+        """Returns False when user has no Wake Up schedule."""
+        from apps.ai.executive_briefing import auto_complete_wakeup
+
+        self.wake_schedule.delete()
+        today = timezone.now().date()
+        result = auto_complete_wakeup(self.user, today)
+        self.assertFalse(result)
+
+    def test_handle_day_start_wires_through_canonical_engine(self):
+        """handle_day_start creates RoutineLog, not legacy Task."""
+        from apps.ai.executive_briefing import handle_day_start
+        from apps.life.models import RoutineLog
+        from django.core.cache import cache
+
+        cache.clear()
+        today = timezone.now().date()
+
+        with patch('apps.core.utils.get_user_today', return_value=today):
+            result = handle_day_start(self.user)
+
+        self.assertTrue(result['initialized'])
+        self.assertTrue(result['wake_completed'])
+        self.assertTrue(
+            RoutineLog.objects.filter(
+                schedule=self.wake_schedule,
+                scheduled_date=today,
+                completion_source='auto',
+            ).exists()
+        )

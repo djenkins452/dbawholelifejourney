@@ -349,6 +349,32 @@
     <script src="{% static 'js/undo-toast.js' %}?v=1"></script>
     {% block extra_js %}{% endblock %}
 
+    <!-- Auto-detect user timezone (once per session, only if still default UTC) -->
+    {% if user.is_authenticated %}
+    <script nonce="{{ csp_nonce }}">
+    (function() {
+        if (sessionStorage.getItem('tz_sent')) return;
+        var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (!tz || tz === 'UTC') return;
+        sessionStorage.setItem('tz_sent', '1');
+        fetch('{% url "users:timezone_detect" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')
+                    ? document.querySelector('[name=csrfmiddlewaretoken]').value
+                    : document.cookie.match(/csrftoken=([^;]+)/)?.[1] || ''
+            },
+            body: JSON.stringify({timezone: tz})
+        }).then(function(r) {
+            if (r.ok) return r.json();
+        }).then(function(d) {
+            if (d && d.updated) location.reload();
+        }).catch(function() {});
+    })();
+    </script>
+    {% endif %}
+
     <!-- Help Modal (user-facing pages) -->
     {% if user.is_authenticated %}
     {% include "components/help_modal.html" %}

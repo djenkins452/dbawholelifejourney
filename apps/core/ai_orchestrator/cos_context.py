@@ -1834,24 +1834,17 @@ def _build_routine_context(user):
 
 
 def _build_sports_context(user):
-    """Build sports context — signal-level data only (CoS purity enforced).
+    """Build sports context from _contract (CoS purity enforced).
 
-    Returns a single clean `sports` block ONLY when something is actionable
-    (game_live, game_starting_soon, or game_today). Returns empty dict when
-    no games are relevant — Beth says nothing about sports.
+    Hard gate: only includes sports context when:
+    - There are live games, OR
+    - There are games today (includes starting_soon), OR
+    - There are high-importance storylines (e.g., 5+ game win streak)
 
-    Output structure:
-    {
-        "sports": {
-            "focus": { ... },        # ONE highest-urgency game
-            "secondary": [ ... ],    # Other today games (if any)
-            "streaks": [ ... ],      # Active win/loss streaks >= 3
-            "awareness": "..."       # Natural-language summary for Beth
-        }
-    }
+    Returns empty dict when nothing is actionable — Beth says nothing about sports.
 
-    Does NOT expose raw scores, stats, or standings to CoS.
-    Reads from SAE state (which consumes cached signals — never raw GameEvent).
+    Reads _contract from SAE state. Falls back to flat team_summaries if
+    _contract is not yet available (backward compat during rollout).
     """
     result = {}
     try:
@@ -1861,128 +1854,146 @@ def _build_sports_context(user):
         if not sports.get('enabled'):
             return result
 
-        summaries = sports.get('team_summaries', [])
-        if not summaries:
-            return result
+        contract = sports.get('_contract')
 
-        # ── Classify games by urgency ───────────────────────────────
-        urgency_rank = {"live": 0, "starting_soon": 1, "today": 2}
-        actionable = []  # Games that qualify for context
-        for s in summaries:
-            status = s.get('status', 'upcoming')
-            if status not in urgency_rank:
-                continue
-            ng = s.get('next_game') or {}
-            actionable.append({
-                '_rank': urgency_rank[status],
-                '_priority': s.get('priority', 99),
-                'type': f"game_{status}",
-                'team': s['team_name'],
-                'opponent': ng.get('opponent', ''),
-                'time': ng.get('time', ''),
-                'record': s.get('record', ''),
-                'streak': s.get('streak', ''),
-                'pitcher': ng.get('pitcher', ''),
-                'score': ng.get('score', ''),
-                'status': status,
-            })
+        if contract and contract.get('teams'):
+            return _build_sports_context_from_contract(contract)
 
-        if not actionable:
-            # No live/soon/today games — check if streaks alone warrant context
-            streaks = _extract_streaks(summaries)
-            if not streaks:
-                return result  # Nothing to say
-            # Streaks only — minimal context
-            awareness = _build_streaks_awareness(streaks)
-            result['sports'] = {
-                'streaks': streaks,
-                'awareness': awareness,
-            }
-            return result
-
-        # Sort: highest urgency first, then follow priority
-        actionable.sort(key=lambda x: (x['_rank'], x['_priority']))
-
-        # ── Focus: single highest-urgency game ──────────────────────
-        focus_raw = actionable[0]
-        focus = {
-            'type': focus_raw['type'],
-            'team': focus_raw['team'],
-            'opponent': focus_raw['opponent'],
-            'time': focus_raw['time'],
-        }
-        if focus_raw['status'] == 'live' and focus_raw['score']:
-            focus['score'] = focus_raw['score']
-
-        # ── Secondary: other today games ────────────────────────────
-        secondary = []
-        for g in actionable[1:4]:  # Max 3 secondary
-            entry = {
-                'type': g['type'],
-                'team': g['team'],
-                'opponent': g['opponent'],
-                'time': g['time'],
-            }
-            secondary.append(entry)
-
-        # ── Streaks: win/loss >= 3 ──────────────────────────────────
-        streaks = _extract_streaks(summaries)
-
-        # ── Awareness: natural-language summary ─────────────────────
-        awareness = _build_sports_awareness(focus_raw, secondary, streaks)
-
-        # ── Assemble sports block ───────────────────────────────────
-        sports_block = {
-            'focus': focus,
-            'awareness': awareness,
-        }
-        if secondary:
-            sports_block['secondary'] = secondary
-        if streaks:
-            sports_block['streaks'] = streaks
-
-        result['sports'] = sports_block
+        # Fallback: flat team_summaries (pre-contract compat)
+        return _build_sports_context_from_summaries(sports)
 
     except Exception as e:
         logger.debug("CoS context: sports unavailable: %s", e)
     return result
 
 
-def _extract_streaks(summaries):
-    """Extract win/loss streaks >= 3 from team summaries."""
+def _build_sports_context_from_contract(contract):
+    """Build sports CoS context from _contract (primary path).
+
+    Reads storylines directly — never re-derives streaks or narratives.
+    """
+    result = {}
+    summary = contract.get('summary', {})
+    teams = contract.get('teams', [])
+    storylines = contract.get('storylines', [])
+
+    # ── Hard gate ────────────────────────────────────────────────────
+    include_sports = (
+        summary.get('games_live', 0) > 0
+        or summary.get('games_today', 0) > 0
+        or any(s.get('importance') == 'high' for s in storylines)
+    )
+    if not include_sports:
+        return result
+
+    # ── Classify teams by urgency for focus/secondary ────────────────
+    urgency_rank = {"live": 0, "starting_soon": 1, "today": 2}
+    actionable = []
+    for t in teams:
+        status = t.get('status', 'upcoming')
+        if status not in urgency_rank:
+            continue
+        ng = t.get('next_game') or {}
+        actionable.append({
+            '_rank': urgency_rank[status],
+            '_priority': t.get('priority', 99),
+            'type': f"game_{status}",
+            'team': t.get('team_name', ''),
+            'opponent': ng.get('opponent', ''),
+            'time': ng.get('start_time', ''),
+            'record': t.get('record_display', '') or t.get('record', ''),
+            'streak_type': t.get('streak_type', ''),
+            'streak_count': t.get('streak_count', 0),
+            'pitcher': ng.get('pitcher', ''),
+            'score': ng.get('score', ''),
+            'status': status,
+        })
+
+    if not actionable:
+        # Only high-importance storylines (no actionable games)
+        streaks = _extract_streaks_from_contract(teams)
+        if not streaks:
+            return result
+        awareness = _build_streaks_awareness(streaks)
+        result['sports'] = {
+            'streaks': streaks,
+            'awareness': awareness,
+        }
+        return result
+
+    actionable.sort(key=lambda x: (x['_rank'], x['_priority']))
+
+    # ── Focus: single highest-urgency game ──────────────────────────
+    focus_raw = actionable[0]
+    focus = {
+        'type': focus_raw['type'],
+        'team': focus_raw['team'],
+        'opponent': focus_raw['opponent'],
+        'time': focus_raw['time'],
+    }
+    if focus_raw['status'] == 'live' and focus_raw['score']:
+        focus['score'] = focus_raw['score']
+
+    # ── Secondary: other today games (max 3) ────────────────────────
+    secondary = []
+    for g in actionable[1:4]:
+        secondary.append({
+            'type': g['type'],
+            'team': g['team'],
+            'opponent': g['opponent'],
+            'time': g['time'],
+        })
+
+    # ── Streaks from _contract teams ────────────────────────────────
+    streaks = _extract_streaks_from_contract(teams)
+
+    # ── Awareness from _contract.storylines ─────────────────────────
+    awareness = _build_awareness_from_storylines(focus_raw, secondary, storylines)
+
+    # ── Assemble sports block ───────────────────────────────────────
+    sports_block = {
+        'focus': focus,
+        'awareness': awareness,
+    }
+    if secondary:
+        sports_block['secondary'] = secondary
+    if streaks:
+        sports_block['streaks'] = streaks
+
+    result['sports'] = sports_block
+    return result
+
+
+def _extract_streaks_from_contract(teams):
+    """Extract win/loss streaks >= 3 from _contract teams."""
     streaks = []
-    for s in summaries:
-        streak = s.get('streak', '')
-        if not streak or len(streak) < 2:
-            continue
-        streak_type = streak[0]
-        try:
-            streak_count = int(streak[1:])
-        except ValueError:
-            continue
+    for t in teams:
+        streak_type = t.get('streak_type', '')
+        streak_count = t.get('streak_count', 0)
         if streak_count < 3:
             continue
         streaks.append({
-            'team': s['team_name'],
+            'team': t.get('team_name', ''),
             'type': 'win_streak' if streak_type == 'W' else 'losing_streak',
             'value': streak_count,
         })
     return streaks
 
 
-def _build_sports_awareness(focus, secondary, streaks):
-    """Build natural-language awareness text from structured sports data."""
+def _build_awareness_from_storylines(focus, secondary, storylines):
+    """Build natural-language awareness from _contract.storylines + focus game.
+
+    Uses focus game for the primary sentence, then appends relevant storyline
+    messages for other teams (no re-derivation).
+    """
     parts = []
 
-    # Focus game
+    # Focus game sentence
     record_text = f" ({focus['record']})" if focus.get('record') else ""
     streak_text = ""
-    if focus.get('streak') and len(focus['streak']) >= 2:
-        s_count = focus['streak'][1:]
-        if focus['streak'].startswith("W"):
-            streak_text = f", on a {s_count}-game win streak"
-        elif focus['streak'].startswith("L"):
-            streak_text = f", on a {s_count}-game losing streak"
+    if focus.get('streak_type') and focus.get('streak_count', 0) >= 3:
+        label = "win" if focus['streak_type'] == 'W' else "losing"
+        streak_text = f", on a {focus['streak_count']}-game {label} streak"
 
     if focus['status'] == 'live':
         score_text = f" ({focus['score']})" if focus.get('score') else ""
@@ -2010,10 +2021,155 @@ def _build_sports_awareness(focus, secondary, streaks):
         teams = ", ".join(f"{g['team']} vs {g['opponent']}" for g in secondary[:2])
         parts.append(f"Also playing today: {teams}.")
 
-    # Streaks (only if not already mentioned in focus)
+    # Append relevant storylines (skip focus team to avoid duplication)
+    focus_team = focus.get('team', '')
+    for sl in storylines:
+        if sl.get('team') == focus_team:
+            continue
+        if sl.get('importance') in ('high', 'medium'):
+            parts.append(sl.get('message', '') + '.')
+
+    return " ".join(parts)
+
+
+def _build_sports_context_from_summaries(sports):
+    """Fallback: build sports context from flat team_summaries (pre-contract compat)."""
+    result = {}
+    summaries = sports.get('team_summaries', [])
+    if not summaries:
+        return result
+
+    urgency_rank = {"live": 0, "starting_soon": 1, "today": 2}
+    actionable = []
+    for s in summaries:
+        status = s.get('status', 'upcoming')
+        if status not in urgency_rank:
+            continue
+        ng = s.get('next_game') or {}
+        actionable.append({
+            '_rank': urgency_rank[status],
+            '_priority': s.get('priority', 99),
+            'type': f"game_{status}",
+            'team': s['team_name'],
+            'opponent': ng.get('opponent', ''),
+            'time': ng.get('time', ''),
+            'record': s.get('record', ''),
+            'streak': s.get('streak', ''),
+            'pitcher': ng.get('pitcher', ''),
+            'score': ng.get('score', ''),
+            'status': status,
+        })
+
+    if not actionable:
+        streaks = _extract_streaks_from_summaries(summaries)
+        if not streaks:
+            return result
+        awareness = _build_streaks_awareness(streaks)
+        result['sports'] = {
+            'streaks': streaks,
+            'awareness': awareness,
+        }
+        return result
+
+    actionable.sort(key=lambda x: (x['_rank'], x['_priority']))
+
+    focus_raw = actionable[0]
+    focus = {
+        'type': focus_raw['type'],
+        'team': focus_raw['team'],
+        'opponent': focus_raw['opponent'],
+        'time': focus_raw['time'],
+    }
+    if focus_raw['status'] == 'live' and focus_raw['score']:
+        focus['score'] = focus_raw['score']
+
+    secondary = []
+    for g in actionable[1:4]:
+        secondary.append({
+            'type': g['type'],
+            'team': g['team'],
+            'opponent': g['opponent'],
+            'time': g['time'],
+        })
+
+    streaks = _extract_streaks_from_summaries(summaries)
+    awareness = _build_sports_awareness_legacy(focus_raw, secondary, streaks)
+
+    sports_block = {
+        'focus': focus,
+        'awareness': awareness,
+    }
+    if secondary:
+        sports_block['secondary'] = secondary
+    if streaks:
+        sports_block['streaks'] = streaks
+
+    result['sports'] = sports_block
+    return result
+
+
+def _extract_streaks_from_summaries(summaries):
+    """Extract win/loss streaks >= 3 from flat team summaries (legacy)."""
+    streaks = []
+    for s in summaries:
+        streak = s.get('streak', '')
+        if not streak or len(streak) < 2:
+            continue
+        streak_type = streak[0]
+        try:
+            streak_count = int(streak[1:])
+        except ValueError:
+            continue
+        if streak_count < 3:
+            continue
+        streaks.append({
+            'team': s['team_name'],
+            'type': 'win_streak' if streak_type == 'W' else 'losing_streak',
+            'value': streak_count,
+        })
+    return streaks
+
+
+def _build_sports_awareness_legacy(focus, secondary, streaks):
+    """Build awareness text from flat summaries (legacy fallback)."""
+    parts = []
+
+    record_text = f" ({focus['record']})" if focus.get('record') else ""
+    streak_text = ""
+    if focus.get('streak') and len(focus['streak']) >= 2:
+        s_count = focus['streak'][1:]
+        if focus['streak'].startswith("W"):
+            streak_text = f", on a {s_count}-game win streak"
+        elif focus['streak'].startswith("L"):
+            streak_text = f", on a {s_count}-game losing streak"
+
+    if focus['status'] == 'live':
+        score_text = f" ({focus['score']})" if focus.get('score') else ""
+        parts.append(
+            f"The user's {focus['team']}{record_text} game vs {focus['opponent']} "
+            f"is LIVE right now{score_text}."
+        )
+    elif focus['status'] == 'starting_soon':
+        parts.append(
+            f"The user's {focus['team']}{record_text}{streak_text} game vs "
+            f"{focus['opponent']} starts soon at {focus['time']}."
+        )
+    elif focus['status'] == 'today':
+        parts.append(
+            f"The user's {focus['team']}{record_text}{streak_text} plays "
+            f"{focus['opponent']} today at {focus['time']}."
+        )
+
+    if focus.get('pitcher'):
+        parts.append(f"Starting pitcher: {focus['pitcher']}.")
+
+    if secondary:
+        teams = ", ".join(f"{g['team']} vs {g['opponent']}" for g in secondary[:2])
+        parts.append(f"Also playing today: {teams}.")
+
     for s in streaks:
         if s['team'] == focus['team']:
-            continue  # Already in focus text
+            continue
         label = "win" if s['type'] == 'win_streak' else 'losing'
         parts.append(f"{s['team']} on a {s['value']}-game {label} streak.")
 

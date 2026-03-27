@@ -132,7 +132,14 @@ def _build_summaries_from_signals(user, signals, now):
     Build per-team summaries from generated signals.
 
     State builder consumes signals — never re-derives from raw GameEvent.
+    Includes enriched fields (record_display, logo_url, game_id, opponent_logo,
+    is_home, streak) needed by _contract overlay.
     """
+    from apps.sports.services.signal_generator import (
+        SIGNAL_GAME_FINAL,
+        SIGNAL_GAME_UPCOMING,
+    )
+
     team_data = {}
 
     for signal in signals:
@@ -146,6 +153,10 @@ def _build_summaries_from_signals(user, signals, now):
                 "next_game": None,
                 "last_result": None,
                 "status": "upcoming",
+                "record": "",
+                "record_display": "",
+                "logo_url": "",
+                "streak": "",
                 "active_signals": [],
             }
 
@@ -158,27 +169,62 @@ def _build_summaries_from_signals(user, signals, now):
         if sig_type == SIGNAL_GAME_LIVE:
             entry["status"] = "live"
             entry["next_game"] = {
+                "game_id": signal.get("game_id"),
                 "opponent": data.get("opponent", ""),
+                "opponent_logo": data.get("opponent_logo", ""),
+                "start_time": data.get("start_time", ""),
                 "time": data.get("start_time", ""),
                 "venue": data.get("venue", ""),
-                "score": f"{data.get('away_score', 0)}-{data.get('home_score', 0)}",
+                "is_home": data.get("is_home", True),
+                "pitcher": data.get("home_pitcher", "") if data.get("is_home") else data.get("away_pitcher", ""),
+                "score": data.get("score", ""),
             }
         elif sig_type == SIGNAL_GAME_STARTING_SOON:
             if entry["status"] != "live":
                 entry["status"] = "starting_soon"
-            entry["next_game"] = {
-                "opponent": data.get("opponent", ""),
-                "time": data.get("start_time", ""),
-                "venue": data.get("venue", ""),
-            }
+            if not entry["next_game"] or entry["status"] == "starting_soon":
+                entry["next_game"] = {
+                    "game_id": signal.get("game_id"),
+                    "opponent": data.get("opponent", ""),
+                    "opponent_logo": data.get("opponent_logo", ""),
+                    "start_time": data.get("start_time", ""),
+                    "time": data.get("start_time", ""),
+                    "venue": data.get("venue", ""),
+                    "is_home": data.get("is_home", True),
+                    "pitcher": data.get("home_pitcher", "") if data.get("is_home") else data.get("away_pitcher", ""),
+                }
         elif sig_type == SIGNAL_GAME_TODAY:
             if entry["status"] not in ("live", "starting_soon"):
                 entry["status"] = "today"
             if not entry["next_game"]:
                 entry["next_game"] = {
+                    "game_id": signal.get("game_id"),
                     "opponent": data.get("opponent", ""),
+                    "opponent_logo": data.get("opponent_logo", ""),
+                    "start_time": data.get("start_time", ""),
                     "time": data.get("start_time", ""),
                     "venue": data.get("venue", ""),
+                    "is_home": data.get("is_home", True),
+                    "pitcher": data.get("home_pitcher", "") if data.get("is_home") else data.get("away_pitcher", ""),
+                }
+        elif sig_type == SIGNAL_GAME_UPCOMING:
+            if entry["status"] == "upcoming" and not entry["next_game"]:
+                entry["next_game"] = {
+                    "game_id": signal.get("game_id"),
+                    "opponent": data.get("opponent", ""),
+                    "opponent_logo": data.get("opponent_logo", ""),
+                    "start_time": data.get("start_time", ""),
+                    "time": data.get("start_time", ""),
+                    "venue": data.get("venue", ""),
+                    "is_home": data.get("is_home", True),
+                    "pitcher": data.get("home_pitcher", "") if data.get("is_home") else data.get("away_pitcher", ""),
+                }
+        elif sig_type == SIGNAL_GAME_FINAL:
+            if not entry.get("last_result"):
+                entry["last_result"] = {
+                    "opponent": data.get("opponent", ""),
+                    "result": data.get("result", "T"),
+                    "score": data.get("score", ""),
                 }
         elif sig_type in (SIGNAL_TEAM_WIN, SIGNAL_TEAM_LOSS):
             result = "W" if sig_type == SIGNAL_TEAM_WIN else "L"
@@ -191,17 +237,27 @@ def _build_summaries_from_signals(user, signals, now):
             if not entry.get("last_result"):
                 entry["last_result"] = {
                     "opponent": data.get("opponent", ""),
-                    "result": "T",  # Tie or unknown
+                    "result": "T",
                     "score": data.get("score", ""),
                 }
 
-    # Populate league names from follows
+    # Populate team metadata from follows (league, record, logo, streak)
+    from apps.sports.services.streaks import compute_streaks_for_teams
+
     follows = UserTeamFollow.objects.filter(
         user=user, is_active=True
     ).select_related("team__league")
+
+    team_ids_present = [f.team_id for f in follows if f.team_id in team_data]
+    streak_map = compute_streaks_for_teams(team_ids_present) if team_ids_present else {}
+
     for f in follows:
         if f.team_id in team_data:
             team_data[f.team_id]["league"] = f.team.league.abbreviation
+            team_data[f.team_id]["record"] = f.team.record
+            team_data[f.team_id]["record_display"] = f.team.record_display
+            team_data[f.team_id]["logo_url"] = f.team.logo_url or ""
+            team_data[f.team_id]["streak"] = streak_map.get(f.team_id, "")
 
     # Deduplicate signal types
     for entry in team_data.values():

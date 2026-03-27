@@ -3351,16 +3351,257 @@ def build_sports_state(user):
             # Cache empty — build from DB (lightweight, bounded to user's teams)
             _build_sports_state_from_db(user, state)
 
+        # Build _contract from team_summaries (canonical structured overlay)
+        _build_sports_contract(state)
+
     except ImportError:
         logger.debug("Sports module not installed")
     except Exception:
         logger.warning("Sports state build failed", exc_info=True)
 
     state['_meta'] = _build_state_meta(
-        completeness='full' if state.get('team_summaries') else 'partial',
+        completeness='full' if state.get('_contract', {}).get('summary', {}).get('teams_followed', 0) > 0 else 'partial',
         confidence='high',
     )
     return state
+
+
+def _build_sports_contract(state):
+    """Build the _contract overlay from team_summaries and today_games.
+
+    _contract is the canonical structured interface for CoS context and
+    view model consumers. Storylines are deterministic narratives reusable
+    by both the page view model and CoS context.
+
+    This runs AFTER team_summaries are populated (from cache or DB).
+    """
+    summaries = state.get('team_summaries', [])
+    today_games = state.get('today_games', [])
+
+    if not summaries:
+        state['_contract'] = {
+            'summary': {
+                'teams_followed': 0,
+                'teams_active': 0,
+                'games_live': 0,
+                'games_today': 0,
+                'games_upcoming_7d': 0,
+            },
+            'teams': [],
+            'games': {'live': [], 'today': [], 'upcoming': []},
+            'storylines': [],
+        }
+        return
+
+    # ── Build canonical team entries ──────────────────────────────────
+    teams = []
+    games_live = []
+    games_today = []
+    games_upcoming = []
+    teams_active = 0
+    seen_game_ids = set()
+
+    for s in summaries:
+        # Parse streak into type + count
+        streak_raw = s.get('streak', '')
+        streak_type = ''
+        streak_count = 0
+        if streak_raw and len(streak_raw) >= 2:
+            streak_type = streak_raw[0]  # "W" or "L"
+            try:
+                streak_count = int(streak_raw[1:])
+            except ValueError:
+                streak_type = ''
+
+        status = s.get('status', 'upcoming')
+        next_game = s.get('next_game')
+        last_result = s.get('last_result')
+
+        # Determine if team has active data (not off-season)
+        if status != 'upcoming' or next_game or last_result:
+            teams_active += 1
+
+        # Build next_game contract entry
+        next_game_entry = None
+        if next_game:
+            next_game_entry = {
+                'opponent': next_game.get('opponent', ''),
+                'start_time': next_game.get('time', ''),
+                'venue': next_game.get('venue', ''),
+                'is_home': next_game.get('is_home', True),
+                'pitcher': next_game.get('pitcher', ''),
+                'score': next_game.get('score', ''),
+            }
+
+        # Build last_result contract entry with margin
+        last_result_entry = None
+        if last_result:
+            # Parse score for margin calculation
+            margin = 0
+            score_str = last_result.get('score', '')
+            if score_str and '-' in score_str:
+                try:
+                    parts = score_str.split('-')
+                    margin = abs(int(parts[0].strip()) - int(parts[1].strip()))
+                except (ValueError, IndexError):
+                    pass
+            last_result_entry = {
+                'opponent': last_result.get('opponent', ''),
+                'result': last_result.get('result', ''),
+                'score': score_str,
+                'margin': margin,
+            }
+
+        team_entry = {
+            'team_id': s.get('team_id'),
+            'team_name': s.get('team_name', ''),
+            'league': s.get('league', ''),
+            'priority': s.get('priority', 3),
+            'record': s.get('record', ''),
+            'record_display': s.get('record', ''),
+            'logo_url': s.get('logo_url', ''),
+            'streak_type': streak_type,
+            'streak_count': streak_count,
+            'status': status,
+            'next_game': next_game_entry,
+            'last_result': last_result_entry,
+        }
+        teams.append(team_entry)
+
+        # Bucket games (deduped)
+        game_id = next_game.get('game_id') if next_game else None
+        if game_id and game_id not in seen_game_ids:
+            seen_game_ids.add(game_id)
+            game_ref = {
+                'game_id': game_id,
+                'team_ids': [s.get('team_id')],
+                'team_name': s.get('team_name', ''),
+                'opponent': next_game.get('opponent', '') if next_game else '',
+            }
+            if status == 'live':
+                games_live.append(game_ref)
+            elif status in ('today', 'starting_soon'):
+                games_today.append(game_ref)
+            elif status == 'upcoming':
+                games_upcoming.append(game_ref)
+        elif game_id and game_id in seen_game_ids:
+            # Add this team_id to the existing game ref
+            for bucket in (games_live, games_today, games_upcoming):
+                for g in bucket:
+                    if g['game_id'] == game_id:
+                        g['team_ids'].append(s.get('team_id'))
+                        break
+
+    # ── Generate storylines ───────────────────────────────────────────
+    storylines = _generate_storylines(teams)
+
+    state['_contract'] = {
+        'summary': {
+            'teams_followed': len(summaries),
+            'teams_active': teams_active,
+            'games_live': len(games_live),
+            'games_today': len(games_today),
+            'games_upcoming_7d': len(games_upcoming),
+        },
+        'teams': teams,
+        'games': {
+            'live': games_live,
+            'today': games_today,
+            'upcoming': games_upcoming,
+        },
+        'storylines': storylines,
+    }
+
+
+def _generate_storylines(teams):
+    """Generate deterministic storylines from canonical team data.
+
+    These are reusable narratives consumed by both the view model (stories
+    section) and CoS context (awareness text). No LLM, no presentation logic.
+
+    Storyline rules:
+    - Win streak >= 5: high importance
+    - Win streak >= 3: medium importance
+    - Losing streak >= 3: medium importance
+    - Blowout (margin >= 8 on last result): low importance
+    - Close game (margin <= 1 on last result): low importance
+    - Live game: high importance
+    """
+    storylines = []
+
+    for t in teams:
+        team_name = t['team_name']
+        team_id = t['team_id']
+        streak_type = t['streak_type']
+        streak_count = t['streak_count']
+        status = t['status']
+
+        # Streak storylines
+        if streak_type == 'W' and streak_count >= 5:
+            storylines.append({
+                'type': 'streak',
+                'team': team_name,
+                'team_id': team_id,
+                'message': f"{team_name} on fire — {streak_count}-game win streak",
+                'importance': 'high',
+            })
+        elif streak_type == 'W' and streak_count >= 3:
+            storylines.append({
+                'type': 'streak',
+                'team': team_name,
+                'team_id': team_id,
+                'message': f"{team_name} on a {streak_count}-game win streak",
+                'importance': 'medium',
+            })
+        elif streak_type == 'L' and streak_count >= 3:
+            storylines.append({
+                'type': 'streak',
+                'team': team_name,
+                'team_id': team_id,
+                'message': f"{team_name} have dropped {streak_count} straight",
+                'importance': 'medium',
+            })
+
+        # Live game storylines
+        if status == 'live':
+            ng = t.get('next_game')
+            if ng:
+                score_text = f" — {ng['score']}" if ng.get('score') else ""
+                storylines.append({
+                    'type': 'live',
+                    'team': team_name,
+                    'team_id': team_id,
+                    'message': f"{team_name} vs {ng['opponent']}{score_text} (LIVE)",
+                    'importance': 'high',
+                })
+
+        # Last result storylines (blowout/close)
+        lr = t.get('last_result')
+        if lr and lr.get('margin') is not None:
+            margin = lr['margin']
+            score = lr.get('score', '')
+            opponent = lr.get('opponent', '')
+            result = lr.get('result', '')
+
+            if margin >= 8:
+                winner = team_name if result == 'W' else opponent
+                storylines.append({
+                    'type': 'blowout',
+                    'team': team_name,
+                    'team_id': team_id,
+                    'message': f"{winner} cruise to {score} blowout",
+                    'importance': 'low',
+                })
+            elif margin <= 1 and score:
+                storylines.append({
+                    'type': 'close',
+                    'team': team_name,
+                    'team_id': team_id,
+                    'message': f"{team_name} edge {opponent} {score}",
+                    'importance': 'low',
+                })
+
+    return storylines
 
 
 def _build_sports_state_from_db(user, state):
@@ -3463,6 +3704,8 @@ def _build_sports_state_from_db(user, state):
             "priority": follow.priority,
             "status": status,
             "record": team.record,
+            "record_display": team.record_display,
+            "logo_url": team.logo_url or "",
             "streak": streak,
             "next_game": None,
             "last_result": None,
@@ -3473,9 +3716,13 @@ def _build_sports_state_from_db(user, state):
             opponent = next_game.get_opponent(team)
             is_home = next_game.home_team_id == team.id
             summary["next_game"] = {
+                "game_id": next_game.id,
                 "opponent": str(opponent) if opponent else "TBD",
+                "opponent_logo": (opponent.logo_url or "") if opponent else "",
+                "start_time": next_game.start_time.isoformat(),
                 "time": next_game.start_time.strftime("%-I:%M %p"),
                 "venue": next_game.venue,
+                "is_home": is_home,
             }
             if next_game.is_live:
                 summary["next_game"]["score"] = next_game.get_score_display()

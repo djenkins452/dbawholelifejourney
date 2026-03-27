@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-25 (SAE single-source-of-truth: dashboard cockpit reads from SAE, sleep/water/med/workout fields added to state builders)
+**Last updated:** 2026-03-27 (Sports _contract architecture: state builder produces _contract with teams/games/storylines, CoS context + view model consume _contract as single source of truth)
 
 ---
 

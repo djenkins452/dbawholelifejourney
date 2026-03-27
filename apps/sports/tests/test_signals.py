@@ -11,9 +11,11 @@ from django.utils import timezone
 from apps.sports.models import GameEvent, League, Sport, Team, UserTeamFollow
 from apps.sports.services.signal_generator import (
     SIGNAL_GAME_COMPLETED,
+    SIGNAL_GAME_FINAL,
     SIGNAL_GAME_LIVE,
     SIGNAL_GAME_STARTING_SOON,
     SIGNAL_GAME_TODAY,
+    SIGNAL_GAME_UPCOMING,
     SIGNAL_LOSING_STREAK,
     SIGNAL_TEAM_LOSS,
     SIGNAL_TEAM_WIN,
@@ -192,8 +194,11 @@ class NoNoiseSignalsTest(TestCase):
             user=self.user, team=self.chiefs, priority=1
         )
 
-    def test_completed_game_produces_no_event_signal(self):
-        """Completed games do NOT produce game_completed/team_win/team_loss signals."""
+    def test_completed_game_produces_no_legacy_event_signal(self):
+        """Completed games do NOT produce legacy game_completed/team_win/team_loss signals.
+
+        game_final IS expected (canonical final result signal).
+        """
         GameEvent.objects.create(
             home_team=self.chiefs, away_team=self.niners,
             start_time=timezone.now() - timedelta(hours=3),
@@ -202,14 +207,13 @@ class NoNoiseSignalsTest(TestCase):
         )
         signals = generate_sports_signals(self.user)
         signal_types = {s["signal_type"] for s in signals}
-        # Only these 5 signals are allowed
-        allowed = {SIGNAL_GAME_LIVE, SIGNAL_GAME_STARTING_SOON, SIGNAL_GAME_TODAY,
-                   SIGNAL_WIN_STREAK, SIGNAL_LOSING_STREAK}
-        self.assertTrue(signal_types.issubset(allowed),
-                        f"Unexpected signals: {signal_types - allowed}")
+        # Legacy signals must NOT appear
+        legacy = {SIGNAL_GAME_COMPLETED, SIGNAL_TEAM_WIN, SIGNAL_TEAM_LOSS}
+        self.assertFalse(signal_types & legacy,
+                         f"Legacy signals found: {signal_types & legacy}")
 
-    def test_only_five_signal_types_exist(self):
-        """Create various game states — only 5 signal types should appear."""
+    def test_only_seven_signal_types_exist(self):
+        """Create various game states — only 7 signal types should appear."""
         now = timezone.now()
         # Live game
         GameEvent.objects.create(
@@ -226,8 +230,10 @@ class NoNoiseSignalsTest(TestCase):
         signals = generate_sports_signals(self.user)
         signal_types = {s["signal_type"] for s in signals}
         allowed = {SIGNAL_GAME_LIVE, SIGNAL_GAME_STARTING_SOON, SIGNAL_GAME_TODAY,
+                   SIGNAL_GAME_UPCOMING, SIGNAL_GAME_FINAL,
                    SIGNAL_WIN_STREAK, SIGNAL_LOSING_STREAK}
-        self.assertTrue(signal_types.issubset(allowed))
+        self.assertTrue(signal_types.issubset(allowed),
+                        f"Unexpected signals: {signal_types - allowed}")
 
 
 class StreakSignalTest(TestCase):

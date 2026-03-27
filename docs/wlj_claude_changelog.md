@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Sports Architecture: _contract Single Source of Truth
+
+- **Architecture:** Added `_contract` overlay to sports state builder (`build_sports_state`). The contract contains canonical team data (streak_type/streak_count, record, next_game, last_result with margin), game buckets (live/today/upcoming), and deterministic storylines. Both the view model and CoS context now consume `_contract` as their single source of truth.
+- **State Builder:** `_build_sports_contract()` generates the _contract from team_summaries. `_generate_storylines()` produces reusable narratives (streak, live, blowout, close) with importance levels (high/medium/low). `_build_sports_state_from_db()` enriched with record_display, logo_url, game_id, opponent_logo, is_home fields.
+- **View Model:** Primary path reads `_contract` via `get_module_state()`. Removes direct `compute_streaks_for_teams()` and `generate_sports_signals()` calls. Derives heat (hot/cold/neutral) from streak_type+streak_count (presentation-only). Stories read from `_contract.storylines`. Signal-based fallback preserved for graceful degradation during rollout.
+- **CoS Context:** Hard gate: only includes sports when games_live > 0 OR games_today > 0 OR high-importance storylines exist. Reads `_contract.storylines` for awareness text — never re-derives. Streaks read from `_contract.teams[].streak_type/streak_count`. Flat team_summaries fallback preserved.
+- **Background Task:** `_build_summaries_from_signals()` enriched with record, record_display, logo_url, streak, game_id, opponent_logo, is_home, pitcher — all needed by _contract overlay.
+- **Tests:** Fixed 2 stale signal type tests (added SIGNAL_GAME_FINAL + SIGNAL_GAME_UPCOMING to allowed sets). All 95 sports tests + 159 CoS tests pass.
+- **Files:** `apps/core/ai_state/state_builder.py`, `apps/sports/services/sports_view_model.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/sports/tasks.py`, `apps/sports/tests/test_signals.py`, `docs/ENGINE_COS_REFERENCE.md`
+
 ## 2026-03-27 — Ops Wall: Fix Remaining STALE/Ghost Engine Issues (Round 2)
 
 - **Fix:** CoS Context STALE resilience — added fallback in personal_assistant.py builder timing extraction. If a chat has CoS context but `_builder_timings` is empty/missing (stale cache, exception path), a synthetic `COS_BUILDER_context_present` entry is injected so the ops telemetry staleness checker sees at least one builder stage. Prevents false STALE on the ops wall.

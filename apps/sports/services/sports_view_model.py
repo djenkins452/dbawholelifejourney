@@ -1,10 +1,17 @@
 """
 Sports Domain — View Model Builder
 
-Transforms sports signals into a structured view model for template rendering.
-This is the ONLY layer between signals and the template — no raw GameEvent queries.
+Transforms sports state (_contract) into a structured view model for template rendering.
+Reads canonical state from SAE — never generates signals or computes streaks directly.
 
-Architecture: GameEvent → Signals → View Model → Template
+Architecture: GameEvent → Signals → State (_contract) → View Model → Template
+
+Presentation-only concerns owned by this layer:
+- Hero selection (priority engine)
+- Momentum strip layout + heat interpretation
+- Game row formatting
+- Ticker (ambient display)
+- Filtering storylines for display
 """
 import logging
 from datetime import timedelta
@@ -23,14 +30,17 @@ from apps.sports.services.signal_generator import (
     SIGNAL_WIN_STREAK,
     generate_sports_signals,
 )
-from apps.sports.services.streaks import compute_streaks_for_teams
 
 logger = logging.getLogger(__name__)
 
 
 def build_sports_view_model(user):
     """
-    Build the complete sports view model from signals.
+    Build the complete sports view model.
+
+    Primary path: reads _contract from SAE state (pre-computed by background task).
+    Fallback path: generates signals directly if _contract is not yet available
+    (graceful degradation during rollout — remove after one deploy cycle).
 
     Returns a dict with all keys needed by the template:
     {
@@ -60,18 +70,126 @@ def build_sports_view_model(user):
     team_map = {f.team_id: f for f in follows}
     team_ids = list(team_map.keys())
 
-    # ── Generate signals (or read from cache) ────────────────────────
+    # ── Try _contract path first ─────────────────────────────────────
+    contract = _get_contract(user)
+
+    if contract and contract.get('teams'):
+        return _build_from_contract(contract, follows, team_map, team_ids, now)
+
+    # ── Fallback: signal-based path (pre-contract compat) ────────────
+    logger.debug("Sports view model: _contract not available, using signal fallback")
+    return _build_from_signals(user, follows, team_map, team_ids, now)
+
+
+def _get_contract(user):
+    """Read _contract from SAE state. Returns None on miss."""
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        sports_state = get_module_state(user, 'sports') or {}
+        return sports_state.get('_contract')
+    except Exception:
+        logger.debug("Sports view model: failed to read _contract", exc_info=True)
+        return None
+
+
+def _build_from_contract(contract, follows, team_map, team_ids, now):
+    """Build view model from _contract (primary path).
+
+    Reads canonical team data and storylines from _contract.
+    Derives presentation-only values: heat, priority scores, hero selection.
+    """
+    teams = contract.get('teams', [])
+    storylines = contract.get('storylines', [])
+
+    # ── PRIORITY ENGINE: score every team with a game ────────────────
+    scored_teams = []
+    for t in teams:
+        if t.get('status') in ('live', 'starting_soon', 'today', 'upcoming') and t.get('next_game'):
+            score = _compute_contract_priority_score(t)
+            scored_teams.append((score, t))
+
+    scored_teams.sort(key=lambda x: -x[0])
+
+    # ── BUILD HERO ───────────────────────────────────────────────────
+    hero = None
+    if scored_teams:
+        _, hero_team = scored_teams[0]
+        hero = _build_hero_from_contract(hero_team)
+    else:
+        # Fallback: team with most recent last_result
+        for t in teams:
+            if t.get('last_result'):
+                hero = _build_hero_from_contract(t)
+                break
+
+    # ── BUILD MOMENTUM STRIP ────────────────────────────────────────
+    momentum_strip = _build_momentum_strip_from_contract(teams)
+
+    # ── BUILD LIVE GAMES ────────────────────────────────────────────
+    live_games = []
+    live_seen = set()
+    for t in teams:
+        if t.get('status') != 'live' or not t.get('next_game'):
+            continue
+        game_id = t['next_game'].get('game_id')
+        if game_id and game_id in live_seen:
+            continue
+        if game_id:
+            live_seen.add(game_id)
+        live_games.append(_build_game_item_from_contract(t, "live"))
+
+    # ── BUILD MY SCHEDULE (top 5 scored, non-live) ──────────────────
+    my_schedule = []
+    schedule_seen = set()
+    for _, t in scored_teams:
+        if t.get('status') == 'live':
+            continue
+        game_id = t['next_game'].get('game_id') if t.get('next_game') else None
+        if game_id and game_id in schedule_seen:
+            continue
+        if game_id:
+            schedule_seen.add(game_id)
+        my_schedule.append(_build_game_item_from_contract(t, t.get('status', 'upcoming')))
+        if len(my_schedule) >= 5:
+            break
+
+    # ── BUILD LEAGUE BOARDS ─────────────────────────────────────────
+    league_boards = _build_league_boards(follows, now)
+
+    # ── BUILD STORIES (from _contract.storylines) ───────────────────
+    stories = _build_stories_from_contract(storylines)
+
+    # ── BUILD TICKER + RECENT ACTION ────────────────────────────────
+    ticker = _build_ticker(now)
+    recent_action = _build_recent_action()
+    meta = _build_meta(team_ids, now)
+
+    return {
+        "hero": hero,
+        "momentum_strip": momentum_strip,
+        "live_games": live_games,
+        "my_schedule": my_schedule,
+        "league_boards": league_boards,
+        "stories": stories,
+        "ticker": ticker,
+        "recent_action": recent_action,
+        "meta": meta,
+    }
+
+
+def _build_from_signals(user, follows, team_map, team_ids, now):
+    """Fallback: build view model from signals directly (pre-contract compat)."""
     from apps.sports.services.cache_manager import get_user_signals, set_user_signals
+    from apps.sports.services.streaks import compute_streaks_for_teams
 
     signals = get_user_signals(user)
     if signals is None:
         signals = generate_sports_signals(user)
         set_user_signals(user.id, signals)
 
-    # ── Batch compute streaks (reuse existing utility) ───────────────
     streak_map = compute_streaks_for_teams(team_ids)
 
-    # ── Index signals by type and team ───────────────────────────────
+    # Index signals by type and team
     signals_by_team = {}
     live_signals = []
     today_signals = []
@@ -100,25 +218,23 @@ def build_sports_view_model(user):
         elif st in (SIGNAL_WIN_STREAK, SIGNAL_LOSING_STREAK):
             streak_signals.append(s)
 
-    # ── PRIORITY ENGINE: score every game signal ─────────────────────
+    # Priority engine
     all_game_signals = live_signals + soon_signals + today_signals + upcoming_signals
     scored_games = []
     seen_game_ids = set()
 
     for s in all_game_signals:
         gid = s["game_id"]
-        # Deduplicate: same game can appear for multiple signal types
         dedup_key = (gid, s["team_id"])
         if dedup_key in seen_game_ids:
             continue
         seen_game_ids.add(dedup_key)
-
         score = _compute_priority_score(s, streak_map)
         scored_games.append((score, s))
 
-    scored_games.sort(key=lambda x: -x[0])  # Highest priority first
+    scored_games.sort(key=lambda x: -x[0])
 
-    # ── BUILD HERO ───────────────────────────────────────────────────
+    # Hero
     hero = None
     if scored_games:
         _, hero_signal = scored_games[0]
@@ -126,16 +242,15 @@ def build_sports_view_model(user):
         team = follow.team if follow else None
         hero = _build_hero(hero_signal, team, streak_map, now)
     elif final_signals:
-        # Fallback: most recent completed game
         fs = final_signals[0]
         follow = team_map.get(fs["team_id"])
         team = follow.team if follow else None
         hero = _build_hero(fs, team, streak_map, now)
 
-    # ── BUILD MOMENTUM STRIP ────────────────────────────────────────
+    # Momentum strip
     momentum_strip = _build_momentum_strip(follows, signals_by_team, streak_map, final_signals)
 
-    # ── BUILD LIVE GAMES (deduped by game_id) ────────────────────────
+    # Live games
     live_games = []
     live_seen = set()
     for s in live_signals:
@@ -147,12 +262,12 @@ def build_sports_view_model(user):
         if follow:
             live_games.append(_build_game_item(s, follow.team, "live"))
 
-    # ── BUILD MY SCHEDULE (scored, deduped, top 5) ──────────────────
+    # My schedule
     my_schedule = []
     schedule_game_ids = set()
     for _, s in scored_games:
         if s["signal_type"] == SIGNAL_GAME_LIVE:
-            continue  # Already in live_games
+            continue
         gid = s["game_id"]
         if gid in schedule_game_ids:
             continue
@@ -164,19 +279,10 @@ def build_sports_view_model(user):
         if len(my_schedule) >= 5:
             break
 
-    # ── BUILD LEAGUE BOARDS (bounded GameEvent query — for league context) ──
     league_boards = _build_league_boards(follows, now)
-
-    # ── BUILD STORIES (signal-derived narratives) ───────────────────
     stories = _build_stories(streak_signals, final_signals, live_signals, team_map)
-
-    # ── BUILD TICKER (all recent games — ambient awareness) ─────────
     ticker = _build_ticker(now)
-
-    # ── BUILD RECENT ACTION ─────────────────────────────────────────
     recent_action = _build_recent_action()
-
-    # ── METADATA ────────────────────────────────────────────────────
     meta = _build_meta(team_ids, now)
 
     return {
@@ -510,6 +616,212 @@ def _build_league_boards(follows, now):
 
     return boards
 
+
+# ═══════════════════════════════════════════════════════════════════════
+# CONTRACT-BASED BUILDERS (primary path)
+# ═══════════════════════════════════════════════════════════════════════
+
+def _compute_contract_priority_score(team_entry):
+    """Priority scoring from _contract team entry (presentation-only)."""
+    score = 0
+    priority = team_entry.get('priority', 3)
+    status = team_entry.get('status', 'upcoming')
+
+    # Team importance
+    if priority == 1:
+        score += 50
+    elif priority == 2:
+        score += 35
+    else:
+        score += 20
+
+    # Temporal urgency
+    if status == 'live':
+        score += 40
+    elif status == 'starting_soon':
+        score += 30
+    elif status == 'today':
+        score += 25
+    elif status == 'upcoming':
+        ng = team_entry.get('next_game')
+        if ng and ng.get('start_time'):
+            try:
+                from django.utils.dateparse import parse_datetime
+                start = parse_datetime(ng['start_time'])
+                if start:
+                    hours_away = (start - timezone.now()).total_seconds() / 3600
+                    if hours_away <= 6:
+                        score += 15
+                    elif hours_away <= 24:
+                        score += 10
+                    else:
+                        score += 5
+            except (ValueError, TypeError):
+                score += 5
+
+    # Streak heat
+    streak_count = team_entry.get('streak_count', 0)
+    if streak_count >= 5:
+        score += 20
+    elif streak_count >= 3:
+        score += 15
+
+    return score
+
+
+def _build_hero_from_contract(team_entry):
+    """Build hero section from _contract team entry."""
+    ng = team_entry.get('next_game') or {}
+    lr = team_entry.get('last_result') or {}
+    status = team_entry.get('status', 'upcoming')
+
+    hero = {
+        "team_name": team_entry.get('team_name', ''),
+        "team_logo": team_entry.get('logo_url', ''),
+        "opponent": ng.get('opponent', '') or lr.get('opponent', ''),
+        "opponent_logo": ng.get('opponent_logo', ''),
+        "urgency": status,
+        "start_time": ng.get('start_time', ''),
+        "venue": ng.get('venue', ''),
+        "is_home": ng.get('is_home', True),
+        "league": team_entry.get('league', ''),
+        "record": team_entry.get('record_display', '') or team_entry.get('record', ''),
+        "streak": f"{team_entry.get('streak_type', '')}{team_entry.get('streak_count', 0)}" if team_entry.get('streak_type') else "",
+        "score": ng.get('score', ''),
+        "insight": "",
+        "pitcher": ng.get('pitcher', ''),
+    }
+
+    # Signal-derived insight line
+    streak_count = team_entry.get('streak_count', 0)
+    streak_type = team_entry.get('streak_type', '')
+    if status == 'live':
+        hero["insight"] = "Game in progress"
+    elif status == 'starting_soon':
+        hero["insight"] = "Starting soon"
+    elif streak_type == 'W' and streak_count >= 3:
+        hero["insight"] = f"On a {streak_count}-game win streak"
+    elif streak_type == 'L' and streak_count >= 3:
+        hero["insight"] = f"{streak_count} straight losses"
+
+    return hero
+
+
+def _build_momentum_strip_from_contract(teams):
+    """Build momentum strip from _contract teams (presentation-only heat derivation)."""
+    strip = []
+    for t in teams:
+        status = t.get('status', 'upcoming')
+        ng = t.get('next_game') or {}
+        lr = t.get('last_result') or {}
+
+        # Determine status label and line
+        status_label = ""
+        display_status = "neutral"
+        line = ""
+
+        if status == 'live':
+            status_label = "LIVE"
+            display_status = "live"
+            prefix = "vs" if ng.get('is_home') else "@"
+            line = f"{prefix} {ng.get('opponent', '')} · {ng.get('score', '')}"
+        elif status == 'starting_soon':
+            status_label = "SOON"
+            display_status = "soon"
+            prefix = "vs" if ng.get('is_home') else "@"
+            line = f"{prefix} {ng.get('opponent', '')}"
+        elif status == 'today':
+            status_label = "TODAY"
+            display_status = "today"
+            prefix = "vs" if ng.get('is_home') else "@"
+            line = f"{prefix} {ng.get('opponent', '')} · {_format_time(ng.get('start_time', ''))}"
+        elif status == 'upcoming' and ng:
+            status_label = "NEXT"
+            display_status = "next"
+            prefix = "vs" if ng.get('is_home') else "@"
+            line = f"{prefix} {ng.get('opponent', '')} · {_format_datetime_short(ng.get('start_time', ''))}"
+        elif lr:
+            result = lr.get('result', '')
+            status_label = "FINAL"
+            display_status = "final"
+            line = f"{result} vs {lr.get('opponent', '')} · {lr.get('score', '')}"
+        else:
+            continue  # Off-season — skip
+
+        # Heat: derived from streak (presentation-only)
+        heat = "neutral"
+        streak_type = t.get('streak_type', '')
+        streak_count = t.get('streak_count', 0)
+        if streak_type == 'W' and streak_count >= 3:
+            heat = "hot"
+        elif streak_type == 'L' and streak_count >= 3:
+            heat = "cold"
+
+        streak_display = f"{streak_type}{streak_count}" if streak_type and streak_count else ""
+
+        strip.append({
+            "team_name": t.get('team_name', ''),
+            "team_abbr": "",  # Not in _contract, populated from team model in fallback
+            "logo_url": t.get('logo_url', ''),
+            "league": t.get('league', ''),
+            "record": t.get('record_display', '') or t.get('record', ''),
+            "streak": streak_display,
+            "heat": heat,
+            "status": display_status,
+            "status_label": status_label,
+            "line": line,
+        })
+
+    return strip
+
+
+def _build_game_item_from_contract(team_entry, urgency):
+    """Build a game row item from _contract team entry."""
+    ng = team_entry.get('next_game') or {}
+    return {
+        "team_name": team_entry.get('team_name', ''),
+        "team_logo": team_entry.get('logo_url', ''),
+        "opponent": ng.get('opponent', ''),
+        "opponent_logo": ng.get('opponent_logo', ''),
+        "urgency": urgency,
+        "is_home": ng.get('is_home', True),
+        "start_time": ng.get('start_time', ''),
+        "venue": ng.get('venue', ''),
+        "score": ng.get('score', ''),
+        "home_score": None,
+        "away_score": None,
+        "league": team_entry.get('league', ''),
+        "pitcher": ng.get('pitcher', ''),
+    }
+
+
+def _build_stories_from_contract(storylines):
+    """Build display stories from _contract.storylines.
+
+    Maps storyline types to display types and filters for display (max 5).
+    """
+    type_map = {
+        'streak': 'hot',   # Positive streak → hot
+        'live': 'live',
+        'blowout': 'blowout',
+        'close': 'close',
+    }
+    stories = []
+    for sl in storylines:
+        # Check for losing streak → cold
+        display_type = type_map.get(sl.get('type', ''), 'hot')
+        if sl.get('type') == 'streak' and 'dropped' in sl.get('message', ''):
+            display_type = 'cold'
+        stories.append({
+            'text': sl.get('message', ''),
+            'type': display_type,
+        })
+    return stories[:5]
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# SIGNAL-BASED BUILDERS (fallback path — legacy)
+# ═══════════════════════════════════════════════════════════════════════
 
 def _build_stories(streak_signals, final_signals, live_signals, team_map):
     """

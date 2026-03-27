@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Fix Wake Up Auto-Complete: Route Through Canonical RoutineSchedule Engine
+
+- **Root Cause:** `auto_complete_wakeup()` in `executive_briefing.py` queried the legacy `Task` model (`is_routine=True, title__icontains='wake up'`), but Wake Up exists only as a `RoutineSchedule` item. The query always found nothing, so Wake Up was never auto-completed on first interaction.
+- **Fix:** Replaced `auto_complete_wakeup()` to route through the existing `auto_complete_routine_schedules()` engine in `routine_helpers.py`. This uses the canonical RoutineSchedule → RoutineLog path with full idempotency, day-of-week filtering, timing classification, and `completion_source='auto'`.
+- **Removed:** Legacy `TestAutoCompleteWakeup` test class that mocked `Task.objects` (no longer applicable).
+- **Added:** 6 integration tests in `TestAutoCompleteWakeupIntegration`: creates real RoutineSchedule/RoutineLog, verifies auto-completion, idempotency, manual-completion skip, day-of-week respect, no-schedule fallback, and full `handle_day_start()` wiring.
+- **Architecture:** No new models, no new engines. Single-source-of-truth preserved (RoutineLog is canonical). Execution truth, CoS, and Today Engine all see the completion via the existing pipeline.
+  - Files: `apps/ai/executive_briefing.py`, `apps/ai/tests/test_executive_briefing.py`
+
 ## 2026-03-27 — Sports Hub v2: Complete Page Redesign
 
 - **Redesign:** Rebuilt the sports page from 8 sections down to 4 focused sections: Hero, What's Next (max 3), Momentum (max 5), Key Storylines (max 5). Removed: momentum strip grid, live games section, league boards, recent action, bottom ticker. Every item now answers "what matters right now?"

@@ -133,32 +133,44 @@ def handle_day_start(user):
 
 def auto_complete_wakeup(user, today):
     """
-    Auto-complete the 'Wake Up' routine task for today.
+    Auto-complete the 'Wake Up' routine schedule item for today.
 
-    Internal helper called by handle_day_start(). Safe to call multiple
-    times per day (idempotent — only completes pending tasks).
+    Routes through the canonical auto-complete engine
+    (RoutineSchedule → RoutineLog) so that execution truth, CoS, and
+    the Today Engine all see the completion via the single source of
+    truth.
+
+    Internal helper called by handle_day_start(). Idempotent: the
+    engine's first-workout-wins guard prevents duplicate RoutineLog
+    entries.
 
     Args:
         user: Django User instance.
-        today: date — user's local today.
+        today: date — user's local today (used by caller for cache key;
+               the engine reads its own user-local date internally).
 
     Returns:
-        bool — True if a wake_up task was found and completed.
+        bool — True if a Wake Up schedule was found and completed.
     """
     try:
-        from apps.life.models import Task
-        wake_task = Task.objects.filter(
-            user=user, is_routine=True, completion_status='pending',
-            due_date=today, title__icontains='wake up',
-        ).first()
-        if wake_task:
-            wake_task.mark_complete()
-            logger.debug(
-                "Auto-completed 'Wake Up' task for user=%s", user.email
+        from apps.life.services.routine_helpers import (
+            auto_complete_routine_schedules,
+        )
+
+        results = auto_complete_routine_schedules(
+            user=user,
+            keyword='wake up',
+            source='auto',
+        )
+        if results:
+            logger.info(
+                "AUTO_WAKEUP user=%s schedules=%s",
+                user.id,
+                [r['schedule_id'] for r in results],
             )
             return True
     except Exception as e:
-        logger.debug("Wake Up auto-complete failed: %s", e)
+        logger.warning("Wake Up auto-complete failed: %s", e, exc_info=True)
     return False
 
 

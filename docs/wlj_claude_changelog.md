@@ -8,12 +8,15 @@
 
 ## 2026-03-27 — Fix: Future Items Penalizing Health Score Prematurely
 
-- **Bug:** At 6:13 AM, a workout scheduled for 6:15 AM was counted as "missed" and medications scheduled for 9:00 AM were dragging down adherence. Items not yet due were penalizing the health score.
-- **Root cause (workout):** `domain_workout.py` counted today as an expected workout day using day-of-week only, with no check against `preferred_time`. Any uncompleted workout for today was classified as missed regardless of whether it was due yet.
-- **Root cause (medication):** `medicine_utils.py` (the single source of truth for adherence) counted ALL of today's scheduled doses as expected, with no check against `scheduled_time`. Future doses with no log entry counted as unlogged, dragging down adherence rate. The correct pattern existed in `domain_medication.py` (the behavior adapter) but had not been applied to the general adherence calculator.
-- **Fix:** Added time-of-day fairness filter to both files — today's items scheduled after the current time are excluded from expected counts. Matches the existing pattern in `domain_medication.py:62`.
-- **Files:** `apps/core/behavior/domain_workout.py`, `apps/health/medicine_utils.py`
-- **Tests:** 69/69 pass (41 behavior + adherence, 28 cockpit + behavior)
+- **Bug:** At 6:13 AM, a workout scheduled for 6:15 AM was counted as "missed" and medications scheduled for 9:00 AM were dragging down adherence. Items not yet due were penalizing the health score and daily progress ring.
+- **Root cause:** Multiple independent code paths evaluated "expected vs completed" using day-level granularity where time-level was required. Four locations had the bug:
+  1. `domain_workout.py` — behavior score counted today as expected regardless of `preferred_time`
+  2. `medicine_utils.py` — adherence calculator counted ALL today's doses as expected regardless of `scheduled_time`
+  3. `daily_progress_service.py::_compute_workout()` — daily progress ring counted workout as expected/missed before scheduled time
+  4. `dashboard_service.py` — medicine card header "X/Y" counted all stacks including future (hidden) ones
+- **Fix:** Added time-of-day fairness filter to all four locations. Today's items scheduled after the current time are excluded from expected counts. Also added `completed_at__isnull=False` filter to daily progress workout query.
+- **Files:** `apps/core/behavior/domain_workout.py`, `apps/health/medicine_utils.py`, `apps/dashboard_v2/services/daily_progress_service.py`, `apps/dashboard_v2/services/dashboard_service.py`
+- **Tests:** 145/145 pass (dashboard + behavior + adherence)
 
 ## 2026-03-27 — Ops Wall: Fix Remaining STALE/Ghost Engine Issues (Round 2)
 

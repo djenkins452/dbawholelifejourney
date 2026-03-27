@@ -192,8 +192,13 @@ class DailyProgressService:
             return 0, {"tasks_done": 0, "tasks_total": 0}
 
     def _compute_workout(self):
-        """Whether a workout was logged today, respecting the user's schedule."""
+        """Whether a workout was logged today, respecting the user's schedule.
+
+        Fairness rule: if today's scheduled workout hasn't reached its
+        preferred_time yet, it's not due — don't penalize.
+        """
         try:
+            from apps.core.utils import get_user_now
             from apps.health.models import WorkoutPlan, WorkoutSession
 
             # Check if today is a scheduled workout day
@@ -210,9 +215,16 @@ class DailyProgressService:
                 if not schedule_entry or schedule_entry.is_rest_day:
                     return 100, {"workout_done": 0, "workout_total": 0}
 
+                # Future workout — preferred_time hasn't passed yet, not due
+                if schedule_entry.preferred_time:
+                    current_time = get_user_now(self.user).time()
+                    if schedule_entry.preferred_time > current_time:
+                        return 100, {"workout_done": 0, "workout_total": 0}
+
             done = WorkoutSession.objects.filter(
                 user=self.user,
                 date=self.today,
+                completed_at__isnull=False,
             ).exists()
 
             score = 100 if done else 0

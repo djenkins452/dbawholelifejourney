@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Fix: State Guard Overriding Conversational Responses
+
+- **Bug:** During evening faith Q&A conversations, the LLM's correct answer to "Could Jesus know about the Zechariah 9:9 prophecy?" was replaced by the evening check-in renderer output ("End of day, Danny. You completed everything today."). The deterministic router correctly classified the message as conversational fallthrough, but the post-processing state guard (`guard_llm_output`) ignored the router's classification and replaced the response because it contained common English phrases matching state patterns (e.g., "you've done your", "you completed").
+- **Root cause:** `guard_llm_output()` ran as a global post-processing override on ALL non-streaming LLM responses with no awareness of the router's route classification. State patterns like "you have done" and "you completed" are common conversational English, not just task-state language.
+- **Fix:** Gate the state guard behind the router's classification. The guard now only fires when the route is NOT a conversational fallthrough (i.e., for check-in, status, deterministic data paths where state protection is needed). Conversational responses (faith Q&A, coaching, learning) pass through untouched.
+- **Files:** `apps/ai/personal_assistant.py` (guard boundary), `apps/ai/tests/test_beth_checkin_renderer.py` (7 new tests)
+- **Tests:** 13/13 guard tests pass, 95/95 router tests pass. New tests cover: fallthrough skip, check-in enforcement, deterministic data enforcement, None route safety, faith response survival, check-in response blocking.
+
 ## 2026-03-26 — Fix Auto-Complete Timezone Display for Bible/Medicine/Faith Sources
 
 - **Fix:** Routine auto-complete "Completed via X at Y" labels were missing timezone-aware source object handlers for `bible`, `faith`, and `medicine` completion sources. Only `workout` and `journal` had handlers — other sources fell back to the RoutineLog creation time (`completed_at`) instead of the actual activity timestamp (`performed_at`).

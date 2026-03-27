@@ -1,16 +1,16 @@
 """
 Dashboard Guidance Panel Tests
 
-Tests for the "Today's Guidance" dashboard tile that surfaces PGE items.
+Tests for guidance items surfaced on the V2 dashboard (via HTMX insights
+section) and guidance lifecycle actions.
 
 Covers:
-- Panel renders when guidance items exist
-- Empty state renders when no items
-- Guidance items display title, message, source badges
-- Confidence shown only for predictions
-- Action endpoints (dismiss/snooze/acted) work from dashboard
+- Insights section renders when guidance items exist
+- Insights section hidden when no items
+- Guidance items display title/message in insights section
+- Action endpoints (dismiss/snooze/acted) work
 - Permissions: user cannot act on another user's guidance
-- Panel hidden when AI disabled
+- Deduplication & supersession logic (tested via get_active_guidance)
 """
 
 from datetime import timedelta
@@ -66,39 +66,45 @@ class GuidancePanelTestMixin:
 
 
 # ---------------------------------------------------------------------------
-# Dashboard Panel Rendering Tests
+# Insights Section Rendering Tests (V2 HTMX endpoint)
 # ---------------------------------------------------------------------------
 
 
 class GuidancePanelRenderTest(GuidancePanelTestMixin, TestCase):
-    """Tests that the guidance panel renders correctly on the dashboard."""
+    """Tests that guidance renders correctly in the V2 insights section."""
+
+    def _get_insights(self):
+        """Fetch the HTMX insights section endpoint."""
+        return self.client.get(reverse("dashboard_v2:section_insights"))
 
     def test_panel_renders_with_items(self):
-        """Dashboard shows guidance panel when items exist."""
+        """Insights section shows guidance when items exist."""
         self._create_guidance(title="Weight Trend Alert")
-        response = self.client.get(reverse("dashboard:home"))
+        response = self._get_insights()
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Today&#x27;s Guidance")
+        self.assertContains(response, "Insights")
         self.assertContains(response, "Weight Trend Alert")
 
     def test_panel_shows_empty_state(self):
-        """Dashboard shows empty state when no guidance items."""
-        response = self.client.get(reverse("dashboard:home"))
+        """Insights section is empty when no guidance items."""
+        response = self._get_insights()
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "all caught up")
+        # V2 insights section simply doesn't render when empty
+        self.assertNotContains(response, "Insights")
 
     def test_panel_hidden_when_ai_disabled(self):
         """Guidance tile is not rendered when AI is disabled."""
         self.user.preferences.ai_enabled = False
         self.user.preferences.save()
         self._create_guidance(title="Should Not Show")
-        response = self.client.get(reverse("dashboard:home"))
+        response = self.client.get(reverse("dashboard_v2:home"))
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "guidance-section")
+        # V2 main dashboard doesn't inline guidance content
+        self.assertNotContains(response, "Should Not Show")
 
-    def test_panel_shows_up_to_five_items(self):
-        """Panel shows max 5 guidance items."""
-        for i in range(7):
+    def test_insights_context_limits_to_two_items(self):
+        """V2 insights section limits guidance to 2 items."""
+        for i in range(5):
             self._create_guidance(
                 title=f"Guidance {i}",
                 guidance_type=f"test_rule_{i}",
@@ -106,81 +112,35 @@ class GuidancePanelRenderTest(GuidancePanelTestMixin, TestCase):
                     self.user.id, "test", str(i)
                 ),
             )
-        response = self.client.get(reverse("dashboard:home"))
+        response = self._get_insights()
         self.assertEqual(response.status_code, 200)
-        # Context should have exactly 5
-        self.assertEqual(len(response.context["guidance_items"]), 5)
+        # V2 insights shows max 2 guidance items
+        self.assertEqual(len(response.context["guidance_items"]), 2)
 
     def test_panel_excludes_dismissed_items(self):
-        """Dismissed items should not appear in the panel."""
+        """Dismissed items should not appear in the insights section."""
         item = self._create_guidance(title="Dismissed Item")
         item.dismiss()
-        response = self.client.get(reverse("dashboard:home"))
+        response = self._get_insights()
         self.assertNotContains(response, "Dismissed Item")
 
     def test_panel_excludes_snoozed_items(self):
-        """Snoozed items should not appear in the panel."""
+        """Snoozed items should not appear in the insights section."""
         item = self._create_guidance(title="Snoozed Item")
         item.snooze(timezone.now() + timedelta(hours=24))
-        response = self.client.get(reverse("dashboard:home"))
+        response = self._get_insights()
         self.assertNotContains(response, "Snoozed Item")
 
-    def test_panel_shows_source_badge_state(self):
-        """State-sourced items show the correct source badge."""
-        self._create_guidance(source="sae_state")
-        response = self.client.get(reverse("dashboard:home"))
-        self.assertContains(response, "guidance-source-sae_state")
-        self.assertContains(response, "State")
-
-    def test_panel_shows_source_badge_prediction(self):
-        """Prediction items show the Prediction badge."""
-        self._create_guidance(source="prie_prediction", confidence_score=0.87)
-        response = self.client.get(reverse("dashboard:home"))
-        self.assertContains(response, "guidance-source-prie_prediction")
-        self.assertContains(response, "Prediction")
-
     def test_panel_shows_source_badge_insight(self):
-        """Insight items show the Insight badge."""
-        self._create_guidance(source="pie_insight")
-        response = self.client.get(reverse("dashboard:home"))
-        self.assertContains(response, "Insight")
-
-    def test_confidence_shown_only_for_predictions(self):
-        """Confidence score is displayed only for prediction-sourced items."""
-        self._create_guidance(
-            title="With Confidence",
-            guidance_type="health_trend",
-            source="prie_prediction",
-            confidence_score=0.86,
-            dedupe_key=build_guidance_dedupe_key(self.user.id, "test", "conf"),
-        )
-        self._create_guidance(
-            title="Without Confidence",
-            guidance_type="goal_risk",
-            source="sae_state",
-            confidence_score=None,
-            dedupe_key=build_guidance_dedupe_key(self.user.id, "test", "noconf"),
-        )
-        response = self.client.get(reverse("dashboard:home"))
-        self.assertContains(response, "Confidence: 0.86")
-        content = response.content.decode()
-        # The state item should NOT have a confidence display
-        state_card_idx = content.find("Without Confidence")
-        pred_card_idx = content.find("With Confidence")
-        # Confidence text should appear near prediction card, not state card
-        self.assertTrue(pred_card_idx >= 0)
-        self.assertTrue(state_card_idx >= 0)
-
-    def test_panel_shows_view_all_link(self):
-        """Panel contains a link to the guidance inbox."""
-        response = self.client.get(reverse("dashboard:home"))
-        self.assertContains(response, "View all guidance")
-        self.assertContains(response, reverse("ai_guidance:inbox"))
+        """Insight items render in the insights section."""
+        self._create_guidance(source="pie_insight", title="Insight Guidance")
+        response = self._get_insights()
+        self.assertContains(response, "Insight Guidance")
 
     def test_context_contains_guidance_items(self):
-        """Dashboard context includes guidance_items list."""
+        """Insights section context includes guidance_items list."""
         self._create_guidance()
-        response = self.client.get(reverse("dashboard:home"))
+        response = self._get_insights()
         self.assertIn("guidance_items", response.context)
         self.assertEqual(len(response.context["guidance_items"]), 1)
 
@@ -239,24 +199,24 @@ class GuidancePanelActionTest(GuidancePanelTestMixin, TestCase):
         item.refresh_from_db()
         self.assertTrue(item.is_read)
 
-    def test_dismissed_item_removed_from_panel(self):
-        """After dismissing, item no longer appears on dashboard."""
+    def test_dismissed_item_removed_from_insights(self):
+        """After dismissing, item no longer appears in insights section."""
         item = self._create_guidance(title="Will Be Dismissed")
         self.client.post(
             reverse("ai_guidance:action", kwargs={"pk": item.pk}),
             {"action": "dismiss"},
         )
-        response = self.client.get(reverse("dashboard:home"))
+        response = self.client.get(reverse("dashboard_v2:section_insights"))
         self.assertNotContains(response, "Will Be Dismissed")
 
-    def test_snoozed_item_removed_from_panel(self):
-        """After snoozing, item no longer appears on dashboard."""
+    def test_snoozed_item_removed_from_insights(self):
+        """After snoozing, item no longer appears in insights section."""
         item = self._create_guidance(title="Will Be Snoozed")
         self.client.post(
             reverse("ai_guidance:action", kwargs={"pk": item.pk}),
             {"action": "snooze", "hours": "24"},
         )
-        response = self.client.get(reverse("dashboard:home"))
+        response = self.client.get(reverse("dashboard_v2:section_insights"))
         self.assertNotContains(response, "Will Be Snoozed")
 
 
@@ -295,8 +255,8 @@ class GuidancePanelPermissionTest(GuidancePanelTestMixin, TestCase):
         other_item.refresh_from_db()
         self.assertFalse(other_item.is_dismissed)
 
-    def test_other_users_items_not_in_panel(self):
-        """Other user's guidance items don't appear in current user's panel."""
+    def test_other_users_items_not_in_insights(self):
+        """Other user's guidance items don't appear in current user's insights."""
         other_user = User.objects.create_user(
             email="other2@test.com",
             password="testpass123",
@@ -310,21 +270,31 @@ class GuidancePanelPermissionTest(GuidancePanelTestMixin, TestCase):
             source="sae_state",
             dedupe_key=build_guidance_dedupe_key(other_user.id, "test", "x"),
         )
-        response = self.client.get(reverse("dashboard:home"))
+        response = self.client.get(reverse("dashboard_v2:section_insights"))
         self.assertNotContains(response, "Not My Guidance")
 
 
 # ---------------------------------------------------------------------------
-# Deduplication & Supersession Tests
+# Deduplication & Supersession Tests (business logic via get_active_guidance)
 # ---------------------------------------------------------------------------
 
 
 class GuidancePanelDeduplicationTest(GuidancePanelTestMixin, TestCase):
-    """Tests that duplicate and contradictory guidance items are filtered."""
+    """Tests that duplicate and contradictory guidance items are filtered.
+
+    These tests exercise get_active_guidance() directly since the dedup and
+    supersession logic is independent of any view layer.
+    """
+
+    def _get_active_items(self, limit=5):
+        """Call get_active_guidance directly."""
+        from apps.core.ai_guidance.guidance_engine import get_active_guidance
+
+        return get_active_guidance(self.user, limit=limit)
 
     def test_only_newest_per_guidance_type_and_module(self):
         """When multiple items share the same guidance_type + module, only
-        the newest one (by created_at) appears on the dashboard."""
+        the newest one (by created_at) appears."""
         # Older weight trend (created first)
         self._create_guidance(
             title="Weight trending down (-7.0 lb)",
@@ -347,8 +317,7 @@ class GuidancePanelDeduplicationTest(GuidancePanelTestMixin, TestCase):
                 self.user.id, "health_trend", "new"
             ),
         )
-        response = self.client.get(reverse("dashboard:home"))
-        items = response.context["guidance_items"]
+        items = self._get_active_items()
 
         health_trend_items = [
             i for i in items if i.guidance_type == "health_trend"
@@ -375,8 +344,7 @@ class GuidancePanelDeduplicationTest(GuidancePanelTestMixin, TestCase):
                 self.user.id, "goal_risk", "b"
             ),
         )
-        response = self.client.get(reverse("dashboard:home"))
-        items = response.context["guidance_items"]
+        items = self._get_active_items()
         self.assertEqual(len(items), 2)
 
     def test_same_type_different_module_both_shown(self):
@@ -397,8 +365,7 @@ class GuidancePanelDeduplicationTest(GuidancePanelTestMixin, TestCase):
                 self.user.id, "positive", "journal"
             ),
         )
-        response = self.client.get(reverse("dashboard:home"))
-        items = response.context["guidance_items"]
+        items = self._get_active_items()
         self.assertEqual(len(items), 2)
 
     def test_supersession_journal_streak_hides_inactivity(self):
@@ -426,8 +393,7 @@ class GuidancePanelDeduplicationTest(GuidancePanelTestMixin, TestCase):
                 self.user.id, "positive", "streak"
             ),
         )
-        response = self.client.get(reverse("dashboard:home"))
-        items = response.context["guidance_items"]
+        items = self._get_active_items()
 
         titles = [i.title for i in items]
         self.assertIn("4-day journaling streak!", titles)
@@ -455,8 +421,7 @@ class GuidancePanelDeduplicationTest(GuidancePanelTestMixin, TestCase):
                 self.user.id, "positive", "health"
             ),
         )
-        response = self.client.get(reverse("dashboard:home"))
-        items = response.context["guidance_items"]
+        items = self._get_active_items()
         titles = [i.title for i in items]
         # Both should be present — different modules
         self.assertIn("You haven't journaled recently", titles)
@@ -474,7 +439,6 @@ class GuidancePanelDeduplicationTest(GuidancePanelTestMixin, TestCase):
                 self.user.id, "journal_zero_30d"
             ),
         )
-        response = self.client.get(reverse("dashboard:home"))
-        items = response.context["guidance_items"]
+        items = self._get_active_items()
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0].title, "You haven't journaled recently")

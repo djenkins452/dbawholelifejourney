@@ -6,6 +6,7 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+<<<<<<< HEAD
 ## 2026-03-26 — Ops Wall: Fix False STALE/DEGRADED/Ghost Engine Warnings
 
 - **Fix:** CoS Context showed STALE despite 9 chats in 24h. Root cause: `build_learning_mode_context()` returned context dict without `_builder_timings` key, so zero `COS_BUILDER_*` stages were recorded in `ChatLatencySnapshot`. Added `'_builder_timings': {'learning_mode': 0}` to the learning mode context.
@@ -253,6 +254,12 @@ Next: Start with Bible Reading.
 **Architecture:** No new engines, no new signals, no parallel decision systems. All decisions deterministic. LLM-last preserved. Extends existing executive briefing, PGS generators, and user preferences.
 
 ---
+
+## 2026-03-26 — Sports: Hero logos + fix duplicate rows in sport sections
+
+- **Hero logos:** Added team logos (28px) next to both team names in the hero section. `opponent_logo` added to focus_game context.
+- **Duplicate rows fixed:** Sport sections were showing each game 6 times because the query used `Q(home_team__league) | Q(away_team__league)` which matched the same game twice (once per team). Changed to `home_team__league=league` only — since both teams in a game share the same league, this is sufficient and eliminates duplicates.
+- **Files:** `apps/sports/views.py` (opponent_logo in focus_game, fixed sport section query), `apps/sports/templates/sports/my_teams.html` (hero logos)
 
 ## 2026-03-25 — Sports: Team Logos + Card Polish
 

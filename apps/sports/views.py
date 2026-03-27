@@ -214,9 +214,16 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
             rank = urgency_rank[ng["urgency"]]
             priority = item["follow"].priority
             if rank < focus_rank or (rank == focus_rank and priority < getattr(focus_game, "_priority", 99)):
+                # Get opponent logo from the game event
+                game_obj = next_game_map.get(item["team"].id)
+                opp_logo = ""
+                if game_obj:
+                    opp_team = game_obj.away_team if game_obj.home_team_id == item["team"].id else game_obj.home_team
+                    opp_logo = opp_team.logo_url or ""
                 focus_game = {
                     "team": item["team"],
                     "opponent": ng["opponent"],
+                    "opponent_logo": opp_logo,
                     "urgency": ng["urgency"],
                     "start_time": ng["start_time"],
                     "venue": ng.get("venue", ""),
@@ -248,9 +255,11 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
                     opponent_name = last_game.away_team.full_name if is_home else last_game.home_team.full_name
                     break
             if user_team:
+                opp_team_obj = last_game.away_team if is_home else last_game.home_team
                 focus_game = {
                     "team": user_team,
                     "opponent": opponent_name,
+                    "opponent_logo": opp_team_obj.logo_url or "",
                     "urgency": "final",
                     "start_time": last_game.start_time,
                     "venue": last_game.venue or "",
@@ -388,19 +397,19 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
         for league in sorted(followed_leagues, key=lambda l: l.abbreviation):
             league_games = (
                 GameEvent.objects.filter(
-                    Q(home_team__league=league) | Q(away_team__league=league),
+                    home_team__league=league,
                     start_time__gte=now - timedelta(hours=24),
                     start_time__lte=now + timedelta(hours=48),
                 )
                 .select_related("home_team", "away_team")
-                .order_by("start_time")[:8]
+                .order_by("start_time")[:6]
             )
 
             # Fallback: if no games in window, get last completed
             if not league_games.exists():
                 league_games = (
                     GameEvent.objects.filter(
-                        Q(home_team__league=league) | Q(away_team__league=league),
+                        home_team__league=league,
                         status=GameEvent.STATUS_FINAL,
                     )
                     .select_related("home_team", "away_team")

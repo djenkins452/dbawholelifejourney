@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Ops Wall: Fix Remaining STALE/Ghost Engine Issues (Round 2)
+
+- **Fix:** CoS Context STALE resilience — added fallback in personal_assistant.py builder timing extraction. If a chat has CoS context but `_builder_timings` is empty/missing (stale cache, exception path), a synthetic `COS_BUILDER_context_present` entry is injected so the ops telemetry staleness checker sees at least one builder stage. Prevents false STALE on the ops wall.
+  - Files: `apps/ai/personal_assistant.py`
+- **Fix:** Removed ghost ISE engine and duplicate GLOE from AllEnginesView. ISE is an orchestrator (no `ise_task_name`), not a runnable engine — showing it as NEVER was misleading. GLOE was already in `ALL_ENGINES` via `ENGINE_CADENCES`, so the hardcoded extras list was redundant. Changed to `sorted(set(ALL_ENGINES))`.
+  - Files: `apps/core/ai_observability/ops_views.py`
+
 ## 2026-03-26 — Auto-Detect User Timezone from Browser
 
 - **New:** Browser-based timezone auto-detection. On first page load per session, JS detects the user's timezone via `Intl.DateTimeFormat().resolvedOptions().timeZone` and sends it to `POST /users/api/timezone-detect/`. Only updates the preference if it's still the default "UTC" (never overrides a user-set timezone). Page reloads after successful update for immediate effect.

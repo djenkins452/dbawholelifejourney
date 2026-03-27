@@ -13,12 +13,16 @@ logger = logging.getLogger(__name__)
 # Cache key patterns
 USER_TODAY_GAMES_KEY = "wlj:sports:user:{user_id}:today_games"
 USER_TEAM_SUMMARIES_KEY = "wlj:sports:user:{user_id}:team_summaries"
+USER_SIGNALS_KEY = "wlj:sports:user:{user_id}:signals"
+USER_VIEW_MODEL_KEY = "wlj:sports:user:{user_id}:view_model"
 GAME_STATUS_KEY = "wlj:sports:game:{game_id}:status"
 SYNC_HEALTH_KEY = "wlj:sports:sync_health"
 
 # TTLs (seconds)
 TODAY_GAMES_TTL = 300        # 5 minutes
 TEAM_SUMMARIES_TTL = 900     # 15 minutes
+SIGNALS_TTL = 300            # 5 minutes
+VIEW_MODEL_TTL = 300         # 5 minutes
 LIVE_GAME_TTL = 120          # 2 minutes
 SYNC_HEALTH_TTL = 3600       # 1 hour
 
@@ -64,9 +68,9 @@ def get_user_sports_summary(user, warm_on_miss=False):
     return []  # No data yet — background task populates this
 
 
-def _warm_cache_for_user(user):
+def warm_view_model_for_user(user):
     """
-    Single-user cache warm: generate signals and populate cache.
+    Single-user cache warm: build view model and populate cache.
 
     Called on cache miss during hub page load. This is NOT a background task —
     it runs synchronously but is lightweight (single user, small query set).
@@ -74,27 +78,24 @@ def _warm_cache_for_user(user):
     """
     lock_key = f"wlj:sports:warming:{user.id}"
     if cache.get(lock_key):
-        return  # Another request is already warming
+        return None  # Another request is already warming
 
     cache.set(lock_key, True, 30)  # 30-second lock
     try:
-        from apps.sports.tasks import _build_summaries_from_signals
-        from apps.sports.services.signal_generator import generate_sports_signals, SIGNAL_GAME_TODAY
-        from django.utils import timezone
-
-        signals = generate_sports_signals(user)
-        now = timezone.now()
-
-        summaries = _build_summaries_from_signals(user, signals, now)
-        set_user_sports_summary(user.id, summaries)
-
-        today_games = [
-            s["data"] for s in signals
-            if s["signal_type"] == SIGNAL_GAME_TODAY
-        ]
-        set_user_today_games(user.id, today_games)
+        from apps.sports.services.sports_view_model import build_sports_view_model
+        vm = build_sports_view_model(user)
+        set_user_view_model(user.id, vm)
+        return vm
+    except Exception:
+        logger.warning("Sports view model warm-on-miss failed for user %s", user.id, exc_info=True)
+        return None
     finally:
         cache.delete(lock_key)
+
+
+def _warm_cache_for_user(user):
+    """Legacy warm — delegates to view model warm."""
+    warm_view_model_for_user(user)
 
 
 def set_user_sports_summary(user_id, summaries):
@@ -118,6 +119,30 @@ def set_user_today_games(user_id, games):
     cache.set(key, games, TODAY_GAMES_TTL)
 
 
+def get_user_signals(user):
+    """Get cached signal list for a user."""
+    key = USER_SIGNALS_KEY.format(user_id=user.id)
+    return cache.get(key)  # Returns None on miss (not [])
+
+
+def set_user_signals(user_id, signals):
+    """Store signal list in cache."""
+    key = USER_SIGNALS_KEY.format(user_id=user_id)
+    cache.set(key, signals, SIGNALS_TTL)
+
+
+def get_user_view_model(user):
+    """Get cached view model for a user."""
+    key = USER_VIEW_MODEL_KEY.format(user_id=user.id)
+    return cache.get(key)
+
+
+def set_user_view_model(user_id, view_model):
+    """Store view model in cache."""
+    key = USER_VIEW_MODEL_KEY.format(user_id=user_id)
+    cache.set(key, view_model, VIEW_MODEL_TTL)
+
+
 def invalidate_user_caches_for_game(game_event):
     """
     Invalidate caches for all users following teams in this game.
@@ -134,6 +159,8 @@ def invalidate_user_caches_for_game(game_event):
     for user_id in user_ids:
         cache.delete(USER_TODAY_GAMES_KEY.format(user_id=user_id))
         cache.delete(USER_TEAM_SUMMARIES_KEY.format(user_id=user_id))
+        cache.delete(USER_SIGNALS_KEY.format(user_id=user_id))
+        cache.delete(USER_VIEW_MODEL_KEY.format(user_id=user_id))
 
 
 def set_sync_health(data):

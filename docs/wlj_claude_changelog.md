@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-26 — Sports: Signal-Driven Architecture Redesign
+
+**Major refactor:** Replaced raw GameEvent queries in the view with a signal→view model→template pipeline.
+
+- **New file:** `apps/sports/services/sports_view_model.py` — `build_sports_view_model(user)` consumes signals from `signal_generator.py` and returns a structured dict with: `hero`, `momentum_strip`, `live_games`, `my_schedule`, `league_boards`, `stories`, `ticker`, `recent_action`, `meta`.
+- **Priority engine:** Deterministic scoring (team importance + temporal urgency + streak heat) drives hero selection and schedule ordering. No LLM, no ML.
+- **Signal generator extended:** Added `game_final` (last completed game per team) and `game_upcoming` (games within 7 days) signals. Total: 7 signal types.
+- **View simplified:** `SportsHubView.get_context_data()` reduced from ~400 lines to ~30 lines. Reads pre-computed view model from cache. Falls back to synchronous warm-on-miss.
+- **Cache layer:** Added `get/set_user_signals()` and `get/set_user_view_model()` to cache_manager. Invalidation on GameEvent save clears all user caches.
+- **Celery task:** `compute_sports_signals()` now also builds and caches the view model for each user.
+- **Template redesigned:** New layout: Hero → Momentum Strip (replaces static team grid) → Live Now → My Schedule (scored, deduped) → League Boards → Stories → Recent → Ticker. Off-season teams excluded from momentum strip.
+- **Files:** `apps/sports/services/sports_view_model.py` (new), `apps/sports/services/signal_generator.py`, `apps/sports/services/cache_manager.py`, `apps/sports/tasks.py`, `apps/sports/views.py`, `apps/sports/templates/sports/my_teams.html`
+
 ## 2026-03-26 — Sports: Hero logos + fix duplicate rows in sport sections
 
 - **Hero logos:** Added team logos (28px) next to both team names in the hero section. `opponent_logo` added to focus_game context.

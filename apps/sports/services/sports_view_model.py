@@ -135,9 +135,14 @@ def build_sports_view_model(user):
     # ── BUILD MOMENTUM STRIP ────────────────────────────────────────
     momentum_strip = _build_momentum_strip(follows, signals_by_team, streak_map, final_signals)
 
-    # ── BUILD LIVE GAMES ────────────────────────────────────────────
+    # ── BUILD LIVE GAMES (deduped by game_id) ────────────────────────
     live_games = []
+    live_seen = set()
     for s in live_signals:
+        gid = s["game_id"]
+        if gid in live_seen:
+            continue
+        live_seen.add(gid)
         follow = team_map.get(s["team_id"])
         if follow:
             live_games.append(_build_game_item(s, follow.team, "live"))

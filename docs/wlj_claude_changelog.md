@@ -6,7 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-<<<<<<< HEAD
+## 2026-03-26 — Fix Auto-Complete Timezone Display for Bible/Medicine/Faith Sources
+
+- **Fix:** Routine auto-complete "Completed via X at Y" labels were missing timezone-aware source object handlers for `bible`, `faith`, and `medicine` completion sources. Only `workout` and `journal` had handlers — other sources fell back to the RoutineLog creation time (`completed_at`) instead of the actual activity timestamp (`performed_at`).
+  - Added `UserReadingProgress` lookup for bible/faith sources (uses `completed_at` from reading progress)
+  - Added `MedicineLog` lookup for medicine sources (uses `taken_at` from medicine log)
+  - Fallback path now uses `log.performed_at` (activity time) before `log.completed_at` (log creation time) for more accurate timezone display
+  - Files: `apps/life/services/_routine_internal.py`
+- **Fix:** Added missing `COMPLETION_SOURCE_CHOICES` entries for `faith` and `journal` — these sources were used in auto-complete signals but not registered as valid choices.
+  - Files: `apps/life/models.py`
+
 ## 2026-03-26 — Ops Wall: Fix False STALE/DEGRADED/Ghost Engine Warnings
 
 - **Fix:** CoS Context showed STALE despite 9 chats in 24h. Root cause: `build_learning_mode_context()` returned context dict without `_builder_timings` key, so zero `COS_BUILDER_*` stages were recorded in `ChatLatencySnapshot`. Added `'_builder_timings': {'learning_mode': 0}` to the learning mode context.

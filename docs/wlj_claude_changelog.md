@@ -6,6 +6,12 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-26 — Sports: Hero logos + fix duplicate rows in sport sections
+
+- **Hero logos:** Added team logos (28px) next to both team names in the hero section. `opponent_logo` added to focus_game context.
+- **Duplicate rows fixed:** Sport sections were showing each game 6 times because the query used `Q(home_team__league) | Q(away_team__league)` which matched the same game twice (once per team). Changed to `home_team__league=league` only — since both teams in a game share the same league, this is sufficient and eliminates duplicates.
+- **Files:** `apps/sports/views.py` (opponent_logo in focus_game, fixed sport section query), `apps/sports/templates/sports/my_teams.html` (hero logos)
+
 ## 2026-03-25 — Sports: Team Logos + Card Polish
 
 - **Logos populated:** `_link_teams()` now saves `logo_url` from ESPN provider during team linking. Backfill logic runs for already-linked teams missing logos.

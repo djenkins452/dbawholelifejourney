@@ -95,7 +95,7 @@
 
     .manage-link:hover { background: rgba(165, 180, 252, 0.1); color: rgba(165, 180, 252, 1); }
 
-    .hero-matchup { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    .hero-matchup { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .hero-team { font-size: 2rem; font-weight: 900; color: white; line-height: 1.1; letter-spacing: -0.03em; }
     .hero-vs { font-size: 0.8rem; font-weight: 600; color: rgba(255, 255, 255, 0.2); text-transform: uppercase; }
     .hero-score { font-size: 3.2rem; font-weight: 900; color: white; letter-spacing: -2px; margin-top: 8px; line-height: 1; }
@@ -535,8 +535,10 @@
         </div>
 
         <div class="hero-matchup">
+            {% if focus_game.team.logo_url %}<img src="{{ focus_game.team.logo_url }}" alt="" class="team-logo--hero" loading="lazy" onerror="this.style.display='none'">{% endif %}
             <span class="hero-team">{{ focus_game.team.full_name }}</span>
             <span class="hero-vs">{% if focus_game.is_home %}vs{% else %}@{% endif %}</span>
+            {% if focus_game.opponent_logo %}<img src="{{ focus_game.opponent_logo }}" alt="" class="team-logo--hero" loading="lazy" onerror="this.style.display='none'">{% endif %}
             <span class="hero-team">{{ focus_game.opponent }}</span>
         </div>
 

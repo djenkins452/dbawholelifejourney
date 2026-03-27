@@ -11,6 +11,7 @@ from apps.ai.deterministic_router import (
     classify_and_route,
     get_scoped_builders,
     should_skip_semantic_memory,
+    _match_routine_time_query,
     _match_weight_query,
     _match_workout_query,
     _match_sleep_query,
@@ -862,3 +863,43 @@ class InsightInvitationTests(TestCase):
         result = classify_and_route("what's my weight?", user)
         # Should have weight info but may or may not have invitation
         self.assertIn('302.9 lbs', result.response)
+
+
+class RoutineTimeQueryMatcherTests(TestCase):
+    """Test _match_routine_time_query pattern matching."""
+
+    def test_when_is_my_workout(self):
+        self.assertEqual(_match_routine_time_query("when is my workout?"), "workout")
+
+    def test_when_is_my_workout_no_question_mark(self):
+        self.assertEqual(_match_routine_time_query("when is my workout"), "workout")
+
+    def test_what_time_is_prayer(self):
+        self.assertEqual(_match_routine_time_query("what time is prayer?"), "prayer")
+
+    def test_what_time_is_my_shower(self):
+        self.assertEqual(_match_routine_time_query("what time is my shower?"), "shower")
+
+    def test_when_is_bible_reading_scheduled(self):
+        self.assertEqual(
+            _match_routine_time_query("when is bible reading scheduled"),
+            "bible reading",
+        )
+
+    def test_when_is_workout_today(self):
+        self.assertEqual(
+            _match_routine_time_query("when is workout today"),
+            "workout",
+        )
+
+    def test_no_match_general_question(self):
+        self.assertIsNone(_match_routine_time_query("tell me about workouts"))
+
+    def test_no_match_how_many(self):
+        self.assertIsNone(_match_routine_time_query("how many workouts this week?"))
+
+    def test_no_match_check_in(self):
+        self.assertIsNone(_match_routine_time_query("check in"))
+
+    def test_no_match_move_command(self):
+        self.assertIsNone(_match_routine_time_query("move workout to 6pm"))

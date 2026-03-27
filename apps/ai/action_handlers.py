@@ -5054,6 +5054,24 @@ class ActionHandler:
                     action_type='reschedule_routine_item',
                 )
 
+            # Invalidate CoS and execution truth caches so the morning
+            # briefing and Today Engine reflect the new time immediately.
+            try:
+                from apps.ai.readiness_cache import invalidate_cos_context_on_action
+                invalidate_cos_context_on_action(self.user)
+            except Exception:
+                pass
+            try:
+                from apps.core.events.domain_events import (
+                    safe_emit_event, EventTypes,
+                )
+                safe_emit_event(EventTypes.TASK_UPDATED, self.user, {
+                    "source": "reschedule_routine_item",
+                    "schedule_id": match.id,
+                })
+            except Exception:
+                pass
+
             formatted_time = result['rescheduled_time']
             return ActionResult(
                 success=True,

@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Fix: State Sync, Router Misclassification, Post-Action Staleness
+
+- **Bug 1 (State sync):** After "move workout to 6:15 PM", the morning briefing still showed workout as a morning item. Root cause: `handle_reschedule_routine_item()` did not call `invalidate_cos_context_on_action()` — the CoS context cache (90s flat / 300s stable) served stale data.
+  - **Fix:** Added cache invalidation + domain event emission after successful reschedule.
+  - Files: `apps/ai/action_handlers.py`
+- **Bug 2 (Router):** "when is my workout?" was not answered directly — it fell through to the LLM (or previously was replaced by the state guard, now fixed). No deterministic route existed for time-specific routine queries.
+  - **Fix:** Added `_match_routine_time_query()` and `_handle_routine_time_query()` to the deterministic router. Matches "when is my X?", "what time is X?", "when is X scheduled/today?" patterns. Looks up RoutineSchedule time (including rescheduled time) and returns a direct answer. Registered as Phase 1b (before check-in prefilter).
+  - Files: `apps/ai/deterministic_router.py`, `apps/ai/tests/test_deterministic_router.py`
+- **Bug 3 (Post-action staleness):** Already addressed by Bug 1 fix — cache invalidation ensures the next check-in uses fresh data. The state guard fix from earlier in this session prevents conversational fallthrough responses from being replaced.
+- **Tests:** 105/105 router tests pass (10 new for routine time queries). All system checks clean.
+
 ## 2026-03-27 — Fix: Recurring Tasks Cannot Be Permanently Removed
 
 - **Bug:** "Work on WLJ" and "Workout" reappeared after deletion because of a model mismatch: the morning briefing reads from RoutineSchedule items (via execution truth), but the AI delete handler only operated on Task objects. Deleting a Task had zero effect on the RoutineSchedule source. Additionally, `_ensure_routine_tasks_for_today()` ignored `end_date` and created ghost Task instances past their series expiration.

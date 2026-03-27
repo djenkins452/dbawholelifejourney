@@ -6,6 +6,12 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-26 — Auto-Detect User Timezone from Browser
+
+- **New:** Browser-based timezone auto-detection. On first page load per session, JS detects the user's timezone via `Intl.DateTimeFormat().resolvedOptions().timeZone` and sends it to `POST /users/api/timezone-detect/`. Only updates the preference if it's still the default "UTC" (never overrides a user-set timezone). Page reloads after successful update for immediate effect.
+  - Files: `apps/users/views.py` (TimezoneAutoDetectView), `apps/users/urls.py`, `templates/base.html`
+- **Root cause:** All routine auto-complete timestamps ("Completed via Workout at 3:57 AM") were showing UTC times because the user's timezone preference defaulted to "UTC" and was never set. The timezone conversion code was correct — it just had no timezone to convert to.
+
 ## 2026-03-26 — Fix Auto-Complete Timezone Display for Bible/Medicine/Faith Sources
 
 - **Fix:** Routine auto-complete "Completed via X at Y" labels were missing timezone-aware source object handlers for `bible`, `faith`, and `medicine` completion sources. Only `workout` and `journal` had handlers — other sources fell back to the RoutineLog creation time (`completed_at`) instead of the actual activity timestamp (`performed_at`).

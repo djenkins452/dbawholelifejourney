@@ -14,6 +14,13 @@
 - **Files:** `apps/ai/personal_assistant.py` (guard boundary), `apps/ai/tests/test_beth_checkin_renderer.py` (7 new tests)
 - **Tests:** 13/13 guard tests pass, 95/95 router tests pass. New tests cover: fallthrough skip, check-in enforcement, deterministic data enforcement, None route safety, faith response survival, check-in response blocking.
 
+## 2026-03-26 — Fix Failing Tests: MFA Middleware + Memory Verse Dashboard
+
+- **Fix:** MFA enforcement middleware tests (`test_exempt_user_not_redirected`, `test_regular_user_not_redirected`, `test_mfa_verified_session_allows_access`) were using `dashboard:home` which now redirects to `dashboard_v2:home`, making all responses 302 regardless of MFA status. Updated tests to use `dashboard_v2:home` directly.
+  - Files: `apps/users/tests/test_mfa_email_code.py`
+- **Fix:** `MemoryVerseOnDashboardTest.test_dashboard_shows_memory_verse_when_set` was checking `dashboard_v2:home` for memory verse content, but V2 dashboard does not render memory verses inline. Updated test to verify memory verse badge on `faith:scripture_list` instead.
+  - Files: `apps/faith/tests/test_saved_verses.py`
+
 ## 2026-03-26 — Fix Auto-Complete Timezone Display for Bible/Medicine/Faith Sources
 
 - **Fix:** Routine auto-complete "Completed via X at Y" labels were missing timezone-aware source object handlers for `bible`, `faith`, and `medicine` completion sources. Only `workout` and `journal` had handlers — other sources fell back to the RoutineLog creation time (`completed_at`) instead of the actual activity timestamp (`performed_at`).

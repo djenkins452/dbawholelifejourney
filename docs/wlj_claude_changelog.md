@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-26 — Ops Wall: Fix False STALE/DEGRADED/Ghost Engine Warnings
+
+- **Fix:** CoS Context showed STALE despite 9 chats in 24h. Root cause: `build_learning_mode_context()` returned context dict without `_builder_timings` key, so zero `COS_BUILDER_*` stages were recorded in `ChatLatencySnapshot`. Added `'_builder_timings': {'learning_mode': 0}` to the learning mode context.
+  - Files: `apps/core/ai_orchestrator/cos_context.py`
+- **Fix:** CDCE_CI engine showed ERROR status. Root cause: engine registry `module_path` pointed to nonexistent `apps.core.ai_cross_domain.checkin_generator`. Corrected to `apps.ai.proactive_checkins` where the actual implementation lives.
+  - Files: `apps/core/engine_registry.py`
+- **Fix:** Removed orphaned E3 engine from ops wall All Engines display. E3 was hardcoded in `ops_views.py` but never registered, never scheduled, and never implemented — causing a permanent NEVER status entry that inflated the degraded count.
+  - Files: `apps/core/ai_observability/ops_views.py`
+
 ## 2026-03-26 — Authoritative Day-Start: handle_day_start() Unified Across All Entry Points
 
 - **New:** `handle_day_start(user)` in `executive_briefing.py` — single authoritative day-start initializer called from ALL user-facing entry points. Ensures routine tasks exist for today and auto-completes Wake Up. Cache-backed idempotency (one initialization per user-local-date, subsequent calls are instant no-ops).

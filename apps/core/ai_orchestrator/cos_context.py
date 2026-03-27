@@ -8923,6 +8923,7 @@ def build_learning_mode_context(user):
         'transformation_metrics': {},
         'health_signals': {},
         'user_priorities': [],
+        '_builder_timings': {'learning_mode': 0},
     }
 
     try:

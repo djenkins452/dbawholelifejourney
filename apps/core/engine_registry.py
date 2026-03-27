@@ -622,7 +622,7 @@ _register(
         code="CDCE_CI",
         name="CDCE Check-in Generator",
         phase=EnginePhase.EXECUTION,
-        module_path="apps.core.ai_cross_domain.checkin_generator",
+        module_path="apps.ai.proactive_checkins",
         signal_types=(SignalType.GUIDANCE,),
         description="Generates cross-domain correlation check-in messages.",
         ise_task_name="generate_cdce_check_ins",

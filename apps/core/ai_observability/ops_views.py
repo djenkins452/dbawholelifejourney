@@ -1114,7 +1114,7 @@ class AllEnginesView(AdminRequiredMixin, TemplateView):
         cadence_config = get_cadence_config()
 
         engines = []
-        for engine_name in sorted(ALL_ENGINES + ["GLOE", "ISE", "E3"]):
+        for engine_name in sorted(ALL_ENGINES + ["GLOE", "ISE"]):
             cfg = cadence_config.get(engine_name, {})
             last_run = (
                 EngineRun.objects.filter(engine_name=engine_name)

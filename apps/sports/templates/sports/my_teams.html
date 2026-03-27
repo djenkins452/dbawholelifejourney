@@ -6,11 +6,12 @@
 {% block extra_css %}
 <style>
     /* ═══════════════════════════════════════════════════════════════
-       SPORTS HUB v2 — Focused Experience
-       Hero → What's Next → Momentum → Key Storylines
+       SPORTS HUB v3 — Alive & Focused
+       Hero → Live Now → Ticker → What's Next → Momentum →
+       Storylines → More Games
        ═══════════════════════════════════════════════════════════════ */
 
-    .sports-hub { max-width: 720px; margin: 0 auto; padding: 0 0 40px; }
+    .sports-hub { max-width: 760px; margin: 0 auto; padding: 0 0 48px; }
 
     /* ── HERO ── */
     .hero {
@@ -39,12 +40,49 @@
     .hero-vs { font-size: 0.8rem; font-weight: 600; color: rgba(255, 255, 255, 0.2); text-transform: uppercase; }
     .hero-score { font-size: 3.4rem; font-weight: 900; color: white; letter-spacing: -2px; margin-top: 12px; line-height: 1; }
     .hero-time { font-size: 1.7rem; font-weight: 800; color: rgba(255, 255, 255, 0.8); margin-top: 14px; letter-spacing: -0.5px; }
-
     .hero-insight { font-size: 0.75rem; color: rgba(165, 180, 252, 0.7); margin-top: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
-
     .hero-meta { display: flex; gap: 12px; margin-top: 8px; font-size: 0.7rem; color: rgba(255, 255, 255, 0.25); }
     .streak--W { color: #22c55e; }
     .streak--L { color: #ef4444; }
+
+    /* ── LIVE NOW STRIP ── */
+    .live-strip { background: rgba(239, 68, 68, 0.04); border-bottom: 1px solid rgba(239, 68, 68, 0.1); padding: 10px 16px; display: flex; gap: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .live-strip::-webkit-scrollbar { display: none; }
+    .live-card {
+        flex-shrink: 0; display: flex; align-items: center; gap: 10px;
+        padding: 10px 14px; border-radius: 8px;
+        background: var(--color-surface); border: 1px solid rgba(239, 68, 68, 0.15);
+        min-width: 220px;
+    }
+    .live-dot { display: inline-block; width: 6px; height: 6px; background: #ef4444; border-radius: 50%; animation: pulse-live 1.5s infinite; flex-shrink: 0; }
+    .live-card-logo { width: 20px; height: 20px; object-fit: contain; }
+    .live-card-info { flex: 1; min-width: 0; }
+    .live-card-teams { font-size: 0.8rem; font-weight: 700; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .live-card-score { font-size: 0.95rem; font-weight: 800; color: var(--color-text); }
+    .live-card-league { font-size: 0.55rem; font-weight: 700; color: var(--color-text-muted); }
+
+    @keyframes pulse-live { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* ── SMART TICKER ── */
+    .smart-ticker {
+        background: #0f172a; padding: 0; height: 34px;
+        overflow: hidden; position: relative;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .ticker-track {
+        display: flex; height: 100%; align-items: center;
+        transition: transform 0.6s ease-in-out;
+    }
+    .ticker-item {
+        flex-shrink: 0; width: 100%; height: 100%;
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        font-size: 0.72rem; color: rgba(255, 255, 255, 0.6); padding: 0 16px;
+        white-space: nowrap;
+    }
+    .ticker-type { font-size: 0.55rem; font-weight: 800; padding: 2px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .ticker-type--live { background: #dc2626; color: white; }
+    .ticker-type--final { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.4); }
+    .ticker-type--storyline { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; }
 
     /* ── SECTIONS ── */
     .hub-section { padding: 0 16px; margin-top: 24px; }
@@ -60,7 +98,9 @@
     .next-logo { width: 24px; height: 24px; object-fit: contain; flex-shrink: 0; }
     .next-main { flex: 1; min-width: 0; }
     .next-teams { font-size: 0.88rem; font-weight: 700; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .next-teams strong { font-weight: 700; }
+    .next-context { font-size: 0.7rem; color: var(--color-text-muted); margin-top: 2px; }
+    .next-context--hot { color: #22c55e; }
+    .next-context--cold { color: #ef4444; }
     .next-right { text-align: right; flex-shrink: 0; }
     .next-time { font-size: 0.82rem; font-weight: 700; color: var(--color-text); }
     .next-badge { font-size: 0.55rem; font-weight: 800; padding: 2px 7px; border-radius: 3px; text-transform: uppercase; display: inline-block; margin-top: 2px; }
@@ -70,13 +110,17 @@
     /* ── MOMENTUM ── */
     .momentum-row {
         display: flex; align-items: center; justify-content: space-between;
-        padding: 8px 14px; border-radius: 6px;
-        margin-bottom: 4px;
+        padding: 10px 14px; border-radius: 6px; margin-bottom: 4px;
+        background: var(--color-surface);
     }
     .momentum-team { font-size: 0.88rem; font-weight: 700; color: var(--color-text); }
-    .momentum-streak { font-size: 0.88rem; font-weight: 800; display: flex; align-items: center; gap: 6px; }
+    .momentum-right { display: flex; align-items: center; gap: 10px; }
+    .momentum-streak { font-size: 0.88rem; font-weight: 800; }
     .momentum-streak--hot { color: #22c55e; }
     .momentum-streak--cold { color: #ef4444; }
+    .momentum-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    .momentum-label--hot { color: rgba(34, 197, 94, 0.6); }
+    .momentum-label--cold { color: rgba(239, 68, 68, 0.6); }
 
     /* ── STORYLINES ── */
     .storyline-item {
@@ -90,20 +134,29 @@
     .storyline-dot--blowout { background: #f59e0b; }
     .storyline-dot--close { background: #6366f1; }
 
-    @keyframes pulse-live { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    /* ── MORE GAMES ── */
+    .more-row {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 12px; font-size: 0.8rem;
+        border-bottom: 1px solid var(--color-border);
+    }
+    .more-row:last-child { border-bottom: 0; }
+    .more-logo { width: 18px; height: 18px; object-fit: contain; flex-shrink: 0; }
+    .more-teams { flex: 1; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .more-time { font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); flex-shrink: 0; }
+    .more-league { font-size: 0.55rem; font-weight: 700; color: var(--color-text-muted); flex-shrink: 0; min-width: 28px; text-align: right; }
 
     /* ── FOOTER ── */
-    .hub-footer { text-align: center; padding: 24px 16px 0; }
+    .hub-footer { text-align: center; padding: 28px 16px 0; }
     .manage-link { font-size: 0.75rem; color: var(--color-text-muted); text-decoration: none; padding: 8px 20px; border: 1px solid var(--color-border); border-radius: 20px; transition: all 0.15s; }
     .manage-link:hover { background: var(--color-surface); color: var(--color-text); }
 
-    /* ── EMPTY STATE ── */
+    /* ── EMPTY / QUIET ── */
     .empty-state { text-align: center; padding: 80px 24px; color: var(--color-text-muted); }
     .empty-icon { width: 56px; height: 56px; margin: 0 auto 16px; opacity: 0.2; }
     .empty-state h2 { font-size: 1.1rem; font-weight: 700; color: var(--color-text); margin: 0 0 8px; }
     .empty-state p { font-size: 0.85rem; margin-bottom: 24px; max-width: 320px; margin-left: auto; margin-right: auto; }
     .btn-select { display: inline-block; padding: 12px 28px; background: var(--color-accent); color: white; border-radius: 24px; text-decoration: none; font-weight: 700; font-size: 0.85rem; }
-
     .no-activity { text-align: center; padding: 32px 16px; color: var(--color-text-muted); font-size: 0.85rem; }
 
     /* ── RESPONSIVE ── */
@@ -115,6 +168,8 @@
         .hero-logo { width: 28px; height: 28px; }
         .hero-matchup { gap: 8px; }
         .hub-section { padding: 0 12px; margin-top: 20px; }
+        .live-strip { padding: 8px 12px; gap: 8px; }
+        .live-card { min-width: 190px; padding: 8px 10px; }
     }
 </style>
 {% endblock %}
@@ -177,7 +232,40 @@
     </div>
     {% endif %}
 
-    {# ═══ 2. WHAT'S NEXT — max 3 upcoming games ═══ #}
+    {# ═══ 2. LIVE NOW STRIP — all live games ═══ #}
+    {% if live_now %}
+    <div class="live-strip">
+        {% for g in live_now %}
+        <div class="live-card">
+            <span class="live-dot"></span>
+            {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="live-card-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+            <div class="live-card-info">
+                <div class="live-card-teams">{{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}</div>
+                <span class="live-card-league">{{ g.league }}</span>
+            </div>
+            <div class="live-card-score">{{ g.score }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# ═══ 3. SMART TICKER — slow, meaningful updates ═══ #}
+    {% if ticker %}
+    <div class="smart-ticker" data-ticker-pause-on-hover="true">
+        <div class="ticker-track" id="ticker-track">
+            {% for t in ticker %}
+            <div class="ticker-item">
+                <span class="ticker-type ticker-type--{{ t.type }}">
+                    {% if t.type == "live" %}LIVE{% elif t.type == "final" %}FINAL{% else %}NEWS{% endif %}
+                </span>
+                <span>{{ t.text }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# ═══ 4. WHAT'S NEXT — max 3 upcoming with context ═══ #}
     {% if whats_next %}
     <div class="hub-section">
         <div class="section-label">What's Next</div>
@@ -188,6 +276,7 @@
                 <div class="next-teams">
                     {{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} <strong>{{ g.opponent }}</strong>
                 </div>
+                {% if g.context %}<div class="next-context{% if 'win' in g.context or 'Won' in g.context %} next-context--hot{% elif 'loss' in g.context or 'Lost' in g.context %} next-context--cold{% endif %}">{{ g.context }}</div>{% endif %}
             </div>
             <div class="next-right">
                 <div class="next-time" data-start-time="{{ g.start_time }}"></div>
@@ -202,23 +291,26 @@
     </div>
     {% endif %}
 
-    {# ═══ 3. MOMENTUM — meaningful streaks only ═══ #}
+    {# ═══ 5. MOMENTUM — meaningful streaks with interpretation ═══ #}
     {% if momentum %}
     <div class="hub-section">
         <div class="section-label">Momentum</div>
         {% for m in momentum %}
         <div class="momentum-row">
             <span class="momentum-team">{{ m.team_name }}</span>
-            <span class="momentum-streak momentum-streak--{{ m.heat }}">
-                {{ m.streak_type }}{{ m.streak_count }}
-                {% if m.heat == "hot" %}&#128293;{% else %}&#10060;{% endif %}
-            </span>
+            <div class="momentum-right">
+                <span class="momentum-label momentum-label--{{ m.heat }}">{{ m.label }}</span>
+                <span class="momentum-streak momentum-streak--{{ m.heat }}">
+                    {{ m.streak_type }}{{ m.streak_count }}
+                    {% if m.heat == "hot" %}&#128293;{% else %}&#10060;{% endif %}
+                </span>
+            </div>
         </div>
         {% endfor %}
     </div>
     {% endif %}
 
-    {# ═══ 4. KEY STORYLINES — high-value insights ═══ #}
+    {# ═══ 6. KEY STORYLINES ═══ #}
     {% if storylines %}
     <div class="hub-section">
         <div class="section-label">Key Storylines</div>
@@ -231,7 +323,22 @@
     </div>
     {% endif %}
 
-    {# ═══ No hero, no upcoming, no streaks — quiet state ═══ #}
+    {# ═══ 7. MORE GAMES — controlled depth ═══ #}
+    {% if more_games %}
+    <div class="hub-section">
+        <div class="section-label">More Games</div>
+        {% for g in more_games %}
+        <div class="more-row">
+            {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="more-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+            <span class="more-teams">{{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}</span>
+            <span class="more-time" data-start-time="{{ g.start_time }}"></span>
+            <span class="more-league">{{ g.league }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# ═══ Quiet state ═══ #}
     {% if not hero and not whats_next and not momentum and not storylines %}
     <div class="no-activity">No games or activity right now. Check back later.</div>
     {% endif %}
@@ -244,9 +351,10 @@
     {% endif %}{# end has_teams #}
 </div>
 
-{# ═══ FORMAT TIMES FROM ISO STRINGS ═══ #}
+{# ═══ JAVASCRIPT: Time formatting + Smart Ticker ═══ #}
 <script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
+    // ── Format all ISO timestamps to local time ──
     document.querySelectorAll('[data-start-time]').forEach(function(el) {
         var iso = el.getAttribute('data-start-time');
         if (!iso) return;
@@ -269,6 +377,29 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } catch(e) {}
     });
+
+    // ── Smart Ticker: one item every 3.5 seconds, pause on hover ──
+    var track = document.getElementById('ticker-track');
+    if (track && track.children.length > 1) {
+        var index = 0;
+        var count = track.children.length;
+        var paused = false;
+
+        // Set initial position
+        track.style.transform = 'translateY(0)';
+
+        var ticker = track.closest('.smart-ticker');
+        if (ticker) {
+            ticker.addEventListener('mouseenter', function() { paused = true; });
+            ticker.addEventListener('mouseleave', function() { paused = false; });
+        }
+
+        setInterval(function() {
+            if (paused) return;
+            index = (index + 1) % count;
+            track.style.transform = 'translateY(-' + (index * 34) + 'px)';
+        }, 3500);
+    }
 });
 </script>
 {% endblock %}

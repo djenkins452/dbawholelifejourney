@@ -10,6 +10,9 @@ Completion sources (checked in order):
   3. RoutineLog (routine item with obligation_type='workout' or name match)
 
 A day is "completed" if ANY of these sources records a completion.
+
+Fairness rule: today's workouts scheduled after the current time are excluded
+from expected count. You can't miss a workout that isn't due yet.
 """
 
 import logging
@@ -36,6 +39,7 @@ def calculate_workout_behavior_output(user, start_date, end_date):
     Returns:
         dict matching behavior output contract, or None if no active plan
     """
+    from apps.core.utils import get_user_now, get_user_today
     from apps.health.models import WorkoutPlan, WorkoutScheduleLog, WorkoutSession
 
     active_plan = WorkoutPlan.objects.filter(
@@ -51,13 +55,23 @@ def calculate_workout_behavior_output(user, start_date, end_date):
     if not schedule_entries:
         return None
 
-    # Count expected workout days in the date range
+    user_today = get_user_today(user)
+    user_now = get_user_now(user)
+    current_time = user_now.time()
+
+    # Count expected workout days in the date range.
+    # For today: only count workouts whose preferred_time has passed.
+    # You can't miss a workout that isn't due yet.
     expected_days = set()
     day = start_date
     while day <= end_date:
         day_of_week = day.weekday()
+        is_today = (day == user_today)
         for entry in schedule_entries:
             if entry.applies_to_day(day_of_week):
+                if is_today and entry.preferred_time and entry.preferred_time > current_time:
+                    # Future workout today — not due yet, skip
+                    continue
                 expected_days.add(day)
         day += timedelta(days=1)
 
@@ -136,11 +150,6 @@ def calculate_workout_behavior_output(user, start_date, end_date):
     # A day is completed if ANY source records completion
     all_completed_dates = (log_completed_dates | session_dates | routine_dates) & expected_days
     all_skipped_dates = log_skipped_dates - all_completed_dates  # skip only if not completed
-
-    # Today's workout: always count in expected (the day has a scheduled workout).
-    # The user can still complete it later today — it shows as "missed" until done,
-    # then flips to "completed" when they finish it. This matches user expectation:
-    # if overdue, it should show; once completed, it updates.
 
     completed = len(all_completed_dates)
     skipped = len(all_skipped_dates)

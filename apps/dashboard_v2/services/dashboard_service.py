@@ -356,10 +356,10 @@ class DashboardV2Service:
             1 for rg in _rg if rg.get("all_complete")
         )
         context["routine_total"] = len(_rg)
-        context["medicine_done"] = sum(
-            1 for m in context.get("medicine_items", []) if m.get("taken")
-        )
-        context["medicine_total"] = len(context.get("medicine_items", []))
+        # Count only visible (due) medicine groups — don't penalize for future stacks
+        visible_med = context.get("visible_medicine_groups", [])
+        context["medicine_done"] = sum(g.get("taken_count", 0) for g in visible_med)
+        context["medicine_total"] = sum(g.get("total_count", 0) for g in visible_med)
 
         # Time phase for section ordering
         context["time_phase"] = self.get_time_phase()

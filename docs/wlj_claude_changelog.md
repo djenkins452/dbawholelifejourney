@@ -64,6 +64,22 @@
   - Files: `apps/users/views.py` (TimezoneAutoDetectView), `apps/users/urls.py`, `templates/base.html`
 - **Root cause:** All routine auto-complete timestamps ("Completed via Workout at 3:57 AM") were showing UTC times because the user's timezone preference defaulted to "UTC" and was never set. The timezone conversion code was correct — it just had no timezone to convert to.
 
+## 2026-03-27 — Morning Briefing: CoS Contract Upgrade
+
+- **Enhancement:** Refactored `_render_morning()` to enforce a CoS contract structure: Opening → Immediate Plan → Full-Day View → Closing.
+- **Graduated tone in `_assess_situation_structured()`:**
+  - Orientation (items < 90 min overdue, no completions): "Let's get your morning started." — no "behind" language
+  - Nudge (< 120 min overdue or ≤ 2 items): "Running a bit late — let's get focused."
+  - Behind (2+ hours or 3+ items): "You're behind this morning — let's tighten up."
+- **Softened triage language:**
+  - "won't fit before then — plan to move it later today" → "can move to later today"
+  - "You can get X done before Y" → "Start with X. Then Y — all before Z."
+  - "N things to get through first" → "N items before that"
+- **Full-day view:** New `_build_full_day_view()` shows key afternoon/evening items (medications, high-priority items, major commitments) — max 3 items, 1 line.
+- **Closing statement:** `_morning_closing()` adds a short directional close based on state (e.g., "Keep this morning tight.", "One thing at a time.", "Good start — keep it going.").
+- **Files:** `apps/ai/beth_checkin_renderer.py`, `apps/ai/tests/test_beth_briefing.py`
+- **Tests:** 23/23 briefing tests pass, 13/13 guard tests pass. Updated situational awareness tests for graduated tone.
+
 ## 2026-03-27 — Fix: State Sync, Router Misclassification, Post-Action Staleness
 
 - **Bug 1 (State sync):** After "move workout to 6:15 PM", the morning briefing still showed workout as a morning item. Root cause: `handle_reschedule_routine_item()` did not call `invalidate_cos_context_on_action()` — the CoS context cache (90s flat / 300s stable) served stale data.

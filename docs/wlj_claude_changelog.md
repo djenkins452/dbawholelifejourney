@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Sports Hub v3: Alive & Focused Redesign
+
+- **Enhancement:** Upgraded from v2 minimal (4 sections) to v3 alive+focused (7 sections). Added Live Now strip (horizontal scroll of live games with pulsing dots), Smart Ticker (vertical rotation, 1 item per 3.5s, pauses on hover), More Games section (remaining games, max 8, no duplicates). Enhanced What's Next with context lines ("Won 5 straight", "Need a win after 3 losses"). Momentum now has interpreted labels (Hot, On fire, Dominant, Cold, Struggling, Freefall).
+- **View Model:** Added `live_now` (max 5 live games excluding hero, deduped), `ticker` (max 15 items: live scores + finals + high-importance storylines), `more_games` (max 8 remaining games, deduped against hero/live/whats_next). Added `context` to whats_next items. Added `label` to momentum items.
+- **Template:** Smart ticker uses CSS vertical transition + JS setInterval. Live strip uses horizontal scroll with snap. All sections maintain no-duplicate invariant.
+- **Files:** `apps/sports/services/sports_view_model.py`, `apps/sports/templates/sports/my_teams.html`
+
 ## 2026-03-27 — Fix Wake Up Auto-Complete: Route Through Canonical RoutineSchedule Engine
 
 - **Root Cause:** `auto_complete_wakeup()` in `executive_briefing.py` queried the legacy `Task` model (`is_routine=True, title__icontains='wake up'`), but Wake Up exists only as a `RoutineSchedule` item. The query always found nothing, so Wake Up was never auto-completed on first interaction.

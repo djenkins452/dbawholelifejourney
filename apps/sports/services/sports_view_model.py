@@ -95,11 +95,11 @@ def _get_contract(user):
 def _build_from_contract(contract, follows, team_map, team_ids, now):
     """Build view model from _contract (primary path).
 
+    V3 layout: Hero → Live Now → Ticker → What's Next → Momentum →
+               Storylines → More Games
+
     Reads canonical team data and storylines from _contract.
     Derives presentation-only values: heat, priority scores, hero selection.
-
-    V2 layout: Hero → What's Next (3) → Momentum (5) → Storylines (5)
-    Removed: momentum_strip, live_games, league_boards, ticker, recent_action
     """
     teams = contract.get('teams', [])
     storylines = contract.get('storylines', [])
@@ -116,34 +116,62 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
     # ── HERO: single most important game ─────────────────────────────
     hero = None
     hero_team_id = None
+    hero_game_id = None
     if scored_teams:
         _, hero_team = scored_teams[0]
         hero = _build_hero_from_contract(hero_team)
         hero_team_id = hero_team.get('team_id')
+        hero_game_id = (hero_team.get('next_game') or {}).get('game_id')
     else:
-        # Fallback: team with most recent last_result
         for t in teams:
             if t.get('last_result'):
                 hero = _build_hero_from_contract(t)
                 hero_team_id = t.get('team_id')
                 break
 
-    # ── WHAT'S NEXT: top 3 non-hero games within 48h ─────────────────
+    # ── LIVE NOW: all live games except hero (max 5, deduped) ────────
+    live_now = []
+    live_seen = {hero_game_id} if hero_game_id else set()
+    for t in teams:
+        if t.get('status') != 'live' or not t.get('next_game'):
+            continue
+        ng = t['next_game']
+        game_id = ng.get('game_id')
+        if game_id and game_id in live_seen:
+            continue
+        if game_id:
+            live_seen.add(game_id)
+        live_now.append({
+            "team_name": t.get('team_name', ''),
+            "team_logo": t.get('logo_url', ''),
+            "opponent": ng.get('opponent', ''),
+            "opponent_logo": ng.get('opponent_logo', ''),
+            "is_home": ng.get('is_home', True),
+            "score": ng.get('score', ''),
+            "league": t.get('league', ''),
+        })
+        if len(live_now) >= 5:
+            break
+
+    # ── TICKER: recent finals + live scores (max 15) ─────────────────
+    ticker = _build_smart_ticker(teams, storylines)
+
+    # ── WHAT'S NEXT: top 3 non-hero, non-live within 48h ────────────
     whats_next = []
     next_seen = set()
     for _, t in scored_teams:
         tid = t.get('team_id')
         if tid == hero_team_id:
-            continue  # Don't repeat hero game
+            continue
         if t.get('status') == 'live':
-            continue  # Live games belong in hero, not schedule
-        game_id = t['next_game'].get('game_id') if t.get('next_game') else None
+            continue
+        ng = t.get('next_game') or {}
+        game_id = ng.get('game_id')
         if game_id and game_id in next_seen:
             continue
         if game_id:
             next_seen.add(game_id)
-        # Filter: only games within 48h
-        ng = t.get('next_game') or {}
+        # 48h window filter
         if ng.get('start_time'):
             try:
                 from django.utils.dateparse import parse_datetime
@@ -152,6 +180,8 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
                     continue
             except (ValueError, TypeError):
                 pass
+        # Context line: why this game matters
+        context = _game_context_line(t)
         whats_next.append({
             "team_name": t.get('team_name', ''),
             "team_logo": t.get('logo_url', ''),
@@ -160,6 +190,7 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
             "start_time": ng.get('start_time', ''),
             "urgency": t.get('status', 'upcoming'),
             "league": t.get('league', ''),
+            "context": context,
         })
         if len(whats_next) >= 3:
             break
@@ -169,18 +200,33 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
     for t in sorted(teams, key=lambda x: x.get('streak_count', 0), reverse=True):
         if t.get('streak_count', 0) < 3:
             continue
+        sc = t['streak_count']
+        st = t.get('streak_type', '')
+        # Interpret the streak
+        if st == 'W' and sc >= 7:
+            label = "Dominant"
+        elif st == 'W' and sc >= 5:
+            label = "On fire"
+        elif st == 'W':
+            label = "Hot"
+        elif st == 'L' and sc >= 7:
+            label = "Freefall"
+        elif st == 'L' and sc >= 5:
+            label = "Struggling"
+        else:
+            label = "Cold"
         momentum.append({
             "team_name": t.get('team_name', ''),
-            "streak_type": t.get('streak_type', ''),
-            "streak_count": t.get('streak_count', 0),
-            "heat": "hot" if t.get('streak_type') == 'W' else "cold",
+            "streak_type": st,
+            "streak_count": sc,
+            "heat": "hot" if st == 'W' else "cold",
+            "label": label,
         })
         if len(momentum) >= 5:
             break
 
     # ── KEY STORYLINES: high+medium importance, max 5 ─────────────────
     key_storylines = []
-    # High importance first, then medium
     for importance in ('high', 'medium'):
         for sl in storylines:
             if sl.get('importance') == importance:
@@ -194,15 +240,105 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
         if len(key_storylines) >= 5:
             break
 
+    # ── MORE GAMES: remaining today/upcoming games not already shown ──
+    shown_ids = {hero_game_id} if hero_game_id else set()
+    shown_ids.update(g.get('game_id') for g in live_now if 'game_id' in g)
+    shown_ids.update(next_seen)
+    shown_ids.discard(None)
+
+    more_games = []
+    for _, t in scored_teams:
+        ng = t.get('next_game') or {}
+        game_id = ng.get('game_id')
+        if game_id in shown_ids:
+            continue
+        if game_id:
+            shown_ids.add(game_id)
+        if t.get('status') not in ('today', 'starting_soon', 'upcoming'):
+            continue
+        more_games.append({
+            "team_name": t.get('team_name', ''),
+            "team_logo": t.get('logo_url', ''),
+            "opponent": ng.get('opponent', ''),
+            "is_home": ng.get('is_home', True),
+            "start_time": ng.get('start_time', ''),
+            "urgency": t.get('status', 'upcoming'),
+            "league": t.get('league', ''),
+        })
+        if len(more_games) >= 8:
+            break
+
     meta = _build_meta(team_ids, now)
 
     return {
         "hero": hero,
+        "live_now": live_now,
+        "ticker": ticker,
         "whats_next": whats_next,
         "momentum": momentum,
         "storylines": key_storylines,
+        "more_games": more_games,
         "meta": meta,
     }
+
+
+def _build_smart_ticker(teams, storylines):
+    """Build a slow, meaningful ticker from recent results and live scores.
+
+    Content: finals, live scores, high-importance storylines.
+    Max 15 items. Designed for 3-4 second per-item display.
+    """
+    items = []
+
+    # Live scores first
+    for t in teams:
+        if t.get('status') == 'live':
+            ng = t.get('next_game') or {}
+            items.append({
+                "text": f"{t['team_name']} vs {ng.get('opponent', '')} — {ng.get('score', '')}",
+                "type": "live",
+            })
+
+    # Recent finals
+    for t in teams:
+        lr = t.get('last_result')
+        if not lr:
+            continue
+        result = lr.get('result', '')
+        prefix = "W" if result == "W" else ("L" if result == "L" else "T")
+        items.append({
+            "text": f"{t['team_name']} {prefix} {lr.get('score', '')} vs {lr.get('opponent', '')}",
+            "type": "final",
+        })
+
+    # High-importance storylines as ticker items
+    for sl in storylines:
+        if sl.get('importance') == 'high' and sl.get('type') != 'live':
+            items.append({
+                "text": sl.get('message', ''),
+                "type": "storyline",
+            })
+
+    return items[:15]
+
+
+def _game_context_line(team_entry):
+    """Generate a short context line for why a game matters."""
+    sc = team_entry.get('streak_count', 0)
+    st = team_entry.get('streak_type', '')
+    record = team_entry.get('record', '')
+
+    if st == 'W' and sc >= 5:
+        return f"On a {sc}-game win streak"
+    if st == 'W' and sc >= 3:
+        return f"Won {sc} straight"
+    if st == 'L' and sc >= 5:
+        return f"Lost {sc} straight — looking to bounce back"
+    if st == 'L' and sc >= 3:
+        return f"Need a win after {sc} losses"
+    if record:
+        return record
+    return ""
 
 
 def _build_from_signals(user, follows, team_map, team_ids, now):
@@ -275,8 +411,31 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
         team = follow.team if follow else None
         hero = _build_hero(fs, team, streak_map, now)
 
-    # What's Next: top 3 non-hero, non-live games
+    # Live Now: live games except hero (max 5)
     hero_team_id = hero_signal["team_id"] if scored_games else None
+    hero_game_id = hero_signal["game_id"] if scored_games else None
+    live_now = []
+    live_seen = {hero_game_id} if hero_game_id else set()
+    for s in live_signals:
+        gid = s["game_id"]
+        if gid in live_seen:
+            continue
+        live_seen.add(gid)
+        follow = team_map.get(s["team_id"])
+        if follow:
+            live_now.append({
+                "team_name": s["team_name"],
+                "team_logo": follow.team.logo_url or "",
+                "opponent": s["data"].get("opponent", ""),
+                "opponent_logo": s["data"].get("opponent_logo", ""),
+                "is_home": s["data"].get("is_home", True),
+                "score": s["data"].get("score", ""),
+                "league": s["data"].get("league", ""),
+            })
+        if len(live_now) >= 5:
+            break
+
+    # What's Next: top 3 non-hero, non-live games
     whats_next = []
     next_seen = set()
     for _, s in scored_games:
@@ -290,6 +449,19 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
         next_seen.add(gid)
         follow = team_map.get(s["team_id"])
         if follow:
+            streak = streak_map.get(s["team_id"], "")
+            context = ""
+            if streak and len(streak) >= 2:
+                try:
+                    sc = int(streak[1:])
+                    if streak[0] == 'W' and sc >= 3:
+                        context = f"Won {sc} straight"
+                    elif streak[0] == 'L' and sc >= 3:
+                        context = f"Need a win after {sc} losses"
+                except ValueError:
+                    pass
+            if not context:
+                context = follow.team.record_display or ""
             whats_next.append({
                 "team_name": s["team_name"],
                 "team_logo": follow.team.logo_url or "",
@@ -298,6 +470,7 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
                 "start_time": s["data"].get("start_time", ""),
                 "urgency": _signal_to_urgency(s["signal_type"]),
                 "league": s["data"].get("league", ""),
+                "context": context,
             })
         if len(whats_next) >= 3:
             break
@@ -314,30 +487,90 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
         if s_count < 3:
             continue
         follow = team_map.get(tid)
+        st = streak[0]
+        if st == 'W' and s_count >= 7:
+            label = "Dominant"
+        elif st == 'W' and s_count >= 5:
+            label = "On fire"
+        elif st == 'W':
+            label = "Hot"
+        elif st == 'L' and s_count >= 7:
+            label = "Freefall"
+        elif st == 'L' and s_count >= 5:
+            label = "Struggling"
+        else:
+            label = "Cold"
         if follow:
             momentum.append({
                 "team_name": follow.team.full_name,
-                "streak_type": streak[0],
+                "streak_type": st,
                 "streak_count": s_count,
-                "heat": "hot" if streak[0] == "W" else "cold",
+                "heat": "hot" if st == "W" else "cold",
+                "label": label,
             })
         if len(momentum) >= 5:
             break
 
-    # Storylines from signal-derived stories
+    # Storylines
     stories = _build_stories(streak_signals, final_signals, live_signals, team_map)
     storylines = [
         {"message": s["text"], "type": s["type"], "importance": "medium"}
         for s in stories
     ]
 
+    # Ticker from signal-derived data
+    ticker_items = []
+    for s in live_signals:
+        d = s["data"]
+        ticker_items.append({
+            "text": f"{s['team_name']} vs {d.get('opponent', '')} — {d.get('score', '')}",
+            "type": "live",
+        })
+    for s in final_signals[:8]:
+        d = s["data"]
+        result = d.get("result", "")
+        ticker_items.append({
+            "text": f"{s['team_name']} {result} {d.get('score', '')} vs {d.get('opponent', '')}",
+            "type": "final",
+        })
+
+    # More games: remaining scored games not shown
+    shown_ids = {hero_game_id} if hero_game_id else set()
+    shown_ids.update(s["game_id"] for s in live_signals if s["game_id"] in live_seen)
+    shown_ids.update(next_seen)
+    shown_ids.discard(None)
+    more_games = []
+    for _, s in scored_games:
+        gid = s["game_id"]
+        if gid in shown_ids:
+            continue
+        shown_ids.add(gid)
+        if s["signal_type"] == SIGNAL_GAME_LIVE:
+            continue
+        follow = team_map.get(s["team_id"])
+        if follow:
+            more_games.append({
+                "team_name": s["team_name"],
+                "team_logo": follow.team.logo_url or "",
+                "opponent": s["data"].get("opponent", ""),
+                "is_home": s["data"].get("is_home", True),
+                "start_time": s["data"].get("start_time", ""),
+                "urgency": _signal_to_urgency(s["signal_type"]),
+                "league": s["data"].get("league", ""),
+            })
+        if len(more_games) >= 8:
+            break
+
     meta = _build_meta(team_ids, now)
 
     return {
         "hero": hero,
+        "live_now": live_now,
+        "ticker": ticker_items[:15],
         "whats_next": whats_next,
         "momentum": momentum,
         "storylines": storylines,
+        "more_games": more_games,
         "meta": meta,
     }
 
@@ -1065,8 +1298,11 @@ def _empty_view_model():
     """Return empty view model structure."""
     return {
         "hero": None,
+        "live_now": [],
+        "ticker": [],
         "whats_next": [],
         "momentum": [],
         "storylines": [],
+        "more_games": [],
         "meta": {"last_updated": None, "data_source": ""},
     }

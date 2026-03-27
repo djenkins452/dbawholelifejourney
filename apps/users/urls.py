@@ -61,6 +61,7 @@ urlpatterns = [
     path("api/sub-feature-toggle/", views.SubFeatureToggleView.as_view(), name="sub_feature_toggle"),
     path("api/sub-features/", views.SubFeaturesBulkView.as_view(), name="sub_features"),
     path("api/module-order/", views.ModuleOrderView.as_view(), name="module_order"),
+    path("api/timezone-detect/", views.TimezoneAutoDetectView.as_view(), name="timezone_detect"),
 
     # Biometric / WebAuthn Login
     path("biometric/check/", views.BiometricCheckView.as_view(), name="biometric_check"),

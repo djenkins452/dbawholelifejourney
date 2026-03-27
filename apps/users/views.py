@@ -127,6 +127,47 @@ ONBOARDING_STEPS = [
 ]
 
 
+class TimezoneAutoDetectView(LoginRequiredMixin, View):
+    """
+    Accept browser-detected timezone and update user preferences.
+
+    Called once per session from base template JS. Only updates if
+    the user's timezone is still the default "UTC" (never manually set).
+    """
+
+    def post(self, request, *args, **kwargs):
+        import json
+        import zoneinfo
+
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        detected_tz = data.get('timezone', '').strip()
+        if not detected_tz:
+            return JsonResponse({'error': 'No timezone provided'}, status=400)
+
+        # Validate it's a real IANA timezone
+        try:
+            zoneinfo.ZoneInfo(detected_tz)
+        except (KeyError, zoneinfo.ZoneInfoNotFoundError):
+            return JsonResponse({'error': 'Invalid timezone'}, status=400)
+
+        prefs = request.user.preferences
+        # Only auto-set if still on default UTC (user never changed it)
+        if prefs.timezone == 'UTC':
+            prefs.timezone = detected_tz
+            prefs.save(update_fields=['timezone', 'updated_at'])
+            logger.info(
+                "TIMEZONE_AUTO_DETECT user=%s detected=%s",
+                request.user.pk, detected_tz,
+            )
+            return JsonResponse({'updated': True, 'timezone': detected_tz})
+
+        return JsonResponse({'updated': False, 'timezone': prefs.timezone_iana})
+
+
 class ProfileView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     """
     Display user profile information.

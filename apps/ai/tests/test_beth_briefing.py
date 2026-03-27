@@ -76,23 +76,44 @@ class TestDurationEstimation(TestCase):
 class TestSituationalAwareness(TestCase):
     """Test behind / on track / ahead classification."""
 
-    def test_overdue_items_means_behind(self):
+    def test_slightly_overdue_no_completions_is_orientation(self):
+        """Items only slightly past schedule with no completions → orientation."""
+        user_now = timezone.now().replace(hour=7, minute=0)
+        sched = user_now.replace(hour=6, minute=30)  # 30 min ago
         result = _assess_situation(
-            overdue=[{'label': 'x'}],
+            overdue=[{'label': 'x', 'item': {'scheduled_time': sched}}],
             completed=[],
             coming_up=[],
-            user_now=timezone.now().replace(hour=6),
+            user_now=user_now,
+        )
+        # Orientation tier: no "behind" language
+        self.assertIn("get your morning started", result.lower())
+
+    def test_significantly_overdue_means_behind(self):
+        """Items 2+ hours past schedule → behind."""
+        user_now = timezone.now().replace(hour=9, minute=0)
+        sched = user_now.replace(hour=6, minute=0)  # 3 hours ago
+        entry = {'label': 'x', 'item': {'scheduled_time': sched}}
+        result = _assess_situation(
+            overdue=[entry, entry, entry],
+            completed=[],
+            coming_up=[],
+            user_now=user_now,
         )
         self.assertIn('behind', result.lower())
 
-    def test_many_overdue_means_behind(self):
+    def test_moderate_overdue_with_activity_means_behind(self):
+        """Overdue items when user has some completions → nudge/behind."""
+        user_now = timezone.now().replace(hour=7, minute=30)
+        sched = user_now.replace(hour=6, minute=30)  # 60 min ago
         result = _assess_situation(
-            overdue=[{'label': 'x'}] * 3,
-            completed=[],
+            overdue=[{'label': 'x', 'item': {'scheduled_time': sched}}],
+            completed=[{'label': 'done'}],
             coming_up=[],
-            user_now=timezone.now().replace(hour=6),
+            user_now=user_now,
         )
-        self.assertIn('behind', result.lower())
+        # Has completions so orientation doesn't apply → nudge/behind
+        self.assertIn("late", result.lower())
 
     def test_completed_no_upcoming_means_ahead(self):
         result = _assess_situation(
@@ -149,9 +170,9 @@ class TestMorningBriefingOutput(TestCase):
         # Should mention what to do now
         self.assertIn('Bible Reading', output)
         self.assertIn('Prayer', output)
-        # Should mention workout won't fit
+        # Should mention workout can move to later
         self.assertIn('Workout', output)
-        self.assertIn("won't fit", output)
+        self.assertIn("later today", output)
         # Should NOT contain domain labels
         for word in _BANNED_WORDS:
             self.assertNotIn(word, output.lower())
@@ -181,7 +202,7 @@ class TestMorningBriefingOutput(TestCase):
         output = _render_morning(ctx, self.user, user_now)
 
         # Should NOT suggest moving anything
-        self.assertNotIn("won't fit", output)
+        self.assertNotIn("later today", output)
 
     def test_ahead_scenario(self):
         """Scenario: Some items already done, nothing overdue."""

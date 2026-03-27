@@ -259,12 +259,19 @@ def _render_checkin_from_truth(user, phase: str = "morning") -> str:
 # ---------------------------------------------------------------------------
 
 def _render_morning(ctx, user, user_now) -> str:
-    """Morning briefing — narrative, triage, guidance."""
+    """Morning briefing — CoS contract: greeting, situation, plan, day view.
+
+    Structure:
+    A. Opening — greeting + situation awareness
+    B. Immediate plan — 1-2 next actions + constraint anchor
+    C. Full-day view — key items later today (medications, priorities)
+    D. Closing — directional statement
+    """
     lines = []
     first_name = getattr(user, 'first_name', '') or ''
     hour = user_now.hour
 
-    # ── 1. Greeting ──
+    # ── A. Opening: Greeting + Situation ──
     if hour < 5:
         lines.append(f"Early start{', ' + first_name if first_name else ''}.")
     elif hour < 9:
@@ -274,13 +281,6 @@ def _render_morning(ctx, user, user_now) -> str:
     else:
         lines.append(f"Morning{', ' + first_name if first_name else ''}.")
 
-    # ── 2. Day narrative (flow, not inventory) ──
-    narrative = _build_day_narrative(ctx, user_now)
-    if narrative:
-        lines.append("")
-        lines.append(narrative)
-
-    # ── 3. Situational awareness ──
     overdue = ctx.get("overdue", [])
     coming_up = ctx.get("coming_up", [])
     completed = ctx.get("completed", [])
@@ -290,7 +290,7 @@ def _render_morning(ctx, user, user_now) -> str:
     lines.append("")
     lines.append(situation)
 
-    # ── 4 + 5. Time-aware triage + adjustment ──
+    # ── B. Immediate Plan: next actions + anchor ──
     triage = _build_morning_triage(
         ctx, user_now, overdue, coming_up, later,
     )
@@ -298,7 +298,7 @@ def _render_morning(ctx, user, user_now) -> str:
         lines.append("")
         lines.append(triage)
 
-    # ── 6. Completed acknowledgment (brief) ──
+    # Completed acknowledgment (brief, only if some done)
     if completed:
         names = [e['label'] for e in completed[:3]]
         if len(completed) <= 3:
@@ -311,7 +311,76 @@ def _render_morning(ctx, user, user_now) -> str:
                 f"+{len(completed) - 3} more."
             )
 
+    # ── C. Full-Day View: key afternoon/evening items ──
+    day_view = _build_full_day_view(ctx, user_now)
+    if day_view:
+        lines.append("")
+        lines.append(day_view)
+
+    # ── D. Closing: directional ──
+    _state, _ = _assess_situation_structured(
+        overdue, completed, coming_up, user_now,
+    )
+    closing = _morning_closing(_state, completed, overdue, later)
+    if closing:
+        lines.append("")
+        lines.append(closing)
+
     return "\n".join(lines)
+
+
+def _build_full_day_view(ctx, user_now) -> str:
+    """Build a brief view of key items later today.
+
+    Only includes items that matter for day planning:
+    medications, high-priority tasks, and major commitments.
+    Keeps it to 1-2 lines max.
+    """
+    later = ctx.get("later", [])
+    if not later:
+        return ""
+
+    # Filter to notable items only
+    notable = []
+    for entry in later:
+        item = entry.get('item', {})
+        name = (item.get('name') or '').strip()
+        source = item.get('source', '')
+        priority = item.get('priority', '')
+        time_str = item.get('time_str', '')
+        name_lower = name.lower()
+
+        is_medication = source == 'medication' or any(
+            k in name_lower for k in ('mounjaro', 'medication', 'medicine')
+        )
+        is_high_priority = priority in ('foundational', 'high', 'important')
+        is_commitment = any(
+            k in name_lower
+            for k in ('meeting', 'appointment', 'call', 'class', 'payroll')
+        )
+
+        if is_medication or is_high_priority or is_commitment:
+            label = f"{name} ({time_str})" if time_str else name
+            notable.append(label)
+
+    if not notable:
+        return ""
+
+    items = notable[:3]  # Max 3 items
+    return "Later today: " + ", ".join(items) + "."
+
+
+def _morning_closing(state, completed, overdue, later) -> str:
+    """Short directional closing line based on situation."""
+    if state == 'ahead':
+        return "Keep that momentum."
+    if state == 'behind' and len(overdue) >= 3:
+        return "One thing at a time."
+    if completed and len(completed) >= 2:
+        return "Good start — keep it going."
+    if later:
+        return "Keep this morning tight."
+    return ""
 
 
 def _build_day_narrative(ctx, user_now) -> str:
@@ -380,8 +449,8 @@ def _build_day_narrative(ctx, user_now) -> str:
                 f"Your morning leads into "
                 f"{anchor['name']} at {anchor.get('time_str', '')}, "
                 f"with {len(before_anchor)} "
-                f"thing{'s' if len(before_anchor) != 1 else ''} "
-                f"to get through first."
+                f"{'items' if len(before_anchor) != 1 else 'item'} "
+                f"before that."
             )
         return (
             f"Your morning starts with {anchor['name']} "
@@ -409,7 +478,13 @@ def _assess_situation(overdue, completed, coming_up, user_now) -> str:
 
 
 def _assess_situation_structured(overdue, completed, coming_up, user_now):
-    """Determine situational state with both enum and text.
+    """Determine situational state with graduated tone.
+
+    Three tiers for overdue items based on severity:
+    - orientation: items past schedule but user likely just starting day
+      (no completions, items < 90 min overdue)
+    - nudge: moderate lateness or some activity already
+    - behind: clearly late (items 2+ hours overdue or many overdue)
 
     Returns:
         (state, text) where state is 'behind' | 'on_track' | 'ahead'
@@ -419,12 +494,32 @@ def _assess_situation_structured(overdue, completed, coming_up, user_now):
     hour = user_now.hour
 
     if has_overdue:
-        if len(overdue) >= 3:
-            return ('behind', "You're behind this morning — a few things have slipped.")
-        return ('behind', "You're a bit behind — let's get you caught up.")
+        # Calculate how far the most overdue item has slipped
+        max_overdue_min = 0
+        for entry in overdue:
+            item = entry.get('item', {})
+            sched = item.get('scheduled_time')
+            if sched:
+                delta = (user_now - sched).total_seconds() / 60
+                if delta > max_overdue_min:
+                    max_overdue_min = delta
+
+        # Tier 1: Orientation — user just opening the app, items are
+        # only slightly past schedule, nothing completed yet.
+        # This is a normal morning startup, not a failure.
+        if not has_completed and max_overdue_min < 90:
+            return ('on_track', "Let's get your morning started.")
+
+        # Tier 2: Gentle nudge — moderate lateness or user has been
+        # active but falling behind
+        if max_overdue_min < 120 or len(overdue) <= 2:
+            return ('behind', "Running a bit late — let's get focused.")
+
+        # Tier 3: Clearly behind — significant overdue items
+        return ('behind', "You're behind this morning — let's tighten up.")
 
     if has_completed and not coming_up:
-        return ('ahead', "You're ahead right now — nice position to be in.")
+        return ('ahead', "You're ahead — solid position.")
 
     if hour < 6 and not has_completed:
         return ('on_track', "Early start — you've got time to set the tone.")
@@ -569,26 +664,22 @@ def _build_triage_structured(ctx, user_now, overdue, coming_up, later) -> dict:
 
     # Build text output
     parts = []
+    deadline_time_str = hard_deadline.strftime('%I:%M %p').lstrip('0')
 
     if do_now:
-        if len(do_now) == 1:
+        # Lead with the first action, not a feasibility report
+        parts.append(f"Start with {do_now[0]}.")
+        if len(do_now) > 1:
+            rest = do_now[1:]
+            rest_str = ', then '.join(rest)
             parts.append(
-                f"You can get {do_now[0]} done before your "
-                f"{hard_deadline_name} at "
-                f"{hard_deadline.strftime('%I:%M %p').lstrip('0')}."
+                f"Then {rest_str} — all before "
+                f"{hard_deadline_name} at {deadline_time_str}."
             )
         else:
-            items_str = ' and '.join(
-                [', '.join(do_now[:-1]), do_now[-1]]
-                if len(do_now) > 2
-                else do_now
-            )
             parts.append(
-                f"You can get {items_str} done before your "
-                f"{hard_deadline_name} at "
-                f"{hard_deadline.strftime('%I:%M %p').lstrip('0')}."
+                f"{hard_deadline_name} is at {deadline_time_str}."
             )
-        parts.append(f"Start with {do_now[0]} now.")
     elif not move_later:
         next_action = ctx.get('next', '')
         if next_action:
@@ -597,8 +688,7 @@ def _build_triage_structured(ctx, user_now, overdue, coming_up, later) -> dict:
     if move_later:
         if len(move_later) == 1:
             parts.append(
-                f"{move_later[0]} won't fit before then — "
-                f"plan to move it later today."
+                f"{move_later[0]} can move to later today."
             )
         else:
             items_str = ' and '.join(
@@ -607,8 +697,7 @@ def _build_triage_structured(ctx, user_now, overdue, coming_up, later) -> dict:
                 else move_later
             )
             parts.append(
-                f"{items_str} won't fit before then — "
-                f"plan to move those later today."
+                f"{items_str} can move to later today."
             )
 
     result['text'] = "\n".join(parts)

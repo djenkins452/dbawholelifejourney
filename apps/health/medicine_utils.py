@@ -6,6 +6,9 @@ not just the ratio of taken/missed logs. If a user has 20 expected doses but
 only logged 2 as 'taken' and never interacted with the other 18, the old
 calculation (2 / (2+0) = 100%) was wrong. Correct: 2 / 20 = 10%.
 
+Fairness rule: today's future doses (scheduled_time > now) are excluded
+from expected count. You can't miss a dose that isn't due yet.
+
 This module provides a single source of truth for adherence calculations
 used across dashboard_ai, dashboard cache, personal_assistant, and trend_tracking.
 """
@@ -27,6 +30,7 @@ def calculate_medicine_adherence(user, start_date, end_date):
     Calculation: taken / expected * 100
     This is the CORRECT formula — it counts unlogged doses as not taken.
     """
+    from apps.core.utils import get_user_now, get_user_today
     from apps.health.models import Medicine, MedicineLog, MedicineSchedule
 
     active_medicines = Medicine.objects.filter(
@@ -34,16 +38,26 @@ def calculate_medicine_adherence(user, start_date, end_date):
         medicine_status=Medicine.STATUS_ACTIVE,
     ).prefetch_related("schedules")
 
-    # Count expected doses by iterating each day and checking schedules
+    user_today = get_user_today(user)
+    user_now = get_user_now(user)
+    current_time = user_now.time()
+
+    # Count expected doses by iterating each day and checking schedules.
+    # For today: only count doses whose scheduled_time has passed.
+    # You can't miss a dose that isn't due yet.
     expected_doses = 0
     day = start_date
     schedule_day_map = []  # List of (medicine_id, schedule_id, date) tuples
 
     while day <= end_date:
         day_of_week = day.weekday()  # 0=Mon, 6=Sun
+        is_today = (day == user_today)
         for medicine in active_medicines:
             for schedule in medicine.schedules.filter(is_active=True):
                 if schedule.applies_to_day(day_of_week):
+                    if is_today and schedule.scheduled_time and schedule.scheduled_time > current_time:
+                        # Future dose today — not due yet, skip
+                        continue
                     expected_doses += 1
                     schedule_day_map.append((medicine.id, schedule.id, day))
         day += timedelta(days=1)
@@ -102,17 +116,26 @@ def calculate_single_medicine_adherence(user, medicine, start_date, end_date):
         - taken_doses: doses logged as taken or late
         - adherence_rate: percentage (0-100) or None if no expected doses
     """
+    from apps.core.utils import get_user_now, get_user_today
     from apps.health.models import MedicineLog
 
-    # Count expected doses from schedules
+    user_today = get_user_today(user)
+    user_now = get_user_now(user)
+    current_time = user_now.time()
+
+    # Count expected doses from schedules.
+    # For today: only count doses whose scheduled_time has passed.
     expected_doses = 0
     day = start_date
     active_schedules = list(medicine.schedules.filter(is_active=True))
 
     while day <= end_date:
         day_of_week = day.weekday()
+        is_today = (day == user_today)
         for schedule in active_schedules:
             if schedule.applies_to_day(day_of_week):
+                if is_today and schedule.scheduled_time and schedule.scheduled_time > current_time:
+                    continue
                 expected_doses += 1
         day += timedelta(days=1)
 

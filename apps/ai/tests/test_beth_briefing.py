@@ -23,8 +23,13 @@ from apps.ai.beth_checkin_renderer import (
     _render_evening,
     _estimate_duration,
     _assess_situation,
+    _assess_situation_structured,
     _build_day_narrative,
     _BANNED_WORDS,
+    _ORIENTATION_PHRASES,
+    _NUDGE_PHRASES,
+    _BEHIND_PHRASES,
+    _AHEAD_PHRASES,
 )
 
 
@@ -80,49 +85,65 @@ class TestSituationalAwareness(TestCase):
         """Items only slightly past schedule with no completions → orientation."""
         user_now = timezone.now().replace(hour=7, minute=0)
         sched = user_now.replace(hour=6, minute=30)  # 30 min ago
-        result = _assess_situation(
+        state, text = _assess_situation_structured(
             overdue=[{'label': 'x', 'item': {'scheduled_time': sched}}],
             completed=[],
             coming_up=[],
             user_now=user_now,
         )
-        # Orientation tier: no "behind" language
-        self.assertIn("get your morning started", result.lower())
+        # Orientation tier: on_track state, phrase from orientation bank
+        self.assertEqual(state, 'on_track')
+        self.assertIn(text, _ORIENTATION_PHRASES)
 
     def test_significantly_overdue_means_behind(self):
         """Items 2+ hours past schedule → behind."""
         user_now = timezone.now().replace(hour=9, minute=0)
         sched = user_now.replace(hour=6, minute=0)  # 3 hours ago
         entry = {'label': 'x', 'item': {'scheduled_time': sched}}
-        result = _assess_situation(
+        state, text = _assess_situation_structured(
             overdue=[entry, entry, entry],
             completed=[],
             coming_up=[],
             user_now=user_now,
         )
-        self.assertIn('behind', result.lower())
+        self.assertEqual(state, 'behind')
+        self.assertIn(text, _BEHIND_PHRASES)
 
-    def test_moderate_overdue_with_activity_means_behind(self):
-        """Overdue items when user has some completions → nudge/behind."""
+    def test_moderate_overdue_with_activity_means_nudge(self):
+        """Overdue items when user has some completions → nudge."""
         user_now = timezone.now().replace(hour=7, minute=30)
         sched = user_now.replace(hour=6, minute=30)  # 60 min ago
-        result = _assess_situation(
+        state, text = _assess_situation_structured(
             overdue=[{'label': 'x', 'item': {'scheduled_time': sched}}],
             completed=[{'label': 'done'}],
             coming_up=[],
             user_now=user_now,
         )
-        # Has completions so orientation doesn't apply → nudge/behind
-        self.assertIn("late", result.lower())
+        self.assertEqual(state, 'behind')
+        self.assertIn(text, _NUDGE_PHRASES)
 
     def test_completed_no_upcoming_means_ahead(self):
-        result = _assess_situation(
+        state, text = _assess_situation_structured(
             overdue=[],
             completed=[{'label': 'x'}],
             coming_up=[],
             user_now=timezone.now().replace(hour=7),
         )
-        self.assertIn('ahead', result.lower())
+        self.assertEqual(state, 'ahead')
+        self.assertIn(text, _AHEAD_PHRASES)
+
+    def test_phrases_rotate_by_day(self):
+        """Different days produce different phrases from same bank."""
+        from apps.ai.beth_checkin_renderer import _rotating_phrase
+        phrases = ("A", "B", "C", "D")
+        # Two different days should get different phrases (unless same mod)
+        day1 = timezone.now().replace(month=1, day=1)
+        day2 = timezone.now().replace(month=1, day=2)
+        p1 = _rotating_phrase(phrases, day1)
+        p2 = _rotating_phrase(phrases, day2)
+        self.assertIn(p1, phrases)
+        self.assertIn(p2, phrases)
+        self.assertNotEqual(p1, p2)
 
     def test_normal_flow_means_on_track(self):
         result = _assess_situation(
@@ -145,10 +166,9 @@ class TestMorningBriefingOutput(TestCase):
             hour=5, minute=53, second=0, microsecond=0,
         )
 
-    def test_tight_morning_splits_do_now_and_move_later(self):
-        """Scenario: 5:53 AM, shower at 7:00 AM.
-        Bible Reading (15 min) and Prayer (15 min) fit.
-        Workout (45 min) doesn't fit.
+    def test_tight_morning_orientation_no_reschedule(self):
+        """Scenario: 5:53 AM, shower at 7:00 AM, slightly overdue items.
+        Orientation tier (< 90 min, no completions) → no reschedule suggestion.
         """
         bible = _make_item('Bible Reading', '5:00 AM', 5, 0, priority='foundational')
         prayer = _make_item('Prayer', '5:15 AM', 5, 15, priority='foundational')
@@ -169,8 +189,38 @@ class TestMorningBriefingOutput(TestCase):
 
         # Should mention what to do now
         self.assertIn('Bible Reading', output)
-        self.assertIn('Prayer', output)
-        # Should mention workout can move to later
+        # Orientation: should NOT suggest rescheduling
+        self.assertNotIn("later today", output)
+        # Should NOT contain domain labels
+        for word in _BANNED_WORDS:
+            self.assertNotIn(word, output.lower())
+
+    def test_tight_morning_behind_shows_reschedule(self):
+        """Scenario: 8:30 AM, shower at 9:00 AM, 2h+ overdue items.
+        Behind tier → reschedule suggestion appears.
+        """
+        user_now = timezone.now().replace(hour=8, minute=30, second=0)
+        bible = _make_item('Bible Reading', '5:00 AM', 5, 0, priority='foundational')
+        prayer = _make_item('Prayer', '5:15 AM', 5, 15, priority='foundational')
+        workout = _make_item('Workout', '6:15 AM', 6, 15, priority='foundational')
+        shower = _make_item('Shower', '9:00 AM', 9, 0)
+
+        ctx = {
+            'all_items': [bible, prayer, workout, shower],
+            'foundation': [],
+            'overdue': [
+                _make_entry(bible), _make_entry(prayer), _make_entry(workout),
+            ],
+            'coming_up': [],
+            'later': [_make_entry(shower)],
+            'completed': [{'label': 'Wake up'}],
+            'next': 'Bible Reading',
+        }
+
+        output = _render_morning(ctx, self.user, user_now)
+
+        # Behind: should mention items and reschedule
+        self.assertIn('Bible Reading', output)
         self.assertIn('Workout', output)
         self.assertIn("later today", output)
         # Should NOT contain domain labels

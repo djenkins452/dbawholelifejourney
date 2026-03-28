@@ -286,13 +286,16 @@ def _render_morning(ctx, user, user_now) -> str:
     completed = ctx.get("completed", [])
     later = ctx.get("later", [])
 
-    situation = _assess_situation(overdue, completed, coming_up, user_now)
+    _state, situation = _assess_situation_structured(
+        overdue, completed, coming_up, user_now,
+    )
     lines.append("")
     lines.append(situation)
 
     # ── B. Immediate Plan: next actions + anchor ──
     triage = _build_morning_triage(
         ctx, user_now, overdue, coming_up, later,
+        situation_state=_state,
     )
     if triage:
         lines.append("")
@@ -318,10 +321,7 @@ def _render_morning(ctx, user, user_now) -> str:
         lines.append(day_view)
 
     # ── D. Closing: directional ──
-    _state, _ = _assess_situation_structured(
-        overdue, completed, coming_up, user_now,
-    )
-    closing = _morning_closing(_state, completed, overdue, later)
+    closing = _morning_closing(_state, completed, overdue, later, user_now)
     if closing:
         lines.append("")
         lines.append(closing)
@@ -332,16 +332,21 @@ def _render_morning(ctx, user, user_now) -> str:
 def _build_full_day_view(ctx, user_now) -> str:
     """Build a brief view of key items later today.
 
-    Only includes items that matter for day planning:
-    medications, high-priority tasks, and major commitments.
-    Keeps it to 1-2 lines max.
+    Priority order (max 4 items):
+    1. Medications (highest — health-critical)
+    2. Hard scheduled commitments (time-bound)
+    3. Work priorities (payroll, 1-3-1, etc.)
+    4. One supporting item if space allows
     """
     later = ctx.get("later", [])
     if not later:
         return ""
 
-    # Filter to notable items only
-    notable = []
+    # Categorize notable items with priority tiers
+    medications = []
+    commitments = []
+    work_priorities = []
+
     for entry in later:
         item = entry.get('item', {})
         name = (item.get('name') or '').strip()
@@ -349,37 +354,55 @@ def _build_full_day_view(ctx, user_now) -> str:
         priority = item.get('priority', '')
         time_str = item.get('time_str', '')
         name_lower = name.lower()
+        label = f"{name} ({time_str})" if time_str else name
 
         is_medication = source == 'medication' or any(
             k in name_lower for k in ('mounjaro', 'medication', 'medicine')
         )
-        is_high_priority = priority in ('foundational', 'high', 'important')
         is_commitment = any(
             k in name_lower
-            for k in ('meeting', 'appointment', 'call', 'class', 'payroll')
+            for k in ('meeting', 'appointment', 'call', 'class')
         )
+        is_work = any(
+            k in name_lower for k in ('payroll', '1-3-1', 'standup')
+        )
+        is_high_priority = priority in ('foundational', 'high', 'important')
 
-        if is_medication or is_high_priority or is_commitment:
-            label = f"{name} ({time_str})" if time_str else name
-            notable.append(label)
+        if is_medication:
+            medications.append(label)
+        elif is_commitment:
+            commitments.append(label)
+        elif is_work or is_high_priority:
+            work_priorities.append(label)
+
+    # Assemble in priority order, max 4 items total
+    notable = []
+    for bucket in (medications, commitments, work_priorities):
+        for item in bucket:
+            if len(notable) >= 4:
+                break
+            notable.append(item)
 
     if not notable:
         return ""
 
-    items = notable[:3]  # Max 3 items
-    return "Later today: " + ", ".join(items) + "."
+    return "Later today: " + ", ".join(notable) + "."
 
 
-def _morning_closing(state, completed, overdue, later) -> str:
-    """Short directional closing line based on situation."""
+def _morning_closing(state, completed, overdue, later, user_now=None) -> str:
+    """Short directional closing line, rotating by day."""
+    # Use a fixed fallback if user_now not provided (tests)
+    from django.utils import timezone as _tz
+    now = user_now or _tz.now()
+
     if state == 'ahead':
-        return "Keep that momentum."
-    if state == 'behind' and len(overdue) >= 3:
-        return "One thing at a time."
+        return _rotating_phrase(_CLOSING_PHRASES_AHEAD, now)
+    if state == 'behind':
+        return _rotating_phrase(_CLOSING_PHRASES_BEHIND, now)
     if completed and len(completed) >= 2:
-        return "Good start — keep it going."
+        return _rotating_phrase(_CLOSING_PHRASES_GOOD_START, now)
     if later:
-        return "Keep this morning tight."
+        return _rotating_phrase(_CLOSING_PHRASES_DEFAULT, now)
     return ""
 
 
@@ -477,6 +500,72 @@ def _assess_situation(overdue, completed, coming_up, user_now) -> str:
     return text
 
 
+def _rotating_phrase(phrases, user_now):
+    """Select a phrase deterministically based on day-of-year.
+
+    Rotates through the phrase list so the same user sees different
+    phrasing each day, without randomness or state.
+    """
+    idx = user_now.timetuple().tm_yday % len(phrases)
+    return phrases[idx]
+
+
+# ── Phrase banks for rotating variety ──
+_ORIENTATION_PHRASES = (
+    "Let's get your morning started.",
+    "Fresh start — here's the plan.",
+    "Morning's open. Let's set the pace.",
+    "Time to get moving.",
+)
+
+_NUDGE_PHRASES = (
+    "Running a bit late — let's get focused.",
+    "Slightly behind — let's close the gap.",
+    "A little late, but recoverable. Let's go.",
+    "Not quite on schedule — let's tighten up.",
+)
+
+_BEHIND_PHRASES = (
+    "You're behind this morning — let's prioritize.",
+    "Several things are overdue. Focus on what matters most.",
+    "Behind schedule — one step at a time.",
+    "Late start. Let's cut to what counts.",
+)
+
+_AHEAD_PHRASES = (
+    "You're ahead — solid position.",
+    "Ahead of schedule. Nice work.",
+    "Strong start — you've got margin.",
+)
+
+_CLOSING_PHRASES_DEFAULT = (
+    "Keep this morning tight.",
+    "Handle the next step, then move.",
+    "Stay focused on what's in front of you.",
+    "Keep the momentum going.",
+    "One thing at a time — you've got this.",
+)
+
+_CLOSING_PHRASES_AHEAD = (
+    "Keep that momentum.",
+    "Strong position — stay sharp.",
+    "Nice pace. Keep it going.",
+)
+
+_CLOSING_PHRASES_BEHIND = (
+    "One thing at a time.",
+    "Just the next step.",
+    "Focus beats speed.",
+    "Don't rush — be deliberate.",
+)
+
+_CLOSING_PHRASES_GOOD_START = (
+    "Good start — keep it going.",
+    "Solid progress already.",
+    "Off to a good start.",
+)
+
+
 def _assess_situation_structured(overdue, completed, coming_up, user_now):
     """Determine situational state with graduated tone.
 
@@ -485,6 +574,8 @@ def _assess_situation_structured(overdue, completed, coming_up, user_now):
       (no completions, items < 90 min overdue)
     - nudge: moderate lateness or some activity already
     - behind: clearly late (items 2+ hours overdue or many overdue)
+
+    Phrases rotate by day-of-year for natural variety.
 
     Returns:
         (state, text) where state is 'behind' | 'on_track' | 'ahead'
@@ -506,20 +597,19 @@ def _assess_situation_structured(overdue, completed, coming_up, user_now):
 
         # Tier 1: Orientation — user just opening the app, items are
         # only slightly past schedule, nothing completed yet.
-        # This is a normal morning startup, not a failure.
         if not has_completed and max_overdue_min < 90:
-            return ('on_track', "Let's get your morning started.")
+            return ('on_track', _rotating_phrase(_ORIENTATION_PHRASES, user_now))
 
         # Tier 2: Gentle nudge — moderate lateness or user has been
         # active but falling behind
         if max_overdue_min < 120 or len(overdue) <= 2:
-            return ('behind', "Running a bit late — let's get focused.")
+            return ('behind', _rotating_phrase(_NUDGE_PHRASES, user_now))
 
         # Tier 3: Clearly behind — significant overdue items
-        return ('behind', "You're behind this morning — let's tighten up.")
+        return ('behind', _rotating_phrase(_BEHIND_PHRASES, user_now))
 
     if has_completed and not coming_up:
-        return ('ahead', "You're ahead — solid position.")
+        return ('ahead', _rotating_phrase(_AHEAD_PHRASES, user_now))
 
     if hour < 6 and not has_completed:
         return ('on_track', "Early start — you've got time to set the tone.")
@@ -527,16 +617,25 @@ def _assess_situation_structured(overdue, completed, coming_up, user_now):
     return ('on_track', "You're on track.")
 
 
-def _build_morning_triage(ctx, user_now, overdue, coming_up, later) -> str:
+def _build_morning_triage(
+    ctx, user_now, overdue, coming_up, later,
+    situation_state='on_track',
+) -> str:
     """Time-aware feasibility triage (text-only wrapper).
 
     Returns: guidance text with DO NOW + MOVE LATER sections.
     """
-    result = _build_triage_structured(ctx, user_now, overdue, coming_up, later)
+    result = _build_triage_structured(
+        ctx, user_now, overdue, coming_up, later,
+        situation_state=situation_state,
+    )
     return result['text']
 
 
-def _build_triage_structured(ctx, user_now, overdue, coming_up, later) -> dict:
+def _build_triage_structured(
+    ctx, user_now, overdue, coming_up, later,
+    situation_state='on_track',
+) -> dict:
     """Time-aware feasibility triage returning structured data + text.
 
     Returns dict with:
@@ -685,7 +784,10 @@ def _build_triage_structured(ctx, user_now, overdue, coming_up, later) -> dict:
         if next_action:
             parts.append(f"Start with {next_action}.")
 
-    if move_later:
+    # Only suggest rescheduling when user is behind — in orientation
+    # or on-track states, premature reschedule suggestions feel
+    # like pressure before the user has started.
+    if move_later and situation_state == 'behind':
         if len(move_later) == 1:
             parts.append(
                 f"{move_later[0]} can move to later today."

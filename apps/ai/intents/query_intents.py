@@ -26,61 +26,92 @@ QUERY_INTENT_TOOLS = [
         "function": {
             "name": "query_event_history",
             "description": (
-                "Query the user's event history to find what happened, what was "
-                "missed, or when something occurred. Use when the user asks about "
-                "past events, missed items, or execution history across any domain "
-                "(medication, routines, workouts, etc.). "
-                "Examples: 'what did I miss this week?', 'which medication did I "
-                "miss and when?', 'it says I missed 5 doses, what are they?', "
-                "'what happened yesterday?', 'when did my routine start slipping?'. "
-                "Do NOT use for action requests (logging, marking complete, etc.) — "
-                "this is read-only."
+                "Query the user's data to look up specific values, find what happened, "
+                "what was missed, or when something occurred. Use when the user asks "
+                "about past events, specific data points, missed items, or execution "
+                "history across ANY domain. "
+                "Covers: medication, sleep, weight, glucose, blood pressure, heart rate, "
+                "steps, water, nutrition/food, fasting, workouts, routines, journal, "
+                "faith/prayer, habits, and finance. "
+                "Examples: 'how did I sleep last night?', 'what was my blood pressure?', "
+                "'what did I miss this week?', 'what did I eat yesterday?', "
+                "'how many steps did I get?', 'what did I spend today?', "
+                "'how was my glucose after lunch?', 'did I journal yesterday?'. "
+                "Do NOT use for action requests (logging, creating, marking complete) — "
+                "this is read-only data lookup."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query_type": {
                         "type": "string",
-                        "enum": ["missed", "timeline", "slippage", "general"],
+                        "enum": ["lookup", "missed", "timeline", "slippage", "general"],
                         "description": (
-                            "Type of event query: "
+                            "Type of query: "
+                            "'lookup' = retrieve specific data points ('how was my sleep?', "
+                            "'what's my weight?', 'blood pressure reading?'), "
                             "'missed' = what was missed/skipped (medication, routine, etc.), "
                             "'timeline' = what happened on a specific date, "
                             "'slippage' = when did a pattern start declining, "
-                            "'general' = other event history question"
+                            "'general' = other data history question"
                         ),
                     },
                     "domain": {
                         "type": "string",
                         "enum": [
                             "medication", "routine", "workout",
-                            "all",
+                            "sleep", "weight", "glucose", "blood_pressure",
+                            "heart_rate", "steps", "water", "nutrition",
+                            "fasting", "journal", "faith", "habits",
+                            "finance", "all",
                         ],
                         "description": (
-                            "Which domain to query. Use 'medication' for doses/meds/pills, "
-                            "'routine' for routine items/habits, 'workout' for exercise sessions, "
-                            "'all' for cross-domain queries or when domain is unclear."
+                            "Which domain to query. Match to data type: "
+                            "'sleep' for sleep/rest, 'weight' for weight/scale, "
+                            "'glucose' for blood sugar/glucose/CGM, "
+                            "'blood_pressure' for BP readings, "
+                            "'heart_rate' for pulse/HR/bpm, "
+                            "'steps' for step count/walking/activity, "
+                            "'water' for hydration/water intake, "
+                            "'nutrition' for food/meals/calories/macros, "
+                            "'fasting' for intermittent fasting, "
+                            "'medication' for meds/doses/pills, "
+                            "'workout' for exercise/gym/training, "
+                            "'routine' for daily routines, "
+                            "'journal' for journal entries/mood, "
+                            "'faith' for prayer/Bible reading, "
+                            "'habits' for habit tracking, "
+                            "'finance' for spending/transactions/budget, "
+                            "'all' for cross-domain or unclear."
                         ),
                     },
                     "lookback_days": {
                         "type": "integer",
                         "description": (
                             "How many days back to search. Default 7. "
-                            "Use 1 for 'today', 2 for 'yesterday and today', "
-                            "7 for 'this week', 8 for '8 days' (as shown on dashboard), "
+                            "Use 1 for 'today'/'last night', "
+                            "2 for 'yesterday and today', "
+                            "7 for 'this week', "
                             "14 for 'two weeks'. Max 30."
                         ),
                     },
                     "target_date": {
                         "type": "string",
                         "description": (
-                            "Specific date for timeline queries. "
-                            "Use 'today', 'yesterday', a day name like 'monday', "
-                            "or YYYY-MM-DD format."
+                            "Specific date for timeline or lookup queries. "
+                            "Use 'today', 'yesterday', 'last night', "
+                            "a day name like 'monday', or YYYY-MM-DD."
+                        ),
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": (
+                            "Number of recent entries to return for lookup queries. "
+                            "Default 1 for 'latest' questions, up to 10 for 'recent' questions."
                         ),
                     },
                 },
-                "required": ["query_type"],
+                "required": ["query_type", "domain"],
             },
         },
     },

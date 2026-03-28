@@ -6,6 +6,36 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Full-Platform Event Access: 16 Domain Adapters
+
+**Problem:** Event access only covered 3 domains (medication, routine, workout). User couldn't ask Beth about sleep, weight, glucose, blood pressure, food, journal entries, prayers, habits, finances, or any other data they put into the system.
+
+**Solution:** Built adapters for every user-facing data entry model in WLJ. Added `lookup` query type to the intent for "what's my X?" style questions. Updated formatter with domain-specific response templates.
+
+**13 new adapters** (`apps/core/ai_events/adapters/`):
+- `sleep.py` — SleepEntry (hours, quality, bedtime, stages)
+- `weight.py` — WeightEntry (value, unit)
+- `glucose.py` — GlucoseEntry (value, context, trend)
+- `blood_pressure.py` — BloodPressureEntry (systolic/diastolic, pulse)
+- `heart_rate.py` — HeartRateEntry (bpm, context)
+- `steps.py` — StepsEntry (count, goal, distance)
+- `water.py` — WaterEntry (amount, unit)
+- `nutrition.py` — FoodEntry (food name, meal type, calories, macros)
+- `fasting.py` — FastingWindow (type, duration, target)
+- `journal.py` — JournalEntry (title, mood, word count)
+- `faith.py` — PrayerRequest + UserReadingProgress (prayers, Bible reading)
+- `habits.py` — HabitEntry (name, completed, duration/count)
+- `finance.py` — Transaction (amount, description, category)
+
+**Updated files:**
+- `resolver.py` — 16 domains registered, timeline includes 8 domains, `get_latest()` method added
+- `formatters.py` — `format_lookup_events()` with domain-specific templates for all 16 domains
+- `query_intents.py` — All 17 domain enum values + `lookup` query type + `count` parameter
+- `action_handlers.py` — `lookup` query type handling with latest/date-specific resolution
+- `intent_service.py` — 20+ system prompt examples covering all domains
+
+**Beth can now answer:** "How did I sleep last night?", "What's my weight?", "What was my blood pressure?", "What did I eat yesterday?", "How many steps?", "Did I journal?", "What did I spend?", "How's my glucose?", "My prayer requests?" — across every data domain in the system.
+
 ## 2026-03-28 — Add query_event_history Intent (LLM-Classified Event Queries)
 
 **Problem:** Keyword-based event query matching was inherently brittle — every new phrasing a user tried required adding more patterns. Real users don't say "what did I miss?" the same way twice.

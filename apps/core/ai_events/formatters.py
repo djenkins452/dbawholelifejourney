@@ -162,6 +162,177 @@ def format_slippage_trend(trend_data):
     return " ".join(parts)
 
 
+def format_lookup_events(events, domain=None):
+    """
+    Format event data for lookup queries ("how was my sleep?", "what's my weight?").
+
+    Args:
+        events: list[EventRecord] — events to display (usually 1-5 recent entries)
+        domain: str or None — domain for context-aware formatting
+
+    Returns:
+        str — formatted response text
+    """
+    if not events:
+        domain_label = domain.replace('_', ' ') if domain else "data"
+        return f"No {domain_label} entries found."
+
+    if len(events) == 1:
+        return _format_single_lookup(events[0])
+
+    # Multiple entries
+    parts = []
+    domain_label = domain.replace('_', ' ').title() if domain else "Data"
+    parts.append(f"Here are your recent **{domain_label}** entries:")
+    parts.append("")
+
+    for e in events:
+        date_str = _format_date(
+            e.detail.get('date') or e.detail.get('scheduled_date')
+            or e.detail.get('sleep_date') or ''
+        )
+        parts.append(f"• {date_str}: {e.label}")
+
+    return "\n".join(parts)
+
+
+def _format_single_lookup(event):
+    """Format a single event for a lookup response."""
+    detail = event.detail
+    date_str = _format_date(
+        detail.get('date') or detail.get('scheduled_date')
+        or detail.get('sleep_date') or ''
+    )
+    domain = event.domain
+
+    if domain == 'sleep':
+        hours = detail.get('hours')
+        quality = detail.get('quality_rating', '')
+        bedtime = detail.get('bedtime', '')
+        wake = detail.get('wake_time', '')
+        parts = []
+        if hours is not None:
+            parts.append(f"You slept **{hours} hours** ({date_str}).")
+        if quality:
+            parts.append(f"Quality: **{quality}**.")
+        if detail.get('quality_score'):
+            parts.append(f"Score: **{detail['quality_score']}/100**.")
+        if detail.get('deep_minutes'):
+            parts.append(f"Deep sleep: {detail['deep_minutes']} min.")
+        if detail.get('rem_minutes'):
+            parts.append(f"REM: {detail['rem_minutes']} min.")
+        return " ".join(parts) if parts else event.label
+
+    elif domain == 'weight':
+        return f"Your latest weight is **{detail.get('value')} {detail.get('unit', 'lb')}** ({date_str})."
+
+    elif domain == 'glucose':
+        val = detail.get('value')
+        unit = detail.get('unit', 'mg/dL')
+        ctx = detail.get('context', '')
+        resp = f"Your latest glucose reading is **{val} {unit}**"
+        if ctx:
+            resp += f" ({ctx})"
+        resp += f" — {date_str}."
+        return resp
+
+    elif domain == 'blood_pressure':
+        s = detail.get('systolic')
+        d = detail.get('diastolic')
+        pulse = detail.get('pulse')
+        resp = f"Your latest blood pressure is **{s}/{d} mmHg**"
+        if pulse:
+            resp += f" (pulse {pulse})"
+        resp += f" — {date_str}."
+        return resp
+
+    elif domain == 'heart_rate':
+        bpm = detail.get('bpm')
+        ctx = detail.get('context', '')
+        resp = f"Your latest heart rate is **{bpm} bpm**"
+        if ctx:
+            resp += f" ({ctx})"
+        resp += f" — {date_str}."
+        return resp
+
+    elif domain == 'steps':
+        count = detail.get('count', 0)
+        goal = detail.get('goal')
+        resp = f"You logged **{count:,} steps** ({date_str})."
+        if goal:
+            resp += f" Goal: {goal:,}."
+        return resp
+
+    elif domain == 'water':
+        amount = detail.get('amount')
+        unit = detail.get('unit', 'oz')
+        return f"Water intake: **{amount} {unit}** ({date_str})."
+
+    elif domain == 'nutrition':
+        name = detail.get('food_name', '')
+        meal = detail.get('meal_type', '')
+        cal = detail.get('calories')
+        protein = detail.get('protein_g')
+        parts = []
+        if meal:
+            parts.append(f"**{meal.title()}**: {name}")
+        else:
+            parts.append(f"**{name}**")
+        if cal:
+            parts.append(f"{cal} cal")
+        if protein:
+            parts.append(f"{protein}g protein")
+        return f"{' — '.join(parts)} ({date_str})."
+
+    elif domain == 'fasting':
+        ftype = detail.get('fasting_type', '')
+        dur = detail.get('duration_hours')
+        target = detail.get('target_hours')
+        resp = f"Fast: **{ftype}**"
+        if dur:
+            resp += f" — {dur} hours"
+            if target:
+                resp += f" of {target}h target"
+        resp += f" ({date_str})."
+        return resp
+
+    elif domain == 'journal':
+        title = detail.get('title', 'Journal Entry')
+        mood = detail.get('mood', '')
+        wc = detail.get('word_count', 0)
+        resp = f"**{title}** ({date_str})"
+        if mood:
+            resp += f" — mood: {mood}"
+        if wc:
+            resp += f", {wc} words"
+        resp += "."
+        return resp
+
+    elif domain == 'faith':
+        return f"{event.label} ({date_str})."
+
+    elif domain == 'habits':
+        name = detail.get('habit_name', 'Habit')
+        completed = detail.get('completed')
+        resp = f"**{name}** — {'completed ✓' if completed else 'not completed'} ({date_str})."
+        return resp
+
+    elif domain == 'finance':
+        amount = detail.get('amount', 0)
+        desc = detail.get('description', '')
+        cat = detail.get('category', '')
+        resp = f"**${abs(amount):.2f}** {'income' if amount > 0 else 'expense'}"
+        if desc:
+            resp += f" — {desc}"
+        if cat:
+            resp += f" ({cat})"
+        resp += f" on {date_str}."
+        return resp
+
+    # Default: use the label
+    return f"{event.label} ({date_str})."
+
+
 def _format_date(date_str):
     """Format a date string into a human-readable form."""
     if not date_str:

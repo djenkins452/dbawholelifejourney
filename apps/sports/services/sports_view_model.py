@@ -289,74 +289,110 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
 
 
 def _build_smart_ticker(teams, storylines):
-    """Build a slow, meaningful ticker from recent results and live scores.
+    """Build a curated ticker — user teams first, significance next.
 
-    Content: finals, live scores, high-importance storylines.
-    Max 15 items. Designed for 3-4 second per-item display.
+    Priority: live scores → starting soon → finals → high storylines.
+    Primary teams (priority 1) always rank above secondary/casual.
+    Max 12 items. No duplicates. No low-importance filler.
     """
-    items = []
+    live = []
+    soon = []
+    finals = []
+    seen_teams = set()
 
-    # Live scores first
-    for t in teams:
+    # Sort teams by follow priority so user's teams appear first
+    sorted_teams = sorted(teams, key=lambda t: t.get('priority', 3))
+
+    for t in sorted_teams:
+        name = t.get('team_name', '')
+        if name in seen_teams:
+            continue
+
+        # Live scores
         if t.get('status') == 'live':
+            seen_teams.add(name)
             ng = t.get('next_game') or {}
-            items.append({
-                "text": f"{t['team_name']} vs {ng.get('opponent', '')} — {ng.get('score', '')}",
+            score = ng.get('score', '')
+            opp = ng.get('opponent', '')
+            live.append({
+                "text": f"{name} {score} vs {opp}" if score else f"{name} vs {opp} — Live",
                 "type": "live",
             })
 
-    # Recent finals
-    for t in teams:
-        lr = t.get('last_result')
-        if not lr:
-            continue
-        result = lr.get('result', '')
-        prefix = "W" if result == "W" else ("L" if result == "L" else "T")
-        items.append({
-            "text": f"{t['team_name']} {prefix} {lr.get('score', '')} vs {lr.get('opponent', '')}",
-            "type": "final",
-        })
+        # Starting soon
+        elif t.get('status') == 'starting_soon':
+            seen_teams.add(name)
+            ng = t.get('next_game') or {}
+            opp = ng.get('opponent', '')
+            game_note = ng.get('game_note', '')
+            note_tag = ""
+            if game_note:
+                parts = game_note.split(" - ")
+                note_tag = f" ({parts[-1]})" if parts else ""
+            soon.append({
+                "text": f"{name} vs {opp} tips off soon{note_tag}",
+                "type": "soon",
+            })
 
-    # High-importance storylines as ticker items
+        # Recent finals (primary teams only to avoid noise)
+        if t.get('priority', 3) <= 2:
+            lr = t.get('last_result')
+            if lr and name not in seen_teams:
+                result = lr.get('result', '')
+                verb = "beat" if result == "W" else ("fell to" if result == "L" else "tied")
+                opp = lr.get('opponent', '')
+                score = lr.get('score', '')
+                finals.append({
+                    "text": f"{name} {verb} {opp} {score}",
+                    "type": "final",
+                })
+                seen_teams.add(name)
+
+    # High-importance storylines (deduped against already-shown teams)
+    story_items = []
     for sl in storylines:
         if sl.get('importance') == 'high' and sl.get('type') != 'live':
-            items.append({
+            story_items.append({
                 "text": sl.get('message', ''),
                 "type": "storyline",
             })
 
-    return items[:15]
+    # Assemble: live → soon → finals → storylines (priority order)
+    return (live + soon + finals + story_items)[:12]
 
 
 def _game_context_line(team_entry):
-    """Generate a short context line for why a game matters.
+    """Generate a short, human context line for why a game matters.
 
-    Priority: game significance > streak > record.
+    Priority: game significance > streak narrative > record.
+    Must sound like a sports anchor, not a database.
     """
     ng = team_entry.get('next_game') or {}
     game_type = ng.get('game_type', 'regular')
     game_note = ng.get('game_note', '')
 
-    # Game significance context takes priority
+    # Game significance
     if game_note:
         parts = game_note.split(" - ")
         return parts[-1] if parts else game_note
     if game_type == 'tournament':
-        return "Tournament Game"
+        return "Tournament game"
     if game_type == 'postseason':
-        return "Playoff Game"
+        return "Playoff game"
 
-    # Streak context
+    # Streak narrative
     sc = team_entry.get('streak_count', 0)
     st = team_entry.get('streak_type', '')
+    if st == 'W' and sc >= 7:
+        return f"Red hot — {sc} wins in a row"
     if st == 'W' and sc >= 5:
-        return f"On a {sc}-game win streak"
+        return f"Rolling with {sc} straight wins"
     if st == 'W' and sc >= 3:
         return f"Won {sc} straight"
     if st == 'L' and sc >= 5:
-        return f"Lost {sc} straight — looking to bounce back"
+        return f"Need this one — {sc} straight losses"
     if st == 'L' and sc >= 3:
-        return f"Need a win after {sc} losses"
+        return f"Looking to snap a {sc}-game skid"
 
     record = team_entry.get('record', '')
     if record:
@@ -1045,32 +1081,114 @@ def _build_hero_from_contract(team_entry):
         "pitcher": ng.get('pitcher', ''),
     }
 
-    # ── Insight line: game significance > streak > status ──────────
-    streak_count = team_entry.get('streak_count', 0)
-    streak_type = team_entry.get('streak_type', '')
+    # ── Insight tag: short significance label for badge area ────────
     game_type = ng.get('game_type', 'regular')
     game_note = ng.get('game_note', '')
 
-    # Game significance takes priority for insight
     if game_note:
-        # Extract the meaningful part (e.g. "Sweet 16" from "NCAA ... - Sweet 16")
         parts = game_note.split(" - ")
         hero["insight"] = parts[-1] if parts else game_note
         hero["game_note"] = game_note
     elif game_type == 'tournament':
-        hero["insight"] = "Tournament Game"
+        hero["insight"] = "Tournament"
     elif game_type == 'postseason':
-        hero["insight"] = "Playoff Game"
-    elif status == 'live':
-        hero["insight"] = "Game in progress"
-    elif status == 'starting_soon':
-        hero["insight"] = "Starting soon"
-    elif streak_type == 'W' and streak_count >= 3:
-        hero["insight"] = f"On a {streak_count}-game win streak"
-    elif streak_type == 'L' and streak_count >= 3:
-        hero["insight"] = f"{streak_count} straight losses"
+        hero["insight"] = "Playoffs"
+
+    # ── Headline: single compelling narrative line ────────────────
+    hero["headline"] = _build_hero_headline(team_entry, status, ng, lr)
 
     return hero
+
+
+# ── Tournament round progression map ─────────────────────────────
+_NEXT_ROUND = {
+    "round of 64": "the Round of 32",
+    "first round": "the Second Round",
+    "round of 32": "the Sweet 16",
+    "second round": "the Sweet 16",
+    "sweet 16": "the Elite Eight",
+    "elite eight": "the Final Four",
+    "final four": "the Championship",
+    "wild card": "the Divisional Round",
+    "divisional": "the Conference Championship",
+    "conference championship": "the Championship",
+}
+
+
+def _build_hero_headline(team_entry, status, ng, lr):
+    """Build a single compelling narrative headline for the hero.
+
+    Must be short, human, high-impact. Never generic.
+    Reads game significance, streaks, and results to compose a line
+    that answers: why should I care about this game RIGHT NOW?
+    """
+    team = team_entry.get('team_name', '')
+    # Short name: "Atlanta Braves" → "Braves", "Alabama Crimson Tide" → "Alabama"
+    short = team.split()[-1] if team else team
+    if len(short) < 4 and len(team.split()) > 1:
+        short = team  # Keep full name for short words like "LSU"
+
+    opponent = ng.get('opponent', '') or lr.get('opponent', '')
+    opp_short = opponent.split()[-1] if opponent else opponent
+    if len(opp_short) < 4 and len(opponent.split()) > 1:
+        opp_short = opponent
+
+    game_note = (ng.get('game_note', '') or '').lower()
+    game_type = ng.get('game_type', 'regular')
+    streak_count = team_entry.get('streak_count', 0)
+    streak_type = team_entry.get('streak_type', '')
+
+    # ── Tournament / postseason headlines ────────────────────────
+    if game_type in ('tournament', 'postseason') and game_note:
+        # Find what round they're playing for advancement
+        for round_key, next_round in _NEXT_ROUND.items():
+            if round_key in game_note:
+                if status == 'live':
+                    return f"{short} fighting to reach {next_round}"
+                return f"{short} play for a spot in {next_round}"
+
+        # Generic tournament/postseason
+        if status == 'live':
+            return f"Win or go home for {short}"
+        return f"Do-or-die for {short} tonight"
+
+    # ── Live game headlines ──────────────────────────────────────
+    if status == 'live':
+        score = ng.get('score', '')
+        if score:
+            parts = score.split('-')
+            if len(parts) == 2:
+                try:
+                    s1, s2 = int(parts[0].strip()), int(parts[1].strip())
+                    diff = abs(s1 - s2)
+                    if diff == 0:
+                        return f"All tied up between {short} and {opp_short}"
+                    elif diff <= 3:
+                        return f"Tight battle between {short} and {opp_short}"
+                    elif s1 > s2:
+                        return f"{short} in control"
+                    else:
+                        return f"{short} trying to claw back"
+                except (ValueError, IndexError):
+                    pass
+        return f"{short} and {opp_short} going at it"
+
+    # ── Streak-based headlines ───────────────────────────────────
+    if streak_type == 'W' and streak_count >= 7:
+        return f"{short} can't be stopped right now"
+    if streak_type == 'W' and streak_count >= 5:
+        return f"{short} riding a hot streak into this one"
+    if streak_type == 'W' and streak_count >= 3:
+        return f"{short} looking to keep the momentum going"
+    if streak_type == 'L' and streak_count >= 5:
+        return f"{short} desperate for a turnaround"
+    if streak_type == 'L' and streak_count >= 3:
+        return f"{short} looking to snap a {streak_count}-game skid"
+
+    # ── Fallback: opponent-based ─────────────────────────────────
+    if opponent:
+        return f"{short} take on {opp_short}"
+    return ""
 
 
 def _build_momentum_strip_from_contract(teams):

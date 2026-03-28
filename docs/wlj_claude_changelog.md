@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Fix: Event Query Pattern Matching Too Narrow
+
+**Problem:** Real user messages like "Under Health, it says I have missed 5 doses of medicine. What are they and when did I miss them?" were not matched by the truth depth classifier because: (1) "missed 5 doses" has a number between "missed" and "doses" so the exact substring "missed doses" didn't match, (2) "when did I miss them" (plural) didn't match "when did I miss it" (singular).
+
+**Fix:** Added regex-based patterns alongside exact substring patterns in `truth_depth.py`:
+- `missed\s+\d+\s+(?:dose|doses|medication|...)` — handles "missed N doses"
+- `(?:says|shows|indicates)\s+...missed` — handles "dashboard says missed"
+- `what\s+(?:did|have)\s+i\s+miss(?:ed)?` — handles "what did I miss" variants
+- Additional exact patterns: "when did i miss them", "which ones"
+
+**Files:** `apps/core/ai_events/truth_depth.py`, `apps/core/ai_events/tests/test_truth_depth.py`
+**Tests:** 4 new tests for real-world message variations, 208 total tests pass.
+
 ## 2026-03-28 — Truth Access Architecture: Multi-Turn Follow-Up Continuity
 
 **Problem:** After Beth correctly answered "What did I miss?" (deterministic event route), follow-up questions like "What date was that?" or "Which medication?" fell back to the LLM, which had no event data and would guess or admit it didn't know.

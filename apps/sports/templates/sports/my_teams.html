@@ -502,9 +502,7 @@
 
     {% else %}
 
-    {# ════════════════════════════════════════════════════════════
-       1. HERO — THE MAIN EVENT
-       ════════════════════════════════════════════════════════════ #}
+    {# 1. HERO — THE MAIN EVENT #}
     {% if hero %}
     <div class="hero hero--{{ hero.urgency }}">
         <div class="hero-top">
@@ -565,9 +563,7 @@
     </div>
     {% endif %}
 
-    {# ════════════════════════════════════════════════════════════
-       1b. LIVE CONTEXT — Urgent strip under hero
-       ════════════════════════════════════════════════════════════ #}
+    {# 1b. LIVE CONTEXT — Urgent strip under hero #}
     {% if live_context %}
     <div class="live-context">
         <div class="live-context-header"><span class="live-dot"></span> LIVE NOW</div>
@@ -576,9 +572,7 @@
     </div>
     {% endif %}
 
-    {# ════════════════════════════════════════════════════════════
-       2. SCOREBOARD CLUSTER — One connected event block
-       ════════════════════════════════════════════════════════════ #}
+    {# 2. SCOREBOARD CLUSTER — One connected event block #}
     {% if scoreboard.live or scoreboard.final or scoreboard.upcoming %}
     <div class="scoreboard-cluster">
         {% if scoreboard.header %}
@@ -670,9 +664,7 @@
     </div>
     {% endif %}
 
-    {# ════════════════════════════════════════════════════════════
-       3. TICKER — Ambient sports world motion
-       ════════════════════════════════════════════════════════════ #}
+    {# 3. TICKER — Ambient sports world motion #}
     {% if ticker %}
     <div class="smart-ticker" id="smart-ticker">
         <div class="ticker-track" id="ticker-track">
@@ -699,9 +691,7 @@
     </div>
     {% endif %}
 
-    {# ════════════════════════════════════════════════════════════
-       4. YOUR TEAMS TODAY — Personal anchor section
-       ════════════════════════════════════════════════════════════ #}
+    {# 4. YOUR TEAMS TODAY — Personal anchor section #}
     {% if timeline.now or timeline.today or timeline.tomorrow %}
     <div class="hub-section">
         <div class="section-header">
@@ -777,9 +767,7 @@
     </div>
     {% endif %}
 
-    {# ════════════════════════════════════════════════════════════
-       5. MOMENTUM — Background sports world
-       ════════════════════════════════════════════════════════════ #}
+    {# 5. MOMENTUM — Background sports world #}
     {% if momentum %}
     <div class="hub-section">
         <div class="section-header">
@@ -797,9 +785,7 @@
     </div>
     {% endif %}
 
-    {# ════════════════════════════════════════════════════════════
-       6. STORYLINES
-       ════════════════════════════════════════════════════════════ #}
+    {# 6. STORYLINES #}
     {% if storylines %}
     <div class="hub-section">
         <div class="section-header">
@@ -814,9 +800,7 @@
     </div>
     {% endif %}
 
-    {# ════════════════════════════════════════════════════════════
-       7. MORE GAMES
-       ════════════════════════════════════════════════════════════ #}
+    {# 7. MORE GAMES #}
     {% if more_games %}
     <div class="hub-section">
         <div class="section-header">

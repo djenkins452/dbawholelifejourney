@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Fix Template Comments + Hero Context Duplication
+
+- **Bug 1: Template comments rendering as visible text.** Multi-line Django `{# ═══\n text \n ═══ #}` comments don't work — Django template comments must be single-line. Converted all 8 multi-line comments to single-line `{# text #}` format.
+- **Bug 2: Hero context duplicating matchup for regular-season games.** `_build_context_upcoming()` was returning the matchup as the headline (`"Atlanta Braves vs Kansas City Royals"`), which was already shown as the largest element in the hero. For tournament/postseason: headline = round name (meaningful). For regular season: now returns `None` — no special context to add, time/status already shown in hero itself.
+- `build_hero_context()` now returns `None` when all fields are empty (no meaningless empty dict).
+- **Tests:** All 95 sports tests pass.
+- **Files:** `apps/sports/templates/sports/my_teams.html`, `apps/sports/services/sports_view_model.py`, `docs/wlj_claude_changelog.md`
+
 ## 2026-03-28 — Fix Hero Selection: Enforce Time-Bucket Priority
 
 - **Root cause:** `select_hero_game()` pooled all active games and scored globally. A high-importance tournament game tomorrow (score ~210) could beat a live regular-season game today (score ~180) because tournament boost (+80) outweighed live boost (+70).

@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Fix: Natural Language Completion Detection + Auto-Complete
+
+- **Bug:** "I just finished my journal" was routed to `create_journal_entry` intent, creating a journal entry with body "I just finished my journal" instead of marking the journal routine item complete. Same issue with "I did my workout", "I prayed", etc.
+- **Root cause:** Affirmation detector patterns required temporal markers (`already`, `earlier`, `before`) to match. Natural completions like "I just finished X", "I finished my X", "X is done", "I journaled" did not contain these markers and fell through to intent recognition, which misclassified them as content creation requests.
+- **Fix 1 — Pattern expansion:** Added Tier 2 patterns to affirmation detector:
+  - "just finished/did/completed X" (no temporal marker needed)
+  - "I finished/completed my X" (past tense + possessive)
+  - "X is done/complete/finished"
+  - Domain-specific past tense: "I journaled", "I worked out", "I prayed", "I took my meds"
+- **Fix 2 — Auto-complete:** Affirmation handler now actually marks items complete using existing pathways (`toggle_routine_completion` for routines, `MedicineLog.create` for meds). Previously it only suppressed reminders and told user "If you'd like me to log it, just let me know."
+- **Safety:** Forward intents ("I'm about to take", "I want to journal", "Can you help me journal?") verified NOT to match. 14/14 false positive checks pass.
+- **Files:** `apps/ai/affirmation_detector.py`, `apps/ai/tests/test_affirmation_detector.py`
+- **Tests:** 71/71 affirmation tests pass. 16 new tests added for Tier 2 patterns and forward-intent safety.
+
 ## 2026-03-27 — Morning Briefing: Tone Refinement + Phrase Rotation
 
 - **Enhancement:** Rotating phrase banks for all situation tiers and closings. Phrases rotate deterministically by day-of-year via `_rotating_phrase()` — no randomness, no state, different phrasing each day.

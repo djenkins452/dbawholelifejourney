@@ -40,12 +40,17 @@ logger = logging.getLogger(__name__)
 # Pattern Detection
 # ---------------------------------------------------------------------------
 
-# These patterns require temporal markers (already/before/earlier/this morning)
-# to distinguish from simple confirmations handled by confirmation_detector.py.
-# "yes" / "done" → confirmation_detector (executes quick reply action)
-# "I already did it" → affirmation_detector (suppresses only, no CRUD)
+# Patterns that indicate the user is reporting they completed an activity.
+# Two tiers of confidence:
+# - HIGH: Temporal markers ("already", "earlier") or explicit past tense with
+#   specific activity → high confidence, auto-complete
+# - MEDIUM: "just finished X", "I did my X" — completion verb + activity noun
+#   → medium confidence, auto-complete with activity match
+#
+# Distinct from confirmation_detector.py which handles "yes"/"done" responses
+# to quick reply buttons.
 AFFIRMED_COMPLETION_PATTERNS = [
-    # "already" + completion verb
+    # ── Tier 1: "already" + completion verb (original high-confidence) ──
     r'\balready\s+(did|done|took|finished|completed|logged|handled)\b',
     r'\bi\s+already\s+(did|took|finished|completed|logged|handled|done)\b',
     r'\balready\s+(worked\s+out|exercised|journaled|prayed|read|ate|meditated)\b',
@@ -53,24 +58,43 @@ AFFIRMED_COMPLETION_PATTERNS = [
     r'\balready\s+(got|gotten)\s+(it|that)\s+done\b',
     r'\balready\s+took\s+(it|them|my\s+med|my\s+medicine|my\s+medication)\b',
 
-    # Past completion with temporal context
+    # ── Tier 1: Past completion with temporal context ──
     r'\bi\s+(did|took|completed|finished|logged|handled)\s+(it|that|those)\s+(earlier|before|already)\b',
     r'\bi\s+took\s+care\s+of\s+(it|that)\b',
     r'\bi\s+handled\s+(it|that)\s+(earlier|before|already)\b',
     r'\bi\s+got\s+(it|that)\s+done\s+(earlier|before|already)\b',
     r'\bi\s+(did|took|completed|finished)\s+(it|that)\s+(this\s+morning|this\s+afternoon|this\s+evening|last\s+night|before\s+\w+)\b',
 
-    # "did it before I saw" / timing-related
+    # ── Tier 1: "did it before I saw" / timing-related ──
     r'\bbefore\s+i\s+saw\s+(this|the|your)\b',
     r'\btiming\s+issue\b',
     r'\bdid\s+(it|that)\s+before\b',
 
-    # Domain-specific past-tense
+    # ── Tier 1: Domain-specific past-tense with temporal ──
     r'\bi\s+(worked\s+out|exercised|journaled|prayed|took\s+my\s+med)\s+(earlier|already|this\s+morning|before)\b',
     r'\bgot\s+my\s+(workout|journal|prayer|meds?|medicine|medication|reading)\s+(done|in)\b',
 
-    # Flexible: "took my [medicine/meds] [temporal]"
+    # ── Tier 1: "took my [medicine/meds] [temporal]" ──
     r'\btook\s+my\s+(med|meds|medicine|medication|pill|pills)\s+\w*\s*(earlier|before|this\s+morning|this\s+afternoon|last\s+night|already)\b',
+
+    # ── Tier 2: "just finished/did/completed" + activity (no temporal needed) ──
+    # "I just finished my journal" / "just did my workout"
+    r'\bjust\s+(finished|did|completed|done|took|logged)\s+(my\s+)?\w+',
+
+    # ── Tier 2: "I finished/did/completed my X" (past tense + possessive) ──
+    # "I finished my journal" / "I did my workout" / "I completed my prayer"
+    r'\bi\s+(finished|completed)\s+my\s+\w+',
+    r'\bi\s+did\s+my\s+(journal|workout|exercise|prayer|reading|bible|devotion|meditation|walk|run)\b',
+
+    # ── Tier 2: "X is done" / "X is complete" ──
+    # "journal is done" / "workout is done" / "prayer is complete"
+    r'\b(journal|workout|exercise|prayer|reading|bible|devotion|medicine|meds?|meditation)\s+is\s+(done|complete|finished)\b',
+    r'\bmy\s+(journal|workout|exercise|prayer|reading|bible|devotion|medicine|meds?|meditation)\s+is\s+(done|complete|finished)\b',
+
+    # ── Tier 2: Domain-specific past-tense WITHOUT temporal ──
+    # "I journaled" / "I worked out" / "I prayed" / "I took my meds"
+    r'\bi\s+(journaled|worked\s+out|exercised|prayed|meditated)\b',
+    r'\bi\s+took\s+my\s+(med|meds|medicine|medication|pill|pills)\b',
 ]
 
 # Keyword → activity type mapping for fallback identification
@@ -346,19 +370,29 @@ def handle_affirmed_completion(
     # Step 4: Mark the proactive message as handled (if any)
     _mark_proactive_as_handled(conversation, activity_type)
 
-    # Step 5: Build natural response
-    response = _build_acknowledgment(activity_type)
+    # Step 5: Auto-complete the corresponding routine/item
+    # Uses existing completion pathways (toggle_routine_completion,
+    # MedicineLog). No new systems. Failure is non-fatal — user still
+    # gets acknowledgment and can manually complete.
+    auto_result = _try_auto_complete(user, activity_type, message)
+
+    # Step 6: Build natural response
+    response = _build_acknowledgment(activity_type, auto_result)
 
     logger.info(
-        "AFFIRMED_COMPLETION_HANDLED user=%s type=%s confidence=%.2f — "
-        "no CRUD executed, suppressing further reminders",
+        "AFFIRMED_COMPLETION_HANDLED user=%s type=%s confidence=%.2f "
+        "auto_complete=%s",
         user.id if hasattr(user, 'id') else user, activity_type, confidence,
+        'success' if (auto_result and auto_result.get('completed'))
+        else 'already_done' if (auto_result and auto_result.get('already_done'))
+        else 'skipped',
     )
 
     return {
         'handled': True,
         'response': response,
         'activity_type': activity_type,
+        'auto_completed': bool(auto_result and auto_result.get('completed')),
     }
 
 
@@ -390,16 +424,187 @@ def _mark_proactive_as_handled(conversation, activity_type: str) -> None:
         )
 
 
-def _build_acknowledgment(activity_type: str) -> str:
-    """Build a natural acknowledgment response."""
-    # Activity-specific acknowledgments
+# ---------------------------------------------------------------------------
+# Auto-Complete: Mark items done via existing completion pathways
+# ---------------------------------------------------------------------------
+
+# Map activity types to routine task name keywords for matching
+_ACTIVITY_TO_ROUTINE_KEYWORDS = {
+    'journal': ['journal'],
+    'workout': ['workout', 'exercise'],
+    'medicine': [],  # Handled separately via MedicineLog
+    'faith_prayer': ['prayer'],
+    'faith_reading': ['bible', 'reading', 'devotion', 'scripture'],
+    'habit': [],
+    'task': [],
+    'meal': [],
+}
+
+
+def _try_auto_complete(user, activity_type: str, message: str) -> Optional[dict]:
+    """Attempt to mark the corresponding routine item complete.
+
+    Uses the existing toggle_routine_completion pathway — no new systems.
+    Returns dict with completion details, or None if no matching item found.
+    """
+    try:
+        # Medicine: separate pathway
+        if activity_type == 'medicine':
+            return _try_auto_complete_medicine(user, message)
+
+        # Routine items: find matching schedule for today
+        keywords = _ACTIVITY_TO_ROUTINE_KEYWORDS.get(activity_type, [])
+        if not keywords:
+            return None
+
+        from apps.core.utils import get_user_today
+        from apps.life.models import RoutineLog, RoutineSchedule
+        from apps.life.services.routine_helpers import toggle_routine_completion
+
+        today = get_user_today(user)
+
+        # Find active schedules whose task_name matches the activity
+        schedules = RoutineSchedule.objects.filter(
+            routine__user=user,
+            routine__is_active=True,
+            is_active=True,
+        ).select_related('routine')
+
+        for schedule in schedules:
+            task_lower = (schedule.task_name or '').lower()
+            if any(kw in task_lower for kw in keywords):
+                # Check if already completed today
+                existing_log = RoutineLog.objects.filter(
+                    user=user,
+                    routine_schedule=schedule,
+                    date=today,
+                    status__in=['completed', 'completed_late'],
+                ).first()
+                if existing_log:
+                    return {
+                        'already_done': True,
+                        'item_name': schedule.task_name,
+                    }
+
+                # Mark complete using existing pathway
+                toggle_routine_completion(user, schedule, today)
+
+                logger.info(
+                    "AFFIRM_AUTO_COMPLETE user=%s item=%s schedule=%s",
+                    user.id, schedule.task_name, schedule.id,
+                )
+                return {
+                    'completed': True,
+                    'item_name': schedule.task_name,
+                }
+
+        return None
+
+    except Exception as e:
+        logger.warning(
+            "AFFIRM_AUTO_COMPLETE_FAILED user=%s type=%s error=%s",
+            user.id if hasattr(user, 'id') else user,
+            activity_type, e, exc_info=True,
+        )
+        return None
+
+
+def _try_auto_complete_medicine(user, message: str) -> Optional[dict]:
+    """Mark medicine as taken using existing MedicineLog pathway."""
+    try:
+        from apps.health.models import Medicine, MedicineLog
+
+        today = timezone.now().date()
+
+        # Find active medicines
+        active_meds = Medicine.objects.filter(
+            user=user,
+            medicine_status=Medicine.STATUS_ACTIVE,
+        )
+
+        if active_meds.count() == 0:
+            return None
+
+        # If only one active medicine, use it directly
+        if active_meds.count() == 1:
+            med = active_meds.first()
+        else:
+            # Try to match medicine name from message
+            msg_lower = message.lower()
+            med = None
+            for m in active_meds:
+                if m.name.lower() in msg_lower:
+                    med = m
+                    break
+
+            if not med:
+                # Multiple medicines, can't determine which — don't auto-complete
+                return None
+
+        # Check if already logged today
+        existing = MedicineLog.objects.filter(
+            medicine=med,
+            date=today,
+            status='taken',
+        ).first()
+        if existing:
+            return {
+                'already_done': True,
+                'item_name': med.name,
+            }
+
+        # Log using existing model pathway
+        MedicineLog.objects.create(
+            medicine=med,
+            date=today,
+            time=timezone.now().strftime('%H:%M'),
+            status='taken',
+        )
+
+        logger.info(
+            "AFFIRM_AUTO_COMPLETE_MED user=%s med=%s",
+            user.id, med.name,
+        )
+        return {
+            'completed': True,
+            'item_name': med.name,
+        }
+
+    except Exception as e:
+        logger.warning(
+            "AFFIRM_AUTO_COMPLETE_MED_FAILED user=%s error=%s",
+            user.id if hasattr(user, 'id') else user,
+            e, exc_info=True,
+        )
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Response Building
+# ---------------------------------------------------------------------------
+
+def _build_acknowledgment(activity_type: str, auto_result: dict = None) -> str:
+    """Build a natural acknowledgment response.
+
+    If auto_result is provided and completion succeeded, confirms the
+    action was recorded. Otherwise, offers to record it.
+    """
+    if auto_result and auto_result.get('completed'):
+        item = auto_result.get('item_name', activity_type)
+        return f"Done — {item} is marked complete."
+
+    if auto_result and auto_result.get('already_done'):
+        item = auto_result.get('item_name', activity_type)
+        return f"Already logged — {item} was already marked complete."
+
+    # Fallback: couldn't auto-complete, offer to record
     responses = {
         'journal': (
-            "Got it \u2014 glad you got your journaling in. "
-            "If you'd like me to log it for you, just let me know."
+            "Got it — glad you got your journaling in. "
+            "If you'd like me to log it, just let me know."
         ),
         'workout': (
-            "Nice \u2014 sounds like you're staying on top of your training. "
+            "Nice — sounds like you're staying on top of your training. "
             "If you'd like me to record it, just say the word."
         ),
         'medicine': (
@@ -407,29 +612,29 @@ def _build_acknowledgment(activity_type: str) -> str:
             "If you'd like me to mark them as taken, just let me know."
         ),
         'faith_prayer': (
-            "That's great \u2014 glad you got your prayer time in. "
+            "That's great — glad you got your prayer time in. "
             "If you'd like me to log it, I can."
         ),
         'faith_reading': (
-            "Good \u2014 glad you got your reading done. "
+            "Good — glad you got your reading done. "
             "If you'd like me to mark it complete, just say so."
         ),
         'habit': (
-            "Perfect \u2014 sounds like you've got that covered. "
+            "Perfect — sounds like you've got that covered. "
             "If you'd like me to check it off, I can."
         ),
         'task': (
-            "Great \u2014 sounds like that's taken care of. "
+            "Great — sounds like that's taken care of. "
             "If you'd like me to mark it complete, let me know."
         ),
         'meal': (
-            "Good \u2014 glad you've eaten. "
+            "Good — glad you've eaten. "
             "If you'd like me to log it, just let me know."
         ),
     }
 
     return responses.get(
         activity_type,
-        "Got it \u2014 I'll take your word for it. "
+        "Got it — I'll take your word for it. "
         "If you'd like me to record it, just let me know."
     )

@@ -157,6 +157,71 @@ class TestDetectAffirmedCompletion(TestCase):
         detected, _ = detect_affirmed_completion("")
         self.assertFalse(detected)
 
+    # -- Tier 2 patterns: "just finished", "I finished X", "X is done" --
+
+    def test_just_finished_my_journal(self):
+        """The exact failing case from the bug report."""
+        detected, confidence = detect_affirmed_completion("I just finished my journal")
+        self.assertTrue(detected)
+        self.assertGreaterEqual(confidence, 0.75)
+
+    def test_just_did_my_workout(self):
+        detected, confidence = detect_affirmed_completion("just did my workout")
+        self.assertTrue(detected)
+
+    def test_i_finished_my_prayer(self):
+        detected, confidence = detect_affirmed_completion("I finished my prayer")
+        self.assertTrue(detected)
+
+    def test_i_completed_my_reading(self):
+        detected, confidence = detect_affirmed_completion("I completed my reading")
+        self.assertTrue(detected)
+
+    def test_journal_is_done(self):
+        detected, confidence = detect_affirmed_completion("journal is done")
+        self.assertTrue(detected)
+
+    def test_workout_is_complete(self):
+        detected, confidence = detect_affirmed_completion("workout is complete")
+        self.assertTrue(detected)
+
+    def test_i_journaled(self):
+        detected, confidence = detect_affirmed_completion("I journaled")
+        self.assertTrue(detected)
+
+    def test_i_worked_out(self):
+        detected, confidence = detect_affirmed_completion("I worked out")
+        self.assertTrue(detected)
+
+    def test_i_prayed(self):
+        detected, confidence = detect_affirmed_completion("I prayed")
+        self.assertTrue(detected)
+
+    def test_i_took_my_meds(self):
+        detected, confidence = detect_affirmed_completion("I took my meds")
+        self.assertTrue(detected)
+
+    def test_i_did_my_workout(self):
+        detected, confidence = detect_affirmed_completion("I did my workout")
+        self.assertTrue(detected)
+
+    # -- Forward intent (should NOT match) --
+
+    def test_about_to_take_medicine(self):
+        """Forward intent should not be treated as completion."""
+        detected, _ = detect_affirmed_completion("I'm about to take my medicine")
+        self.assertFalse(detected)
+
+    def test_going_to_journal(self):
+        """Forward intent should not be treated as completion."""
+        detected, _ = detect_affirmed_completion("I'm going to journal now")
+        self.assertFalse(detected)
+
+    def test_i_want_to_journal(self):
+        """Request to create should not be treated as completion."""
+        detected, _ = detect_affirmed_completion("I want to journal about today")
+        self.assertFalse(detected)
+
     def test_none_message(self):
         detected, _ = detect_affirmed_completion(None)
         self.assertFalse(detected)

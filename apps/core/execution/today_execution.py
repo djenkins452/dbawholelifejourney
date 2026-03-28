@@ -126,6 +126,13 @@ def _task_to_item(task, time_result, time_status):
         detail_url = task.get_absolute_url()
     except Exception:
         detail_url = ''
+    try:
+        toggle_url = reverse(
+            'dashboard_v2:task_toggle',
+            kwargs={'pk': task.id},
+        )
+    except Exception:
+        toggle_url = ''
     return {
         'source_type': 'task',
         'source_id': task.id,
@@ -145,7 +152,7 @@ def _task_to_item(task, time_result, time_status):
             or getattr(task, 'is_foundational', False)
             or task.commitment_level == 'foundational'
         ),
-        'toggle_url': '',  # Tasks completed via task detail page
+        'toggle_url': toggle_url,
         'detail_url': detail_url,
         'execution_group_type': 'standalone',
         'execution_group_id': None,
@@ -268,9 +275,21 @@ def _collect_medication_items(user, user_now, user_today):
         else:
             exec_status = 'upcoming'
 
+        # Build toggle URL for individual dose completion
+        schedule_id = entry.get('schedule_id')
+        toggle_url = ''
+        if schedule_id:
+            try:
+                toggle_url = reverse(
+                    'dashboard_v2:medicine_log',
+                    kwargs={'schedule_id': schedule_id},
+                )
+            except Exception:
+                pass
+
         items.append({
             'source_type': 'medication_dose',
-            'source_id': hash(f"{entry.get('medicine_name')}_{window}_{entry.get('scheduled_time')}"),
+            'source_id': schedule_id or hash(f"{entry.get('medicine_name')}_{window}_{entry.get('scheduled_time')}"),
             'title': entry.get('medicine_name', 'Medication'),
             'domain': 'health',
             'importance': 'foundational',  # Medications are always foundational
@@ -281,7 +300,7 @@ def _collect_medication_items(user, user_now, user_today):
             'completed_today': completed,
             'is_actionable': not completed and status != 'missed',
             'is_foundational': True,
-            'toggle_url': '',  # Medications logged via health module
+            'toggle_url': toggle_url,
             'detail_url': '',
             'execution_group_type': 'medication_window',
             'execution_group_id': window,

@@ -2262,6 +2262,8 @@ def build_medicine_state(user):
 
                 schedule_status.append({
                     'medicine_name': med.name,
+                    'medicine_id': med.id,
+                    'schedule_id': sched.id,
                     'scheduled_time': (
                         sched.scheduled_time.strftime('%I:%M %p').lstrip('0')
                         if sched.scheduled_time else None

@@ -1078,8 +1078,21 @@ def _compute_contract_priority_score(team_entry):
     priority = team_entry.get('priority', 3)
     status = team_entry.get('status', 'upcoming')
     ng = team_entry.get('next_game') or {}
-    game_type = ng.get('game_type', 'regular')
-    game_note = ng.get('game_note', '').lower()
+    game_type = ng.get('game_type', '')
+    game_note = ng.get('game_note', '') or ''
+
+    # Defensive: if contract is stale and missing game_type, check DB directly
+    if not game_type and ng.get('game_id'):
+        try:
+            ge = GameEvent.objects.only('game_type', 'game_note').get(id=ng['game_id'])
+            game_type = ge.game_type or 'regular'
+            game_note = ge.game_note or ''
+        except GameEvent.DoesNotExist:
+            game_type = 'regular'
+    elif not game_type:
+        game_type = 'regular'
+
+    game_note = game_note.lower()
 
     # ── 1. USER RELEVANCE (max 100) ─────────────────────────────────
     if priority == 1:

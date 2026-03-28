@@ -6,6 +6,11 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Fix: Sports Page Dedup Using Composite Keys
+
+- **Bug Fix:** More Games section was duplicating all games from Hero and What's Next. Root cause: game_id was None in _contract data, so game_id-based dedup silently passed all games through. Fixed with composite key dedup: uses `game_id` when available, falls back to `team_name|opponent` composite key. All sections (Hero → Live Now → What's Next → More Games) share a single `shown_keys` set — zero duplicates guaranteed even with None game_ids.
+- **Files:** `apps/sports/services/sports_view_model.py`
+
 ## 2026-03-27 — Sports Importance Engine: 4-Dimension Priority Scoring
 
 - **New Feature:** Importance engine that scores every game on 4 dimensions: (1) User relevance (primary/secondary/casual team follow priority, max 100pts), (2) Game significance (tournament +80, postseason +70, with bonus for later rounds like Sweet 16 +20, Final Four +30), (3) Time sensitivity (live +70, starting soon +60, today +40), (4) Momentum context (streaks +10-20). Hero = highest importance score. All sections sort by importance.

@@ -104,6 +104,27 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
     teams = contract.get('teams', [])
     storylines = contract.get('storylines', [])
 
+    # ── DEDUP HELPER: game_id OR composite key ──────────────────────
+    # game_id can be None when signals lack it — fall back to (team, opponent)
+    shown_keys = set()
+
+    def _game_key(team_entry):
+        """Return a dedup key for a game: game_id if available, else composite."""
+        ng = team_entry.get('next_game') or {}
+        gid = ng.get('game_id')
+        if gid:
+            return f"gid:{gid}"
+        # Composite fallback: team + opponent (covers None game_id case)
+        return f"match:{team_entry.get('team_name', '')}|{ng.get('opponent', '')}"
+
+    def _is_shown(team_entry):
+        """Check if this game is already shown in a prior section."""
+        return _game_key(team_entry) in shown_keys
+
+    def _mark_shown(team_entry):
+        """Mark this game as shown."""
+        shown_keys.add(_game_key(team_entry))
+
     # ── PRIORITY ENGINE: score every team with a game ────────────────
     scored_teams = []
     for t in teams:
@@ -116,12 +137,11 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
     # ── HERO: single most important game ─────────────────────────────
     hero = None
     hero_team_id = None
-    hero_game_id = None
     if scored_teams:
         _, hero_team = scored_teams[0]
         hero = _build_hero_from_contract(hero_team)
         hero_team_id = hero_team.get('team_id')
-        hero_game_id = (hero_team.get('next_game') or {}).get('game_id')
+        _mark_shown(hero_team)
     else:
         for t in teams:
             if t.get('last_result'):
@@ -131,16 +151,13 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
 
     # ── LIVE NOW: all live games except hero (max 5, deduped) ────────
     live_now = []
-    live_seen = {hero_game_id} if hero_game_id else set()
     for t in teams:
         if t.get('status') != 'live' or not t.get('next_game'):
             continue
-        ng = t['next_game']
-        game_id = ng.get('game_id')
-        if game_id and game_id in live_seen:
+        if _is_shown(t):
             continue
-        if game_id:
-            live_seen.add(game_id)
+        _mark_shown(t)
+        ng = t['next_game']
         live_now.append({
             "team_name": t.get('team_name', ''),
             "team_logo": t.get('logo_url', ''),
@@ -158,19 +175,15 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
 
     # ── WHAT'S NEXT: top 3 non-hero, non-live within 48h ────────────
     whats_next = []
-    next_seen = set()
     for _, t in scored_teams:
         tid = t.get('team_id')
         if tid == hero_team_id:
             continue
         if t.get('status') == 'live':
             continue
-        ng = t.get('next_game') or {}
-        game_id = ng.get('game_id')
-        if game_id and game_id in next_seen:
+        if _is_shown(t):
             continue
-        if game_id:
-            next_seen.add(game_id)
+        ng = t.get('next_game') or {}
         # 48h window filter
         if ng.get('start_time'):
             try:
@@ -180,6 +193,7 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
                     continue
             except (ValueError, TypeError):
                 pass
+        _mark_shown(t)
         # Context line: why this game matters
         context = _game_context_line(t)
         whats_next.append({
@@ -202,7 +216,6 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
             continue
         sc = t['streak_count']
         st = t.get('streak_type', '')
-        # Interpret the streak
         if st == 'W' and sc >= 7:
             label = "Dominant"
         elif st == 'W' and sc >= 5:
@@ -240,22 +253,15 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
         if len(key_storylines) >= 5:
             break
 
-    # ── MORE GAMES: remaining today/upcoming games not already shown ──
-    shown_ids = {hero_game_id} if hero_game_id else set()
-    shown_ids.update(g.get('game_id') for g in live_now if 'game_id' in g)
-    shown_ids.update(next_seen)
-    shown_ids.discard(None)
-
+    # ── MORE GAMES: remaining today/upcoming not already shown ───────
     more_games = []
     for _, t in scored_teams:
-        ng = t.get('next_game') or {}
-        game_id = ng.get('game_id')
-        if game_id in shown_ids:
+        if _is_shown(t):
             continue
-        if game_id:
-            shown_ids.add(game_id)
         if t.get('status') not in ('today', 'starting_soon', 'upcoming'):
             continue
+        _mark_shown(t)
+        ng = t.get('next_game') or {}
         more_games.append({
             "team_name": t.get('team_name', ''),
             "team_logo": t.get('logo_url', ''),

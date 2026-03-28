@@ -54,20 +54,6 @@
     </div>
     {% endif %}
 
-    {# COMPLETED section — collapsed by default #}
-    {% if ac.phase_groups.completed %}
-    <details class="v2-ac-completed-section">
-        <summary class="v2-ac-completed-summary">
-            <span class="v2-ac-completed-label">Completed</span>
-            <span class="v2-ac-completed-count">{{ ac.phase_groups.completed|length }} group{{ ac.phase_groups.completed|length|pluralize }}</span>
-        </summary>
-        <div class="v2-ac-completed-content">
-            {% for group in ac.phase_groups.completed %}
-            {% include "dashboard_v2/partials/_action_group.html" %}
-            {% endfor %}
-        </div>
-    </details>
-    {% endif %}
 
 </section>
 {% elif not ac.has_items %}

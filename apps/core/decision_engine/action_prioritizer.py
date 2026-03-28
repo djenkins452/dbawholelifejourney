@@ -464,9 +464,25 @@ def build_grouped_action_center(execution_items, current_time, summaries=None):
         })
 
     # Step 2: Add binary domain actions (journal, workout, faith)
+    # BUT skip any that are already covered by a routine item (e.g., "Journal"
+    # in Nightly Routine means we don't also need "Write in journal" standalone)
     if summaries and summaries.get('domains'):
         domains = summaries['domains']
         expected = summaries.get('expected', {})
+
+        # Build set of activity_types already present in routine items
+        _covered_activities = set()
+        for item in all_items:
+            if item['source_type'] == 'routine_item':
+                # Check title-based matching for common activities
+                title_lower = item['title'].lower()
+                if 'journal' in title_lower:
+                    _covered_activities.add('journal')
+                if 'bible' in title_lower or 'reading' in title_lower:
+                    _covered_activities.add('faith')
+                if 'workout' in title_lower or 'exercise' in title_lower:
+                    _covered_activities.add('workout')
+
         _binary_map = [
             ('journal', 'Write in journal', '/journal/', 'journal'),
             ('faith_engaged', 'Bible reading', '/faith/reading-plans/', 'faith'),
@@ -474,6 +490,9 @@ def build_grouped_action_center(execution_items, current_time, summaries=None):
         ]
         for key, title, url, expected_key in _binary_map:
             if not expected.get(expected_key, False):
+                continue
+            # Skip if already covered by a routine item
+            if expected_key in _covered_activities:
                 continue
             is_done = domains.get(key, False)
             all_items.append({
@@ -574,23 +593,22 @@ def build_grouped_action_center(execution_items, current_time, summaries=None):
             'urgency': item['urgency'],
         })
 
-    # Step 4: Sort groups by urgency then foundational
+    # Step 4: Sort groups — within each phase, pending first then completed
     result_groups.sort(key=lambda g: (
-        g['all_complete'],  # Completed groups last
-        not g['is_foundational'],
         URGENCY_ORDER.get(g['urgency'], 9),
+        g['all_complete'],  # Completed groups after pending within same phase
+        not g['is_foundational'],
         g['title'],
     ))
 
-    # Step 5: Split into phase buckets
+    # Step 5: Split into phase buckets — completed groups stay in their time phase
     phase_groups = {
         'now': [g for g in result_groups
-                if g['urgency'] in ('overdue', 'now') and not g['all_complete']],
+                if g['urgency'] in ('overdue', 'now')],
         'upcoming': [g for g in result_groups
-                     if g['urgency'] == 'next' and not g['all_complete']],
+                     if g['urgency'] == 'next'],
         'later': [g for g in result_groups
-                  if g['urgency'] == 'upcoming' and not g['all_complete']],
-        'completed': [g for g in result_groups if g['all_complete']],
+                  if g['urgency'] == 'upcoming'],
     }
 
     total = sum(g['total'] for g in result_groups)

@@ -225,7 +225,8 @@ def _collect_routine_items(user, user_now, user_today):
                 'rescheduled_time': rescheduled_time_str,
                 'reschedule_count': item.get('reschedule_count', 0),
                 'toggle_url': reverse(
-                    'life:routine_toggle'
+                    'dashboard_v2:routine_schedule_toggle',
+                    kwargs={'schedule_id': schedule_id},
                 ),
                 'detail_url': reverse('life:routine_list'),
                 'execution_group_type': 'routine',

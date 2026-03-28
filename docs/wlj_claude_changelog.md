@@ -24962,3 +24962,12 @@ This uses `or ''` to convert any falsy value (None, empty string, missing key) t
 - `templates/calendar_engine/manage.html` — `formatDT()` JS function
 
 **Why:** User preference for US date format.
+
+## 2026-03-28: Dashboard Action Center — Interaction Fixes
+**Files:** `apps/core/execution/today_execution.py`, `apps/core/decision_engine/action_prioritizer.py`, `templates/dashboard_v2/partials/action_center.html`
+**Changes:**
+- Fixed routine item toggle URLs: was pointing to `life:routine_toggle` (old card system), now correctly uses `dashboard_v2:routine_schedule_toggle` for inline HTMX completion
+- Fixed duplicate "Write in journal" appearing as standalone action when Journal already exists as routine item in Nightly Routine — binary domain actions now check for existing routine items with matching titles
+- Removed redundant "Completed" collapsed section at bottom of Action Center — completed items already show inline with checkmarks in their time phase (Now/Upcoming/Later)
+- Completed groups now stay in their time phase instead of being pulled into separate section
+**Why:** Clicking radio buttons did nothing because toggle URLs pointed to wrong endpoint. Binary domain deduplication prevents confusing duplicate entries. Completed section was architecturally redundant with inline completion display.

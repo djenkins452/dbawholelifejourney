@@ -1525,6 +1525,18 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
                                         "duration_seconds": s.duration_seconds,
                                     }
 
+                # Apply weight progression for plateau detection
+                from apps.health.services.fitness_progression import get_recommended_weight
+
+                for exercise_id in template_defaults:
+                    result = get_recommended_weight(user, exercise_id)
+                    if result and result["progression"]["applied"]:
+                        for set_num in template_defaults[exercise_id]["sets"]:
+                            set_data = template_defaults[exercise_id]["sets"][set_num]
+                            if set_data.get("weight"):
+                                set_data["weight"] = result["weight"]
+                        template_defaults[exercise_id]["progression"] = result["progression"]
+
                 context["template_defaults_json"] = json.dumps(template_defaults)
             except WorkoutTemplate.DoesNotExist:
                 pass

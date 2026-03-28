@@ -1164,6 +1164,14 @@
         gap: var(--space-2);
     }
 }
+.progression-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-success, #16a34a);
+    margin-left: var(--space-1, 4px);
+    white-space: nowrap;
+}
 </style>
 
 <script nonce="{{ csp_nonce }}">
@@ -1733,6 +1741,8 @@ function applyTemplateDefaults() {
         const exerciseRow = document.querySelector(`[data-exercise-id="${exerciseId}"]`);
         if (!exerciseRow) continue;
 
+        const progressed = defaults.progression && defaults.progression.applied;
+
         // Apply defaults to each set
         for (const [setNumber, setDefaults] of Object.entries(defaults.sets || {})) {
             const setRow = exerciseRow.querySelector(`[data-set-number="${setNumber}"]`);
@@ -1744,6 +1754,13 @@ function applyTemplateDefaults() {
 
             if (weightInput && setDefaults.weight != null) {
                 weightInput.value = setDefaults.weight;
+                // Show progression badge on first set only
+                if (progressed && setNumber === "1") {
+                    const badge = document.createElement('span');
+                    badge.className = 'progression-badge';
+                    badge.textContent = '\u2191 +' + defaults.progression.increase + ' lbs';
+                    weightInput.parentNode.insertBefore(badge, weightInput.nextSibling);
+                }
             }
             if (repsInput && setDefaults.reps != null) {
                 repsInput.value = setDefaults.reps;

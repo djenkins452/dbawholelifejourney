@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Deterministic Weight Progression for Workouts
+
+- **New Feature:** Plateau detection per exercise with automatic +5 lb weight progression.
+  - Retrieves last 3 completed sessions containing each exercise
+  - Calculates max working weight per session (excludes warmups)
+  - If weights are consistent (within ±5 lbs across all 3) → recommends +5 lb increase
+  - Applied at workout prefill time only — never modifies stored data
+- **Service:** `apps/health/services/fitness_progression.py` — `get_recommended_weight(user, exercise_id)` returns weight + progression metadata
+- **Integration:** Injected into `WorkoutCreateView.get_context_data()` after template defaults are built, before JSON serialization
+- **UI:** Green "↑ +5 lbs" badge shown next to weight input when progression is applied
+- **Files:** `apps/health/services/fitness_progression.py` (new), `apps/health/views.py`, `templates/health/fitness/workout_form.html`, `apps/health/tests/test_fitness_progression.py` (new)
+- **Tests:** 13/13 pass — plateau detection, insufficient data, warmup exclusion, user isolation, mixed sets, time-based exercises, boundary conditions
+
 ## 2026-03-27 — Sports Hub v4: Live Energy + Visual Hierarchy + Auto-Refresh
 
 - **Enhancement:** Complete template rewrite for v4 experience. Dynamic hero reacts to game state — LIVE gets pulsing badge, radial glow background, score flash animation on changes. Game significance tags (Sweet 16, Playoffs) shown as gold context tags next to badge. Insight line color-coded: gold for significance, purple for streaks, dim for status.

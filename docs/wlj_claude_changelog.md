@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Sports Hub v4: Live Energy + Visual Hierarchy + Auto-Refresh
+
+- **Enhancement:** Complete template rewrite for v4 experience. Dynamic hero reacts to game state — LIVE gets pulsing badge, radial glow background, score flash animation on changes. Game significance tags (Sweet 16, Playoffs) shown as gold context tags next to badge. Insight line color-coded: gold for significance, purple for streaks, dim for status.
+- **Auto-refresh:** Page soft-refreshes via fetch every 30s (live games) or 60s (no live). Parses response HTML, swaps hub content, re-initializes ticker + time formatting. Score flash animation triggers on hero score change. Green refresh dot pulses briefly in corner.
+- **Countdown:** Hero shows "in 2h 15m" countdown for upcoming games, updates every 60s.
+- **Ticker:** Smoother cubic-bezier transition, touch-pause support for mobile, 36px height.
+- **Visual hierarchy:** Hero (largest, strongest contrast, most spacing) → Live strip (elevated cards, red accent) → Up Next (medium weight cards with hover) → More Games (lightest, compact rows). Section headers with count badges.
+- **Context coloring:** What's Next context lines color-coded — gold for game significance, green for win streaks, red for losing streaks, muted for records.
+- **Removed:** Raw emoji from momentum (cleaner). Section renamed "What's Next" → "Up Next for You".
+- **Files:** `apps/sports/templates/sports/my_teams.html`
+
 ## 2026-03-27 — Fix: Sports Page Dedup Using Composite Keys
 
 - **Bug Fix:** More Games section was duplicating all games from Hero and What's Next. Root cause: game_id was None in _contract data, so game_id-based dedup silently passed all games through. Fixed with composite key dedup: uses `game_id` when available, falls back to `team_name|opponent` composite key. All sections (Hero → Live Now → What's Next → More Games) share a single `shown_keys` set — zero duplicates guaranteed even with None game_ids.

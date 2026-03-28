@@ -3425,12 +3425,16 @@ def _build_sports_contract(state):
         next_game_entry = None
         if next_game:
             next_game_entry = {
+                'game_id': next_game.get('game_id'),
                 'opponent': next_game.get('opponent', ''),
-                'start_time': next_game.get('time', ''),
+                'opponent_logo': next_game.get('opponent_logo', ''),
+                'start_time': next_game.get('start_time', '') or next_game.get('time', ''),
                 'venue': next_game.get('venue', ''),
                 'is_home': next_game.get('is_home', True),
                 'pitcher': next_game.get('pitcher', ''),
                 'score': next_game.get('score', ''),
+                'game_type': next_game.get('game_type', 'regular'),
+                'game_note': next_game.get('game_note', ''),
             }
 
         # Build last_result contract entry with margin
@@ -3723,6 +3727,8 @@ def _build_sports_state_from_db(user, state):
                 "time": next_game.start_time.strftime("%-I:%M %p"),
                 "venue": next_game.venue,
                 "is_home": is_home,
+                "game_type": getattr(next_game, 'game_type', 'regular'),
+                "game_note": getattr(next_game, 'game_note', ''),
             }
             if next_game.is_live:
                 summary["next_game"]["score"] = next_game.get_score_display()

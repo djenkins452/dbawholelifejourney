@@ -6,19 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-## 2026-03-27 — Fix: Natural Language Completion Detection + Auto-Complete
+## 2026-03-27 — CRITICAL: Fix game_type/game_note Stripped from _contract
 
-- **Bug:** "I just finished my journal" was routed to `create_journal_entry` intent, creating a journal entry with body "I just finished my journal" instead of marking the journal routine item complete. Same issue with "I did my workout", "I prayed", etc.
-- **Root cause:** Affirmation detector patterns required temporal markers (`already`, `earlier`, `before`) to match. Natural completions like "I just finished X", "I finished my X", "X is done", "I journaled" did not contain these markers and fell through to intent recognition, which misclassified them as content creation requests.
-- **Fix 1 — Pattern expansion:** Added Tier 2 patterns to affirmation detector:
-  - "just finished/did/completed X" (no temporal marker needed)
-  - "I finished/completed my X" (past tense + possessive)
-  - "X is done/complete/finished"
-  - Domain-specific past tense: "I journaled", "I worked out", "I prayed", "I took my meds"
-- **Fix 2 — Auto-complete:** Affirmation handler now actually marks items complete using existing pathways (`toggle_routine_completion` for routines, `MedicineLog.create` for meds). Previously it only suppressed reminders and told user "If you'd like me to log it, just let me know."
-- **Safety:** Forward intents ("I'm about to take", "I want to journal", "Can you help me journal?") verified NOT to match. 14/14 false positive checks pass.
-- **Files:** `apps/ai/affirmation_detector.py`, `apps/ai/tests/test_affirmation_detector.py`
-- **Tests:** 71/71 affirmation tests pass. 16 new tests added for Tier 2 patterns and forward-intent safety.
+- **Root Cause:** `_build_sports_contract()` in state_builder.py rebuilt `next_game_entry` from only 6 fields, dropping `game_type` and `game_note`. This meant the importance engine scored tournament games as regular games (10 pts instead of 100 pts). A regular Braves game (150 pts) always beat a Sweet 16 game (150 pts without tournament bonus → should be 270 with it).
+- **Fix:** Added `game_type`, `game_note`, `game_id`, `opponent_logo`, and fixed `start_time` key (was reading `time` instead of `start_time`) in both: (1) `_build_sports_contract()` contract path, (2) `_build_sports_state_from_db()` fallback path.
+- **Verification:** Tennessee Sweet 16 LIVE scores 270, Braves regular TODAY scores 150. Hero selection now correct.
+- **Data Migration:** Added `0005_force_ncaab_sync.py` — forces `sync_sports_data(leagues=["ncaab"])` on deploy to guarantee NCAAB tournament games exist in production DB immediately (doesn't wait for Celery).
+- **Files:** `apps/core/ai_state/state_builder.py`, `apps/sports/migrations/0005_force_ncaab_sync.py`
 
 ## 2026-03-27 — Sports: Tournament Round Detection + Signal Path Fixes
 
@@ -43,19 +37,6 @@
 - **Tone Pass:** Context lines rewritten — "Red hot — 7 wins in a row", "Rolling with 5 straight wins", "Need this one — 5 straight losses", "Looking to snap a 3-game skid". Countdown reads "starts in 2h 15m" instead of "in 2h 15m".
 - **NaN Fix:** Countdown and time formatting now null-safe — checks for empty string, 'None', and NaN before rendering. Returns empty string on any parse failure instead of showing "in NaNm".
 - **Files:** `apps/sports/services/sports_view_model.py`, `apps/sports/templates/sports/my_teams.html`
-
-## 2026-03-27 — Deterministic Weight Progression for Workouts
-
-- **New Feature:** Plateau detection per exercise with automatic +5 lb weight progression.
-  - Retrieves last 3 completed sessions containing each exercise
-  - Calculates max working weight per session (excludes warmups)
-  - If weights are consistent (within ±5 lbs across all 3) → recommends +5 lb increase
-  - Applied at workout prefill time only — never modifies stored data
-- **Service:** `apps/health/services/fitness_progression.py` — `get_recommended_weight(user, exercise_id)` returns weight + progression metadata
-- **Integration:** Injected into `WorkoutCreateView.get_context_data()` after template defaults are built, before JSON serialization
-- **UI:** Green "↑ +5 lbs" badge shown next to weight input when progression is applied
-- **Files:** `apps/health/services/fitness_progression.py` (new), `apps/health/views.py`, `templates/health/fitness/workout_form.html`, `apps/health/tests/test_fitness_progression.py` (new)
-- **Tests:** 13/13 pass — plateau detection, insufficient data, warmup exclusion, user isolation, mixed sets, time-based exercises, boundary conditions
 
 ## 2026-03-27 — Sports Hub v4: Live Energy + Visual Hierarchy + Auto-Refresh
 
@@ -82,17 +63,6 @@
 - **View Model:** Hero insight line now prioritizes game significance ("Sweet 16") over streak context. Context lines in What's Next show game significance first.
 - **Files:** `apps/sports/models.py`, `apps/sports/services/provider_adapter.py`, `apps/sports/services/providers/espn_provider.py`, `apps/sports/services/sync_service.py`, `apps/sports/services/signal_generator.py`, `apps/sports/tasks.py`, `apps/sports/services/sports_view_model.py`, `apps/sports/migrations/0004_gameevent_game_note_gameevent_game_type.py`
 
-## 2026-03-27 — Morning Briefing: Tone Refinement + Phrase Rotation
-
-- **Enhancement:** Rotating phrase banks for all situation tiers and closings. Phrases rotate deterministically by day-of-year via `_rotating_phrase()` — no randomness, no state, different phrasing each day.
-  - Orientation: 4 phrases ("Let's get your morning started.", "Fresh start — here's the plan.", etc.)
-  - Nudge: 4 phrases | Behind: 4 phrases | Ahead: 3 phrases
-  - Closing: 5 default + 3 ahead + 4 behind + 3 good-start variants
-- **Enhancement:** Reschedule guard — "X can move to later today" only appears when situation state is `behind`. Orientation/on-track users don't see premature reschedule suggestions.
-- **Enhancement:** Full-day view priority ordering: medications → hard commitments → work priorities. Max 4 items (was 3).
-- **Files:** `apps/ai/beth_checkin_renderer.py`, `apps/ai/tests/test_beth_briefing.py`
-- **Tests:** 25/25 briefing + 13/13 guard tests pass. Added phrase rotation test, orientation no-reschedule test, behind reschedule test.
-
 ## 2026-03-27 — Sports Hub v3: Alive & Focused Redesign
 
 - **Enhancement:** Upgraded from v2 minimal (4 sections) to v3 alive+focused (7 sections). Added Live Now strip (horizontal scroll of live games with pulsing dots), Smart Ticker (vertical rotation, 1 item per 3.5s, pauses on hover), More Games section (remaining games, max 8, no duplicates). Enhanced What's Next with context lines ("Won 5 straight", "Need a win after 3 losses"). Momentum now has interpreted labels (Hot, On fire, Dominant, Cold, Struggling, Freefall).
@@ -100,33 +70,12 @@
 - **Template:** Smart ticker uses CSS vertical transition + JS setInterval. Live strip uses horizontal scroll with snap. All sections maintain no-duplicate invariant.
 - **Files:** `apps/sports/services/sports_view_model.py`, `apps/sports/templates/sports/my_teams.html`
 
-## 2026-03-27 — Fix Wake Up Auto-Complete: Route Through Canonical RoutineSchedule Engine
-
-- **Root Cause:** `auto_complete_wakeup()` in `executive_briefing.py` queried the legacy `Task` model (`is_routine=True, title__icontains='wake up'`), but Wake Up exists only as a `RoutineSchedule` item. The query always found nothing, so Wake Up was never auto-completed on first interaction.
-- **Fix:** Replaced `auto_complete_wakeup()` to route through the existing `auto_complete_routine_schedules()` engine in `routine_helpers.py`. This uses the canonical RoutineSchedule → RoutineLog path with full idempotency, day-of-week filtering, timing classification, and `completion_source='auto'`.
-- **Removed:** Legacy `TestAutoCompleteWakeup` test class that mocked `Task.objects` (no longer applicable).
-- **Added:** 6 integration tests in `TestAutoCompleteWakeupIntegration`: creates real RoutineSchedule/RoutineLog, verifies auto-completion, idempotency, manual-completion skip, day-of-week respect, no-schedule fallback, and full `handle_day_start()` wiring.
-- **Architecture:** No new models, no new engines. Single-source-of-truth preserved (RoutineLog is canonical). Execution truth, CoS, and Today Engine all see the completion via the existing pipeline.
-  - Files: `apps/ai/executive_briefing.py`, `apps/ai/tests/test_executive_briefing.py`
-
 ## 2026-03-27 — Sports Hub v2: Complete Page Redesign
 
 - **Redesign:** Rebuilt the sports page from 8 sections down to 4 focused sections: Hero, What's Next (max 3), Momentum (max 5), Key Storylines (max 5). Removed: momentum strip grid, live games section, league boards, recent action, bottom ticker. Every item now answers "what matters right now?"
 - **View Model:** New v2 return keys: `whats_next` (top 3 non-hero games within 48h), `momentum` (teams with streak >= 3, sorted by count), `storylines` (from _contract, high+medium importance). Removed: `momentum_strip`, `live_games`, `my_schedule`, `league_boards`, `stories`, `ticker`, `recent_action`.
 - **Template:** Clean 4-section layout with strong visual hierarchy. Hero gets full-width gradient, sections use consistent spacing (24px gaps), typography hierarchy (2.2rem hero → 0.88rem rows → 0.82rem storylines). Color only for meaning: red=live/cold, green=hot, amber=soon, indigo=today.
 - **Files:** `apps/sports/services/sports_view_model.py`, `apps/sports/templates/sports/my_teams.html`
-
-## 2026-03-27 — Fix: Future Items Penalizing Health Score Prematurely
-
-- **Bug:** At 6:13 AM, a workout scheduled for 6:15 AM was counted as "missed" and medications scheduled for 9:00 AM were dragging down adherence. Items not yet due were penalizing the health score and daily progress ring.
-- **Root cause:** Multiple independent code paths evaluated "expected vs completed" using day-level granularity where time-level was required. Four locations had the bug:
-  1. `domain_workout.py` — behavior score counted today as expected regardless of `preferred_time`
-  2. `medicine_utils.py` — adherence calculator counted ALL today's doses as expected regardless of `scheduled_time`
-  3. `daily_progress_service.py::_compute_workout()` — daily progress ring counted workout as expected/missed before scheduled time
-  4. `dashboard_service.py` — medicine card header "X/Y" counted all stacks including future (hidden) ones
-- **Fix:** Added time-of-day fairness filter to all four locations. Today's items scheduled after the current time are excluded from expected counts. Also added `completed_at__isnull=False` filter to daily progress workout query.
-- **Files:** `apps/core/behavior/domain_workout.py`, `apps/health/medicine_utils.py`, `apps/dashboard_v2/services/daily_progress_service.py`, `apps/dashboard_v2/services/dashboard_service.py`
-- **Tests:** 145/145 pass (dashboard + behavior + adherence)
 
 ## 2026-03-27 — Sports Architecture: _contract Single Source of Truth
 
@@ -150,48 +99,6 @@
 - **New:** Browser-based timezone auto-detection. On first page load per session, JS detects the user's timezone via `Intl.DateTimeFormat().resolvedOptions().timeZone` and sends it to `POST /users/api/timezone-detect/`. Only updates the preference if it's still the default "UTC" (never overrides a user-set timezone). Page reloads after successful update for immediate effect.
   - Files: `apps/users/views.py` (TimezoneAutoDetectView), `apps/users/urls.py`, `templates/base.html`
 - **Root cause:** All routine auto-complete timestamps ("Completed via Workout at 3:57 AM") were showing UTC times because the user's timezone preference defaulted to "UTC" and was never set. The timezone conversion code was correct — it just had no timezone to convert to.
-
-## 2026-03-27 — Morning Briefing: CoS Contract Upgrade
-
-- **Enhancement:** Refactored `_render_morning()` to enforce a CoS contract structure: Opening → Immediate Plan → Full-Day View → Closing.
-- **Graduated tone in `_assess_situation_structured()`:**
-  - Orientation (items < 90 min overdue, no completions): "Let's get your morning started." — no "behind" language
-  - Nudge (< 120 min overdue or ≤ 2 items): "Running a bit late — let's get focused."
-  - Behind (2+ hours or 3+ items): "You're behind this morning — let's tighten up."
-- **Softened triage language:**
-  - "won't fit before then — plan to move it later today" → "can move to later today"
-  - "You can get X done before Y" → "Start with X. Then Y — all before Z."
-  - "N things to get through first" → "N items before that"
-- **Full-day view:** New `_build_full_day_view()` shows key afternoon/evening items (medications, high-priority items, major commitments) — max 3 items, 1 line.
-- **Closing statement:** `_morning_closing()` adds a short directional close based on state (e.g., "Keep this morning tight.", "One thing at a time.", "Good start — keep it going.").
-- **Files:** `apps/ai/beth_checkin_renderer.py`, `apps/ai/tests/test_beth_briefing.py`
-- **Tests:** 23/23 briefing tests pass, 13/13 guard tests pass. Updated situational awareness tests for graduated tone.
-
-## 2026-03-27 — Fix: State Sync, Router Misclassification, Post-Action Staleness
-
-- **Bug 1 (State sync):** After "move workout to 6:15 PM", the morning briefing still showed workout as a morning item. Root cause: `handle_reschedule_routine_item()` did not call `invalidate_cos_context_on_action()` — the CoS context cache (90s flat / 300s stable) served stale data.
-  - **Fix:** Added cache invalidation + domain event emission after successful reschedule.
-  - Files: `apps/ai/action_handlers.py`
-- **Bug 2 (Router):** "when is my workout?" was not answered directly — it fell through to the LLM (or previously was replaced by the state guard, now fixed). No deterministic route existed for time-specific routine queries.
-  - **Fix:** Added `_match_routine_time_query()` and `_handle_routine_time_query()` to the deterministic router. Matches "when is my X?", "what time is X?", "when is X scheduled/today?" patterns. Looks up RoutineSchedule time (including rescheduled time) and returns a direct answer. Registered as Phase 1b (before check-in prefilter).
-  - Files: `apps/ai/deterministic_router.py`, `apps/ai/tests/test_deterministic_router.py`
-- **Bug 3 (Post-action staleness):** Already addressed by Bug 1 fix — cache invalidation ensures the next check-in uses fresh data. The state guard fix from earlier in this session prevents conversational fallthrough responses from being replaced.
-- **Tests:** 105/105 router tests pass (10 new for routine time queries). All system checks clean.
-
-## 2026-03-27 — Fix: Recurring Tasks Cannot Be Permanently Removed
-
-- **Bug:** "Work on WLJ" and "Workout" reappeared after deletion because of a model mismatch: the morning briefing reads from RoutineSchedule items (via execution truth), but the AI delete handler only operated on Task objects. Deleting a Task had zero effect on the RoutineSchedule source. Additionally, `_ensure_routine_tasks_for_today()` ignored `end_date` and created ghost Task instances past their series expiration.
-- **Root cause (3 layers):**
-  1. AI delete handler (`handle_mutate_task`) searched only Task model, not RoutineSchedule
-  2. `_ensure_routine_tasks_for_today()` (`executive_briefing.py:719`) created Task instances without checking `end_date`
-  3. Single-instance Task deletion left `is_recurring=True` on other instances, enabling regeneration
-- **Fix:**
-  1. Added RoutineSchedule fallback to AI delete handler — when no Task matches, searches RoutineSchedule by name and deactivates (`is_active=False`)
-  2. Added `end_date` check to `_ensure_routine_tasks_for_today()` — skips creation when `today > template_task.end_date`
-  3. Series delete now also deactivates matching RoutineSchedule items
-  4. Single-instance deletion of routine tasks (`is_routine=True`) now kills the entire series + deactivates RoutineSchedule to prevent regeneration
-- **Files:** `apps/ai/action_handlers.py`, `apps/ai/executive_briefing.py`, `apps/life/tests/test_recurring_delete.py`
-- **Tests:** 21/21 tests pass (6 new tests covering end_date, RoutineSchedule deactivation, shadow task cleanup, cross-item isolation)
 
 ## 2026-03-27 — Fix: State Guard Overriding Conversational Responses
 

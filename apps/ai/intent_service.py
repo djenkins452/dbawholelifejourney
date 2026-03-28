@@ -540,17 +540,36 @@ LIFE/TASKS:
 - "I want a daily workout at 6am" → create_routine_task(title="Workout", scheduled_time="06:00", duration_minutes=45)
 - "schedule my evening walk every day at 7pm" → create_routine_task(title="Evening Walk", scheduled_time="19:00", duration_minutes=30)
 
-EVENT HISTORY QUERIES (query_event_history) — use when user asks about past events, missed items, or execution history:
+EVENT HISTORY & DATA LOOKUP (query_event_history) — use when user asks about past events, specific data, missed items, or wants to look up any recorded data:
+
+Data lookup (query_type="lookup"):
+- "how did I sleep last night?" → query_event_history(query_type="lookup", domain="sleep", count=1)
+- "what's my weight?" → query_event_history(query_type="lookup", domain="weight", count=1)
+- "what was my blood pressure?" → query_event_history(query_type="lookup", domain="blood_pressure", count=1)
+- "how was my glucose after lunch?" → query_event_history(query_type="lookup", domain="glucose", count=1)
+- "how many steps did I get yesterday?" → query_event_history(query_type="lookup", domain="steps", target_date="yesterday")
+- "how much water did I drink today?" → query_event_history(query_type="lookup", domain="water", target_date="today")
+- "what did I eat yesterday?" → query_event_history(query_type="lookup", domain="nutrition", target_date="yesterday")
+- "how long was my last fast?" → query_event_history(query_type="lookup", domain="fasting", count=1)
+- "did I journal yesterday?" → query_event_history(query_type="lookup", domain="journal", target_date="yesterday")
+- "what did I spend today?" → query_event_history(query_type="lookup", domain="finance", target_date="today")
+- "show me my recent heart rate" → query_event_history(query_type="lookup", domain="heart_rate", count=3)
+- "last 3 weight entries" → query_event_history(query_type="lookup", domain="weight", count=3)
+- "my prayer requests" → query_event_history(query_type="lookup", domain="faith", count=5)
+- "how are my habits going?" → query_event_history(query_type="lookup", domain="habits", lookback_days=7)
+
+Missed items (query_type="missed"):
 - "what did I miss?" → query_event_history(query_type="missed", domain="all", lookback_days=7)
-- "which medication did I miss and when?" → query_event_history(query_type="missed", domain="medication", lookback_days=7)
-- "it says I missed 5 doses, what are they?" → query_event_history(query_type="missed", domain="medication", lookback_days=8)
-- "under Health it says I missed 1 dose in the past 8 days" → query_event_history(query_type="missed", domain="medication", lookback_days=8)
+- "which medication did I miss?" → query_event_history(query_type="missed", domain="medication", lookback_days=7)
+- "it says I missed 5 doses" → query_event_history(query_type="missed", domain="medication", lookback_days=8)
+
+Timeline (query_type="timeline"):
 - "what happened yesterday?" → query_event_history(query_type="timeline", target_date="yesterday")
-- "what did I do on Monday?" → query_event_history(query_type="timeline", target_date="monday")
+
+Slippage (query_type="slippage"):
 - "when did my routine start slipping?" → query_event_history(query_type="slippage", domain="routine", lookback_days=14)
-- "what have I missed this week?" → query_event_history(query_type="missed", domain="all", lookback_days=7)
-- "show me missed medications" → query_event_history(query_type="missed", domain="medication")
-NOTE: This is READ-ONLY. Do NOT use for logging, marking complete, or any mutation. The user is asking about what already happened.
+
+NOTE: This is READ-ONLY. Do NOT use for logging, marking complete, or any mutation. The user is asking about recorded data.
 
 ROUTINE RECOVERY (reschedule_routine_item) — use when user wants to move a missed routine item to later today:
 - "move my workout to 7pm" → reschedule_routine_item(item_keyword="workout", new_time="19:00")

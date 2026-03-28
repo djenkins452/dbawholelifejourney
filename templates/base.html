@@ -349,6 +349,27 @@
     <script src="{% static 'js/undo-toast.js' %}?v=1"></script>
     {% block extra_js %}{% endblock %}
 
+    <!-- Snap time inputs with step=900 to 15-minute increments (00/15/30/45) -->
+    <script nonce="{{ csp_nonce }}">
+    (function() {
+        function snapToQuarter(input) {
+            var v = input.value;
+            if (!v) return;
+            var parts = v.split(':');
+            var h = parseInt(parts[0], 10);
+            var m = parseInt(parts[1], 10);
+            var rounded = Math.round(m / 15) * 15;
+            if (rounded === 60) { rounded = 0; h = (h + 1) % 24; }
+            var hh = String(h).padStart(2, '0');
+            var mm = String(rounded).padStart(2, '0');
+            if (input.value !== hh + ':' + mm) input.value = hh + ':' + mm;
+        }
+        document.addEventListener('change', function(e) {
+            if (e.target.matches('input[type="time"][step="900"]')) snapToQuarter(e.target);
+        });
+    })();
+    </script>
+
     <!-- Auto-detect user timezone (once per session, only if still default UTC) -->
     {% if user.is_authenticated %}
     <script nonce="{{ csp_nonce }}">

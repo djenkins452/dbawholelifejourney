@@ -6,6 +6,41 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Truth Access Architecture: Event Access Layer
+
+**Problem:** CoS (Beth) could only see aggregated summaries (e.g., "adherence: 98%") but could not answer event-level questions like "Which dose did I miss and when?" The raw data existed in MedicineLog/RoutineLog/WorkoutSession but was never exposed to the conversational pipeline.
+
+**Solution:** Implemented a cross-domain Event Access Layer that provides deterministic event-level truth access without creating new models, duplicating data, or modifying existing pipelines.
+
+**New Package:** `apps/core/ai_events/`
+- `event_record.py` — Immutable EventRecord dataclass (domain, event_type, timestamp, label, status, detail)
+- `truth_depth.py` — Truth Depth classifier (SUMMARY / SIGNAL / EVENT depth classification)
+- `resolver.py` — Cross-domain EventResolver (orchestrates domain adapters)
+- `formatters.py` — Deterministic response formatters for event query results
+- `adapters/medication.py` — Reads MedicineLog directly for dose-level detail
+- `adapters/routine.py` — Reads RoutineLog + detects missing logs + completion trends
+- `adapters/workout.py` — Reads WorkoutSession for session-level detail
+- `tests/` — 71 tests covering truth depth classification, adapters, resolver, router integration
+
+**Modified:** `apps/ai/deterministic_router.py`
+- Added 3 new event-level data routes: `event_missed_query`, `event_timeline_query`, `event_slippage_query`
+- Extended `_try_deterministic_data_routes()` to support handlers with msg_lower parameter
+- Added `_parse_timeline_date()` for deterministic day-name parsing
+- All 105 existing router tests still pass (zero regressions)
+
+**Architectural Compliance:**
+- Raw Data → CoS → LLM: Event routes read raw domain models, bypass LLM entirely
+- LLM-last: All responses are deterministic (no LLM inference for factual questions)
+- Single source of truth: Reads from MedicineLog/RoutineLog/WorkoutSession (not ComplianceEvent)
+- No duplicate systems: No new models, no new tables, purely additive
+
+**Files:**
+- NEW: `apps/core/ai_events/__init__.py`, `event_record.py`, `truth_depth.py`, `resolver.py`, `formatters.py`
+- NEW: `apps/core/ai_events/adapters/__init__.py`, `medication.py`, `routine.py`, `workout.py`
+- NEW: `apps/core/ai_events/tests/__init__.py`, `test_truth_depth.py`, `test_event_record.py`, `test_medication_adapter.py`, `test_resolver.py`, `test_router_integration.py`
+- MODIFIED: `apps/ai/deterministic_router.py` (additive: new routes + handler signature extension)
+- GENERATED: `apps/life/migrations/0050_alter_routinelog_completion_source.py` (pre-existing pending)
+
 ## 2026-03-28 — Fix Template Comments + Hero Context Duplication
 
 - **Bug 1: Template comments rendering as visible text.** Multi-line Django `{# ═══\n text \n ═══ #}` comments don't work — Django template comments must be single-line. Converted all 8 multi-line comments to single-line `{# text #}` format.

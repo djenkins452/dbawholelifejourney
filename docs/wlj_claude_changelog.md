@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — CRITICAL: Fix game_type/game_note Stripped from _contract
+
+- **Root Cause:** `_build_sports_contract()` in state_builder.py rebuilt `next_game_entry` from only 6 fields, dropping `game_type` and `game_note`. This meant the importance engine scored tournament games as regular games (10 pts instead of 100 pts). A regular Braves game (150 pts) always beat a Sweet 16 game (150 pts without tournament bonus → should be 270 with it).
+- **Fix:** Added `game_type`, `game_note`, `game_id`, `opponent_logo`, and fixed `start_time` key (was reading `time` instead of `start_time`) in both: (1) `_build_sports_contract()` contract path, (2) `_build_sports_state_from_db()` fallback path.
+- **Verification:** Tennessee Sweet 16 LIVE scores 270, Braves regular TODAY scores 150. Hero selection now correct.
+- **Data Migration:** Added `0005_force_ncaab_sync.py` — forces `sync_sports_data(leagues=["ncaab"])` on deploy to guarantee NCAAB tournament games exist in production DB immediately (doesn't wait for Celery).
+- **Files:** `apps/core/ai_state/state_builder.py`, `apps/sports/migrations/0005_force_ncaab_sync.py`
+
 ## 2026-03-27 — Sports: Tournament Round Detection + Signal Path Fixes
 
 - **Tournament Context:** ESPN's NCAAB API returns `TRNMNT` type but empty `notes`. Added date-based tournament round derivation — March 25-29 → "Sweet 16", March 30+ → "Elite Eight", etc. Games now have `game_note="NCAA Tournament - Sweet 16"`.

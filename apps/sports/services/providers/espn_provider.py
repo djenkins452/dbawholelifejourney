@@ -77,7 +77,7 @@ class EspnSportsProvider(BaseSportsProvider):
             return []
 
         url = f"{_ESPN_BASE}/{espn_path}/teams"
-        data = self._request(url)
+        data = self._request(url, params={"limit": 500})
         if not data:
             return []
 

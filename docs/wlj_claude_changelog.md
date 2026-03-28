@@ -6,6 +6,27 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Deterministic Hero Context Engine (Phase 4)
+
+- **Objective:** Build deterministic context engine explaining WHY the hero game matters, using only existing contract fields.
+- **New function:** `build_hero_context(hero)` — returns `{"headline", "subheadline", "status"}` or `None`.
+- **Context priority (strict order):**
+  1. Tournament context (highest) — round name + stakes from `game_note` via `_NEXT_ROUND` lookup
+  2. Postseason context — playoff round extracted from `game_note`
+  3. Live game — lead statement parsed from `score` string (leads/tied/vs)
+  4. Upcoming game — matchup + formatted time
+  5. Final game — "Final — Team 78, Opponent 72"
+- **Helper functions (no duplication):**
+  - `_parse_lead_line()` — deterministic score parsing, same logic as existing `_build_live_context`
+  - `_build_final_score_line()` — "Final — winner score, loser score" format
+  - `_extract_round_label_from_note()` — extracts round from game_note (tournament + postseason)
+  - `_format_context_time()` — "Today at 7:30 PM" / "Tomorrow at..." / "Fri at..."
+- **Contract updated:** `hero_context` key added to page contract (always present, None when no hero).
+- **Template:** Renders `hero_context.headline`, `hero_context.subheadline`, `hero_context.status` — zero logic, only existence checks.
+- **No LLM, no randomness, no guessing.** Only uses fields already in hero dict.
+- **Tests:** All 95 sports tests pass.
+- **Files:** `apps/sports/services/sports_view_model.py`, `apps/sports/templates/sports/my_teams.html`, `docs/wlj_claude_changelog.md`
+
 ## 2026-03-28 — Deterministic Hero Selection Engine (Phase 3)
 
 - **Objective:** Replace implicit hero selection with an explicit, deterministic engine function.

@@ -85,9 +85,31 @@
     .hero-insight--streak { color: rgba(165, 180, 252, 0.7); }
     .hero-insight--status { color: rgba(255, 255, 255, 0.4); }
 
+    .hero-headline {
+        font-size: 0.92rem; font-weight: 600; color: rgba(255, 255, 255, 0.55);
+        margin-top: 14px; line-height: 1.35; font-style: italic;
+        max-width: 440px;
+    }
+    .hero--live .hero-headline { color: rgba(255, 255, 255, 0.65); }
+
     .hero-meta { display: flex; gap: 14px; margin-top: 8px; font-size: 0.7rem; color: rgba(255, 255, 255, 0.25); }
     .streak--W { color: #22c55e; }
     .streak--L { color: #ef4444; }
+
+    /* ── LIVE ZONE ── */
+    .live-zone-label {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 16px 4px; font-size: 0.58rem; font-weight: 800;
+        text-transform: uppercase; letter-spacing: 0.12em;
+        color: #ef4444;
+    }
+
+    /* ── MICRO-HIERARCHY: first item in Up Next is emphasized ── */
+    .next-row--primary { border-color: rgba(99, 102, 241, 0.15); }
+    .next-row--primary .next-teams { font-size: 0.95rem; }
+    .next-row--primary .next-time { font-size: 0.9rem; }
+    .next-row--secondary .next-teams { font-size: 0.85rem; color: var(--color-text-muted); }
+    .next-row--secondary .next-time { font-size: 0.78rem; color: var(--color-text-muted); }
 
     /* ── LIVE DOT ── */
     .live-dot {
@@ -313,7 +335,9 @@
             <div class="hero-countdown" data-countdown="{{ hero.start_time }}"></div>
         {% endif %}
 
-        {% if hero.insight and not hero.game_note %}
+        {% if hero.headline %}
+        <div class="hero-headline">{{ hero.headline }}</div>
+        {% elif hero.insight and not hero.game_note %}
         <div class="hero-insight {% if hero.urgency == 'live' %}hero-insight--status{% elif 'streak' in hero.insight or 'win' in hero.insight or 'loss' in hero.insight %}hero-insight--streak{% else %}hero-insight--status{% endif %}">
             {{ hero.insight }}
         </div>
@@ -331,6 +355,7 @@
 
     {# ═══ 2. LIVE NOW STRIP ═══ #}
     {% if live_now %}
+    <div class="live-zone-label"><span class="live-dot"></span> Live Now</div>
     <div class="live-strip">
         {% for g in live_now %}
         <div class="live-card">
@@ -369,7 +394,7 @@
             <span class="section-label">Up Next for You</span>
         </div>
         {% for g in whats_next %}
-        <div class="next-row">
+        <div class="next-row {% if forloop.first %}next-row--primary{% elif not forloop.first %}next-row--secondary{% endif %}">
             {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="next-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
             <div class="next-main">
                 <div class="next-teams">
@@ -471,7 +496,10 @@
     function formatTimes() {
         document.querySelectorAll('[data-start-time]').forEach(function(el) {
             var iso = el.getAttribute('data-start-time');
-            if (!iso) return;
+            if (!iso || iso === 'None' || iso === '') {
+                // No time data — leave blank, don't show NaN
+                return;
+            }
             try {
                 var d = new Date(iso);
                 if (isNaN(d.getTime())) return;
@@ -489,17 +517,26 @@
                 } else {
                     el.textContent = d.toLocaleTimeString([], opts);
                 }
-            } catch(e) {}
+            } catch(e) {
+                el.textContent = '';
+            }
         });
     }
 
-    // ── Countdown: "in 2h 15m" ──
+    // ── Countdown: "starts in 2h 15m" ──
     function updateCountdowns() {
         document.querySelectorAll('[data-countdown]').forEach(function(el) {
             var iso = el.getAttribute('data-countdown');
-            if (!iso) return;
+            if (!iso || iso === 'None' || iso === '') {
+                el.textContent = '';
+                return;
+            }
             try {
                 var d = new Date(iso);
+                if (isNaN(d.getTime())) {
+                    el.textContent = '';
+                    return;
+                }
                 var now = new Date();
                 var diff = d - now;
                 if (diff <= 0) {
@@ -508,15 +545,23 @@
                 }
                 var hours = Math.floor(diff / 3600000);
                 var mins = Math.floor((diff % 3600000) / 60000);
+                if (isNaN(hours) || isNaN(mins)) {
+                    el.textContent = '';
+                    return;
+                }
                 if (hours > 24) {
                     var days = Math.floor(hours / 24);
-                    el.textContent = 'in ' + days + 'd ' + (hours % 24) + 'h';
+                    el.textContent = 'starts in ' + days + 'd ' + (hours % 24) + 'h';
                 } else if (hours > 0) {
-                    el.textContent = 'in ' + hours + 'h ' + mins + 'm';
+                    el.textContent = 'starts in ' + hours + 'h ' + mins + 'm';
+                } else if (mins > 0) {
+                    el.textContent = 'starts in ' + mins + 'm';
                 } else {
-                    el.textContent = 'in ' + mins + 'm';
+                    el.textContent = 'starting now';
                 }
-            } catch(e) {}
+            } catch(e) {
+                el.textContent = '';
+            }
         });
     }
 

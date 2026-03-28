@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Enhancement: Engine List Criticality Sort + Clickable Column Headers
+
+- **Change:** All Intelligence Engines page now defaults to showing enabled engines first, sorted by criticality tier (P0→P3), with a new Criticality column
+- **Criticality tiers:** P0 (system stops: UAIO, SAE, ISE, SAME), P1 (major degradation: UAL, PIE, PRIE, DNE, etc.), P2 (reduced intelligence: CDCE, DBE, TRIGGERS, etc.), P3 (minimal impact: ARCH, DOCS, MATURITY, etc.)
+- **Clickable headers:** All 7 column headers are now clickable to sort ascending/descending with visual arrow indicators
+- **Files:** `apps/core/ai_observability/ops_views.py`, `templates/admin_console/all_engines.html`
+
 ## 2026-03-27 — CRITICAL: Fix game_type/game_note Stripped from _contract
 
 - **Root Cause:** `_build_sports_contract()` in state_builder.py rebuilt `next_game_entry` from only 6 fields, dropping `game_type` and `game_note`. This meant the importance engine scored tournament games as regular games (10 pts instead of 100 pts). A regular Braves game (150 pts) always beat a Sweet 16 game (150 pts without tournament bonus → should be 270 with it).

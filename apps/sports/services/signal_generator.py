@@ -111,6 +111,8 @@ def generate_sports_signals(user):
                 "league": team.league.abbreviation,
                 "home_pitcher": game.home_probable_pitcher or "",
                 "away_pitcher": game.away_probable_pitcher or "",
+                "game_type": getattr(game, 'game_type', 'regular'),
+                "game_note": getattr(game, 'game_note', ''),
             }
 
             if tw.window == GameTimeWindow.ACTIVE:

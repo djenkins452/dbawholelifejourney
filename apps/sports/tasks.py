@@ -178,6 +178,8 @@ def _build_summaries_from_signals(user, signals, now):
                 "is_home": data.get("is_home", True),
                 "pitcher": data.get("home_pitcher", "") if data.get("is_home") else data.get("away_pitcher", ""),
                 "score": data.get("score", ""),
+                "game_type": data.get("game_type", "regular"),
+                "game_note": data.get("game_note", ""),
             }
         elif sig_type == SIGNAL_GAME_STARTING_SOON:
             if entry["status"] != "live":
@@ -192,6 +194,8 @@ def _build_summaries_from_signals(user, signals, now):
                     "venue": data.get("venue", ""),
                     "is_home": data.get("is_home", True),
                     "pitcher": data.get("home_pitcher", "") if data.get("is_home") else data.get("away_pitcher", ""),
+                    "game_type": data.get("game_type", "regular"),
+                    "game_note": data.get("game_note", ""),
                 }
         elif sig_type == SIGNAL_GAME_TODAY:
             if entry["status"] not in ("live", "starting_soon"):
@@ -206,6 +210,8 @@ def _build_summaries_from_signals(user, signals, now):
                     "venue": data.get("venue", ""),
                     "is_home": data.get("is_home", True),
                     "pitcher": data.get("home_pitcher", "") if data.get("is_home") else data.get("away_pitcher", ""),
+                    "game_type": data.get("game_type", "regular"),
+                    "game_note": data.get("game_note", ""),
                 }
         elif sig_type == SIGNAL_GAME_UPCOMING:
             if entry["status"] == "upcoming" and not entry["next_game"]:
@@ -218,6 +224,8 @@ def _build_summaries_from_signals(user, signals, now):
                     "venue": data.get("venue", ""),
                     "is_home": data.get("is_home", True),
                     "pitcher": data.get("home_pitcher", "") if data.get("is_home") else data.get("away_pitcher", ""),
+                    "game_type": data.get("game_type", "regular"),
+                    "game_note": data.get("game_note", ""),
                 }
         elif sig_type == SIGNAL_GAME_FINAL:
             if not entry.get("last_result"):

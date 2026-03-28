@@ -127,6 +127,25 @@ class GameEvent(models.Model):
     venue = models.CharField(max_length=200, blank=True, default="")
     external_id = models.CharField(max_length=100, blank=True, default="")
 
+    # Game significance — extracted from ESPN event metadata
+    GAME_TYPE_REGULAR = "regular"
+    GAME_TYPE_POSTSEASON = "postseason"
+    GAME_TYPE_TOURNAMENT = "tournament"
+
+    GAME_TYPE_CHOICES = [
+        (GAME_TYPE_REGULAR, "Regular Season"),
+        (GAME_TYPE_POSTSEASON, "Postseason"),
+        (GAME_TYPE_TOURNAMENT, "Tournament"),
+    ]
+
+    game_type = models.CharField(
+        max_length=20, choices=GAME_TYPE_CHOICES, default=GAME_TYPE_REGULAR
+    )
+    game_note = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Game context from ESPN notes (e.g. 'Sweet 16', 'Wild Card')"
+    )
+
     # Baseball-only: probable starting pitchers (null for other sports)
     home_probable_pitcher = models.CharField(max_length=100, blank=True, default="")
     away_probable_pitcher = models.CharField(max_length=100, blank=True, default="")

@@ -511,7 +511,7 @@
                 var isTomorrow = d.toDateString() === tomorrow.toDateString();
                 var opts = { hour: 'numeric', minute: '2-digit' };
                 if (isTomorrow) {
-                    el.textContent = 'Tom ' + d.toLocaleTimeString([], opts);
+                    el.textContent = 'Tomorrow ' + d.toLocaleTimeString([], opts);
                 } else if (!isToday) {
                     opts.weekday = 'short';
                     el.textContent = d.toLocaleTimeString([], opts);

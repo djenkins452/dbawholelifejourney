@@ -109,13 +109,18 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
     shown_keys = set()
 
     def _game_key(team_entry):
-        """Return a dedup key for a game: game_id if available, else composite."""
+        """Return a dedup key for a game: game_id if available, else composite.
+
+        Composite key is sorted so Dodgers-vs-DBacks and DBacks-vs-Dodgers
+        produce the same key.
+        """
         ng = team_entry.get('next_game') or {}
         gid = ng.get('game_id')
         if gid:
             return f"gid:{gid}"
-        # Composite fallback: team + opponent (covers None game_id case)
-        return f"match:{team_entry.get('team_name', '')}|{ng.get('opponent', '')}"
+        # Sorted composite: both directions match
+        names = sorted([team_entry.get('team_name', ''), ng.get('opponent', '')])
+        return f"match:{names[0]}|{names[1]}"
 
     def _is_shown(team_entry):
         """Check if this game is already shown in a prior section."""
@@ -475,12 +480,13 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
     shown_keys_fb = set()
 
     def _sig_key(sig):
-        """Composite dedup key: game_id if available, else team|opponent."""
+        """Composite dedup key: game_id if available, else sorted team|opponent."""
         gid = sig.get("game_id")
         if gid:
             return f"gid:{gid}"
         d = sig.get("data", {})
-        return f"match:{sig.get('team_name', '')}|{d.get('opponent', '')}"
+        names = sorted([sig.get('team_name', ''), d.get('opponent', '')])
+        return f"match:{names[0]}|{names[1]}"
 
     # Mark hero as shown
     if scored_games:
@@ -849,12 +855,13 @@ def _build_hero(signal, team, streak_map, now):
     else:
         hero["pitcher"] = ""
 
-    # Signal-derived insight line
-    if sig_type == SIGNAL_GAME_LIVE:
-        hero["insight"] = "Game in progress"
-    elif sig_type == SIGNAL_GAME_STARTING_SOON:
-        hero["insight"] = "Starting soon"
-    elif streak:
+    # Signal-derived insight line (only if game significance didn't set one)
+    if not hero.get("insight"):
+        if sig_type == SIGNAL_GAME_LIVE:
+            hero["insight"] = "Game in progress"
+        elif sig_type == SIGNAL_GAME_STARTING_SOON:
+            hero["insight"] = "Starting soon"
+    if not hero.get("insight") and streak:
         try:
             s_count = int(streak[1:])
             if streak.startswith("W") and s_count >= 3:

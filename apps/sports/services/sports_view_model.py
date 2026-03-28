@@ -44,6 +44,163 @@ logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# DETERMINISTIC HERO SELECTION ENGINE
+# ═══════════════════════════════════════════════════════════════════════
+
+def select_hero_game(teams):
+    """Deterministic hero selection engine.
+
+    Selects the single most important game for the user at this moment.
+    Uses the existing importance engine (_compute_contract_priority_score)
+    — no duplicate scoring logic.
+
+    Priority order (encoded in importance engine):
+    1. LIVE boost (highest) — live games almost always win
+    2. Tournament boost — Sweet 16/Elite Eight outranks regular season
+    3. User affinity — followed team priority (primary > secondary > casual)
+    4. Time proximity — closer upcoming start = higher score
+    5. Momentum — streaks amplify importance
+
+    Args:
+        teams: list of team entries from _contract['teams']
+
+    Returns:
+        (hero_team_entry, importance_score) or (None, 0)
+
+    Edge cases handled:
+    - No games → (None, 0)
+    - Only FINAL games → select most important final
+    - Multiple LIVE → highest importance wins
+    - No followed teams → still works (lower affinity scores)
+    - Deterministic: same input always returns same hero (stable sort)
+    """
+    if not teams:
+        return None, 0
+
+    # ── Score active games (have next_game with playable status) ───
+    active_candidates = []
+    for t in teams:
+        if t.get('status') in ('live', 'starting_soon', 'today', 'upcoming') and t.get('next_game'):
+            score = _compute_contract_priority_score(t)
+            active_candidates.append((score, t))
+
+    if active_candidates:
+        # Stable sort: highest score first, then by team_name for determinism
+        active_candidates.sort(key=lambda x: (-x[0], x[1].get('team_name', '')))
+        score, winner = active_candidates[0]
+        return winner, score
+
+    # ── Fallback: only completed games — pick most important FINAL ──
+    final_candidates = []
+    for t in teams:
+        if t.get('last_result'):
+            # Score finals on user relevance + game significance + momentum
+            # (time sensitivity is 0 for completed games)
+            score = _compute_contract_priority_score_for_final(t)
+            final_candidates.append((score, t))
+
+    if final_candidates:
+        final_candidates.sort(key=lambda x: (-x[0], x[1].get('team_name', '')))
+        score, winner = final_candidates[0]
+        return winner, score
+
+    return None, 0
+
+
+def _compute_contract_priority_score_for_final(team_entry):
+    """Score a completed game for hero fallback selection.
+
+    Uses same dimensions as the importance engine but adapted for finals:
+    - User relevance (same weights)
+    - Game significance (same weights — tournament finals rank highest)
+    - Momentum (same weights)
+    - No time sensitivity (game is over)
+    """
+    score = 0
+    priority = team_entry.get('priority', 3)
+    lr = team_entry.get('last_result') or {}
+    game_type = lr.get('game_type', 'regular') or 'regular'
+    game_note = (lr.get('game_note', '') or '').lower()
+
+    # 1. User relevance
+    if priority == 1:
+        score += 100
+    elif priority == 2:
+        score += 60
+    else:
+        score += 30
+
+    # 2. Game significance
+    if game_type == 'tournament':
+        score += 80
+        if any(w in game_note for w in ('final four', 'championship', 'elite eight')):
+            score += 30
+        elif 'sweet 16' in game_note:
+            score += 20
+    elif game_type == 'postseason':
+        score += 70
+        if any(w in game_note for w in ('world series', 'super bowl', 'stanley cup', 'nba finals')):
+            score += 30
+        elif any(w in game_note for w in ('conference', 'championship', 'nlcs', 'alcs')):
+            score += 20
+    else:
+        score += 10
+
+    # 3. Momentum
+    streak_count = team_entry.get('streak_count', 0)
+    if streak_count >= 7:
+        score += 20
+    elif streak_count >= 5:
+        score += 15
+    elif streak_count >= 3:
+        score += 10
+
+    return score
+
+
+def select_hero_signal(scored_games, final_signals, team_map, streak_map, now):
+    """Deterministic hero selection for signal fallback path.
+
+    Uses existing _compute_priority_score (signal-based importance engine).
+    Same selection logic as select_hero_game but for signal data.
+
+    Args:
+        scored_games: list of (score, signal) tuples, pre-sorted by score
+        final_signals: list of final game signals
+        team_map: {team_id: UserTeamFollow}
+        streak_map: {team_id: streak_string}
+        now: current datetime
+
+    Returns:
+        (hero_signal, hero_dict) or (None, None)
+    """
+    if scored_games:
+        # Already sorted by importance — first is the hero
+        _, hero_signal = scored_games[0]
+        follow = team_map.get(hero_signal["team_id"])
+        team = follow.team if follow else None
+        hero = _build_hero(hero_signal, team, streak_map, now)
+        return hero_signal, hero
+
+    if final_signals:
+        # Fallback to most important final
+        best_signal = None
+        best_score = -1
+        for fs in final_signals:
+            score = _compute_priority_score(fs, streak_map)
+            if score > best_score or (score == best_score and fs.get('team_name', '') < (best_signal or {}).get('team_name', '')):
+                best_score = score
+                best_signal = fs
+        if best_signal:
+            follow = team_map.get(best_signal["team_id"])
+            team = follow.team if follow else None
+            hero = _build_hero(best_signal, team, streak_map, now)
+            return best_signal, hero
+
+    return None, None
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # CANONICAL ENTRY POINT
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -130,22 +287,16 @@ def _assemble_page_contract(contract, follows, team_map, team_ids, now):
         if t.get('status') in ('live', 'starting_soon', 'today', 'upcoming') and t.get('next_game'):
             score = _compute_contract_priority_score(t)
             scored_teams.append((score, t))
-    scored_teams.sort(key=lambda x: -x[0])
+    scored_teams.sort(key=lambda x: (-x[0], x[1].get('team_name', '')))
 
-    # ── 1. HERO ────────────────────────────────────────────────────
+    # ── 1. HERO (deterministic selection engine) ──────────────────
+    hero_team, _hero_score = select_hero_game(teams)
     hero = None
     hero_team_id = None
-    if scored_teams:
-        _, hero_team = scored_teams[0]
+    if hero_team:
         hero = _build_hero_from_contract(hero_team)
         hero_team_id = hero_team.get('team_id')
         _mark_shown(hero_team)
-    else:
-        for t in teams:
-            if t.get('last_result'):
-                hero = _build_hero_from_contract(t)
-                hero_team_id = t.get('team_id')
-                break
 
     if hero:
         _enhance_hero_context(hero)
@@ -672,21 +823,12 @@ def _assemble_page_contract_from_signals(user, follows, team_map, team_ids, now)
         score = _compute_priority_score(s, streak_map)
         scored_games.append((score, s))
 
-    scored_games.sort(key=lambda x: -x[0])
+    scored_games.sort(key=lambda x: (-x[0], x[1].get('team_name', '')))
 
-    # Hero
-    hero = None
-    hero_signal = None
-    if scored_games:
-        _, hero_signal = scored_games[0]
-        follow = team_map.get(hero_signal["team_id"])
-        team = follow.team if follow else None
-        hero = _build_hero(hero_signal, team, streak_map, now)
-    elif final_signals:
-        fs = final_signals[0]
-        follow = team_map.get(fs["team_id"])
-        team = follow.team if follow else None
-        hero = _build_hero(fs, team, streak_map, now)
+    # Hero (deterministic selection engine)
+    hero_signal, hero = select_hero_signal(
+        scored_games, final_signals, team_map, streak_map, now
+    )
 
     hero_team_id = hero_signal["team_id"] if hero_signal else None
     shown_keys_fb = set()

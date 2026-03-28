@@ -1,17 +1,26 @@
 """
-Sports Domain — View Model Builder
+Sports Domain — Page Contract Builder
 
-Transforms sports state (_contract) into a structured view model for template rendering.
-Reads canonical state from SAE — never generates signals or computes streaks directly.
+Single source of truth for the sports page structure.
 
-Architecture: GameEvent → Signals → State (_contract) → View Model → Template
+Architecture: GameEvent → Signals → State (_contract) → Page Contract → Template
 
-Presentation-only concerns owned by this layer:
-- Hero selection (priority engine)
-- Momentum strip layout + heat interpretation
-- Game row formatting
-- Ticker (ambient display)
-- Filtering storylines for display
+The canonical entry point is `build_sports_page_view(user)` which returns a
+deterministic contract with ALL keys always present. Templates render this
+contract directly — no grouping, filtering, or ordering in templates.
+
+Contract shape (non-negotiable):
+{
+    "hero": {} | None,
+    "live_context": {} | None,
+    "scoreboard": {"header": str, "live": [], "final": [], "upcoming": []},
+    "timeline": {"now": [], "today": [], "tomorrow": []},
+    "ticker": [],
+    "momentum": [],
+    "storylines": [],
+    "more_games": [],
+    "meta": {},
+}
 """
 import logging
 from datetime import timedelta
@@ -34,30 +43,20 @@ from apps.sports.services.signal_generator import (
 logger = logging.getLogger(__name__)
 
 
-def build_sports_view_model(user):
-    """
-    Build the complete sports view model.
+# ═══════════════════════════════════════════════════════════════════════
+# CANONICAL ENTRY POINT
+# ═══════════════════════════════════════════════════════════════════════
 
-    Primary path: reads _contract from SAE state (pre-computed by background task).
-    Fallback path: generates signals directly if _contract is not yet available
-    (graceful degradation during rollout — remove after one deploy cycle).
+def build_sports_page_view(user):
+    """Single canonical entry point for the sports page contract.
 
-    Returns a dict with all keys needed by the template:
-    {
-        "hero": {...} or None,
-        "momentum_strip": [...],
-        "live_games": [...],
-        "my_schedule": [...],
-        "league_boards": [...],
-        "stories": [...],
-        "ticker": [...],
-        "recent_action": [...],
-        "meta": {"last_updated": ..., "data_source": ...},
-    }
+    Returns a deterministic dict with ALL keys always present.
+    No conditional key omission. Empty = empty list/dict or None.
+
+    This is the ONLY function templates and views should consume.
     """
     now = timezone.now()
 
-    # ── Get follows and team data ────────────────────────────────────
     follows = (
         UserTeamFollow.objects.filter(user=user, is_active=True)
         .select_related("team__league__sport")
@@ -65,20 +64,27 @@ def build_sports_view_model(user):
     )
 
     if not follows.exists():
-        return _empty_view_model()
+        return _empty_page_contract()
 
     team_map = {f.team_id: f for f in follows}
     team_ids = list(team_map.keys())
 
-    # ── Try _contract path first ─────────────────────────────────────
     contract = _get_contract(user)
 
     if contract and contract.get('teams'):
-        return _build_from_contract(contract, follows, team_map, team_ids, now)
+        return _assemble_page_contract(contract, follows, team_map, team_ids, now)
 
-    # ── Fallback: signal-based path (pre-contract compat) ────────────
-    logger.debug("Sports view model: _contract not available, using signal fallback")
-    return _build_from_signals(user, follows, team_map, team_ids, now)
+    # Fallback: signal-based path (pre-contract compat)
+    logger.debug("Sports page view: _contract not available, using signal fallback")
+    return _assemble_page_contract_from_signals(user, follows, team_map, team_ids, now)
+
+
+def build_sports_view_model(user):
+    """Legacy entry point — delegates to build_sports_page_view().
+
+    Kept for backward compatibility with cache_manager and tasks.
+    """
+    return build_sports_page_view(user)
 
 
 def _get_contract(user):
@@ -92,20 +98,16 @@ def _get_contract(user):
         return None
 
 
-def _build_from_contract(contract, follows, team_map, team_ids, now):
-    """Build view model from _contract (primary path).
+def _assemble_page_contract(contract, follows, team_map, team_ids, now):
+    """Assemble the canonical page contract from _contract (primary path).
 
-    V4 layout: Hero (enhanced) → Live Context → Scoreboard Cluster →
-               Your Games Today (grouped timeline) → Ticker →
-               Momentum → Storylines → More Games
-
-    Reads canonical team data and storylines from _contract.
-    Derives presentation-only values: heat, priority scores, hero selection.
+    Page flow: Hero → Live Context → Scoreboard → Timeline → Ticker
+    All keys always present. No conditional omission.
     """
     teams = contract.get('teams', [])
-    storylines = contract.get('storylines', [])
+    storylines_raw = contract.get('storylines', [])
 
-    # ── DEDUP HELPER: game_id OR composite key ──────────────────────
+    # ── DEDUP TRACKING ─────────────────────────────────────────────
     shown_keys = set()
 
     def _game_key(team_entry):
@@ -122,16 +124,15 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
     def _mark_shown(team_entry):
         shown_keys.add(_game_key(team_entry))
 
-    # ── PRIORITY ENGINE: score every team with a game ────────────────
+    # ── PRIORITY ENGINE ────────────────────────────────────────────
     scored_teams = []
     for t in teams:
         if t.get('status') in ('live', 'starting_soon', 'today', 'upcoming') and t.get('next_game'):
             score = _compute_contract_priority_score(t)
             scored_teams.append((score, t))
-
     scored_teams.sort(key=lambda x: -x[0])
 
-    # ── HERO: single most important game (enhanced with tournament context) ──
+    # ── 1. HERO ────────────────────────────────────────────────────
     hero = None
     hero_team_id = None
     if scored_teams:
@@ -146,71 +147,44 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
                 hero_team_id = t.get('team_id')
                 break
 
-    # Enhance hero with tournament context + game state
     if hero:
         _enhance_hero_context(hero)
 
-    # ── LIVE CONTEXT: deterministic block shown only when hero is live ──
+    # ── 2. LIVE CONTEXT (only if hero is LIVE, else None) ──────────
     live_context = None
     if hero and hero.get('urgency') == 'live':
         live_context = _build_live_context(hero)
 
-    # ── SCOREBOARD CLUSTER: tournament/league games from same day ─────
-    scoreboard = _build_scoreboard_cluster(hero, now)
+    # ── 3. SCOREBOARD (grouped: live/final/upcoming) ───────────────
+    scoreboard = _build_scoreboard_grouped(hero, now)
 
-    # ── TICKER: recent finals + live scores (max 15) ─────────────────
-    ticker = _build_smart_ticker(teams, storylines)
+    # Collect scoreboard game_ids for ticker exclusion
+    scoreboard_game_ids = set()
+    for bucket in ('live', 'final', 'upcoming'):
+        for g in scoreboard.get(bucket, []):
+            gid = g.get('game_id')
+            if gid:
+                scoreboard_game_ids.add(gid)
 
-    # ── YOUR GAMES TODAY: grouped timeline replacing "Up Next" ────────
-    your_games_today = _build_your_games_today(
-        scored_teams, hero_team_id, _is_shown, _mark_shown, now
-    )
+    # ── 4. TIMELINE (dict: now/today/tomorrow) ─────────────────────
+    timeline = _build_timeline(scored_teams, hero_team_id, _is_shown, _mark_shown, now)
 
-    # ── MOMENTUM: teams with streak >= 3, sorted by count desc ────────
-    momentum = []
-    for t in sorted(teams, key=lambda x: x.get('streak_count', 0), reverse=True):
-        if t.get('streak_count', 0) < 3:
-            continue
-        sc = t['streak_count']
-        st = t.get('streak_type', '')
-        if st == 'W' and sc >= 7:
-            label = "Dominant"
-        elif st == 'W' and sc >= 5:
-            label = "On fire"
-        elif st == 'W':
-            label = "Hot"
-        elif st == 'L' and sc >= 7:
-            label = "Freefall"
-        elif st == 'L' and sc >= 5:
-            label = "Struggling"
-        else:
-            label = "Cold"
-        momentum.append({
-            "team_name": t.get('team_name', ''),
-            "streak_type": st,
-            "streak_count": sc,
-            "heat": "hot" if st == 'W' else "cold",
-            "label": label,
-        })
-        if len(momentum) >= 5:
-            break
+    # ── 5. TICKER (excludes hero + scoreboard games) ───────────────
+    hero_game_id = None
+    if hero:
+        hero_game_id = hero.get('game_id')
+    excluded_game_ids = scoreboard_game_ids
+    if hero_game_id:
+        excluded_game_ids = excluded_game_ids | {hero_game_id}
+    ticker = _build_filtered_ticker(teams, storylines_raw, excluded_game_ids)
 
-    # ── KEY STORYLINES: high+medium importance, max 5 ─────────────────
-    key_storylines = []
-    for importance in ('high', 'medium'):
-        for sl in storylines:
-            if sl.get('importance') == importance:
-                key_storylines.append({
-                    "message": sl.get('message', ''),
-                    "type": sl.get('type', 'streak'),
-                    "importance": importance,
-                })
-                if len(key_storylines) >= 5:
-                    break
-        if len(key_storylines) >= 5:
-            break
+    # ── 6. MOMENTUM ────────────────────────────────────────────────
+    momentum = _build_momentum(teams)
 
-    # ── MORE GAMES: remaining today/upcoming not already shown ───────
+    # ── 7. STORYLINES ──────────────────────────────────────────────
+    storylines = _build_storylines(storylines_raw)
+
+    # ── 8. MORE GAMES ──────────────────────────────────────────────
     more_games = []
     for _, t in scored_teams:
         if _is_shown(t):
@@ -237,14 +211,11 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
         "hero": hero,
         "live_context": live_context,
         "scoreboard": scoreboard,
-        "live_now": [],  # Deprecated — replaced by live_context + scoreboard
+        "timeline": timeline,
         "ticker": ticker,
-        "whats_next": [],  # Deprecated — replaced by your_games_today
-        "your_games_today": your_games_today,
         "momentum": momentum,
-        "storylines": key_storylines,
+        "storylines": storylines,
         "more_games": more_games,
-        "event_context": None,  # Deprecated — replaced by scoreboard cluster
         "meta": meta,
     }
 
@@ -313,15 +284,17 @@ def _build_live_context(hero):
     }
 
 
-def _build_scoreboard_cluster(hero, now):
-    """Build the tournament/league scoreboard cluster.
+def _build_scoreboard_grouped(hero, now):
+    """Build the scoreboard as a grouped dict: live/final/upcoming.
 
-    Queries GameEvent for same-league, same-day tournament games.
-    Sort: LIVE → FINAL (most recent) → UPCOMING
-    Max 6 games. Hero game included.
+    Queries GameEvent for same-day tournament games.
+    Hero game is included. Max 6 games total. No duplicates.
+    Returns the canonical shape even when no data exists.
     """
+    empty = {"header": "", "live": [], "final": [], "upcoming": []}
+
     if not hero:
-        return None
+        return empty
 
     game_note = hero.get('game_note', '') or ''
     note_lower = game_note.lower()
@@ -334,15 +307,17 @@ def _build_scoreboard_cluster(hero, now):
             round_label = phrase.title()
             break
 
-    # If no tournament context, check if hero has game_type tournament
     game_type = hero.get('game_type', '') or ''
     if not round_label and game_type not in ('tournament', 'postseason'):
-        return None
+        return empty
 
     header = f"{round_label} Scoreboard" if round_label else "Tournament Scoreboard"
 
     # Query tournament games from same day
-    games = []
+    live_games = []
+    final_games = []
+    upcoming_games = []
+
     try:
         from django.utils.dateparse import parse_datetime
         hero_time = parse_datetime(hero.get('start_time', ''))
@@ -360,24 +335,17 @@ def _build_scoreboard_cluster(hero, now):
         )
 
         for g in tourney_games:
-            status_label = ""
-            if g.status == GameEvent.STATUS_LIVE:
-                status_label = "LIVE"
-            elif g.status == GameEvent.STATUS_FINAL:
-                status_label = "FINAL"
+            context_line = ""
+            if g.game_note:
+                parts = g.game_note.split(" - ")
+                if len(parts) > 1:
+                    context_line = parts[0]
 
             score_display = ""
             if g.status in (GameEvent.STATUS_LIVE, GameEvent.STATUS_FINAL):
                 score_display = f"{g.home_score or 0}-{g.away_score or 0}"
 
-            context_line = ""
-            if g.game_note:
-                # Extract region/context from game_note
-                parts = g.game_note.split(" - ")
-                if len(parts) > 1:
-                    context_line = parts[0]  # e.g. "East Region"
-
-            games.append({
+            entry = {
                 "game_id": g.id,
                 "home": g.home_team.name if hasattr(g.home_team, 'name') else str(g.home_team),
                 "away": g.away_team.name if hasattr(g.away_team, 'name') else str(g.away_team),
@@ -386,37 +354,46 @@ def _build_scoreboard_cluster(hero, now):
                 "home_score": g.home_score or 0,
                 "away_score": g.away_score or 0,
                 "score": score_display,
-                "status": status_label,
                 "start_time": g.start_time.isoformat() if g.start_time else "",
                 "context": context_line,
-            })
+            }
+
+            if g.status == GameEvent.STATUS_LIVE:
+                live_games.append(entry)
+            elif g.status == GameEvent.STATUS_FINAL:
+                final_games.append(entry)
+            else:
+                upcoming_games.append(entry)
+
     except Exception:
         logger.debug("Scoreboard cluster query failed", exc_info=True)
 
-    if not games:
-        return None
-
-    # Sort: LIVE first, then FINAL (most recent), then UPCOMING
-    status_order = {"LIVE": 0, "FINAL": 1, "": 2}
-    games.sort(key=lambda g: (status_order.get(g['status'], 2), g.get('start_time', '')))
+    if not live_games and not final_games and not upcoming_games:
+        return empty
 
     return {
         "header": header,
-        "games": games,
+        "live": live_games,
+        "final": final_games,
+        "upcoming": upcoming_games,
     }
 
 
-def _build_your_games_today(scored_teams, hero_team_id, _is_shown, _mark_shown, now):
-    """Build grouped timeline: NOW → LATER TODAY → TOMORROW.
+def _build_timeline(scored_teams, hero_team_id, _is_shown, _mark_shown, now):
+    """Build grouped timeline as a dict: now/today/tomorrow.
 
-    Replaces the flat "Up Next" list with a grouped, chronological layout.
+    now = LIVE games only
+    today = future same-day games (strictly > now)
+    tomorrow = next calendar day only
+
+    Strict chronological sorting within each group. No overlaps.
+    All keys always present.
     """
     from django.utils.dateparse import parse_datetime
 
-    now_group = []
-    later_today_group = []
-    tomorrow_group = []
-    has_live = False
+    now_games = []
+    today_games = []
+    tomorrow_games = []
 
     tomorrow_start = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     tomorrow_end = tomorrow_start.replace(hour=23, minute=59, second=59, microsecond=999999)
@@ -444,59 +421,50 @@ def _build_your_games_today(scored_teams, hero_team_id, _is_shown, _mark_shown, 
             "context": context,
         }
 
-        # Categorize into groups
         if status == 'live':
-            has_live = True
             _mark_shown(t)
-            now_group.append(game_entry)
+            now_games.append(game_entry)
         elif status in ('starting_soon', 'today'):
             _mark_shown(t)
-            later_today_group.append(game_entry)
+            today_games.append(game_entry)
         elif status == 'upcoming' and start_time_str:
             try:
                 start = parse_datetime(start_time_str)
                 if start and tomorrow_start <= start <= tomorrow_end:
                     _mark_shown(t)
-                    tomorrow_group.append(game_entry)
+                    tomorrow_games.append(game_entry)
                 elif start and start < tomorrow_start:
-                    # Today but marked upcoming
                     _mark_shown(t)
-                    later_today_group.append(game_entry)
+                    today_games.append(game_entry)
             except (ValueError, TypeError):
                 pass
 
-    # Build grouped structure
-    groups = []
-    if has_live:
-        if now_group:
-            groups.append({"label": "NOW", "games": now_group})
-        if later_today_group:
-            groups.append({"label": "LATER TODAY", "games": later_today_group})
-        if tomorrow_group:
-            groups.append({"label": "TOMORROW", "games": tomorrow_group})
-    else:
-        all_today = later_today_group
-        if all_today:
-            groups.append({"label": "TODAY", "games": all_today})
-        if tomorrow_group:
-            groups.append({"label": "TOMORROW", "games": tomorrow_group})
+    # Chronological sort within each group
+    def _sort_key(g):
+        return g.get('start_time', '') or 'zzzz'
 
-    return groups
+    today_games.sort(key=_sort_key)
+    tomorrow_games.sort(key=_sort_key)
+
+    return {
+        "now": now_games,
+        "today": today_games,
+        "tomorrow": tomorrow_games,
+    }
 
 
-def _build_smart_ticker(teams, storylines):
-    """Build a curated ticker — user teams first, significance next.
+def _build_filtered_ticker(teams, storylines, excluded_game_ids):
+    """Build ticker excluding hero and scoreboard games.
 
+    Ticker is background ambient display only.
     Priority: live scores → starting soon → finals → high storylines.
-    Primary teams (priority 1) always rank above secondary/casual.
-    Max 12 items. No duplicates. No low-importance filler.
+    Max 12 items. No duplicates.
     """
     live = []
     soon = []
     finals = []
     seen_teams = set()
 
-    # Sort teams by follow priority so user's teams appear first
     sorted_teams = sorted(teams, key=lambda t: t.get('priority', 3))
 
     for t in sorted_teams:
@@ -504,10 +472,16 @@ def _build_smart_ticker(teams, storylines):
         if name in seen_teams:
             continue
 
-        # Live scores
+        ng = t.get('next_game') or {}
+        gid = ng.get('game_id')
+
+        # Skip games already in hero or scoreboard
+        if gid and gid in excluded_game_ids:
+            seen_teams.add(name)
+            continue
+
         if t.get('status') == 'live':
             seen_teams.add(name)
-            ng = t.get('next_game') or {}
             score = ng.get('score', '')
             opp = ng.get('opponent', '')
             live.append({
@@ -515,10 +489,8 @@ def _build_smart_ticker(teams, storylines):
                 "type": "live",
             })
 
-        # Starting soon
         elif t.get('status') == 'starting_soon':
             seen_teams.add(name)
-            ng = t.get('next_game') or {}
             opp = ng.get('opponent', '')
             game_note = ng.get('game_note', '')
             note_tag = ""
@@ -530,7 +502,6 @@ def _build_smart_ticker(teams, storylines):
                 "type": "soon",
             })
 
-        # Recent finals (primary teams only to avoid noise)
         if t.get('priority', 3) <= 2:
             lr = t.get('last_result')
             if lr and name not in seen_teams:
@@ -544,7 +515,6 @@ def _build_smart_ticker(teams, storylines):
                 })
                 seen_teams.add(name)
 
-    # High-importance storylines (deduped against already-shown teams)
     story_items = []
     for sl in storylines:
         if sl.get('importance') == 'high' and sl.get('type') != 'live':
@@ -553,8 +523,57 @@ def _build_smart_ticker(teams, storylines):
                 "type": "storyline",
             })
 
-    # Assemble: live → soon → finals → storylines (priority order)
     return (live + soon + finals + story_items)[:12]
+
+
+def _build_momentum(teams):
+    """Build momentum section: teams with streak >= 3, sorted by count desc. Max 5."""
+    momentum = []
+    for t in sorted(teams, key=lambda x: x.get('streak_count', 0), reverse=True):
+        if t.get('streak_count', 0) < 3:
+            continue
+        sc = t['streak_count']
+        st = t.get('streak_type', '')
+        if st == 'W' and sc >= 7:
+            label = "Dominant"
+        elif st == 'W' and sc >= 5:
+            label = "On fire"
+        elif st == 'W':
+            label = "Hot"
+        elif st == 'L' and sc >= 7:
+            label = "Freefall"
+        elif st == 'L' and sc >= 5:
+            label = "Struggling"
+        else:
+            label = "Cold"
+        momentum.append({
+            "team_name": t.get('team_name', ''),
+            "streak_type": st,
+            "streak_count": sc,
+            "heat": "hot" if st == 'W' else "cold",
+            "label": label,
+        })
+        if len(momentum) >= 5:
+            break
+    return momentum
+
+
+def _build_storylines(storylines_raw):
+    """Build storylines: high+medium importance, max 5."""
+    result = []
+    for importance in ('high', 'medium'):
+        for sl in storylines_raw:
+            if sl.get('importance') == importance:
+                result.append({
+                    "message": sl.get('message', ''),
+                    "type": sl.get('type', 'streak'),
+                    "importance": importance,
+                })
+                if len(result) >= 5:
+                    break
+        if len(result) >= 5:
+            break
+    return result
 
 
 def _game_context_line(team_entry):
@@ -596,8 +615,11 @@ def _game_context_line(team_entry):
     return ""
 
 
-def _build_from_signals(user, follows, team_map, team_ids, now):
-    """Fallback: build view model from signals directly (pre-contract compat)."""
+def _assemble_page_contract_from_signals(user, follows, team_map, team_ids, now):
+    """Fallback: build page contract from signals directly (pre-contract compat).
+
+    Returns the same canonical shape as _assemble_page_contract.
+    """
     from apps.sports.services.cache_manager import get_user_signals, set_user_signals
     from apps.sports.services.streaks import compute_streaks_for_teams
 
@@ -608,7 +630,6 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
 
     streak_map = compute_streaks_for_teams(team_ids)
 
-    # Index signals by type and team
     signals_by_team = {}
     live_signals = []
     today_signals = []
@@ -655,6 +676,7 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
 
     # Hero
     hero = None
+    hero_signal = None
     if scored_games:
         _, hero_signal = scored_games[0]
         follow = team_map.get(hero_signal["team_id"])
@@ -666,12 +688,10 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
         team = follow.team if follow else None
         hero = _build_hero(fs, team, streak_map, now)
 
-    # ── DEDUP HELPER (signal fallback) ───────────────────────────────
-    hero_team_id = hero_signal["team_id"] if scored_games else None
+    hero_team_id = hero_signal["team_id"] if hero_signal else None
     shown_keys_fb = set()
 
     def _sig_key(sig):
-        """Composite dedup key: game_id if available, else sorted team|opponent."""
         gid = sig.get("game_id")
         if gid:
             return f"gid:{gid}"
@@ -679,85 +699,97 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
         names = sorted([sig.get('team_name', ''), d.get('opponent', '')])
         return f"match:{names[0]}|{names[1]}"
 
-    # Mark hero as shown
-    if scored_games:
+    if hero_signal:
         shown_keys_fb.add(_sig_key(hero_signal))
 
-    # Live Now: live games except hero (max 5)
-    live_now = []
-    for s in live_signals:
-        key = _sig_key(s)
-        if key in shown_keys_fb:
-            continue
-        shown_keys_fb.add(key)
-        follow = team_map.get(s["team_id"])
-        if follow:
-            live_now.append({
-                "team_name": s["team_name"],
-                "team_logo": follow.team.logo_url or "",
-                "opponent": s["data"].get("opponent", ""),
-                "opponent_logo": s["data"].get("opponent_logo", ""),
-                "is_home": s["data"].get("is_home", True),
-                "score": s["data"].get("score", ""),
-                "league": s["data"].get("league", ""),
-            })
-        if len(live_now) >= 5:
-            break
+    # Live context
+    live_context = None
+    if hero and hero.get('urgency') == 'live':
+        live_context = _build_live_context(hero)
 
-    # What's Next: top 3 non-hero, non-live games
-    whats_next = []
+    # Timeline: now/today/tomorrow from signals
+    now_games = []
+    today_games = []
+    tomorrow_games = []
+    tomorrow_start = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    tomorrow_end = tomorrow_start.replace(hour=23, minute=59, second=59, microsecond=999999)
+
     for _, s in scored_games:
         if s["team_id"] == hero_team_id:
             continue
-        if s["signal_type"] == SIGNAL_GAME_LIVE:
-            continue
         key = _sig_key(s)
         if key in shown_keys_fb:
             continue
-        shown_keys_fb.add(key)
         follow = team_map.get(s["team_id"])
-        if follow:
-            streak = streak_map.get(s["team_id"], "")
-            d = s["data"]
-            game_note = (d.get("game_note", "") or "").lower()
-            # Tournament context takes priority
-            if "sweet 16" in game_note:
-                context = "Sweet 16"
-            elif "elite eight" in game_note:
-                context = "Elite Eight"
-            elif "final four" in game_note:
-                context = "Final Four"
-            elif d.get("game_type") == "tournament":
-                context = "Tournament"
-            elif d.get("game_type") == "postseason":
-                context = "Playoffs"
-            elif streak and len(streak) >= 2:
-                try:
-                    sc = int(streak[1:])
-                    if streak[0] == 'W' and sc >= 3:
-                        context = f"Won {sc} straight"
-                    elif streak[0] == 'L' and sc >= 3:
-                        context = f"Need a win after {sc} losses"
-                    else:
-                        context = follow.team.record_display or ""
-                except ValueError:
+        if not follow:
+            continue
+        d = s["data"]
+        streak = streak_map.get(s["team_id"], "")
+        game_note = (d.get("game_note", "") or "").lower()
+        if "sweet 16" in game_note:
+            context = "Sweet 16"
+        elif "elite eight" in game_note:
+            context = "Elite Eight"
+        elif "final four" in game_note:
+            context = "Final Four"
+        elif d.get("game_type") == "tournament":
+            context = "Tournament"
+        elif d.get("game_type") == "postseason":
+            context = "Playoffs"
+        elif streak and len(streak) >= 2:
+            try:
+                sc = int(streak[1:])
+                if streak[0] == 'W' and sc >= 3:
+                    context = f"Won {sc} straight"
+                elif streak[0] == 'L' and sc >= 3:
+                    context = f"Need a win after {sc} losses"
+                else:
                     context = follow.team.record_display or ""
-            else:
+            except ValueError:
                 context = follow.team.record_display or ""
-            whats_next.append({
-                "team_name": s["team_name"],
-                "team_logo": follow.team.logo_url or "",
-                "opponent": d.get("opponent", ""),
-                "is_home": d.get("is_home", True),
-                "start_time": d.get("start_time", ""),
-                "urgency": _signal_to_urgency(s["signal_type"]),
-                "league": d.get("league", ""),
-                "context": context,
-            })
-        if len(whats_next) >= 3:
-            break
+        else:
+            context = follow.team.record_display or ""
 
-    # Momentum: teams with streak >= 3
+        entry = {
+            "team_name": s["team_name"],
+            "team_logo": follow.team.logo_url or "",
+            "opponent": d.get("opponent", ""),
+            "is_home": d.get("is_home", True),
+            "start_time": d.get("start_time", ""),
+            "urgency": _signal_to_urgency(s["signal_type"]),
+            "league": d.get("league", ""),
+            "context": context,
+        }
+
+        sig_type = s["signal_type"]
+        if sig_type == SIGNAL_GAME_LIVE:
+            shown_keys_fb.add(key)
+            now_games.append(entry)
+        elif sig_type in (SIGNAL_GAME_STARTING_SOON, SIGNAL_GAME_TODAY):
+            shown_keys_fb.add(key)
+            today_games.append(entry)
+        elif sig_type == SIGNAL_GAME_UPCOMING:
+            start_str = d.get("start_time", "")
+            if start_str:
+                try:
+                    from django.utils.dateparse import parse_datetime
+                    start = parse_datetime(start_str)
+                    if start and tomorrow_start <= start <= tomorrow_end:
+                        shown_keys_fb.add(key)
+                        tomorrow_games.append(entry)
+                    elif start and start < tomorrow_start:
+                        shown_keys_fb.add(key)
+                        today_games.append(entry)
+                except (ValueError, TypeError):
+                    pass
+
+    timeline = {
+        "now": now_games,
+        "today": today_games,
+        "tomorrow": tomorrow_games,
+    }
+
+    # Momentum
     momentum = []
     for tid, streak in sorted(streak_map.items(), key=lambda x: int(x[1][1:]) if x[1] and len(x[1]) >= 2 else 0, reverse=True):
         if not streak or len(streak) < 2:
@@ -800,7 +832,7 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
         for s in stories
     ]
 
-    # Ticker from signal-derived data
+    # Ticker
     ticker_items = []
     for s in live_signals:
         d = s["data"]
@@ -816,7 +848,7 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
             "type": "final",
         })
 
-    # More games: remaining scored games not shown (uses same composite dedup)
+    # More games
     more_games = []
     for _, s in scored_games:
         key = _sig_key(s)
@@ -843,16 +875,13 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
 
     return {
         "hero": hero,
-        "live_context": None,  # Signal path doesn't support new layout yet
-        "scoreboard": None,
-        "live_now": live_now,
+        "live_context": live_context,
+        "scoreboard": {"header": "", "live": [], "final": [], "upcoming": []},
+        "timeline": timeline,
         "ticker": ticker_items[:15],
-        "whats_next": whats_next,
-        "your_games_today": [],
         "momentum": momentum,
         "storylines": storylines,
         "more_games": more_games,
-        "event_context": None,
         "meta": meta,
     }
 
@@ -1805,19 +1834,16 @@ def _format_datetime_short(iso_str):
     return ""
 
 
-def _empty_view_model():
-    """Return empty view model structure."""
+def _empty_page_contract():
+    """Return empty page contract — all keys present, no conditional omission."""
     return {
         "hero": None,
         "live_context": None,
-        "scoreboard": None,
-        "live_now": [],
+        "scoreboard": {"header": "", "live": [], "final": [], "upcoming": []},
+        "timeline": {"now": [], "today": [], "tomorrow": []},
         "ticker": [],
-        "whats_next": [],
-        "your_games_today": [],
         "momentum": [],
         "storylines": [],
         "more_games": [],
-        "event_context": None,
         "meta": {"last_updated": None, "data_source": ""},
     }

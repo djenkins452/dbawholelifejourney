@@ -6,6 +6,25 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Sports Page Contract Consolidation (Phase 2)
+
+- **Objective:** Introduce single canonical page contract builder — eliminate fragmented assembly, enforce deterministic contract shape.
+- **New entry point:** `build_sports_page_view(user)` — ONLY source of truth for sports page structure. `build_sports_view_model()` retained as legacy alias.
+- **Contract shape (non-negotiable, all keys always present):**
+  - `hero`: dict or None
+  - `live_context`: dict or None (only when hero is LIVE)
+  - `scoreboard`: `{header, live: [], final: [], upcoming: []}` — grouped by status, never flat
+  - `timeline`: `{now: [], today: [], tomorrow: []}` — strict chronological, no overlaps
+  - `ticker`: list — excludes hero game and all scoreboard games
+  - `momentum`, `storylines`, `more_games`, `meta`: unchanged
+- **Scoreboard fix:** Converted from flat list to grouped dict. Live/final/upcoming separation done in service layer, not template.
+- **Timeline hardening:** `_build_timeline()` returns dict (not list of groups). NOW = live only, TODAY = future same-day, TOMORROW = next calendar day.
+- **Ticker filtering:** `_build_filtered_ticker()` accepts `excluded_game_ids` set — hero + scoreboard games stripped.
+- **Template:** Removed ALL grouping/filtering/ordering logic. Template only renders pre-grouped contract keys with existence checks.
+- **Deprecated keys removed:** `live_now`, `whats_next`, `your_games_today`, `event_context` — all replaced by canonical contract keys.
+- **Tests:** All 95 sports tests pass.
+- **Files:** `apps/sports/services/sports_view_model.py`, `apps/sports/templates/sports/my_teams.html`, `apps/sports/views.py`, `docs/wlj_claude_changelog.md`
+
 ## 2026-03-28 — Sports Page Structure Rebuild (Phase 1)
 
 - **Objective:** Shift from static data layout to dynamic live sports experience modeled after ESPN hierarchy.

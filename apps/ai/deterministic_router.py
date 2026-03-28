@@ -506,10 +506,19 @@ def _try_status_query_route(msg_lower, user):
 
 def _try_deterministic_data_routes(msg_lower, user):
     """Try all registered deterministic data routes."""
+    import inspect
     for route_name, matcher, handler, domain in _DATA_ROUTES:
         try:
             if matcher(msg_lower):
-                response = handler(user)
+                # Support handlers that accept (user) or (user, msg_lower)
+                try:
+                    sig = inspect.signature(handler)
+                    if len(sig.parameters) >= 2:
+                        response = handler(user, msg_lower)
+                    else:
+                        response = handler(user)
+                except (ValueError, TypeError):
+                    response = handler(user)
                 if response is not None:
                     return RouteResult(
                         category=RouteCategory.DETERMINISTIC_DATA,
@@ -1290,6 +1299,14 @@ def _handle_heart_rate_query(user):
 
 def _register_builtin_routes():
     """Register all built-in deterministic data routes."""
+    # ── Event-level truth routes (Truth Depth: EVENT) ──
+    # These handle "what did I miss?", "what happened yesterday?", etc.
+    # Registered first because they answer questions the summary routes can't.
+    register_data_route('event_missed_query', _match_event_missed_query, _handle_event_missed_query, 'execution')
+    register_data_route('event_timeline_query', _match_event_timeline_query, _handle_event_timeline_query, 'execution')
+    register_data_route('event_slippage_query', _match_event_slippage_query, _handle_event_slippage_query, 'execution')
+
+    # ── Summary-level routes (Truth Depth: SUMMARY) ──
     register_data_route('weight_query', _match_weight_query, _handle_weight_query, 'health')
     register_data_route('workout_query', _match_workout_query, _handle_workout_query, 'health')
     register_data_route('sleep_query', _match_sleep_query, _handle_sleep_query, 'health')
@@ -1298,6 +1315,145 @@ def _register_builtin_routes():
     register_data_route('steps_query', _match_steps_query, _handle_steps_query, 'health')
     register_data_route('blood_pressure_query', _match_blood_pressure_query, _handle_blood_pressure_query, 'health')
     register_data_route('heart_rate_query', _match_heart_rate_query, _handle_heart_rate_query, 'health')
+
+
+# =============================================================================
+# Event-Level Truth Routes (Truth Depth: EVENT)
+# =============================================================================
+# These routes provide deterministic event-level answers by reading directly
+# from canonical domain models (MedicineLog, RoutineLog, etc.) via the
+# Event Access Layer (apps.core.ai_events).
+#
+# They bypass SAE state — which only has aggregates — and return the specific
+# events that the CoS needs to answer questions like "what did I miss?"
+
+def _match_event_missed_query(msg_lower):
+    """Match queries asking about missed events."""
+    from apps.core.ai_events.truth_depth import needs_event_access, classify_event_query_type
+    if not needs_event_access(msg_lower):
+        return False
+    return classify_event_query_type(msg_lower) == 'missed'
+
+
+def _handle_event_missed_query(user, msg_lower=None):
+    """Handle "what did I miss?" with deterministic event-level data."""
+    from datetime import date, timedelta
+    from apps.core.ai_events.resolver import EventResolver
+    from apps.core.ai_events.formatters import format_missed_events
+    from apps.core.ai_events.truth_depth import detect_domain_hint
+
+    try:
+        resolver = EventResolver()
+        end = date.today()
+        start = end - timedelta(days=7)
+
+        # Check if user is asking about a specific domain
+        domain_hint = detect_domain_hint(msg_lower) if msg_lower else None
+
+        if domain_hint:
+            missed = resolver.get_missed_events(user, domain_hint, start, end)
+            return format_missed_events(missed, domain=domain_hint)
+        else:
+            missed = resolver.get_all_missed(user, start, end)
+            return format_missed_events(missed)
+    except Exception as e:
+        logger.warning(
+            "Event missed query failed for user=%s: %s",
+            user.id, e, exc_info=True,
+        )
+        return None  # Fall through to existing pipeline
+
+
+def _match_event_timeline_query(msg_lower):
+    """Match queries asking about day timeline."""
+    from apps.core.ai_events.truth_depth import needs_event_access, classify_event_query_type
+    if not needs_event_access(msg_lower):
+        return False
+    return classify_event_query_type(msg_lower) == 'timeline'
+
+
+def _handle_event_timeline_query(user, msg_lower=None):
+    """Handle "what happened yesterday?" with deterministic event data."""
+    from datetime import date, timedelta
+    from apps.core.ai_events.resolver import EventResolver
+    from apps.core.ai_events.formatters import format_day_timeline
+
+    try:
+        # Determine target date from message
+        target = _parse_timeline_date(msg_lower) if msg_lower else None
+        if target is None:
+            target = date.today() - timedelta(days=1)  # Default: yesterday
+
+        resolver = EventResolver()
+        events = resolver.get_day_timeline(user, target)
+        return format_day_timeline(events, target)
+    except Exception as e:
+        logger.warning(
+            "Event timeline query failed for user=%s: %s",
+            user.id, e, exc_info=True,
+        )
+        return None  # Fall through
+
+
+def _parse_timeline_date(msg_lower):
+    """Extract target date from a timeline query message.
+
+    Deterministic date parsing — no LLM inference.
+    Returns date or None.
+    """
+    from datetime import date, timedelta
+
+    today = date.today()
+
+    if 'today' in msg_lower:
+        return today
+    if 'yesterday' in msg_lower:
+        return today - timedelta(days=1)
+    if 'this week' in msg_lower:
+        # Return start of current week (Monday)
+        return today - timedelta(days=today.weekday())
+    if 'last week' in msg_lower:
+        return today - timedelta(days=today.weekday() + 7)
+
+    # Day name matching (e.g., "what happened monday")
+    _DAYS = {
+        'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
+        'friday': 4, 'saturday': 5, 'sunday': 6,
+    }
+    for day_name, day_num in _DAYS.items():
+        if day_name in msg_lower:
+            # Find the most recent occurrence of this day
+            days_back = (today.weekday() - day_num) % 7
+            if days_back == 0:
+                days_back = 7  # If today is that day, assume last week
+            return today - timedelta(days=days_back)
+
+    return None  # Can't determine — caller uses default
+
+
+def _match_event_slippage_query(msg_lower):
+    """Match queries asking about routine slippage."""
+    from apps.core.ai_events.truth_depth import needs_event_access, classify_event_query_type
+    if not needs_event_access(msg_lower):
+        return False
+    return classify_event_query_type(msg_lower) == 'slippage'
+
+
+def _handle_event_slippage_query(user, msg_lower=None):
+    """Handle "when did my routine start slipping?" with deterministic trend data."""
+    from apps.core.ai_events.resolver import EventResolver
+    from apps.core.ai_events.formatters import format_slippage_trend
+
+    try:
+        resolver = EventResolver()
+        trend = resolver.get_routine_trend(user, lookback_days=14)
+        return format_slippage_trend(trend)
+    except Exception as e:
+        logger.warning(
+            "Event slippage query failed for user=%s: %s",
+            user.id, e, exc_info=True,
+        )
+        return None  # Fall through
 
 
 _register_builtin_routes()

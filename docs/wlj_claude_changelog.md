@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Fix: Desktop Chrome Time Picker Ignores step=900
+
+**Problem:** Chrome's desktop native time picker dropdown shows all 60 minutes regardless of `step="900"`. The step attribute only affects arrow key increments, not the dropdown list.
+
+**Fix:** Added global JS in `base.html` that listens for `change` events on `input[type="time"][step="900"]` and snaps the value to the nearest 15-minute increment. Uses event delegation so it covers all pages automatically.
+
+**File:** `templates/base.html`
+
+---
+
 ## 2026-03-28 — 15-Minute Time Constraint for All Scheduling
 
 **What:** System-wide enforcement of 15-minute increments (00/15/30/45) for all scheduling time inputs.

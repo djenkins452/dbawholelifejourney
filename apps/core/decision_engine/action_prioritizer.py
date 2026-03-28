@@ -372,3 +372,235 @@ def find_next_upcoming(actions, future_medicine_groups=None, schedule_later=None
         return {"title": item["title"], "time_display": item.get("time_display", "")}
 
     return None
+
+
+# ── Grouped Action Center ────────────────────────────────────────────
+#
+# The unified Action Center replaces separate routine/medicine/schedule
+# cards. It includes ALL items (completed and pending), grouped by their
+# execution group (routine, medication window, standalone task).
+#
+# This function does NOT replace build_action_priorities or
+# prioritize_execution_items — those remain for CoS context and
+# backward compatibility. This is a NEW presentation-layer builder.
+
+
+def build_grouped_action_center(execution_items, current_time, summaries=None):
+    """
+    Build grouped action center data from the execution contract.
+
+    Unlike prioritize_execution_items, this:
+    - Includes ALL items (completed + pending)
+    - Groups items by execution_group (routine, medication window, standalone)
+    - Returns structured data for the unified Action Center template
+
+    Args:
+        execution_items: list of ExecutionItem dicts from build_today_execution()
+        current_time: datetime.time — user's local time
+        summaries: optional dict — execution summaries for binary domain actions
+
+    Returns:
+        dict with:
+            groups: list of group dicts, sorted by urgency then foundational
+            total_items: int
+            completed_items: int
+            all_done: bool
+            phase_groups: {"now": [...], "upcoming": [...], "later": [...]}
+    """
+    now_time = current_time or datetime.time(12, 0)
+
+    # Step 1: Build item dicts with urgency classification for ALL items
+    all_items = []
+    for item in execution_items:
+        sched_time = _parse_time(item.get('scheduled_time'))
+        is_overdue = item.get('time_status') == 'overdue'
+        completed = item.get('completed_today', False)
+
+        # Classify urgency for positioning (even completed items get urgency
+        # so they appear in the correct time group)
+        if item['source_type'] == 'routine_item':
+            if sched_time and not is_overdue:
+                delta = time_diff_minutes(now_time, sched_time)
+                if -45 <= delta <= 30:
+                    urgency = "now"
+                elif delta < -45:
+                    urgency = "now"  # Past — show in NOW as completed/overdue
+                elif delta <= 120:
+                    urgency = "next"
+                else:
+                    urgency = "upcoming"
+            else:
+                urgency = classify_urgency(sched_time, is_overdue, now_time)
+        else:
+            urgency = classify_urgency(sched_time, is_overdue, now_time)
+
+        # Format time for display (AM/PM)
+        time_display = ''
+        if sched_time:
+            hour = sched_time.hour
+            minute = sched_time.minute
+            ampm = 'AM' if hour < 12 else 'PM'
+            display_hour = hour % 12 or 12
+            time_display = f"{display_hour}:{minute:02d} {ampm}"
+
+        all_items.append({
+            'source_type': item['source_type'],
+            'source_id': item.get('source_id'),
+            'title': item['title'],
+            'domain': item.get('domain', 'life'),
+            'importance': item.get('importance', 'flexible'),
+            'urgency': urgency,
+            'scheduled_time': sched_time,
+            'time_display': time_display,
+            'completed': completed,
+            'completion_status': item.get('completion_status', 'pending'),
+            'is_actionable': item.get('is_actionable', False),
+            'is_foundational': item.get('is_foundational', False),
+            'toggle_url': item.get('toggle_url', ''),
+            'detail_url': item.get('detail_url', ''),
+            'group_type': item.get('execution_group_type', 'standalone'),
+            'group_id': item.get('execution_group_id'),
+            'parent_title': item.get('parent_title', ''),
+        })
+
+    # Step 2: Add binary domain actions (journal, workout, faith)
+    if summaries and summaries.get('domains'):
+        domains = summaries['domains']
+        expected = summaries.get('expected', {})
+        _binary_map = [
+            ('journal', 'Write in journal', '/journal/', 'journal'),
+            ('faith_engaged', 'Bible reading', '/faith/reading-plans/', 'faith'),
+            ('workout', 'Log a workout', '/health/fitness/', 'workout'),
+        ]
+        for key, title, url, expected_key in _binary_map:
+            if not expected.get(expected_key, False):
+                continue
+            is_done = domains.get(key, False)
+            all_items.append({
+                'source_type': 'binary',
+                'source_id': None,
+                'title': title,
+                'domain': expected_key,
+                'importance': 'flexible',
+                'urgency': 'next',
+                'scheduled_time': None,
+                'time_display': '',
+                'completed': is_done,
+                'completion_status': 'completed' if is_done else 'pending',
+                'is_actionable': not is_done,
+                'is_foundational': False,
+                'toggle_url': '',
+                'detail_url': url,
+                'group_type': 'standalone',
+                'group_id': None,
+                'parent_title': '',
+                'source': key,
+            })
+
+    # Step 3: Group items by execution group
+    groups_map = {}  # (group_type, group_id) → group dict
+    standalone_items = []
+
+    for item in all_items:
+        gt = item['group_type']
+        gid = item['group_id']
+
+        if gt == 'standalone' or gid is None:
+            standalone_items.append(item)
+        else:
+            key = (gt, gid)
+            if key not in groups_map:
+                groups_map[key] = {
+                    'group_type': gt,
+                    'group_id': gid,
+                    'title': item['parent_title'] or gt.replace('_', ' ').title(),
+                    'items': [],
+                    'total': 0,
+                    'completed_count': 0,
+                    'is_foundational': False,
+                }
+            group = groups_map[key]
+            group['items'].append(item)
+            group['total'] += 1
+            if item['completed']:
+                group['completed_count'] += 1
+            if item['is_foundational']:
+                group['is_foundational'] = True
+
+    # Finalize groups
+    result_groups = []
+    for group in groups_map.values():
+        group['all_complete'] = (
+            group['completed_count'] >= group['total'] and group['total'] > 0
+        )
+        # Group urgency = most urgent pending item, or "now" if all complete
+        pending_urgencies = [
+            URGENCY_ORDER.get(i['urgency'], 9)
+            for i in group['items'] if not i['completed']
+        ]
+        if pending_urgencies:
+            min_urg = min(pending_urgencies)
+            urg_map = {v: k for k, v in URGENCY_ORDER.items()}
+            group['urgency'] = urg_map.get(min_urg, 'upcoming')
+        else:
+            # All complete — assign based on scheduled time of first item
+            first_time = next(
+                (i['scheduled_time'] for i in group['items'] if i['scheduled_time']),
+                None,
+            )
+            if first_time:
+                group['urgency'] = classify_urgency(first_time, False, now_time)
+            else:
+                group['urgency'] = 'now'
+
+        # Sort items within group: pending first, then by scheduled time
+        group['items'].sort(key=lambda i: (
+            i['completed'],
+            i['scheduled_time'] or datetime.time(23, 59),
+        ))
+        result_groups.append(group)
+
+    # Wrap standalone items as single-item groups
+    for item in standalone_items:
+        result_groups.append({
+            'group_type': 'standalone',
+            'group_id': item.get('source_id'),
+            'title': item['title'],
+            'items': [item],
+            'total': 1,
+            'completed_count': 1 if item['completed'] else 0,
+            'all_complete': item['completed'],
+            'is_foundational': item['is_foundational'],
+            'urgency': item['urgency'],
+        })
+
+    # Step 4: Sort groups by urgency then foundational
+    result_groups.sort(key=lambda g: (
+        g['all_complete'],  # Completed groups last
+        not g['is_foundational'],
+        URGENCY_ORDER.get(g['urgency'], 9),
+        g['title'],
+    ))
+
+    # Step 5: Split into phase buckets
+    phase_groups = {
+        'now': [g for g in result_groups
+                if g['urgency'] in ('overdue', 'now') and not g['all_complete']],
+        'upcoming': [g for g in result_groups
+                     if g['urgency'] == 'next' and not g['all_complete']],
+        'later': [g for g in result_groups
+                  if g['urgency'] == 'upcoming' and not g['all_complete']],
+        'completed': [g for g in result_groups if g['all_complete']],
+    }
+
+    total = sum(g['total'] for g in result_groups)
+    completed = sum(g['completed_count'] for g in result_groups)
+
+    return {
+        'groups': result_groups,
+        'phase_groups': phase_groups,
+        'total_items': total,
+        'completed_items': completed,
+        'all_done': completed >= total and total > 0,
+        'has_items': total > 0,
+    }

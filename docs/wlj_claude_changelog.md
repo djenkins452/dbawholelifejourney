@@ -6,6 +6,29 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Dashboard Redesign: Unified Action Center (Command Center)
+
+**What:** Major dashboard redesign — unified Action Center replaces separate routine/medicine/schedule cards. Grouped execution display with completion visibility, cockpit dial animations, clickable health metrics, and URL migration from /v2/ to /dashboard/.
+
+**Files Changed:**
+- `apps/core/decision_engine/action_prioritizer.py` — Added `build_grouped_action_center()` for grouped execution display including all items (completed + pending)
+- `apps/dashboard_v2/services/dashboard_service.py` — Updated to pass grouped action center data, added color-coded health metrics with detail URLs
+- `apps/dashboard_v2/views.py` — All HTMX toggle actions now return unified action center, shared `_render_action_center()` helper
+- `templates/dashboard_v2/home.html` — Removed execution section, moved celebration to top, updated event handlers
+- `templates/dashboard_v2/partials/action_center.html` — Complete rewrite with grouped phase display (Now/Upcoming/Later/Completed)
+- `templates/dashboard_v2/partials/_action_group.html` — New: renders routine/medication groups with batch completion
+- `templates/dashboard_v2/partials/_action_item_v2.html` — New: unified item renderer with completion state
+- `templates/dashboard_v2/partials/cockpit_dial.html` — 4-tier color system, 0→value animation, 100% glow effect
+- `templates/dashboard_v2/sections/state_panel.html` — Clickable, color-coded health metrics linking to detail pages
+- `static/css/dashboard_v2.css` — All new action center styles, gauge animation, layout density improvements
+- `config/urls.py` — /dashboard/ now primary (was /v2/), /v2/ redirects, legacy dashboard at /dashboard/legacy/
+
+**Why:** Dashboard was designed for execution (showing pending items) but not observation (showing what was accomplished). Completed items disappeared, creating false "nothing scheduled" states. Separate cards for routines, medicine, and schedule duplicated the same data. The unified Action Center shows expected vs completed (X/N) at all times, groups items by execution type, and never hides completed work.
+
+**Tests:** 104 dashboard_v2 tests pass, no model changes, no migration required.
+
+---
+
 ## 2026-03-28 — Full-Platform Event Access: 16 Domain Adapters
 
 **Problem:** Event access only covered 3 domains (medication, routine, workout). User couldn't ask Beth about sleep, weight, glucose, blood pressure, food, journal entries, prayers, habits, finances, or any other data they put into the system.

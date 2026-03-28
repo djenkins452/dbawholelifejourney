@@ -1,0 +1,74 @@
+{# Unified action item — handles all source types with completion state #}
+<div class="v2-ac-item{% if item.completed %} v2-ac-item-done{% endif %}{% if item.is_foundational %} v2-ac-item-foundational{% endif %}">
+    <div class="v2-ac-item-toggle">
+        {% if item.completed %}
+            {# Completed — show checkmark, allow undo #}
+            {% if item.source_type == "routine_item" %}
+            <button class="v2-ac-check v2-completed"
+                    hx-post="{{ item.toggle_url }}"
+                    hx-target="#action-center-panel"
+                    hx-swap="outerHTML"
+                    title="Undo">
+                <span class="v2-check">&#10003;</span>
+            </button>
+            {% elif item.source_type == "medication_dose" %}
+            <span class="v2-ac-check v2-completed">
+                <span class="v2-check">&#10003;</span>
+            </span>
+            {% elif item.source_type == "task" %}
+            <button class="v2-ac-check v2-completed"
+                    hx-post="{% url 'dashboard_v2:task_toggle' pk=item.source_id %}"
+                    hx-target="#action-center-panel"
+                    hx-swap="outerHTML"
+                    title="Undo">
+                <span class="v2-check">&#10003;</span>
+            </button>
+            {% else %}
+            <span class="v2-ac-check v2-completed">
+                <span class="v2-check">&#10003;</span>
+            </span>
+            {% endif %}
+        {% elif item.is_actionable %}
+            {# Pending — show empty circle, allow completion #}
+            {% if item.source_type == "routine_item" %}
+            <button class="v2-ac-check"
+                    hx-post="{{ item.toggle_url }}"
+                    hx-target="#action-center-panel"
+                    hx-swap="outerHTML">
+                <span class="v2-check-empty">&#9675;</span>
+            </button>
+            {% elif item.source_type == "medication_dose" %}
+            <span class="v2-ac-check">
+                <span class="v2-check-empty">&#9675;</span>
+            </span>
+            {% elif item.source_type == "task" %}
+            <button class="v2-ac-check"
+                    hx-post="{% url 'dashboard_v2:task_toggle' pk=item.source_id %}"
+                    hx-target="#action-center-panel"
+                    hx-swap="outerHTML">
+                <span class="v2-check-empty">&#9675;</span>
+            </button>
+            {% else %}
+            <span class="v2-ac-link-icon">&#8594;</span>
+            {% endif %}
+        {% else %}
+            {# Not actionable (link-type items like journal/workout) #}
+            <span class="v2-ac-link-icon">&#8594;</span>
+        {% endif %}
+    </div>
+    <div class="v2-ac-item-info">
+        {% if item.detail_url %}
+        <a href="{{ item.detail_url }}" class="v2-ac-item-title{% if item.completed %} v2-strikethrough{% endif %}">{{ item.title }}</a>
+        {% else %}
+        <span class="v2-ac-item-title{% if item.completed %} v2-strikethrough{% endif %}">{{ item.title }}</span>
+        {% endif %}
+        {% if item.is_foundational %}
+        <span class="v2-ac-foundational-dot" title="Foundational"></span>
+        {% endif %}
+    </div>
+    <div class="v2-ac-item-meta">
+        {% if item.time_display %}
+        <span class="v2-ac-item-time">{{ item.time_display }}</span>
+        {% endif %}
+    </div>
+</div>

@@ -116,6 +116,10 @@ SYSTEM_INTENTS = {
     "edit_last_entry",
 }
 
+QUERY_INTENTS = {
+    "query_event_history",
+}
+
 # All intents that support a recorded_at timestamp override.
 # IMPORTANT: If you add a new intent category, add it here too unless
 # the intents truly have no date/time component. The test in
@@ -187,6 +191,8 @@ def get_intent_module(intent_type):
     if intent_type in EXPORT_INTENTS:
         return "export"
     if intent_type in SYSTEM_INTENTS:
+        return "core"
+    if intent_type in QUERY_INTENTS:
         return "core"
     return "unknown"
 

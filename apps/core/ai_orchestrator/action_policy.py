@@ -101,6 +101,8 @@ _r('read_task', ActionCategory.READ, RiskLevel.NONE, AuthorityLevel.AUTO,
    label='Look up tasks')
 _r('read_calendar_events', ActionCategory.READ, RiskLevel.NONE, AuthorityLevel.AUTO,
    label='Look up calendar events')
+_r('query_event_history', ActionCategory.READ, RiskLevel.NONE, AuthorityLevel.AUTO,
+   label='Query event history')
 _r('check_budget', ActionCategory.READ, RiskLevel.NONE, AuthorityLevel.AUTO,
    label='Check budget')
 

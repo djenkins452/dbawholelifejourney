@@ -40,6 +40,7 @@ from .learning_mode_intents import LEARNING_MODE_INTENT_TOOLS
 from .calendar_intents import CALENDAR_INTENT_TOOLS
 from .finance_intents import FINANCE_INTENT_TOOLS
 from .system_intents import SYSTEM_INTENT_TOOLS
+from .query_intents import QUERY_INTENT_TOOLS
 
 # Combine all intent tools for the OpenAI API
 ALL_INTENT_TOOLS = (
@@ -56,7 +57,8 @@ ALL_INTENT_TOOLS = (
     LEARNING_MODE_INTENT_TOOLS +
     CALENDAR_INTENT_TOOLS +
     FINANCE_INTENT_TOOLS +
-    SYSTEM_INTENT_TOOLS
+    SYSTEM_INTENT_TOOLS +
+    QUERY_INTENT_TOOLS
 )
 
 # Intent type to handler mapping (for routing)
@@ -127,6 +129,8 @@ INTENT_HANDLERS = {
     # System (undo/edit)
     'undo_last_action': 'system',
     'edit_last_entry': 'system',
+    # Cross-domain event queries (read-only)
+    'query_event_history': 'query',
     # No action
     'no_action': None,
 }
@@ -145,7 +149,8 @@ INTENT_HANDLERS = {
 CORE_INTENT_TOOLS = (
     SYSTEM_INTENT_TOOLS +
     CALIBRATION_INTENT_TOOLS +
-    LEARNING_MODE_INTENT_TOOLS
+    LEARNING_MODE_INTENT_TOOLS +
+    QUERY_INTENT_TOOLS  # Cross-domain event queries available in all scopes
 )
 
 DOMAIN_INTENT_TOOLS = {
@@ -211,4 +216,5 @@ __all__ = [
     'CALENDAR_INTENT_TOOLS',
     'FINANCE_INTENT_TOOLS',
     'SYSTEM_INTENT_TOOLS',
+    'QUERY_INTENT_TOOLS',
 ]

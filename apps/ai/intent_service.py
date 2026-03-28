@@ -540,6 +540,18 @@ LIFE/TASKS:
 - "I want a daily workout at 6am" → create_routine_task(title="Workout", scheduled_time="06:00", duration_minutes=45)
 - "schedule my evening walk every day at 7pm" → create_routine_task(title="Evening Walk", scheduled_time="19:00", duration_minutes=30)
 
+EVENT HISTORY QUERIES (query_event_history) — use when user asks about past events, missed items, or execution history:
+- "what did I miss?" → query_event_history(query_type="missed", domain="all", lookback_days=7)
+- "which medication did I miss and when?" → query_event_history(query_type="missed", domain="medication", lookback_days=7)
+- "it says I missed 5 doses, what are they?" → query_event_history(query_type="missed", domain="medication", lookback_days=8)
+- "under Health it says I missed 1 dose in the past 8 days" → query_event_history(query_type="missed", domain="medication", lookback_days=8)
+- "what happened yesterday?" → query_event_history(query_type="timeline", target_date="yesterday")
+- "what did I do on Monday?" → query_event_history(query_type="timeline", target_date="monday")
+- "when did my routine start slipping?" → query_event_history(query_type="slippage", domain="routine", lookback_days=14)
+- "what have I missed this week?" → query_event_history(query_type="missed", domain="all", lookback_days=7)
+- "show me missed medications" → query_event_history(query_type="missed", domain="medication")
+NOTE: This is READ-ONLY. Do NOT use for logging, marking complete, or any mutation. The user is asking about what already happened.
+
 ROUTINE RECOVERY (reschedule_routine_item) — use when user wants to move a missed routine item to later today:
 - "move my workout to 7pm" → reschedule_routine_item(item_keyword="workout", new_time="19:00")
 - "I'll do prayer time at noon" → reschedule_routine_item(item_keyword="prayer", new_time="12:00")
@@ -1483,6 +1495,10 @@ the Medications page), honor the explicit domain.
 
             elif intent_type == 'mutate_calendar_event':
                 return handler.handle_mutate_calendar_event(**parameters)
+
+            # Cross-domain event queries
+            elif intent_type == 'query_event_history':
+                return handler.handle_query_event_history(**parameters)
 
             elif intent_type == 'add_reminder':
                 return handler.handle_add_reminder(**parameters)

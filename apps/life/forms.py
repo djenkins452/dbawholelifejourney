@@ -208,6 +208,7 @@ class RoutineScheduleForm(forms.ModelForm):
             'scheduled_time': forms.TimeInput(attrs={
                 'class': 'form-input',
                 'type': 'time',
+                'step': '900',
             }),
             'grace_period_minutes': forms.NumberInput(attrs={
                 'class': 'form-input',

@@ -519,15 +519,24 @@ class Task(UserOwnedModel):
     def save(self, *args, **kwargs):
         """
         Override save to:
-        1. Auto-set due_date for recurring tasks from start_date
-        2. Auto-calculate priority based on due date
+        1. Normalize scheduled times to 15-minute increments
+        2. Auto-set due_date for recurring tasks from start_date
+        3. Auto-calculate priority based on due date
         """
+        from apps.core.utils import normalize_to_quarter_hour
+
+        # Normalize scheduled times to 15-minute increments
+        update_fields = kwargs.get('update_fields')
+        if update_fields is None or 'scheduled_time' in update_fields:
+            self.scheduled_time = normalize_to_quarter_hour(self.scheduled_time)
+        if update_fields is None or 'scheduled_end_time' in update_fields:
+            self.scheduled_end_time = normalize_to_quarter_hour(self.scheduled_end_time)
+
         # For new recurring tasks, set due_date from start_date if not already set
         if self.is_recurring and self.start_date and not self.due_date:
             self.due_date = self.start_date
 
         # Auto-calculate priority unless we're only updating specific fields
-        update_fields = kwargs.get('update_fields')
         if update_fields is None or 'due_date' in update_fields:
             self.priority = self.calculate_priority()
             # If update_fields is specified, add priority to it
@@ -656,10 +665,21 @@ class LifeEvent(UserOwnedModel):
     
     def __str__(self):
         return f"{self.title} ({self.start_date})"
-    
+
+    def save(self, *args, **kwargs):
+        """Normalize event times to 15-minute increments."""
+        from apps.core.utils import normalize_to_quarter_hour
+
+        update_fields = kwargs.get('update_fields')
+        if update_fields is None or 'start_time' in update_fields:
+            self.start_time = normalize_to_quarter_hour(self.start_time)
+        if update_fields is None or 'end_time' in update_fields:
+            self.end_time = normalize_to_quarter_hour(self.end_time)
+        super().save(*args, **kwargs)
+
     def get_absolute_url(self):
         return reverse('life:event_detail', kwargs={'pk': self.pk})
-    
+
     @property
     def is_past(self):
         user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
@@ -2646,6 +2666,13 @@ class RoutineSchedule(models.Model):
 
     class Meta:
         ordering = ["sort_order", "scheduled_time"]
+
+    def save(self, *args, **kwargs):
+        """Normalize scheduled_time to 15-minute increments."""
+        from apps.core.utils import normalize_to_quarter_hour
+
+        self.scheduled_time = normalize_to_quarter_hour(self.scheduled_time)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.name} @ {self.scheduled_time}"

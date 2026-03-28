@@ -416,42 +416,45 @@ class PreferencesForm(forms.ModelForm):
     # notification_reminder_time - not required in form, will default to 7:00 AM
     notification_reminder_time = forms.TimeField(
         required=False,
-        widget=forms.TimeInput(attrs={"class": "form-input", "type": "time"}),
+        widget=forms.TimeInput(attrs={"class": "form-input", "type": "time", "step": "900"}),
     )
 
     # SMS quiet hours - not required in form, will use model defaults
     sms_quiet_start = forms.TimeField(
         required=False,
-        widget=forms.TimeInput(attrs={"class": "form-input", "type": "time"}),
+        widget=forms.TimeInput(attrs={"class": "form-input", "type": "time", "step": "900"}),
     )
     sms_quiet_end = forms.TimeField(
         required=False,
-        widget=forms.TimeInput(attrs={"class": "form-input", "type": "time"}),
+        widget=forms.TimeInput(attrs={"class": "form-input", "type": "time", "step": "900"}),
     )
 
     def clean_notification_reminder_time(self):
-        """Provide default if empty (model requires non-null)."""
+        """Provide default if empty, normalize to 15-minute increments."""
         import datetime
+        from apps.core.utils import normalize_to_quarter_hour
         value = self.cleaned_data.get('notification_reminder_time')
         if value is None:
             return datetime.time(7, 0)  # Default to 7:00 AM
-        return value
+        return normalize_to_quarter_hour(value)
 
     def clean_sms_quiet_start(self):
-        """Provide default if empty (model requires non-null)."""
+        """Provide default if empty, normalize to 15-minute increments."""
         import datetime
+        from apps.core.utils import normalize_to_quarter_hour
         value = self.cleaned_data.get('sms_quiet_start')
         if value is None:
             return datetime.time(22, 0)  # Default to 10:00 PM
-        return value
+        return normalize_to_quarter_hour(value)
 
     def clean_sms_quiet_end(self):
-        """Provide default if empty (model requires non-null)."""
+        """Provide default if empty, normalize to 15-minute increments."""
         import datetime
+        from apps.core.utils import normalize_to_quarter_hour
         value = self.cleaned_data.get('sms_quiet_end')
         if value is None:
             return datetime.time(7, 0)  # Default to 7:00 AM
-        return value
+        return normalize_to_quarter_hour(value)
 
     class Meta:
         model = UserPreferences
@@ -688,10 +691,12 @@ class PreferencesForm(forms.ModelForm):
             "sms_quiet_start": forms.TimeInput(attrs={
                 "class": "form-input",
                 "type": "time",
+                "step": "900",
             }),
             "sms_quiet_end": forms.TimeInput(attrs={
                 "class": "form-input",
                 "type": "time",
+                "step": "900",
             }),
             # In-App & Email Notifications
             "notifications_enabled": forms.CheckboxInput(attrs={
@@ -706,6 +711,7 @@ class PreferencesForm(forms.ModelForm):
             "notification_reminder_time": forms.TimeInput(attrs={
                 "class": "form-input",
                 "type": "time",
+                "step": "900",
             }),
             "notify_inapp_medicine": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",

@@ -6,6 +6,39 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — 15-Minute Time Constraint for All Scheduling
+
+**What:** System-wide enforcement of 15-minute increments (00/15/30/45) for all scheduling time inputs.
+
+**Why:** Arbitrary minute-level precision created inconsistent scheduling data and unnecessary friction. Aligning to 15-minute increments matches how users actually plan and simplifies Today Engine time bucketing.
+
+**Frontend changes:**
+- Added `step="900"` to all `<input type="time">` elements for scheduling (task, event, routine, preferences, reading plan reminders)
+- Added `step="900"` to Django form widget attrs (RoutineScheduleForm, MedicineScheduleForm, UserPreferencesForm)
+- Templates: `task_form.html`, `event_form.html`, `routine_form.html`, `preferences.html`, `reading_plans/detail.html`
+
+**Backend normalization (safety net):**
+- Created `normalize_to_quarter_hour()` utility in `apps/core/utils.py` — rounds to nearest 15 minutes
+- Added normalization in `Task.save()`, `LifeEvent.save()`, `RoutineSchedule.save()`, `MedicineSchedule.save()`
+- Added normalization in AI action handlers: `handle_create_task`, `handle_create_routine_task`, `handle_update_task`, `handle_create_event`
+- Added normalization in UserPreferences form clean methods
+
+**Legacy data:** Existing data displayed as-is; normalized on next save/update.
+
+**Files modified:**
+- `apps/core/utils.py` — new `normalize_to_quarter_hour()` function
+- `apps/life/models.py` — Task.save(), LifeEvent.save(), RoutineSchedule.save()
+- `apps/health/models.py` — MedicineSchedule.save() (merged with existing time_of_day auto-assignment)
+- `apps/ai/action_handlers.py` — 4 handler methods normalized
+- `apps/life/forms.py` — RoutineScheduleForm widget
+- `apps/health/forms.py` — MedicineScheduleForm widget
+- `apps/users/forms.py` — 3 TimeField widgets + 3 clean methods
+- 5 templates updated with step="900"
+
+**Tests:** 17 new tests in `apps/core/tests/test_quarter_hour_normalization.py` — all pass.
+
+---
+
 ## 2026-03-28 — Truth Access Architecture: Multi-Turn Follow-Up Continuity
 
 **Problem:** After Beth correctly answered "What did I miss?" (deterministic event route), follow-up questions like "What date was that?" or "Which medication?" fell back to the LLM, which had no event data and would guess or admit it didn't know.

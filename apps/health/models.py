@@ -2434,6 +2434,20 @@ class MedicineSchedule(models.Model):
         verbose_name = "medicine schedule"
         verbose_name_plural = "medicine schedules"
 
+    def save(self, *args, **kwargs):
+        """
+        Normalize scheduled_time to 15-minute increments, then
+        auto-assign time_of_day based on scheduled_time if not set.
+        """
+        from apps.core.utils import normalize_to_quarter_hour
+
+        self.scheduled_time = normalize_to_quarter_hour(self.scheduled_time)
+
+        if not self.time_of_day and self.scheduled_time:
+            from apps.core.time_windows import get_window_for_hour
+            self.time_of_day = get_window_for_hour(self.scheduled_time.hour)
+        super().save(*args, **kwargs)
+
     def __str__(self):
         time_str = self.scheduled_time.strftime("%I:%M %p")
         if self.label:
@@ -2464,17 +2478,6 @@ class MedicineSchedule(models.Model):
         if self.time_of_day:
             return self.TIME_OF_DAY_ORDER.get(self.time_of_day, 99)
         return 99
-
-    def save(self, *args, **kwargs):
-        """Auto-assign time_of_day based on scheduled_time if not set.
-
-        Uses canonical time windows from apps.core.time_windows to ensure
-        consistent window assignment across all domains.
-        """
-        if not self.time_of_day and self.scheduled_time:
-            from apps.core.time_windows import get_window_for_hour
-            self.time_of_day = get_window_for_hour(self.scheduled_time.hour)
-        super().save(*args, **kwargs)
 
 
 class MedicineLog(UserOwnedModel):

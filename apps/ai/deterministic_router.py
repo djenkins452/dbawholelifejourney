@@ -94,6 +94,80 @@ class RouteResult:
 
 
 # =============================================================================
+# Event Context Stash (thread-local, per-request)
+# =============================================================================
+# When an event route resolves, it stashes the EventRecord list here so
+# personal_assistant.py can store it in conversation.metadata for follow-ups.
+# This avoids modifying handler return signatures or RouteResult structure.
+
+import threading
+
+_thread_local = threading.local()
+
+
+def _stash_resolved_events(events):
+    """Stash resolved events for follow-up context storage."""
+    _thread_local.resolved_events = events
+
+
+def get_stashed_events():
+    """Retrieve and clear stashed events. Called by personal_assistant.py."""
+    events = getattr(_thread_local, 'resolved_events', None)
+    _thread_local.resolved_events = None
+    return events
+
+
+# =============================================================================
+# Event Follow-Up Resolution
+# =============================================================================
+
+
+def _try_event_followup(msg_lower, conversation):
+    """
+    Check if the message is a follow-up to a previous event query.
+
+    Uses stored event context from conversation.metadata. Returns a
+    terminal RouteResult if resolved, None otherwise (safe fallthrough).
+    """
+    try:
+        from apps.core.ai_events.followup import (
+            is_followup_query,
+            get_event_context,
+            resolve_followup,
+        )
+
+        if not is_followup_query(msg_lower):
+            return None
+
+        event_context = get_event_context(conversation)
+        if event_context is None:
+            return None
+
+        response = resolve_followup(msg_lower, event_context)
+        if response is None:
+            return None
+
+        logger.info(
+            "EVENT_FOLLOWUP_RESOLVED user=%s route=%s msg=%r",
+            conversation.user_id,
+            event_context.get('route_name', 'unknown'),
+            msg_lower[:60],
+        )
+        return RouteResult(
+            category=RouteCategory.DETERMINISTIC_DATA,
+            response=response,
+            route_name='event_followup',
+            domain='execution',
+            is_terminal=True,
+        )
+    except Exception as e:
+        logger.warning(
+            "Event follow-up resolution failed: %s", e, exc_info=True,
+        )
+        return None
+
+
+# =============================================================================
 # Feature Flags
 # =============================================================================
 
@@ -201,7 +275,7 @@ def has_action_signal(msg_lower):
 # Main Entry Point
 # =============================================================================
 
-def classify_and_route(message, user, cos_context_cache=None):
+def classify_and_route(message, user, cos_context_cache=None, conversation=None):
     """
     Classify a user message and return a routing decision.
 
@@ -217,6 +291,9 @@ def classify_and_route(message, user, cos_context_cache=None):
         user: Django User instance.
         cos_context_cache: Pre-built CoS context dict (for strict health
             status which needs it). May be None.
+        conversation: AssistantConversation instance (optional). When
+            provided, enables event follow-up detection from stored
+            recent_event_context in metadata.
 
     Returns:
         RouteResult with routing decision and optional response.
@@ -229,6 +306,17 @@ def classify_and_route(message, user, cos_context_cache=None):
 
     t_start = time.monotonic()
     msg_lower = message.lower()
+
+    # ── Phase -1: Event follow-up detection ────────────────────────
+    # If a previous turn resolved an event query and the user is now
+    # asking a follow-up ("what date was that?"), resolve deterministically
+    # from the stored context. No re-query, no LLM.
+    if conversation is not None:
+        result = _try_event_followup(msg_lower, conversation)
+        if result is not None:
+            result.elapsed_ms = (time.monotonic() - t_start) * 1000
+            _log_route_decision(result, user, message)
+            return result
 
     # ── Phase 0a: Today status query (bypasses LLM entirely) ──────
     result = _try_status_query_route(msg_lower, user)
@@ -1352,10 +1440,15 @@ def _handle_event_missed_query(user, msg_lower=None):
 
         if domain_hint:
             missed = resolver.get_missed_events(user, domain_hint, start, end)
-            return format_missed_events(missed, domain=domain_hint)
+            response = format_missed_events(missed, domain=domain_hint)
         else:
             missed = resolver.get_all_missed(user, start, end)
-            return format_missed_events(missed)
+            response = format_missed_events(missed)
+
+        # Stash events on module-level for follow-up context storage.
+        # personal_assistant.py reads this after terminal route.
+        _stash_resolved_events(missed)
+        return response
     except Exception as e:
         logger.warning(
             "Event missed query failed for user=%s: %s",
@@ -1386,7 +1479,9 @@ def _handle_event_timeline_query(user, msg_lower=None):
 
         resolver = EventResolver()
         events = resolver.get_day_timeline(user, target)
-        return format_day_timeline(events, target)
+        response = format_day_timeline(events, target)
+        _stash_resolved_events(events)
+        return response
     except Exception as e:
         logger.warning(
             "Event timeline query failed for user=%s: %s",

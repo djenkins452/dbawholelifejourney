@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Truth Access Architecture: Multi-Turn Follow-Up Continuity
+
+**Problem:** After Beth correctly answered "What did I miss?" (deterministic event route), follow-up questions like "What date was that?" or "Which medication?" fell back to the LLM, which had no event data and would guess or admit it didn't know.
+
+**Solution:** Added three-layer follow-up continuity:
+
+1. **Event context storage** — After terminal event routes, resolved EventRecord data is serialized into `conversation.metadata['recent_event_context']` (follows ECC pattern). Expires after 30 min or 5 turns.
+
+2. **Deterministic follow-up resolver** — New Phase -1 in the router detects follow-up patterns ("what date was that?", "which medication?", "was that yesterday?") and resolves them from stored context without re-querying the database or calling the LLM.
+
+3. **CoS context injection** — If a follow-up doesn't match deterministic patterns, the event context is injected into the CoS system prompt so the LLM can reference it factually.
+
+**New file:** `apps/core/ai_events/followup.py` — Follow-up detection, context storage/retrieval/expiry, deterministic resolver
+**New test file:** `apps/core/ai_events/tests/test_followup.py` — 28 tests for detection, storage, resolution, router integration
+
+**Modified files:**
+- `apps/ai/deterministic_router.py` — Added Phase -1 follow-up check, thread-local event stash, conversation param
+- `apps/ai/personal_assistant.py` — Store event context after terminal event routes, increment turn counter, inject into CoS context (both streaming and non-streaming paths)
+- `apps/core/ai_orchestrator/cos_context.py` — Render `recent_event_context` in system prompt for LLM fallback
+
+**Verification:** 99 event layer tests pass, 105 existing router tests pass, zero regressions.
+
 ## 2026-03-28 — Truth Access Architecture: Event Access Layer
 
 **Problem:** CoS (Beth) could only see aggregated summaries (e.g., "adherence: 98%") but could not answer event-level questions like "Which dose did I miss and when?" The raw data existed in MedicineLog/RoutineLog/WorkoutSession but was never exposed to the conversational pipeline.

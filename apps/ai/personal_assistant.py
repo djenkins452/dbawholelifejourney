@@ -927,6 +927,13 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             image_expires_at=image_expires_at
         )
 
+        # Increment event context turn counter (for follow-up expiration)
+        try:
+            from apps.core.ai_events.followup import increment_turn_count
+            increment_turn_count(conversation)
+        except Exception:
+            pass  # Non-critical — don't block message flow
+
         # Save additional images (2nd+) to MessageImage table
         if images_list:
             from .models import MessageImage
@@ -1377,11 +1384,33 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                     _route_result = _classify_route(
                         message, self.user,
                         cos_context_cache=_cos_context_cache,
+                        conversation=conversation,
                     )
 
                     # Terminal routes: response is complete, skip LLM
                     if _route_result.is_terminal and _route_result.response:
                         response = _route_result.response
+                        # Store event context for follow-up continuity
+                        if _route_result.route_name in (
+                            'event_missed_query',
+                            'event_timeline_query',
+                            'event_slippage_query',
+                        ):
+                            try:
+                                from apps.ai.deterministic_router import get_stashed_events
+                                from apps.core.ai_events.followup import store_event_context
+                                _stashed = get_stashed_events()
+                                if _stashed and conversation:
+                                    store_event_context(
+                                        conversation,
+                                        _route_result.route_name,
+                                        _stashed,
+                                        response,
+                                    )
+                            except Exception as _ec_err:
+                                logger.debug(
+                                    "Event context storage failed: %s", _ec_err,
+                                )
                 except ImportError:
                     pass
                 except Exception as _router_err:
@@ -3105,6 +3134,15 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                     if _health_analysis:
                         cos_context['health_screenshot_analysis'] = _health_analysis
 
+                    # Inject recent event context for follow-up continuity
+                    try:
+                        from apps.core.ai_events.followup import get_event_context
+                        _rec_evt = get_event_context(conversation) if conversation else None
+                        if _rec_evt:
+                            cos_context['recent_event_context'] = _rec_evt
+                    except Exception:
+                        pass  # Non-critical
+
                     cos_injection = format_cos_system_injection(
                         cos_context, user_message=message,
                     )
@@ -4502,6 +4540,14 @@ Rules for this response:
                         cos_ctx['affirmed_completions'] = _affirmed
                 except Exception:
                     pass  # Affirmation context must never break streaming
+                # Inject recent event context for follow-up continuity
+                try:
+                    from apps.core.ai_events.followup import get_event_context
+                    _rec_evt_s = get_event_context(conversation) if conversation else None
+                    if _rec_evt_s:
+                        cos_ctx['recent_event_context'] = _rec_evt_s
+                except Exception:
+                    pass  # Non-critical
                 cos_injection = format_cos_system_injection(cos_ctx, user_message=message)
                 if cos_injection:
                     system_prompt += "\n\n" + cos_injection
@@ -5083,6 +5129,13 @@ Rules for this response:
             message_type='text',
         )
 
+        # Increment event context turn counter (for follow-up expiration)
+        try:
+            from apps.core.ai_events.followup import increment_turn_count
+            increment_turn_count(conversation)
+        except Exception:
+            pass  # Non-critical
+
         # Create assistant message placeholder BEFORE streaming.
         # Updated with final content after stream completes (or on interrupt).
         assistant_msg = AssistantMessage.objects.create(
@@ -5377,10 +5430,33 @@ Rules for this response:
                         _route_result_stream = _classify_route_s(
                             message, self.user,
                             cos_context_cache=_cos_context_cache,
+                            conversation=conversation,
                         )
                         if (_route_result_stream.is_terminal
                                 and _route_result_stream.response):
                             _direct_response = _route_result_stream.response
+                            # Store event context for follow-up continuity
+                            if _route_result_stream.route_name in (
+                                'event_missed_query',
+                                'event_timeline_query',
+                                'event_slippage_query',
+                            ):
+                                try:
+                                    from apps.ai.deterministic_router import get_stashed_events
+                                    from apps.core.ai_events.followup import store_event_context
+                                    _stashed_s = get_stashed_events()
+                                    if _stashed_s and conversation:
+                                        store_event_context(
+                                            conversation,
+                                            _route_result_stream.route_name,
+                                            _stashed_s,
+                                            _direct_response,
+                                        )
+                                except Exception as _ec_s_err:
+                                    logger.debug(
+                                        "Event context storage (stream) failed: %s",
+                                        _ec_s_err,
+                                    )
                     except ImportError:
                         pass
                     except Exception as _router_s_err:

@@ -60,8 +60,8 @@ class SportsHubView(LoginRequiredMixin, SportsEnabledMixin, TemplateView):
 
         if vm is None:
             # Warm failed — build directly as last resort
-            from apps.sports.services.sports_view_model import build_sports_view_model
-            vm = build_sports_view_model(user)
+            from apps.sports.services.sports_view_model import build_sports_page_view
+            vm = build_sports_page_view(user)
 
         # Flatten view model into template context
         context.update(vm)

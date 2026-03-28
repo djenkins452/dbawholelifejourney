@@ -6,11 +6,9 @@
 {% block extra_css %}
 <style>
     /* ═══════════════════════════════════════════════════════════════
-       SPORTS HUB v5 — Live Sports Experience
-       Hero (enhanced) → Live Context → Scoreboard Cluster →
-       Your Games Today (grouped timeline) → Ticker →
+       SPORTS HUB v5 — Contract-driven layout
+       Hero → Live Context → Scoreboard → Timeline → Ticker →
        Momentum → Storylines → More Games
-       Auto-refresh every 30s (live) / 60s (idle). Score flash on change.
        ═══════════════════════════════════════════════════════════════ */
 
     .sports-hub { max-width: 760px; margin: 0 auto; padding: 0 0 48px; }
@@ -131,13 +129,20 @@
     }
     @keyframes pulse-live { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 50% { opacity: 0.4; box-shadow: 0 0 0 4px rgba(239,68,68,0); } }
 
-    /* ── SCOREBOARD CLUSTER ── */
-    .scoreboard-cluster { padding: 16px; }
+    /* ── SCOREBOARD ── */
+    .scoreboard { padding: 16px; }
     .scoreboard-header {
         font-size: 0.62rem; font-weight: 800; text-transform: uppercase;
         letter-spacing: 0.12em; color: var(--color-text-muted);
         margin-bottom: 12px;
     }
+    .scoreboard-group-label {
+        font-size: 0.55rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: 0.1em; margin: 10px 0 6px; padding-left: 2px;
+    }
+    .scoreboard-group-label--live { color: #ef4444; }
+    .scoreboard-group-label--final { color: var(--color-text-muted); }
+    .scoreboard-group-label--upcoming { color: rgba(99, 102, 241, 0.7); }
     .scoreboard-grid {
         display: grid; grid-template-columns: repeat(2, 1fr);
         gap: 8px;
@@ -166,15 +171,12 @@
         font-size: 0.55rem; font-weight: 800; text-transform: uppercase;
         letter-spacing: 0.05em; margin-top: 4px; text-align: center;
     }
-    .scoreboard-status--live { color: #ef4444; }
-    .scoreboard-status--final { color: var(--color-text-muted); }
-    .scoreboard-status--upcoming { color: var(--color-text-muted); }
     .scoreboard-context {
         font-size: 0.55rem; color: var(--color-text-muted); text-align: center;
         margin-top: 2px;
     }
 
-    /* ── HORIZONTAL TICKER (ESPN-style) ── */
+    /* ── HORIZONTAL TICKER ── */
     .smart-ticker {
         background: #0f172a; height: 36px;
         overflow: hidden; position: relative;
@@ -223,7 +225,7 @@
         background: var(--color-surface); padding: 2px 8px; border-radius: 10px;
     }
 
-    /* ── YOUR GAMES TODAY (grouped timeline) ── */
+    /* ── TIMELINE ── */
     .timeline-group { margin-bottom: 20px; }
     .timeline-group-label {
         font-size: 0.58rem; font-weight: 800; text-transform: uppercase;
@@ -231,15 +233,8 @@
         margin-bottom: 8px; padding-left: 4px;
     }
     .timeline-group-label--now { color: #ef4444; }
-    .timeline-group-label--later { color: #f59e0b; }
+    .timeline-group-label--today { color: #f59e0b; }
     .timeline-group-label--tomorrow { color: rgba(99, 102, 241, 0.7); }
-
-    /* ── MICRO-HIERARCHY: first item in group is emphasized ── */
-    .next-row--primary { border-color: rgba(99, 102, 241, 0.15); }
-    .next-row--primary .next-teams { font-size: 0.95rem; }
-    .next-row--primary .next-time { font-size: 0.9rem; }
-    .next-row--secondary .next-teams { font-size: 0.85rem; color: var(--color-text-muted); }
-    .next-row--secondary .next-time { font-size: 0.78rem; color: var(--color-text-muted); }
 
     .next-row {
         display: flex; align-items: center; gap: 12px;
@@ -248,6 +243,9 @@
         margin-bottom: 8px; transition: border-color 0.2s;
     }
     .next-row:hover { border-color: rgba(99, 102, 241, 0.2); }
+    .next-row--primary { border-color: rgba(99, 102, 241, 0.15); }
+    .next-row--primary .next-teams { font-size: 0.95rem; }
+    .next-row--secondary .next-teams { font-size: 0.85rem; color: var(--color-text-muted); }
     .next-logo { width: 28px; height: 28px; object-fit: contain; flex-shrink: 0; }
     .next-main { flex: 1; min-width: 0; }
     .next-teams { font-size: 0.9rem; font-weight: 700; color: var(--color-text); }
@@ -340,7 +338,7 @@
         .hero-logo { width: 30px; height: 30px; }
         .hero-matchup { gap: 8px; }
         .hub-section { padding: 0 12px; margin-top: 22px; }
-        .scoreboard-cluster { padding: 12px; }
+        .scoreboard { padding: 12px; }
         .scoreboard-grid { gap: 6px; }
         .scoreboard-card { padding: 10px; }
         .live-context { padding: 10px 14px; }
@@ -366,14 +364,13 @@
 
     {% else %}
 
-    {# ═══ 1. HERO — highest importance game (enhanced with tournament context + game state) ═══ #}
+    {# ═══ 1. HERO ═══ #}
     {% if hero %}
     <div class="hero hero--{{ hero.urgency }}">
         <div class="hero-top">
             <div>
                 <span class="hero-badge hero-badge--{{ hero.urgency }}">
-                    {% if hero.urgency == "live" %}
-                        <span class="live-dot"></span> LIVE
+                    {% if hero.urgency == "live" %}<span class="live-dot"></span> LIVE
                     {% elif hero.urgency == "starting_soon" %}STARTING SOON
                     {% elif hero.urgency == "today" %}TODAY
                     {% elif hero.urgency == "final" %}FINAL
@@ -394,13 +391,11 @@
 
         {% if hero.score %}
             <div class="hero-score" id="hero-score" data-score="{{ hero.score }}">{{ hero.score }}</div>
-        {% endif %}
-        {% if hero.start_time and not hero.score %}
+        {% elif hero.start_time %}
             <div class="hero-time" data-start-time="{{ hero.start_time }}">{{ hero.start_time }}</div>
             <div class="hero-countdown" data-countdown="{{ hero.start_time }}"></div>
         {% endif %}
 
-        {# Tournament context line (e.g. "Sweet 16 — Elite Eight on the line") #}
         {% if hero.tournament_context %}
         <div class="hero-tournament-context">{{ hero.tournament_context }}</div>
         {% endif %}
@@ -408,9 +403,7 @@
         {% if hero.headline %}
         <div class="hero-headline">{{ hero.headline }}</div>
         {% elif hero.insight and not hero.game_note %}
-        <div class="hero-insight {% if hero.urgency == 'live' %}hero-insight--status{% elif 'streak' in hero.insight or 'win' in hero.insight or 'loss' in hero.insight %}hero-insight--streak{% else %}hero-insight--status{% endif %}">
-            {{ hero.insight }}
-        </div>
+        <div class="hero-insight hero-insight--status">{{ hero.insight }}</div>
         {% endif %}
 
         {% if hero.record or hero.streak or hero.pitcher %}
@@ -423,7 +416,7 @@
     </div>
     {% endif %}
 
-    {# ═══ 2. LIVE CONTEXT BLOCK — deterministic, only when hero is LIVE ═══ #}
+    {# ═══ 2. LIVE CONTEXT ═══ #}
     {% if live_context %}
     <div class="live-context">
         <div class="live-context-header"><span class="live-dot"></span> LIVE NOW</div>
@@ -432,120 +425,159 @@
     </div>
     {% endif %}
 
-    {# ═══ 3. SCOREBOARD CLUSTER — tournament/league multi-game awareness ═══ #}
-    {% if scoreboard %}
-    <div class="scoreboard-cluster">
-        <div class="scoreboard-header">{{ scoreboard.header }}</div>
+    {# ═══ 3. SCOREBOARD (pre-grouped: live / final / upcoming) ═══ #}
+    {% if scoreboard.live or scoreboard.final or scoreboard.upcoming %}
+    <div class="scoreboard">
+        {% if scoreboard.header %}<div class="scoreboard-header">{{ scoreboard.header }}</div>{% endif %}
+
+        {% if scoreboard.live %}
+        <div class="scoreboard-group-label scoreboard-group-label--live"><span class="live-dot"></span> Live</div>
         <div class="scoreboard-grid">
-            {% for g in scoreboard.games %}
-            <div class="scoreboard-card {% if g.status == 'LIVE' %}scoreboard-card--live{% elif g.status == 'FINAL' %}scoreboard-card--final{% endif %}">
+            {% for g in scoreboard.live %}
+            <div class="scoreboard-card scoreboard-card--live">
                 <div class="scoreboard-team-row">
                     <div class="scoreboard-team-info">
                         {% if g.away_logo %}<img src="{{ g.away_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
                         <span class="scoreboard-team-name">{{ g.away }}</span>
                     </div>
-                    {% if g.score %}<span class="scoreboard-team-score">{{ g.away_score }}</span>{% endif %}
+                    <span class="scoreboard-team-score">{{ g.away_score }}</span>
                 </div>
                 <div class="scoreboard-team-row">
                     <div class="scoreboard-team-info">
                         {% if g.home_logo %}<img src="{{ g.home_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
                         <span class="scoreboard-team-name">{{ g.home }}</span>
                     </div>
-                    {% if g.score %}<span class="scoreboard-team-score">{{ g.home_score }}</span>{% endif %}
+                    <span class="scoreboard-team-score">{{ g.home_score }}</span>
                 </div>
-                {% if g.status %}
-                <div class="scoreboard-status scoreboard-status--{{ g.status|lower }}">
-                    {% if g.status == "LIVE" %}<span class="live-dot"></span> {% endif %}{{ g.status }}
-                </div>
-                {% else %}
-                <div class="scoreboard-status scoreboard-status--upcoming" data-start-time="{{ g.start_time }}">{{ g.start_time }}</div>
-                {% endif %}
                 {% if g.context %}<div class="scoreboard-context">{{ g.context }}</div>{% endif %}
             </div>
             {% endfor %}
         </div>
+        {% endif %}
+
+        {% if scoreboard.final %}
+        <div class="scoreboard-group-label scoreboard-group-label--final">Final</div>
+        <div class="scoreboard-grid">
+            {% for g in scoreboard.final %}
+            <div class="scoreboard-card scoreboard-card--final">
+                <div class="scoreboard-team-row">
+                    <div class="scoreboard-team-info">
+                        {% if g.away_logo %}<img src="{{ g.away_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                        <span class="scoreboard-team-name">{{ g.away }}</span>
+                    </div>
+                    <span class="scoreboard-team-score">{{ g.away_score }}</span>
+                </div>
+                <div class="scoreboard-team-row">
+                    <div class="scoreboard-team-info">
+                        {% if g.home_logo %}<img src="{{ g.home_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                        <span class="scoreboard-team-name">{{ g.home }}</span>
+                    </div>
+                    <span class="scoreboard-team-score">{{ g.home_score }}</span>
+                </div>
+                {% if g.context %}<div class="scoreboard-context">{{ g.context }}</div>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if scoreboard.upcoming %}
+        <div class="scoreboard-group-label scoreboard-group-label--upcoming">Upcoming</div>
+        <div class="scoreboard-grid">
+            {% for g in scoreboard.upcoming %}
+            <div class="scoreboard-card">
+                <div class="scoreboard-team-row">
+                    <div class="scoreboard-team-info">
+                        {% if g.away_logo %}<img src="{{ g.away_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                        <span class="scoreboard-team-name">{{ g.away }}</span>
+                    </div>
+                </div>
+                <div class="scoreboard-team-row">
+                    <div class="scoreboard-team-info">
+                        {% if g.home_logo %}<img src="{{ g.home_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                        <span class="scoreboard-team-name">{{ g.home }}</span>
+                    </div>
+                </div>
+                <div class="scoreboard-status" data-start-time="{{ g.start_time }}">{{ g.start_time }}</div>
+                {% if g.context %}<div class="scoreboard-context">{{ g.context }}</div>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 
-    {# ═══ 4. YOUR GAMES TODAY — grouped timeline (replaces "Up Next") ═══ #}
-    {% if your_games_today %}
+    {# ═══ 4. TIMELINE (pre-grouped: now / today / tomorrow) ═══ #}
+    {% if timeline.now or timeline.today or timeline.tomorrow %}
     <div class="hub-section">
         <div class="section-header">
-            <span class="section-label">Your Games Today</span>
+            <span class="section-label">Your Games</span>
         </div>
-        {% for group in your_games_today %}
+
+        {% if timeline.now %}
         <div class="timeline-group">
-            <div class="timeline-group-label {% if group.label == 'NOW' %}timeline-group-label--now{% elif group.label == 'LATER TODAY' %}timeline-group-label--later{% elif group.label == 'TOMORROW' %}timeline-group-label--tomorrow{% endif %}">
-                {% if group.label == "NOW" %}<span class="live-dot"></span> {% endif %}{{ group.label }}
-            </div>
-            {% for g in group.games %}
-            <div class="next-row {% if forloop.first and forloop.parentloop.first %}next-row--primary{% else %}next-row--secondary{% endif %}">
+            <div class="timeline-group-label timeline-group-label--now"><span class="live-dot"></span> NOW</div>
+            {% for g in timeline.now %}
+            <div class="next-row {% if forloop.first %}next-row--primary{% else %}next-row--secondary{% endif %}">
                 {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="next-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
                 <div class="next-main">
-                    <div class="next-teams">
-                        {{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}
-                    </div>
-                    {% if g.context %}
-                    <div class="next-context {% if 'Sweet' in g.context or 'Tournament' in g.context or 'Playoff' in g.context or 'Elite' in g.context or 'Final' in g.context %}next-context--significance{% elif 'win' in g.context or 'Won' in g.context or 'straight' in g.context %}next-context--hot{% elif 'loss' in g.context or 'Lost' in g.context or 'bounce' in g.context %}next-context--cold{% else %}next-context--default{% endif %}">
-                        {{ g.context }}
-                    </div>
-                    {% endif %}
+                    <div class="next-teams">{{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}</div>
+                    {% if g.context %}<div class="next-context next-context--default">{{ g.context }}</div>{% endif %}
                 </div>
                 <div class="next-right">
-                    {% if g.urgency == "live" %}
-                        <div class="next-time">LIVE</div>
-                    {% else %}
-                        <div class="next-time" data-start-time="{{ g.start_time }}">{{ g.start_time|truncatechars:16 }}</div>
-                    {% endif %}
+                    <div class="next-time">LIVE</div>
+                    <span class="next-badge next-badge--live">LIVE</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if timeline.today %}
+        <div class="timeline-group">
+            <div class="timeline-group-label timeline-group-label--today">{% if timeline.now %}LATER TODAY{% else %}TODAY{% endif %}</div>
+            {% for g in timeline.today %}
+            <div class="next-row {% if not timeline.now and forloop.first %}next-row--primary{% else %}next-row--secondary{% endif %}">
+                {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="next-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                <div class="next-main">
+                    <div class="next-teams">{{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}</div>
+                    {% if g.context %}<div class="next-context next-context--default">{{ g.context }}</div>{% endif %}
+                </div>
+                <div class="next-right">
+                    <div class="next-time" data-start-time="{{ g.start_time }}">{{ g.start_time|truncatechars:16 }}</div>
                     <span class="next-badge next-badge--{{ g.urgency }}">
-                        {% if g.urgency == "live" %}LIVE
-                        {% elif g.urgency == "starting_soon" %}SOON
-                        {% elif g.urgency == "today" %}TODAY
-                        {% else %}UPCOMING{% endif %}
+                        {% if g.urgency == "starting_soon" %}SOON{% elif g.urgency == "today" %}TODAY{% else %}UPCOMING{% endif %}
                     </span>
                 </div>
             </div>
             {% endfor %}
         </div>
-        {% endfor %}
-    </div>
-    {% elif whats_next %}
-    {# Fallback: signal-based path still uses flat whats_next #}
-    <div class="hub-section">
-        <div class="section-header">
-            <span class="section-label">Your Games Today</span>
-        </div>
-        {% for g in whats_next %}
-        <div class="next-row {% if forloop.first %}next-row--primary{% else %}next-row--secondary{% endif %}">
-            {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="next-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
-            <div class="next-main">
-                <div class="next-teams">
-                    {{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}
+        {% endif %}
+
+        {% if timeline.tomorrow %}
+        <div class="timeline-group">
+            <div class="timeline-group-label timeline-group-label--tomorrow">TOMORROW</div>
+            {% for g in timeline.tomorrow %}
+            <div class="next-row next-row--secondary">
+                {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="next-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                <div class="next-main">
+                    <div class="next-teams">{{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}</div>
+                    {% if g.context %}<div class="next-context next-context--default">{{ g.context }}</div>{% endif %}
                 </div>
-                {% if g.context %}
-                <div class="next-context {% if 'Sweet' in g.context or 'Tournament' in g.context or 'Playoff' in g.context or 'Elite' in g.context or 'Final' in g.context %}next-context--significance{% elif 'win' in g.context or 'Won' in g.context or 'straight' in g.context %}next-context--hot{% elif 'loss' in g.context or 'Lost' in g.context or 'bounce' in g.context %}next-context--cold{% else %}next-context--default{% endif %}">
-                    {{ g.context }}
+                <div class="next-right">
+                    <div class="next-time" data-start-time="{{ g.start_time }}">{{ g.start_time|truncatechars:16 }}</div>
+                    <span class="next-badge next-badge--upcoming">TOMORROW</span>
                 </div>
-                {% endif %}
             </div>
-            <div class="next-right">
-                <div class="next-time" data-start-time="{{ g.start_time }}">{{ g.start_time|truncatechars:16 }}</div>
-                <span class="next-badge next-badge--{{ g.urgency }}">
-                    {% if g.urgency == "starting_soon" %}SOON
-                    {% elif g.urgency == "today" %}TODAY
-                    {% else %}UPCOMING{% endif %}
-                </span>
-            </div>
+            {% endfor %}
         </div>
-        {% endfor %}
+        {% endif %}
     </div>
     {% endif %}
 
-    {# ═══ 5. HORIZONTAL TICKER (moved below scoreboard) ═══ #}
+    {# ═══ 5. TICKER ═══ #}
     {% if ticker %}
     <div class="smart-ticker" id="smart-ticker">
         <div class="ticker-track" id="ticker-track">
-            {# First copy #}
             {% for t in ticker %}
             <div class="ticker-item">
                 <span class="ticker-type ticker-type--{{ t.type }}">
@@ -556,7 +588,6 @@
             {% if not forloop.last %}<span class="ticker-sep"></span>{% endif %}
             {% endfor %}
             <span class="ticker-sep"></span>
-            {# Duplicate copy for seamless loop #}
             {% for t in ticker %}
             <div class="ticker-item">
                 <span class="ticker-type ticker-type--{{ t.type }}">
@@ -581,16 +612,14 @@
             <span class="momentum-team">{{ m.team_name }}</span>
             <div class="momentum-right">
                 <span class="momentum-label momentum-label--{{ m.heat }}">{{ m.label }}</span>
-                <span class="momentum-streak momentum-streak--{{ m.heat }}">
-                    {{ m.streak_type }}{{ m.streak_count }}
-                </span>
+                <span class="momentum-streak momentum-streak--{{ m.heat }}">{{ m.streak_type }}{{ m.streak_count }}</span>
             </div>
         </div>
         {% endfor %}
     </div>
     {% endif %}
 
-    {# ═══ 7. KEY STORYLINES ═══ #}
+    {# ═══ 7. STORYLINES ═══ #}
     {% if storylines %}
     <div class="hub-section">
         <div class="section-header">
@@ -605,7 +634,7 @@
     </div>
     {% endif %}
 
-    {# ═══ 8. MORE GAMES — only if unique content exists ═══ #}
+    {# ═══ 8. MORE GAMES ═══ #}
     {% if more_games %}
     <div class="hub-section">
         <div class="section-header">
@@ -624,7 +653,7 @@
     {% endif %}
 
     {# ═══ Quiet state ═══ #}
-    {% if not hero and not your_games_today and not whats_next and not momentum and not storylines %}
+    {% if not hero and not timeline.now and not timeline.today and not timeline.tomorrow and not momentum and not storylines %}
     <div class="no-activity">No games or activity right now. Check back later.</div>
     {% endif %}
 
@@ -636,20 +665,16 @@
     {% endif %}{# end has_teams #}
 </div>
 
-{# Refresh indicator #}
 <div class="refresh-dot" id="refresh-dot"></div>
 
 <script nonce="{{ csp_nonce }}">
 (function() {
     'use strict';
 
-    // ── Format all ISO timestamps to local time ──
     function formatTimes() {
         document.querySelectorAll('[data-start-time]').forEach(function(el) {
             var iso = el.getAttribute('data-start-time');
-            if (!iso || iso === 'None' || iso === '') {
-                return;
-            }
+            if (!iso || iso === 'None' || iso === '') return;
             try {
                 var d = new Date(iso);
                 if (isNaN(d.getTime())) return;
@@ -667,41 +692,23 @@
                 } else {
                     el.textContent = d.toLocaleTimeString([], opts);
                 }
-            } catch(e) {
-                el.textContent = '';
-            }
+            } catch(e) { el.textContent = ''; }
         });
     }
 
-    // ── Countdown: "starts in 2h 15m" ──
     function updateCountdowns() {
         document.querySelectorAll('[data-countdown]').forEach(function(el) {
             var iso = el.getAttribute('data-countdown');
-            if (!iso || iso === 'None' || iso === '') {
-                el.textContent = '';
-                return;
-            }
+            if (!iso || iso === 'None' || iso === '') { el.textContent = ''; return; }
             try {
                 var d = new Date(iso);
-                if (isNaN(d.getTime())) {
-                    el.textContent = '';
-                    return;
-                }
-                var now = new Date();
-                var diff = d - now;
-                if (diff <= 0) {
-                    el.textContent = '';
-                    return;
-                }
+                if (isNaN(d.getTime())) { el.textContent = ''; return; }
+                var diff = d - new Date();
+                if (diff <= 0) { el.textContent = ''; return; }
                 var hours = Math.floor(diff / 3600000);
                 var mins = Math.floor((diff % 3600000) / 60000);
-                if (isNaN(hours) || isNaN(mins)) {
-                    el.textContent = '';
-                    return;
-                }
                 if (hours > 24) {
-                    var days = Math.floor(hours / 24);
-                    el.textContent = 'starts in ' + days + 'd ' + (hours % 24) + 'h';
+                    el.textContent = 'starts in ' + Math.floor(hours / 24) + 'd ' + (hours % 24) + 'h';
                 } else if (hours > 0) {
                     el.textContent = 'starts in ' + hours + 'h ' + mins + 'm';
                 } else if (mins > 0) {
@@ -709,20 +716,15 @@
                 } else {
                     el.textContent = 'starting now';
                 }
-            } catch(e) {
-                el.textContent = '';
-            }
+            } catch(e) { el.textContent = ''; }
         });
     }
 
-    // ── Horizontal Ticker (ESPN-style) ──
     function initTicker() {
         var track = document.getElementById('ticker-track');
         if (!track) return;
         var halfWidth = track.scrollWidth / 2;
-        var duration = Math.max(halfWidth / 60, 15);
-        track.style.animationDuration = duration + 's';
-
+        track.style.animationDuration = Math.max(halfWidth / 60, 15) + 's';
         var ticker = document.getElementById('smart-ticker');
         if (ticker) {
             ticker.addEventListener('touchstart', function() { ticker.classList.add('ticker-paused'); }, {passive: true});
@@ -730,11 +732,9 @@
         }
     }
 
-    // ── Auto-refresh: reload page every 30s (live) / 60s (idle) ──
     function initAutoRefresh() {
         var hasLive = document.querySelector('.hero--live') || document.querySelector('.live-context');
         var interval = hasLive ? 30000 : 60000;
-
         setInterval(function() {
             fetch(window.location.href, { headers: { 'X-Requested-With': 'SportsRefresh' } })
                 .then(function(r) { return r.text(); })
@@ -746,12 +746,8 @@
                     if (newHub && oldHub) {
                         var oldScore = oldHub.querySelector('#hero-score');
                         var newScore = newHub.querySelector('#hero-score');
-
                         oldHub.innerHTML = newHub.innerHTML;
-                        formatTimes();
-                        updateCountdowns();
-                        initTicker();
-
+                        formatTimes(); updateCountdowns(); initTicker();
                         if (oldScore && newScore && oldScore.dataset.score !== newScore.dataset.score) {
                             var scoreEl = document.getElementById('hero-score');
                             if (scoreEl) {
@@ -759,7 +755,6 @@
                                 setTimeout(function() { scoreEl.classList.remove('hero-score--flash'); }, 600);
                             }
                         }
-
                         var dot = document.getElementById('refresh-dot');
                         if (dot) {
                             dot.classList.add('refresh-dot--active');
@@ -771,12 +766,8 @@
         }, interval);
     }
 
-    // ── Init ──
     document.addEventListener('DOMContentLoaded', function() {
-        formatTimes();
-        updateCountdowns();
-        initTicker();
-        initAutoRefresh();
+        formatTimes(); updateCountdowns(); initTicker(); initAutoRefresh();
         setInterval(updateCountdowns, 60000);
     });
 })();

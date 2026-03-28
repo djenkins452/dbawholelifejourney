@@ -6933,6 +6933,35 @@ def format_cos_system_injection(context, user_message=None):
         "is next, then your workout at 6:15. You\\'re in good shape.'"
     )
 
+    # ── RECENT EVENT CONTEXT (for follow-up continuity) ──
+    # If a previous turn resolved an event query, include the structured
+    # result so the LLM can reference it for conversational follow-ups
+    # that don't match deterministic patterns.
+    _recent_events = context.get('recent_event_context')
+    if _recent_events and _recent_events.get('events'):
+        lines.append("")
+        lines.append("RECENT EVENT QUERY RESULT (from previous turn — use for follow-up questions):")
+        _rev_events = _recent_events['events']
+        for _rev in _rev_events[:5]:  # Cap at 5 events
+            _rev_detail = _rev.get('detail', {})
+            _rev_parts = []
+            if _rev_detail.get('medicine_name'):
+                _rev_parts.append(f"Medicine: {_rev_detail['medicine_name']}")
+            if _rev_detail.get('item_name'):
+                _rev_parts.append(f"Item: {_rev_detail['item_name']}")
+            if _rev_detail.get('dose'):
+                _rev_parts.append(f"Dose: {_rev_detail['dose']}")
+            if _rev_detail.get('scheduled_date'):
+                _rev_parts.append(f"Date: {_rev_detail['scheduled_date']}")
+            if _rev_detail.get('scheduled_time'):
+                _rev_parts.append(f"Time: {_rev_detail['scheduled_time']}")
+            _rev_parts.append(f"Status: {_rev.get('status', 'unknown')}")
+            lines.append(f"  • {' | '.join(_rev_parts)}")
+        lines.append(
+            "Use this data to answer follow-up questions about the above events. "
+            "Do NOT guess — only reference what is listed here."
+        )
+
     # Do NOT append the truth anchor to `lines` — it must survive truncation.
     # Build it as a separate string and append AFTER token budget enforcement.
 

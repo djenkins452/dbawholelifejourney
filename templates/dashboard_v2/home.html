@@ -78,19 +78,6 @@
     </section>
     {% endif %}
 
-    <!-- Insights & Guidance (HTMX lazy) -->
-    <section class="v2-section">
-        <div hx-get="{% url 'dashboard_v2:section_insights' %}"
-             hx-trigger="load delay:1s"
-             hx-swap="innerHTML">
-        </div>
-    </section>
-
-    <!-- Signal Insights (HTMX lazy) -->
-    <div hx-get="{% url 'dashboard_v2:section_signal_insights' %}"
-         hx-trigger="load delay:1.5s"
-         hx-swap="innerHTML">
-    </div>
 </div>
 
 <!-- Celebration Modal Container -->

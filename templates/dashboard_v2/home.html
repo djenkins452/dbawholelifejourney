@@ -65,18 +65,6 @@
          hx-swap="innerHTML">
     </div>
 
-    <!-- Health Telemetry (HTMX lazy, compact) -->
-    {% if health_enabled %}
-    <section class="v2-section v2-state-section">
-        <div hx-get="{% url 'dashboard_v2:section_state' %}"
-             hx-trigger="load delay:500ms"
-             hx-swap="innerHTML">
-            <div class="v2-loading-skeleton">
-                <div class="v2-skeleton-line"></div>
-            </div>
-        </div>
-    </section>
-    {% endif %}
 
 </div>
 

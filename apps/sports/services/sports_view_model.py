@@ -279,6 +279,58 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
         if len(more_games) >= 8:
             break
 
+    # ── EVENT CONTEXT: "More from Sweet 16" when hero is tournament ──
+    event_context = None
+    if hero and hero.get('game_note'):
+        note = hero['game_note']
+        note_lower = note.lower()
+        # Derive round label
+        round_label = ""
+        for phrase in ('sweet 16', 'elite eight', 'final four', 'championship',
+                       'round of 32', 'round of 64', 'first round', 'second round'):
+            if phrase in note_lower:
+                round_label = phrase.title()
+                break
+        if round_label:
+            # Find other tournament games from same day from DB
+            event_games = []
+            try:
+                from django.utils.dateparse import parse_datetime
+                hero_time = parse_datetime(hero.get('start_time', ''))
+                if hero_time:
+                    day_start = hero_time.replace(hour=0, minute=0, second=0)
+                    day_end = hero_time.replace(hour=23, minute=59, second=59)
+                    tourney_games = (
+                        GameEvent.objects
+                        .filter(game_type='tournament', start_time__range=(day_start, day_end))
+                        .exclude(id=hero.get('game_id'))
+                        .select_related('home_team', 'away_team')
+                        .order_by('start_time')[:3]
+                    )
+                    for g in tourney_games:
+                        status_label = "LIVE" if g.status == GameEvent.STATUS_LIVE else (
+                            "FINAL" if g.status == GameEvent.STATUS_FINAL else ""
+                        )
+                        score = ""
+                        if g.status in (GameEvent.STATUS_LIVE, GameEvent.STATUS_FINAL):
+                            score = f"{g.home_score or 0}-{g.away_score or 0}"
+                        event_games.append({
+                            "home": g.home_team.name if hasattr(g.home_team, 'name') else str(g.home_team),
+                            "away": g.away_team.name if hasattr(g.away_team, 'name') else str(g.away_team),
+                            "home_logo": g.home_team.logo_url or "" if hasattr(g.home_team, 'logo_url') else "",
+                            "away_logo": g.away_team.logo_url or "" if hasattr(g.away_team, 'logo_url') else "",
+                            "score": score,
+                            "status": status_label,
+                            "start_time": g.start_time.isoformat() if g.start_time else "",
+                        })
+            except Exception:
+                logger.debug("Event context query failed", exc_info=True)
+            if event_games:
+                event_context = {
+                    "label": f"More from {round_label}",
+                    "games": event_games,
+                }
+
     meta = _build_meta(team_ids, now)
 
     return {
@@ -289,6 +341,7 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
         "momentum": momentum,
         "storylines": key_storylines,
         "more_games": more_games,
+        "event_context": event_context,
         "meta": meta,
     }
 
@@ -1618,5 +1671,6 @@ def _empty_view_model():
         "momentum": [],
         "storylines": [],
         "more_games": [],
+        "event_context": None,
         "meta": {"last_updated": None, "data_source": ""},
     }

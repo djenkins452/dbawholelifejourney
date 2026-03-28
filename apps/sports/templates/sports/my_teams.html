@@ -6,118 +6,173 @@
 {% block extra_css %}
 <style>
     /* ═══════════════════════════════════════════════════════════════
-       SPORTS HUB v5 — Contract-driven layout
-       Hero → Live Context → Scoreboard → Timeline → Ticker →
-       Momentum → Storylines → More Games
+       SPORTS HUB v6 — Destination Experience
+       BIG MOMENT → LIVE/TOURNAMENT AWARENESS → YOUR TEAMS → BACKGROUND
        ═══════════════════════════════════════════════════════════════ */
 
     .sports-hub { max-width: 760px; margin: 0 auto; padding: 0 0 48px; }
 
-    /* ── HERO ── */
+    /* ══════════════════════════════════════════════════════════════
+       1. HERO — THE MAIN EVENT
+       Must feel dramatically dominant. One glance = what, why, when.
+       ══════════════════════════════════════════════════════════════ */
     .hero {
-        margin: 0; padding: 32px 28px 28px;
+        margin: 0; padding: 40px 28px 32px;
         position: relative; overflow: hidden;
     }
     .hero--live {
-        background: linear-gradient(135deg, #1a0a0a 0%, #2d0f0f 40%, #1a1a2e 100%);
+        background: linear-gradient(145deg, #1a0505 0%, #2d0f0f 30%, #1a0a1e 70%, #0f0f1a 100%);
         border-bottom: 3px solid #ef4444;
     }
     .hero--live::before {
         content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-        background: radial-gradient(ellipse at 20% 50%, rgba(239, 68, 68, 0.06) 0%, transparent 70%);
+        background:
+            radial-gradient(ellipse at 15% 40%, rgba(239, 68, 68, 0.08) 0%, transparent 60%),
+            radial-gradient(ellipse at 85% 60%, rgba(239, 68, 68, 0.04) 0%, transparent 50%);
         pointer-events: none;
     }
-    .hero--starting_soon { background: linear-gradient(135deg, #1a1000 0%, #2d2000 40%, #1a1a2e 100%); border-bottom: 3px solid #f59e0b; }
-    .hero--today { background: linear-gradient(135deg, #0f1a2e 0%, #162040 40%, #1a1a2e 100%); border-bottom: 3px solid #6366f1; }
-    .hero--upcoming { background: linear-gradient(135deg, #111827 0%, #1f2937 100%); border-bottom: 2px solid rgba(99, 102, 241, 0.3); }
-    .hero--final { background: linear-gradient(135deg, #111827 0%, #1f2937 100%); border-bottom: 2px solid rgba(255, 255, 255, 0.08); }
-
-    .hero-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .hero-badge {
-        font-size: 0.65rem; font-weight: 800; padding: 4px 10px; border-radius: 4px;
-        text-transform: uppercase; letter-spacing: 0.06em;
-        display: inline-flex; align-items: center; gap: 6px;
+    .hero--starting_soon {
+        background: linear-gradient(145deg, #1a1000 0%, #2d1d00 30%, #1a1a2e 100%);
+        border-bottom: 3px solid #f59e0b;
     }
-    .hero-badge--live { background: #ef4444; color: white; animation: badge-pulse 2s ease-in-out infinite; }
-    .hero-badge--starting_soon { background: #f59e0b; color: #1a1a2e; }
-    .hero-badge--today { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; }
-    .hero-badge--upcoming { background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.4); }
-    .hero-badge--final { background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.3); }
+    .hero--today {
+        background: linear-gradient(145deg, #0a0f1e 0%, #121d3a 40%, #0f0f1a 100%);
+        border-bottom: 3px solid #6366f1;
+    }
+    .hero--upcoming {
+        background: linear-gradient(145deg, #0d1117 0%, #161b22 50%, #0d1117 100%);
+        border-bottom: 2px solid rgba(99, 102, 241, 0.2);
+    }
+    .hero--final {
+        background: linear-gradient(145deg, #0d1117 0%, #161b22 100%);
+        border-bottom: 2px solid rgba(255, 255, 255, 0.06);
+    }
 
-    @keyframes badge-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    /* Hero event tag — the WHAT (Sweet 16, LIVE, etc.) */
+    .hero-event-tag {
+        display: inline-flex; align-items: center; gap: 7px;
+        font-size: 0.62rem; font-weight: 900; padding: 5px 12px; border-radius: 4px;
+        text-transform: uppercase; letter-spacing: 0.1em;
+        margin-bottom: 6px;
+    }
+    .hero-event-tag--live {
+        background: #ef4444; color: white;
+        box-shadow: 0 0 16px rgba(239, 68, 68, 0.3);
+        animation: tag-glow 2s ease-in-out infinite;
+    }
+    .hero-event-tag--starting_soon { background: #f59e0b; color: #1a1a2e; }
+    .hero-event-tag--today { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; }
+    .hero-event-tag--upcoming { background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.35); }
+    .hero-event-tag--final { background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.3); }
 
-    .hero-context-tag {
-        font-size: 0.6rem; font-weight: 800; padding: 3px 8px; border-radius: 3px;
+    @keyframes tag-glow {
+        0%, 100% { box-shadow: 0 0 16px rgba(239, 68, 68, 0.3); }
+        50% { box-shadow: 0 0 24px rgba(239, 68, 68, 0.5); }
+    }
+
+    /* Hero context headline — the WHY ("Sweet 16 — Elite Eight on the line") */
+    .hero-context-headline {
+        font-size: 0.88rem; font-weight: 800; color: #fbbf24;
+        text-transform: uppercase; letter-spacing: 0.04em;
+        margin-bottom: 4px; line-height: 1.3;
+    }
+    .hero--final .hero-context-headline { color: rgba(255, 255, 255, 0.5); }
+    .hero--upcoming .hero-context-headline,
+    .hero--today .hero-context-headline { color: #a5b4fc; }
+
+    .hero-top {
+        display: flex; justify-content: space-between; align-items: flex-start;
+        margin-bottom: 16px;
+    }
+    .hero-top-left { display: flex; flex-direction: column; gap: 2px; }
+    .hero-league {
+        font-size: 0.6rem; color: rgba(255, 255, 255, 0.25); font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.08em;
+    }
+
+    /* Matchup — the clearest thing on the page */
+    .hero-matchup {
+        display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    }
+    .hero-logo {
+        width: 48px; height: 48px; object-fit: contain;
+        filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4));
+    }
+    .hero-team-name {
+        font-size: 2.2rem; font-weight: 900; color: white;
+        line-height: 1.05; letter-spacing: -0.04em;
+    }
+    .hero-vs {
+        font-size: 0.7rem; font-weight: 700; color: rgba(255, 255, 255, 0.12);
         text-transform: uppercase; letter-spacing: 0.05em;
-        background: rgba(245, 158, 11, 0.15); color: #fbbf24;
-        margin-left: 8px;
     }
-    .hero-league { font-size: 0.65rem; color: rgba(255, 255, 255, 0.3); font-weight: 700; text-transform: uppercase; }
 
-    .hero-matchup { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-    .hero-logo { width: 40px; height: 40px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
-    .hero-team { font-size: 2rem; font-weight: 900; color: white; line-height: 1.1; letter-spacing: -0.03em; }
-    .hero-vs { font-size: 0.75rem; font-weight: 600; color: rgba(255, 255, 255, 0.15); text-transform: uppercase; }
-
+    /* Score — big and bold for live/final */
     .hero-score {
-        font-size: 3.6rem; font-weight: 900; color: white;
-        letter-spacing: -2px; margin-top: 14px; line-height: 1;
+        font-size: 4rem; font-weight: 900; color: white;
+        letter-spacing: -3px; margin-top: 16px; line-height: 1;
         font-variant-numeric: tabular-nums;
     }
     .hero-score--flash { animation: score-flash 0.6s ease-out; }
     @keyframes score-flash {
-        0% { color: #fbbf24; text-shadow: 0 0 20px rgba(251, 191, 36, 0.4); }
+        0% { color: #fbbf24; text-shadow: 0 0 24px rgba(251, 191, 36, 0.5); }
         100% { color: white; text-shadow: none; }
     }
 
+    /* Time for upcoming games */
     .hero-time {
-        font-size: 1.8rem; font-weight: 800; color: rgba(255, 255, 255, 0.85);
-        margin-top: 14px; letter-spacing: -0.5px;
+        font-size: 2rem; font-weight: 800; color: rgba(255, 255, 255, 0.85);
+        margin-top: 16px; letter-spacing: -0.5px;
     }
-    .hero-countdown { font-size: 0.7rem; color: rgba(255, 255, 255, 0.35); margin-top: 4px; font-weight: 600; }
-
-    .hero-tournament-context {
-        font-size: 0.78rem; margin-top: 10px; font-weight: 700;
-        color: #fbbf24; text-transform: uppercase; letter-spacing: 0.04em;
+    .hero-countdown {
+        font-size: 0.68rem; color: rgba(255, 255, 255, 0.3);
+        margin-top: 4px; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.03em;
     }
 
-    .hero-insight {
-        font-size: 0.78rem; margin-top: 14px; font-weight: 700;
-        text-transform: uppercase; letter-spacing: 0.04em;
+    /* Context subheadline from hero_context engine */
+    .hero-context-sub {
+        font-size: 0.88rem; font-weight: 600; color: rgba(255, 255, 255, 0.5);
+        margin-top: 12px; line-height: 1.35; max-width: 440px;
     }
-    .hero-insight--significance { color: #fbbf24; }
-    .hero-insight--streak { color: rgba(165, 180, 252, 0.7); }
-    .hero-insight--status { color: rgba(255, 255, 255, 0.4); }
+    .hero--live .hero-context-sub { color: rgba(255, 255, 255, 0.6); }
 
-    .hero-headline {
-        font-size: 0.92rem; font-weight: 600; color: rgba(255, 255, 255, 0.55);
-        margin-top: 14px; line-height: 1.35; font-style: italic;
-        max-width: 440px;
+    /* Status from hero_context engine */
+    .hero-context-status {
+        font-size: 0.68rem; font-weight: 700; color: rgba(255, 255, 255, 0.3);
+        text-transform: uppercase; letter-spacing: 0.06em; margin-top: 6px;
     }
-    .hero--live .hero-headline { color: rgba(255, 255, 255, 0.65); }
+    .hero--live .hero-context-status { color: rgba(239, 68, 68, 0.6); }
 
-    .hero-meta { display: flex; gap: 14px; margin-top: 8px; font-size: 0.7rem; color: rgba(255, 255, 255, 0.25); }
+    /* Compact meta line */
+    .hero-meta {
+        display: flex; gap: 14px; margin-top: 10px;
+        font-size: 0.65rem; color: rgba(255, 255, 255, 0.2);
+        font-weight: 600;
+    }
     .streak--W { color: #22c55e; }
     .streak--L { color: #ef4444; }
 
-    /* ── LIVE CONTEXT BLOCK ── */
+    /* ══════════════════════════════════════════════════════════════
+       1b. LIVE CONTEXT — Urgent awareness strip under hero
+       ══════════════════════════════════════════════════════════════ */
     .live-context {
-        background: rgba(239, 68, 68, 0.04);
-        border-bottom: 1px solid rgba(239, 68, 68, 0.1);
-        padding: 14px 20px;
+        background: rgba(239, 68, 68, 0.03);
+        border-bottom: 1px solid rgba(239, 68, 68, 0.08);
+        padding: 12px 20px;
     }
     .live-context-header {
         display: flex; align-items: center; gap: 8px;
-        font-size: 0.58rem; font-weight: 800;
-        text-transform: uppercase; letter-spacing: 0.12em;
-        color: #ef4444; margin-bottom: 6px;
+        font-size: 0.55rem; font-weight: 900;
+        text-transform: uppercase; letter-spacing: 0.14em;
+        color: #ef4444; margin-bottom: 4px;
     }
     .live-context-lead {
-        font-size: 0.92rem; font-weight: 700; color: var(--color-text);
+        font-size: 0.88rem; font-weight: 700; color: var(--color-text);
         line-height: 1.3;
     }
     .live-context-status {
-        font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted);
+        font-size: 0.72rem; font-weight: 600; color: var(--color-text-muted);
         margin-top: 2px;
     }
 
@@ -125,62 +180,95 @@
     .live-dot {
         display: inline-block; width: 7px; height: 7px;
         background: #ef4444; border-radius: 50%;
-        animation: pulse-live 1.5s infinite;
+        animation: pulse-live 1.5s ease-in-out infinite;
     }
-    @keyframes pulse-live { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 50% { opacity: 0.4; box-shadow: 0 0 0 4px rgba(239,68,68,0); } }
+    @keyframes pulse-live {
+        0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+        50% { opacity: 0.5; box-shadow: 0 0 0 5px rgba(239,68,68,0); }
+    }
 
-    /* ── SCOREBOARD ── */
-    .scoreboard { padding: 16px; }
-    .scoreboard-header {
-        font-size: 0.62rem; font-weight: 800; text-transform: uppercase;
-        letter-spacing: 0.12em; color: var(--color-text-muted);
-        margin-bottom: 12px;
+    /* ══════════════════════════════════════════════════════════════
+       2. SCOREBOARD — One connected tournament/event cluster
+       Not random cards. One sports moment.
+       ══════════════════════════════════════════════════════════════ */
+    .scoreboard-cluster {
+        background: var(--color-surface);
+        border-top: 1px solid var(--color-border);
+        border-bottom: 1px solid var(--color-border);
+        padding: 18px 16px 16px;
     }
+    .scoreboard-cluster-header {
+        font-size: 0.68rem; font-weight: 900; text-transform: uppercase;
+        letter-spacing: 0.14em; color: var(--color-text);
+        margin-bottom: 14px;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .scoreboard-cluster-header .live-dot { width: 6px; height: 6px; }
+
+    .scoreboard-group { margin-bottom: 12px; }
+    .scoreboard-group:last-child { margin-bottom: 0; }
     .scoreboard-group-label {
-        font-size: 0.55rem; font-weight: 800; text-transform: uppercase;
-        letter-spacing: 0.1em; margin: 10px 0 6px; padding-left: 2px;
+        font-size: 0.5rem; font-weight: 900; text-transform: uppercase;
+        letter-spacing: 0.12em; margin-bottom: 6px; padding-left: 2px;
     }
     .scoreboard-group-label--live { color: #ef4444; }
     .scoreboard-group-label--final { color: var(--color-text-muted); }
-    .scoreboard-group-label--upcoming { color: rgba(99, 102, 241, 0.7); }
+    .scoreboard-group-label--upcoming { color: #6366f1; }
+
     .scoreboard-grid {
         display: grid; grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
+        gap: 6px;
     }
     .scoreboard-card {
-        padding: 12px; border-radius: 8px;
-        background: var(--color-surface); border: 1px solid var(--color-border);
+        padding: 10px 12px; border-radius: 6px;
+        background: var(--color-background);
+        border: 1px solid var(--color-border);
+        position: relative;
     }
-    .scoreboard-card--live { border-color: rgba(239, 68, 68, 0.2); }
-    .scoreboard-card--final { border-color: var(--color-border); }
+    .scoreboard-card--live {
+        border-color: rgba(239, 68, 68, 0.15);
+        border-left: 3px solid #ef4444;
+    }
+    .scoreboard-card--final {
+        opacity: 0.7;
+        border-color: var(--color-border);
+    }
+
     .scoreboard-team-row {
         display: flex; align-items: center; justify-content: space-between;
-        padding: 2px 0;
+        padding: 1px 0;
     }
-    .scoreboard-team-info { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
-    .scoreboard-team-logo { width: 16px; height: 16px; object-fit: contain; flex-shrink: 0; }
+    .scoreboard-team-info { display: flex; align-items: center; gap: 5px; flex: 1; min-width: 0; }
+    .scoreboard-team-logo { width: 14px; height: 14px; object-fit: contain; flex-shrink: 0; }
     .scoreboard-team-name {
-        font-size: 0.78rem; font-weight: 700; color: var(--color-text);
+        font-size: 0.72rem; font-weight: 700; color: var(--color-text);
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .scoreboard-team-score {
-        font-size: 0.85rem; font-weight: 800; color: var(--color-text);
-        font-variant-numeric: tabular-nums; flex-shrink: 0; margin-left: 8px;
+        font-size: 0.78rem; font-weight: 900; color: var(--color-text);
+        font-variant-numeric: tabular-nums; flex-shrink: 0; margin-left: 6px;
     }
+    .scoreboard-card--final .scoreboard-team-name { color: var(--color-text-muted); }
+    .scoreboard-card--final .scoreboard-team-score { color: var(--color-text-muted); }
+
     .scoreboard-status {
-        font-size: 0.55rem; font-weight: 800; text-transform: uppercase;
-        letter-spacing: 0.05em; margin-top: 4px; text-align: center;
+        font-size: 0.5rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: 0.04em; margin-top: 3px; text-align: center;
+        color: var(--color-text-muted);
     }
     .scoreboard-context {
-        font-size: 0.55rem; color: var(--color-text-muted); text-align: center;
-        margin-top: 2px;
+        font-size: 0.48rem; color: var(--color-text-muted); text-align: center;
+        margin-top: 1px; text-transform: uppercase; letter-spacing: 0.03em;
     }
 
-    /* ── HORIZONTAL TICKER ── */
+    /* ══════════════════════════════════════════════════════════════
+       3. TICKER — Ambient background motion
+       Clearly secondary. Not competing with hero or scoreboard.
+       ══════════════════════════════════════════════════════════════ */
     .smart-ticker {
-        background: #0f172a; height: 36px;
+        background: rgba(15, 23, 42, 0.6); height: 28px;
         overflow: hidden; position: relative;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.03);
     }
     .ticker-track {
         display: flex; flex-direction: row; align-items: center;
@@ -194,126 +282,173 @@
         100% { transform: translateX(-50%); }
     }
     .ticker-sep {
-        width: 4px; height: 4px; border-radius: 50%;
-        background: rgba(255, 255, 255, 0.12); flex-shrink: 0;
-        margin: 0 20px;
+        width: 3px; height: 3px; border-radius: 50%;
+        background: rgba(255, 255, 255, 0.08); flex-shrink: 0;
+        margin: 0 16px;
     }
     .ticker-item {
         flex-shrink: 0;
-        display: inline-flex; align-items: center; gap: 8px;
-        font-size: 0.72rem; color: rgba(255, 255, 255, 0.55);
-        white-space: nowrap; padding: 0 4px;
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 0.62rem; color: rgba(255, 255, 255, 0.4);
+        white-space: nowrap; padding: 0 2px;
     }
     .ticker-type {
-        font-size: 0.5rem; font-weight: 800; padding: 2px 6px; border-radius: 3px;
-        text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0;
+        font-size: 0.42rem; font-weight: 900; padding: 1px 5px; border-radius: 2px;
+        text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0;
     }
     .ticker-type--live { background: #dc2626; color: white; }
-    .ticker-type--final { background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.35); }
-    .ticker-type--storyline { background: rgba(99, 102, 241, 0.12); color: #818cf8; }
-    .ticker-type--soon { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
+    .ticker-type--final { background: rgba(255, 255, 255, 0.04); color: rgba(255, 255, 255, 0.25); }
+    .ticker-type--storyline { background: rgba(99, 102, 241, 0.08); color: rgba(129, 140, 248, 0.6); }
+    .ticker-type--soon { background: rgba(245, 158, 11, 0.08); color: rgba(245, 158, 11, 0.6); }
 
-    /* ── SECTIONS ── */
-    .hub-section { padding: 0 16px; margin-top: 28px; }
-    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    /* ══════════════════════════════════════════════════════════════
+       4. YOUR TEAMS — Personal anchor section
+       Warmer, personal, clearly "mine"
+       ══════════════════════════════════════════════════════════════ */
+    .hub-section { padding: 0 16px; margin-top: 32px; }
+
+    .section-header {
+        display: flex; align-items: baseline; justify-content: space-between;
+        margin-bottom: 14px; padding-bottom: 8px;
+        border-bottom: 1px solid var(--color-border);
+    }
     .section-label {
-        font-size: 0.62rem; font-weight: 800; text-transform: uppercase;
-        letter-spacing: 0.12em; color: var(--color-text-muted);
+        font-size: 0.72rem; font-weight: 900; text-transform: uppercase;
+        letter-spacing: 0.1em; color: var(--color-text);
     }
     .section-count {
-        font-size: 0.55rem; font-weight: 700; color: var(--color-text-muted);
+        font-size: 0.52rem; font-weight: 700; color: var(--color-text-muted);
         background: var(--color-surface); padding: 2px 8px; border-radius: 10px;
     }
 
-    /* ── TIMELINE ── */
-    .timeline-group { margin-bottom: 20px; }
+    /* Timeline groups */
+    .timeline-group { margin-bottom: 18px; }
+    .timeline-group:last-child { margin-bottom: 0; }
     .timeline-group-label {
-        font-size: 0.58rem; font-weight: 800; text-transform: uppercase;
-        letter-spacing: 0.12em; color: var(--color-text-muted);
-        margin-bottom: 8px; padding-left: 4px;
+        font-size: 0.52rem; font-weight: 900; text-transform: uppercase;
+        letter-spacing: 0.14em; margin-bottom: 8px; padding-left: 4px;
     }
     .timeline-group-label--now { color: #ef4444; }
-    .timeline-group-label--today { color: #f59e0b; }
-    .timeline-group-label--tomorrow { color: rgba(99, 102, 241, 0.7); }
+    .timeline-group-label--today { color: var(--color-text-muted); }
+    .timeline-group-label--tomorrow { color: rgba(99, 102, 241, 0.6); }
 
-    .next-row {
+    /* Game rows */
+    .game-row {
         display: flex; align-items: center; gap: 12px;
-        padding: 14px 16px; border-radius: 10px;
+        padding: 12px 14px; border-radius: 8px;
         background: var(--color-surface); border: 1px solid var(--color-border);
-        margin-bottom: 8px; transition: border-color 0.2s;
+        margin-bottom: 6px; transition: border-color 0.2s;
     }
-    .next-row:hover { border-color: rgba(99, 102, 241, 0.2); }
-    .next-row--primary { border-color: rgba(99, 102, 241, 0.15); }
-    .next-row--primary .next-teams { font-size: 0.95rem; }
-    .next-row--secondary .next-teams { font-size: 0.85rem; color: var(--color-text-muted); }
-    .next-logo { width: 28px; height: 28px; object-fit: contain; flex-shrink: 0; }
-    .next-main { flex: 1; min-width: 0; }
-    .next-teams { font-size: 0.9rem; font-weight: 700; color: var(--color-text); }
-    .next-context { font-size: 0.7rem; margin-top: 3px; font-weight: 600; }
-    .next-context--significance { color: #f59e0b; }
-    .next-context--hot { color: #22c55e; }
-    .next-context--cold { color: #ef4444; }
-    .next-context--default { color: var(--color-text-muted); }
-    .next-right { text-align: right; flex-shrink: 0; }
-    .next-time { font-size: 0.85rem; font-weight: 700; color: var(--color-text); }
-    .next-badge {
-        font-size: 0.5rem; font-weight: 800; padding: 2px 7px; border-radius: 3px;
-        text-transform: uppercase; display: inline-block; margin-top: 3px;
+    .game-row:hover { border-color: rgba(99, 102, 241, 0.15); }
+    .game-row--live {
+        border-left: 3px solid #ef4444;
+        border-color: rgba(239, 68, 68, 0.12);
     }
-    .next-badge--starting_soon { background: #f59e0b; color: #1a1a2e; }
-    .next-badge--today { background: rgba(99, 102, 241, 0.12); color: #6366f1; }
-    .next-badge--upcoming { background: rgba(255, 255, 255, 0.04); color: var(--color-text-muted); }
-    .next-badge--live { background: #ef4444; color: white; }
 
-    /* ── MOMENTUM ── */
+    .game-row-logo { width: 28px; height: 28px; object-fit: contain; flex-shrink: 0; }
+    .game-row-main { flex: 1; min-width: 0; }
+    .game-row-teams {
+        font-size: 0.88rem; font-weight: 700; color: var(--color-text);
+        line-height: 1.2;
+    }
+    .game-row-detail {
+        display: flex; align-items: center; gap: 8px;
+        margin-top: 3px;
+    }
+    .game-row-context {
+        font-size: 0.65rem; font-weight: 600; color: var(--color-text-muted);
+    }
+    .game-row-league {
+        font-size: 0.48rem; font-weight: 900; text-transform: uppercase;
+        letter-spacing: 0.06em; color: var(--color-text-muted);
+        background: rgba(0,0,0,0.04); padding: 1px 5px; border-radius: 2px;
+        flex-shrink: 0;
+    }
+
+    .game-row-right { text-align: right; flex-shrink: 0; }
+    .game-row-time {
+        font-size: 0.82rem; font-weight: 800; color: var(--color-text);
+        font-variant-numeric: tabular-nums;
+    }
+    .game-row-badge {
+        font-size: 0.45rem; font-weight: 900; padding: 2px 6px; border-radius: 3px;
+        text-transform: uppercase; letter-spacing: 0.04em;
+        display: inline-block; margin-top: 2px;
+    }
+    .game-row-badge--starting_soon { background: #f59e0b; color: #1a1a2e; }
+    .game-row-badge--today { background: rgba(99, 102, 241, 0.1); color: #6366f1; }
+    .game-row-badge--upcoming { background: rgba(0,0,0,0.03); color: var(--color-text-muted); }
+    .game-row-badge--live { background: #ef4444; color: white; }
+
+    /* ══════════════════════════════════════════════════════════════
+       5. MOMENTUM / STORYLINES / MORE — Background sports world
+       ══════════════════════════════════════════════════════════════ */
     .momentum-row {
         display: flex; align-items: center; justify-content: space-between;
-        padding: 11px 16px; border-radius: 8px; margin-bottom: 4px;
+        padding: 10px 14px; border-radius: 6px; margin-bottom: 3px;
         background: var(--color-surface);
     }
-    .momentum-team { font-size: 0.88rem; font-weight: 700; color: var(--color-text); }
-    .momentum-right { display: flex; align-items: center; gap: 10px; }
-    .momentum-streak { font-size: 0.88rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .momentum-team { font-size: 0.82rem; font-weight: 700; color: var(--color-text); }
+    .momentum-right { display: flex; align-items: center; gap: 8px; }
+    .momentum-streak {
+        font-size: 0.82rem; font-weight: 900;
+        font-variant-numeric: tabular-nums;
+    }
     .momentum-streak--hot { color: #22c55e; }
     .momentum-streak--cold { color: #ef4444; }
-    .momentum-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
-    .momentum-label--hot { color: rgba(34, 197, 94, 0.5); }
-    .momentum-label--cold { color: rgba(239, 68, 68, 0.5); }
+    .momentum-label {
+        font-size: 0.52rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .momentum-label--hot { color: rgba(34, 197, 94, 0.45); }
+    .momentum-label--cold { color: rgba(239, 68, 68, 0.45); }
 
-    /* ── STORYLINES ── */
     .storyline-item {
         display: flex; align-items: flex-start; gap: 10px;
-        padding: 8px 0; font-size: 0.82rem; color: var(--color-text-muted);
-        line-height: 1.45;
+        padding: 7px 0; font-size: 0.78rem; color: var(--color-text-muted);
+        line-height: 1.4;
     }
-    .storyline-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 7px; }
+    .storyline-dot {
+        width: 5px; height: 5px; border-radius: 50%;
+        flex-shrink: 0; margin-top: 7px;
+    }
     .storyline-dot--streak { background: #22c55e; }
     .storyline-dot--live { background: #ef4444; animation: pulse-live 1.5s infinite; }
     .storyline-dot--blowout { background: #f59e0b; }
     .storyline-dot--close { background: #6366f1; }
 
-    /* ── MORE GAMES ── */
     .more-row {
         display: flex; align-items: center; gap: 8px;
-        padding: 9px 14px; font-size: 0.8rem;
+        padding: 8px 12px; font-size: 0.75rem;
         border-bottom: 1px solid var(--color-border);
     }
     .more-row:last-child { border-bottom: 0; }
-    .more-logo { width: 18px; height: 18px; object-fit: contain; flex-shrink: 0; }
-    .more-teams { flex: 1; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .more-time { font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); flex-shrink: 0; }
-    .more-league { font-size: 0.5rem; font-weight: 700; color: var(--color-text-muted); flex-shrink: 0; min-width: 28px; text-align: right; text-transform: uppercase; }
+    .more-logo { width: 16px; height: 16px; object-fit: contain; flex-shrink: 0; }
+    .more-teams {
+        flex: 1; font-weight: 600; color: var(--color-text-muted);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .more-time {
+        font-size: 0.68rem; font-weight: 700; color: var(--color-text-muted);
+        flex-shrink: 0;
+    }
+    .more-league {
+        font-size: 0.45rem; font-weight: 900; color: var(--color-text-muted);
+        flex-shrink: 0; min-width: 28px; text-align: right;
+        text-transform: uppercase; letter-spacing: 0.04em;
+    }
 
-    /* ── FOOTER ── */
-    .hub-footer { text-align: center; padding: 32px 16px 0; }
+    /* ══════════════════════════════════════════════════════════════
+       FOOTER / EMPTY / REFRESH
+       ══════════════════════════════════════════════════════════════ */
+    .hub-footer { text-align: center; padding: 36px 16px 0; }
     .manage-link {
-        font-size: 0.75rem; color: var(--color-text-muted); text-decoration: none;
+        font-size: 0.72rem; color: var(--color-text-muted); text-decoration: none;
         padding: 8px 22px; border: 1px solid var(--color-border); border-radius: 20px;
-        transition: all 0.15s;
+        transition: all 0.15s; font-weight: 600;
     }
     .manage-link:hover { background: var(--color-surface); color: var(--color-text); }
 
-    /* ── EMPTY / QUIET ── */
     .empty-state { text-align: center; padding: 80px 24px; color: var(--color-text-muted); }
     .empty-icon { width: 56px; height: 56px; margin: 0 auto 16px; opacity: 0.2; }
     .empty-state h2 { font-size: 1.1rem; font-weight: 700; color: var(--color-text); margin: 0 0 8px; }
@@ -321,7 +456,6 @@
     .btn-select { display: inline-block; padding: 12px 28px; background: var(--color-accent); color: white; border-radius: 24px; text-decoration: none; font-weight: 700; font-size: 0.85rem; }
     .no-activity { text-align: center; padding: 48px 16px; color: var(--color-text-muted); font-size: 0.85rem; }
 
-    /* ── REFRESH INDICATOR ── */
     .refresh-dot {
         position: fixed; bottom: 16px; right: 16px; width: 8px; height: 8px;
         border-radius: 50%; background: #22c55e; opacity: 0;
@@ -329,21 +463,25 @@
     }
     .refresh-dot--active { opacity: 1; animation: pulse-live 1s ease-out 1; }
 
-    /* ── RESPONSIVE ── */
+    /* ══════════════════════════════════════════════════════════════
+       RESPONSIVE — Mobile-first adjustments
+       ══════════════════════════════════════════════════════════════ */
     @media (max-width: 480px) {
-        .hero { padding: 20px 16px 20px; }
-        .hero-team { font-size: 1.4rem; }
-        .hero-score { font-size: 2.8rem; }
-        .hero-time { font-size: 1.3rem; }
-        .hero-logo { width: 30px; height: 30px; }
-        .hero-matchup { gap: 8px; }
-        .hub-section { padding: 0 12px; margin-top: 22px; }
-        .scoreboard { padding: 12px; }
-        .scoreboard-grid { gap: 6px; }
-        .scoreboard-card { padding: 10px; }
+        .hero { padding: 28px 16px 24px; }
+        .hero-team-name { font-size: 1.5rem; }
+        .hero-score { font-size: 3rem; letter-spacing: -2px; }
+        .hero-time { font-size: 1.5rem; }
+        .hero-logo { width: 36px; height: 36px; }
+        .hero-matchup { gap: 10px; }
+        .hero-context-headline { font-size: 0.78rem; }
+        .hub-section { padding: 0 12px; margin-top: 24px; }
+        .scoreboard-cluster { padding: 14px 12px; }
+        .scoreboard-grid { gap: 4px; }
+        .scoreboard-card { padding: 8px 10px; }
         .live-context { padding: 10px 14px; }
-        .next-row { padding: 12px 12px; }
-        .next-logo { width: 24px; height: 24px; }
+        .game-row { padding: 10px 12px; }
+        .game-row-logo { width: 24px; height: 24px; }
+        .game-row-teams { font-size: 0.82rem; }
     }
 </style>
 {% endblock %}
@@ -364,31 +502,41 @@
 
     {% else %}
 
-    {# ═══ 1. HERO ═══ #}
+    {# ════════════════════════════════════════════════════════════
+       1. HERO — THE MAIN EVENT
+       ════════════════════════════════════════════════════════════ #}
     {% if hero %}
     <div class="hero hero--{{ hero.urgency }}">
         <div class="hero-top">
-            <div>
-                <span class="hero-badge hero-badge--{{ hero.urgency }}">
+            <div class="hero-top-left">
+                {# Event tag: LIVE / SWEET 16 / UPCOMING #}
+                <span class="hero-event-tag hero-event-tag--{{ hero.urgency }}">
                     {% if hero.urgency == "live" %}<span class="live-dot"></span> LIVE
                     {% elif hero.urgency == "starting_soon" %}STARTING SOON
                     {% elif hero.urgency == "today" %}TODAY
                     {% elif hero.urgency == "final" %}FINAL
                     {% else %}UPCOMING{% endif %}
+                    {% if hero.insight %} &middot; {{ hero.insight }}{% endif %}
                 </span>
-                {% if hero.game_note %}<span class="hero-context-tag">{{ hero.insight }}</span>{% endif %}
+
+                {# Hero context headline: WHY this matters #}
+                {% if hero_context and hero_context.headline %}
+                <div class="hero-context-headline">{{ hero_context.headline }}</div>
+                {% endif %}
             </div>
             <span class="hero-league">{{ hero.league }}</span>
         </div>
 
+        {# Matchup: the clearest thing on the page #}
         <div class="hero-matchup">
             {% if hero.team_logo %}<img src="{{ hero.team_logo }}" alt="" class="hero-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
-            <span class="hero-team">{{ hero.team_name }}</span>
+            <span class="hero-team-name">{{ hero.team_name }}</span>
             <span class="hero-vs">{% if hero.is_home %}vs{% else %}@{% endif %}</span>
             {% if hero.opponent_logo %}<img src="{{ hero.opponent_logo }}" alt="" class="hero-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
-            <span class="hero-team">{{ hero.opponent }}</span>
+            <span class="hero-team-name">{{ hero.opponent }}</span>
         </div>
 
+        {# Score (live/final) or Time (upcoming) #}
         {% if hero.score %}
             <div class="hero-score" id="hero-score" data-score="{{ hero.score }}">{{ hero.score }}</div>
         {% elif hero.start_time %}
@@ -396,17 +544,17 @@
             <div class="hero-countdown" data-countdown="{{ hero.start_time }}"></div>
         {% endif %}
 
-        {# ── HERO CONTEXT (deterministic context engine output) ── #}
+        {# Context subheadline + status from deterministic engine #}
         {% if hero_context %}
-        <div class="hero-tournament-context">{{ hero_context.headline }}</div>
-        {% if hero_context.subheadline %}
-        <div class="hero-headline">{{ hero_context.subheadline }}</div>
-        {% endif %}
-        {% if hero_context.status %}
-        <div class="hero-insight hero-insight--status">{{ hero_context.status }}</div>
-        {% endif %}
+            {% if hero_context.subheadline %}
+            <div class="hero-context-sub">{{ hero_context.subheadline }}</div>
+            {% endif %}
+            {% if hero_context.status %}
+            <div class="hero-context-status">{{ hero_context.status }}</div>
+            {% endif %}
         {% endif %}
 
+        {# Compact metadata #}
         {% if hero.record or hero.streak or hero.pitcher %}
         <div class="hero-meta">
             {% if hero.record %}<span>{{ hero.record }}</span>{% endif %}
@@ -417,7 +565,9 @@
     </div>
     {% endif %}
 
-    {# ═══ 2. LIVE CONTEXT ═══ #}
+    {# ════════════════════════════════════════════════════════════
+       1b. LIVE CONTEXT — Urgent strip under hero
+       ════════════════════════════════════════════════════════════ #}
     {% if live_context %}
     <div class="live-context">
         <div class="live-context-header"><span class="live-dot"></span> LIVE NOW</div>
@@ -426,156 +576,103 @@
     </div>
     {% endif %}
 
-    {# ═══ 3. SCOREBOARD (pre-grouped: live / final / upcoming) ═══ #}
+    {# ════════════════════════════════════════════════════════════
+       2. SCOREBOARD CLUSTER — One connected event block
+       ════════════════════════════════════════════════════════════ #}
     {% if scoreboard.live or scoreboard.final or scoreboard.upcoming %}
-    <div class="scoreboard">
-        {% if scoreboard.header %}<div class="scoreboard-header">{{ scoreboard.header }}</div>{% endif %}
+    <div class="scoreboard-cluster">
+        {% if scoreboard.header %}
+        <div class="scoreboard-cluster-header">
+            {% if scoreboard.live %}<span class="live-dot"></span>{% endif %}
+            {{ scoreboard.header }}
+        </div>
+        {% endif %}
 
         {% if scoreboard.live %}
-        <div class="scoreboard-group-label scoreboard-group-label--live"><span class="live-dot"></span> Live</div>
-        <div class="scoreboard-grid">
-            {% for g in scoreboard.live %}
-            <div class="scoreboard-card scoreboard-card--live">
-                <div class="scoreboard-team-row">
-                    <div class="scoreboard-team-info">
-                        {% if g.away_logo %}<img src="{{ g.away_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
-                        <span class="scoreboard-team-name">{{ g.away }}</span>
+        <div class="scoreboard-group">
+            <div class="scoreboard-group-label scoreboard-group-label--live"><span class="live-dot"></span> Live</div>
+            <div class="scoreboard-grid">
+                {% for g in scoreboard.live %}
+                <div class="scoreboard-card scoreboard-card--live">
+                    <div class="scoreboard-team-row">
+                        <div class="scoreboard-team-info">
+                            {% if g.away_logo %}<img src="{{ g.away_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                            <span class="scoreboard-team-name">{{ g.away }}</span>
+                        </div>
+                        <span class="scoreboard-team-score">{{ g.away_score }}</span>
                     </div>
-                    <span class="scoreboard-team-score">{{ g.away_score }}</span>
-                </div>
-                <div class="scoreboard-team-row">
-                    <div class="scoreboard-team-info">
-                        {% if g.home_logo %}<img src="{{ g.home_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
-                        <span class="scoreboard-team-name">{{ g.home }}</span>
+                    <div class="scoreboard-team-row">
+                        <div class="scoreboard-team-info">
+                            {% if g.home_logo %}<img src="{{ g.home_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                            <span class="scoreboard-team-name">{{ g.home }}</span>
+                        </div>
+                        <span class="scoreboard-team-score">{{ g.home_score }}</span>
                     </div>
-                    <span class="scoreboard-team-score">{{ g.home_score }}</span>
+                    {% if g.context %}<div class="scoreboard-context">{{ g.context }}</div>{% endif %}
                 </div>
-                {% if g.context %}<div class="scoreboard-context">{{ g.context }}</div>{% endif %}
+                {% endfor %}
             </div>
-            {% endfor %}
         </div>
         {% endif %}
 
         {% if scoreboard.final %}
-        <div class="scoreboard-group-label scoreboard-group-label--final">Final</div>
-        <div class="scoreboard-grid">
-            {% for g in scoreboard.final %}
-            <div class="scoreboard-card scoreboard-card--final">
-                <div class="scoreboard-team-row">
-                    <div class="scoreboard-team-info">
-                        {% if g.away_logo %}<img src="{{ g.away_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
-                        <span class="scoreboard-team-name">{{ g.away }}</span>
+        <div class="scoreboard-group">
+            <div class="scoreboard-group-label scoreboard-group-label--final">Final</div>
+            <div class="scoreboard-grid">
+                {% for g in scoreboard.final %}
+                <div class="scoreboard-card scoreboard-card--final">
+                    <div class="scoreboard-team-row">
+                        <div class="scoreboard-team-info">
+                            {% if g.away_logo %}<img src="{{ g.away_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                            <span class="scoreboard-team-name">{{ g.away }}</span>
+                        </div>
+                        <span class="scoreboard-team-score">{{ g.away_score }}</span>
                     </div>
-                    <span class="scoreboard-team-score">{{ g.away_score }}</span>
-                </div>
-                <div class="scoreboard-team-row">
-                    <div class="scoreboard-team-info">
-                        {% if g.home_logo %}<img src="{{ g.home_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
-                        <span class="scoreboard-team-name">{{ g.home }}</span>
+                    <div class="scoreboard-team-row">
+                        <div class="scoreboard-team-info">
+                            {% if g.home_logo %}<img src="{{ g.home_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                            <span class="scoreboard-team-name">{{ g.home }}</span>
+                        </div>
+                        <span class="scoreboard-team-score">{{ g.home_score }}</span>
                     </div>
-                    <span class="scoreboard-team-score">{{ g.home_score }}</span>
+                    {% if g.context %}<div class="scoreboard-context">{{ g.context }}</div>{% endif %}
                 </div>
-                {% if g.context %}<div class="scoreboard-context">{{ g.context }}</div>{% endif %}
+                {% endfor %}
             </div>
-            {% endfor %}
         </div>
         {% endif %}
 
         {% if scoreboard.upcoming %}
-        <div class="scoreboard-group-label scoreboard-group-label--upcoming">Upcoming</div>
-        <div class="scoreboard-grid">
-            {% for g in scoreboard.upcoming %}
-            <div class="scoreboard-card">
-                <div class="scoreboard-team-row">
-                    <div class="scoreboard-team-info">
-                        {% if g.away_logo %}<img src="{{ g.away_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
-                        <span class="scoreboard-team-name">{{ g.away }}</span>
+        <div class="scoreboard-group">
+            <div class="scoreboard-group-label scoreboard-group-label--upcoming">Upcoming</div>
+            <div class="scoreboard-grid">
+                {% for g in scoreboard.upcoming %}
+                <div class="scoreboard-card">
+                    <div class="scoreboard-team-row">
+                        <div class="scoreboard-team-info">
+                            {% if g.away_logo %}<img src="{{ g.away_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                            <span class="scoreboard-team-name">{{ g.away }}</span>
+                        </div>
                     </div>
-                </div>
-                <div class="scoreboard-team-row">
-                    <div class="scoreboard-team-info">
-                        {% if g.home_logo %}<img src="{{ g.home_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
-                        <span class="scoreboard-team-name">{{ g.home }}</span>
+                    <div class="scoreboard-team-row">
+                        <div class="scoreboard-team-info">
+                            {% if g.home_logo %}<img src="{{ g.home_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                            <span class="scoreboard-team-name">{{ g.home }}</span>
+                        </div>
                     </div>
+                    <div class="scoreboard-status" data-start-time="{{ g.start_time }}">{{ g.start_time }}</div>
+                    {% if g.context %}<div class="scoreboard-context">{{ g.context }}</div>{% endif %}
                 </div>
-                <div class="scoreboard-status" data-start-time="{{ g.start_time }}">{{ g.start_time }}</div>
-                {% if g.context %}<div class="scoreboard-context">{{ g.context }}</div>{% endif %}
+                {% endfor %}
             </div>
-            {% endfor %}
         </div>
         {% endif %}
     </div>
     {% endif %}
 
-    {# ═══ 4. TIMELINE (pre-grouped: now / today / tomorrow) ═══ #}
-    {% if timeline.now or timeline.today or timeline.tomorrow %}
-    <div class="hub-section">
-        <div class="section-header">
-            <span class="section-label">Your Games</span>
-        </div>
-
-        {% if timeline.now %}
-        <div class="timeline-group">
-            <div class="timeline-group-label timeline-group-label--now"><span class="live-dot"></span> NOW</div>
-            {% for g in timeline.now %}
-            <div class="next-row {% if forloop.first %}next-row--primary{% else %}next-row--secondary{% endif %}">
-                {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="next-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
-                <div class="next-main">
-                    <div class="next-teams">{{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}</div>
-                    {% if g.context %}<div class="next-context next-context--default">{{ g.context }}</div>{% endif %}
-                </div>
-                <div class="next-right">
-                    <div class="next-time">LIVE</div>
-                    <span class="next-badge next-badge--live">LIVE</span>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        {% if timeline.today %}
-        <div class="timeline-group">
-            <div class="timeline-group-label timeline-group-label--today">{% if timeline.now %}LATER TODAY{% else %}TODAY{% endif %}</div>
-            {% for g in timeline.today %}
-            <div class="next-row {% if not timeline.now and forloop.first %}next-row--primary{% else %}next-row--secondary{% endif %}">
-                {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="next-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
-                <div class="next-main">
-                    <div class="next-teams">{{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}</div>
-                    {% if g.context %}<div class="next-context next-context--default">{{ g.context }}</div>{% endif %}
-                </div>
-                <div class="next-right">
-                    <div class="next-time" data-start-time="{{ g.start_time }}">{{ g.start_time|truncatechars:16 }}</div>
-                    <span class="next-badge next-badge--{{ g.urgency }}">
-                        {% if g.urgency == "starting_soon" %}SOON{% elif g.urgency == "today" %}TODAY{% else %}UPCOMING{% endif %}
-                    </span>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        {% if timeline.tomorrow %}
-        <div class="timeline-group">
-            <div class="timeline-group-label timeline-group-label--tomorrow">TOMORROW</div>
-            {% for g in timeline.tomorrow %}
-            <div class="next-row next-row--secondary">
-                {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="next-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
-                <div class="next-main">
-                    <div class="next-teams">{{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}</div>
-                    {% if g.context %}<div class="next-context next-context--default">{{ g.context }}</div>{% endif %}
-                </div>
-                <div class="next-right">
-                    <div class="next-time" data-start-time="{{ g.start_time }}">{{ g.start_time|truncatechars:16 }}</div>
-                    <span class="next-badge next-badge--upcoming">TOMORROW</span>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-    </div>
-    {% endif %}
-
-    {# ═══ 5. TICKER ═══ #}
+    {# ════════════════════════════════════════════════════════════
+       3. TICKER — Ambient sports world motion
+       ════════════════════════════════════════════════════════════ #}
     {% if ticker %}
     <div class="smart-ticker" id="smart-ticker">
         <div class="ticker-track" id="ticker-track">
@@ -602,7 +699,87 @@
     </div>
     {% endif %}
 
-    {# ═══ 6. MOMENTUM ═══ #}
+    {# ════════════════════════════════════════════════════════════
+       4. YOUR TEAMS TODAY — Personal anchor section
+       ════════════════════════════════════════════════════════════ #}
+    {% if timeline.now or timeline.today or timeline.tomorrow %}
+    <div class="hub-section">
+        <div class="section-header">
+            <span class="section-label">Your Teams Today</span>
+        </div>
+
+        {% if timeline.now %}
+        <div class="timeline-group">
+            <div class="timeline-group-label timeline-group-label--now"><span class="live-dot"></span> Live Now</div>
+            {% for g in timeline.now %}
+            <div class="game-row game-row--live">
+                {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="game-row-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                <div class="game-row-main">
+                    <div class="game-row-teams">{{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}</div>
+                    <div class="game-row-detail">
+                        {% if g.league %}<span class="game-row-league">{{ g.league }}</span>{% endif %}
+                        {% if g.context %}<span class="game-row-context">{{ g.context }}</span>{% endif %}
+                    </div>
+                </div>
+                <div class="game-row-right">
+                    <span class="game-row-badge game-row-badge--live"><span class="live-dot"></span> LIVE</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if timeline.today %}
+        <div class="timeline-group">
+            <div class="timeline-group-label timeline-group-label--today">{% if timeline.now %}Later Today{% else %}Today{% endif %}</div>
+            {% for g in timeline.today %}
+            <div class="game-row">
+                {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="game-row-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                <div class="game-row-main">
+                    <div class="game-row-teams">{{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}</div>
+                    <div class="game-row-detail">
+                        {% if g.league %}<span class="game-row-league">{{ g.league }}</span>{% endif %}
+                        {% if g.context %}<span class="game-row-context">{{ g.context }}</span>{% endif %}
+                    </div>
+                </div>
+                <div class="game-row-right">
+                    <div class="game-row-time" data-start-time="{{ g.start_time }}">{{ g.start_time|truncatechars:16 }}</div>
+                    <span class="game-row-badge game-row-badge--{{ g.urgency }}">
+                        {% if g.urgency == "starting_soon" %}SOON{% elif g.urgency == "today" %}TODAY{% else %}UPCOMING{% endif %}
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if timeline.tomorrow %}
+        <div class="timeline-group">
+            <div class="timeline-group-label timeline-group-label--tomorrow">Tomorrow</div>
+            {% for g in timeline.tomorrow %}
+            <div class="game-row">
+                {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="game-row-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                <div class="game-row-main">
+                    <div class="game-row-teams">{{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}</div>
+                    <div class="game-row-detail">
+                        {% if g.league %}<span class="game-row-league">{{ g.league }}</span>{% endif %}
+                        {% if g.context %}<span class="game-row-context">{{ g.context }}</span>{% endif %}
+                    </div>
+                </div>
+                <div class="game-row-right">
+                    <div class="game-row-time" data-start-time="{{ g.start_time }}">{{ g.start_time|truncatechars:16 }}</div>
+                    <span class="game-row-badge game-row-badge--upcoming">TOMORROW</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# ════════════════════════════════════════════════════════════
+       5. MOMENTUM — Background sports world
+       ════════════════════════════════════════════════════════════ #}
     {% if momentum %}
     <div class="hub-section">
         <div class="section-header">
@@ -620,7 +797,9 @@
     </div>
     {% endif %}
 
-    {# ═══ 7. STORYLINES ═══ #}
+    {# ════════════════════════════════════════════════════════════
+       6. STORYLINES
+       ════════════════════════════════════════════════════════════ #}
     {% if storylines %}
     <div class="hub-section">
         <div class="section-header">
@@ -635,7 +814,9 @@
     </div>
     {% endif %}
 
-    {# ═══ 8. MORE GAMES ═══ #}
+    {# ════════════════════════════════════════════════════════════
+       7. MORE GAMES
+       ════════════════════════════════════════════════════════════ #}
     {% if more_games %}
     <div class="hub-section">
         <div class="section-header">

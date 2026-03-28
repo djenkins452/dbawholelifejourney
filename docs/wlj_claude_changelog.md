@@ -6,6 +6,50 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Destination UI / Excitement Layer (Phase 6)
+
+- **Objective:** Transform sports page from quiet dashboard to destination experience. "Make it a page worth coming to."
+- **Hero (Main Event):**
+  - Larger matchup text (2.2rem → 1.5rem mobile), 48px logos, tighter layout
+  - Event tag promoted: combines urgency badge + insight label into one dominant tag with glow animation on LIVE
+  - Hero context headline moved above matchup as golden context line ("Sweet 16 — Elite Eight on the line")
+  - Score bumped to 4rem, stronger visual weight
+  - Removed fluffy copy — context engine output is the only narrative
+  - Richer gradient backgrounds with subtle radial highlights
+- **Scoreboard (Connected Event Cluster):**
+  - New `.scoreboard-cluster` wrapper with shared surface background — reads as ONE block, not random cards
+  - Cluster header is bold 0.68rem with live dot when games are live
+  - Live cards: left red accent border (3px) for urgency signal
+  - Final cards: 0.7 opacity, muted scores — settled, not competing
+  - Tighter cards (10px padding, 6px gap) — denser ESPN-like feel
+  - Groups wrapped in `.scoreboard-group` for better spacing rhythm
+- **Your Teams Today (Personal Anchor):**
+  - Renamed from "Your Games" → "Your Teams Today"
+  - Section headers: 0.72rem bold with bottom border — stronger hierarchy
+  - League tag on EVERY game card (`.game-row-league` pill) — sport identity always visible
+  - Live game rows: 3px red left border accent
+  - Timeline group labels: "Live Now" / "Later Today" / "Today" / "Tomorrow"
+  - Detail row under matchup: league + context side by side
+- **Ticker (Ambient):**
+  - Reduced height: 36px → 28px
+  - Reduced opacity/color: text at 0.4 alpha, separators at 0.08
+  - Smaller type badges (0.42rem)
+  - Clearly secondary — background motion, not a section
+- **Typography Hierarchy:**
+  - Section labels promoted: 0.62rem → 0.72rem, weight 900, with bottom border divider
+  - Group labels: 0.52rem weight 900 — clear but subordinate
+  - Game row teams: 0.88rem — readable without competing with hero
+  - More Games: muted text color — clearly lowest priority
+- **Live Energy:**
+  - Hero event tag glow animation (`tag-glow`) on LIVE
+  - Live dot pulse improved with box-shadow expansion
+  - Scoreboard live cards: red left border accent
+  - Timeline live rows: red left border accent
+  - Live badge in timeline includes inline live dot
+- **No architecture changes.** No service layer modifications. No new queries. No LLM.
+- **Tests:** All 95 sports tests pass.
+- **Files:** `apps/sports/templates/sports/my_teams.html`, `docs/wlj_claude_changelog.md`
+
 ## 2026-03-28 — Deterministic Hero Context Engine (Phase 4)
 
 - **Objective:** Build deterministic context engine explaining WHY the hero game matters, using only existing contract fields.

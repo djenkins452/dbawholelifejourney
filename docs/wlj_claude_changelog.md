@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Morning Briefing: Tone Refinement + Phrase Rotation
+
+- **Enhancement:** Rotating phrase banks for all situation tiers and closings. Phrases rotate deterministically by day-of-year via `_rotating_phrase()` — no randomness, no state, different phrasing each day.
+  - Orientation: 4 phrases ("Let's get your morning started.", "Fresh start — here's the plan.", etc.)
+  - Nudge: 4 phrases | Behind: 4 phrases | Ahead: 3 phrases
+  - Closing: 5 default + 3 ahead + 4 behind + 3 good-start variants
+- **Enhancement:** Reschedule guard — "X can move to later today" only appears when situation state is `behind`. Orientation/on-track users don't see premature reschedule suggestions.
+- **Enhancement:** Full-day view priority ordering: medications → hard commitments → work priorities. Max 4 items (was 3).
+- **Files:** `apps/ai/beth_checkin_renderer.py`, `apps/ai/tests/test_beth_briefing.py`
+- **Tests:** 25/25 briefing + 13/13 guard tests pass. Added phrase rotation test, orientation no-reschedule test, behind reschedule test.
+
 ## 2026-03-27 — Morning Briefing: CoS Contract Upgrade
 
 - **Enhancement:** Refactored `_render_morning()` to enforce a CoS contract structure: Opening → Immediate Plan → Full-Day View → Closing.

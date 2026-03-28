@@ -216,6 +216,18 @@
     
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script nonce="{{ csp_nonce }}">
+    // Configure HTMX to include CSRF token on all requests
+    document.addEventListener('htmx:configRequest', function(e) {
+        var csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (csrfInput) {
+            e.detail.headers['X-CSRFToken'] = csrfInput.value;
+        } else {
+            var match = document.cookie.match(/csrftoken=([^;]+)/);
+            if (match) e.detail.headers['X-CSRFToken'] = match[1];
+        }
+    });
+    </script>
 
     <!-- Handle bfcache restore - force style recalculation -->
     <script>

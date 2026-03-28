@@ -1,58 +1,82 @@
 {% load humanize %}
+{% csrf_token %}
 <div id="action-center-panel"
      hx-get="{% url 'dashboard_v2:section_action_center' %}"
-     hx-trigger="refresh-next-action from:body"
+     hx-trigger="refresh-action-center from:body"
      hx-swap="outerHTML">
-{% if action_center %}
+{% if ac.has_items %}
 <section class="v2-section v2-action-center-section">
     <div class="v2-action-center-header">
         <h2 class="v2-section-title">Action Center</h2>
-        <button class="v2-action-center-toggle" data-action="toggle-action-center">Collapse</button>
+        <span class="v2-ac-progress-badge{% if ac.all_done %} v2-ac-complete{% endif %}">
+            {{ ac.completed_items }} / {{ ac.total_items }}
+        </span>
     </div>
-    <div class="v2-action-center-list">
-        {% if action_now %}
-        <div class="v2-action-group">
-            <div class="v2-action-group-label v2-group-now">Now</div>
-            {% for action in action_now %}
-            {% include "dashboard_v2/partials/_action_item.html" %}
-            {% endfor %}
-        </div>
-        {% endif %}
 
-        {% if action_next %}
-        <div class="v2-action-group">
-            <div class="v2-action-group-label v2-group-next">Next</div>
-            {% for action in action_next %}
-            {% include "dashboard_v2/partials/_action_item.html" %}
-            {% endfor %}
+    {% if ac.all_done %}
+    {# All items completed — celebration state #}
+    <div class="v2-ac-all-complete">
+        <span class="v2-ac-complete-icon">&#10003;</span>
+        <div class="v2-ac-complete-text">
+            <span class="v2-ac-complete-primary">All complete</span>
+            <span class="v2-ac-complete-detail">{{ ac.completed_items }} / {{ ac.total_items }} items done today</span>
         </div>
-        {% endif %}
-
-        {% if action_later %}
-        <div class="v2-action-group">
-            <div class="v2-action-group-label v2-group-later">Later</div>
-            {% for action in action_later %}
-            {% include "dashboard_v2/partials/_action_item.html" %}
-            {% endfor %}
-        </div>
-        {% endif %}
     </div>
+    {% endif %}
+
+    {# NOW section — overdue + due now #}
+    {% if ac.phase_groups.now %}
+    <div class="v2-ac-phase">
+        <div class="v2-ac-phase-label v2-phase-now">Now</div>
+        {% for group in ac.phase_groups.now %}
+        {% include "dashboard_v2/partials/_action_group.html" %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# UPCOMING section #}
+    {% if ac.phase_groups.upcoming %}
+    <div class="v2-ac-phase">
+        <div class="v2-ac-phase-label v2-phase-upcoming">Upcoming</div>
+        {% for group in ac.phase_groups.upcoming %}
+        {% include "dashboard_v2/partials/_action_group.html" %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# LATER TODAY section #}
+    {% if ac.phase_groups.later %}
+    <div class="v2-ac-phase">
+        <div class="v2-ac-phase-label v2-phase-later">Later Today</div>
+        {% for group in ac.phase_groups.later %}
+        {% include "dashboard_v2/partials/_action_group.html" %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# COMPLETED section — collapsed by default #}
+    {% if ac.phase_groups.completed %}
+    <details class="v2-ac-completed-section">
+        <summary class="v2-ac-completed-summary">
+            <span class="v2-ac-completed-label">Completed</span>
+            <span class="v2-ac-completed-count">{{ ac.phase_groups.completed|length }} group{{ ac.phase_groups.completed|length|pluralize }}</span>
+        </summary>
+        <div class="v2-ac-completed-content">
+            {% for group in ac.phase_groups.completed %}
+            {% include "dashboard_v2/partials/_action_group.html" %}
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
 </section>
-{% elif all_done %}
-<section class="v2-section v2-action-center-section v2-all-done">
+{% elif not ac.has_items %}
+<section class="v2-section v2-action-center-section">
     <div class="v2-action-center-header">
         <h2 class="v2-section-title">Action Center</h2>
     </div>
-    <div class="v2-action-center-done">
-        <span class="v2-done-check">&#10003;</span>
-        <div class="v2-done-text">
-            <span class="v2-done-primary">All clear for now</span>
-            {% if next_upcoming %}
-            <span class="v2-done-next">
-                Next: {{ next_upcoming.title }}{% if next_upcoming.time_display %} &middot; {{ next_upcoming.time_display }}{% endif %}
-            </span>
-            {% endif %}
-        </div>
+    <div class="v2-ac-empty">
+        <p>Nothing scheduled for today. Enjoy the free time.</p>
     </div>
 </section>
 {% endif %}

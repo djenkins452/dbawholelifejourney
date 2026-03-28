@@ -1979,3 +1979,449 @@ a.v2-action-title:hover {
         max-width: 150px;
     }
 }
+
+
+/* ================================================================
+   UNIFIED ACTION CENTER — Grouped Execution Surface
+   Replaces separate routine/medicine/schedule cards
+   ================================================================ */
+
+/* ── Gauge Animation ────────────────────────────────────────────── */
+
+@keyframes gaugeReveal {
+    from {
+        stroke-dasharray: 0 100;
+    }
+    to {
+        stroke-dasharray: var(--target-dash) 100;
+    }
+}
+
+/* 100% perfect score glow */
+.v2-cockpit-perfect .v2-gauge-fill {
+    filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.5));
+    animation: gaugeReveal 1.2s ease-out forwards, perfectPulse 2s ease-in-out 1.2s infinite;
+}
+
+@keyframes perfectPulse {
+    0%, 100% { filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.4)); }
+    50% { filter: drop-shadow(0 0 12px rgba(34, 197, 94, 0.7)); }
+}
+
+/* ── Action Center Header ───────────────────────────────────────── */
+
+.v2-action-center-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.v2-ac-progress-badge {
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    background: var(--color-surface-raised, #f3f4f6);
+    color: var(--color-text-secondary, #6b7280);
+}
+
+.v2-ac-progress-badge.v2-ac-complete {
+    background: var(--color-success-bg, #dcfce7);
+    color: var(--color-success, #22c55e);
+}
+
+/* ── All Complete State ──────────────────────────────────────────── */
+
+.v2-ac-all-complete {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: var(--color-success-bg, #dcfce7);
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+}
+
+.v2-ac-complete-icon {
+    font-size: 1.5rem;
+    color: var(--color-success, #22c55e);
+    font-weight: 700;
+}
+
+.v2-ac-complete-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.v2-ac-complete-primary {
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--color-text, #1f2937);
+}
+
+.v2-ac-complete-detail {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary, #6b7280);
+}
+
+/* ── Empty State ────────────────────────────────────────────────── */
+
+.v2-ac-empty {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--color-text-secondary, #6b7280);
+    font-size: 0.9rem;
+}
+
+/* ── Phase Labels (Now / Upcoming / Later) ──────────────────────── */
+
+.v2-ac-phase {
+    margin-bottom: 0.5rem;
+}
+
+.v2-ac-phase-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.3rem 0.6rem;
+    margin-bottom: 0.25rem;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.v2-phase-now {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.v2-phase-upcoming {
+    color: #2563eb;
+    background: rgba(37, 99, 235, 0.08);
+}
+
+.v2-phase-later {
+    color: var(--color-text-secondary, #6b7280);
+    background: rgba(107, 114, 128, 0.08);
+}
+
+/* ── Action Groups ──────────────────────────────────────────────── */
+
+.v2-ac-group {
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+}
+
+.v2-ac-group-complete {
+    opacity: 0.75;
+}
+
+.v2-ac-group-header {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    background: var(--color-surface-raised, #f9fafb);
+    cursor: pointer;
+    gap: 0.5rem;
+    user-select: none;
+}
+
+.v2-ac-group-toggle {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.v2-ac-group-title {
+    flex: 1;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--color-text, #1f2937);
+}
+
+.v2-ac-group-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    background: var(--color-surface, #f3f4f6);
+    color: var(--color-text-secondary, #6b7280);
+    flex-shrink: 0;
+}
+
+.v2-ac-group-badge.v2-badge-complete {
+    background: var(--color-success-bg, #dcfce7);
+    color: var(--color-success, #16a34a);
+}
+
+.v2-ac-group-chevron {
+    font-size: 0.6rem;
+    color: var(--color-text-secondary, #9ca3af);
+    transition: transform 0.2s;
+    flex-shrink: 0;
+}
+
+.v2-chevron-collapsed {
+    transform: rotate(-90deg);
+}
+
+.v2-ac-group-items {
+    transition: max-height 0.3s ease, opacity 0.2s;
+}
+
+.v2-ac-group-collapsed {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+}
+
+/* ── Action Items ───────────────────────────────────────────────── */
+
+.v2-ac-item {
+    display: flex;
+    align-items: center;
+    padding: 0.4rem 0.75rem;
+    gap: 0.5rem;
+    border-top: 1px solid var(--color-border, #f3f4f6);
+    min-height: 40px;
+}
+
+.v2-ac-item:first-child {
+    border-top: none;
+}
+
+.v2-ac-item-done {
+    opacity: 0.6;
+}
+
+.v2-ac-item-foundational {
+    border-left: 3px solid var(--color-primary, #d4a26a);
+}
+
+.v2-ac-item-toggle {
+    flex-shrink: 0;
+    width: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.v2-ac-check {
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+}
+
+.v2-ac-check.v2-completed .v2-check {
+    color: var(--color-success, #22c55e);
+}
+
+.v2-ac-link-icon {
+    color: var(--color-text-secondary, #9ca3af);
+    font-size: 0.9rem;
+}
+
+.v2-ac-item-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.v2-ac-item-title {
+    font-size: 0.85rem;
+    color: var(--color-text, #1f2937);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+a.v2-ac-item-title:hover {
+    text-decoration: underline;
+}
+
+.v2-ac-foundational-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-primary, #d4a26a);
+    flex-shrink: 0;
+}
+
+.v2-ac-item-meta {
+    flex-shrink: 0;
+}
+
+.v2-ac-item-time {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary, #9ca3af);
+    white-space: nowrap;
+}
+
+/* ── Completed Section ──────────────────────────────────────────── */
+
+.v2-ac-completed-section {
+    margin-top: 0.5rem;
+}
+
+.v2-ac-completed-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--color-text-secondary, #6b7280);
+    border-top: 1px solid var(--color-border, #e5e7eb);
+    list-style: none;
+}
+
+.v2-ac-completed-summary::-webkit-details-marker {
+    display: none;
+}
+
+.v2-ac-completed-label {
+    font-weight: 600;
+}
+
+.v2-ac-completed-count {
+    color: var(--color-success, #22c55e);
+}
+
+.v2-ac-completed-content {
+    padding-top: 0.25rem;
+}
+
+/* ── Strikethrough ──────────────────────────────────────────────── */
+
+.v2-strikethrough {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+/* ── Weather Compact ────────────────────────────────────────────── */
+
+.v2-weather-compact {
+    max-width: 400px;
+}
+
+/* ── Health Telemetry Color Coding ──────────────────────────────── */
+
+.v2-state-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-text, #1f2937);
+    margin: 0 0 0.5rem;
+}
+
+a.v2-state-chip,
+a.v2-state-item {
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+a.v2-state-chip:hover,
+a.v2-state-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.v2-state-good .v2-state-chip-value,
+.v2-state-good .v2-state-value {
+    color: var(--color-success, #22c55e);
+}
+
+.v2-state-warning .v2-state-chip-value,
+.v2-state-warning .v2-state-value {
+    color: var(--color-warning, #eab308);
+}
+
+.v2-state-poor .v2-state-chip-value,
+.v2-state-poor .v2-state-value {
+    color: var(--color-error, #ef4444);
+}
+
+/* ── Celebration Banner (top placement) ─────────────────────────── */
+
+#celebration-container {
+    margin-bottom: 0.75rem;
+}
+
+.v2-celebration-banner {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 1px solid #f59e0b;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    animation: celebrationSlideIn 0.5s ease-out;
+}
+
+@keyframes celebrationSlideIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Layout Density ─────────────────────────────────────────────── */
+
+.v2-dashboard {
+    padding: 0.75rem;
+}
+
+.v2-header {
+    margin-bottom: 1rem;
+}
+
+.v2-section {
+    margin-bottom: 1rem;
+}
+
+/* ── Mobile Action Center ───────────────────────────────────────── */
+
+@media (max-width: 480px) {
+    .v2-ac-item {
+        padding: 0.35rem 0.5rem;
+        min-height: 38px;
+    }
+
+    .v2-ac-group-header {
+        padding: 0.4rem 0.5rem;
+    }
+
+    .v2-ac-item-title {
+        font-size: 0.8rem;
+    }
+
+    .v2-ac-phase-label {
+        font-size: 0.65rem;
+    }
+
+    .v2-ac-group-title {
+        font-size: 0.8rem;
+    }
+
+    .v2-weather-compact {
+        max-width: 100%;
+    }
+}

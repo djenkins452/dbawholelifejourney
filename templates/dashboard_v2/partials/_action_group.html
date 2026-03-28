@@ -1,0 +1,46 @@
+{# Action Group — renders a single group (routine, medication window, or standalone item) #}
+{% if group.group_type == "standalone" %}
+    {# Standalone item — render directly without group header #}
+    {% with item=group.items.0 %}
+    {% include "dashboard_v2/partials/_action_item_v2.html" %}
+    {% endwith %}
+{% else %}
+    {# Multi-item group (routine or medication window) #}
+    <div class="v2-ac-group{% if group.all_complete %} v2-ac-group-complete{% endif %}">
+        <div class="v2-ac-group-header" data-action="toggle-group">
+            {% if group.group_type == "routine" %}
+            <button class="v2-ac-group-toggle{% if group.all_complete %} v2-completed{% endif %}"
+                    hx-post="{% url 'dashboard_v2:routine_complete_toggle' routine_id=group.group_id %}"
+                    hx-target="#action-center-panel"
+                    hx-swap="outerHTML">
+                {% if group.all_complete %}
+                <span class="v2-check">&#10003;</span>
+                {% else %}
+                <span class="v2-check-empty">&#9675;</span>
+                {% endif %}
+            </button>
+            {% elif group.group_type == "medication_window" %}
+            <button class="v2-ac-group-toggle{% if group.all_complete %} v2-completed{% endif %}"
+                    hx-post="{% url 'dashboard_v2:medicine_group_log' time_of_day=group.group_id %}"
+                    hx-target="#action-center-panel"
+                    hx-swap="outerHTML">
+                {% if group.all_complete %}
+                <span class="v2-check">&#10003;</span>
+                {% else %}
+                <span class="v2-check-empty">&#9675;</span>
+                {% endif %}
+            </button>
+            {% endif %}
+            <span class="v2-ac-group-title{% if group.all_complete %} v2-strikethrough{% endif %}">{{ group.title }}</span>
+            <span class="v2-ac-group-badge{% if group.all_complete %} v2-badge-complete{% endif %}">
+                {{ group.completed_count }} / {{ group.total }}
+            </span>
+            <span class="v2-ac-group-chevron">&#9660;</span>
+        </div>
+        <div class="v2-ac-group-items{% if group.all_complete %} v2-ac-group-collapsed{% endif %}">
+            {% for item in group.items %}
+            {% include "dashboard_v2/partials/_action_item_v2.html" %}
+            {% endfor %}
+        </div>
+    </div>
+{% endif %}

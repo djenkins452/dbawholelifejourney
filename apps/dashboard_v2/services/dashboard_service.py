@@ -368,6 +368,7 @@ class DashboardV2Service:
         # Dashboard calls build_today_execution() directly for live freshness,
         # then uses the shared prioritizer. No separate normalization.
         from apps.core.decision_engine.action_prioritizer import (
+            build_grouped_action_center,
             find_next_upcoming,
             group_actions,
             prioritize_execution_items,
@@ -377,6 +378,7 @@ class DashboardV2Service:
         exec_contract = build_today_execution(self.user)
         context["execution_contract"] = exec_contract
 
+        # Legacy flat action list (still used by CoS context builder)
         action_center = prioritize_execution_items(
             exec_contract['items'],
             self._get_user_now().time(),
@@ -390,10 +392,20 @@ class DashboardV2Service:
         context["action_later"] = groups["later"]
         context["action_foundational"] = [a for a in action_center if a["is_foundational"]]
         context["action_standard"] = [a for a in action_center if not a["is_foundational"]]
-        context["all_done"] = len(action_center) == 0
         context["next_action"] = action_center[0] if action_center else None
 
-        if context["all_done"]:
+        # ── NEW: Grouped action center (unified execution surface) ──
+        # Includes ALL items (completed + pending), grouped by execution group.
+        # This replaces the separate routine/medicine/schedule cards.
+        ac_data = build_grouped_action_center(
+            exec_contract['items'],
+            self._get_user_now().time(),
+            summaries=exec_contract.get('summaries'),
+        )
+        context["ac"] = ac_data
+        context["all_done"] = ac_data['all_done']
+
+        if context["all_done"] or not action_center:
             context["next_upcoming"] = find_next_upcoming(
                 action_center,
                 future_medicine_groups=self._normalize_medicine_groups(
@@ -838,48 +850,100 @@ class DashboardV2Service:
                 "unit": unit,
                 "trend": health_state.get("weight_trend", ""),
                 "priority": 1,
+                "detail_url": reverse("health:weight_list"),
+                "status": "neutral",
             })
         if health_state.get("sleep_display"):
+            # Color-code sleep: >= 7h green, 6-7h yellow, < 6h red
+            sleep_mins = health_state.get("sleep_avg_duration_7d", 0) or 0
+            sleep_hours = sleep_mins / 60 if sleep_mins else 0
+            sleep_status = (
+                "good" if sleep_hours >= 7
+                else "warning" if sleep_hours >= 6
+                else "poor"
+            )
             metrics.append({
                 "label": "Sleep",
                 "value": health_state["sleep_display"],
                 "unit": "",
                 "priority": 2,
+                "detail_url": reverse("health:sleep_list"),
+                "status": sleep_status,
             })
         if health_state.get("steps_avg_7d"):
+            steps = health_state["steps_avg_7d"]
+            steps_status = (
+                "good" if steps >= 8000
+                else "warning" if steps >= 5000
+                else "poor"
+            )
             metrics.append({
                 "label": "Steps",
-                "value": f'{health_state["steps_avg_7d"]:.0f}',
+                "value": f'{steps:.0f}',
                 "unit": "",
                 "priority": 3,
+                "detail_url": reverse("health:steps_list"),
+                "status": steps_status,
             })
         if health_state.get("glucose_avg_7d"):
+            glucose = health_state["glucose_avg_7d"]
+            glucose_status = (
+                "good" if glucose <= 140
+                else "warning" if glucose <= 180
+                else "poor"
+            )
             metrics.append({
                 "label": "Glucose",
-                "value": f'{health_state["glucose_avg_7d"]:.0f}',
+                "value": f'{glucose:.0f}',
                 "unit": "mg/dL",
                 "priority": 5,
+                "detail_url": reverse("health:glucose_dashboard"),
+                "status": glucose_status,
             })
         if health_state.get("heart_rate_avg_7d"):
+            hr = health_state["heart_rate_avg_7d"]
+            hr_status = (
+                "good" if hr <= 80
+                else "warning" if hr <= 100
+                else "poor"
+            )
             metrics.append({
                 "label": "Heart Rate",
-                "value": f'{health_state["heart_rate_avg_7d"]:.0f}',
+                "value": f'{hr:.0f}',
                 "unit": "bpm",
                 "priority": 6,
+                "detail_url": reverse("health:heartrate_list"),
+                "status": hr_status,
             })
         if fitness_state.get("workouts_7d") is not None:
+            wk = fitness_state["workouts_7d"]
+            wk_status = (
+                "good" if wk >= 4
+                else "warning" if wk >= 2
+                else "poor"
+            )
             metrics.append({
                 "label": "Workouts",
-                "value": str(fitness_state["workouts_7d"]),
+                "value": str(wk),
                 "unit": "7d",
                 "priority": 4,
+                "detail_url": reverse("health:fitness_home"),
+                "status": wk_status,
             })
         if nutrition_state.get("calorie_compliance_pct"):
+            nut = nutrition_state["calorie_compliance_pct"]
+            nut_status = (
+                "good" if nut >= 80
+                else "warning" if nut >= 60
+                else "poor"
+            )
             metrics.append({
                 "label": "Nutrition",
-                "value": f'{nutrition_state["calorie_compliance_pct"]:.0f}%',
+                "value": f'{nut:.0f}%',
                 "unit": "",
                 "priority": 7,
+                "detail_url": reverse("health:nutrition_home"),
+                "status": nut_status,
             })
 
         metrics.sort(key=lambda m: m["priority"])

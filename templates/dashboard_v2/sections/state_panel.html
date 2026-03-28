@@ -1,10 +1,11 @@
 {% if primary_metrics %}
+<h3 class="v2-state-title">Health Telemetry</h3>
 <div class="v2-state-compact">
     {% for m in primary_metrics %}
-    <div class="v2-state-chip">
+    <a href="{{ m.detail_url }}" class="v2-state-chip v2-state-{{ m.status|default:'neutral' }}">
         <span class="v2-state-chip-label">{{ m.label }}</span>
         <span class="v2-state-chip-value">{{ m.value }}{% if m.unit %} {{ m.unit }}{% endif %}</span>
-    </div>
+    </a>
     {% endfor %}
 </div>
 {% endif %}
@@ -14,10 +15,10 @@
     <summary class="v2-state-more">More health data</summary>
     <div class="v2-state-grid">
         {% for m in secondary_metrics %}
-        <div class="v2-state-item">
+        <a href="{{ m.detail_url }}" class="v2-state-item v2-state-{{ m.status|default:'neutral' }}">
             <span class="v2-state-label">{{ m.label }}</span>
             <span class="v2-state-value">{{ m.value }}{% if m.unit %} {{ m.unit }}{% endif %}</span>
-        </div>
+        </a>
         {% endfor %}
     </div>
 </details>

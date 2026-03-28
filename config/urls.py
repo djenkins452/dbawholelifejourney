@@ -71,8 +71,10 @@ urlpatterns = [
     path("", include("apps.core.urls", namespace="core")),
     # User management (profile, preferences)
     path("user/", include("apps.users.urls", namespace="users")),
-    # Dashboard
-    path("dashboard/", include("apps.dashboard.urls", namespace="dashboard")),
+    # Dashboard — Life Command Center (primary)
+    path("dashboard/", include("apps.dashboard_v2.urls", namespace="dashboard_v2")),
+    # Legacy dashboard (old widgets, kept for backward compat)
+    path("dashboard/legacy/", include("apps.dashboard.urls", namespace="dashboard")),
     # Journal
     path("journal/", include("apps.journal.urls", namespace="journal")),
     # Faith
@@ -129,8 +131,9 @@ urlpatterns = [
     path('relationships/', include('apps.relationships.urls', namespace='relationships')),
     # Notes (unified notes system)
     path('notes/', include('apps.notes.urls', namespace='notes')),
-    # Dashboard V2 — Life Command Center (experimental)
-    path('v2/', include('apps.dashboard_v2.urls', namespace='dashboard_v2')),
+    # V2 redirect → /dashboard/ (backward compat for bookmarks)
+    path('v2/<path:rest>', lambda request, rest: __import__('django.shortcuts', fromlist=['redirect']).redirect(f'/dashboard/{rest}', permanent=True)),
+    path('v2/', lambda request: __import__('django.shortcuts', fromlist=['redirect']).redirect('/dashboard/', permanent=True)),
     # Sports — Team tracking & game-day signals
     path('sports/', include('apps.sports.urls', namespace='sports')),
     # Signal Feedback & Insights API

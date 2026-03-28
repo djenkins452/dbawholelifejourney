@@ -160,19 +160,7 @@ class ActionCenterSectionView(LoginRequiredMixin, View):
     """HTMX endpoint for the Action Center (refreshed after inline actions)."""
 
     def get(self, request):
-        service = DashboardV2Service(request.user)
-        # Ensure daily progress is available for action center binary items
-        from .services.daily_progress_service import DailyProgressService
-        progress_service = DailyProgressService(request.user)
-        service._daily_progress = progress_service.get_today()
-
-        exec_ctx = service.get_execution_context()
-        html = render_to_string(
-            "dashboard_v2/partials/action_center.html",
-            {**exec_ctx, "request": request},
-            request=request,
-        )
-        return HttpResponse(html)
+        return _render_action_center(request)
 
 
 class SuggestionsSectionView(LoginRequiredMixin, View):
@@ -338,6 +326,29 @@ class ReconciliationRespondView(LoginRequiredMixin, View):
 # ── Action Endpoints ─────────────────────────────────────────────────
 
 
+def _render_action_center(request):
+    """Shared helper: invalidate cache, rebuild execution context,
+    render the unified action center template.
+
+    All toggle actions (task, routine, medicine) use this to return
+    the full action center as a single HTMX swap target.
+    """
+    DashboardV2CacheService.invalidate(request.user.pk, "execution")
+    service = DashboardV2Service(request.user)
+    # Ensure daily progress is available for binary domain items
+    from .services.daily_progress_service import DailyProgressService
+    progress_service = DailyProgressService(request.user)
+    service._daily_progress = progress_service.get_today()
+
+    exec_ctx = service.get_execution_context()
+    html = render_to_string(
+        "dashboard_v2/partials/action_center.html",
+        {**exec_ctx, "request": request},
+        request=request,
+    )
+    return HttpResponse(html)
+
+
 class TaskToggleAction(LoginRequiredMixin, View):
     """HTMX POST endpoint to toggle task completion from dashboard."""
 
@@ -351,19 +362,8 @@ class TaskToggleAction(LoginRequiredMixin, View):
         else:
             task.mark_complete()
 
-        # Invalidate cache and return full schedule card
-        DashboardV2CacheService.invalidate(request.user.pk, "execution")
-        service = DashboardV2Service(request.user)
-        exec_ctx = service.get_execution_context()
-
-        html = render_to_string(
-            "dashboard_v2/partials/schedule_card.html",
-            {**exec_ctx, "request": request},
-            request=request,
-        )
-        response = HttpResponse(html)
-        response["HX-Trigger"] = "refresh-next-action"
-        return response
+        # Invalidate cache and return the unified action center
+        return _render_action_center(request)
 
 
 class MedicineLogAction(LoginRequiredMixin, View):
@@ -390,11 +390,8 @@ class MedicineLogAction(LoginRequiredMixin, View):
         ).first()
 
         if existing:
-            # Un-log: delete the log entry
             existing.delete()
-            taken = False
         else:
-            # Log as taken
             MedicineLog.objects.create(
                 user=request.user,
                 medicine=schedule.medicine,
@@ -403,21 +400,9 @@ class MedicineLogAction(LoginRequiredMixin, View):
                 log_status="taken",
                 taken_at=timezone.now(),
             )
-            taken = True
 
-        html = render_to_string(
-            "dashboard_v2/partials/medicine_row.html",
-            {
-                "item": {
-                    "medicine": schedule.medicine,
-                    "schedule": schedule,
-                    "taken": taken,
-                },
-                "request": request,
-            },
-            request=request,
-        )
-        return HttpResponse(html)
+        # Return unified action center
+        return _render_action_center(request)
 
 
 class RoutineCompleteAction(LoginRequiredMixin, View):
@@ -435,19 +420,8 @@ class RoutineCompleteAction(LoginRequiredMixin, View):
         else:
             task.mark_complete()
 
-        # Invalidate cache and return full routine card
-        DashboardV2CacheService.invalidate(request.user.pk, "execution")
-        service = DashboardV2Service(request.user)
-        exec_ctx = service.get_execution_context()
-
-        html = render_to_string(
-            "dashboard_v2/partials/routine_card.html",
-            {**exec_ctx, "request": request},
-            request=request,
-        )
-        response = HttpResponse(html)
-        response["HX-Trigger"] = "refresh-next-action"
-        return response
+        # Invalidate cache and return the unified action center
+        return _render_action_center(request)
 
 
 class RoutineScheduleToggleAction(LoginRequiredMixin, View):
@@ -470,19 +444,8 @@ class RoutineScheduleToggleAction(LoginRequiredMixin, View):
         today = get_user_today(request.user)
         toggle_routine_completion(request.user, schedule, today)
 
-        # Invalidate cache and return full routine card
-        DashboardV2CacheService.invalidate(request.user.pk, "execution")
-        service = DashboardV2Service(request.user)
-        exec_ctx = service.get_execution_context()
-
-        html = render_to_string(
-            "dashboard_v2/partials/routine_card.html",
-            {**exec_ctx, "request": request},
-            request=request,
-        )
-        response = HttpResponse(html)
-        response["HX-Trigger"] = "refresh-next-action"
-        return response
+        # Invalidate cache and return the unified action center
+        return _render_action_center(request)
 
 
 class RoutineCompleteToggleAction(LoginRequiredMixin, View):
@@ -501,19 +464,8 @@ class RoutineCompleteToggleAction(LoginRequiredMixin, View):
         today = get_user_today(request.user)
         toggle_routine_complete(request.user, routine, today)
 
-        # Invalidate cache and return full routine card
-        DashboardV2CacheService.invalidate(request.user.pk, "execution")
-        service = DashboardV2Service(request.user)
-        exec_ctx = service.get_execution_context()
-
-        html = render_to_string(
-            "dashboard_v2/partials/routine_card.html",
-            {**exec_ctx, "request": request},
-            request=request,
-        )
-        response = HttpResponse(html)
-        response["HX-Trigger"] = "refresh-next-action"
-        return response
+        # Invalidate cache and return the unified action center
+        return _render_action_center(request)
 
 
 class MedicineGroupLogAction(LoginRequiredMixin, View):
@@ -567,19 +519,8 @@ class MedicineGroupLogAction(LoginRequiredMixin, View):
                         taken_at=now,
                     )
 
-        # Invalidate cache and re-render medicine card
-        DashboardV2CacheService.invalidate(request.user.pk, "execution")
-        service = DashboardV2Service(request.user)
-        exec_ctx = service.get_execution_context()
-
-        html = render_to_string(
-            "dashboard_v2/partials/medicine_card.html",
-            {**exec_ctx, "request": request},
-            request=request,
-        )
-        response = HttpResponse(html)
-        response["HX-Trigger"] = "refresh-next-action"
-        return response
+        # Invalidate cache and return the unified action center
+        return _render_action_center(request)
 
 
 # ── Celebration Endpoints ────────────────────────────────────────────

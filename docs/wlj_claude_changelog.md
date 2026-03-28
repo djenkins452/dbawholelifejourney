@@ -6,6 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Fix Hero Selection: Enforce Time-Bucket Priority
+
+- **Root cause:** `select_hero_game()` pooled all active games and scored globally. A high-importance tournament game tomorrow (score ~210) could beat a live regular-season game today (score ~180) because tournament boost (+80) outweighed live boost (+70).
+- **Fix:** Time-bucket priority enforced BEFORE importance scoring. Buckets checked in strict order:
+  1. LIVE games → hero MUST be live if any exist
+  2. TODAY games (starting_soon, today) → hero MUST be today if no live
+  3. FUTURE games (upcoming) → only if nothing else
+  4. FINAL games → only if no active games at all
+- Importance scoring only applies WITHIN the selected time bucket.
+- Same fix applied to `select_hero_signal()` (signal fallback path) — buckets by signal type.
+- **No changes to:** scoring engine, contract structure, UI layout.
+- **Tests:** All 95 sports tests pass.
+- **Files:** `apps/sports/services/sports_view_model.py`, `docs/wlj_claude_changelog.md`
+
 ## 2026-03-28 — Destination UI / Excitement Layer (Phase 6)
 
 - **Objective:** Transform sports page from quiet dashboard to destination experience. "Make it a page worth coming to."

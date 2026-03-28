@@ -52,15 +52,16 @@ def select_hero_game(teams):
     """Deterministic hero selection engine.
 
     Selects the single most important game for the user at this moment.
-    Uses the existing importance engine (_compute_contract_priority_score)
-    — no duplicate scoring logic.
+    Uses time-bucket priority FIRST, then importance scoring WITHIN bucket.
 
-    Priority order (encoded in importance engine):
-    1. LIVE boost (highest) — live games almost always win
-    2. Tournament boost — Sweet 16/Elite Eight outranks regular season
-    3. User affinity — followed team priority (primary > secondary > casual)
-    4. Time proximity — closer upcoming start = higher score
-    5. Momentum — streaks amplify importance
+    Time bucket priority (strict, non-negotiable):
+    1. LIVE games — if any live game exists, hero MUST be live
+    2. TODAY games — if no live but same-day games exist, hero MUST be today
+    3. FUTURE games — only if nothing else exists
+    4. FINAL games — only if no active games at all
+
+    Within each bucket, importance scoring (_compute_contract_priority_score)
+    determines the winner. No duplicate scoring logic.
 
     Args:
         teams: list of team entries from _contract['teams']
@@ -78,25 +79,38 @@ def select_hero_game(teams):
     if not teams:
         return None, 0
 
-    # ── Score active games (have next_game with playable status) ───
-    active_candidates = []
-    for t in teams:
-        if t.get('status') in ('live', 'starting_soon', 'today', 'upcoming') and t.get('next_game'):
-            score = _compute_contract_priority_score(t)
-            active_candidates.append((score, t))
+    # ── Bucket active games by time priority ──────────────────────
+    live_bucket = []      # status == 'live'
+    today_bucket = []     # status in ('starting_soon', 'today')
+    future_bucket = []    # status == 'upcoming'
 
-    if active_candidates:
-        # Stable sort: highest score first, then by team_name for determinism
-        active_candidates.sort(key=lambda x: (-x[0], x[1].get('team_name', '')))
-        score, winner = active_candidates[0]
-        return winner, score
+    for t in teams:
+        status = t.get('status', '')
+        if not t.get('next_game'):
+            continue
+
+        if status == 'live':
+            score = _compute_contract_priority_score(t)
+            live_bucket.append((score, t))
+        elif status in ('starting_soon', 'today'):
+            score = _compute_contract_priority_score(t)
+            today_bucket.append((score, t))
+        elif status == 'upcoming':
+            score = _compute_contract_priority_score(t)
+            future_bucket.append((score, t))
+
+    # ── Select from highest available time bucket ─────────────────
+    # NEVER show future if live exists. NEVER show future if today exists.
+    for bucket in (live_bucket, today_bucket, future_bucket):
+        if bucket:
+            bucket.sort(key=lambda x: (-x[0], x[1].get('team_name', '')))
+            score, winner = bucket[0]
+            return winner, score
 
     # ── Fallback: only completed games — pick most important FINAL ──
     final_candidates = []
     for t in teams:
         if t.get('last_result'):
-            # Score finals on user relevance + game significance + momentum
-            # (time sensitivity is 0 for completed games)
             score = _compute_contract_priority_score_for_final(t)
             final_candidates.append((score, t))
 
@@ -162,8 +176,14 @@ def _compute_contract_priority_score_for_final(team_entry):
 def select_hero_signal(scored_games, final_signals, team_map, streak_map, now):
     """Deterministic hero selection for signal fallback path.
 
-    Uses existing _compute_priority_score (signal-based importance engine).
-    Same selection logic as select_hero_game but for signal data.
+    Time-bucket priority FIRST, importance scoring WITHIN bucket.
+    Same logic as select_hero_game but for signal data.
+
+    Time bucket priority:
+    1. LIVE signals → hero MUST be live
+    2. TODAY signals (starting_soon, today) → hero MUST be today
+    3. UPCOMING signals → only if nothing else
+    4. FINAL signals → only if no active games
 
     Args:
         scored_games: list of (score, signal) tuples, pre-sorted by score
@@ -176,12 +196,29 @@ def select_hero_signal(scored_games, final_signals, team_map, streak_map, now):
         (hero_signal, hero_dict) or (None, None)
     """
     if scored_games:
-        # Already sorted by importance — first is the hero
-        _, hero_signal = scored_games[0]
-        follow = team_map.get(hero_signal["team_id"])
-        team = follow.team if follow else None
-        hero = _build_hero(hero_signal, team, streak_map, now)
-        return hero_signal, hero
+        # Bucket by time priority
+        live_bucket = []
+        today_bucket = []
+        future_bucket = []
+
+        for score, sig in scored_games:
+            sig_type = sig["signal_type"]
+            if sig_type == SIGNAL_GAME_LIVE:
+                live_bucket.append((score, sig))
+            elif sig_type in (SIGNAL_GAME_STARTING_SOON, SIGNAL_GAME_TODAY):
+                today_bucket.append((score, sig))
+            elif sig_type == SIGNAL_GAME_UPCOMING:
+                future_bucket.append((score, sig))
+
+        # Select from highest available time bucket
+        for bucket in (live_bucket, today_bucket, future_bucket):
+            if bucket:
+                bucket.sort(key=lambda x: (-x[0], x[1].get('team_name', '')))
+                _, hero_signal = bucket[0]
+                follow = team_map.get(hero_signal["team_id"])
+                team = follow.team if follow else None
+                hero = _build_hero(hero_signal, team, streak_map, now)
+                return hero_signal, hero
 
     if final_signals:
         # Fallback to most important final

@@ -409,6 +409,8 @@ def _sync_games(provider, league, date_from, date_to):
                 external_id=ng.external_id,
                 home_probable_pitcher=ng.home_probable_pitcher,
                 away_probable_pitcher=ng.away_probable_pitcher,
+                game_type=getattr(ng, 'game_type', 'regular'),
+                game_note=getattr(ng, 'game_note', ''),
             )
             upserted += 1
 
@@ -451,6 +453,16 @@ def _update_game_if_changed(game, normalized):
     if normalized.away_probable_pitcher and game.away_probable_pitcher != normalized.away_probable_pitcher:
         game.away_probable_pitcher = normalized.away_probable_pitcher
         update_fields.append("away_probable_pitcher")
+
+    ng_game_type = getattr(normalized, 'game_type', 'regular')
+    if ng_game_type and game.game_type != ng_game_type:
+        game.game_type = ng_game_type
+        update_fields.append("game_type")
+
+    ng_game_note = getattr(normalized, 'game_note', '')
+    if ng_game_note and game.game_note != ng_game_note:
+        game.game_note = ng_game_note
+        update_fields.append("game_note")
 
     if update_fields:
         game.save(update_fields=update_fields + ["last_updated"])

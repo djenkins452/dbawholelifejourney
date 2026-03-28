@@ -323,11 +323,26 @@ def _build_smart_ticker(teams, storylines):
 
 
 def _game_context_line(team_entry):
-    """Generate a short context line for why a game matters."""
+    """Generate a short context line for why a game matters.
+
+    Priority: game significance > streak > record.
+    """
+    ng = team_entry.get('next_game') or {}
+    game_type = ng.get('game_type', 'regular')
+    game_note = ng.get('game_note', '')
+
+    # Game significance context takes priority
+    if game_note:
+        parts = game_note.split(" - ")
+        return parts[-1] if parts else game_note
+    if game_type == 'tournament':
+        return "Tournament Game"
+    if game_type == 'postseason':
+        return "Playoff Game"
+
+    # Streak context
     sc = team_entry.get('streak_count', 0)
     st = team_entry.get('streak_type', '')
-    record = team_entry.get('record', '')
-
     if st == 'W' and sc >= 5:
         return f"On a {sc}-game win streak"
     if st == 'W' and sc >= 3:
@@ -336,6 +351,8 @@ def _game_context_line(team_entry):
         return f"Lost {sc} straight — looking to bounce back"
     if st == 'L' and sc >= 3:
         return f"Need a win after {sc} losses"
+
+    record = team_entry.get('record', '')
     if record:
         return record
     return ""
@@ -580,33 +597,51 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
 # ═══════════════════════════════════════════════════════════════════════
 
 def _compute_priority_score(signal, streak_map):
-    """
-    Deterministic priority scoring for a game signal.
+    """Importance engine (signal fallback path).
 
-    Higher score = more prominent display position.
+    Same 4-dimension scoring as _compute_contract_priority_score:
+    1. User relevance, 2. Game significance, 3. Time sensitivity, 4. Momentum.
     """
     score = 0
     priority = signal.get("priority", 3)
     sig_type = signal["signal_type"]
+    data = signal.get("data", {})
+    game_type = data.get("game_type", "regular")
+    game_note = (data.get("game_note", "") or "").lower()
 
-    # Team importance
+    # 1. User relevance
     if priority == 1:
-        score += 50
+        score += 100
     elif priority == 2:
-        score += 35
+        score += 60
     else:
-        score += 20
-
-    # Temporal urgency
-    if sig_type == SIGNAL_GAME_LIVE:
-        score += 40
-    elif sig_type == SIGNAL_GAME_STARTING_SOON:
         score += 30
+
+    # 2. Game significance
+    if game_type == 'tournament':
+        score += 80
+        if any(w in game_note for w in ('final four', 'championship', 'elite eight')):
+            score += 30
+        elif 'sweet 16' in game_note:
+            score += 20
+    elif game_type == 'postseason':
+        score += 70
+        if any(w in game_note for w in ('world series', 'super bowl', 'stanley cup', 'nba finals')):
+            score += 30
+        elif any(w in game_note for w in ('conference', 'championship', 'nlcs', 'alcs')):
+            score += 20
+    else:
+        score += 10
+
+    # 3. Time sensitivity
+    if sig_type == SIGNAL_GAME_LIVE:
+        score += 70
+    elif sig_type == SIGNAL_GAME_STARTING_SOON:
+        score += 60
     elif sig_type == SIGNAL_GAME_TODAY:
-        score += 25
+        score += 40
     elif sig_type == SIGNAL_GAME_UPCOMING:
-        # Closer upcoming games score higher
-        start_str = signal["data"].get("start_time", "")
+        start_str = data.get("start_time", "")
         if start_str:
             try:
                 from django.utils.dateparse import parse_datetime
@@ -614,24 +649,26 @@ def _compute_priority_score(signal, streak_map):
                 if start:
                     hours_away = (start - timezone.now()).total_seconds() / 3600
                     if hours_away <= 6:
-                        score += 15
+                        score += 25
                     elif hours_away <= 24:
-                        score += 10
+                        score += 15
                     else:
                         score += 5
             except (ValueError, TypeError):
                 score += 5
 
-    # Streak heat
+    # 4. Momentum
     tid = signal["team_id"]
     streak = streak_map.get(tid, "")
     if streak and len(streak) >= 2:
         try:
             streak_count = int(streak[1:])
-            if streak_count >= 5:
+            if streak_count >= 7:
                 score += 20
-            elif streak_count >= 3:
+            elif streak_count >= 5:
                 score += 15
+            elif streak_count >= 3:
+                score += 10
         except ValueError:
             pass
 
@@ -899,49 +936,82 @@ def _build_league_boards(follows, now):
 # ═══════════════════════════════════════════════════════════════════════
 
 def _compute_contract_priority_score(team_entry):
-    """Priority scoring from _contract team entry (presentation-only)."""
+    """Importance engine: score every game on 4 dimensions.
+
+    1. User relevance  — follow priority (primary > secondary > casual)
+    2. Game significance — tournament/postseason > regular season
+    3. Time sensitivity — live > starting soon > today > future
+    4. Momentum context — streaks amplify importance
+
+    Scores are additive. Hero = highest score. All sections sort by score.
+    """
     score = 0
     priority = team_entry.get('priority', 3)
     status = team_entry.get('status', 'upcoming')
+    ng = team_entry.get('next_game') or {}
+    game_type = ng.get('game_type', 'regular')
+    game_note = ng.get('game_note', '').lower()
 
-    # Team importance
+    # ── 1. USER RELEVANCE (max 100) ─────────────────────────────────
     if priority == 1:
-        score += 50
+        score += 100  # Primary team — always highest weight
     elif priority == 2:
-        score += 35
+        score += 60   # Secondary — follow closely
     else:
-        score += 20
+        score += 30   # Casual — light awareness
 
-    # Temporal urgency
+    # ── 2. GAME SIGNIFICANCE (max 80) ───────────────────────────────
+    if game_type == 'tournament':
+        # Tournament games — highest significance
+        score += 80
+        # Bonus for later rounds
+        if any(w in game_note for w in ('final four', 'championship', 'elite eight')):
+            score += 30  # Final Four / Championship = massive
+        elif 'sweet 16' in game_note:
+            score += 20
+    elif game_type == 'postseason':
+        score += 70
+        # Bonus for later rounds
+        if any(w in game_note for w in ('world series', 'super bowl', 'stanley cup', 'nba finals')):
+            score += 30
+        elif any(w in game_note for w in ('conference', 'championship', 'nlcs', 'alcs')):
+            score += 20
+        elif any(w in game_note for w in ('divisional', 'wild card')):
+            score += 10
+    else:
+        score += 10  # Regular season baseline
+
+    # ── 3. TIME SENSITIVITY (max 70) ────────────────────────────────
     if status == 'live':
-        score += 40
+        score += 70   # Live = highest temporal urgency
     elif status == 'starting_soon':
-        score += 30
+        score += 60   # Within 2 hours
     elif status == 'today':
-        score += 25
+        score += 40   # Today but not imminent
     elif status == 'upcoming':
-        ng = team_entry.get('next_game')
-        if ng and ng.get('start_time'):
+        if ng.get('start_time'):
             try:
                 from django.utils.dateparse import parse_datetime
                 start = parse_datetime(ng['start_time'])
                 if start:
                     hours_away = (start - timezone.now()).total_seconds() / 3600
                     if hours_away <= 6:
-                        score += 15
+                        score += 25
                     elif hours_away <= 24:
-                        score += 10
+                        score += 15
                     else:
                         score += 5
             except (ValueError, TypeError):
                 score += 5
 
-    # Streak heat
+    # ── 4. MOMENTUM CONTEXT (max 20) ────────────────────────────────
     streak_count = team_entry.get('streak_count', 0)
-    if streak_count >= 5:
-        score += 20
+    if streak_count >= 7:
+        score += 20   # Dominant streak
+    elif streak_count >= 5:
+        score += 15   # Hot/struggling
     elif streak_count >= 3:
-        score += 15
+        score += 10   # Notable streak
 
     return score
 
@@ -969,10 +1039,23 @@ def _build_hero_from_contract(team_entry):
         "pitcher": ng.get('pitcher', ''),
     }
 
-    # Signal-derived insight line
+    # ── Insight line: game significance > streak > status ──────────
     streak_count = team_entry.get('streak_count', 0)
     streak_type = team_entry.get('streak_type', '')
-    if status == 'live':
+    game_type = ng.get('game_type', 'regular')
+    game_note = ng.get('game_note', '')
+
+    # Game significance takes priority for insight
+    if game_note:
+        # Extract the meaningful part (e.g. "Sweet 16" from "NCAA ... - Sweet 16")
+        parts = game_note.split(" - ")
+        hero["insight"] = parts[-1] if parts else game_note
+        hero["game_note"] = game_note
+    elif game_type == 'tournament':
+        hero["insight"] = "Tournament Game"
+    elif game_type == 'postseason':
+        hero["insight"] = "Playoff Game"
+    elif status == 'live':
         hero["insight"] = "Game in progress"
     elif status == 'starting_soon':
         hero["insight"] = "Starting soon"

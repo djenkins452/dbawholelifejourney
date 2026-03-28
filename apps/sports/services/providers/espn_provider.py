@@ -157,9 +157,18 @@ class EspnSportsProvider(BaseSportsProvider):
                 requests_made += 1
 
                 if data:
+                    # Extract league-level season type (Regular Season / Postseason)
+                    season_type_name = ""
+                    leagues_data = data.get("leagues", [])
+                    if leagues_data:
+                        season_type_name = (
+                            leagues_data[0].get("season", {})
+                            .get("type", {}).get("name", "")
+                        )
+
                     events = data.get("events", [])
                     for event in events:
-                        game = self._normalize_game(event, league_slug)
+                        game = self._normalize_game(event, league_slug, season_type_name)
                         if game:
                             all_games.append(game)
 
@@ -230,7 +239,7 @@ class EspnSportsProvider(BaseSportsProvider):
 
     # ── Game Normalization ──────────────────────────────────────────
 
-    def _normalize_game(self, event, league_slug):
+    def _normalize_game(self, event, league_slug, season_type_name=""):
         """Normalize an ESPN event into a NormalizedGame.
 
         Always returns a complete NormalizedGame or None.
@@ -291,6 +300,11 @@ class EspnSportsProvider(BaseSportsProvider):
             if league_slug in ("mlb", "ncaabb"):
                 home_pitcher, away_pitcher = self._extract_pitchers(comp)
 
+            # ── Game significance ─────────────────────────────────
+            game_type, game_note = self._extract_game_significance(
+                event, comp, season_type_name
+            )
+
             return NormalizedGame(
                 external_id=f"espn_{league_slug}_{event_id}",
                 home_team_external_id=f"espn_{league_slug}_{home_team_id}",
@@ -302,10 +316,57 @@ class EspnSportsProvider(BaseSportsProvider):
                 venue=venue,
                 home_probable_pitcher=home_pitcher,
                 away_probable_pitcher=away_pitcher,
+                game_type=game_type,
+                game_note=game_note,
             )
         except Exception as e:
             logger.warning("ESPN: failed to normalize game: %s", e)
             return None
+
+    def _extract_game_significance(self, event, comp, season_type_name):
+        """Extract game_type and game_note from ESPN event metadata.
+
+        Sources:
+        - competition.type.abbreviation: "TRNMNT" for tournament games
+        - event.notes[].headline: "NCAA ... Sweet 16", "Wild Card", etc.
+        - season_type_name: "Postseason" / "Regular Season" (from league-level)
+        """
+        game_type = "regular"
+        game_note = ""
+
+        # Check competition type abbreviation
+        comp_type = comp.get("type", {}).get("abbreviation", "")
+        if comp_type == "TRNMNT":
+            game_type = "tournament"
+
+        # Check notes for headline (most descriptive)
+        notes = event.get("notes", [])
+        if notes:
+            headline = notes[0].get("headline", "")
+            if headline:
+                game_note = headline[:200]  # Match model max_length
+                # Classify from headline keywords
+                headline_lower = headline.lower()
+                if any(w in headline_lower for w in (
+                    "sweet 16", "elite eight", "final four", "championship",
+                    "round of 32", "round of 64", "first round", "second round",
+                    "tournament", "march madness",
+                )):
+                    game_type = "tournament"
+                elif any(w in headline_lower for w in (
+                    "playoff", "wild card", "divisional", "conference",
+                    "world series", "nlcs", "alcs", "nlds", "alds",
+                    "stanley cup", "super bowl",
+                )):
+                    game_type = "postseason"
+
+        # Fallback: league-level season type
+        if game_type == "regular" and season_type_name:
+            stn = season_type_name.lower()
+            if "postseason" in stn or "playoffs" in stn:
+                game_type = "postseason"
+
+        return game_type, game_note
 
     # ── Standing Normalization ──────────────────────────────────────
 

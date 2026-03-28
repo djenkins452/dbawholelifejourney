@@ -6,6 +6,15 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Sports Importance Engine: 4-Dimension Priority Scoring
+
+- **New Feature:** Importance engine that scores every game on 4 dimensions: (1) User relevance (primary/secondary/casual team follow priority, max 100pts), (2) Game significance (tournament +80, postseason +70, with bonus for later rounds like Sweet 16 +20, Final Four +30), (3) Time sensitivity (live +70, starting soon +60, today +40), (4) Momentum context (streaks +10-20). Hero = highest importance score. All sections sort by importance.
+- **Model Change:** Added `game_type` (regular/postseason/tournament) and `game_note` (ESPN headline context like "Sweet 16", "Wild Card") to `GameEvent` model. Migration: `0004_gameevent_game_note_gameevent_game_type`.
+- **ESPN Provider:** `_extract_game_significance()` reads `competition.type.abbreviation` ("TRNMNT"), `event.notes[].headline`, and `league.season.type.name` ("Postseason") from ESPN API to classify game significance. Keywords parsed for round detection.
+- **Data Pipeline:** `game_type` and `game_note` flow through: ESPN API → NormalizedGame → sync_service → GameEvent → signal_generator base_data → tasks.py summary builder → _contract teams[].next_game → view model priority engine.
+- **View Model:** Hero insight line now prioritizes game significance ("Sweet 16") over streak context. Context lines in What's Next show game significance first.
+- **Files:** `apps/sports/models.py`, `apps/sports/services/provider_adapter.py`, `apps/sports/services/providers/espn_provider.py`, `apps/sports/services/sync_service.py`, `apps/sports/services/signal_generator.py`, `apps/sports/tasks.py`, `apps/sports/services/sports_view_model.py`, `apps/sports/migrations/0004_gameevent_game_note_gameevent_game_type.py`
+
 ## 2026-03-27 — Morning Briefing: Tone Refinement + Phrase Rotation
 
 - **Enhancement:** Rotating phrase banks for all situation tiers and closings. Phrases rotate deterministically by day-of-year via `_rotating_phrase()` — no randomness, no state, different phrasing each day.

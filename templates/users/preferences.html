@@ -1406,6 +1406,7 @@ The AI will remember these to respond more thoughtfully in the future."
                                             class="form-input"
                                             value="{{ form.notification_reminder_time.value|default:'07:00' }}"
                                             style="max-width: 150px;"
+                                            step="900"
                                         >
                                         <p class="form-help">The time you'd like to receive daily reminders (e.g., reading plans).</p>
                                     </div>
@@ -1845,6 +1846,7 @@ The AI will remember these to respond more thoughtfully in the future."
                                                         id="sms_quiet_start"
                                                         class="form-input"
                                                         value="{{ form.sms_quiet_start.value|time:'H:i' }}"
+                                                        step="900"
                                                     >
                                                 </div>
                                                 <div class="form-group">
@@ -1855,6 +1857,7 @@ The AI will remember these to respond more thoughtfully in the future."
                                                         id="sms_quiet_end"
                                                         class="form-input"
                                                         value="{{ form.sms_quiet_end.value|time:'H:i' }}"
+                                                        step="900"
                                                     >
                                                 </div>
                                             </div>

@@ -72,7 +72,7 @@
                     <div class="form-group time-field">
                         <label for="id_start_time" class="form-label">Start Time</label>
                         <input type="time" name="start_time" id="id_start_time" class="form-input"
-                               value="{{ form.start_time.value|time:'H:i'|default:'' }}">
+                               value="{{ form.start_time.value|time:'H:i'|default:'' }}" step="900">
                     </div>
                 </div>
                 
@@ -86,7 +86,7 @@
                     <div class="form-group time-field">
                         <label for="id_end_time" class="form-label">End Time</label>
                         <input type="time" name="end_time" id="id_end_time" class="form-input"
-                               value="{{ form.end_time.value|time:'H:i'|default:'' }}">
+                               value="{{ form.end_time.value|time:'H:i'|default:'' }}" step="900">
                     </div>
                 </div>
             </div>

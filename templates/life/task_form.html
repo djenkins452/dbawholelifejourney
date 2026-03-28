@@ -185,14 +185,14 @@
                     <div class="form-group">
                         <label for="id_scheduled_time" class="form-label">Start Time</label>
                         <input type="time" name="scheduled_time" id="id_scheduled_time" class="form-input"
-                               value="{{ form.scheduled_time.value|time:'H:i' }}">
+                               value="{{ form.scheduled_time.value|time:'H:i' }}" step="900">
                         <p class="form-help">When does this task start?</p>
                     </div>
 
                     <div class="form-group">
                         <label for="id_scheduled_end_time" class="form-label">End Time</label>
                         <input type="time" name="scheduled_end_time" id="id_scheduled_end_time" class="form-input"
-                               value="{{ form.scheduled_end_time.value|time:'H:i' }}">
+                               value="{{ form.scheduled_end_time.value|time:'H:i' }}" step="900">
                         <p class="form-help">When does this task end?</p>
                     </div>
                 </div>

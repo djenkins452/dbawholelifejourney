@@ -3209,11 +3209,15 @@ class ActionHandler:
                     except ValueError:
                         pass
 
-            # Parse scheduled_time (HH:MM format)
+            # Parse scheduled_time (HH:MM format), normalize to 15-min increments
+            from apps.core.utils import normalize_to_quarter_hour
+
             parsed_time = None
             if scheduled_time:
                 try:
-                    parsed_time = dt.strptime(scheduled_time, '%H:%M').time()
+                    parsed_time = normalize_to_quarter_hour(
+                        dt.strptime(scheduled_time, '%H:%M').time()
+                    )
                     # If user specified a time but no date, default to today
                     if not parsed_due:
                         parsed_due = self._get_user_today()
@@ -3229,11 +3233,13 @@ class ActionHandler:
                     status='active'
                 ).first()
 
-            # Parse end_time (HH:MM format)
+            # Parse end_time (HH:MM format), normalize to 15-min increments
             parsed_end_time = None
             if end_time:
                 try:
-                    parsed_end_time = dt.strptime(end_time, '%H:%M').time()
+                    parsed_end_time = normalize_to_quarter_hour(
+                        dt.strptime(end_time, '%H:%M').time()
+                    )
                 except ValueError:
                     pass
 
@@ -3368,11 +3374,13 @@ class ActionHandler:
         )
 
         try:
-            # Parse scheduled_time
+            # Parse scheduled_time, normalize to 15-min increments
+            from apps.core.utils import normalize_to_quarter_hour
+
             parts = scheduled_time.replace('.', ':').split(':')
             hour = int(parts[0])
             minute = int(parts[1]) if len(parts) > 1 else 0
-            sched_time = dt_time(hour, minute)
+            sched_time = normalize_to_quarter_hour(dt_time(hour, minute))
 
             # Normalize common recurrence aliases
             pattern_lower = recurrence_pattern.lower().strip()
@@ -3383,13 +3391,13 @@ class ActionHandler:
 
             today = self._get_user_today()
 
-            # Parse end_time if provided
+            # Parse end_time if provided, normalize to 15-min increments
             sched_end_time = None
             if end_time:
                 end_parts = end_time.replace('.', ':').split(':')
                 end_hour = int(end_parts[0])
                 end_minute = int(end_parts[1]) if len(end_parts) > 1 else 0
-                sched_end_time = dt_time(end_hour, end_minute)
+                sched_end_time = normalize_to_quarter_hour(dt_time(end_hour, end_minute))
                 # Compute duration from times if end_time is explicit
                 from datetime import datetime as dt_datetime, timedelta
                 start_tmp = dt_datetime.combine(today, sched_time)
@@ -3959,11 +3967,15 @@ class ActionHandler:
                                     action_type='mutate_task',
                                 )
 
-                # Parse new scheduled time
+                # Parse new scheduled time, normalize to 15-min increments
+                from apps.core.utils import normalize_to_quarter_hour
+
                 parsed_time = None
                 if new_scheduled_time:
                     try:
-                        parsed_time = dt.strptime(new_scheduled_time, '%H:%M').time()
+                        parsed_time = normalize_to_quarter_hour(
+                            dt.strptime(new_scheduled_time, '%H:%M').time()
+                        )
                     except ValueError:
                         return ActionResult(
                             success=False,
@@ -3972,11 +3984,13 @@ class ActionHandler:
                             action_type='mutate_task',
                         )
 
-                # Parse new end time
+                # Parse new end time, normalize to 15-min increments
                 parsed_end_time = None
                 if new_end_time:
                     try:
-                        parsed_end_time = dt.strptime(new_end_time, '%H:%M').time()
+                        parsed_end_time = normalize_to_quarter_hour(
+                            dt.strptime(new_end_time, '%H:%M').time()
+                        )
                     except ValueError:
                         return ActionResult(
                             success=False,
@@ -4513,18 +4527,25 @@ class ActionHandler:
 
             # Parse times BEFORE date resolution (Phase 9.1)
             # so start_time can inform same-day weekday logic.
+            # Normalize to 15-minute increments.
+            from apps.core.utils import normalize_to_quarter_hour
+
             parsed_start_time = None
             parsed_end_time = None
 
             if start_time and not is_all_day:
                 try:
-                    parsed_start_time = dt.strptime(start_time, '%H:%M').time()
+                    parsed_start_time = normalize_to_quarter_hour(
+                        dt.strptime(start_time, '%H:%M').time()
+                    )
                 except ValueError:
                     pass
 
             if end_time and not is_all_day:
                 try:
-                    parsed_end_time = dt.strptime(end_time, '%H:%M').time()
+                    parsed_end_time = normalize_to_quarter_hour(
+                        dt.strptime(end_time, '%H:%M').time()
+                    )
                 except ValueError:
                     pass
 

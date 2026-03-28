@@ -622,6 +622,7 @@ class MedicineScheduleForm(forms.ModelForm):
             "scheduled_time": forms.TimeInput(attrs={
                 "class": "form-input",
                 "type": "time",
+                "step": "900",
             }),
             "time_of_day": forms.Select(attrs={
                 "class": "form-select",

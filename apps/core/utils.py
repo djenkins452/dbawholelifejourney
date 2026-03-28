@@ -206,6 +206,35 @@ def classify_time_status(due_date, scheduled_time, user_now, grace_minutes=0):
         }
 
 
+def normalize_to_quarter_hour(t):
+    """
+    Round a time to the nearest 15-minute increment (00, 15, 30, 45).
+
+    Rounding rules:
+        - 0–7 minutes  → round down
+        - 8–14 minutes → round up
+        - If rounding up crosses 60 minutes, increment the hour and set minute to 00
+        - If hour overflows past 23, wrap to 00:00
+
+    Args:
+        t: datetime.time instance, or None
+
+    Returns:
+        datetime.time rounded to nearest quarter-hour, or None if input is None
+    """
+    if t is None:
+        return None
+
+    import datetime
+    total_minutes = t.hour * 60 + t.minute
+    # Round to nearest 15
+    rounded = ((total_minutes + 7) // 15) * 15
+    # Handle midnight wrap (24:00 → 00:00)
+    if rounded >= 1440:
+        rounded = 0
+    return datetime.time(rounded // 60, rounded % 60, 0)
+
+
 def is_safe_redirect_url(url, request):
     """
     Check if a URL is safe for redirecting.

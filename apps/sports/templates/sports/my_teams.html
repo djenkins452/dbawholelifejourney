@@ -396,14 +396,15 @@
             <div class="hero-countdown" data-countdown="{{ hero.start_time }}"></div>
         {% endif %}
 
-        {% if hero.tournament_context %}
-        <div class="hero-tournament-context">{{ hero.tournament_context }}</div>
+        {# ── HERO CONTEXT (deterministic context engine output) ── #}
+        {% if hero_context %}
+        <div class="hero-tournament-context">{{ hero_context.headline }}</div>
+        {% if hero_context.subheadline %}
+        <div class="hero-headline">{{ hero_context.subheadline }}</div>
         {% endif %}
-
-        {% if hero.headline %}
-        <div class="hero-headline">{{ hero.headline }}</div>
-        {% elif hero.insight and not hero.game_note %}
-        <div class="hero-insight hero-insight--status">{{ hero.insight }}</div>
+        {% if hero_context.status %}
+        <div class="hero-insight hero-insight--status">{{ hero_context.status }}</div>
+        {% endif %}
         {% endif %}
 
         {% if hero.record or hero.streak or hero.pitcher %}

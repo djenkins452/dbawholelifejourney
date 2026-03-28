@@ -12,6 +12,7 @@ contract directly — no grouping, filtering, or ordering in templates.
 Contract shape (non-negotiable):
 {
     "hero": {} | None,
+    "hero_context": {"headline": str, "subheadline": str|None, "status": str|None} | None,
     "live_context": {} | None,
     "scoreboard": {"header": str, "live": [], "final": [], "upcoming": []},
     "timeline": {"now": [], "today": [], "tomorrow": []},
@@ -201,6 +202,240 @@ def select_hero_signal(scored_games, final_signals, team_map, streak_map, now):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# DETERMINISTIC HERO CONTEXT ENGINE
+# ═══════════════════════════════════════════════════════════════════════
+
+def build_hero_context(hero):
+    """Deterministic hero context engine.
+
+    Explains WHY the current hero game matters using ONLY fields already
+    present in the hero dict. No LLM, no randomness, no guessing.
+
+    Returns:
+        {
+            "headline": str,       # Primary context line
+            "subheadline": str | None,  # Secondary detail (optional)
+            "status": str | None,  # Game state (optional)
+        }
+        or None if no hero.
+
+    Priority order for headline construction:
+    1. Tournament context (highest) — round name + stakes
+    2. Postseason context — playoff round + stakes
+    3. Live game — lead statement + clock
+    4. Upcoming game — matchup + time
+    5. Final game — result line
+
+    Uses only: game_type, game_note, urgency, score, start_time,
+    team_name, opponent, is_home, tournament_context, status_display.
+    """
+    if not hero:
+        return None
+
+    urgency = hero.get('urgency', 'upcoming')
+    team = hero.get('team_name', '')
+    opponent = hero.get('opponent', '')
+    score_str = hero.get('score', '')
+    game_type = hero.get('game_type', 'regular') or 'regular'
+    game_note = hero.get('game_note', '') or ''
+    tournament_context = hero.get('tournament_context', '') or ''
+    start_time = hero.get('start_time', '') or ''
+    is_home = hero.get('is_home', True)
+
+    headline = ""
+    subheadline = None
+    status = None
+
+    if urgency == 'live':
+        headline, subheadline, status = _build_context_live(
+            team, opponent, score_str, game_type, game_note,
+            tournament_context
+        )
+    elif urgency == 'final':
+        headline, subheadline, status = _build_context_final(
+            team, opponent, score_str, game_type, game_note,
+            tournament_context
+        )
+    else:
+        # upcoming, starting_soon, today
+        headline, subheadline, status = _build_context_upcoming(
+            team, opponent, is_home, start_time, game_type,
+            game_note, tournament_context, urgency
+        )
+
+    return {
+        "headline": headline,
+        "subheadline": subheadline,
+        "status": status,
+    }
+
+
+def _build_context_live(team, opponent, score_str, game_type, game_note,
+                        tournament_context):
+    """Build context for a LIVE game.
+
+    headline: lead statement or tournament round + lead
+    subheadline: tournament context if applicable
+    status: "Game in progress"
+    """
+    # Build lead statement from score
+    lead_line = _parse_lead_line(team, opponent, score_str)
+
+    # Tournament games: headline = tournament context, subheadline = lead
+    if tournament_context:
+        return (tournament_context, lead_line, "Game in progress")
+
+    if game_type == 'postseason' and game_note:
+        note_label = _extract_round_label_from_note(game_note)
+        if note_label:
+            return (note_label, lead_line, "Game in progress")
+
+    # Regular game: headline = lead statement
+    return (lead_line, None, "Game in progress")
+
+
+def _build_context_final(team, opponent, score_str, game_type, game_note,
+                         tournament_context):
+    """Build context for a FINAL game.
+
+    headline: "Final — {team} {score}, {opponent} {score}" or tournament context
+    subheadline: tournament context if headline is score line
+    status: "Final"
+    """
+    # Parse individual scores for final line
+    final_line = _build_final_score_line(team, opponent, score_str)
+
+    if tournament_context:
+        return (tournament_context, final_line, "Final")
+
+    if game_type == 'postseason' and game_note:
+        note_label = _extract_round_label_from_note(game_note)
+        if note_label:
+            return (note_label, final_line, "Final")
+
+    return (final_line, None, "Final")
+
+
+def _build_context_upcoming(team, opponent, is_home, start_time, game_type,
+                            game_note, tournament_context, urgency):
+    """Build context for an UPCOMING/TODAY/STARTING_SOON game.
+
+    headline: matchup or tournament context
+    subheadline: time info
+    status: urgency label
+    """
+    # Matchup line
+    prefix = "vs" if is_home else "@"
+    matchup = f"{team} {prefix} {opponent}"
+
+    # Time line
+    time_label = _format_context_time(start_time, urgency)
+
+    # Status label
+    status_map = {
+        'starting_soon': "Starting soon",
+        'today': "Today",
+        'upcoming': None,
+    }
+    status = status_map.get(urgency)
+
+    if tournament_context:
+        return (tournament_context, matchup, time_label or status)
+
+    if game_type == 'postseason' and game_note:
+        note_label = _extract_round_label_from_note(game_note)
+        if note_label:
+            return (note_label, matchup, time_label or status)
+
+    return (matchup, time_label, status)
+
+
+def _parse_lead_line(team, opponent, score_str):
+    """Parse score string to build deterministic lead statement.
+
+    Returns: "{team} leads {opponent} {score}" / "tied" / "vs"
+    """
+    if not score_str:
+        return f"{team} vs {opponent}"
+
+    parts = score_str.replace('\u2013', '-').replace('\u2014', '-').split('-')
+    if len(parts) == 2:
+        try:
+            s1 = int(parts[0].strip())
+            s2 = int(parts[1].strip())
+            if s1 > s2:
+                return f"{team} leads {opponent} {s1}\u2013{s2}"
+            elif s2 > s1:
+                return f"{opponent} leads {team} {s2}\u2013{s1}"
+            else:
+                return f"{team} and {opponent} tied {s1}\u2013{s2}"
+        except (ValueError, IndexError):
+            pass
+    return f"{team} vs {opponent} {score_str}"
+
+
+def _build_final_score_line(team, opponent, score_str):
+    """Build "Final — Team 78, Opponent 72" from score string."""
+    if not score_str:
+        return f"Final \u2014 {team} vs {opponent}"
+
+    parts = score_str.replace('\u2013', '-').replace('\u2014', '-').split('-')
+    if len(parts) == 2:
+        try:
+            s1 = int(parts[0].strip())
+            s2 = int(parts[1].strip())
+            if s1 >= s2:
+                return f"Final \u2014 {team} {s1}, {opponent} {s2}"
+            else:
+                return f"Final \u2014 {opponent} {s2}, {team} {s1}"
+        except (ValueError, IndexError):
+            pass
+    return f"Final \u2014 {team} {score_str} {opponent}"
+
+
+def _extract_round_label_from_note(game_note):
+    """Extract round label from game_note. Returns title-cased label or empty string."""
+    note_lower = game_note.lower()
+    for phrase in ('championship', 'final four', 'elite eight', 'sweet 16',
+                   'round of 32', 'round of 64', 'first round', 'second round',
+                   'world series', 'super bowl', 'stanley cup', 'nba finals',
+                   'conference championship', 'divisional', 'wild card',
+                   'nlcs', 'alcs', 'nlds', 'alds'):
+        if phrase in note_lower:
+            return phrase.title()
+    return ""
+
+
+def _format_context_time(start_time, urgency):
+    """Format start_time for context display. Returns string or None."""
+    if not start_time or start_time == 'None':
+        if urgency == 'starting_soon':
+            return "Starting soon"
+        return None
+
+    try:
+        from django.utils.dateparse import parse_datetime
+        dt = parse_datetime(start_time)
+        if not dt:
+            return None
+
+        now = timezone.now()
+        is_today = dt.date() == now.date()
+        tomorrow = (now + timedelta(days=1)).date()
+        is_tomorrow = dt.date() == tomorrow
+
+        time_str = dt.strftime("%-I:%M %p")
+        if is_today:
+            return f"Today at {time_str}"
+        elif is_tomorrow:
+            return f"Tomorrow at {time_str}"
+        else:
+            return f"{dt.strftime('%a')} at {time_str}"
+    except (ValueError, TypeError):
+        return None
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # CANONICAL ENTRY POINT
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -301,6 +536,9 @@ def _assemble_page_contract(contract, follows, team_map, team_ids, now):
     if hero:
         _enhance_hero_context(hero)
 
+    # ── 1b. HERO CONTEXT (deterministic context engine) ───────────
+    hero_context = build_hero_context(hero)
+
     # ── 2. LIVE CONTEXT (only if hero is LIVE, else None) ──────────
     live_context = None
     if hero and hero.get('urgency') == 'live':
@@ -360,6 +598,7 @@ def _assemble_page_contract(contract, follows, team_map, team_ids, now):
 
     return {
         "hero": hero,
+        "hero_context": hero_context,
         "live_context": live_context,
         "scoreboard": scoreboard,
         "timeline": timeline,
@@ -830,6 +1069,9 @@ def _assemble_page_contract_from_signals(user, follows, team_map, team_ids, now)
         scored_games, final_signals, team_map, streak_map, now
     )
 
+    # Hero context (deterministic context engine)
+    hero_context = build_hero_context(hero)
+
     hero_team_id = hero_signal["team_id"] if hero_signal else None
     shown_keys_fb = set()
 
@@ -1017,6 +1259,7 @@ def _assemble_page_contract_from_signals(user, follows, team_map, team_ids, now)
 
     return {
         "hero": hero,
+        "hero_context": hero_context,
         "live_context": live_context,
         "scoreboard": {"header": "", "live": [], "final": [], "upcoming": []},
         "timeline": timeline,
@@ -1980,6 +2223,7 @@ def _empty_page_contract():
     """Return empty page contract — all keys present, no conditional omission."""
     return {
         "hero": None,
+        "hero_context": None,
         "live_context": None,
         "scoreboard": {"header": "", "live": [], "final": [], "upcoming": []},
         "timeline": {"now": [], "today": [], "tomorrow": []},

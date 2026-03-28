@@ -754,6 +754,42 @@ def _build_hero(signal, team, streak_map, now):
         else:
             hero["score"] = f"{aws} – {hs}"
 
+    # Headline (signal fallback path)
+    hero["headline"] = ""
+    team_name = signal["team_name"]
+    opponent = data.get("opponent", "")
+    short = team_name.split()[-1] if team_name else team_name
+    if len(short) < 4 and len(team_name.split()) > 1:
+        short = team_name
+    opp_short = opponent.split()[-1] if opponent else opponent
+    if len(opp_short) < 4 and len(opponent.split()) > 1:
+        opp_short = opponent
+
+    if sig_type == SIGNAL_GAME_LIVE:
+        hs = data.get("home_score", 0) or 0
+        aws = data.get("away_score", 0) or 0
+        diff = abs(hs - aws)
+        if diff == 0:
+            hero["headline"] = f"All tied up between {short} and {opp_short}"
+        elif diff <= 3:
+            hero["headline"] = f"Tight battle between {short} and {opp_short}"
+        else:
+            hero["headline"] = f"{short} and {opp_short} going at it"
+    elif streak and len(streak) >= 2:
+        try:
+            sc = int(streak[1:])
+            st = streak[0]
+            if st == 'W' and sc >= 5:
+                hero["headline"] = f"{short} riding a hot streak into this one"
+            elif st == 'W' and sc >= 3:
+                hero["headline"] = f"{short} looking to keep the momentum going"
+            elif st == 'L' and sc >= 3:
+                hero["headline"] = f"{short} looking to snap a {sc}-game skid"
+        except ValueError:
+            pass
+    if not hero["headline"] and opponent:
+        hero["headline"] = f"{short} take on {opp_short}"
+
     # Pitcher for baseball
     if data.get("is_home") and data.get("home_pitcher"):
         hero["pitcher"] = data["home_pitcher"]

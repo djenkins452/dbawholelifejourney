@@ -147,6 +147,7 @@ NON_TIME_INTENTS = {
     'check_budget',            # Read-only query
     'email_medicine_list',     # Sends email, no date/time component
     'generate_report',         # Generates report, no recorded_at
+    'query_event_history',     # Read-only event query, no recorded_at
 }
 
 

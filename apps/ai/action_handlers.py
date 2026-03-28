@@ -6374,3 +6374,160 @@ class ActionHandler:
                 continue
 
         return None
+
+    # =================================================================
+    # Cross-Domain Event Queries (read-only)
+    # =================================================================
+
+    def handle_query_event_history(
+        self,
+        query_type: str = 'missed',
+        domain: str = 'all',
+        lookback_days: int = 7,
+        target_date: str = None,
+        **kwargs,
+    ) -> 'ActionResult':
+        """
+        Query event-level execution history across domains.
+
+        This handler connects the LLM intent classifier to the
+        deterministic Event Access Layer. The LLM classifies the
+        user's intent and extracts parameters; this handler queries
+        canonical domain models and returns factual data.
+
+        Args:
+            query_type: 'missed', 'timeline', 'slippage', or 'general'
+            domain: 'medication', 'routine', 'workout', or 'all'
+            lookback_days: How many days back to search (max 30)
+            target_date: Specific date for timeline queries
+        """
+        from datetime import date, timedelta
+        from apps.ai.intent_service import ActionResult
+        from apps.core.ai_events.resolver import EventResolver
+        from apps.core.ai_events.formatters import (
+            format_missed_events,
+            format_day_timeline,
+            format_slippage_trend,
+        )
+
+        try:
+            resolver = EventResolver()
+            lookback_days = min(max(lookback_days, 1), 30)
+            today = date.today()
+
+            if query_type == 'missed':
+                end = today
+                start = end - timedelta(days=lookback_days)
+
+                if domain and domain != 'all':
+                    events = resolver.get_missed_events(
+                        self.user, domain, start, end,
+                    )
+                    response = format_missed_events(events, domain=domain)
+                else:
+                    events = resolver.get_all_missed(self.user, start, end)
+                    response = format_missed_events(events)
+
+                # Stash events for follow-up continuity
+                from apps.ai.deterministic_router import _stash_resolved_events
+                _stash_resolved_events(events)
+
+                return ActionResult(
+                    success=True,
+                    message=response,
+                    action_type='query_event_history',
+                )
+
+            elif query_type == 'timeline':
+                # Resolve target date
+                resolved_date = self._resolve_target_date(target_date)
+                if resolved_date is None:
+                    resolved_date = today - timedelta(days=1)  # Default: yesterday
+
+                events = resolver.get_day_timeline(self.user, resolved_date)
+                response = format_day_timeline(events, resolved_date)
+
+                from apps.ai.deterministic_router import _stash_resolved_events
+                _stash_resolved_events(events)
+
+                return ActionResult(
+                    success=True,
+                    message=response,
+                    action_type='query_event_history',
+                )
+
+            elif query_type == 'slippage':
+                trend = resolver.get_routine_trend(
+                    self.user, lookback_days=lookback_days,
+                )
+                response = format_slippage_trend(trend)
+                return ActionResult(
+                    success=True,
+                    message=response,
+                    action_type='query_event_history',
+                )
+
+            else:
+                # General — default to missed across all domains
+                end = today
+                start = end - timedelta(days=lookback_days)
+                events = resolver.get_all_missed(self.user, start, end)
+                response = format_missed_events(events)
+
+                from apps.ai.deterministic_router import _stash_resolved_events
+                _stash_resolved_events(events)
+
+                return ActionResult(
+                    success=True,
+                    message=response,
+                    action_type='query_event_history',
+                )
+
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "query_event_history failed for user=%s: %s",
+                self.user.id, e, exc_info=True,
+            )
+            return ActionResult(
+                success=False,
+                message="I wasn't able to look up that information right now.",
+                error=str(e),
+                action_type='query_event_history',
+            )
+
+    def _resolve_target_date(self, target_date_str):
+        """Resolve a target date string to a date object."""
+        from datetime import date, timedelta
+
+        if not target_date_str:
+            return None
+
+        target_lower = target_date_str.lower().strip()
+        today = date.today()
+
+        if target_lower == 'today':
+            return today
+        if target_lower == 'yesterday':
+            return today - timedelta(days=1)
+
+        # Day name matching
+        _DAYS = {
+            'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
+            'friday': 4, 'saturday': 5, 'sunday': 6,
+        }
+        if target_lower in _DAYS:
+            day_num = _DAYS[target_lower]
+            days_back = (today.weekday() - day_num) % 7
+            if days_back == 0:
+                days_back = 7
+            return today - timedelta(days=days_back)
+
+        # ISO date format
+        try:
+            return date.fromisoformat(target_date_str)
+        except (ValueError, TypeError):
+            pass
+
+        return None

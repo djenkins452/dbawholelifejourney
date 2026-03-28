@@ -6,9 +6,10 @@
 {% block extra_css %}
 <style>
     /* ═══════════════════════════════════════════════════════════════
-       SPORTS HUB v3 — Alive & Focused
-       Hero → Live Now → Ticker → What's Next → Momentum →
+       SPORTS HUB v4 — Live Energy + Visual Hierarchy
+       Hero → Live Strip → Ticker → Up Next → Momentum →
        Storylines → More Games
+       Auto-refresh every 60s. Score flash on change.
        ═══════════════════════════════════════════════════════════════ */
 
     .sports-hub { max-width: 760px; margin: 0 auto; padding: 0 0 48px; }
@@ -18,117 +19,192 @@
         margin: 0; padding: 32px 28px 28px;
         position: relative; overflow: hidden;
     }
-    .hero--live { background: linear-gradient(135deg, #1a0a0a 0%, #2d0f0f 40%, #1a1a2e 100%); border-bottom: 3px solid #ef4444; }
+    .hero--live {
+        background: linear-gradient(135deg, #1a0a0a 0%, #2d0f0f 40%, #1a1a2e 100%);
+        border-bottom: 3px solid #ef4444;
+    }
+    .hero--live::before {
+        content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        background: radial-gradient(ellipse at 20% 50%, rgba(239, 68, 68, 0.06) 0%, transparent 70%);
+        pointer-events: none;
+    }
     .hero--starting_soon { background: linear-gradient(135deg, #1a1000 0%, #2d2000 40%, #1a1a2e 100%); border-bottom: 3px solid #f59e0b; }
     .hero--today { background: linear-gradient(135deg, #0f1a2e 0%, #162040 40%, #1a1a2e 100%); border-bottom: 3px solid #6366f1; }
     .hero--upcoming { background: linear-gradient(135deg, #111827 0%, #1f2937 100%); border-bottom: 2px solid rgba(99, 102, 241, 0.3); }
     .hero--final { background: linear-gradient(135deg, #111827 0%, #1f2937 100%); border-bottom: 2px solid rgba(255, 255, 255, 0.08); }
 
-    .hero-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .hero-badge { font-size: 0.65rem; font-weight: 800; padding: 4px 10px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.06em; display: inline-flex; align-items: center; gap: 5px; }
-    .hero-badge--live { background: #ef4444; color: white; }
+    .hero-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .hero-badge {
+        font-size: 0.65rem; font-weight: 800; padding: 4px 10px; border-radius: 4px;
+        text-transform: uppercase; letter-spacing: 0.06em;
+        display: inline-flex; align-items: center; gap: 6px;
+    }
+    .hero-badge--live { background: #ef4444; color: white; animation: badge-pulse 2s ease-in-out infinite; }
     .hero-badge--starting_soon { background: #f59e0b; color: #1a1a2e; }
     .hero-badge--today { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; }
     .hero-badge--upcoming { background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.4); }
     .hero-badge--final { background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.3); }
 
+    @keyframes badge-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+
+    .hero-context-tag {
+        font-size: 0.6rem; font-weight: 800; padding: 3px 8px; border-radius: 3px;
+        text-transform: uppercase; letter-spacing: 0.05em;
+        background: rgba(245, 158, 11, 0.15); color: #fbbf24;
+        margin-left: 8px;
+    }
     .hero-league { font-size: 0.65rem; color: rgba(255, 255, 255, 0.3); font-weight: 700; text-transform: uppercase; }
 
     .hero-matchup { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-    .hero-logo { width: 36px; height: 36px; object-fit: contain; }
-    .hero-team { font-size: 2.2rem; font-weight: 900; color: white; line-height: 1.1; letter-spacing: -0.03em; }
-    .hero-vs { font-size: 0.8rem; font-weight: 600; color: rgba(255, 255, 255, 0.2); text-transform: uppercase; }
-    .hero-score { font-size: 3.4rem; font-weight: 900; color: white; letter-spacing: -2px; margin-top: 12px; line-height: 1; }
-    .hero-time { font-size: 1.7rem; font-weight: 800; color: rgba(255, 255, 255, 0.8); margin-top: 14px; letter-spacing: -0.5px; }
-    .hero-insight { font-size: 0.75rem; color: rgba(165, 180, 252, 0.7); margin-top: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
-    .hero-meta { display: flex; gap: 12px; margin-top: 8px; font-size: 0.7rem; color: rgba(255, 255, 255, 0.25); }
+    .hero-logo { width: 40px; height: 40px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+    .hero-team { font-size: 2rem; font-weight: 900; color: white; line-height: 1.1; letter-spacing: -0.03em; }
+    .hero-vs { font-size: 0.75rem; font-weight: 600; color: rgba(255, 255, 255, 0.15); text-transform: uppercase; }
+
+    .hero-score {
+        font-size: 3.6rem; font-weight: 900; color: white;
+        letter-spacing: -2px; margin-top: 14px; line-height: 1;
+        font-variant-numeric: tabular-nums;
+    }
+    .hero-score--flash { animation: score-flash 0.6s ease-out; }
+    @keyframes score-flash {
+        0% { color: #fbbf24; text-shadow: 0 0 20px rgba(251, 191, 36, 0.4); }
+        100% { color: white; text-shadow: none; }
+    }
+
+    .hero-time {
+        font-size: 1.8rem; font-weight: 800; color: rgba(255, 255, 255, 0.85);
+        margin-top: 14px; letter-spacing: -0.5px;
+    }
+    .hero-countdown { font-size: 0.7rem; color: rgba(255, 255, 255, 0.35); margin-top: 4px; font-weight: 600; }
+
+    .hero-insight {
+        font-size: 0.78rem; margin-top: 14px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .hero-insight--significance { color: #fbbf24; }
+    .hero-insight--streak { color: rgba(165, 180, 252, 0.7); }
+    .hero-insight--status { color: rgba(255, 255, 255, 0.4); }
+
+    .hero-meta { display: flex; gap: 14px; margin-top: 8px; font-size: 0.7rem; color: rgba(255, 255, 255, 0.25); }
     .streak--W { color: #22c55e; }
     .streak--L { color: #ef4444; }
 
+    /* ── LIVE DOT ── */
+    .live-dot {
+        display: inline-block; width: 7px; height: 7px;
+        background: #ef4444; border-radius: 50%;
+        animation: pulse-live 1.5s infinite;
+    }
+    @keyframes pulse-live { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 50% { opacity: 0.4; box-shadow: 0 0 0 4px rgba(239,68,68,0); } }
+
     /* ── LIVE NOW STRIP ── */
-    .live-strip { background: rgba(239, 68, 68, 0.04); border-bottom: 1px solid rgba(239, 68, 68, 0.1); padding: 10px 16px; display: flex; gap: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .live-strip {
+        background: rgba(239, 68, 68, 0.03); padding: 10px 16px;
+        display: flex; gap: 10px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+        border-bottom: 1px solid rgba(239, 68, 68, 0.08);
+    }
     .live-strip::-webkit-scrollbar { display: none; }
     .live-card {
         flex-shrink: 0; display: flex; align-items: center; gap: 10px;
         padding: 10px 14px; border-radius: 8px;
-        background: var(--color-surface); border: 1px solid rgba(239, 68, 68, 0.15);
-        min-width: 220px;
+        background: var(--color-surface);
+        border: 1px solid rgba(239, 68, 68, 0.12);
+        min-width: 230px; transition: border-color 0.3s;
     }
-    .live-dot { display: inline-block; width: 6px; height: 6px; background: #ef4444; border-radius: 50%; animation: pulse-live 1.5s infinite; flex-shrink: 0; }
-    .live-card-logo { width: 20px; height: 20px; object-fit: contain; }
+    .live-card:hover { border-color: rgba(239, 68, 68, 0.3); }
+    .live-card-logo { width: 22px; height: 22px; object-fit: contain; }
     .live-card-info { flex: 1; min-width: 0; }
     .live-card-teams { font-size: 0.8rem; font-weight: 700; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .live-card-score { font-size: 0.95rem; font-weight: 800; color: var(--color-text); }
-    .live-card-league { font-size: 0.55rem; font-weight: 700; color: var(--color-text-muted); }
-
-    @keyframes pulse-live { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .live-card-detail { font-size: 0.6rem; font-weight: 600; color: var(--color-text-muted); margin-top: 1px; }
+    .live-card-score { font-size: 1rem; font-weight: 800; color: var(--color-text); font-variant-numeric: tabular-nums; }
 
     /* ── SMART TICKER ── */
     .smart-ticker {
-        background: #0f172a; padding: 0; height: 34px;
+        background: #0f172a; padding: 0; height: 36px;
         overflow: hidden; position: relative;
         border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     }
     .ticker-track {
-        display: flex; height: 100%; align-items: center;
-        transition: transform 0.6s ease-in-out;
+        display: flex; flex-direction: column; height: 100%;
+        transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .ticker-item {
-        flex-shrink: 0; width: 100%; height: 100%;
+        flex-shrink: 0; width: 100%; height: 36px;
         display: flex; align-items: center; justify-content: center; gap: 8px;
-        font-size: 0.72rem; color: rgba(255, 255, 255, 0.6); padding: 0 16px;
+        font-size: 0.72rem; color: rgba(255, 255, 255, 0.55); padding: 0 16px;
         white-space: nowrap;
     }
-    .ticker-type { font-size: 0.55rem; font-weight: 800; padding: 2px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .ticker-type {
+        font-size: 0.5rem; font-weight: 800; padding: 2px 6px; border-radius: 3px;
+        text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0;
+    }
     .ticker-type--live { background: #dc2626; color: white; }
-    .ticker-type--final { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.4); }
-    .ticker-type--storyline { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; }
+    .ticker-type--final { background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.35); }
+    .ticker-type--storyline { background: rgba(99, 102, 241, 0.12); color: #818cf8; }
+    .ticker-type--soon { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
 
     /* ── SECTIONS ── */
-    .hub-section { padding: 0 16px; margin-top: 24px; }
-    .section-label { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--color-text-muted); margin-bottom: 10px; }
-
-    /* ── WHAT'S NEXT ── */
-    .next-row {
-        display: flex; align-items: center; gap: 10px;
-        padding: 12px 14px; border-radius: 8px;
-        background: var(--color-surface); border: 1px solid var(--color-border);
-        margin-bottom: 6px;
+    .hub-section { padding: 0 16px; margin-top: 28px; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .section-label {
+        font-size: 0.62rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: 0.12em; color: var(--color-text-muted);
     }
-    .next-logo { width: 24px; height: 24px; object-fit: contain; flex-shrink: 0; }
+    .section-count {
+        font-size: 0.55rem; font-weight: 700; color: var(--color-text-muted);
+        background: var(--color-surface); padding: 2px 8px; border-radius: 10px;
+    }
+
+    /* ── UP NEXT ── */
+    .next-row {
+        display: flex; align-items: center; gap: 12px;
+        padding: 14px 16px; border-radius: 10px;
+        background: var(--color-surface); border: 1px solid var(--color-border);
+        margin-bottom: 8px; transition: border-color 0.2s;
+    }
+    .next-row:hover { border-color: rgba(99, 102, 241, 0.2); }
+    .next-logo { width: 28px; height: 28px; object-fit: contain; flex-shrink: 0; }
     .next-main { flex: 1; min-width: 0; }
-    .next-teams { font-size: 0.88rem; font-weight: 700; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .next-context { font-size: 0.7rem; color: var(--color-text-muted); margin-top: 2px; }
+    .next-teams { font-size: 0.9rem; font-weight: 700; color: var(--color-text); }
+    .next-context {
+        font-size: 0.7rem; margin-top: 3px; font-weight: 600;
+    }
+    .next-context--significance { color: #f59e0b; }
     .next-context--hot { color: #22c55e; }
     .next-context--cold { color: #ef4444; }
+    .next-context--default { color: var(--color-text-muted); }
     .next-right { text-align: right; flex-shrink: 0; }
-    .next-time { font-size: 0.82rem; font-weight: 700; color: var(--color-text); }
-    .next-badge { font-size: 0.55rem; font-weight: 800; padding: 2px 7px; border-radius: 3px; text-transform: uppercase; display: inline-block; margin-top: 2px; }
+    .next-time { font-size: 0.85rem; font-weight: 700; color: var(--color-text); }
+    .next-badge {
+        font-size: 0.5rem; font-weight: 800; padding: 2px 7px; border-radius: 3px;
+        text-transform: uppercase; display: inline-block; margin-top: 3px;
+    }
     .next-badge--starting_soon { background: #f59e0b; color: #1a1a2e; }
-    .next-badge--today { background: rgba(99, 102, 241, 0.15); color: #6366f1; }
+    .next-badge--today { background: rgba(99, 102, 241, 0.12); color: #6366f1; }
+    .next-badge--upcoming { background: rgba(255, 255, 255, 0.04); color: var(--color-text-muted); }
 
     /* ── MOMENTUM ── */
     .momentum-row {
         display: flex; align-items: center; justify-content: space-between;
-        padding: 10px 14px; border-radius: 6px; margin-bottom: 4px;
+        padding: 11px 16px; border-radius: 8px; margin-bottom: 4px;
         background: var(--color-surface);
     }
     .momentum-team { font-size: 0.88rem; font-weight: 700; color: var(--color-text); }
     .momentum-right { display: flex; align-items: center; gap: 10px; }
-    .momentum-streak { font-size: 0.88rem; font-weight: 800; }
+    .momentum-streak { font-size: 0.88rem; font-weight: 800; font-variant-numeric: tabular-nums; }
     .momentum-streak--hot { color: #22c55e; }
     .momentum-streak--cold { color: #ef4444; }
-    .momentum-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
-    .momentum-label--hot { color: rgba(34, 197, 94, 0.6); }
-    .momentum-label--cold { color: rgba(239, 68, 68, 0.6); }
+    .momentum-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    .momentum-label--hot { color: rgba(34, 197, 94, 0.5); }
+    .momentum-label--cold { color: rgba(239, 68, 68, 0.5); }
 
     /* ── STORYLINES ── */
     .storyline-item {
         display: flex; align-items: flex-start; gap: 10px;
         padding: 8px 0; font-size: 0.82rem; color: var(--color-text-muted);
-        line-height: 1.4;
+        line-height: 1.45;
     }
-    .storyline-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
+    .storyline-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 7px; }
     .storyline-dot--streak { background: #22c55e; }
     .storyline-dot--live { background: #ef4444; animation: pulse-live 1.5s infinite; }
     .storyline-dot--blowout { background: #f59e0b; }
@@ -137,18 +213,22 @@
     /* ── MORE GAMES ── */
     .more-row {
         display: flex; align-items: center; gap: 8px;
-        padding: 8px 12px; font-size: 0.8rem;
+        padding: 9px 14px; font-size: 0.8rem;
         border-bottom: 1px solid var(--color-border);
     }
     .more-row:last-child { border-bottom: 0; }
     .more-logo { width: 18px; height: 18px; object-fit: contain; flex-shrink: 0; }
     .more-teams { flex: 1; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .more-time { font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); flex-shrink: 0; }
-    .more-league { font-size: 0.55rem; font-weight: 700; color: var(--color-text-muted); flex-shrink: 0; min-width: 28px; text-align: right; }
+    .more-league { font-size: 0.5rem; font-weight: 700; color: var(--color-text-muted); flex-shrink: 0; min-width: 28px; text-align: right; text-transform: uppercase; }
 
     /* ── FOOTER ── */
-    .hub-footer { text-align: center; padding: 28px 16px 0; }
-    .manage-link { font-size: 0.75rem; color: var(--color-text-muted); text-decoration: none; padding: 8px 20px; border: 1px solid var(--color-border); border-radius: 20px; transition: all 0.15s; }
+    .hub-footer { text-align: center; padding: 32px 16px 0; }
+    .manage-link {
+        font-size: 0.75rem; color: var(--color-text-muted); text-decoration: none;
+        padding: 8px 22px; border: 1px solid var(--color-border); border-radius: 20px;
+        transition: all 0.15s;
+    }
     .manage-link:hover { background: var(--color-surface); color: var(--color-text); }
 
     /* ── EMPTY / QUIET ── */
@@ -157,25 +237,35 @@
     .empty-state h2 { font-size: 1.1rem; font-weight: 700; color: var(--color-text); margin: 0 0 8px; }
     .empty-state p { font-size: 0.85rem; margin-bottom: 24px; max-width: 320px; margin-left: auto; margin-right: auto; }
     .btn-select { display: inline-block; padding: 12px 28px; background: var(--color-accent); color: white; border-radius: 24px; text-decoration: none; font-weight: 700; font-size: 0.85rem; }
-    .no-activity { text-align: center; padding: 32px 16px; color: var(--color-text-muted); font-size: 0.85rem; }
+    .no-activity { text-align: center; padding: 48px 16px; color: var(--color-text-muted); font-size: 0.85rem; }
+
+    /* ── REFRESH INDICATOR ── */
+    .refresh-dot {
+        position: fixed; bottom: 16px; right: 16px; width: 8px; height: 8px;
+        border-radius: 50%; background: #22c55e; opacity: 0;
+        transition: opacity 0.3s;
+    }
+    .refresh-dot--active { opacity: 1; animation: pulse-live 1s ease-out 1; }
 
     /* ── RESPONSIVE ── */
     @media (max-width: 480px) {
         .hero { padding: 20px 16px 20px; }
-        .hero-team { font-size: 1.5rem; }
-        .hero-score { font-size: 2.6rem; }
+        .hero-team { font-size: 1.4rem; }
+        .hero-score { font-size: 2.8rem; }
         .hero-time { font-size: 1.3rem; }
-        .hero-logo { width: 28px; height: 28px; }
+        .hero-logo { width: 30px; height: 30px; }
         .hero-matchup { gap: 8px; }
-        .hub-section { padding: 0 12px; margin-top: 20px; }
+        .hub-section { padding: 0 12px; margin-top: 22px; }
         .live-strip { padding: 8px 12px; gap: 8px; }
-        .live-card { min-width: 190px; padding: 8px 10px; }
+        .live-card { min-width: 200px; padding: 8px 10px; }
+        .next-row { padding: 12px 12px; }
+        .next-logo { width: 24px; height: 24px; }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="sports-hub" data-testid="sports-hub">
+<div class="sports-hub" data-testid="sports-hub" id="sports-hub">
 
     {% if not has_teams %}
     <div class="empty-state">
@@ -190,18 +280,20 @@
 
     {% else %}
 
-    {# ═══ 1. HERO — single most important game ═══ #}
+    {# ═══ 1. HERO — highest importance game ═══ #}
     {% if hero %}
     <div class="hero hero--{{ hero.urgency }}">
         <div class="hero-top">
-            <div class="hero-badge hero-badge--{{ hero.urgency }}">
-                {% if hero.urgency == "live" %}
-                    <svg width="7" height="7" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="4"/></svg>
-                    LIVE
-                {% elif hero.urgency == "starting_soon" %}STARTING SOON
-                {% elif hero.urgency == "today" %}TODAY
-                {% elif hero.urgency == "final" %}FINAL
-                {% else %}NEXT{% endif %}
+            <div>
+                <span class="hero-badge hero-badge--{{ hero.urgency }}">
+                    {% if hero.urgency == "live" %}
+                        <span class="live-dot"></span> LIVE
+                    {% elif hero.urgency == "starting_soon" %}STARTING SOON
+                    {% elif hero.urgency == "today" %}TODAY
+                    {% elif hero.urgency == "final" %}FINAL
+                    {% else %}UPCOMING{% endif %}
+                </span>
+                {% if hero.game_note %}<span class="hero-context-tag">{{ hero.insight }}</span>{% endif %}
             </div>
             <span class="hero-league">{{ hero.league }}</span>
         </div>
@@ -215,12 +307,17 @@
         </div>
 
         {% if hero.score %}
-            <div class="hero-score">{{ hero.score }}</div>
+            <div class="hero-score" id="hero-score" data-score="{{ hero.score }}">{{ hero.score }}</div>
         {% elif hero.start_time %}
             <div class="hero-time" data-start-time="{{ hero.start_time }}"></div>
+            <div class="hero-countdown" data-countdown="{{ hero.start_time }}"></div>
         {% endif %}
 
-        {% if hero.insight %}<div class="hero-insight">{{ hero.insight }}</div>{% endif %}
+        {% if hero.insight and not hero.game_note %}
+        <div class="hero-insight {% if hero.urgency == 'live' %}hero-insight--status{% elif 'streak' in hero.insight or 'win' in hero.insight or 'loss' in hero.insight %}hero-insight--streak{% else %}hero-insight--status{% endif %}">
+            {{ hero.insight }}
+        </div>
+        {% endif %}
 
         {% if hero.record or hero.streak or hero.pitcher %}
         <div class="hero-meta">
@@ -232,7 +329,7 @@
     </div>
     {% endif %}
 
-    {# ═══ 2. LIVE NOW STRIP — all live games ═══ #}
+    {# ═══ 2. LIVE NOW STRIP ═══ #}
     {% if live_now %}
     <div class="live-strip">
         {% for g in live_now %}
@@ -241,7 +338,7 @@
             {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="live-card-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
             <div class="live-card-info">
                 <div class="live-card-teams">{{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}</div>
-                <span class="live-card-league">{{ g.league }}</span>
+                <div class="live-card-detail">{{ g.league }}</div>
             </div>
             <div class="live-card-score">{{ g.score }}</div>
         </div>
@@ -249,14 +346,14 @@
     </div>
     {% endif %}
 
-    {# ═══ 3. SMART TICKER — slow, meaningful updates ═══ #}
+    {# ═══ 3. SMART TICKER ═══ #}
     {% if ticker %}
-    <div class="smart-ticker" data-ticker-pause-on-hover="true">
+    <div class="smart-ticker" id="smart-ticker">
         <div class="ticker-track" id="ticker-track">
             {% for t in ticker %}
             <div class="ticker-item">
                 <span class="ticker-type ticker-type--{{ t.type }}">
-                    {% if t.type == "live" %}LIVE{% elif t.type == "final" %}FINAL{% else %}NEWS{% endif %}
+                    {% if t.type == "live" %}LIVE{% elif t.type == "final" %}FINAL{% elif t.type == "soon" %}SOON{% else %}NEWS{% endif %}
                 </span>
                 <span>{{ t.text }}</span>
             </div>
@@ -265,36 +362,44 @@
     </div>
     {% endif %}
 
-    {# ═══ 4. WHAT'S NEXT — max 3 upcoming with context ═══ #}
+    {# ═══ 4. UP NEXT FOR YOU ═══ #}
     {% if whats_next %}
     <div class="hub-section">
-        <div class="section-label">What's Next</div>
+        <div class="section-header">
+            <span class="section-label">Up Next for You</span>
+        </div>
         {% for g in whats_next %}
         <div class="next-row">
             {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="next-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
             <div class="next-main">
                 <div class="next-teams">
-                    {{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} <strong>{{ g.opponent }}</strong>
+                    {{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}
                 </div>
-                {% if g.context %}<div class="next-context{% if 'win' in g.context or 'Won' in g.context %} next-context--hot{% elif 'loss' in g.context or 'Lost' in g.context %} next-context--cold{% endif %}">{{ g.context }}</div>{% endif %}
+                {% if g.context %}
+                <div class="next-context {% if 'Sweet' in g.context or 'Tournament' in g.context or 'Playoff' in g.context or 'Elite' in g.context or 'Final' in g.context %}next-context--significance{% elif 'win' in g.context or 'Won' in g.context or 'straight' in g.context %}next-context--hot{% elif 'loss' in g.context or 'Lost' in g.context or 'bounce' in g.context %}next-context--cold{% else %}next-context--default{% endif %}">
+                    {{ g.context }}
+                </div>
+                {% endif %}
             </div>
             <div class="next-right">
                 <div class="next-time" data-start-time="{{ g.start_time }}"></div>
-                {% if g.urgency == "starting_soon" %}
-                    <span class="next-badge next-badge--starting_soon">SOON</span>
-                {% elif g.urgency == "today" %}
-                    <span class="next-badge next-badge--today">TODAY</span>
-                {% endif %}
+                <span class="next-badge next-badge--{{ g.urgency }}">
+                    {% if g.urgency == "starting_soon" %}SOON
+                    {% elif g.urgency == "today" %}TODAY
+                    {% else %}UPCOMING{% endif %}
+                </span>
             </div>
         </div>
         {% endfor %}
     </div>
     {% endif %}
 
-    {# ═══ 5. MOMENTUM — meaningful streaks with interpretation ═══ #}
+    {# ═══ 5. MOMENTUM ═══ #}
     {% if momentum %}
     <div class="hub-section">
-        <div class="section-label">Momentum</div>
+        <div class="section-header">
+            <span class="section-label">Momentum</span>
+        </div>
         {% for m in momentum %}
         <div class="momentum-row">
             <span class="momentum-team">{{ m.team_name }}</span>
@@ -302,7 +407,6 @@
                 <span class="momentum-label momentum-label--{{ m.heat }}">{{ m.label }}</span>
                 <span class="momentum-streak momentum-streak--{{ m.heat }}">
                     {{ m.streak_type }}{{ m.streak_count }}
-                    {% if m.heat == "hot" %}&#128293;{% else %}&#10060;{% endif %}
                 </span>
             </div>
         </div>
@@ -313,7 +417,9 @@
     {# ═══ 6. KEY STORYLINES ═══ #}
     {% if storylines %}
     <div class="hub-section">
-        <div class="section-label">Key Storylines</div>
+        <div class="section-header">
+            <span class="section-label">Storylines</span>
+        </div>
         {% for s in storylines %}
         <div class="storyline-item">
             <span class="storyline-dot storyline-dot--{{ s.type }}"></span>
@@ -323,10 +429,13 @@
     </div>
     {% endif %}
 
-    {# ═══ 7. MORE GAMES — controlled depth ═══ #}
+    {# ═══ 7. MORE GAMES — only if unique content exists ═══ #}
     {% if more_games %}
     <div class="hub-section">
-        <div class="section-label">More Games</div>
+        <div class="section-header">
+            <span class="section-label">More Games</span>
+            <span class="section-count">{{ more_games|length }}</span>
+        </div>
         {% for g in more_games %}
         <div class="more-row">
             {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="more-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
@@ -351,55 +460,146 @@
     {% endif %}{# end has_teams #}
 </div>
 
-{# ═══ JAVASCRIPT: Time formatting + Smart Ticker ═══ #}
-<script nonce="{{ csp_nonce }}">
-document.addEventListener('DOMContentLoaded', function() {
-    // ── Format all ISO timestamps to local time ──
-    document.querySelectorAll('[data-start-time]').forEach(function(el) {
-        var iso = el.getAttribute('data-start-time');
-        if (!iso) return;
-        try {
-            var d = new Date(iso);
-            if (isNaN(d.getTime())) return;
-            var now = new Date();
-            var isToday = d.toDateString() === now.toDateString();
-            var tomorrow = new Date(now);
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            var isTomorrow = d.toDateString() === tomorrow.toDateString();
-            var options = { hour: 'numeric', minute: '2-digit' };
-            if (isTomorrow) {
-                el.textContent = 'Tomorrow ' + d.toLocaleTimeString([], options);
-            } else if (!isToday) {
-                options.weekday = 'short';
-                el.textContent = d.toLocaleTimeString([], options);
-            } else {
-                el.textContent = d.toLocaleTimeString([], options);
-            }
-        } catch(e) {}
-    });
+{# Refresh indicator #}
+<div class="refresh-dot" id="refresh-dot"></div>
 
-    // ── Smart Ticker: one item every 3.5 seconds, pause on hover ──
-    var track = document.getElementById('ticker-track');
-    if (track && track.children.length > 1) {
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+
+    // ── Format all ISO timestamps to local time ──
+    function formatTimes() {
+        document.querySelectorAll('[data-start-time]').forEach(function(el) {
+            var iso = el.getAttribute('data-start-time');
+            if (!iso) return;
+            try {
+                var d = new Date(iso);
+                if (isNaN(d.getTime())) return;
+                var now = new Date();
+                var isToday = d.toDateString() === now.toDateString();
+                var tomorrow = new Date(now);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                var isTomorrow = d.toDateString() === tomorrow.toDateString();
+                var opts = { hour: 'numeric', minute: '2-digit' };
+                if (isTomorrow) {
+                    el.textContent = 'Tom ' + d.toLocaleTimeString([], opts);
+                } else if (!isToday) {
+                    opts.weekday = 'short';
+                    el.textContent = d.toLocaleTimeString([], opts);
+                } else {
+                    el.textContent = d.toLocaleTimeString([], opts);
+                }
+            } catch(e) {}
+        });
+    }
+
+    // ── Countdown: "in 2h 15m" ──
+    function updateCountdowns() {
+        document.querySelectorAll('[data-countdown]').forEach(function(el) {
+            var iso = el.getAttribute('data-countdown');
+            if (!iso) return;
+            try {
+                var d = new Date(iso);
+                var now = new Date();
+                var diff = d - now;
+                if (diff <= 0) {
+                    el.textContent = '';
+                    return;
+                }
+                var hours = Math.floor(diff / 3600000);
+                var mins = Math.floor((diff % 3600000) / 60000);
+                if (hours > 24) {
+                    var days = Math.floor(hours / 24);
+                    el.textContent = 'in ' + days + 'd ' + (hours % 24) + 'h';
+                } else if (hours > 0) {
+                    el.textContent = 'in ' + hours + 'h ' + mins + 'm';
+                } else {
+                    el.textContent = 'in ' + mins + 'm';
+                }
+            } catch(e) {}
+        });
+    }
+
+    // ── Smart Ticker ──
+    function initTicker() {
+        var track = document.getElementById('ticker-track');
+        if (!track || track.children.length <= 1) return;
+
         var index = 0;
         var count = track.children.length;
         var paused = false;
+        var itemH = 36;
 
-        // Set initial position
-        track.style.transform = 'translateY(0)';
-
-        var ticker = track.closest('.smart-ticker');
+        var ticker = document.getElementById('smart-ticker');
         if (ticker) {
             ticker.addEventListener('mouseenter', function() { paused = true; });
             ticker.addEventListener('mouseleave', function() { paused = false; });
+            // Touch: pause while touching
+            ticker.addEventListener('touchstart', function() { paused = true; }, {passive: true});
+            ticker.addEventListener('touchend', function() { paused = false; }, {passive: true});
         }
 
         setInterval(function() {
             if (paused) return;
             index = (index + 1) % count;
-            track.style.transform = 'translateY(-' + (index * 34) + 'px)';
+            track.style.transform = 'translateY(-' + (index * itemH) + 'px)';
         }, 3500);
     }
-});
+
+    // ── Auto-refresh: reload page every 60s (lightweight) ──
+    function initAutoRefresh() {
+        var hasLive = document.querySelector('.hero--live') || document.querySelector('.live-strip');
+        var interval = hasLive ? 30000 : 60000; // 30s if live, 60s otherwise
+
+        setInterval(function() {
+            // Soft reload via fetch + replace
+            fetch(window.location.href, { headers: { 'X-Requested-With': 'SportsRefresh' } })
+                .then(function(r) { return r.text(); })
+                .then(function(html) {
+                    var parser = new DOMParser();
+                    var doc = parser.parseFromString(html, 'text/html');
+                    var newHub = doc.getElementById('sports-hub');
+                    var oldHub = document.getElementById('sports-hub');
+                    if (newHub && oldHub) {
+                        // Check for score changes before replacing
+                        var oldScore = oldHub.querySelector('#hero-score');
+                        var newScore = newHub.querySelector('#hero-score');
+
+                        oldHub.innerHTML = newHub.innerHTML;
+                        formatTimes();
+                        updateCountdowns();
+                        initTicker();
+
+                        // Flash score if changed
+                        if (oldScore && newScore && oldScore.dataset.score !== newScore.dataset.score) {
+                            var scoreEl = document.getElementById('hero-score');
+                            if (scoreEl) {
+                                scoreEl.classList.add('hero-score--flash');
+                                setTimeout(function() { scoreEl.classList.remove('hero-score--flash'); }, 600);
+                            }
+                        }
+
+                        // Pulse refresh dot
+                        var dot = document.getElementById('refresh-dot');
+                        if (dot) {
+                            dot.classList.add('refresh-dot--active');
+                            setTimeout(function() { dot.classList.remove('refresh-dot--active'); }, 1500);
+                        }
+                    }
+                })
+                .catch(function() {}); // Silent fail on network error
+        }, interval);
+    }
+
+    // ── Init ──
+    document.addEventListener('DOMContentLoaded', function() {
+        formatTimes();
+        updateCountdowns();
+        initTicker();
+        initAutoRefresh();
+        // Update countdown every minute
+        setInterval(updateCountdowns, 60000);
+    });
+})();
 </script>
 {% endblock %}

@@ -16,6 +16,24 @@
 
 ---
 
+## 2026-03-28 — Inline Completion for ALL Action Center Items
+
+**What:** Every Action Center item (tasks, medications, routines) now has a clickable inline completion toggle. Previously, task items like "Bank $3000" had no checkbox, and medication dose items were static (non-clickable). Now all items use a unified toggle_url-based pattern.
+
+**Root cause:** The execution contract (`today_execution.py`) set `toggle_url: ''` for tasks and medications. The state builder didn't pass `schedule_id` for medications. The template (`_action_item_v2.html`) used type-specific branching instead of a unified pattern.
+
+**Files Changed:**
+- `apps/core/ai_state/state_builder.py` — Added `medicine_id` and `schedule_id` to schedule_status_today entries
+- `apps/core/execution/today_execution.py` — Tasks and medications now get proper `toggle_url` via `reverse()` to their HTMX endpoints
+- `templates/dashboard_v2/partials/_action_item_v2.html` — Simplified to single pattern: if `toggle_url` exists → HTMX button; else → link/arrow
+
+**Why:** Dashboard Command Center rule: every item must be directly actionable without navigation. The unified `toggle_url` pattern eliminates type-specific branching and ensures consistent behavior.
+
+**Tests:** 104 dashboard_v2 + 158 state builder tests pass, no model changes, no migration required.
+
+
+---
+
 ## 2026-03-28 — Dashboard Redesign: Unified Action Center (Command Center)
 
 **What:** Major dashboard redesign — unified Action Center replaces separate routine/medicine/schedule cards. Grouped execution display with completion visibility, cockpit dial animations, clickable health metrics, and URL migration from /v2/ to /dashboard/.

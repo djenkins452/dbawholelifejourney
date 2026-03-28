@@ -14,13 +14,24 @@ from django.db import migrations
 
 
 def force_ncaab_sync(apps, schema_editor):
-    """Run NCAAB sync to populate tournament games."""
+    """Run NCAAB sync + invalidate sports state for all users."""
     try:
         from apps.sports.services.sync_service import sync_sports_data
         result = sync_sports_data(leagues=["ncaab"], days_ahead=2, days_back=2)
         print(f"  NCAAB sync: {result.get('games_upserted', 0)} upserted, "
               f"{result.get('games_updated', 0)} updated, "
               f"errors: {result.get('errors', [])}")
+
+        # Invalidate cached sports state so _contract rebuilds with game_type/game_note
+        UserState = apps.get_model('core', 'UserState')
+        from django.db.models import F
+        count = 0
+        for us in UserState.objects.all():
+            if us.state_data and 'sports' in us.state_data:
+                us.state_data.pop('sports', None)
+                us.save(update_fields=['state_data'])
+                count += 1
+        print(f"  Invalidated sports state for {count} users")
     except Exception as e:
         # Non-fatal: sync will happen on next Celery tick anyway
         print(f"  NCAAB sync failed (non-fatal): {e}")

@@ -300,6 +300,10 @@ def build_hero_context(hero):
             game_note, tournament_context, urgency
         )
 
+    # If no meaningful context was generated, return None
+    if not headline and not subheadline:
+        return None
+
     return {
         "headline": headline,
         "subheadline": subheadline,
@@ -357,14 +361,10 @@ def _build_context_upcoming(team, opponent, is_home, start_time, game_type,
                             game_note, tournament_context, urgency):
     """Build context for an UPCOMING/TODAY/STARTING_SOON game.
 
-    headline: matchup or tournament context
-    subheadline: time info
-    status: urgency label
+    For tournament/postseason: headline = round name, subheadline = time
+    For regular season: headline = time info only (matchup already shown in hero)
+    Never duplicate the matchup — it's already the largest element on the page.
     """
-    # Matchup line
-    prefix = "vs" if is_home else "@"
-    matchup = f"{team} {prefix} {opponent}"
-
     # Time line
     time_label = _format_context_time(start_time, urgency)
 
@@ -376,15 +376,18 @@ def _build_context_upcoming(team, opponent, is_home, start_time, game_type,
     }
     status = status_map.get(urgency)
 
+    # Tournament/postseason: headline = round context, subheadline = time
     if tournament_context:
-        return (tournament_context, matchup, time_label or status)
+        return (tournament_context, time_label, status)
 
     if game_type == 'postseason' and game_note:
         note_label = _extract_round_label_from_note(game_note)
         if note_label:
-            return (note_label, matchup, time_label or status)
+            return (note_label, time_label, status)
 
-    return (matchup, time_label, status)
+    # Regular season: no special context needed.
+    # Time and status already shown in hero itself — don't duplicate.
+    return (None, None, None)
 
 
 def _parse_lead_line(team, opponent, score_str):

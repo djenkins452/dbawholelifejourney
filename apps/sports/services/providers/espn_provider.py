@@ -360,6 +360,39 @@ class EspnSportsProvider(BaseSportsProvider):
                 )):
                     game_type = "postseason"
 
+        # Derive tournament round for NCAAB when ESPN doesn't provide notes
+        if game_type == "tournament" and not game_note:
+            league_slug = comp.get("type", {}).get("abbreviation", "")
+            # Check if this is a college basketball tournament game
+            # ESPN sets TRNMNT type but often omits notes/headline
+            start_date = event.get("date", "")
+            if start_date:
+                try:
+                    from datetime import datetime
+                    game_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+                    month = game_dt.month
+                    day = game_dt.day
+                    # NCAA March Madness approximate round dates
+                    # These shift by 1-2 days each year but are consistent enough
+                    if month == 3:
+                        if 13 <= day <= 17:
+                            game_note = "NCAA Tournament - First Round"
+                        elif 18 <= day <= 20:
+                            game_note = "NCAA Tournament - Second Round"
+                        elif 21 <= day <= 24:
+                            game_note = "NCAA Tournament - Round of 32"
+                        elif 25 <= day <= 29:
+                            game_note = "NCAA Tournament - Sweet 16"
+                        elif day >= 30:
+                            game_note = "NCAA Tournament - Elite Eight"
+                    elif month == 4:
+                        if day <= 6:
+                            game_note = "NCAA Tournament - Final Four"
+                        elif day <= 8:
+                            game_note = "NCAA Tournament - Championship"
+                except (ValueError, TypeError):
+                    pass
+
         # Fallback: league-level season type
         if game_type == "regular" and season_type_name:
             stn = season_type_name.lower()

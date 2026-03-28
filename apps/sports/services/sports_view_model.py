@@ -470,16 +470,29 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
         team = follow.team if follow else None
         hero = _build_hero(fs, team, streak_map, now)
 
-    # Live Now: live games except hero (max 5)
+    # ── DEDUP HELPER (signal fallback) ───────────────────────────────
     hero_team_id = hero_signal["team_id"] if scored_games else None
-    hero_game_id = hero_signal["game_id"] if scored_games else None
+    shown_keys_fb = set()
+
+    def _sig_key(sig):
+        """Composite dedup key: game_id if available, else team|opponent."""
+        gid = sig.get("game_id")
+        if gid:
+            return f"gid:{gid}"
+        d = sig.get("data", {})
+        return f"match:{sig.get('team_name', '')}|{d.get('opponent', '')}"
+
+    # Mark hero as shown
+    if scored_games:
+        shown_keys_fb.add(_sig_key(hero_signal))
+
+    # Live Now: live games except hero (max 5)
     live_now = []
-    live_seen = {hero_game_id} if hero_game_id else set()
     for s in live_signals:
-        gid = s["game_id"]
-        if gid in live_seen:
+        key = _sig_key(s)
+        if key in shown_keys_fb:
             continue
-        live_seen.add(gid)
+        shown_keys_fb.add(key)
         follow = team_map.get(s["team_id"])
         if follow:
             live_now.append({
@@ -496,39 +509,52 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
 
     # What's Next: top 3 non-hero, non-live games
     whats_next = []
-    next_seen = set()
     for _, s in scored_games:
         if s["team_id"] == hero_team_id:
             continue
         if s["signal_type"] == SIGNAL_GAME_LIVE:
             continue
-        gid = s["game_id"]
-        if gid in next_seen:
+        key = _sig_key(s)
+        if key in shown_keys_fb:
             continue
-        next_seen.add(gid)
+        shown_keys_fb.add(key)
         follow = team_map.get(s["team_id"])
         if follow:
             streak = streak_map.get(s["team_id"], "")
-            context = ""
-            if streak and len(streak) >= 2:
+            d = s["data"]
+            game_note = (d.get("game_note", "") or "").lower()
+            # Tournament context takes priority
+            if "sweet 16" in game_note:
+                context = "Sweet 16"
+            elif "elite eight" in game_note:
+                context = "Elite Eight"
+            elif "final four" in game_note:
+                context = "Final Four"
+            elif d.get("game_type") == "tournament":
+                context = "Tournament"
+            elif d.get("game_type") == "postseason":
+                context = "Playoffs"
+            elif streak and len(streak) >= 2:
                 try:
                     sc = int(streak[1:])
                     if streak[0] == 'W' and sc >= 3:
                         context = f"Won {sc} straight"
                     elif streak[0] == 'L' and sc >= 3:
                         context = f"Need a win after {sc} losses"
+                    else:
+                        context = follow.team.record_display or ""
                 except ValueError:
-                    pass
-            if not context:
+                    context = follow.team.record_display or ""
+            else:
                 context = follow.team.record_display or ""
             whats_next.append({
                 "team_name": s["team_name"],
                 "team_logo": follow.team.logo_url or "",
-                "opponent": s["data"].get("opponent", ""),
-                "is_home": s["data"].get("is_home", True),
-                "start_time": s["data"].get("start_time", ""),
+                "opponent": d.get("opponent", ""),
+                "is_home": d.get("is_home", True),
+                "start_time": d.get("start_time", ""),
                 "urgency": _signal_to_urgency(s["signal_type"]),
-                "league": s["data"].get("league", ""),
+                "league": d.get("league", ""),
                 "context": context,
             })
         if len(whats_next) >= 3:
@@ -593,17 +619,13 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
             "type": "final",
         })
 
-    # More games: remaining scored games not shown
-    shown_ids = {hero_game_id} if hero_game_id else set()
-    shown_ids.update(s["game_id"] for s in live_signals if s["game_id"] in live_seen)
-    shown_ids.update(next_seen)
-    shown_ids.discard(None)
+    # More games: remaining scored games not shown (uses same composite dedup)
     more_games = []
     for _, s in scored_games:
-        gid = s["game_id"]
-        if gid in shown_ids:
+        key = _sig_key(s)
+        if key in shown_keys_fb:
             continue
-        shown_ids.add(gid)
+        shown_keys_fb.add(key)
         if s["signal_type"] == SIGNAL_GAME_LIVE:
             continue
         follow = team_map.get(s["team_id"])
@@ -754,6 +776,18 @@ def _build_hero(signal, team, streak_map, now):
         else:
             hero["score"] = f"{aws} – {hs}"
 
+    # Game significance (signal fallback path)
+    game_type = data.get("game_type", "regular")
+    game_note = data.get("game_note", "")
+    if game_note:
+        parts = game_note.split(" - ")
+        hero["insight"] = parts[-1] if parts else game_note
+        hero["game_note"] = game_note
+    elif game_type == 'tournament':
+        hero["insight"] = "Tournament"
+    elif game_type == 'postseason':
+        hero["insight"] = "Playoffs"
+
     # Headline (signal fallback path)
     hero["headline"] = ""
     team_name = signal["team_name"]
@@ -765,7 +799,24 @@ def _build_hero(signal, team, streak_map, now):
     if len(opp_short) < 4 and len(opponent.split()) > 1:
         opp_short = opponent
 
-    if sig_type == SIGNAL_GAME_LIVE:
+    # Tournament headlines take priority
+    if game_note:
+        note_lower = game_note.lower()
+        round_name = ""
+        for key in ("sweet 16", "elite eight", "final four", "championship",
+                     "round of 32", "round of 64", "first round", "second round"):
+            if key in note_lower:
+                round_name = key.title()
+                break
+        if round_name:
+            next_round = _NEXT_ROUND.get(round_name.lower(), "")
+            if sig_type == SIGNAL_GAME_LIVE:
+                hero["headline"] = f"{round_name} — {short} fighting for a spot in {next_round}" if next_round else f"{round_name} — {short} vs {opp_short}"
+            else:
+                hero["headline"] = f"{round_name} matchup — {short} takes on {opp_short}"
+        else:
+            hero["headline"] = f"{short} take on {opp_short}"
+    elif sig_type == SIGNAL_GAME_LIVE:
         hs = data.get("home_score", 0) or 0
         aws = data.get("away_score", 0) or 0
         diff = abs(hs - aws)

@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-27 — Sports: Tournament Round Detection + Signal Path Fixes
+
+- **Tournament Context:** ESPN's NCAAB API returns `TRNMNT` type but empty `notes`. Added date-based tournament round derivation — March 25-29 → "Sweet 16", March 30+ → "Elite Eight", etc. Games now have `game_note="NCAA Tournament - Sweet 16"`.
+- **Signal Fallback Dedup Fix:** Replaced game_id-only dedup (fails when None) with composite key `gid:{id}` or `match:{team}|{opponent}`. Eliminates duplicate games in More Games section.
+- **Signal Fallback Headlines:** Tournament-aware headlines on signal path. Also added `game_note`/`game_type` context and tournament-aware What's Next context lines.
+- **Files:** `apps/sports/services/providers/espn_provider.py`, `apps/sports/services/sports_view_model.py`
+
 ## 2026-03-27 — Fix: ESPN Team Linking Pagination + NCAAB Games
 
 - **Root Cause:** ESPN `/teams` endpoint defaults to 50 results. For NCAAB (362 teams), Alabama and Tennessee were never returned, so their `external_id` stayed empty. Without external_ids, the game sync skipped them entirely — zero NCAAB games in the database despite being followed for days.

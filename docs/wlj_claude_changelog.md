@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Fix: Desktop Chrome Time Picker Ignores step=900
+
+**Problem:** Chrome's desktop native time picker dropdown shows all 60 minutes regardless of `step="900"`. The step attribute only affects arrow key increments, not the dropdown list.
+
+**Fix:** Added global JS in `base.html` that listens for `change` events on `input[type="time"][step="900"]` and snaps the value to the nearest 15-minute increment. Uses event delegation so it covers all pages automatically.
+
+**File:** `templates/base.html`
+
+---
+
 ## 2026-03-28 — Full-Platform Event Access: 16 Domain Adapters
 
 **Problem:** Event access only covered 3 domains (medication, routine, workout). User couldn't ask Beth about sleep, weight, glucose, blood pressure, food, journal entries, prayers, habits, finances, or any other data they put into the system.
@@ -67,43 +77,7 @@
 
 **Tests:** 17 new tests in `apps/core/tests/test_quarter_hour_normalization.py` — all pass.
 
-## 2026-03-28 — Add query_event_history Intent (LLM-Classified Event Queries)
-
-**Problem:** Keyword-based event query matching was inherently brittle — every new phrasing a user tried required adding more patterns. Real users don't say "what did I miss?" the same way twice.
-
-**Solution:** Added `query_event_history` intent to the existing intent recognition system. The LLM handles infinite vocabulary (classifying the question type and extracting parameters), while the deterministic Event Access Layer provides the factual answer. Same architecture as `read_task` and `read_calendar_events`.
-
-**Intent schema parameters:**
-- `query_type`: 'missed' | 'timeline' | 'slippage' | 'general'
-- `domain`: 'medication' | 'routine' | 'workout' | 'all'
-- `lookback_days`: 1-30 (default 7)
-- `target_date`: 'today' | 'yesterday' | day name | YYYY-MM-DD
-
-**7-point registration (all validated):**
-1. Tool definition: `apps/ai/intents/query_intents.py`
-2. Handler map: `INTENT_HANDLERS['query_event_history'] = 'query'`
-3. Engine category: `QUERY_INTENTS` set in `intent_engine.py`
-4. Execute dispatcher: `elif intent_type == 'query_event_history'` in `intent_service.py`
-5. Action handler: `handle_query_event_history()` in `action_handlers.py`
-6. System prompt: 10 examples in `_build_intent_system_prompt()`
-7. Action policy: `READ / NONE / AUTO` (auto-execute, no confirmation)
-
-Also added to: `CORE_INTENT_TOOLS` (available in all domain scopes), `NON_TIME_INTENTS`, `__all__`
-
-**Files modified:** `apps/ai/intents/query_intents.py` (NEW), `apps/ai/intents/__init__.py`, `apps/ai/action_handlers.py`, `apps/ai/intent_service.py`, `apps/core/ai_orchestrator/intent_engine.py`, `apps/core/ai_orchestrator/action_policy.py`, `apps/ai/tests/test_intent_registration.py`
-
-## 2026-03-28 — Fix: Event Query Pattern Matching Too Narrow
-
-**Problem:** Real user messages like "Under Health, it says I have missed 5 doses of medicine. What are they and when did I miss them?" were not matched by the truth depth classifier because: (1) "missed 5 doses" has a number between "missed" and "doses" so the exact substring "missed doses" didn't match, (2) "when did I miss them" (plural) didn't match "when did I miss it" (singular).
-
-**Fix:** Added regex-based patterns alongside exact substring patterns in `truth_depth.py`:
-- `missed\s+\d+\s+(?:dose|doses|medication|...)` — handles "missed N doses"
-- `(?:says|shows|indicates)\s+...missed` — handles "dashboard says missed"
-- `what\s+(?:did|have)\s+i\s+miss(?:ed)?` — handles "what did I miss" variants
-- Additional exact patterns: "when did i miss them", "which ones"
-
-**Files:** `apps/core/ai_events/truth_depth.py`, `apps/core/ai_events/tests/test_truth_depth.py`
-**Tests:** 4 new tests for real-world message variations, 208 total tests pass.
+---
 
 ## 2026-03-28 — Truth Access Architecture: Multi-Turn Follow-Up Continuity
 

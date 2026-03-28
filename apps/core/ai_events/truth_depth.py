@@ -37,7 +37,7 @@ DEPTH_EVENT = 'event'
 # EVENT Depth Patterns — "What happened? What did I miss?"
 # =============================================================================
 
-# Direct miss/skip queries
+# Direct miss/skip queries — exact substring patterns
 _MISSED_PATTERNS = (
     'what did i miss',
     'what have i missed',
@@ -60,7 +60,30 @@ _MISSED_PATTERNS = (
     'which routine did i miss',
     'missed routine',
     'missed routines',
+    # Follow-up variants
+    'when did i miss them',
+    'when did i miss it',
+    'what are they',  # Only matches when _has_missed_context() is True
+    'which ones',     # Same — needs missed context
 )
+
+# Regex patterns for flexible matching — handles "missed 5 doses", "missed 3 meds", etc.
+_MISSED_REGEX_PATTERNS = [
+    # "missed N dose(s)" / "missed N medication(s)" / "missed N med(s)"
+    re.compile(r'missed\s+\d+\s+(?:dose|doses|medication|medications|medicine|medicines|med|meds)\b'),
+    # "i have missed N" (any count)
+    re.compile(r'i\s+(?:have\s+)?missed\s+\d+'),
+    # "N missed dose(s)" / "N missed medication(s)"
+    re.compile(r'\d+\s+missed\s+(?:dose|doses|medication|medications|medicine|medicines|med|meds)\b'),
+    # "says i missed" / "showing i missed" / "it says missed"
+    re.compile(r'(?:says?|showing|shows?|indicates?)\s+(?:i\s+(?:have\s+)?)?missed'),
+    # "what did i miss" variants with objects
+    re.compile(r'what\s+(?:did|have)\s+i\s+miss(?:ed)?'),
+    # "which doses did i miss" / "which meds did i miss"
+    re.compile(r'which\s+(?:dose|doses|medication|medications|medicine|medicines|med|meds)\s+did\s+i\s+miss'),
+    # "doses i missed" / "medications i missed"
+    re.compile(r'(?:dose|doses|medication|medications|medicine|medicines|med|meds)\s+(?:i|did\s+i)\s+miss(?:ed)?'),
+]
 
 # Timeline/history queries
 _TIMELINE_PATTERNS = (
@@ -133,6 +156,9 @@ def classify_truth_depth(msg_lower):
     if any(p in msg_lower for p in _MISSED_PATTERNS):
         return DEPTH_EVENT
 
+    if any(rx.search(msg_lower) for rx in _MISSED_REGEX_PATTERNS):
+        return DEPTH_EVENT
+
     if any(p in msg_lower for p in _TIMELINE_PATTERNS):
         return DEPTH_EVENT
 
@@ -168,6 +194,9 @@ def classify_event_query_type(msg_lower):
         str — 'missed', 'timeline', 'slippage', or None
     """
     if any(p in msg_lower for p in _MISSED_PATTERNS):
+        return 'missed'
+
+    if any(rx.search(msg_lower) for rx in _MISSED_REGEX_PATTERNS):
         return 'missed'
 
     if any(p in msg_lower for p in _TIMELINE_PATTERNS):

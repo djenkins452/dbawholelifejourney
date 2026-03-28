@@ -40,6 +40,37 @@ class TruthDepthClassificationTest(TestCase):
     def test_missed_doses(self):
         self.assertEqual(classify_truth_depth("missed doses"), DEPTH_EVENT)
 
+    def test_missed_n_doses_with_number(self):
+        """Real user message: 'missed 5 doses' has a number between words."""
+        self.assertEqual(
+            classify_truth_depth(
+                "under health, it says i have missed 5 doses of medicine. "
+                "what are they and when did i miss them?"
+            ),
+            DEPTH_EVENT,
+        )
+
+    def test_missed_1_dose_dashboard_reference(self):
+        """Real user message referencing dashboard."""
+        self.assertEqual(
+            classify_truth_depth(
+                "it is saying i missed 1 dose in the past 8 days, what did i miss"
+            ),
+            DEPTH_EVENT,
+        )
+
+    def test_says_missed_pattern(self):
+        self.assertEqual(
+            classify_truth_depth("my dashboard says missed 1 dose, what was it"),
+            DEPTH_EVENT,
+        )
+
+    def test_shows_missed_pattern(self):
+        self.assertEqual(
+            classify_truth_depth("shows i missed 2 meds, when"),
+            DEPTH_EVENT,
+        )
+
     def test_which_medication_did_i_miss(self):
         self.assertEqual(classify_truth_depth("which medication did i miss"), DEPTH_EVENT)
 

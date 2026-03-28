@@ -6,10 +6,11 @@
 {% block extra_css %}
 <style>
     /* ═══════════════════════════════════════════════════════════════
-       SPORTS HUB v4 — Live Energy + Visual Hierarchy
-       Hero → Live Strip → Ticker → Up Next → Momentum →
-       Storylines → More Games
-       Auto-refresh every 60s. Score flash on change.
+       SPORTS HUB v5 — Live Sports Experience
+       Hero (enhanced) → Live Context → Scoreboard Cluster →
+       Your Games Today (grouped timeline) → Ticker →
+       Momentum → Storylines → More Games
+       Auto-refresh every 30s (live) / 60s (idle). Score flash on change.
        ═══════════════════════════════════════════════════════════════ */
 
     .sports-hub { max-width: 760px; margin: 0 auto; padding: 0 0 48px; }
@@ -77,6 +78,11 @@
     }
     .hero-countdown { font-size: 0.7rem; color: rgba(255, 255, 255, 0.35); margin-top: 4px; font-weight: 600; }
 
+    .hero-tournament-context {
+        font-size: 0.78rem; margin-top: 10px; font-weight: 700;
+        color: #fbbf24; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+
     .hero-insight {
         font-size: 0.78rem; margin-top: 14px; font-weight: 700;
         text-transform: uppercase; letter-spacing: 0.04em;
@@ -96,20 +102,26 @@
     .streak--W { color: #22c55e; }
     .streak--L { color: #ef4444; }
 
-    /* ── LIVE ZONE ── */
-    .live-zone-label {
-        display: flex; align-items: center; gap: 8px;
-        padding: 8px 16px 4px; font-size: 0.58rem; font-weight: 800;
-        text-transform: uppercase; letter-spacing: 0.12em;
-        color: #ef4444;
+    /* ── LIVE CONTEXT BLOCK ── */
+    .live-context {
+        background: rgba(239, 68, 68, 0.04);
+        border-bottom: 1px solid rgba(239, 68, 68, 0.1);
+        padding: 14px 20px;
     }
-
-    /* ── MICRO-HIERARCHY: first item in Up Next is emphasized ── */
-    .next-row--primary { border-color: rgba(99, 102, 241, 0.15); }
-    .next-row--primary .next-teams { font-size: 0.95rem; }
-    .next-row--primary .next-time { font-size: 0.9rem; }
-    .next-row--secondary .next-teams { font-size: 0.85rem; color: var(--color-text-muted); }
-    .next-row--secondary .next-time { font-size: 0.78rem; color: var(--color-text-muted); }
+    .live-context-header {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 0.58rem; font-weight: 800;
+        text-transform: uppercase; letter-spacing: 0.12em;
+        color: #ef4444; margin-bottom: 6px;
+    }
+    .live-context-lead {
+        font-size: 0.92rem; font-weight: 700; color: var(--color-text);
+        line-height: 1.3;
+    }
+    .live-context-status {
+        font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted);
+        margin-top: 2px;
+    }
 
     /* ── LIVE DOT ── */
     .live-dot {
@@ -119,26 +131,48 @@
     }
     @keyframes pulse-live { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 50% { opacity: 0.4; box-shadow: 0 0 0 4px rgba(239,68,68,0); } }
 
-    /* ── LIVE NOW STRIP ── */
-    .live-strip {
-        background: rgba(239, 68, 68, 0.03); padding: 10px 16px;
-        display: flex; gap: 10px; overflow-x: auto; -webkit-overflow-scrolling: touch;
-        border-bottom: 1px solid rgba(239, 68, 68, 0.08);
+    /* ── SCOREBOARD CLUSTER ── */
+    .scoreboard-cluster { padding: 16px; }
+    .scoreboard-header {
+        font-size: 0.62rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: 0.12em; color: var(--color-text-muted);
+        margin-bottom: 12px;
     }
-    .live-strip::-webkit-scrollbar { display: none; }
-    .live-card {
-        flex-shrink: 0; display: flex; align-items: center; gap: 10px;
-        padding: 10px 14px; border-radius: 8px;
-        background: var(--color-surface);
-        border: 1px solid rgba(239, 68, 68, 0.12);
-        min-width: 230px; transition: border-color 0.3s;
+    .scoreboard-grid {
+        display: grid; grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
     }
-    .live-card:hover { border-color: rgba(239, 68, 68, 0.3); }
-    .live-card-logo { width: 22px; height: 22px; object-fit: contain; }
-    .live-card-info { flex: 1; min-width: 0; }
-    .live-card-teams { font-size: 0.8rem; font-weight: 700; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .live-card-detail { font-size: 0.6rem; font-weight: 600; color: var(--color-text-muted); margin-top: 1px; }
-    .live-card-score { font-size: 1rem; font-weight: 800; color: var(--color-text); font-variant-numeric: tabular-nums; }
+    .scoreboard-card {
+        padding: 12px; border-radius: 8px;
+        background: var(--color-surface); border: 1px solid var(--color-border);
+    }
+    .scoreboard-card--live { border-color: rgba(239, 68, 68, 0.2); }
+    .scoreboard-card--final { border-color: var(--color-border); }
+    .scoreboard-team-row {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 2px 0;
+    }
+    .scoreboard-team-info { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+    .scoreboard-team-logo { width: 16px; height: 16px; object-fit: contain; flex-shrink: 0; }
+    .scoreboard-team-name {
+        font-size: 0.78rem; font-weight: 700; color: var(--color-text);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .scoreboard-team-score {
+        font-size: 0.85rem; font-weight: 800; color: var(--color-text);
+        font-variant-numeric: tabular-nums; flex-shrink: 0; margin-left: 8px;
+    }
+    .scoreboard-status {
+        font-size: 0.55rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: 0.05em; margin-top: 4px; text-align: center;
+    }
+    .scoreboard-status--live { color: #ef4444; }
+    .scoreboard-status--final { color: var(--color-text-muted); }
+    .scoreboard-status--upcoming { color: var(--color-text-muted); }
+    .scoreboard-context {
+        font-size: 0.55rem; color: var(--color-text-muted); text-align: center;
+        margin-top: 2px;
+    }
 
     /* ── HORIZONTAL TICKER (ESPN-style) ── */
     .smart-ticker {
@@ -177,32 +211,6 @@
     .ticker-type--storyline { background: rgba(99, 102, 241, 0.12); color: #818cf8; }
     .ticker-type--soon { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
 
-    /* ── EVENT CONTEXT ("More from Sweet 16") ── */
-    .event-context {
-        background: rgba(245, 158, 11, 0.04);
-        border-bottom: 1px solid rgba(245, 158, 11, 0.08);
-        padding: 10px 16px;
-    }
-    .event-context-label {
-        font-size: 0.58rem; font-weight: 800; text-transform: uppercase;
-        letter-spacing: 0.1em; color: #f59e0b; margin-bottom: 8px;
-    }
-    .event-context-games { display: flex; gap: 10px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .event-context-games::-webkit-scrollbar { display: none; }
-    .event-game {
-        flex-shrink: 0; display: flex; align-items: center; gap: 8px;
-        padding: 8px 12px; border-radius: 6px;
-        background: var(--color-surface); border: 1px solid rgba(245, 158, 11, 0.1);
-        min-width: 180px;
-    }
-    .event-game-logo { width: 18px; height: 18px; object-fit: contain; }
-    .event-game-info { flex: 1; min-width: 0; }
-    .event-game-teams { font-size: 0.75rem; font-weight: 700; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .event-game-status { font-size: 0.6rem; font-weight: 700; }
-    .event-game-status--live { color: #ef4444; }
-    .event-game-status--final { color: var(--color-text-muted); }
-    .event-game-score { font-size: 0.85rem; font-weight: 800; color: var(--color-text); flex-shrink: 0; }
-
     /* ── SECTIONS ── */
     .hub-section { padding: 0 16px; margin-top: 28px; }
     .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
@@ -215,7 +223,24 @@
         background: var(--color-surface); padding: 2px 8px; border-radius: 10px;
     }
 
-    /* ── UP NEXT ── */
+    /* ── YOUR GAMES TODAY (grouped timeline) ── */
+    .timeline-group { margin-bottom: 20px; }
+    .timeline-group-label {
+        font-size: 0.58rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: 0.12em; color: var(--color-text-muted);
+        margin-bottom: 8px; padding-left: 4px;
+    }
+    .timeline-group-label--now { color: #ef4444; }
+    .timeline-group-label--later { color: #f59e0b; }
+    .timeline-group-label--tomorrow { color: rgba(99, 102, 241, 0.7); }
+
+    /* ── MICRO-HIERARCHY: first item in group is emphasized ── */
+    .next-row--primary { border-color: rgba(99, 102, 241, 0.15); }
+    .next-row--primary .next-teams { font-size: 0.95rem; }
+    .next-row--primary .next-time { font-size: 0.9rem; }
+    .next-row--secondary .next-teams { font-size: 0.85rem; color: var(--color-text-muted); }
+    .next-row--secondary .next-time { font-size: 0.78rem; color: var(--color-text-muted); }
+
     .next-row {
         display: flex; align-items: center; gap: 12px;
         padding: 14px 16px; border-radius: 10px;
@@ -226,9 +251,7 @@
     .next-logo { width: 28px; height: 28px; object-fit: contain; flex-shrink: 0; }
     .next-main { flex: 1; min-width: 0; }
     .next-teams { font-size: 0.9rem; font-weight: 700; color: var(--color-text); }
-    .next-context {
-        font-size: 0.7rem; margin-top: 3px; font-weight: 600;
-    }
+    .next-context { font-size: 0.7rem; margin-top: 3px; font-weight: 600; }
     .next-context--significance { color: #f59e0b; }
     .next-context--hot { color: #22c55e; }
     .next-context--cold { color: #ef4444; }
@@ -242,6 +265,7 @@
     .next-badge--starting_soon { background: #f59e0b; color: #1a1a2e; }
     .next-badge--today { background: rgba(99, 102, 241, 0.12); color: #6366f1; }
     .next-badge--upcoming { background: rgba(255, 255, 255, 0.04); color: var(--color-text-muted); }
+    .next-badge--live { background: #ef4444; color: white; }
 
     /* ── MOMENTUM ── */
     .momentum-row {
@@ -316,8 +340,10 @@
         .hero-logo { width: 30px; height: 30px; }
         .hero-matchup { gap: 8px; }
         .hub-section { padding: 0 12px; margin-top: 22px; }
-        .live-strip { padding: 8px 12px; gap: 8px; }
-        .live-card { min-width: 200px; padding: 8px 10px; }
+        .scoreboard-cluster { padding: 12px; }
+        .scoreboard-grid { gap: 6px; }
+        .scoreboard-card { padding: 10px; }
+        .live-context { padding: 10px 14px; }
         .next-row { padding: 12px 12px; }
         .next-logo { width: 24px; height: 24px; }
     }
@@ -340,7 +366,7 @@
 
     {% else %}
 
-    {# ═══ 1. HERO — highest importance game ═══ #}
+    {# ═══ 1. HERO — highest importance game (enhanced with tournament context + game state) ═══ #}
     {% if hero %}
     <div class="hero hero--{{ hero.urgency }}">
         <div class="hero-top">
@@ -374,6 +400,11 @@
             <div class="hero-countdown" data-countdown="{{ hero.start_time }}"></div>
         {% endif %}
 
+        {# Tournament context line (e.g. "Sweet 16 — Elite Eight on the line") #}
+        {% if hero.tournament_context %}
+        <div class="hero-tournament-context">{{ hero.tournament_context }}</div>
+        {% endif %}
+
         {% if hero.headline %}
         <div class="hero-headline">{{ hero.headline }}</div>
         {% elif hero.insight and not hero.game_note %}
@@ -392,44 +423,125 @@
     </div>
     {% endif %}
 
-    {# ═══ 1b. EVENT CONTEXT — "More from Sweet 16" ═══ #}
-    {% if event_context %}
-    <div class="event-context">
-        <div class="event-context-label">{{ event_context.label }}</div>
-        <div class="event-context-games">
-            {% for g in event_context.games %}
-            <div class="event-game">
-                {% if g.away_logo %}<img src="{{ g.away_logo }}" alt="" class="event-game-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
-                <div class="event-game-info">
-                    <div class="event-game-teams">{{ g.away }} vs {{ g.home }}</div>
-                    {% if g.status %}<span class="event-game-status event-game-status--{{ g.status|lower }}">{{ g.status }}</span>{% endif %}
+    {# ═══ 2. LIVE CONTEXT BLOCK — deterministic, only when hero is LIVE ═══ #}
+    {% if live_context %}
+    <div class="live-context">
+        <div class="live-context-header"><span class="live-dot"></span> LIVE NOW</div>
+        <div class="live-context-lead">{{ live_context.lead_line }}</div>
+        <div class="live-context-status">{{ live_context.status_line }}</div>
+    </div>
+    {% endif %}
+
+    {# ═══ 3. SCOREBOARD CLUSTER — tournament/league multi-game awareness ═══ #}
+    {% if scoreboard %}
+    <div class="scoreboard-cluster">
+        <div class="scoreboard-header">{{ scoreboard.header }}</div>
+        <div class="scoreboard-grid">
+            {% for g in scoreboard.games %}
+            <div class="scoreboard-card {% if g.status == 'LIVE' %}scoreboard-card--live{% elif g.status == 'FINAL' %}scoreboard-card--final{% endif %}">
+                <div class="scoreboard-team-row">
+                    <div class="scoreboard-team-info">
+                        {% if g.away_logo %}<img src="{{ g.away_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                        <span class="scoreboard-team-name">{{ g.away }}</span>
+                    </div>
+                    {% if g.score %}<span class="scoreboard-team-score">{{ g.away_score }}</span>{% endif %}
                 </div>
-                {% if g.score %}<span class="event-game-score">{{ g.score }}</span>{% endif %}
+                <div class="scoreboard-team-row">
+                    <div class="scoreboard-team-info">
+                        {% if g.home_logo %}<img src="{{ g.home_logo }}" alt="" class="scoreboard-team-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                        <span class="scoreboard-team-name">{{ g.home }}</span>
+                    </div>
+                    {% if g.score %}<span class="scoreboard-team-score">{{ g.home_score }}</span>{% endif %}
+                </div>
+                {% if g.status %}
+                <div class="scoreboard-status scoreboard-status--{{ g.status|lower }}">
+                    {% if g.status == "LIVE" %}<span class="live-dot"></span> {% endif %}{{ g.status }}
+                </div>
+                {% else %}
+                <div class="scoreboard-status scoreboard-status--upcoming" data-start-time="{{ g.start_time }}">{{ g.start_time }}</div>
+                {% endif %}
+                {% if g.context %}<div class="scoreboard-context">{{ g.context }}</div>{% endif %}
             </div>
             {% endfor %}
         </div>
     </div>
     {% endif %}
 
-    {# ═══ 2. LIVE NOW STRIP ═══ #}
-    {% if live_now %}
-    <div class="live-zone-label"><span class="live-dot"></span> Live Now</div>
-    <div class="live-strip">
-        {% for g in live_now %}
-        <div class="live-card">
-            <span class="live-dot"></span>
-            {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="live-card-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
-            <div class="live-card-info">
-                <div class="live-card-teams">{{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}</div>
-                <div class="live-card-detail">{{ g.league }}</div>
+    {# ═══ 4. YOUR GAMES TODAY — grouped timeline (replaces "Up Next") ═══ #}
+    {% if your_games_today %}
+    <div class="hub-section">
+        <div class="section-header">
+            <span class="section-label">Your Games Today</span>
+        </div>
+        {% for group in your_games_today %}
+        <div class="timeline-group">
+            <div class="timeline-group-label {% if group.label == 'NOW' %}timeline-group-label--now{% elif group.label == 'LATER TODAY' %}timeline-group-label--later{% elif group.label == 'TOMORROW' %}timeline-group-label--tomorrow{% endif %}">
+                {% if group.label == "NOW" %}<span class="live-dot"></span> {% endif %}{{ group.label }}
             </div>
-            <div class="live-card-score">{{ g.score }}</div>
+            {% for g in group.games %}
+            <div class="next-row {% if forloop.first and forloop.parentloop.first %}next-row--primary{% else %}next-row--secondary{% endif %}">
+                {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="next-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+                <div class="next-main">
+                    <div class="next-teams">
+                        {{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}
+                    </div>
+                    {% if g.context %}
+                    <div class="next-context {% if 'Sweet' in g.context or 'Tournament' in g.context or 'Playoff' in g.context or 'Elite' in g.context or 'Final' in g.context %}next-context--significance{% elif 'win' in g.context or 'Won' in g.context or 'straight' in g.context %}next-context--hot{% elif 'loss' in g.context or 'Lost' in g.context or 'bounce' in g.context %}next-context--cold{% else %}next-context--default{% endif %}">
+                        {{ g.context }}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="next-right">
+                    {% if g.urgency == "live" %}
+                        <div class="next-time">LIVE</div>
+                    {% else %}
+                        <div class="next-time" data-start-time="{{ g.start_time }}">{{ g.start_time|truncatechars:16 }}</div>
+                    {% endif %}
+                    <span class="next-badge next-badge--{{ g.urgency }}">
+                        {% if g.urgency == "live" %}LIVE
+                        {% elif g.urgency == "starting_soon" %}SOON
+                        {% elif g.urgency == "today" %}TODAY
+                        {% else %}UPCOMING{% endif %}
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    {% elif whats_next %}
+    {# Fallback: signal-based path still uses flat whats_next #}
+    <div class="hub-section">
+        <div class="section-header">
+            <span class="section-label">Your Games Today</span>
+        </div>
+        {% for g in whats_next %}
+        <div class="next-row {% if forloop.first %}next-row--primary{% else %}next-row--secondary{% endif %}">
+            {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="next-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
+            <div class="next-main">
+                <div class="next-teams">
+                    {{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}
+                </div>
+                {% if g.context %}
+                <div class="next-context {% if 'Sweet' in g.context or 'Tournament' in g.context or 'Playoff' in g.context or 'Elite' in g.context or 'Final' in g.context %}next-context--significance{% elif 'win' in g.context or 'Won' in g.context or 'straight' in g.context %}next-context--hot{% elif 'loss' in g.context or 'Lost' in g.context or 'bounce' in g.context %}next-context--cold{% else %}next-context--default{% endif %}">
+                    {{ g.context }}
+                </div>
+                {% endif %}
+            </div>
+            <div class="next-right">
+                <div class="next-time" data-start-time="{{ g.start_time }}">{{ g.start_time|truncatechars:16 }}</div>
+                <span class="next-badge next-badge--{{ g.urgency }}">
+                    {% if g.urgency == "starting_soon" %}SOON
+                    {% elif g.urgency == "today" %}TODAY
+                    {% else %}UPCOMING{% endif %}
+                </span>
+            </div>
         </div>
         {% endfor %}
     </div>
     {% endif %}
 
-    {# ═══ 3. HORIZONTAL TICKER ═══ #}
+    {# ═══ 5. HORIZONTAL TICKER (moved below scoreboard) ═══ #}
     {% if ticker %}
     <div class="smart-ticker" id="smart-ticker">
         <div class="ticker-track" id="ticker-track">
@@ -458,39 +570,7 @@
     </div>
     {% endif %}
 
-    {# ═══ 4. UP NEXT FOR YOU ═══ #}
-    {% if whats_next %}
-    <div class="hub-section">
-        <div class="section-header">
-            <span class="section-label">Up Next for You</span>
-        </div>
-        {% for g in whats_next %}
-        <div class="next-row {% if forloop.first %}next-row--primary{% elif not forloop.first %}next-row--secondary{% endif %}">
-            {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="next-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
-            <div class="next-main">
-                <div class="next-teams">
-                    {{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}
-                </div>
-                {% if g.context %}
-                <div class="next-context {% if 'Sweet' in g.context or 'Tournament' in g.context or 'Playoff' in g.context or 'Elite' in g.context or 'Final' in g.context %}next-context--significance{% elif 'win' in g.context or 'Won' in g.context or 'straight' in g.context %}next-context--hot{% elif 'loss' in g.context or 'Lost' in g.context or 'bounce' in g.context %}next-context--cold{% else %}next-context--default{% endif %}">
-                    {{ g.context }}
-                </div>
-                {% endif %}
-            </div>
-            <div class="next-right">
-                <div class="next-time" data-start-time="{{ g.start_time }}">{{ g.start_time|truncatechars:16 }}</div>
-                <span class="next-badge next-badge--{{ g.urgency }}">
-                    {% if g.urgency == "starting_soon" %}SOON
-                    {% elif g.urgency == "today" %}TODAY
-                    {% else %}UPCOMING{% endif %}
-                </span>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    {# ═══ 5. MOMENTUM ═══ #}
+    {# ═══ 6. MOMENTUM ═══ #}
     {% if momentum %}
     <div class="hub-section">
         <div class="section-header">
@@ -510,7 +590,7 @@
     </div>
     {% endif %}
 
-    {# ═══ 6. KEY STORYLINES ═══ #}
+    {# ═══ 7. KEY STORYLINES ═══ #}
     {% if storylines %}
     <div class="hub-section">
         <div class="section-header">
@@ -525,7 +605,7 @@
     </div>
     {% endif %}
 
-    {# ═══ 7. MORE GAMES — only if unique content exists ═══ #}
+    {# ═══ 8. MORE GAMES — only if unique content exists ═══ #}
     {% if more_games %}
     <div class="hub-section">
         <div class="section-header">
@@ -544,7 +624,7 @@
     {% endif %}
 
     {# ═══ Quiet state ═══ #}
-    {% if not hero and not whats_next and not momentum and not storylines %}
+    {% if not hero and not your_games_today and not whats_next and not momentum and not storylines %}
     <div class="no-activity">No games or activity right now. Check back later.</div>
     {% endif %}
 
@@ -568,7 +648,6 @@
         document.querySelectorAll('[data-start-time]').forEach(function(el) {
             var iso = el.getAttribute('data-start-time');
             if (!iso || iso === 'None' || iso === '') {
-                // No time data — leave blank, don't show NaN
                 return;
             }
             try {
@@ -640,12 +719,10 @@
     function initTicker() {
         var track = document.getElementById('ticker-track');
         if (!track) return;
-        // Set animation duration based on content width — ~60px/sec for comfortable read
         var halfWidth = track.scrollWidth / 2;
-        var duration = Math.max(halfWidth / 60, 15); // min 15s
+        var duration = Math.max(halfWidth / 60, 15);
         track.style.animationDuration = duration + 's';
 
-        // Pause on touch
         var ticker = document.getElementById('smart-ticker');
         if (ticker) {
             ticker.addEventListener('touchstart', function() { ticker.classList.add('ticker-paused'); }, {passive: true});
@@ -653,13 +730,12 @@
         }
     }
 
-    // ── Auto-refresh: reload page every 60s (lightweight) ──
+    // ── Auto-refresh: reload page every 30s (live) / 60s (idle) ──
     function initAutoRefresh() {
-        var hasLive = document.querySelector('.hero--live') || document.querySelector('.live-strip');
-        var interval = hasLive ? 30000 : 60000; // 30s if live, 60s otherwise
+        var hasLive = document.querySelector('.hero--live') || document.querySelector('.live-context');
+        var interval = hasLive ? 30000 : 60000;
 
         setInterval(function() {
-            // Soft reload via fetch + replace
             fetch(window.location.href, { headers: { 'X-Requested-With': 'SportsRefresh' } })
                 .then(function(r) { return r.text(); })
                 .then(function(html) {
@@ -668,7 +744,6 @@
                     var newHub = doc.getElementById('sports-hub');
                     var oldHub = document.getElementById('sports-hub');
                     if (newHub && oldHub) {
-                        // Check for score changes before replacing
                         var oldScore = oldHub.querySelector('#hero-score');
                         var newScore = newHub.querySelector('#hero-score');
 
@@ -677,7 +752,6 @@
                         updateCountdowns();
                         initTicker();
 
-                        // Flash score if changed
                         if (oldScore && newScore && oldScore.dataset.score !== newScore.dataset.score) {
                             var scoreEl = document.getElementById('hero-score');
                             if (scoreEl) {
@@ -686,7 +760,6 @@
                             }
                         }
 
-                        // Pulse refresh dot
                         var dot = document.getElementById('refresh-dot');
                         if (dot) {
                             dot.classList.add('refresh-dot--active');
@@ -694,7 +767,7 @@
                         }
                     }
                 })
-                .catch(function() {}); // Silent fail on network error
+                .catch(function() {});
         }, interval);
     }
 
@@ -704,7 +777,6 @@
         updateCountdowns();
         initTicker();
         initAutoRefresh();
-        // Update countdown every minute
         setInterval(updateCountdowns, 60000);
     });
 })();

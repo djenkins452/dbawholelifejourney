@@ -95,8 +95,9 @@ def _get_contract(user):
 def _build_from_contract(contract, follows, team_map, team_ids, now):
     """Build view model from _contract (primary path).
 
-    V3 layout: Hero → Live Now → Ticker → What's Next → Momentum →
-               Storylines → More Games
+    V4 layout: Hero (enhanced) → Live Context → Scoreboard Cluster →
+               Your Games Today (grouped timeline) → Ticker →
+               Momentum → Storylines → More Games
 
     Reads canonical team data and storylines from _contract.
     Derives presentation-only values: heat, priority scores, hero selection.
@@ -105,29 +106,20 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
     storylines = contract.get('storylines', [])
 
     # ── DEDUP HELPER: game_id OR composite key ──────────────────────
-    # game_id can be None when signals lack it — fall back to (team, opponent)
     shown_keys = set()
 
     def _game_key(team_entry):
-        """Return a dedup key for a game: game_id if available, else composite.
-
-        Composite key is sorted so Dodgers-vs-DBacks and DBacks-vs-Dodgers
-        produce the same key.
-        """
         ng = team_entry.get('next_game') or {}
         gid = ng.get('game_id')
         if gid:
             return f"gid:{gid}"
-        # Sorted composite: both directions match
         names = sorted([team_entry.get('team_name', ''), ng.get('opponent', '')])
         return f"match:{names[0]}|{names[1]}"
 
     def _is_shown(team_entry):
-        """Check if this game is already shown in a prior section."""
         return _game_key(team_entry) in shown_keys
 
     def _mark_shown(team_entry):
-        """Mark this game as shown."""
         shown_keys.add(_game_key(team_entry))
 
     # ── PRIORITY ENGINE: score every team with a game ────────────────
@@ -139,7 +131,7 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
 
     scored_teams.sort(key=lambda x: -x[0])
 
-    # ── HERO: single most important game ─────────────────────────────
+    # ── HERO: single most important game (enhanced with tournament context) ──
     hero = None
     hero_team_id = None
     if scored_teams:
@@ -154,65 +146,25 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
                 hero_team_id = t.get('team_id')
                 break
 
-    # ── LIVE NOW: all live games except hero (max 5, deduped) ────────
-    live_now = []
-    for t in teams:
-        if t.get('status') != 'live' or not t.get('next_game'):
-            continue
-        if _is_shown(t):
-            continue
-        _mark_shown(t)
-        ng = t['next_game']
-        live_now.append({
-            "team_name": t.get('team_name', ''),
-            "team_logo": t.get('logo_url', ''),
-            "opponent": ng.get('opponent', ''),
-            "opponent_logo": ng.get('opponent_logo', ''),
-            "is_home": ng.get('is_home', True),
-            "score": ng.get('score', ''),
-            "league": t.get('league', ''),
-        })
-        if len(live_now) >= 5:
-            break
+    # Enhance hero with tournament context + game state
+    if hero:
+        _enhance_hero_context(hero)
+
+    # ── LIVE CONTEXT: deterministic block shown only when hero is live ──
+    live_context = None
+    if hero and hero.get('urgency') == 'live':
+        live_context = _build_live_context(hero)
+
+    # ── SCOREBOARD CLUSTER: tournament/league games from same day ─────
+    scoreboard = _build_scoreboard_cluster(hero, now)
 
     # ── TICKER: recent finals + live scores (max 15) ─────────────────
     ticker = _build_smart_ticker(teams, storylines)
 
-    # ── WHAT'S NEXT: top 3 non-hero, non-live within 48h ────────────
-    whats_next = []
-    for _, t in scored_teams:
-        tid = t.get('team_id')
-        if tid == hero_team_id:
-            continue
-        if t.get('status') == 'live':
-            continue
-        if _is_shown(t):
-            continue
-        ng = t.get('next_game') or {}
-        # 48h window filter
-        if ng.get('start_time'):
-            try:
-                from django.utils.dateparse import parse_datetime
-                start = parse_datetime(ng['start_time'])
-                if start and (start - now).total_seconds() > 48 * 3600:
-                    continue
-            except (ValueError, TypeError):
-                pass
-        _mark_shown(t)
-        # Context line: why this game matters
-        context = _game_context_line(t)
-        whats_next.append({
-            "team_name": t.get('team_name', ''),
-            "team_logo": t.get('logo_url', ''),
-            "opponent": ng.get('opponent', ''),
-            "is_home": ng.get('is_home', True),
-            "start_time": ng.get('start_time', ''),
-            "urgency": t.get('status', 'upcoming'),
-            "league": t.get('league', ''),
-            "context": context,
-        })
-        if len(whats_next) >= 3:
-            break
+    # ── YOUR GAMES TODAY: grouped timeline replacing "Up Next" ────────
+    your_games_today = _build_your_games_today(
+        scored_teams, hero_team_id, _is_shown, _mark_shown, now
+    )
 
     # ── MOMENTUM: teams with streak >= 3, sorted by count desc ────────
     momentum = []
@@ -279,12 +231,36 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
         if len(more_games) >= 8:
             break
 
-    # ── EVENT CONTEXT: "More from Sweet 16" when hero is tournament ──
-    event_context = None
-    if hero and hero.get('game_note'):
-        note = hero['game_note']
-        note_lower = note.lower()
-        # Derive round label
+    meta = _build_meta(team_ids, now)
+
+    return {
+        "hero": hero,
+        "live_context": live_context,
+        "scoreboard": scoreboard,
+        "live_now": [],  # Deprecated — replaced by live_context + scoreboard
+        "ticker": ticker,
+        "whats_next": [],  # Deprecated — replaced by your_games_today
+        "your_games_today": your_games_today,
+        "momentum": momentum,
+        "storylines": key_storylines,
+        "more_games": more_games,
+        "event_context": None,  # Deprecated — replaced by scoreboard cluster
+        "meta": meta,
+    }
+
+
+def _enhance_hero_context(hero):
+    """Add tournament context line and game state line to hero.
+
+    Tournament context: "Sweet 16 — Elite Eight on the line"
+    Game state: status-based display ("LIVE", scheduled time, "FINAL")
+    """
+    game_note = hero.get('game_note', '') or ''
+    note_lower = game_note.lower()
+
+    # Tournament context line
+    tournament_context = ""
+    if game_note:
         round_label = ""
         for phrase in ('sweet 16', 'elite eight', 'final four', 'championship',
                        'round of 32', 'round of 64', 'first round', 'second round'):
@@ -292,58 +268,220 @@ def _build_from_contract(contract, follows, team_map, team_ids, now):
                 round_label = phrase.title()
                 break
         if round_label:
-            # Find other tournament games from same day from DB
-            event_games = []
-            try:
-                from django.utils.dateparse import parse_datetime
-                hero_time = parse_datetime(hero.get('start_time', ''))
-                if hero_time:
-                    day_start = hero_time.replace(hour=0, minute=0, second=0)
-                    day_end = hero_time.replace(hour=23, minute=59, second=59)
-                    tourney_games = (
-                        GameEvent.objects
-                        .filter(game_type='tournament', start_time__range=(day_start, day_end))
-                        .exclude(id=hero.get('game_id'))
-                        .select_related('home_team', 'away_team')
-                        .order_by('start_time')[:3]
-                    )
-                    for g in tourney_games:
-                        status_label = "LIVE" if g.status == GameEvent.STATUS_LIVE else (
-                            "FINAL" if g.status == GameEvent.STATUS_FINAL else ""
-                        )
-                        score = ""
-                        if g.status in (GameEvent.STATUS_LIVE, GameEvent.STATUS_FINAL):
-                            score = f"{g.home_score or 0}-{g.away_score or 0}"
-                        event_games.append({
-                            "home": g.home_team.name if hasattr(g.home_team, 'name') else str(g.home_team),
-                            "away": g.away_team.name if hasattr(g.away_team, 'name') else str(g.away_team),
-                            "home_logo": g.home_team.logo_url or "" if hasattr(g.home_team, 'logo_url') else "",
-                            "away_logo": g.away_team.logo_url or "" if hasattr(g.away_team, 'logo_url') else "",
-                            "score": score,
-                            "status": status_label,
-                            "start_time": g.start_time.isoformat() if g.start_time else "",
-                        })
-            except Exception:
-                logger.debug("Event context query failed", exc_info=True)
-            if event_games:
-                event_context = {
-                    "label": f"More from {round_label}",
-                    "games": event_games,
-                }
+            next_round = _NEXT_ROUND.get(round_label.lower(), "")
+            if next_round:
+                tournament_context = f"{round_label} — {next_round.replace('the ', '').title()} on the line"
+            else:
+                tournament_context = round_label
 
-    meta = _build_meta(team_ids, now)
+    hero["tournament_context"] = tournament_context
+    hero["game_type"] = hero.get("game_type", "")
+
+
+def _build_live_context(hero):
+    """Build the deterministic live context block shown under hero when game is live.
+
+    Line 1: "{team} leads {opponent} {score}" (or "tied with")
+    Line 2: Game status
+    """
+    team = hero.get('team_name', '')
+    opponent = hero.get('opponent', '')
+    score_str = hero.get('score', '')
+
+    # Parse score to determine leader
+    lead_line = f"{team} vs {opponent}"
+    if score_str:
+        parts = score_str.replace('–', '-').split('-')
+        if len(parts) == 2:
+            try:
+                s1 = int(parts[0].strip())
+                s2 = int(parts[1].strip())
+                if s1 > s2:
+                    lead_line = f"{team} leads {opponent} {score_str}"
+                elif s2 > s1:
+                    lead_line = f"{opponent} leads {team} {score_str}"
+                else:
+                    lead_line = f"{team} and {opponent} tied {score_str}"
+            except (ValueError, IndexError):
+                lead_line = f"{team} vs {opponent} {score_str}"
+
+    status_line = "Game in progress"
 
     return {
-        "hero": hero,
-        "live_now": live_now,
-        "ticker": ticker,
-        "whats_next": whats_next,
-        "momentum": momentum,
-        "storylines": key_storylines,
-        "more_games": more_games,
-        "event_context": event_context,
-        "meta": meta,
+        "lead_line": lead_line,
+        "status_line": status_line,
     }
+
+
+def _build_scoreboard_cluster(hero, now):
+    """Build the tournament/league scoreboard cluster.
+
+    Queries GameEvent for same-league, same-day tournament games.
+    Sort: LIVE → FINAL (most recent) → UPCOMING
+    Max 6 games. Hero game included.
+    """
+    if not hero:
+        return None
+
+    game_note = hero.get('game_note', '') or ''
+    note_lower = game_note.lower()
+
+    # Derive round label for header
+    round_label = ""
+    for phrase in ('sweet 16', 'elite eight', 'final four', 'championship',
+                   'round of 32', 'round of 64', 'first round', 'second round'):
+        if phrase in note_lower:
+            round_label = phrase.title()
+            break
+
+    # If no tournament context, check if hero has game_type tournament
+    game_type = hero.get('game_type', '') or ''
+    if not round_label and game_type not in ('tournament', 'postseason'):
+        return None
+
+    header = f"{round_label} Scoreboard" if round_label else "Tournament Scoreboard"
+
+    # Query tournament games from same day
+    games = []
+    try:
+        from django.utils.dateparse import parse_datetime
+        hero_time = parse_datetime(hero.get('start_time', ''))
+        if not hero_time:
+            hero_time = now
+
+        day_start = hero_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = hero_time.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        tourney_games = (
+            GameEvent.objects
+            .filter(game_type='tournament', start_time__range=(day_start, day_end))
+            .select_related('home_team', 'away_team')
+            .order_by('start_time')[:6]
+        )
+
+        for g in tourney_games:
+            status_label = ""
+            if g.status == GameEvent.STATUS_LIVE:
+                status_label = "LIVE"
+            elif g.status == GameEvent.STATUS_FINAL:
+                status_label = "FINAL"
+
+            score_display = ""
+            if g.status in (GameEvent.STATUS_LIVE, GameEvent.STATUS_FINAL):
+                score_display = f"{g.home_score or 0}-{g.away_score or 0}"
+
+            context_line = ""
+            if g.game_note:
+                # Extract region/context from game_note
+                parts = g.game_note.split(" - ")
+                if len(parts) > 1:
+                    context_line = parts[0]  # e.g. "East Region"
+
+            games.append({
+                "game_id": g.id,
+                "home": g.home_team.name if hasattr(g.home_team, 'name') else str(g.home_team),
+                "away": g.away_team.name if hasattr(g.away_team, 'name') else str(g.away_team),
+                "home_logo": getattr(g.home_team, 'logo_url', '') or '',
+                "away_logo": getattr(g.away_team, 'logo_url', '') or '',
+                "home_score": g.home_score or 0,
+                "away_score": g.away_score or 0,
+                "score": score_display,
+                "status": status_label,
+                "start_time": g.start_time.isoformat() if g.start_time else "",
+                "context": context_line,
+            })
+    except Exception:
+        logger.debug("Scoreboard cluster query failed", exc_info=True)
+
+    if not games:
+        return None
+
+    # Sort: LIVE first, then FINAL (most recent), then UPCOMING
+    status_order = {"LIVE": 0, "FINAL": 1, "": 2}
+    games.sort(key=lambda g: (status_order.get(g['status'], 2), g.get('start_time', '')))
+
+    return {
+        "header": header,
+        "games": games,
+    }
+
+
+def _build_your_games_today(scored_teams, hero_team_id, _is_shown, _mark_shown, now):
+    """Build grouped timeline: NOW → LATER TODAY → TOMORROW.
+
+    Replaces the flat "Up Next" list with a grouped, chronological layout.
+    """
+    from django.utils.dateparse import parse_datetime
+
+    now_group = []
+    later_today_group = []
+    tomorrow_group = []
+    has_live = False
+
+    tomorrow_start = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    tomorrow_end = tomorrow_start.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    for _, t in scored_teams:
+        tid = t.get('team_id')
+        if tid == hero_team_id:
+            continue
+        if _is_shown(t):
+            continue
+
+        ng = t.get('next_game') or {}
+        start_time_str = ng.get('start_time', '')
+        status = t.get('status', 'upcoming')
+        context = _game_context_line(t)
+
+        game_entry = {
+            "team_name": t.get('team_name', ''),
+            "team_logo": t.get('logo_url', ''),
+            "opponent": ng.get('opponent', ''),
+            "is_home": ng.get('is_home', True),
+            "start_time": start_time_str,
+            "urgency": status,
+            "league": t.get('league', ''),
+            "context": context,
+        }
+
+        # Categorize into groups
+        if status == 'live':
+            has_live = True
+            _mark_shown(t)
+            now_group.append(game_entry)
+        elif status in ('starting_soon', 'today'):
+            _mark_shown(t)
+            later_today_group.append(game_entry)
+        elif status == 'upcoming' and start_time_str:
+            try:
+                start = parse_datetime(start_time_str)
+                if start and tomorrow_start <= start <= tomorrow_end:
+                    _mark_shown(t)
+                    tomorrow_group.append(game_entry)
+                elif start and start < tomorrow_start:
+                    # Today but marked upcoming
+                    _mark_shown(t)
+                    later_today_group.append(game_entry)
+            except (ValueError, TypeError):
+                pass
+
+    # Build grouped structure
+    groups = []
+    if has_live:
+        if now_group:
+            groups.append({"label": "NOW", "games": now_group})
+        if later_today_group:
+            groups.append({"label": "LATER TODAY", "games": later_today_group})
+        if tomorrow_group:
+            groups.append({"label": "TOMORROW", "games": tomorrow_group})
+    else:
+        all_today = later_today_group
+        if all_today:
+            groups.append({"label": "TODAY", "games": all_today})
+        if tomorrow_group:
+            groups.append({"label": "TOMORROW", "games": tomorrow_group})
+
+    return groups
 
 
 def _build_smart_ticker(teams, storylines):
@@ -705,12 +843,16 @@ def _build_from_signals(user, follows, team_map, team_ids, now):
 
     return {
         "hero": hero,
+        "live_context": None,  # Signal path doesn't support new layout yet
+        "scoreboard": None,
         "live_now": live_now,
         "ticker": ticker_items[:15],
         "whats_next": whats_next,
+        "your_games_today": [],
         "momentum": momentum,
         "storylines": storylines,
         "more_games": more_games,
+        "event_context": None,
         "meta": meta,
     }
 
@@ -1239,6 +1381,8 @@ def _build_hero_from_contract(team_entry):
         "score": ng.get('score', ''),
         "insight": "",
         "pitcher": ng.get('pitcher', ''),
+        "game_type": ng.get('game_type', 'regular'),
+        "game_id": ng.get('game_id'),
     }
 
     # ── Insight tag: short significance label for badge area ────────
@@ -1665,9 +1809,12 @@ def _empty_view_model():
     """Return empty view model structure."""
     return {
         "hero": None,
+        "live_context": None,
+        "scoreboard": None,
         "live_now": [],
         "ticker": [],
         "whats_next": [],
+        "your_games_today": [],
         "momentum": [],
         "storylines": [],
         "more_games": [],

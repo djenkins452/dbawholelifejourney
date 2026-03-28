@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Sports Page Structure Rebuild (Phase 1)
+
+- **Objective:** Shift from static data layout to dynamic live sports experience modeled after ESPN hierarchy.
+- **New Page Structure (top → down):**
+  1. **Hero (enhanced)** — Added tournament context line ("Sweet 16 — Elite Eight on the line"), game_type/game_id fields
+  2. **Live Context Block (NEW)** — Deterministic block under hero when game is LIVE: "{team} leads {opponent} {score}" + game status
+  3. **Scoreboard Cluster (NEW)** — Tournament scoreboard grid (2-col) showing up to 6 same-day tournament games, sorted LIVE → FINAL → UPCOMING
+  4. **Your Games Today (NEW, replaces "Up Next")** — Grouped timeline: NOW (live) → LATER TODAY → TOMORROW. Chronological within groups.
+  5. **Ticker** — Moved below scoreboard cluster (was above Up Next)
+  6. **Momentum / Storylines / More Games** — Unchanged
+- **Removed:** Live Strip (replaced by Live Context + Scoreboard), Event Context (replaced by Scoreboard Cluster), "Up Next" label (renamed to "Your Games Today")
+- **View Model:** Added `_enhance_hero_context()`, `_build_live_context()`, `_build_scoreboard_cluster()`, `_build_your_games_today()`. Signal fallback path returns empty new keys for backward compat.
+- **Template:** Complete rewrite of `my_teams.html` to v5 layout. Added CSS for scoreboard grid, live context block, timeline groups. CSP-compliant (no inline handlers).
+- **Tests:** All 95 sports tests pass.
+- **Files:** `apps/sports/services/sports_view_model.py`, `apps/sports/templates/sports/my_teams.html`, `docs/wlj_claude_changelog.md`
+
 ## 2026-03-28 — Enhancement: Engine List Criticality Sort + Clickable Column Headers
 
 - **Change:** All Intelligence Engines page now defaults to showing enabled engines first, sorted by criticality tier (P0→P3), with a new Criticality column
